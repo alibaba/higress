@@ -53,6 +53,22 @@ https://istio.io/latest/docs/setup/install
 
 ### step 2. install higress
 
+```bash
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
+```
 
+### step 3. create an ingress and test it
+    
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-ingress
+spec:
+  defaultBackend:
+    service:
+      name: test
+      port:
+        number: 80    
+```
 
