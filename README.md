@@ -14,7 +14,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 - [**Use Cases**](#use-cases)
 - [**Higress Features**](#higress-features)
-
+- [**Quick Start**](#quick-start)
 
 ## Use Cases
 
@@ -39,4 +39,20 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
    （TODO）
   
-  
+## Quick Start
+
+### step 1. install istio
+
+select higress istio: 
+```bash
+helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
+```
+
+or select official istio (lose some abilities, such as using annotation to limit request rate):
+https://istio.io/latest/docs/setup/install
+
+### step 2. install higress
+
+helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
+
+
