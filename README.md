@@ -63,12 +63,22 @@ helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.ali
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: test-ingress
+  name: simple-example
 spec:
-  defaultBackend:
-    service:
-      name: test
-      port:
-        number: 80    
+  rules:
+  - host: foo.bar.com
+    http:
+      paths:
+      - path: /foo
+        pathType: Prefix
+        backend:
+          service:
+            name: test
+            port:
+              number: 80  
 ```
+    
+```bash
+curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
+```    
 
