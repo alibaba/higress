@@ -1,0 +1,183 @@
+hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+ingressClass: ""
+watchNamespace: ""
+enableStatus: false
+clusterName: ""
+istioNamespace: "istio-system"
+meshConfig: {}
+gateway:
+  name: "higress-gateway"
+  replicaCount: 2
+  image: gateway
+  tag: ""
+  # revision declares which revision this gateway is a part of
+  revision: ""
+
+  rbac:
+    # If enabled, roles will be created to enable accessing certificates from Gateways. This is not needed
+    # when using http://gateway-api.org/.
+    enabled: true
+
+  serviceAccount:
+    # If set, a service account will be created. Otherwise, the default is used
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set, the release name is used
+    name: ""
+
+  # Pod environment variables
+  env: {}
+
+  # Labels to apply to all resources
+  labels: {}
+
+  # Annotations to apply to all resources
+  annotations: {}
+
+  podAnnotations:
+    prometheus.io/port: "15020"
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/stats/prometheus"
+    inject.istio.io/templates: "gateway"
+    sidecar.istio.io/inject: "true"
+  
+  # Define the security context for the pod.
+  # If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443.
+  # On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl.
+  securityContext: ~
+  containerSecurityContext: ~
+  
+  service:
+    # Type of service. Set to "None" to disable the service entirely
+    type: LoadBalancer
+    ports:
+    - name: status-port
+      port: 15021
+      protocol: TCP
+      targetPort: 15021
+    - name: http2
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 443
+    annotations: {}
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    externalTrafficPolicy: ""
+
+  rollingMaxSurge: 100%
+  rollingMaxUnavailable: 25%
+    
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 2048Mi
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  
+  tolerations: []
+  
+  affinity: {}
+  
+  # If specified, the gateway will act as a network gateway for the given network.
+  networkGateway: ""
+  
+controller:
+  name: "higress-controller"
+  replicaCount: 1
+  image: higress
+  tag: ""
+  env: {}
+  replicaCount: 1
+
+  labels: {}
+  
+  probe: {
+    httpGet: {
+      path: /ready,
+      port: 8888,
+    },
+    initialDelaySeconds: 1,
+    periodSeconds: 3,
+    timeoutSeconds: 5
+  }
+  
+  imagePullSecrets: []
+
+  rbac:
+    create: true
+  
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+  
+  podAnnotations: {}
+  
+  podSecurityContext: {}
+    # fsGroup: 2000
+  
+  ports: [
+    {
+      "name": "http",
+      "protocol": "TCP",
+      "port": 8888,
+      "targetPort": 8888,
+    },
+    {
+      "name": "grpc",
+      "protocol": "TCP",
+      "port": 15051,
+      "targetPort": 15051,
+    }
+  ]
+  
+  service:
+    type: ClusterIP
+  
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2048Mi
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+  
+  nodeSelector: {}
+  
+  tolerations: []
+  
+  affinity: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+  
