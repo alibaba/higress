@@ -1,5 +1,5 @@
 <h1 align="center">
-    <img src="https://user-images.githubusercontent.com/6763318/199222816-f1238884-48b0-42ff-8ec1-9b958154a4f4.png" alt="Higress" width="240" height="72.5">
+    <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
   Next-generation Cloud Native Gateway
 </h1>
