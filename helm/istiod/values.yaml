@@ -1,5 +1,7 @@
 higress:
-  xds: "xds://higress-controller.higress-system:15051"
+  name: higress-controller
+  namespace: higress-system
+  port: "15051"
 
 #.Values.pilot for discovery and mesh wide config
 
@@ -30,8 +32,6 @@ pilot:
     PILOT_ENABLE_METADATA_EXCHANGE: "false"
     PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: "false"
     VALIDATION_ENABLED: "false"
-    HIGRESS_CONTROLLER_SVC: "higress-controller.higress-system"
-    HIGRESS_CONTROLLER_PORT: "15051"
 
   cpu:
     targetAverageUtilization: 80
