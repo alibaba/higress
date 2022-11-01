@@ -11,7 +11,7 @@
 
     configSources:
       - address: k8s://
-      - address: {{ printf "xds://%s.%s:%s" .Values.higress.name .Values.higress.namespace .Values.higress.port }}
+      - address: {{ printf "xds://%s.%s:%s" .Values.global.higressName .Values.global.higressNamespace .Values.global.higressPort }}
 
     defaultConfig:
       {{- if .Values.global.meshID }}
