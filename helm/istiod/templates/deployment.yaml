@@ -113,9 +113,9 @@ spec:
             timeoutSeconds: 5
           env:
           - name: HIGRESS_CONTROLLER_SVC
-            value: {{ printf "%s.%s" .Values.higress.name .Values.higress.namespace }}
+            value: {{ printf "%s.%s" .Values.global.higressName .Values.global.higressNamespace }}
           - name: HIGRESS_CONTROLLER_PORT
-            value: "{{ .Values.higress.port }}"
+            value: "{{ .Values.global.higressPort }}"
           - name: REVISION
             value: "{{ .Values.revision | default `default` }}"
           - name: JWT_POLICY

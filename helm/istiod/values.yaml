@@ -1,8 +1,3 @@
-higress:
-  name: higress-controller
-  namespace: higress-system
-  port: "15051"
-
 #.Values.pilot for discovery and mesh wide config
 
 ## Discovery Settings
@@ -226,6 +221,9 @@ meshConfig:
   # No hurry to do this in 1.6, we're trying to prove the code.
 
 global:
+  higressName: "higress-controller"
+  higressNamespace: "higress-system"
+  higressPort: "15051"
   # Used to locate istiod.
   istioNamespace: istio-system
   # enable pod disruption budget for the control plane, which is used to
