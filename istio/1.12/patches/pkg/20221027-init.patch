@@ -1,0 +1,74 @@
+diff --git a/log/config.go b/log/config.go
+index f0d9c0c..8e008c9 100644
+--- a/log/config.go
++++ b/log/config.go
+@@ -141,6 +141,12 @@ func prepZap(options *Options) (zapcore.Core, zapcore.Core, zapcore.WriteSyncer,
+ 	} else {
+ 		encCfg := defaultEncoderConfig
+ 
++		// Added by ingress
++		// Support local time format
++		if options.LocalTime {
++			encCfg.EncodeTime = formatLocalDate
++		}
++
+ 		if options.JSONEncoding {
+ 			enc = zapcore.NewJSONEncoder(encCfg)
+ 			useJSON.Store(true)
+@@ -239,6 +245,42 @@ func formatDate(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+ 	enc.AppendString(string(buf))
+ }
+ 
++func formatLocalDate(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
++	t = t.Local()
++	year, month, day := t.Date()
++	hour, minute, second := t.Clock()
++	micros := t.Nanosecond() / 1000
++	buf := make([]byte, 27)
++	buf[0] = byte((year/1000)%10) + '0'
++	buf[1] = byte((year/100)%10) + '0'
++	buf[2] = byte((year/10)%10) + '0'
++	buf[3] = byte(year%10) + '0'
++	buf[4] = '-'
++	buf[5] = byte((month)/10) + '0'
++	buf[6] = byte((month)%10) + '0'
++	buf[7] = '-'
++	buf[8] = byte((day)/10) + '0'
++	buf[9] = byte((day)%10) + '0'
++	buf[10] = 'T'
++	buf[11] = byte((hour)/10) + '0'
++	buf[12] = byte((hour)%10) + '0'
++	buf[13] = ':'
++	buf[14] = byte((minute)/10) + '0'
++	buf[15] = byte((minute)%10) + '0'
++	buf[16] = ':'
++	buf[17] = byte((second)/10) + '0'
++	buf[18] = byte((second)%10) + '0'
++	buf[19] = '.'
++	buf[20] = byte((micros/100000)%10) + '0'
++	buf[21] = byte((micros/10000)%10) + '0'
++	buf[22] = byte((micros/1000)%10) + '0'
++	buf[23] = byte((micros/100)%10) + '0'
++	buf[24] = byte((micros/10)%10) + '0'
++	buf[25] = byte((micros)%10) + '0'
++	buf[26] = 'Z'
++	enc.AppendString(string(buf))
++}
++
+ func updateScopes(options *Options) error {
+ 	// snapshot what's there
+ 	allScopes := Scopes()
+diff --git a/log/options.go b/log/options.go
+index e1833fe..999e4b2 100644
+--- a/log/options.go
++++ b/log/options.go
+@@ -133,6 +133,9 @@ type Options struct {
+ 	teeToUDSServer   bool
+ 	udsSocketAddress string
+ 	udsServerPath    string
++
++	// localTime determines whether the time format of istio log is local time format.
++	LocalTime bool
+ }
+ 
+ // DefaultOptions returns a new set of options, initialized to the defaults
