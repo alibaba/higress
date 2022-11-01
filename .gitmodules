@@ -1,0 +1,21 @@
+[submodule "istio/1.12/api"]
+	path = istio/1.12/api
+	url = https://github.com/istio/api
+[submodule "istio/1.12/istio"]
+	path = istio/1.12/istio
+	url = https://github.com/istio/istio
+[submodule "istio/1.12/client-go"]
+	path = istio/1.12/client-go
+	url = https://github.com/istio/client-go
+[submodule "istio/1.12/pkg"]
+	path = istio/1.12/pkg
+	url = https://github.com/istio/pkg
+[submodule "istio/1.12/proxy"]
+	path = istio/1.12/proxy
+	url = https://github.com/istio/proxy
+[submodule "envoy/1.20/go-control-plane"]
+	path = envoy/1.20/go-control-plane
+	url = https://github.com/envoyproxy/go-control-plane
+[submodule "envoy/1.20/envoy"]
+	path = envoy/1.20/envoy
+	url = https://github.com/envoyproxy/envoy
