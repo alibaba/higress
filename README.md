@@ -4,11 +4,16 @@
   Next-generation Cloud Native Gateway
 </h1>
 
+<p>
+   English | <a href="README-CN.md">中文<a/>
+</p>
+
 Higress is a next-generation cloud-native gateway based on Alibaba's internal gateway practices. 
 
 Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.com/envoyproxy/envoy), Higress realizes the integration of the triple gateway architecture of traffic gateway, microservice gateway and security gateway, thereby greatly reducing the costs of deployment, operation and maintenance.
 
 <BR><center><img src="https://img.alicdn.com/imgextra/i4/O1CN01dqXHDi27RhjAtZyNp_!!6000000007794-0-tps-1794-1446.jpg" alt="Higress Architecture"></center>
+
 
 ## Summary
 
