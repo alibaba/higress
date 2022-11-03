@@ -17,6 +17,7 @@ header:
     - 'docker/**'
     - 'Makefile*'
     - 'script/**'
+    - '.gitmodules'
 
   comment: on-failure
 dependency:
