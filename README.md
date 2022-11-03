@@ -142,6 +142,7 @@ helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyunc
 ```
 
 or select official istio (lose some abilities, such as using annotation to limit request rate):
+    
 https://istio.io/latest/docs/setup/install
 
 #### step 2. install higress
