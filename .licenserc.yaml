@@ -9,6 +9,14 @@ header:
     - 'LICENSE'
     - '.github/**'
     - '.licenserc.yaml'
+    - 'helm/**'
+    - 'envoy/**'
+    - 'istio/**'
+    - 'go.mod'
+    - 'go.sum'
+    - 'docker/**'
+    - 'Makefile*'
+    - 'script/**'
 
   comment: on-failure
 dependency:
