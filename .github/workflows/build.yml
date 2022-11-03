@@ -13,12 +13,12 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.18
+          - 1.19
     steps:
       - name: "set up go"
         uses: actions/setup-go@v3
         with:
-          go-version: 1.18
+          go-version: 1.19
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: "checkout ${{ github.ref }}"
@@ -27,10 +27,10 @@ jobs:
           fetch-depth: 2
 
       - name: "run go build"
-        run: make build -v ./...
+        run: make build 
 
       - name: "run go test and out codecov"
-        run: make prebuild; go test -v ./... -race -coverprofile=coverage.out -covermode=atomic
+        run: make prebuild; go test -v cmd/... ingress/... -race -coverprofile=coverage.out -covermode=atomic
 
       - name: "upload coverage"
         uses: codecov/codecov-action@v3
