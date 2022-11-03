@@ -1,0 +1,309 @@
+diff --git a/Makefile.core.mk b/Makefile.core.mk
+index 60709804..ba73de92 100644
+--- a/Makefile.core.mk
++++ b/Makefile.core.mk
+@@ -206,6 +206,10 @@ test_release_centos:
+ push_release: build
+ 	export PATH=$(PATH) CC=$(CC) CXX=$(CXX) BAZEL_BUILD_ARGS="$(BAZEL_BUILD_ARGS)" && ./scripts/release-binary.sh -d "$(RELEASE_GCS_PATH)" -p
+ 
++push_release_simple: build
++	export PATH=$(PATH) CC=$(CC) CXX=$(CXX) BAZEL_BUILD_ARGS="$(BAZEL_BUILD_ARGS)" && ./scripts/release-binary.sh -p
++
++
+ push_release_centos:
+ 	export PATH=$(PATH) CC=$(CC) CXX=$(CXX) BAZEL_BUILD_ARGS="$(BAZEL_BUILD_ARGS) $(CENTOS_BUILD_ARGS)" BUILD_ENVOY_BINARY_ONLY=1 BASE_BINARY_NAME=envoy-centos && ./scripts/release-binary.sh -c -d "$(RELEASE_GCS_PATH)"
+ 
+diff --git a/WORKSPACE b/WORKSPACE
+index 0455bd98..0d248bed 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -49,11 +49,16 @@ ENVOY_REPO = "envoy"
+ 
+ # To override with local envoy, just pass `--override_repository=envoy=/PATH/TO/ENVOY` to Bazel or
+ # persist the option in `user.bazelrc`.
+-http_archive(
++# http_archive(
++#     name = "envoy",
++#     sha256 = ENVOY_SHA256,
++#     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
++#     url = "https://github.com/" + ENVOY_ORG + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
++# )
++
++local_repository(
+     name = "envoy",
+-    sha256 = ENVOY_SHA256,
+-    strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
+-    url = "https://github.com/" + ENVOY_ORG + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
++    path = "../envoy",
+ )
+ 
+ load("@envoy//bazel:api_binding.bzl", "envoy_api_binding")
+diff --git a/bazel/extension_config/extensions_build_config.bzl b/bazel/extension_config/extensions_build_config.bzl
+index 07003785..f0a56715 100644
+--- a/bazel/extension_config/extensions_build_config.bzl
++++ b/bazel/extension_config/extensions_build_config.bzl
+@@ -342,6 +342,11 @@ ENVOY_CONTRIB_EXTENSIONS = {
+     #
+ 
+     "envoy.bootstrap.vcl":                                      "//contrib/vcl/source:config",
++
++    # waf extension
++
++    # Custom cluster plugins
++    "envoy.router.cluster_specifier_plugin.cluster_fallback":   "//contrib/custom_cluster_plugins/cluster_fallback/source:config",
+ }
+ 
+ 
+@@ -362,6 +367,7 @@ ISTIO_ENABLED_CONTRIB_EXTENSIONS = [
+     "envoy.filters.network.sip_proxy",
+     "envoy.filters.sip.router",
+     "envoy.tls.key_providers.cryptomb",
++    "envoy.router.cluster_specifier_plugin.cluster_fallback",
+ ]
+ 
+ EXTENSIONS = dict([(k,v) for k,v in ENVOY_EXTENSIONS.items() if not k in ISTIO_DISABLED_EXTENSIONS] +
+diff --git a/common/scripts/run.sh b/common/scripts/run.sh
+index 271fe77a..79e43d7b 100755
+--- a/common/scripts/run.sh
++++ b/common/scripts/run.sh
+@@ -36,6 +36,10 @@ export REPO_ROOT=/work
+ 
+ MOUNT_SOURCE="${MOUNT_SOURCE:-${PWD}}"
+ MOUNT_DEST="${MOUNT_DEST:-/work}"
++CONTAINER_OPTIONS="${CONTAINER_OPTIONS:---net=host}"
++MOUNT_ENVOY_SOURCE="${MOUNT_ENVOY_SOURCE:-`cd $MOUNT_SOURCE/../envoy;pwd`}"
++MOUNT_PACKAGE_SOURCE="${MOUNT_PACKAGE_SOURCE:-`cd $MOUNT_SOURCE/../package;pwd`}"
++MOUNT_ROOT_SOURCE="${MOUNT_ROOT_SOURCE:-`cd $MOUNT_SOURCE/..;pwd`}"
+ 
+ read -ra DOCKER_RUN_OPTIONS <<< "${DOCKER_RUN_OPTIONS:-}"
+ 
+@@ -55,7 +59,11 @@ read -ra DOCKER_RUN_OPTIONS <<< "${DOCKER_RUN_OPTIONS:-}"
+     --env-file <(env | grep -v ${ENV_BLOCKLIST}) \
+     -e IN_BUILD_CONTAINER=1 \
+     -e TZ="${TIMEZONE:-$TZ}" \
++    --mount "type=bind,source=${MOUNT_PACKAGE_SOURCE},destination=/home/package" \
++    --mount "type=bind,source=${HOME}/.docker,destination=/home/.docker" \
+     --mount "type=bind,source=${MOUNT_SOURCE},destination=/work" \
++    --mount "type=bind,source=${MOUNT_ROOT_SOURCE}/..,destination=/parent" \
++    --mount "type=bind,source=${MOUNT_ENVOY_SOURCE},destination=/envoy" \
+     --mount "type=volume,source=go,destination=/go" \
+     --mount "type=volume,source=gocache,destination=/gocache" \
+     --mount "type=volume,source=cache,destination=/home/.cache" \
+diff --git a/common/scripts/setup_env.sh b/common/scripts/setup_env.sh
+index 4a5e80bb..f6174941 100755
+--- a/common/scripts/setup_env.sh
++++ b/common/scripts/setup_env.sh
+@@ -84,7 +84,8 @@ export TARGET_OUT_LINUX="${TARGET_OUT_LINUX:-$(pwd)/out/linux_${TARGET_ARCH}}"
+ export CONTAINER_TARGET_OUT="${CONTAINER_TARGET_OUT:-/work/out/${TARGET_OS}_${TARGET_ARCH}}"
+ export CONTAINER_TARGET_OUT_LINUX="${CONTAINER_TARGET_OUT_LINUX:-/work/out/linux_${TARGET_ARCH}}"
+ 
+-export IMG="${IMG:-gcr.io/istio-testing/${IMAGE_NAME}:${IMAGE_VERSION}}"
++#export IMG="${IMG:-gcr.io/istio-testing/${IMAGE_NAME}:${IMAGE_VERSION}}"
++export IMG="${IMG:-higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/${IMAGE_NAME}:${IMAGE_VERSION}}"
+ 
+ export CONTAINER_CLI="${CONTAINER_CLI:-docker}"
+ 
+diff --git a/scripts/release-binary.sh b/scripts/release-binary.sh
+index 7059f5c1..8673b982 100755
+--- a/scripts/release-binary.sh
++++ b/scripts/release-binary.sh
+@@ -19,7 +19,7 @@
+ set -ex
+ 
+ # Use clang for the release builds.
+-export PATH=/usr/lib/llvm-10/bin:$PATH
++export PATH=/usr/lib/llvm/bin:$PATH
+ export CC=${CC:-clang}
+ export CXX=${CXX:-clang++}
+ 
+@@ -98,25 +98,26 @@ fi
+ # The proxy binary name.
+ SHA="$(git rev-parse --verify HEAD)"
+ 
+-if [ -n "${DST}" ]; then
+-  # If binary already exists skip.
+-  # Use the name of the last artifact to make sure that everything was uploaded.
+-  BINARY_NAME="${HOME}/istio-proxy-debug-${SHA}.deb"
+-  gsutil stat "${DST}/${BINARY_NAME}" \
+-    && { echo 'Binary already exists'; exit 0; } \
+-    || echo 'Building a new binary.'
+-fi
++# if [ -n "${DST}" ]; then
++#   # If binary already exists skip.
++#   # Use the name of the last artifact to make sure that everything was uploaded.
++#   BINARY_NAME="${HOME}/istio-proxy-debug-${SHA}.deb"
++#   gsutil stat "${DST}/${BINARY_NAME}" \
++#     && { echo 'Binary already exists'; exit 0; } \
++#     || echo 'Building a new binary.'
++# fi
+ 
+ # BAZEL_OUT: Symlinks don't work, use full path as a temporary workaround.
+ # See: https://github.com/istio/istio/issues/15714 for details.
+ # k8-opt is the output directory for x86_64 optimized builds (-c opt, so --config=release-symbol and --config=release).
+ # k8-dbg is the output directory for -c dbg builds.
+-for config in release release-symbol debug
++#for config in release release-symbol debug
++for config in release
+ do
+   case $config in
+     "release" )
+       CONFIG_PARAMS="--config=release"
+-      BINARY_BASE_NAME="${BASE_BINARY_NAME}-alpha"
++      BINARY_BASE_NAME="${BASE_BINARY_NAME}"
+       PACKAGE_BASE_NAME="istio-proxy"
+       # shellcheck disable=SC2086
+       BAZEL_OUT="$(bazel info ${BAZEL_BUILD_ARGS} output_path)/k8-opt/bin"
+@@ -149,7 +150,7 @@ do
+   export BUILD_CONFIG=${config}
+ 
+   echo "Building ${config} proxy"
+-  BINARY_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}.tar.gz"
++  BINARY_NAME="${HOME}/package/${BINARY_BASE_NAME}.tar.gz"
+   SHA256_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}.sha256"
+   # All cores are used by com_googlesource_chromium_v8:build within. 
+   # Prebuild this target to avoid stacking this ram intensive task with others.
+@@ -174,14 +175,12 @@ do
+   echo "Building ${config} docker image"
+   # shellcheck disable=SC2086
+   bazel build ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} \
+-    //tools/docker:envoy_distroless \
+     //tools/docker:envoy_ubuntu
+ 
+   if [ "${PUSH_DOCKER_IMAGE}" -eq 1 ]; then
+     echo "Pushing ${config} docker image"
+     # shellcheck disable=SC2086
+     bazel run ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} \
+-      //tools/docker:push_envoy_distroless \
+       //tools/docker:push_envoy_ubuntu
+   fi
+ 
+@@ -209,36 +208,36 @@ if [ "${BUILD_ENVOY_BINARY_ONLY}" -eq 1 ]; then
+ fi
+ 
+ # Build and publish Wasm plugins
+-extensions=(stats metadata_exchange attributegen)
+-TMP_WASM=$(mktemp -d -t wasm-plugins-XXXXXXXXXX)
+-trap 'rm -rf ${TMP_WASM}' EXIT
+-make build_wasm
+-if [ -n "${DST}" ]; then
+-  for extension in "${extensions[@]}"; do
+-    # Rename the plugin file and generate sha256 for it
+-    WASM_NAME="${extension}-${SHA}.wasm"
+-    WASM_COMPILED_NAME="${extension}-${SHA}.compiled.wasm"
+-    WASM_PATH="${TMP_WASM}/${WASM_NAME}"
+-    WASM_COMPILED_PATH="${TMP_WASM}/${WASM_COMPILED_NAME}"
+-    SHA256_PATH="${WASM_PATH}.sha256"
+-    SHA256_COMPILED_PATH="${WASM_COMPILED_PATH}.sha256"
+-    # shellcheck disable=SC2086
+-    BAZEL_TARGET=$(bazel info ${BAZEL_BUILD_ARGS} output_path)/k8-opt/bin/extensions/${extension}.wasm
+-    # shellcheck disable=SC2086
+-    BAZEL_COMPILED_TARGET=$(bazel info ${BAZEL_BUILD_ARGS} output_path)/k8-opt/bin/extensions/${extension}.compiled.wasm
+-    cp "${BAZEL_TARGET}" "${WASM_PATH}"
+-    cp "${BAZEL_COMPILED_TARGET}" "${WASM_COMPILED_PATH}"
+-    sha256sum "${WASM_PATH}" > "${SHA256_PATH}"
+-    sha256sum "${WASM_COMPILED_PATH}" > "${SHA256_COMPILED_PATH}"
++# extensions=(stats metadata_exchange attributegen)
++# TMP_WASM=$(mktemp -d -t wasm-plugins-XXXXXXXXXX)
++# trap 'rm -rf ${TMP_WASM}' EXIT
++# make build_wasm
++# if [ -n "${DST}" ]; then
++#   for extension in "${extensions[@]}"; do
++#     # Rename the plugin file and generate sha256 for it
++#     WASM_NAME="${extension}-${SHA}.wasm"
++#     WASM_COMPILED_NAME="${extension}-${SHA}.compiled.wasm"
++#     WASM_PATH="${TMP_WASM}/${WASM_NAME}"
++#     WASM_COMPILED_PATH="${TMP_WASM}/${WASM_COMPILED_NAME}"
++#     SHA256_PATH="${WASM_PATH}.sha256"
++#     SHA256_COMPILED_PATH="${WASM_COMPILED_PATH}.sha256"
++#     # shellcheck disable=SC2086
++#     BAZEL_TARGET=$(bazel info ${BAZEL_BUILD_ARGS} output_path)/k8-opt/bin/extensions/${extension}.wasm
++#     # shellcheck disable=SC2086
++#     BAZEL_COMPILED_TARGET=$(bazel info ${BAZEL_BUILD_ARGS} output_path)/k8-opt/bin/extensions/${extension}.compiled.wasm
++#     cp "${BAZEL_TARGET}" "${WASM_PATH}"
++#     cp "${BAZEL_COMPILED_TARGET}" "${WASM_COMPILED_PATH}"
++#     sha256sum "${WASM_PATH}" > "${SHA256_PATH}"
++#     sha256sum "${WASM_COMPILED_PATH}" > "${SHA256_COMPILED_PATH}"
+     
+-    # push wasm files and sha to the given bucket
+-    gsutil stat "${DST}/${WASM_NAME}" \
+-      && { echo "WASM file ${WASM_NAME} already exist"; continue; } \
+-      || echo "Pushing the WASM file ${WASM_NAME}"
+-    gsutil stat "${DST}/${WASM_COMPILED_NAME}" \
+-      && { echo "WASM file ${WASM_COMPILED_NAME} already exist"; continue; } \
+-      || echo "Pushing the WASM file ${WASM_COMPILED_NAME}"
+-    gsutil cp "${WASM_PATH}" "${SHA256_PATH}" "${DST}"
+-    gsutil cp "${WASM_COMPILED_PATH}" "${SHA256_COMPILED_PATH}" "${DST}"
+-  done
+-fi
++#     # push wasm files and sha to the given bucket
++#     gsutil stat "${DST}/${WASM_NAME}" \
++#       && { echo "WASM file ${WASM_NAME} already exist"; continue; } \
++#       || echo "Pushing the WASM file ${WASM_NAME}"
++#     gsutil stat "${DST}/${WASM_COMPILED_NAME}" \
++#       && { echo "WASM file ${WASM_COMPILED_NAME} already exist"; continue; } \
++#       || echo "Pushing the WASM file ${WASM_COMPILED_NAME}"
++#     gsutil cp "${WASM_PATH}" "${SHA256_PATH}" "${DST}"
++#     gsutil cp "${WASM_COMPILED_PATH}" "${SHA256_COMPILED_PATH}" "${DST}"
++#   done
++# fi
+diff --git a/src/envoy/BUILD b/src/envoy/BUILD
+index 5f35b0f7..671640cb 100644
+--- a/src/envoy/BUILD
++++ b/src/envoy/BUILD
+@@ -18,6 +18,15 @@ load("@rules_pkg//:pkg.bzl", "pkg_tar")
+ load(
+     "@envoy//bazel:envoy_build_system.bzl",
+     "envoy_cc_binary",
++    "envoy_cc_contrib_extension",
++    "envoy_cc_library",
++    "envoy_contrib_package",
++)
++load(
++    "@envoy//contrib:all_contrib_extensions.bzl",
++    "ARM64_SKIP_CONTRIB_TARGETS",
++    "PPC_SKIP_CONTRIB_TARGETS",
++    "envoy_all_contrib_extensions",
+ )
+ 
+ envoy_cc_binary(
+@@ -37,6 +46,18 @@ envoy_cc_binary(
+         "//src/envoy/tcp/sni_verifier:config_lib",
+         "//src/envoy/tcp/tcp_cluster_rewrite:config_lib",
+         "@envoy//source/exe:envoy_main_entry_lib",
++    ] + [
++        "@envoy//contrib/custom_cluster_plugins/cluster_fallback/source:config",
++        "@envoy//contrib/http_dubbo_transcoder/filters/http/source:config",
++        "@envoy//contrib/kafka/filters/network/source:kafka_broker_config_lib",
++        "@envoy//contrib/kafka/filters/network/source/mesh:config_lib",
++        "@envoy//contrib/mysql_proxy/filters/network/source:config",
++        "@envoy//contrib/postgres_proxy/filters/network/source:config",
++        "@envoy//contrib/rocketmq_proxy/filters/network/source:config",
++        "@envoy//contrib/sip_proxy/filters/network/source:config",
++        "@envoy//contrib/sip_proxy/filters/network/source/router:config",
++        "@envoy//contrib/squash/filters/http/source:config",
++        "@envoy//contrib/upstreams/http/dubbo_tcp/source:config"
+     ],
+ )
+ 
+diff --git a/tools/docker/BUILD b/tools/docker/BUILD
+index d5a6e5fd..f949c13f 100644
+--- a/tools/docker/BUILD
++++ b/tools/docker/BUILD
+@@ -36,7 +36,7 @@ container_push(
+     name = "push_envoy_distroless",
+     format = "Docker",
+     image = ":envoy_distroless",
+-    registry = "gcr.io",
++    registry = "registry.cn-hangzhou.aliyuncs.com",
+     repository = "{DOCKER_REPOSITORY}",
+     tag = "{BUILD_CONFIG}-{BUILD_SCM_REVISION}",
+ )
+@@ -45,7 +45,7 @@ container_push(
+     name = "push_envoy_ubuntu",
+     format = "Docker",
+     image = ":envoy_ubuntu",
+-    registry = "gcr.io",
++    registry = "registry.cn-hangzhou.aliyuncs.com",
+     repository = "{DOCKER_REPOSITORY}",
+     tag = "ubuntu-{BUILD_CONFIG}-{BUILD_SCM_REVISION}",
+ )

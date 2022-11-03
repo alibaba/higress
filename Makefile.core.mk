@@ -108,10 +108,11 @@ clean-higress: ## Cleans all the intermediate files and folders previously gener
 	rm -rf $(DIRS_TO_CLEAN)
 
 clean-istio:
-	rm -rf external/istio/out
+	rm -rf external/istio
 
 clean-gateway: clean-istio
-	rm -rf external/proxy/out
+        rm -rf external/envoy
+	rm -rf external/proxy
 	rm external/package/envoy.tar.gz
 
 clean: clean-higress clean-gateway

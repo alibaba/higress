@@ -1,3 +1,5 @@
 external
 out
 *.tgz
+
+.idea/
