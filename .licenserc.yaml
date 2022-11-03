@@ -1,0 +1,14 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: alibaba
+
+  paths-ignore:
+    - '.gitignore'
+    - 'README.md'
+    - 'LICENSE'
+
+  comment: on-failure
+dependency:
+  files:
+    - go.mod
