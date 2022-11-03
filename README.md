@@ -40,8 +40,11 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
    （TODO）
   
 ## Quick Start
+- [**Local Environment**](#local-environment)
+- [**Production Environment**](#production-environment)
 
-### 1. Local Environment
+
+### Local Environment
 
 
 #### step 1. install kubectl & kind
@@ -131,7 +134,7 @@ curl localhost/bar
 ```
 
 
-### 2. Production Environment
+### Production Environment
 
 #### step 1. install istio
 
