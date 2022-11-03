@@ -41,23 +41,106 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
   
 ## Quick Start
 
-### step 1. install istio
+### Local Environment
+
+
+#### step 1. install kubectl & kind
+
+**On MacOS**
+```bash
+curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/darwin/amd64/kubectl
+# for Intel Macs
+[ $(uname -m) = x86_64 ]&& curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-darwin-amd64
+# for M1 / ARM Macs
+[ $(uname -m) = arm64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-darwin-arm64
+chmod +x ./kind ./kubectl
+mv ./kind ./kubectl /some-dir-in-your-PATH/
+```
+
+**On Windows in PowerShell:**
+```bash
+curl.exe -Lo kubectl.exe https://storage.googleapis.com/kubernetes-release/release/$(curl.exe -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/windows/amd64/kubectl.exe
+curl.exe -Lo kind-windows-amd64.exe https://kind.sigs.k8s.io/dl/v0.17.0/kind-windows-amd64
+Move-Item .\kind-windows-amd64.exe c:\some-dir-in-your-PATH\kind.exe
+Move-Item .\kubectl.exe c:\some-dir-in-your-PATH\kubectl.exe
+```
+
+**On Linux:**
+```bash
+curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64
+chmod +x ./kind ./kubectl
+sudo mv ./kind ./kubectl /usr/local/bin/kind
+```
+
+#### step 2. create kind cluster
+
+```bash
+cat <<EOF | kind create cluster --name higress-test --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
+```
+
+#### step 3. install istio & higress
+
+```bash
+helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio-local
+helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
+```
+
+#### step 4. deploy the ingress and test it!
+
+```bash
+kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
+```
+
+Now verify that the ingress works
+
+```bash
+# should output "foo"
+curl localhost/foo
+# should output "bar"
+curl localhost/bar
+```
+
+
+### Production Environment
+
+#### step 1. install istio
 
 select higress istio: 
 ```bash
+kubectl create ns istio-system
 helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
 ```
 
 or select official istio (lose some abilities, such as using annotation to limit request rate):
 https://istio.io/latest/docs/setup/install
 
-### step 2. install higress
+#### step 2. install higress
 
 ```bash
+kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
 ```
 
-### step 3. create an ingress and test it
+#### step 3. create an ingress and test it
     
 ```yaml
 apiVersion: networking.k8s.io/v1
