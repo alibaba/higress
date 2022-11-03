@@ -75,8 +75,10 @@ sudo mv ./kind ./kubectl /usr/local/bin/kind
 
 #### step 2. create kind cluster
 
-```bash
-cat <<EOF | kind create cluster --name higress-test --config=-
+create a cluster config file: `cluster.conf`
+
+```yaml
+# cluster.conf
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -94,7 +96,16 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-EOF
+```
+Mac & Linux:
+```bash
+kind create cluster --name higress --config=cluster.conf
+kubectl cluster-info --context higress
+```
+Windows:
+```bash
+kind.exe create cluster --name higress --config=cluster.conf
+kubectl.exe cluster-info --context higress
 ```
 
 #### step 3. install istio & higress
@@ -104,7 +115,7 @@ helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyunc
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
 
-#### step 4. deploy the ingress and test it!
+#### step 4. create the ingress and test it!
 
 ```bash
 kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
@@ -140,7 +151,9 @@ kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
 ```
 
-#### step 3. create an ingress and test it
+#### step 3. create the ingress and test it!
+
+for example there is a service `test` in default namespace.
     
 ```yaml
 apiVersion: networking.k8s.io/v1
