@@ -111,7 +111,7 @@ clean-istio:
 	rm -rf external/istio
 
 clean-gateway: clean-istio
-        rm -rf external/envoy
+	rm -rf external/envoy
 	rm -rf external/proxy
 	rm external/package/envoy.tar.gz
 
