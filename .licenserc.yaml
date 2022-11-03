@@ -7,6 +7,8 @@ header:
     - '.gitignore'
     - 'README.md'
     - 'LICENSE'
+    - '.github/**'
+    - '.licenserc.yaml'
 
   comment: on-failure
 dependency:
