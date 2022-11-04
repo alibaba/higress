@@ -1,0 +1,26 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: alibaba
+
+  paths-ignore:
+    - '.gitignore'
+    - 'README.md'
+    - 'README_EN.md'
+    - 'LICENSE'
+    - '.github/**'
+    - '.licenserc.yaml'
+    - 'helm/**'
+    - 'envoy/**'
+    - 'istio/**'
+    - 'go.mod'
+    - 'go.sum'
+    - 'docker/**'
+    - 'Makefile*'
+    - 'script/**'
+    - '.gitmodules'
+
+  comment: on-failure
+dependency:
+  files:
+    - go.mod
