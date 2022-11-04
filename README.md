@@ -8,7 +8,7 @@
    <a href="README_EN.md"> English <a/> | 中文
 </p>
 
-Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的下一代云原生网关。Higress 实现了安全防护网关、流量网关、微服务网关三层网关合一，从而显著降低了网关的部署和运维成本。
+Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的下一代云原生网关。Higress 实现了安全防护网关、流量网关、微服务网关三层网关合一，可以显著降低网关的部署和运维成本。
 
 <BR><center><img src="https://img.alicdn.com/imgextra/i4/O1CN01dqXHDi27RhjAtZyNp_!!6000000007794-0-tps-1794-1446.jpg" alt="Higress Architecture"></center>
 
@@ -25,7 +25,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
   Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
   
-  [Gateway API](https://gateway-api.sigs.k8s.io/) 标准的支持正在开发中，将会支持用户从 Ingress API 平滑迁移到 Gateway API。
+  支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，支持用户从 Ingress API 平滑迁移到 Gateway API。
   
 - **微服务网关**: 
 
@@ -40,23 +40,29 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 ## 核心优势
 
-- **兼容并蓄**
-  
-  兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的注解，简单一步轻松搞定 Nginx Ingress迁移；
-  
-  支持 Nacos/Zookeeper 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持传统非容器架构业务平滑过渡到云原生架构
-
 - **生产等级**
 
-  脱胎于历经阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景，具备企业级 SLA 的开源产品
-
-- **动态热更新**
+  脱胎于阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景
+    
+  彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感
   
-  彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感，Wasm 插件热更新且流量无损
+- **平滑演进**
+
+  支持 Nacos/Zookeeper 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持非容器架构平滑演进到云原生架构
+
+  支持从 Nginx Ingress Controller 平滑迁移，支持平滑过渡到 Gateway API，支持业务架构平滑演进到 ServiceMesh
+    
+- **兼收并蓄**
+  
+  兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解
+  
+  兼容 Ingress API/Gateway API/Istio API，可以组合多种 CRD 实现流量精细化管理  
   
 - **便于扩展**
   
-  提供 Wasm、Lua、进程外三种插件扩展机制，让多语言编写插件不再成为障碍，插件生效粒度既支持全局级、域名级，也支持细粒度的路由级
+  提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级
+    
+  插件支持热更新，变更插件逻辑和配置都对流量无损
 
 
 ## Quick Start
