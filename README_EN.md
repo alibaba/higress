@@ -111,12 +111,12 @@ nodes:
 Mac & Linux:
 ```bash
 kind create cluster --name higress --config=cluster.conf
-kubectl cluster-info --context higress
+kubectl config use-context kind-higress
 ```
 Windows:
 ```bash
 kind.exe create cluster --name higress --config=cluster.conf
-kubectl.exe cluster-info --context higress
+kubectl.exe config use-context kind-higress
 ```
 
 #### step 3. install istio & higress
