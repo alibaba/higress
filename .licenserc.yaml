@@ -19,6 +19,7 @@ header:
     - 'Makefile*'
     - 'script/**'
     - '.gitmodules'
+    - 'plugins/**'
 
   comment: on-failure
 dependency:
