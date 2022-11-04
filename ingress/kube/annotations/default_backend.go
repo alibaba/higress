@@ -95,7 +95,7 @@ func (f fallback) Parse(annotations Annotations, config *Ingress, globalContext 
 		codesStr := splitBySeparator(codes, ",")
 		var codesUint32 []uint32
 		for _, rawCode := range codesStr {
-			code, err := strconv.Atoi(rawCode)
+			code, err := strconv.ParseUint(rawCode, 10, 32)
 			if err != nil {
 				IngressLog.Errorf("Custom HTTP code %s within ingress %s/%s is invalid", rawCode, config.Namespace, config.Name)
 				continue
