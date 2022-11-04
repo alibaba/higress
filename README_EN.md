@@ -22,6 +22,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 - [**Use Cases**](#use-cases)
 - [**Higress Features**](#higress-features)
 - [**Quick Start**](#quick-start)
+- [**Thanks**](#thanks)
 
 ## Use Cases
 
@@ -188,3 +189,9 @@ spec:
 ```bash
 curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
 ```    
+
+
+### Thanks
+
+Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
+
