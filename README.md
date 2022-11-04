@@ -51,18 +51,18 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
   支持 Nacos/Zookeeper 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持传统非容器架构业务平滑过渡到云原生架构
 
   支持从 Nginx Ingress Controller 平滑迁移，支持从 Ingress API 平滑过渡到 Gateway API，基于 Istio 支持平滑演进到 ServiceMesh 架构
-  
-- **便于扩展**
-  
-  提供 Wasm、Lua、进程外三种插件扩展机制，让多语言编写插件不再成为障碍，插件生效粒度既支持全局级、域名级，也支持细粒度的路由级
     
-  同时插件支持热更新、热补丁，变更插件逻辑和配置都对流量无损
-  
 - **兼收并蓄**
   
   兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解
   
   兼容 Ingress API/Gateway API/Istio API，可以组合多种 CRD 实现流量精细化管理  
+  
+- **便于扩展**
+  
+  提供 Wasm、Lua、进程外三种插件扩展机制，让多语言编写插件不再成为障碍，插件生效粒度既支持全局级、域名级，路由级
+    
+  插件支持热更新，变更插件逻辑和配置都对流量无损
 
 
 ## Quick Start
