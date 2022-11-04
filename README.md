@@ -25,7 +25,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
   Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
   
-  [Gateway API](https://gateway-api.sigs.k8s.io/) 标准的支持正在开发中，将会支持用户从 Ingress API 平滑迁移到 Gateway API。
+  支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，支持用户从 Ingress API 平滑迁移到 Gateway API。
   
 - **微服务网关**: 
 
