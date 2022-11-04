@@ -18,7 +18,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 - [**核心优势**](#核心优势)
 - [**Quick Start**](#quick-start)
 - [**联系我们**](#联系我们)
-
+    
 ## 使用场景
 
 - **Kubernetes Ingress 网关**: 
@@ -216,4 +216,7 @@ curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBa
 
 ![contact-us](https://img.alicdn.com/imgextra/i2/O1CN01J29nbu1Zt0P1p7vW6_!!6000000003251-0-tps-2172-1406.jpg)
 
+### 感谢
+
+如果没有 Envoy 和 Istio 的开源工作，Higress 就不可能实现，在这里向这两个项目献上最诚挚的敬意。
 
