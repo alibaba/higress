@@ -140,7 +140,9 @@ kubectl.exe cluster-info --context higress
 #### 第三步、 安装 istio & higress
 
 ```bash
+kubectl create ns istio-system
 helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio-local
+kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
 
