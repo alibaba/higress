@@ -1,7 +1,6 @@
 ## Intro
 
-This SDK is used to develop the WASM Plugins of MSE Gateway (powered by envoy).
-
+This SDK is used to develop the WASM Plugins of Higress.
 ## Requirements
 
 (need support Go's type parameters)
