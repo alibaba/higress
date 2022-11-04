@@ -10,15 +10,14 @@
 
 Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的下一代云原生网关。Higress 实现了安全防护网关、流量网关、微服务网关三层网关合一，可以显著降低网关的部署和运维成本。
 
-<h1 align="center">
-  <img src="https://img.alicdn.com/imgextra/i1/O1CN01vnNawh26mU5C9py9w_!!6000000007704-0-tps-1726-1366.jpg" alt="Higress Architecture">
-</h1>
+![arch](https://img.alicdn.com/imgextra/i4/O1CN01OgGP1728t0xeRfRYJ_!!6000000007989-0-tps-1726-1366.jpg)
 
 ## Summary
 
 - [**使用场景**](#使用场景)
 - [**核心优势**](#核心优势)
 - [**Quick Start**](#quick-start)
+- [**联系我们**](#联系我们)
 
 ## 使用场景
 
@@ -210,4 +209,11 @@ spec:
 ```bash
 curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
 ```    
+
+## 联系我们
+
+- Mailing list: higress@googlegroups.com
+
+![contact-us](https://img.alicdn.com/imgextra/i2/O1CN01J29nbu1Zt0P1p7vW6_!!6000000003251-0-tps-2172-1406.jpg)
+
 
