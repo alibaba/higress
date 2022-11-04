@@ -60,8 +60,8 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 		config.Retry = retryConfig
 	}()
 
-	if count, err := annotations.ParseIntASAP(retryCount); err == nil {
-		retryConfig.retryCount = int32(count)
+	if count, err := annotations.ParseInt32ASAP(retryCount); err == nil {
+		retryConfig.retryCount = count
 	}
 
 	if timeout, err := annotations.ParseIntASAP(perRetryTimeout); err == nil {

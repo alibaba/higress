@@ -166,11 +166,66 @@ func (a Annotations) ParseIntForMSE(key string) (int, error) {
 	return 0, ErrMissingAnnotations
 }
 
+func (a Annotations) ParseInt32(key string) (int32, error) {
+	if len(a) == 0 {
+		return 0, ErrMissingAnnotations
+	}
+
+	val, ok := a[buildNginxAnnotationKey(key)]
+	if ok {
+		i, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return 0, ErrInvalidAnnotationValue
+		}
+		return int32(i), nil
+	}
+	return 0, ErrMissingAnnotations
+}
+
+func (a Annotations) ParseInt32ForMSE(key string) (int32, error) {
+	if len(a) == 0 {
+		return 0, ErrMissingAnnotations
+	}
+
+	val, ok := a[buildMSEAnnotationKey(key)]
+	if ok {
+		i, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return 0, ErrInvalidAnnotationValue
+		}
+		return int32(i), nil
+	}
+	return 0, ErrMissingAnnotations
+}
+
+func (a Annotations) ParseUint32ForMSE(key string) (uint32, error) {
+	if len(a) == 0 {
+		return 0, ErrMissingAnnotations
+	}
+
+	val, ok := a[buildMSEAnnotationKey(key)]
+	if ok {
+		i, err := strconv.ParseUint(val, 10, 32)
+		if err != nil {
+			return 0, ErrInvalidAnnotationValue
+		}
+		return uint32(i), nil
+	}
+	return 0, ErrMissingAnnotations
+}
+
 func (a Annotations) ParseIntASAP(key string) (int, error) {
 	if result, err := a.ParseInt(key); err == nil {
 		return result, nil
 	}
 	return a.ParseIntForMSE(key)
+}
+
+func (a Annotations) ParseInt32ASAP(key string) (int32, error) {
+	if result, err := a.ParseInt32(key); err == nil {
+		return result, nil
+	}
+	return a.ParseInt32ForMSE(key)
 }
 
 func (a Annotations) Has(key string) bool {

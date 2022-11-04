@@ -61,21 +61,21 @@ func (l localRateLimit) Parse(annotations Annotations, config *Ingress, _ *Globa
 		config.localRateLimit = local
 	}()
 
-	multiplier := defaultBurstMultiplier
-	if m, err := annotations.ParseIntForMSE(limitBurstMultiplier); err == nil {
+	var multiplier uint32 = defaultBurstMultiplier
+	if m, err := annotations.ParseUint32ForMSE(limitBurstMultiplier); err == nil {
 		multiplier = m
 	}
 
-	if rpm, err := annotations.ParseIntForMSE(limitRPM); err == nil {
+	if rpm, err := annotations.ParseUint32ForMSE(limitRPM); err == nil {
 		local = &localRateLimitConfig{
-			MaxTokens:     uint32(rpm * multiplier),
-			TokensPerFill: uint32(rpm),
+			MaxTokens:     rpm * multiplier,
+			TokensPerFill: rpm,
 			FillInterval:  minute,
 		}
-	} else if rps, err := annotations.ParseIntForMSE(limitRPS); err == nil {
+	} else if rps, err := annotations.ParseUint32ForMSE(limitRPS); err == nil {
 		local = &localRateLimitConfig{
-			MaxTokens:     uint32(rps * multiplier),
-			TokensPerFill: uint32(rps),
+			MaxTokens:     rps * multiplier,
+			TokensPerFill: rps,
 			FillInterval:  second,
 		}
 	}
