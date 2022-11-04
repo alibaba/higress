@@ -5,7 +5,7 @@
 </h1>
 
 <p>
-   English | <a href="README-CN.md">中文<a/>
+   English | <a href="README.md">中文<a/>
 </p>
 
 Higress is a next-generation cloud-native gateway based on Alibaba's internal gateway practices. 
@@ -27,7 +27,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
   Higress can function as a feature-rich ingress controller, which is compatible with many annotations of K8s' nginx ingress controller.
   
-  [Gateway API](https://gateway-api.sigs.k8s.io/) support is in progress and will support smooth migration from Ingress API to Gateway API.
+  [Gateway API](https://gateway-api.sigs.k8s.io/) support is coming soon and will support smooth migration from Ingress API to Gateway API.
   
 - **Microservice gateway**: 
 
