@@ -1,5 +1,9 @@
 external
 out
 *.tgz
-
+*.wasm
 .idea/
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-wasm-cpp
