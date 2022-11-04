@@ -379,14 +379,14 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		preDomainBuilder, _ := convertOptions.IngressDomainCache.Valid[rule.Host]
 		if !exist {
 			wrapperGateway = &common.WrapperGateway{
-				Gateway: &networking.Gateway{
-					Selector: map[string]string{
-						c.options.GatewaySelectorKey: c.options.GatewaySelectorValue,
-					},
-				},
+				Gateway:       &networking.Gateway{},
 				WrapperConfig: wrapper,
 				ClusterId:     c.options.ClusterId,
 				Host:          rule.Host,
+			}
+			if c.options.GatewaySelectorKey != "" {
+				wrapperGateway.Gateway.Selector = map[string]string{c.options.GatewaySelectorKey: c.options.GatewaySelectorValue}
+
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
