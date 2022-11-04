@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 
 	networking "istio.io/api/networking/v1alpha3"
 )
@@ -100,9 +101,7 @@ func TestRetryParse(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			config := &Ingress{}
 			_ = retry.Parse(inputCase.input, config, nil)
-			if !reflect.DeepEqual(inputCase.expect, config.Retry) {
-				t.Fatalf("Should be equal")
-			}
+			assert.Equal(t, inputCase.expect, config.Retry)
 		})
 	}
 }
