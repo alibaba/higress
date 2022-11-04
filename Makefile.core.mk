@@ -94,11 +94,11 @@ build-gateway: prebuild external/package/envoy.tar.gz
 	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 helm-push:
-	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts"
+	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(HUB)/charts"
 
 helm-push-istio:
 	cd helm/istio; helm dependency update
-	cd helm; tar -zcf istio.tgz istio; helm push istio.tgz "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts"
+	cd helm; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(HUB)/charts"
 
 
 DIRS_TO_CLEAN := $(OUT)
