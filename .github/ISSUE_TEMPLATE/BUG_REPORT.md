@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: If you would like to report a issue to Higress, please use this template.
+about: If you would like to report an issue to Higress, please use this template.
 
 
 ---
