@@ -4,11 +4,11 @@ about: Suggest an idea for Higress
 
 ---
 
-## Why you need it?
+## Why do you need it?
  Is your feature request related to a problem? Please describe in details
 
 
-## How it could be?
+## How could it be?
 A clear and concise description of what you want to happen. You can explain more about input of the feature, and output of it.
 
 
