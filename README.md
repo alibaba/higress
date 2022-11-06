@@ -222,4 +222,4 @@ curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBa
     
 - Mailing list: higress@googlegroups.com
 
-![contact-us](https://img.alicdn.com/imgextra/i2/O1CN01J29nbu1Zt0P1p7vW6_!!6000000003251-0-tps-2172-1406.jpg)
+![contact-us](https://img.alicdn.com/imgextra/i3/O1CN01KwJqnM1Rnx6aMR9lD_!!6000000002157-2-tps-1437-1018.png)
