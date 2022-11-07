@@ -25,16 +25,16 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 - [**核心优势**](#核心优势)
 - [**Quick Start**](#quick-start)
 - [**社区**](#社区)
-    
+
 ## 使用场景
 
-- **Kubernetes Ingress 网关**: 
+- **Kubernetes Ingress 网关**:
 
   Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
   
   支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，支持用户从 Ingress API 平滑迁移到 Gateway API。
   
-- **微服务网关**: 
+- **微服务网关**:
 
   Higress 可以作为微服务网关, 能够对接多种类型的注册中心发现服务配置路由，例如 Nacos, ZooKeeper, Consul 等。
   
@@ -43,14 +43,13 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 - **安全防护网关**:
 
   Higress 可以作为安全防护网关， 提供 WAF 的能力，并且支持多种认证鉴权策略，例如 key-auth, hmac-auth, jwt-auth, basic-auth, oidc 等。  
-  
 
 ## 核心优势
 
 - **生产等级**
 
   脱胎于阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景
-    
+
   彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感
   
 - **平滑演进**
@@ -58,7 +57,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
   支持 Nacos/Zookeeper 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持非容器架构平滑演进到云原生架构
 
   支持从 Nginx Ingress Controller 平滑迁移，支持平滑过渡到 Gateway API，支持业务架构平滑演进到 ServiceMesh
-    
+
 - **兼收并蓄**
   
   兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解
@@ -68,21 +67,20 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 - **便于扩展**
   
   提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级
-    
+
   插件支持热更新，变更插件逻辑和配置都对流量无损
 
-
 ## Quick Start
+
 - [**本地环境**](#本地环境)
 - [**生产环境**](#生产环境)
 
-
 ### 本地环境
-
 
 #### 第一步、 安装 kubectl & kind
 
 **MacOS：**
+
 ```bash
 curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/darwin/amd64/kubectl
 # for Intel Macs
@@ -94,6 +92,7 @@ mv ./kind ./kubectl /some-dir-in-your-PATH/
 ```
 
 **Windows 中使用 PowerShell:**
+
 ```bash
 curl.exe -Lo kubectl.exe https://storage.googleapis.com/kubernetes-release/release/$(curl.exe -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/windows/amd64/kubectl.exe
 curl.exe -Lo kind-windows-amd64.exe https://kind.sigs.k8s.io/dl/v0.17.0/kind-windows-amd64
@@ -102,6 +101,7 @@ Move-Item .\kubectl.exe c:\some-dir-in-your-PATH\kubectl.exe
 ```
 
 **Linux:**
+
 ```bash
 curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
 curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64
@@ -109,7 +109,7 @@ chmod +x ./kind ./kubectl
 sudo mv ./kind ./kubectl /usr/local/bin/kind
 ```
 
-#### 第二步、 创建并启用 kind 
+#### 第二步、 创建并启用 kind
 
 首先创建一个集群配置文件: `cluster.conf`
 
@@ -133,12 +133,16 @@ nodes:
     hostPort: 443
     protocol: TCP
 ```
+
 Mac & Linux 系统执行:
+
 ```bash
 kind create cluster --name higress --config=cluster.conf
 kubectl config use-context kind-higress
 ```
+
 Windows 系统执行:
+
 ```bash
 kind.exe create cluster --name higress --config=cluster.conf
 kubectl.exe config use-context kind-higress
@@ -168,19 +172,33 @@ curl localhost/foo
 curl localhost/bar
 ```
 
+#### 卸载资源
+
+```bash
+kubectl delete -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
+
+helm uninstall istio -n istio-system
+
+helm uninstall higress -n higress-system
+
+kubectl delete ns istio-system
+
+kubectl delete ns higress-system
+```
 
 ### 生产环境
 
 #### 第一步、 安装 istio
 
-可以选择安装 higress 发行的 istio 版本: 
+可以选择安装 higress 发行的 istio 版本:
+
 ```bash
 kubectl create ns istio-system
 helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
 ```
 
 或者选择安装官方 istio 版本 (将失去部分能力，例如通过 Ingress 注解实现限流的功能):
-    
+
 https://istio.io/latest/docs/setup/install
 
 #### 第二步、 安装 higress
@@ -193,7 +211,7 @@ helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.ali
 #### 第三步、 创建 Ingress 资源并测试
 
 假设在 default 命名空间下已经部署了一个 test service，服务端口为 80 ，则创建下面这个 K8s Ingress
-    
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -214,19 +232,31 @@ spec:
 ```
 
 测试能访问到该服务：
-    
+
 ```bash
 curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
-```    
+```
+
+#### 卸载资源
+
+```bash
+helm uninstall istio -n istio-system
+
+helm uninstall higress -n higress-system
+
+kubectl delete ns istio-system
+
+kubectl delete ns higress-system
+```
 
 ## 社区
 
 ### 感谢
 
-如果没有 Envoy 和 Istio 的开源工作，Higress 就不可能实现，在这里向这两个项目献上最诚挚的敬意。    
+如果没有 Envoy 和 Istio 的开源工作，Higress 就不可能实现，在这里向这两个项目献上最诚挚的敬意。
 
 ### 联系我们
-    
+
 - Mailing list: higress@googlegroups.com
 
 ![contact-us](https://img.alicdn.com/imgextra/i3/O1CN01KwJqnM1Rnx6aMR9lD_!!6000000002157-2-tps-1437-1018.png)
