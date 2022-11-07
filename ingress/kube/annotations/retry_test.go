@@ -95,6 +95,16 @@ func TestRetryParse(t *testing.T) {
 				retryOn:         "5xx,retriable-status-codes,503,502,404",
 			},
 		},
+		{
+			input: map[string]string{
+				buildNginxAnnotationKey(retryOn): "timeout,http_505,http_503,http_502,http_404,http_403",
+			},
+			expect: &RetryConfig{
+				retryCount:      3,
+				perRetryTimeout: &types.Duration{},
+				retryOn:         "5xx,retriable-status-codes,505,503,502,404,403",
+			},
+		},
 	}
 
 	for _, inputCase := range inputCases {
