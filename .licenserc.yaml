@@ -5,8 +5,7 @@ header:
 
   paths-ignore:
     - '.gitignore'
-    - 'README.md'
-    - 'README_EN.md'
+    - '*.md'
     - 'LICENSE'
     - '.github/**'
     - '.licenserc.yaml'
