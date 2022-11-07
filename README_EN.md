@@ -26,13 +26,13 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 ## Use Cases
 
-- **Kubernetes ingress controller**: 
+- **Kubernetes ingress controller**:
 
   Higress can function as a feature-rich ingress controller, which is compatible with many annotations of K8s' nginx ingress controller.
   
   [Gateway API](https://gateway-api.sigs.k8s.io/) support is coming soon and will support smooth migration from Ingress API to Gateway API.
   
-- **Microservice gateway**: 
+- **Microservice gateway**:
 
   Higress can function as a microservice gateway, which can discovery microservices from various service registries, such as Nacos, ZooKeeper, Consul, etc.
   
@@ -41,23 +41,22 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 - **Security gateway**:
 
   Higress can be used as a security gateway, supporting WAF and various authentication strategies, such as key-auth, hmac-auth, jwt-auth, basic-auth, oidc, etc.  
-  
 
 ## Higress Features
 
    （TODO）
   
 ## Quick Start
+
 - [**Local Environment**](#local-environment)
 - [**Production Environment**](#production-environment)
 
-
 ### Local Environment
-
 
 #### step 1. install kubectl & kind
 
-**On MacOS**
+**On MacOS:**
+
 ```bash
 curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/darwin/amd64/kubectl
 # for Intel Macs
@@ -69,6 +68,7 @@ mv ./kind ./kubectl /some-dir-in-your-PATH/
 ```
 
 **On Windows in PowerShell:**
+
 ```bash
 curl.exe -Lo kubectl.exe https://storage.googleapis.com/kubernetes-release/release/$(curl.exe -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/windows/amd64/kubectl.exe
 curl.exe -Lo kind-windows-amd64.exe https://kind.sigs.k8s.io/dl/v0.17.0/kind-windows-amd64
@@ -77,6 +77,7 @@ Move-Item .\kubectl.exe c:\some-dir-in-your-PATH\kubectl.exe
 ```
 
 **On Linux:**
+
 ```bash
 curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
 curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64
@@ -108,12 +109,16 @@ nodes:
     hostPort: 443
     protocol: TCP
 ```
+
 Mac & Linux:
+
 ```bash
 kind create cluster --name higress --config=cluster.conf
 kubectl config use-context kind-higress
 ```
+
 Windows:
+
 ```bash
 kind.exe create cluster --name higress --config=cluster.conf
 kubectl.exe config use-context kind-higress
@@ -126,7 +131,7 @@ helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyunc
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
 
-#### step 4. create the ingress and test it!
+#### step 4. create the ingress and test it
 
 ```bash
 kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
@@ -141,19 +146,33 @@ curl localhost/foo
 curl localhost/bar
 ```
 
+#### Clean-Up
+
+```bash
+kubectl delete -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
+
+helm uninstall istio -n istio-system
+
+helm uninstall higress -n higress-system
+
+kubectl delete ns istio-system
+
+kubectl delete ns higress-system
+```
 
 ### Production Environment
 
 #### step 1. install istio
 
-select higress istio: 
+select higress istio:
+
 ```bash
 kubectl create ns istio-system
 helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
 ```
 
 or select official istio (lose some abilities, such as using annotation to limit request rate):
-    
+
 https://istio.io/latest/docs/setup/install
 
 #### step 2. install higress
@@ -163,10 +182,10 @@ kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
 ```
 
-#### step 3. create the ingress and test it!
+#### step 3. create the ingress and test it
 
 for example there is a service `test` in default namespace.
-    
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -185,13 +204,23 @@ spec:
             port:
               number: 80  
 ```
-    
+
 ```bash
 curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
-```    
+```
 
+#### Clean-Up
+
+```bash
+helm uninstall istio -n istio-system
+
+helm uninstall higress -n higress-system
+
+kubectl delete ns istio-system
+
+kubectl delete ns higress-system
+```
 
 ### Thanks
 
 Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
-
