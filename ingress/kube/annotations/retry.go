@@ -20,7 +20,6 @@ import (
 	"github.com/gogo/protobuf/types"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/util/sets"
 )
 
 const (
@@ -71,7 +70,8 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 	}
 
 	if retryOn, err := annotations.ParseStringASAP(retryOn); err == nil {
-		conditions := toSet(splitBySeparator(retryOn, ","))
+		extraConfigs := splitBySeparator(retryOn, ",")
+		conditions := toSet(extraConfigs)
 		if len(conditions) > 0 {
 			if conditions.Contains("off") {
 				retryConfig.retryCount = 0
@@ -88,7 +88,7 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 					stringBuilder.WriteString("non_idempotent,")
 				}
 				// Append the status codes.
-				statusCodes := convertStatusCodes(conditions)
+				statusCodes := convertStatusCodes(extraConfigs)
 				if len(statusCodes) > 0 {
 					stringBuilder.WriteString(retryStatusCode + ",")
 					for _, code := range statusCodes {
@@ -123,11 +123,11 @@ func needRetryConfig(annotations Annotations) bool {
 		annotations.HasASAP(retryOn)
 }
 
-func convertStatusCodes(set sets.Set) []string {
+func convertStatusCodes(statusCodes []string) []string {
 	var result []string
-	for condition := range set {
-		if strings.HasPrefix(condition, "http_") {
-			result = append(result, strings.TrimPrefix(condition, "http_"))
+	for _, statusCode := range statusCodes {
+		if strings.HasPrefix(statusCode, "http_") {
+			result = append(result, strings.TrimPrefix(statusCode, "http_"))
 		}
 	}
 	return result
