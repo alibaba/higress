@@ -17,6 +17,8 @@ gateway:
     # If enabled, roles will be created to enable accessing certificates from Gateways. This is not needed
     # when using http://gateway-api.org/.
     enabled: true
+    # If enabled, gateway can use cross namespace secrets
+    crossNamespaceSecret: true
 
   serviceAccount:
     # If set, a service account will be created. Otherwise, the default is used

@@ -1,0 +1,12 @@
+diff -Naur istio/pilot/pkg/bootstrap/configcontroller.go new/pilot/pkg/bootstrap/configcontroller.go
+--- istio/pilot/pkg/bootstrap/configcontroller.go	2022-11-07 21:47:11.000000000 +0800
++++ new/pilot/pkg/bootstrap/configcontroller.go	2022-11-07 21:50:31.000000000 +0800
+@@ -250,7 +250,7 @@
+ 			if err != nil {
+ 				return fmt.Errorf("failed to dial XDS %s %v", configSource.Address, err)
+ 			}
+-			store := memory.Make(collections.Pilot)
++			store := memory.MakeSkipValidation(collections.Pilot)
+ 			configController := memory.NewController(store)
+ 			configController.RegisterHasSyncedHandler(xdsMCP.HasSynced)
+ 			xdsMCP.Store = model.MakeIstioStore(configController)

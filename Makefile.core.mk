@@ -4,6 +4,8 @@ export BASE_VERSION ?= 2022-10-27T19-02-22
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
+export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
+
 GO ?= go
 
 GOARCH_LOCAL := $(TARGET_ARCH)
@@ -94,11 +96,11 @@ build-gateway: prebuild external/package/envoy.tar.gz
 	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 helm-push:
-	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(HUB)/charts"
+	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(CHARTS)"
 
 helm-push-istio:
 	cd helm/istio; helm dependency update
-	cd helm; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(HUB)/charts"
+	cd helm; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(CHARTS)"
 
 
 DIRS_TO_CLEAN := $(OUT)
