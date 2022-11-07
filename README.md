@@ -4,9 +4,16 @@
   Next-generation Cloud Native Gateway
 </h1>
 
+[**官网**](https://higress.io/) &nbsp; |
+&nbsp; [**文档**](https://higress.io/zh-cn/docs/overview/what-is-higress.html) &nbsp; |
+&nbsp; [**博客**](https://higress.io/zh-cn/blog/index.html) &nbsp; |
+&nbsp; [**开发者**](https://higress.io/zh-cn/docs/developers/developers_dev.html) &nbsp; 
+
+
 <p>
    <a href="README_EN.md"> English <a/> | 中文
 </p>
+
 
 Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的下一代云原生网关。Higress 实现了安全防护网关、流量网关、微服务网关三层网关合一，可以显著降低网关的部署和运维成本。
 
