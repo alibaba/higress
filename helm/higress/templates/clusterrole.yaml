@@ -1,4 +1,4 @@
-{{- if .Values.gateway.rbac.crossNamespaceSecret }}
+{{- if .Values.gateway.rbac.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
