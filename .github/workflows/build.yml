@@ -30,7 +30,7 @@ jobs:
         run: make build 
 
       - name: "run go test and out codecov"
-        run: make prebuild; go test ./cmd/... ./ingress/... -race -coverprofile=coverage.out -covermode=atomic
+        run: make prebuild; go test ./cmd/... ./pkg/... -race -coverprofile=coverage.out -covermode=atomic
 
       - name: "upload coverage"
         uses: codecov/codecov-action@v3

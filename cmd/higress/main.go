@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -26,13 +27,10 @@ import (
 	"istio.io/pkg/log"
 	"istio.io/pkg/version"
 
-	"github.com/alibaba/higress/cmd/higress/bootstrap"
+	"github.com/alibaba/higress/pkg/bootstrap"
 )
 
 var (
-	probeAddr            string
-	enableLeaderElection bool
-
 	serverArgs     *bootstrap.ServerArgs
 	loggingOptions = log.DefaultOptions()
 
@@ -43,13 +41,10 @@ var (
 	serveCmd = &cobra.Command{
 		Use:     "serve",
 		Aliases: []string{"serve"},
-		Short:   "Starts the ingress controller",
+		Short:   "Starts the higress ingress controller",
 		Example: "higress serve",
 		PreRunE: func(c *cobra.Command, args []string) error {
-			if err := log.Configure(loggingOptions); err != nil {
-				return err
-			}
-			return nil
+			return log.Configure(loggingOptions)
 		},
 		RunE: func(c *cobra.Command, args []string) error {
 			cmd.PrintFlags(c.Flags())
@@ -59,10 +54,12 @@ var (
 
 			server, err := bootstrap.NewServer(serverArgs)
 			if err != nil {
-				return err
+				return fmt.Errorf("fail to create higress server: %v", err)
 			}
 
-			server.Start(stop)
+			if err := server.Start(stop); err != nil {
+				return fmt.Errorf("fail to start higress server: %v", err)
+			}
 
 			cmd.WaitSignal(stop)
 

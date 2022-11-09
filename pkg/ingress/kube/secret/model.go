@@ -18,7 +18,7 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/ingress/kube/util"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
 )
 
 type Controller interface {

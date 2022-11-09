@@ -47,11 +47,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/alibaba/higress/ingress/kube/annotations"
-	"github.com/alibaba/higress/ingress/kube/common"
-	"github.com/alibaba/higress/ingress/kube/secret"
-	"github.com/alibaba/higress/ingress/kube/util"
-	. "github.com/alibaba/higress/ingress/log"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 var (
