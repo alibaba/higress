@@ -28,7 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 
-	. "github.com/alibaba/higress/ingress/log"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 // V1Available check if the "networking/v1" Ingress is available.

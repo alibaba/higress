@@ -20,8 +20,8 @@ import (
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 
-	"github.com/alibaba/higress/ingress/kube/util"
-	. "github.com/alibaba/higress/ingress/log"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 const (

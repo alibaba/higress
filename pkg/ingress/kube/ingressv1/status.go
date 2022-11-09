@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ingress
+package ingressv1
 
 import (
 	"context"
@@ -26,11 +26,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	listerv1 "k8s.io/client-go/listers/core/v1"
-	ingresslister "k8s.io/client-go/listers/networking/v1beta1"
+	ingresslister "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/ingress/kube/common"
-	. "github.com/alibaba/higress/ingress/log"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 // statusSyncer keeps the status IP in each Ingress resource updated
@@ -52,8 +52,8 @@ func newStatusSyncer(localKubeClient, client kubelib.Client, controller *control
 		client:             client,
 		controller:         controller,
 		watchedNamespace:   namespace,
-		ingressLister:      client.KubeInformer().Networking().V1beta1().Ingresses().Lister(),
-		ingressClassLister: client.KubeInformer().Networking().V1beta1().IngressClasses().Lister(),
+		ingressLister:      client.KubeInformer().Networking().V1().Ingresses().Lister(),
+		ingressClassLister: client.KubeInformer().Networking().V1().IngressClasses().Lister(),
 		// search service in the mse vpc
 		serviceLister: localKubeClient.KubeInformer().Core().V1().Services().Lister(),
 	}
@@ -122,7 +122,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 		ingress.Status.LoadBalancer.Ingress = status
 		IngressLog.Infof("Update Ingress %v/%v within cluster %s status",
 			ingress.Namespace, ingress.Name, s.controller.options.ClusterId)
-		_, err = s.client.NetworkingV1beta1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metaV1.UpdateOptions{})
+		_, err = s.client.NetworkingV1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metaV1.UpdateOptions{})
 		if err != nil {
 			IngressLog.Warnf("error updating ingress %s/%s within cluster %s status: %v",
 				ingress.Namespace, ingress.Name, s.controller.options.ClusterId, err)

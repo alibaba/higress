@@ -28,7 +28,7 @@ import (
 	"istio.io/istio/pkg/config/schema/collections"
 	"k8s.io/apimachinery/pkg/labels"
 
-	. "github.com/alibaba/higress/ingress/log"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 type PathType string
