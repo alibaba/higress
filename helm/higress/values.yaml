@@ -1,3 +1,7 @@
+global:
+  # whether to use autoscaling/v2 template for HPA settings
+  # for internal usage only, not to be configured by users.
+  autoscalingv2API: true
 hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 ingressClass: ""
 watchNamespace: ""
@@ -9,7 +13,7 @@ gateway:
   name: "higress-gateway"
   replicaCount: 2
   image: gateway
-  tag: ""
+  tag: "04cfef254aade907478c2b70cf576bb5eb310047"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -82,7 +86,7 @@ gateway:
       memory: 2048Mi
   
   autoscaling:
-    enabled: true
+    enabled: false
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 80
@@ -100,7 +104,7 @@ controller:
   name: "higress-controller"
   replicaCount: 1
   image: higress
-  tag: ""
+  tag: "04cfef254aade907478c2b70cf576bb5eb310047"
   env: {}
   replicaCount: 1
 
