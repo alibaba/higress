@@ -21,17 +21,18 @@ import (
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 
-	"github.com/mse-group/wasm-extensions-go/pkg/matcher"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log LogWrapper) error
-type onHttpHeadersFunc[PluginConfig any] func(contextID uint32, config PluginConfig, needBody *bool, log LogWrapper) types.Action
-type onHttpBodyFunc[PluginConfig any] func(contextID uint32, config PluginConfig, body []byte, log LogWrapper) types.Action
+type onHttpHeadersFunc[PluginConfig any] func(context *CommonHttpCtx[PluginConfig], config PluginConfig, needBody *bool, log LogWrapper) types.Action
+type onHttpBodyFunc[PluginConfig any] func(context *CommonHttpCtx[PluginConfig], config PluginConfig, body []byte, log LogWrapper) types.Action
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
 	pluginName            string
 	log                   LogWrapper
+	hasCustomConfig       bool
 	parseConfig           ParseConfigFunc[PluginConfig]
 	onHttpRequestHeaders  onHttpHeadersFunc[PluginConfig]
 	onHttpRequestBody     onHttpBodyFunc[PluginConfig]
@@ -81,8 +82,9 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, LogWr
 
 func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
-		pluginName: pluginName,
-		log:        LogWrapper{pluginName},
+		pluginName:      pluginName,
+		log:             LogWrapper{pluginName},
+		hasCustomConfig: true,
 	}
 	for _, set := range setFuncs {
 		set(ctx)
@@ -94,6 +96,7 @@ func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFu
 			ctx.log.Critical(msg)
 			panic(msg)
 		}
+		ctx.hasCustomConfig = false
 		ctx.parseConfig = parseEmptyPluginConfig[PluginConfig]
 	}
 	return ctx
@@ -117,16 +120,20 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
+	var jsonData gjson.Result
 	if len(data) == 0 {
-		ctx.vm.log.Warn("need config")
-		return types.OnPluginStartStatusFailed
-	}
-	if !gjson.ValidBytes(data) {
-		ctx.vm.log.Warnf("the plugin configuration is not a valid json: %s", string(data))
-		return types.OnPluginStartStatusFailed
+		if ctx.vm.hasCustomConfig {
+			ctx.vm.log.Warn("need config")
+			return types.OnPluginStartStatusFailed
+		}
+	} else {
+		if !gjson.ValidBytes(data) {
+			ctx.vm.log.Warnf("the plugin configuration is not a valid json: %s", string(data))
+			return types.OnPluginStartStatusFailed
 
+		}
+		jsonData = gjson.ParseBytes(data)
 	}
-	jsonData := gjson.ParseBytes(data)
 	err = ctx.ParseRuleConfig(jsonData, func(js gjson.Result, cfg *PluginConfig) error {
 		return ctx.vm.parseConfig(js, cfg, ctx.vm.log)
 	})
@@ -139,8 +146,9 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 
 func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types.HttpContext {
 	httpCtx := &CommonHttpCtx[PluginConfig]{
-		plugin:    ctx,
-		contextID: contextID,
+		plugin:      ctx,
+		contextID:   contextID,
+		userContext: map[string]interface{}{},
 	}
 	if ctx.vm.onHttpRequestBody != nil {
 		httpCtx.needRequestBody = true
@@ -160,6 +168,15 @@ type CommonHttpCtx[PluginConfig any] struct {
 	requestBodySize  int
 	responseBodySize int
 	contextID        uint32
+	userContext      map[string]interface{}
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {
+	ctx.userContext[key] = value
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
+	return ctx.userContext[key]
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
@@ -175,7 +192,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 	if ctx.plugin.vm.onHttpRequestHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpRequestHeaders(ctx.contextID, *config,
+	return ctx.plugin.vm.onHttpRequestHeaders(ctx, *config,
 		&ctx.needRequestBody, ctx.plugin.vm.log)
 }
 
@@ -198,7 +215,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 		ctx.plugin.vm.log.Warnf("get request body failed: %v", err)
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpRequestBody(ctx.contextID, *ctx.config, body, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
@@ -208,7 +225,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, en
 	if ctx.plugin.vm.onHttpResponseHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpResponseHeaders(ctx.contextID, *ctx.config,
+	return ctx.plugin.vm.onHttpResponseHeaders(ctx, *ctx.config,
 		&ctx.needResponseBody, ctx.plugin.vm.log)
 }
 
@@ -231,5 +248,5 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 		ctx.plugin.vm.log.Warnf("get response body failed: %v", err)
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpResponseBody(ctx.contextID, *ctx.config, body, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
 }
