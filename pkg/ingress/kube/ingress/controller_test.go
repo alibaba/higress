@@ -20,7 +20,7 @@ import (
 	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alibaba/higress/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
 )
 
 func TestShouldProcessIngressUpdate(t *testing.T) {

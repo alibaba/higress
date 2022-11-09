@@ -18,12 +18,13 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"github.com/alibaba/higress/ingress/kube/util"
-	. "github.com/alibaba/higress/ingress/log"
 	"istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
 	gatewaytool "istio.io/istio/pkg/config/gateway"
 	"istio.io/istio/pkg/config/security"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 const (

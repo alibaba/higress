@@ -28,10 +28,10 @@ import (
 	ingress "k8s.io/api/networking/v1"
 	ingressv1beta1 "k8s.io/api/networking/v1beta1"
 
-	"github.com/alibaba/higress/ingress/kube/annotations"
-	"github.com/alibaba/higress/ingress/kube/common"
-	controllerv1beta1 "github.com/alibaba/higress/ingress/kube/ingress"
-	controllerv1 "github.com/alibaba/higress/ingress/kube/ingressv1"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	controllerv1beta1 "github.com/alibaba/higress/pkg/ingress/kube/ingress"
+	controllerv1 "github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
 )
 
 func TestNormalizeWeightedCluster(t *testing.T) {

@@ -22,7 +22,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alibaba/higress/ingress/kube/annotations"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 )
 
 func TestConstructRouteName(t *testing.T) {

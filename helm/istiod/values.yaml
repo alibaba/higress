@@ -2,7 +2,7 @@
 
 ## Discovery Settings
 pilot:
-  autoscaleEnabled: true
+  autoscaleEnabled: false
   autoscaleMin: 1
   autoscaleMax: 5
   replicaCount: 1
@@ -10,7 +10,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 1.12
+  tag: 04cfef254aade907478c2b70cf576bb5eb310047
 
   # Can be a full hub/image:tag
   image: pilot
@@ -221,6 +221,9 @@ meshConfig:
   # No hurry to do this in 1.6, we're trying to prove the code.
 
 global:
+  # whether to use autoscaling/v2 template for HPA settings
+  # for internal usage only, not to be configured by users.
+  autoscalingv2API: true
   higressName: "higress-controller"
   higressNamespace: "higress-system"
   higressPort: "15051"
@@ -229,7 +232,7 @@ global:
   # enable pod disruption budget for the control plane, which is used to
   # ensure Istio control plane components are gradually upgraded or recovered.
   defaultPodDisruptionBudget:
-    enabled: true
+    enabled: false
     # The values aren't mutable due to a current PodDisruptionBudget limitation
     # minAvailable: 1
 
