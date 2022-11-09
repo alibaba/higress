@@ -37,13 +37,13 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/ingress/kube/annotations"
-	"github.com/alibaba/higress/ingress/kube/common"
-	"github.com/alibaba/higress/ingress/kube/ingress"
-	"github.com/alibaba/higress/ingress/kube/ingressv1"
-	secretkube "github.com/alibaba/higress/ingress/kube/secret/kube"
-	"github.com/alibaba/higress/ingress/kube/util"
-	. "github.com/alibaba/higress/ingress/log"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
+	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
+	secretkube "github.com/alibaba/higress/pkg/ingress/kube/secret/kube"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 var (
