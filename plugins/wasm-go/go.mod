@@ -1,4 +1,4 @@
-module github.com/mse-group/wasm-extensions-go
+module github.com/alibaba/higress/plugins/wasm-go
 
 go 1.18
 
