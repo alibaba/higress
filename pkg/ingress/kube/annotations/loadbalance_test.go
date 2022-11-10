@@ -127,41 +127,6 @@ func TestLoadBalanceParse(t *testing.T) {
 				},
 			},
 		},
-		{
-			input: map[string]string{
-				buildMSEAnnotationKey(warmup): "100",
-			},
-			expect: &LoadBalanceConfig{
-				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
-				warmup: &types.Duration{
-					Seconds: 100,
-				},
-			},
-		},
-		{
-			input: map[string]string{
-				buildNginxAnnotationKey(loadBalanceAnnotation): "LEAST_CONN",
-				buildMSEAnnotationKey(warmup):                  "100",
-			},
-			expect: &LoadBalanceConfig{
-				simple: networking.LoadBalancerSettings_LEAST_CONN,
-				warmup: &types.Duration{
-					Seconds: 100,
-				},
-			},
-		},
-		{
-			input: map[string]string{
-				buildNginxAnnotationKey(loadBalanceAnnotation): "random",
-				buildMSEAnnotationKey(warmup):                  "100",
-			},
-			expect: &LoadBalanceConfig{
-				simple: networking.LoadBalancerSettings_RANDOM,
-				warmup: &types.Duration{
-					Seconds: 100,
-				},
-			},
-		},
 	}
 
 	for _, inputCase := range inputCases {
@@ -256,27 +221,6 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 								HttpQueryParameterName: "query",
 							},
 						},
-					},
-				},
-			},
-		},
-		{
-			config: &Ingress{
-				LoadBalance: &LoadBalanceConfig{
-					simple: networking.LoadBalancerSettings_ROUND_ROBIN,
-					warmup: &types.Duration{
-						Seconds: 100,
-					},
-				},
-			},
-			input: &networking.TrafficPolicy_PortTrafficPolicy{},
-			expect: &networking.TrafficPolicy_PortTrafficPolicy{
-				LoadBalancer: &networking.LoadBalancerSettings{
-					LbPolicy: &networking.LoadBalancerSettings_Simple{
-						Simple: networking.LoadBalancerSettings_ROUND_ROBIN,
-					},
-					WarmupDurationSecs: &types.Duration{
-						Seconds: 100,
 					},
 				},
 			},

@@ -20,10 +20,7 @@ import (
 )
 
 const (
-	domainWhitelist = "domain-whitelist-source-range"
-	domainBlacklist = "domain-blacklist-source-range"
-	whitelist       = "whitelist-source-range"
-	blacklist       = "blacklist-source-range"
+	whitelist = "whitelist-source-range"
 )
 
 var (
@@ -37,8 +34,7 @@ type IPAccessControl struct {
 }
 
 type IPAccessControlConfig struct {
-	Domain *IPAccessControl
-	Route  *IPAccessControl
+	Route *IPAccessControl
 }
 
 type ipAccessControl struct{}
@@ -53,40 +49,14 @@ func (i ipAccessControl) Parse(annotations Annotations, config *Ingress, _ *Glob
 		config.IPAccessControl = ipConfig
 	}()
 
-	var domain *IPAccessControl
-	rawWhitelist, err := annotations.ParseStringForMSE(domainWhitelist)
-	if err == nil {
-		domain = &IPAccessControl{
-			isWhite:  true,
-			remoteIp: splitStringWithSpaceTrim(rawWhitelist),
-		}
-	} else {
-		if rawBlacklist, err := annotations.ParseStringForMSE(domainBlacklist); err == nil {
-			domain = &IPAccessControl{
-				isWhite:  false,
-				remoteIp: splitStringWithSpaceTrim(rawBlacklist),
-			}
-		}
-	}
-	if domain != nil {
-		ipConfig.Domain = domain
-	}
-
 	var route *IPAccessControl
-	rawWhitelist, err = annotations.ParseStringASAP(whitelist)
-	if err == nil {
+	if rawWhitelist, err := annotations.ParseStringASAP(whitelist); err == nil {
 		route = &IPAccessControl{
 			isWhite:  true,
 			remoteIp: splitStringWithSpaceTrim(rawWhitelist),
 		}
-	} else {
-		if rawBlacklist, err := annotations.ParseStringForMSE(blacklist); err == nil {
-			route = &IPAccessControl{
-				isWhite:  false,
-				remoteIp: splitStringWithSpaceTrim(rawBlacklist),
-			}
-		}
 	}
+
 	if route != nil {
 		ipConfig.Route = route
 	}
@@ -94,25 +64,8 @@ func (i ipAccessControl) Parse(annotations Annotations, config *Ingress, _ *Glob
 	return nil
 }
 
-func (i ipAccessControl) ApplyVirtualServiceHandler(virtualService *networking.VirtualService, config *Ingress) {
-	ac := config.IPAccessControl
-	if ac == nil || ac.Domain == nil {
-		return
-	}
-
-	filter := &networking.IPAccessControl{}
-	if ac.Domain.isWhite {
-		filter.RemoteIpBlocks = ac.Domain.remoteIp
-	} else {
-		filter.NotRemoteIpBlocks = ac.Domain.remoteIp
-	}
-
-	virtualService.HostHTTPFilters = append(virtualService.HostHTTPFilters, &networking.HTTPFilter{
-		Name: mseingress.IPAccessControl,
-		Filter: &networking.HTTPFilter_IpAccessControl{
-			IpAccessControl: filter,
-		},
-	})
+func (i ipAccessControl) ApplyVirtualServiceHandler(_ *networking.VirtualService, _ *Ingress) {
+	// DO NOTHING
 }
 
 func (i ipAccessControl) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
@@ -137,8 +90,5 @@ func (i ipAccessControl) ApplyRoute(route *networking.HTTPRoute, config *Ingress
 }
 
 func needIPAccessControlConfig(annotations Annotations) bool {
-	return annotations.HasMSE(domainWhitelist) ||
-		annotations.HasMSE(domainBlacklist) ||
-		annotations.HasASAP(whitelist) ||
-		annotations.HasMSE(blacklist)
+	return annotations.HasASAP(whitelist)
 }
