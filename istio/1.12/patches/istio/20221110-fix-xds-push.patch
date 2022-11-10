@@ -1,0 +1,139 @@
+diff -Naur base/pilot/pkg/xds/xdsgen.go istio/pilot/pkg/xds/xdsgen.go
+--- base/pilot/pkg/xds/xdsgen.go	2022-11-10 20:45:14.000000000 +0800
++++ istio/pilot/pkg/xds/xdsgen.go	2022-11-10 20:16:35.000000000 +0800
+@@ -96,40 +96,23 @@
+ 	return nil
+ }
+ 
+-// End added by ingress
+-
+-// Push an XDS resource for the given connection. Configuration will be generated
+-// based on the passed in generator. Based on the updates field, generators may
+-// choose to send partial or even no response if there are no changes.
+-func (s *DiscoveryServer) pushXds(con *Connection, push *model.PushContext,
+-	w *model.WatchedResource, req *model.PushRequest) error {
++func (s *DiscoveryServer) pushMcpXds(con *Connection, push *model.PushContext, w *model.WatchedResource, req *model.PushRequest) error {
+ 	if w == nil {
+ 		return nil
+ 	}
+ 
+ 	t0 := time.Now()
+-	// Modified by ingress
++
+ 	var (
+-		res     []*any.Any
+ 		logdata model.XdsLogDetails
+ 		err     error
+ 	)
+-	if s.Env.MCPMode {
+-		res = make([]*any.Any, 0)
+-		gen := s.findMcpGenerator(w.TypeUrl, con)
+-		if gen != nil {
+-			res, logdata, err = gen.Generate(con.proxy, push, w, req)
+-		}
+-	} else {
+-		gen := s.findGenerator(w.TypeUrl, con)
+-		if gen == nil {
+-			return nil
+-		}
+-		var resource model.Resources
+-		resource, logdata, err = gen.Generate(con.proxy, push, w, req)
+-		res = model.ResourcesToAny(resource)
++	res := make([]*any.Any, 0)
++	gen := s.findMcpGenerator(w.TypeUrl, con)
++	if gen != nil {
++		res, logdata, err = gen.Generate(con.proxy, push, w, req)
+ 	}
+-	if err != nil || res == nil {
++	if err != nil {
+ 		// If we have nothing to send, report that we got an ACK for this version.
+ 		if s.StatusReporter != nil {
+ 			s.StatusReporter.RegisterEvent(con.ConID, w.TypeUrl, push.LedgerVersion)
+@@ -181,7 +164,86 @@
+ 		log.Infof("%s: %s%s for node:%s resources:%d size:%v%s%s", v3.GetShortType(w.TypeUrl), ptype, req.PushReason(), con.proxy.ID, len(res),
+ 			util.ByteCount(AnyResourceSize(res)), info, debug)
+ 	}
+-	// End modified by ingress
++	return nil
++}
++
++// End added by ingress
++
++// Push an XDS resource for the given connection. Configuration will be generated
++// based on the passed in generator. Based on the updates field, generators may
++// choose to send partial or even no response if there are no changes.
++func (s *DiscoveryServer) pushXds(con *Connection, push *model.PushContext,
++	w *model.WatchedResource, req *model.PushRequest) error {
++	// Added by ingress
++	if s.Env.MCPMode {
++		return s.pushMcpXds(con, push, w, req)
++	}
++	// End added by ingress
++	if w == nil {
++		return nil
++	}
++	gen := s.findGenerator(w.TypeUrl, con)
++	if gen == nil {
++		return nil
++	}
++
++	t0 := time.Now()
++
++	res, logdata, err := gen.Generate(con.proxy, push, w, req)
++	if err != nil || res == nil {
++		// If we have nothing to send, report that we got an ACK for this version.
++		if s.StatusReporter != nil {
++			s.StatusReporter.RegisterEvent(con.ConID, w.TypeUrl, push.LedgerVersion)
++		}
++		return err
++	}
++	defer func() { recordPushTime(w.TypeUrl, time.Since(t0)) }()
++
++	resp := &discovery.DiscoveryResponse{
++		ControlPlane: ControlPlane(),
++		TypeUrl:      w.TypeUrl,
++		// TODO: send different version for incremental eds
++		VersionInfo: push.PushVersion,
++		Nonce:       nonce(push.LedgerVersion),
++		Resources:   model.ResourcesToAny(res),
++	}
++
++	configSize := ResourceSize(res)
++	configSizeBytes.With(typeTag.Value(w.TypeUrl)).Record(float64(configSize))
++
++	ptype := "PUSH"
++	info := ""
++	if logdata.Incremental {
++		ptype = "PUSH INC"
++	}
++	if len(logdata.AdditionalInfo) > 0 {
++		info = " " + logdata.AdditionalInfo
++	}
++
++	if err := con.send(resp); err != nil {
++		if recordSendError(w.TypeUrl, err) {
++			log.Warnf("%s: Send failure for node:%s resources:%d size:%s%s: %v",
++				v3.GetShortType(w.TypeUrl), con.proxy.ID, len(res), util.ByteCount(configSize), info, err)
++		}
++		return err
++	}
++
++	switch {
++	case logdata.Incremental:
++		if log.DebugEnabled() {
++			log.Debugf("%s: %s%s for node:%s resources:%d size:%s%s",
++				v3.GetShortType(w.TypeUrl), ptype, req.PushReason(), con.proxy.ID, len(res), util.ByteCount(configSize), info)
++		}
++	default:
++		debug := ""
++		if log.DebugEnabled() {
++			// Add additional information to logs when debug mode enabled.
++			debug = " nonce:" + resp.Nonce + " version:" + resp.VersionInfo
++		}
++		log.Infof("%s: %s%s for node:%s resources:%d size:%v%s%s", v3.GetShortType(w.TypeUrl), ptype, req.PushReason(), con.proxy.ID, len(res),
++			util.ByteCount(ResourceSize(res)), info, debug)
++	}
++
+ 	return nil
+ }
+ 

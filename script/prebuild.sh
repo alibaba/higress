@@ -16,7 +16,7 @@ for repo in ${envoy_repos[@]}; do
         continue
     fi
     cp -r envoy/${ENVOY_VERSION}/$repo  external/$repo
-    for patch in `ls -f envoy/${ENVOY_VERSION}/patches/$repo/*.patch`; do
+    for patch in `ls envoy/${ENVOY_VERSION}/patches/$repo/*.patch`; do
         patch -d external/$repo -p1 < $patch
     done
     cd external/$repo
@@ -34,7 +34,7 @@ for repo in ${istio_repos[@]}; do
         continue
     fi
     cp -r istio/${ISTIO_VERSION}/$repo  external/$repo
-    for patch in `ls -f istio/${ISTIO_VERSION}/patches/$repo/*.patch`; do
+    for patch in `ls istio/${ISTIO_VERSION}/patches/$repo/*.patch`; do
         patch -d external/$repo -p1 < $patch
     done
     cd external/$repo
