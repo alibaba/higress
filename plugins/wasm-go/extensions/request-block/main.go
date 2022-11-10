@@ -23,7 +23,7 @@ import (
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 
-	"github.com/mse-group/wasm-extensions-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -93,7 +93,7 @@ func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.LogW
 	return nil
 }
 
-func onHttpRequestHeaders(contextID uint32, config RequestBlockConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[RequestBlockConfig], config RequestBlockConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
 	if len(config.blockUrls) > 0 {
 		requestUrl, err := proxywasm.GetHttpRequestHeader(":path")
 		if err != nil {
@@ -137,7 +137,7 @@ func onHttpRequestHeaders(contextID uint32, config RequestBlockConfig, needBody 
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(contextID uint32, config RequestBlockConfig, body []byte, log wrapper.LogWrapper) types.Action {
+func onHttpRequestBody(ctx *wrapper.CommonHttpCtx[RequestBlockConfig], config RequestBlockConfig, body []byte, log wrapper.LogWrapper) types.Action {
 	bodyStr := string(body)
 	if !config.caseSensitive {
 		bodyStr = strings.ToLower(bodyStr)
