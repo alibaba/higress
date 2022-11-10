@@ -5,7 +5,6 @@
 </h1>
 
 [![Build Status](https://github.com/alibaba/higress/workflows/build%20and%20codecov/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
-[![codecov](https://codecov.io/gh/alibaba/higress/branch/main/graph/badge.svg)](https://codecov.io/gh/alibaba/higress)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 [**官网**](https://higress.io/) &nbsp; |
