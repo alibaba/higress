@@ -73,7 +73,7 @@ type WrapperHTTPRoute struct {
 }
 
 func (w *WrapperHTTPRoute) Meta() string {
-	return strings.Join([]string{w.WrapperConfig.Config.Namespace, w.WrapperConfig.Config.Name}, "-")
+	return strings.Join([]string{w.WrapperConfig.Config.Namespace, w.WrapperConfig.Config.Name}, "/")
 }
 
 func (w *WrapperHTTPRoute) BasePathFormat() string {
