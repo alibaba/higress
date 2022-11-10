@@ -24,8 +24,8 @@ const (
 	// DefaultAnnotationsPrefix defines the common prefix used in the nginx ingress controller
 	DefaultAnnotationsPrefix = "nginx.ingress.kubernetes.io"
 
-	// MSEAnnotationsPrefix defines the common prefix used in the mse ingress controller
-	MSEAnnotationsPrefix = "mse.ingress.kubernetes.io"
+	// HigressAnnotationsPrefix defines the common prefix used in the higress ingress controller
+	HigressAnnotationsPrefix = "higress.io"
 )
 
 var (
@@ -67,12 +67,12 @@ func (a Annotations) ParseBool(key string) (bool, error) {
 	return false, ErrMissingAnnotations
 }
 
-func (a Annotations) ParseBoolForMSE(key string) (bool, error) {
+func (a Annotations) ParseBoolForHigress(key string) (bool, error) {
 	if len(a) == 0 {
 		return false, ErrMissingAnnotations
 	}
 
-	val, ok := a[buildMSEAnnotationKey(key)]
+	val, ok := a[buildHigressAnnotationKey(key)]
 	if ok {
 		b, err := strconv.ParseBool(val)
 		if err != nil {
@@ -88,7 +88,7 @@ func (a Annotations) ParseBoolASAP(key string) (bool, error) {
 	if result, err := a.ParseBool(key); err == nil {
 		return result, nil
 	}
-	return a.ParseBoolForMSE(key)
+	return a.ParseBoolForHigress(key)
 }
 
 func (a Annotations) ParseString(key string) (string, error) {
@@ -108,12 +108,12 @@ func (a Annotations) ParseString(key string) (string, error) {
 	return "", ErrMissingAnnotations
 }
 
-func (a Annotations) ParseStringForMSE(key string) (string, error) {
+func (a Annotations) ParseStringForHigress(key string) (string, error) {
 	if len(a) == 0 {
 		return "", ErrMissingAnnotations
 	}
 
-	val, ok := a[buildMSEAnnotationKey(key)]
+	val, ok := a[buildHigressAnnotationKey(key)]
 	if ok {
 		s := normalizeString(val)
 		if s == "" {
@@ -126,12 +126,12 @@ func (a Annotations) ParseStringForMSE(key string) (string, error) {
 }
 
 // ParseStringASAP will first extra config from nginx annotation, then will
-// try to extra config from mse annotation if the first step fails.
+// try to extra config from Higress annotation if the first step fails.
 func (a Annotations) ParseStringASAP(key string) (string, error) {
 	if result, err := a.ParseString(key); err == nil {
 		return result, nil
 	}
-	return a.ParseStringForMSE(key)
+	return a.ParseStringForHigress(key)
 }
 
 func (a Annotations) ParseInt(key string) (int, error) {
@@ -150,12 +150,12 @@ func (a Annotations) ParseInt(key string) (int, error) {
 	return 0, ErrMissingAnnotations
 }
 
-func (a Annotations) ParseIntForMSE(key string) (int, error) {
+func (a Annotations) ParseIntForHigress(key string) (int, error) {
 	if len(a) == 0 {
 		return 0, ErrMissingAnnotations
 	}
 
-	val, ok := a[buildMSEAnnotationKey(key)]
+	val, ok := a[buildHigressAnnotationKey(key)]
 	if ok {
 		i, err := strconv.Atoi(val)
 		if err != nil {
@@ -182,12 +182,12 @@ func (a Annotations) ParseInt32(key string) (int32, error) {
 	return 0, ErrMissingAnnotations
 }
 
-func (a Annotations) ParseInt32ForMSE(key string) (int32, error) {
+func (a Annotations) ParseInt32ForHigress(key string) (int32, error) {
 	if len(a) == 0 {
 		return 0, ErrMissingAnnotations
 	}
 
-	val, ok := a[buildMSEAnnotationKey(key)]
+	val, ok := a[buildHigressAnnotationKey(key)]
 	if ok {
 		i, err := strconv.ParseInt(val, 10, 32)
 		if err != nil {
@@ -198,12 +198,12 @@ func (a Annotations) ParseInt32ForMSE(key string) (int32, error) {
 	return 0, ErrMissingAnnotations
 }
 
-func (a Annotations) ParseUint32ForMSE(key string) (uint32, error) {
+func (a Annotations) ParseUint32ForHigress(key string) (uint32, error) {
 	if len(a) == 0 {
 		return 0, ErrMissingAnnotations
 	}
 
-	val, ok := a[buildMSEAnnotationKey(key)]
+	val, ok := a[buildHigressAnnotationKey(key)]
 	if ok {
 		i, err := strconv.ParseUint(val, 10, 32)
 		if err != nil {
@@ -218,14 +218,14 @@ func (a Annotations) ParseIntASAP(key string) (int, error) {
 	if result, err := a.ParseInt(key); err == nil {
 		return result, nil
 	}
-	return a.ParseIntForMSE(key)
+	return a.ParseIntForHigress(key)
 }
 
 func (a Annotations) ParseInt32ASAP(key string) (int32, error) {
 	if result, err := a.ParseInt32(key); err == nil {
 		return result, nil
 	}
-	return a.ParseInt32ForMSE(key)
+	return a.ParseInt32ForHigress(key)
 }
 
 func (a Annotations) Has(key string) bool {
@@ -237,12 +237,12 @@ func (a Annotations) Has(key string) bool {
 	return exist
 }
 
-func (a Annotations) HasMSE(key string) bool {
+func (a Annotations) HasHigress(key string) bool {
 	if len(a) == 0 {
 		return false
 	}
 
-	_, exist := a[buildMSEAnnotationKey(key)]
+	_, exist := a[buildHigressAnnotationKey(key)]
 	return exist
 }
 
@@ -250,15 +250,15 @@ func (a Annotations) HasASAP(key string) bool {
 	if a.Has(key) {
 		return true
 	}
-	return a.HasMSE(key)
+	return a.HasHigress(key)
 }
 
 func buildNginxAnnotationKey(key string) string {
 	return DefaultAnnotationsPrefix + "/" + key
 }
 
-func buildMSEAnnotationKey(key string) string {
-	return MSEAnnotationsPrefix + "/" + key
+func buildHigressAnnotationKey(key string) string {
+	return HigressAnnotationsPrefix + "/" + key
 }
 
 func normalizeString(input string) string {

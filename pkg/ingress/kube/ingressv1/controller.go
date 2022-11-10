@@ -492,8 +492,6 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				WrapperConfig: wrapper,
 			}
 			convertOptions.VirtualServices[rule.Host] = wrapperVS
-		} else {
-			wrapperVS.WrapperConfig.AnnotationsConfig.MergeHostIPAccessControlIfNotExist(wrapper.AnnotationsConfig.IPAccessControl)
 		}
 
 		// Record the latest app root for per host.

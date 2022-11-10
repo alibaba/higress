@@ -32,28 +32,7 @@ func TestParse(t *testing.T) {
 		{},
 		{
 			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "TLSv1.0",
-			},
-			expect: &DownstreamTLSConfig{
-				Mode:          networking.ServerTLSSettings_SIMPLE,
-				TlsMinVersion: tlsV10,
-			},
-		},
-		{
-			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "TLSv1.3",
-				DefaultAnnotationsPrefix + "/" + sslCipher: "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
-			},
-			expect: &DownstreamTLSConfig{
-				Mode:          networking.ServerTLSSettings_SIMPLE,
-				TlsMinVersion: tlsV13,
-				CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
-			},
-		},
-		{
-			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "xxx",
-				DefaultAnnotationsPrefix + "/" + sslCipher: "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
+				buildNginxAnnotationKey(sslCipher): "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
 			},
 			expect: &DownstreamTLSConfig{
 				Mode:         networking.ServerTLSSettings_SIMPLE,
@@ -62,19 +41,8 @@ func TestParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "xxx",
-				MSEAnnotationsPrefix + "/" + sslCipher:     "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
-			},
-			expect: &DownstreamTLSConfig{
-				Mode:         networking.ServerTLSSettings_SIMPLE,
-				CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
-			},
-		},
-		{
-			input: map[string]string{
-				buildNginxAnnotationKey(authTLSSecret):     "test",
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "xxx",
-				MSEAnnotationsPrefix + "/" + sslCipher:     "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
+				buildNginxAnnotationKey(authTLSSecret): "test",
+				buildNginxAnnotationKey(sslCipher):     "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
 			},
 			expect: &DownstreamTLSConfig{
 				CASecretName: model.NamespacedName{
@@ -87,8 +55,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildMSEAnnotationKey(authTLSSecret):       "test/foo",
-				MSEAnnotationsPrefix + "/" + tlsMinVersion: "TLSv1.3",
+				buildHigressAnnotationKey(authTLSSecret):   "test/foo",
 				DefaultAnnotationsPrefix + "/" + sslCipher: "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
 			},
 			expect: &DownstreamTLSConfig{
@@ -96,9 +63,8 @@ func TestParse(t *testing.T) {
 					Namespace: "test",
 					Name:      "foo",
 				},
-				Mode:          networking.ServerTLSSettings_MUTUAL,
-				TlsMinVersion: tlsV13,
-				CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
+				Mode:         networking.ServerTLSSettings_MUTUAL,
+				CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
 			},
 		},
 	}
@@ -129,31 +95,6 @@ func TestApplyGateway(t *testing.T) {
 				Servers: []*networking.Server{
 					{
 						Port: &networking.Port{
-							Protocol: "HTTP",
-						},
-					},
-				},
-			},
-			config: &Ingress{
-				DownstreamTLS: &DownstreamTLSConfig{
-					TlsMinVersion: tlsV10,
-				},
-			},
-			expect: &networking.Gateway{
-				Servers: []*networking.Server{
-					{
-						Port: &networking.Port{
-							Protocol: "HTTP",
-						},
-					},
-				},
-			},
-		},
-		{
-			input: &networking.Gateway{
-				Servers: []*networking.Server{
-					{
-						Port: &networking.Port{
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
@@ -164,7 +105,7 @@ func TestApplyGateway(t *testing.T) {
 			},
 			config: &Ingress{
 				DownstreamTLS: &DownstreamTLSConfig{
-					TlsMinVersion: tlsV12,
+					CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 				},
 			},
 			expect: &networking.Gateway{
@@ -174,42 +115,8 @@ func TestApplyGateway(t *testing.T) {
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
-							Mode:               networking.ServerTLSSettings_SIMPLE,
-							MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-						},
-					},
-				},
-			},
-		},
-		{
-			input: &networking.Gateway{
-				Servers: []*networking.Server{
-					{
-						Port: &networking.Port{
-							Protocol: "HTTPS",
-						},
-						Tls: &networking.ServerTLSSettings{
-							Mode: networking.ServerTLSSettings_SIMPLE,
-						},
-					},
-				},
-			},
-			config: &Ingress{
-				DownstreamTLS: &DownstreamTLSConfig{
-					TlsMaxVersion: tlsV13,
-					CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384"},
-				},
-			},
-			expect: &networking.Gateway{
-				Servers: []*networking.Server{
-					{
-						Port: &networking.Port{
-							Protocol: "HTTPS",
-						},
-						Tls: &networking.ServerTLSSettings{
-							Mode:               networking.ServerTLSSettings_SIMPLE,
-							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							Mode:         networking.ServerTLSSettings_SIMPLE,
+							CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 						},
 					},
 				},
@@ -235,9 +142,8 @@ func TestApplyGateway(t *testing.T) {
 						Namespace: "foo",
 						Name:      "bar",
 					},
-					Mode:          networking.ServerTLSSettings_MUTUAL,
-					TlsMaxVersion: tlsV13,
-					CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+					Mode:         networking.ServerTLSSettings_MUTUAL,
+					CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 				},
 			},
 			expect: &networking.Gateway{
@@ -247,10 +153,9 @@ func TestApplyGateway(t *testing.T) {
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
-							CredentialName:     "kubernetes-ingress://cluster/foo/bar",
-							Mode:               networking.ServerTLSSettings_MUTUAL,
-							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							CredentialName: "kubernetes-ingress://cluster/foo/bar",
+							Mode:           networking.ServerTLSSettings_MUTUAL,
+							CipherSuites:   []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 						},
 					},
 				},
@@ -276,9 +181,8 @@ func TestApplyGateway(t *testing.T) {
 						Namespace: "foo",
 						Name:      "bar-cacert",
 					},
-					Mode:          networking.ServerTLSSettings_MUTUAL,
-					TlsMaxVersion: tlsV13,
-					CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+					Mode:         networking.ServerTLSSettings_MUTUAL,
+					CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 				},
 			},
 			expect: &networking.Gateway{
@@ -288,10 +192,9 @@ func TestApplyGateway(t *testing.T) {
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
-							CredentialName:     "kubernetes-ingress://cluster/foo/bar",
-							Mode:               networking.ServerTLSSettings_MUTUAL,
-							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							CredentialName: "kubernetes-ingress://cluster/foo/bar",
+							Mode:           networking.ServerTLSSettings_MUTUAL,
+							CipherSuites:   []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 						},
 					},
 				},
@@ -317,9 +220,8 @@ func TestApplyGateway(t *testing.T) {
 						Namespace: "bar",
 						Name:      "foo",
 					},
-					Mode:          networking.ServerTLSSettings_MUTUAL,
-					TlsMaxVersion: tlsV13,
-					CipherSuites:  []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+					Mode:         networking.ServerTLSSettings_MUTUAL,
+					CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 				},
 			},
 			expect: &networking.Gateway{
@@ -329,10 +231,9 @@ func TestApplyGateway(t *testing.T) {
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
-							CredentialName:     "kubernetes-ingress://cluster/foo/bar",
-							Mode:               networking.ServerTLSSettings_SIMPLE,
-							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							CredentialName: "kubernetes-ingress://cluster/foo/bar",
+							Mode:           networking.ServerTLSSettings_SIMPLE,
+							CipherSuites:   []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 						},
 					},
 				},

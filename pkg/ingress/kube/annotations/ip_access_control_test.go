@@ -31,51 +31,12 @@ func TestIPAccessControlParse(t *testing.T) {
 		{},
 		{
 			input: map[string]string{
-				DefaultAnnotationsPrefix + "/" + whitelist: "1.1.1.1",
-				MSEAnnotationsPrefix + "/" + blacklist:     "2.2.2.2",
+				buildNginxAnnotationKey(whitelist): "1.1.1.1",
 			},
 			expect: &IPAccessControlConfig{
 				Route: &IPAccessControl{
 					isWhite:  true,
 					remoteIp: []string{"1.1.1.1"},
-				},
-			},
-		},
-		{
-			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + blacklist: "2.2.2.2",
-			},
-			expect: &IPAccessControlConfig{
-				Route: &IPAccessControl{
-					isWhite:  false,
-					remoteIp: []string{"2.2.2.2"},
-				},
-			},
-		},
-		{
-			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + domainWhitelist: "1.1.1.1",
-			},
-			expect: &IPAccessControlConfig{
-				Domain: &IPAccessControl{
-					isWhite:  true,
-					remoteIp: []string{"1.1.1.1"},
-				},
-			},
-		},
-		{
-			input: map[string]string{
-				MSEAnnotationsPrefix + "/" + whitelist:       "1.1.1.1, 3.3.3.3",
-				MSEAnnotationsPrefix + "/" + domainBlacklist: "2.2.2.2",
-			},
-			expect: &IPAccessControlConfig{
-				Route: &IPAccessControl{
-					isWhite:  true,
-					remoteIp: []string{"1.1.1.1", "3.3.3.3"},
-				},
-				Domain: &IPAccessControl{
-					isWhite:  false,
-					remoteIp: []string{"2.2.2.2"},
 				},
 			},
 		},
@@ -87,80 +48,6 @@ func TestIPAccessControlParse(t *testing.T) {
 			_ = parser.Parse(testCase.input, config, nil)
 			if !reflect.DeepEqual(testCase.expect, config.IPAccessControl) {
 				t.Fatalf("Should be equal")
-			}
-		})
-	}
-}
-
-func TestIpAccessControl_ApplyVirtualServiceHandler(t *testing.T) {
-	parser := ipAccessControl{}
-
-	testCases := []struct {
-		config *Ingress
-		input  *networking.VirtualService
-		expect *networking.HTTPFilter
-	}{
-		{
-			config: &Ingress{},
-			input:  &networking.VirtualService{},
-			expect: nil,
-		},
-		{
-			config: &Ingress{
-				IPAccessControl: &IPAccessControlConfig{
-					Domain: &IPAccessControl{
-						isWhite:  true,
-						remoteIp: []string{"1.1.1.1"},
-					},
-				},
-			},
-			input: &networking.VirtualService{},
-			expect: &networking.HTTPFilter{
-				Name:    "ip-access-control",
-				Disable: false,
-				Filter: &networking.HTTPFilter_IpAccessControl{
-					IpAccessControl: &networking.IPAccessControl{
-						RemoteIpBlocks: []string{"1.1.1.1"},
-					},
-				},
-			},
-		},
-		{
-			config: &Ingress{
-				IPAccessControl: &IPAccessControlConfig{
-					Domain: &IPAccessControl{
-						isWhite:  false,
-						remoteIp: []string{"2.2.2.2"},
-					},
-				},
-			},
-			input: &networking.VirtualService{},
-			expect: &networking.HTTPFilter{
-				Name:    "ip-access-control",
-				Disable: false,
-				Filter: &networking.HTTPFilter_IpAccessControl{
-					IpAccessControl: &networking.IPAccessControl{
-						NotRemoteIpBlocks: []string{"2.2.2.2"},
-					},
-				},
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run("", func(t *testing.T) {
-			parser.ApplyVirtualServiceHandler(testCase.input, testCase.config)
-			if testCase.config.IPAccessControl == nil {
-				if len(testCase.input.HostHTTPFilters) != 0 {
-					t.Fatalf("Should be empty")
-				}
-			} else {
-				if len(testCase.input.HostHTTPFilters) == 0 {
-					t.Fatalf("Should be not empty")
-				}
-				if !reflect.DeepEqual(testCase.expect, testCase.input.HostHTTPFilters[0]) {
-					t.Fatalf("Should be equal")
-				}
 			}
 		})
 	}
@@ -195,26 +82,6 @@ func TestIpAccessControl_ApplyRoute(t *testing.T) {
 				Filter: &networking.HTTPFilter_IpAccessControl{
 					IpAccessControl: &networking.IPAccessControl{
 						RemoteIpBlocks: []string{"1.1.1.1"},
-					},
-				},
-			},
-		},
-		{
-			config: &Ingress{
-				IPAccessControl: &IPAccessControlConfig{
-					Route: &IPAccessControl{
-						isWhite:  false,
-						remoteIp: []string{"2.2.2.2"},
-					},
-				},
-			},
-			input: &networking.HTTPRoute{},
-			expect: &networking.HTTPFilter{
-				Name:    "ip-access-control",
-				Disable: false,
-				Filter: &networking.HTTPFilter_IpAccessControl{
-					IpAccessControl: &networking.IPAccessControl{
-						NotRemoteIpBlocks: []string{"2.2.2.2"},
 					},
 				},
 			},
