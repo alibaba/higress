@@ -1,5 +1,6 @@
 external
 out
+*.out
 *.tgz
 *.wasm
 .idea/

@@ -192,10 +192,9 @@ func TestApplyGateway(t *testing.T) {
 							Protocol: "HTTPS",
 						},
 						Tls: &networking.ServerTLSSettings{
-							CredentialName:     "kubernetes-ingress://cluster/foo/bar",
-							Mode:               networking.ServerTLSSettings_MUTUAL,
-							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							CredentialName: "kubernetes-ingress://cluster/foo/bar",
+							Mode:           networking.ServerTLSSettings_MUTUAL,
+							CipherSuites:   []string{"ECDHE-RSA-AES256-GCM-SHA384"},
 						},
 					},
 				},
