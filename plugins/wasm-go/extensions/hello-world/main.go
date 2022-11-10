@@ -18,7 +18,7 @@ import (
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 
-	"github.com/mse-group/wasm-extensions-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 type HelloWorldConfig struct {
 }
 
-func onHttpRequestHeaders(contextID uint32, config HelloWorldConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[HelloWorldConfig], config HelloWorldConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
 	err := proxywasm.AddHttpRequestHeader("hello", "world")
 	if err != nil {
 		log.Critical("failed to set request header")

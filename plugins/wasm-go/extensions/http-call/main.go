@@ -23,7 +23,7 @@ import (
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 
-	"github.com/mse-group/wasm-extensions-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -96,7 +96,7 @@ func parseConfig(json gjson.Result, config *HttpCallConfig, log wrapper.LogWrapp
 	}
 }
 
-func onHttpRequestHeaders(contextID uint32, config HttpCallConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[HttpCallConfig], config HttpCallConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
 	config.client.Get(config.requestPath, nil,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest()
