@@ -34,7 +34,6 @@ const (
 	sessionCookiePath      = "session-cookie-path"
 	sessionCookieMaxAge    = "session-cookie-max-age"
 	sessionCookieExpires   = "session-cookie-expires"
-	warmup                 = "warmup"
 
 	varIndicator        = "$"
 	headerIndicator     = "$http_"
@@ -68,7 +67,6 @@ type consistentHashByCookie struct {
 
 type LoadBalanceConfig struct {
 	simple networking.LoadBalancerSettings_SimpleLB
-	warmup *types.Duration
 	other  *consistentHashByOther
 	cookie *consistentHashByCookie
 }
@@ -133,12 +131,6 @@ func (l loadBalance) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 			lb = strings.ToUpper(lb)
 			loadBalanceConfig.simple = networking.LoadBalancerSettings_SimpleLB(networking.LoadBalancerSettings_SimpleLB_value[lb])
 		}
-
-		if warmup, err := annotations.ParseIntForMSE(warmup); err == nil && warmup != 0 {
-			loadBalanceConfig.warmup = &types.Duration{
-				Seconds: int64(warmup),
-			}
-		}
 	}
 
 	return nil
@@ -190,7 +182,6 @@ func (l loadBalance) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_
 				Simple: loadBalanceConfig.simple,
 			},
 		}
-		trafficPolicy.LoadBalancer.WarmupDurationSecs = loadBalanceConfig.warmup
 	}
 }
 
@@ -206,7 +197,6 @@ func isOtherAffinity(annotations Annotations) bool {
 
 func needLoadBalanceConfig(annotations Annotations) bool {
 	return annotations.HasASAP(loadBalanceAnnotation) ||
-		annotations.HasMSE(warmup) ||
 		isCookieAffinity(annotations) ||
 		isOtherAffinity(annotations)
 }

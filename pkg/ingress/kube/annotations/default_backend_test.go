@@ -73,7 +73,7 @@ func TestFallbackParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildMSEAnnotationKey(annDefaultBackend): "app",
+				buildHigressAnnotationKey(annDefaultBackend): "app",
 			},
 			expect: &FallbackConfig{
 				DefaultBackend: model.NamespacedName{
@@ -85,13 +85,13 @@ func TestFallbackParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildMSEAnnotationKey(annDefaultBackend): "foo/app",
+				buildHigressAnnotationKey(annDefaultBackend): "foo/app",
 			},
 		},
 		{
 			input: map[string]string{
-				buildMSEAnnotationKey(annDefaultBackend): "test/app",
-				buildNginxAnnotationKey(customHTTPError): "404,503",
+				buildHigressAnnotationKey(annDefaultBackend): "test/app",
+				buildNginxAnnotationKey(customHTTPError):     "404,503",
 			},
 			expect: &FallbackConfig{
 				DefaultBackend: model.NamespacedName{
@@ -104,8 +104,8 @@ func TestFallbackParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildMSEAnnotationKey(annDefaultBackend): "test/app",
-				buildNginxAnnotationKey(customHTTPError): "404,5ac",
+				buildHigressAnnotationKey(annDefaultBackend): "test/app",
+				buildNginxAnnotationKey(customHTTPError):     "404,5ac",
 			},
 			expect: &FallbackConfig{
 				DefaultBackend: model.NamespacedName{

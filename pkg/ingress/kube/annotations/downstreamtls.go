@@ -29,48 +29,18 @@ import (
 
 const (
 	authTLSSecret = "auth-tls-secret"
-	tlsMinVersion = "tls-min-protocol-version"
-	tlsMaxVersion = "tls-max-protocol-version"
 	sslCipher     = "ssl-cipher"
-)
-
-type TLSProtocolVersion string
-
-const (
-	tlsV10 TLSProtocolVersion = "TLSv1.0"
-	tlsV11 TLSProtocolVersion = "TLSv1.1"
-	tlsV12 TLSProtocolVersion = "TLSv1.2"
-	tlsV13 TLSProtocolVersion = "TLSv1.3"
 )
 
 var (
 	_ Parser         = &downstreamTLS{}
 	_ GatewayHandler = &downstreamTLS{}
-
-	tlsProtocol = map[TLSProtocolVersion]networking.ServerTLSSettings_TLSProtocol{
-		tlsV10: networking.ServerTLSSettings_TLSV1_0,
-		tlsV11: networking.ServerTLSSettings_TLSV1_1,
-		tlsV12: networking.ServerTLSSettings_TLSV1_2,
-		tlsV13: networking.ServerTLSSettings_TLSV1_3,
-	}
 )
 
-func isValidTLSProtocolVersion(protocol string) bool {
-	tls := TLSProtocolVersion(protocol)
-	_, exist := tlsProtocol[tls]
-	return exist
-}
-
-func Convert(protocol string) networking.ServerTLSSettings_TLSProtocol {
-	return tlsProtocol[TLSProtocolVersion(protocol)]
-}
-
 type DownstreamTLSConfig struct {
-	TlsMinVersion TLSProtocolVersion
-	TlsMaxVersion TLSProtocolVersion
-	CipherSuites  []string
-	Mode          networking.ServerTLSSettings_TLSmode
-	CASecretName  model.NamespacedName
+	CipherSuites []string
+	Mode         networking.ServerTLSSettings_TLSmode
+	CASecretName model.NamespacedName
 }
 
 type downstreamTLS struct{}
@@ -98,16 +68,6 @@ func (d downstreamTLS) Parse(annotations Annotations, config *Ingress, _ *Global
 			downstreamTLSConfig.CASecretName = namespacedName
 			downstreamTLSConfig.Mode = networking.ServerTLSSettings_MUTUAL
 		}
-	}
-
-	if minVersion, err := annotations.ParseStringForMSE(tlsMinVersion); err == nil &&
-		isValidTLSProtocolVersion(minVersion) {
-		downstreamTLSConfig.TlsMinVersion = TLSProtocolVersion(minVersion)
-	}
-
-	if maxVersion, err := annotations.ParseStringForMSE(tlsMaxVersion); err == nil &&
-		isValidTLSProtocolVersion(maxVersion) {
-		downstreamTLSConfig.TlsMaxVersion = TLSProtocolVersion(maxVersion)
 	}
 
 	if rawTlsCipherSuite, err := annotations.ParseStringASAP(sslCipher); err == nil {
@@ -144,12 +104,6 @@ func (d downstreamTLS) ApplyGateway(gateway *networking.Gateway, config *Ingress
 				}
 			}
 
-			if downstreamTLSConfig.TlsMinVersion != "" {
-				server.Tls.MinProtocolVersion = tlsProtocol[downstreamTLSConfig.TlsMinVersion]
-			}
-			if downstreamTLSConfig.TlsMaxVersion != "" {
-				server.Tls.MaxProtocolVersion = tlsProtocol[downstreamTLSConfig.TlsMaxVersion]
-			}
 			if len(downstreamTLSConfig.CipherSuites) != 0 {
 				server.Tls.CipherSuites = downstreamTLSConfig.CipherSuites
 			}
@@ -158,8 +112,6 @@ func (d downstreamTLS) ApplyGateway(gateway *networking.Gateway, config *Ingress
 }
 
 func needDownstreamTLS(annotations Annotations) bool {
-	return annotations.HasMSE(tlsMinVersion) ||
-		annotations.HasMSE(tlsMaxVersion) ||
-		annotations.HasASAP(sslCipher) ||
+	return annotations.HasASAP(sslCipher) ||
 		annotations.HasASAP(authTLSSecret)
 }

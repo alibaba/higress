@@ -68,8 +68,8 @@ func TestAuthParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildNginxAnnotationKey(authType):    defaultAuthType,
-				buildMSEAnnotationKey(authSecretAnn): "foo/bar",
+				buildNginxAnnotationKey(authType):        defaultAuthType,
+				buildHigressAnnotationKey(authSecretAnn): "foo/bar",
 			},
 			secret: &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -96,7 +96,7 @@ func TestAuthParse(t *testing.T) {
 		{
 			input: map[string]string{
 				buildNginxAnnotationKey(authType):          defaultAuthType,
-				buildMSEAnnotationKey(authSecretAnn):       "foo/bar",
+				buildHigressAnnotationKey(authSecretAnn):   "foo/bar",
 				buildNginxAnnotationKey(authSecretTypeAnn): string(authMapAuthSecretType),
 			},
 			secret: &v1.Secret{
@@ -125,7 +125,7 @@ func TestAuthParse(t *testing.T) {
 		{
 			input: map[string]string{
 				buildNginxAnnotationKey(authType):          defaultAuthType,
-				buildMSEAnnotationKey(authSecretAnn):       "bar",
+				buildHigressAnnotationKey(authSecretAnn):   "bar",
 				buildNginxAnnotationKey(authSecretTypeAnn): string(authFileAuthSecretType),
 			},
 			secret: &v1.Secret{

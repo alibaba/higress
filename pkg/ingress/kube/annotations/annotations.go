@@ -54,15 +54,9 @@ type Ingress struct {
 
 	IPAccessControl *IPAccessControlConfig
 
-	HeaderControl *HeaderControlConfig
-
-	Timeout *TimeoutConfig
-
 	Retry *RetryConfig
 
 	LoadBalance *LoadBalanceConfig
-
-	localRateLimit *localRateLimitConfig
 
 	Fallback *FallbackConfig
 
@@ -105,22 +99,6 @@ func (i *Ingress) NeedTrafficPolicy() bool {
 		i.LoadBalance != nil
 }
 
-func (i *Ingress) MergeHostIPAccessControlIfNotExist(ac *IPAccessControlConfig) {
-	if i.IPAccessControl != nil && i.IPAccessControl.Domain != nil {
-		return
-	}
-
-	if ac != nil && ac.Domain != nil {
-		if i.IPAccessControl == nil {
-			i.IPAccessControl = &IPAccessControlConfig{
-				Domain: ac.Domain,
-			}
-		} else {
-			i.IPAccessControl.Domain = ac.Domain
-		}
-	}
-}
-
 type AnnotationHandler interface {
 	Parser
 	GatewayHandler
@@ -147,11 +125,8 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			rewrite{},
 			upstreamTLS{},
 			ipAccessControl{},
-			headerControl{},
-			timeout{},
 			retry{},
 			loadBalance{},
-			localRateLimit{},
 			fallback{},
 			auth{},
 		},
@@ -166,10 +141,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			redirect{},
 			rewrite{},
 			ipAccessControl{},
-			headerControl{},
-			timeout{},
 			retry{},
-			localRateLimit{},
 			fallback{},
 		},
 		trafficPolicyHandlers: []TrafficPolicyHandler{

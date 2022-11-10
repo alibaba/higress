@@ -131,9 +131,9 @@ func TestCorsParse(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildMSEAnnotationKey(enableCors):         "true",
+				buildHigressAnnotationKey(enableCors):     "true",
 				buildNginxAnnotationKey(allowOrigin):      "https://origin-site.com:4443, http://origin-site.com, https://example.org:1199",
-				buildMSEAnnotationKey(allowMethods):       "GET, PUT",
+				buildHigressAnnotationKey(allowMethods):   "GET, PUT",
 				buildNginxAnnotationKey(allowHeaders):     "foo,bar",
 				buildNginxAnnotationKey(allowCredentials): "false",
 				buildNginxAnnotationKey(maxAge):           "100",
