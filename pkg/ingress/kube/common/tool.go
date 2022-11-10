@@ -267,31 +267,11 @@ func partMd5(raw string) string {
 }
 
 func GenerateUniqueRouteName(route *WrapperHTTPRoute) string {
-	raw := constructRouteName(route)
-
-	// meta-part-clusterId
-	// meta: ingressNamespace-ingressName
-	meta := route.Meta()
-	// host-pathType-path-header-queryParam, md5, then before 4 char and end 4 char
-	part := partMd5(raw)
-	routeName := CreateConvertedName(meta, part, route.ClusterId)
-
-	if route.WrapperConfig.AnnotationsConfig.IsCanary() {
-		return routeName + "-canary"
-	}
-
-	return routeName
+	return route.Meta()
 }
 
 func GenerateUniqueRouteNameWithSuffix(route *WrapperHTTPRoute, suffix string) string {
-	raw := constructRouteName(route)
-
-	// meta-part-clusterId
-	// meta: ingressNamespace-ingressName
-	meta := route.Meta()
-	// host-pathType-path-header-queryParam, md5, then before 4 char and end 4 char
-	part := partMd5(raw)
-	return CreateConvertedName(meta, part, route.ClusterId, suffix)
+	return CreateConvertedName(route.Meta(), suffix)
 }
 
 func SplitServiceFQDN(fqdn string) (string, string, bool) {
