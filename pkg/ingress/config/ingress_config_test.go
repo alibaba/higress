@@ -182,8 +182,7 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 					},
 					AnnotationsConfig: &annotations.Ingress{
 						DownstreamTLS: &annotations.DownstreamTLSConfig{
-							TlsMinVersion: annotations.TLSProtocolVersion("TLSv1.1"),
-							CipherSuites:  []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
+							CipherSuites: []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
 						},
 					},
 				},
@@ -249,8 +248,7 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 					},
 					AnnotationsConfig: &annotations.Ingress{
 						DownstreamTLS: &annotations.DownstreamTLSConfig{
-							TlsMinVersion: annotations.TLSProtocolVersion("TLSv1.2"),
-							CipherSuites:  []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+							CipherSuites: []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 						},
 					},
 				},
@@ -284,10 +282,9 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 								},
 								Hosts: []string{"foo.com"},
 								Tls: &networking.ServerTLSSettings{
-									Mode:               networking.ServerTLSSettings_SIMPLE,
-									CredentialName:     "kubernetes-ingress://ingress-v1beta1__/wakanda/foo-com",
-									MinProtocolVersion: networking.ServerTLSSettings_TLSV1_1,
-									CipherSuites:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
+									Mode:           networking.ServerTLSSettings_SIMPLE,
+									CredentialName: "kubernetes-ingress://ingress-v1beta1__/wakanda/foo-com",
+									CipherSuites:   []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
 								},
 							},
 						},
@@ -321,10 +318,9 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 								},
 								Hosts: []string{"test.com"},
 								Tls: &networking.ServerTLSSettings{
-									Mode:               networking.ServerTLSSettings_SIMPLE,
-									CredentialName:     "kubernetes-ingress://ingress-v1beta1__/wakanda/test-com",
-									MinProtocolVersion: networking.ServerTLSSettings_TLSV1_1,
-									CipherSuites:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
+									Mode:           networking.ServerTLSSettings_SIMPLE,
+									CredentialName: "kubernetes-ingress://ingress-v1beta1__/wakanda/test-com",
+									CipherSuites:   []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES256-SHA"},
 								},
 							},
 						},
@@ -466,8 +462,7 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 					},
 					AnnotationsConfig: &annotations.Ingress{
 						DownstreamTLS: &annotations.DownstreamTLSConfig{
-							TlsMinVersion: annotations.TLSProtocolVersion("TLSv1.2"),
-							CipherSuites:  []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+							CipherSuites: []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 						},
 					},
 				},
@@ -501,10 +496,9 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 								},
 								Hosts: []string{"foo.com"},
 								Tls: &networking.ServerTLSSettings{
-									Mode:               networking.ServerTLSSettings_SIMPLE,
-									CredentialName:     "kubernetes-ingress://ingress-v1__/wakanda/foo-com",
-									MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-									CipherSuites:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+									Mode:           networking.ServerTLSSettings_SIMPLE,
+									CredentialName: "kubernetes-ingress://ingress-v1__/wakanda/foo-com",
+									CipherSuites:   []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 								},
 							},
 						},
@@ -538,10 +532,9 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 								},
 								Hosts: []string{"test.com"},
 								Tls: &networking.ServerTLSSettings{
-									Mode:               networking.ServerTLSSettings_SIMPLE,
-									CredentialName:     "kubernetes-ingress://ingress-v1__/wakanda/test-com",
-									MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-									CipherSuites:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+									Mode:           networking.ServerTLSSettings_SIMPLE,
+									CredentialName: "kubernetes-ingress://ingress-v1__/wakanda/test-com",
+									CipherSuites:   []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 								},
 							},
 						},
