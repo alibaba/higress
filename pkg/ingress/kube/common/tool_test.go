@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConstructRouteName(t *testing.T) {
@@ -151,7 +152,7 @@ func TestConstructRouteName(t *testing.T) {
 }
 
 func TestGenerateUniqueRouteName(t *testing.T) {
-	inputWithoutCanary := &WrapperHTTPRoute{
+	input := &WrapperHTTPRoute{
 		WrapperConfig: &WrapperConfig{
 			Config: &config.Config{
 				Meta: config.Meta{
@@ -197,65 +198,8 @@ func TestGenerateUniqueRouteName(t *testing.T) {
 		},
 	}
 
-	withoutCanary := GenerateUniqueRouteName(inputWithoutCanary)
-	t.Log(withoutCanary)
+	assert.Equal(t, "bar/foo", GenerateUniqueRouteName(input))
 
-	inputWithCanary := &WrapperHTTPRoute{
-		WrapperConfig: &WrapperConfig{
-			Config: &config.Config{
-				Meta: config.Meta{
-					Name:      "foo",
-					Namespace: "bar",
-				},
-			},
-			AnnotationsConfig: &annotations.Ingress{
-				Canary: &annotations.CanaryConfig{
-					Enabled: true,
-				},
-			},
-		},
-		Host:           "test.com",
-		OriginPathType: Prefix,
-		OriginPath:     "/test",
-		ClusterId:      "cluster1",
-		HTTPRoute: &networking.HTTPRoute{
-			Match: []*networking.HTTPMatchRequest{
-				{
-					Headers: map[string]*networking.StringMatch{
-						"f": {
-							MatchType: &networking.StringMatch_Regex{
-								Regex: "abc?",
-							},
-						},
-						"e": {
-							MatchType: &networking.StringMatch_Exact{
-								Exact: "bye",
-							},
-						},
-					},
-					QueryParams: map[string]*networking.StringMatch{
-						"b": {
-							MatchType: &networking.StringMatch_Regex{
-								Regex: "a?c.*",
-							},
-						},
-						"a": {
-							MatchType: &networking.StringMatch_Exact{
-								Exact: "hello",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	withCanary := GenerateUniqueRouteName(inputWithCanary)
-	t.Log(withCanary)
-
-	if withCanary != withoutCanary+"-canary" {
-		t.Fatalf("Expect %s, but actual is %s", withCanary, withoutCanary+"-canary")
-	}
 }
 
 func TestGetLbStatusList(t *testing.T) {
