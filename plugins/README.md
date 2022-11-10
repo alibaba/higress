@@ -5,12 +5,19 @@
 同时提供了多个内置插件，用户可以基于 Higress 提供的官方镜像仓库直接使用这些插件：
 
 [basic-auth](./wasm-cpp/basic_auth)：Basic Auth 认证鉴权
+
 [key-auth](./wasm-cpp/key_auth)：Key 认证鉴权
+
 [hmac-auth](./wasm-cpp/hmac_auth)：Hmac 认证鉴权
+
 [jwt-auth](./wasm-cpp/jwt_auth)： JWT 认证鉴权
+
 [bot-detect](./wasm-cpp/bot_detect)：防互联网爬虫
+
 [custom-response](./wasm-cpp/custom_response)：自定义应答
+
 [key-rate-limit](./wasm-cpp/key_rate_limit)：针对参数的限流
+
 [request-block](./wasm-cpp/request_block)：自定义请求屏蔽
 
 使用方式具体可以参考此[文档](./wasm-go/README.md) 中相关说明。
