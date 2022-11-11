@@ -51,27 +51,27 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 - **生产等级**
 
-  脱胎于阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景
+  脱胎于阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景。
 
-  彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感
+  彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感。
   
 - **平滑演进**
 
-  支持 Nacos/Zookeeper/Eureka 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持非容器架构平滑演进到云原生架构
+  支持 Nacos/Zookeeper/Eureka 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持非容器架构平滑演进到云原生架构。
 
-  支持从 Nginx Ingress Controller 平滑迁移，支持平滑过渡到 Gateway API，支持业务架构平滑演进到 ServiceMesh
+  支持从 Nginx Ingress Controller 平滑迁移，支持平滑过渡到 Gateway API，支持业务架构平滑演进到 ServiceMesh。
 
 - **兼收并蓄**
   
-  兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解
+  兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解。
   
-  兼容 Ingress API/Gateway API/Istio API，可以组合多种 CRD 实现流量精细化管理  
+  兼容 Ingress API/Gateway API/Istio API，可以组合多种 CRD 实现流量精细化管理。
   
 - **便于扩展**
   
-  提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级
+  提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级。
 
-  插件支持热更新，变更插件逻辑和配置都对流量无损
+  插件支持热更新，变更插件逻辑和配置都对流量无损。
 
 ## Quick Start
 
