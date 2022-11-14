@@ -10,7 +10,7 @@
 [**官网**](https://higress.io/) &nbsp; |
 &nbsp; [**文档**](https://higress.io/zh-cn/docs/overview/what-is-higress.html) &nbsp; |
 &nbsp; [**博客**](https://higress.io/zh-cn/blog/index.html) &nbsp; |
-&nbsp; [**开发者**](https://higress.io/zh-cn/docs/developers/developers_dev.html) &nbsp; 
+&nbsp; [**开发指引**](https://higress.io/zh-cn/docs/dev/code.html) &nbsp; 
 
 
 <p>
