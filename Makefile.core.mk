@@ -102,6 +102,12 @@ helm-push-istio:
 	cd helm/istio; helm dependency update
 	cd helm; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(CHARTS)"
 
+helm-push-kind:
+	cd helm/kind/higress; helm dependency update
+	cd helm/kind; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(CHARTS)"
+	cd helm/kind/istio; helm dependency update
+	cd helm/kind; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(CHARTS)"
+
 
 DIRS_TO_CLEAN := $(OUT)
 DIRS_TO_CLEAN += $(OUT_LINUX)

@@ -10,7 +10,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 04cfef254aade907478c2b70cf576bb5eb310047
+  tag: 268c73301e78514552fe0576fb0059c42c854a5c
 
   # Can be a full hub/image:tag
   image: pilot
@@ -221,6 +221,7 @@ meshConfig:
   # No hurry to do this in 1.6, we're trying to prove the code.
 
 global:
+  kind: false
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
   autoscalingv2API: true
@@ -253,7 +254,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 1.12
+  tag: 268c73301e78514552fe0576fb0059c42c854a5c
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
