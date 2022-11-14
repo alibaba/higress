@@ -73,8 +73,10 @@ spec:
             {{- end }}
           readinessProbe:
             {{- toYaml .Values.controller.probe | nindent 12 }}
+          {{- if not .Values.global.kind  }}
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
+          {{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

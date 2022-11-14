@@ -9,7 +9,11 @@ metadata:
     {{- .Values.gateway.annotations | toYaml | nindent 4 }}
 spec:
   {{- if not .Values.gateway.autoscaling.enabled }}
+  {{- if not .Values.global.kind }}
   replicas: {{ .Values.gateway.replicaCount }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
   {{- end }}
   selector:
     matchLabels:
@@ -137,6 +141,16 @@ spec:
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
+          {{- if .Values.global.kind }}
+          - containerPort: 80
+            hostPort: 80
+            name: http
+            protocol: TCP
+          - containerPort: 443
+            hostPort: 443
+            name: https
+            protocol: TCP
+          {{- end }}
           readinessProbe:
             failureThreshold: 30
             httpGet:
@@ -147,8 +161,10 @@ spec:
             periodSeconds: 2
             successThreshold: 1
             timeoutSeconds: 3
+          {{- if not .Values.global.kind  }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
+          {{- end }}
           volumeMounts:
           - name: config
             mountPath: /etc/istio/config

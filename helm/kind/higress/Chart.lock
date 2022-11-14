@@ -1,0 +1,6 @@
+dependencies:
+- name: higress
+  repository: file://../../higress
+  version: 0.5.2
+digest: sha256:414ef7a78a25d8f25d1f643edf4c8e59f74ecaa51a5ae4e4bff3000472b08fdb
+generated: "2022-11-13T13:39:25.948896+08:00"
