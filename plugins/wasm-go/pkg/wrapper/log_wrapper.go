@@ -31,11 +31,11 @@ const (
 	LogLevelCritical
 )
 
-type LogWrapper struct {
+type Log struct {
 	pluginName string
 }
 
-func (l LogWrapper) log(level LogLevel, msg string) {
+func (l Log) log(level LogLevel, msg string) {
 	msg = fmt.Sprintf("[%s] %s", l.pluginName, msg)
 	switch level {
 	case LogLevelTrace:
@@ -53,7 +53,7 @@ func (l LogWrapper) log(level LogLevel, msg string) {
 	}
 }
 
-func (l LogWrapper) logFormat(level LogLevel, format string, args ...interface{}) {
+func (l Log) logFormat(level LogLevel, format string, args ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", l.pluginName, format)
 	switch level {
 	case LogLevelTrace:
@@ -71,50 +71,50 @@ func (l LogWrapper) logFormat(level LogLevel, format string, args ...interface{}
 	}
 }
 
-func (l LogWrapper) Trace(msg string) {
+func (l Log) Trace(msg string) {
 	l.log(LogLevelTrace, msg)
 }
 
-func (l LogWrapper) Tracef(format string, args ...interface{}) {
+func (l Log) Tracef(format string, args ...interface{}) {
 	l.logFormat(LogLevelTrace, format, args...)
 }
 
-func (l LogWrapper) Debug(msg string) {
+func (l Log) Debug(msg string) {
 	l.log(LogLevelDebug, msg)
 }
 
-func (l LogWrapper) Debugf(format string, args ...interface{}) {
+func (l Log) Debugf(format string, args ...interface{}) {
 	l.logFormat(LogLevelDebug, format, args...)
 }
 
-func (l LogWrapper) Info(msg string) {
+func (l Log) Info(msg string) {
 	l.log(LogLevelInfo, msg)
 }
 
-func (l LogWrapper) Infof(format string, args ...interface{}) {
+func (l Log) Infof(format string, args ...interface{}) {
 	l.logFormat(LogLevelInfo, format, args...)
 }
 
-func (l LogWrapper) Warn(msg string) {
+func (l Log) Warn(msg string) {
 	l.log(LogLevelWarn, msg)
 }
 
-func (l LogWrapper) Warnf(format string, args ...interface{}) {
+func (l Log) Warnf(format string, args ...interface{}) {
 	l.logFormat(LogLevelWarn, format, args...)
 }
 
-func (l LogWrapper) Error(msg string) {
+func (l Log) Error(msg string) {
 	l.log(LogLevelError, msg)
 }
 
-func (l LogWrapper) Errorf(format string, args ...interface{}) {
+func (l Log) Errorf(format string, args ...interface{}) {
 	l.logFormat(LogLevelError, format, args...)
 }
 
-func (l LogWrapper) Critical(msg string) {
+func (l Log) Critical(msg string) {
 	l.log(LogLevelCritical, msg)
 }
 
-func (l LogWrapper) Criticalf(format string, args ...interface{}) {
+func (l Log) Criticalf(format string, args ...interface{}) {
 	l.logFormat(LogLevelCritical, format, args...)
 }

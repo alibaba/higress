@@ -44,7 +44,7 @@ type RequestBlockConfig struct {
 	blockBodys     []string
 }
 
-func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.LogWrapper) error {
+func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log) error {
 	code := json.Get("blocked_code").Int()
 	if code != 0 && code > 100 && code < 600 {
 		config.blockedCode = uint32(code)
@@ -93,7 +93,7 @@ func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.LogW
 	return nil
 }
 
-func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[RequestBlockConfig], config RequestBlockConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, log wrapper.Log) types.Action {
 	if len(config.blockUrls) > 0 {
 		requestUrl, err := proxywasm.GetHttpRequestHeader(":path")
 		if err != nil {
@@ -132,12 +132,12 @@ func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[RequestBlockConfig], config
 		}
 	}
 	if len(config.blockBodys) == 0 {
-		*needBody = false
+		ctx.DontReadRequestBody()
 	}
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx *wrapper.CommonHttpCtx[RequestBlockConfig], config RequestBlockConfig, body []byte, log wrapper.LogWrapper) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config RequestBlockConfig, body []byte, log wrapper.Log) types.Action {
 	bodyStr := string(body)
 	if !config.caseSensitive {
 		bodyStr = strings.ToLower(bodyStr)
