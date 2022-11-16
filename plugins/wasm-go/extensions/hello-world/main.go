@@ -31,7 +31,7 @@ func main() {
 type HelloWorldConfig struct {
 }
 
-func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[HelloWorldConfig], config HelloWorldConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log wrapper.Log) types.Action {
 	err := proxywasm.AddHttpRequestHeader("hello", "world")
 	if err != nil {
 		log.Critical("failed to set request header")

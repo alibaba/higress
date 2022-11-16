@@ -41,7 +41,7 @@ type HttpCallConfig struct {
 	tokenHeader string
 }
 
-func parseConfig(json gjson.Result, config *HttpCallConfig, log wrapper.LogWrapper) error {
+func parseConfig(json gjson.Result, config *HttpCallConfig, log wrapper.Log) error {
 	config.bodyHeader = json.Get("bodyHeader").String()
 	if config.bodyHeader == "" {
 		return errors.New("missing bodyHeader in config")
@@ -96,7 +96,7 @@ func parseConfig(json gjson.Result, config *HttpCallConfig, log wrapper.LogWrapp
 	}
 }
 
-func onHttpRequestHeaders(ctx *wrapper.CommonHttpCtx[HttpCallConfig], config HttpCallConfig, needBody *bool, log wrapper.LogWrapper) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config HttpCallConfig, log wrapper.Log) types.Action {
 	config.client.Get(config.requestPath, nil,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest()

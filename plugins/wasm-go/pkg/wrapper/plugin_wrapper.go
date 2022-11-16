@@ -24,14 +24,27 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
 
-type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log LogWrapper) error
-type onHttpHeadersFunc[PluginConfig any] func(context *CommonHttpCtx[PluginConfig], config PluginConfig, needBody *bool, log LogWrapper) types.Action
-type onHttpBodyFunc[PluginConfig any] func(context *CommonHttpCtx[PluginConfig], config PluginConfig, body []byte, log LogWrapper) types.Action
+type HttpContext interface {
+	Scheme() string
+	Host() string
+	Path() string
+	Method() string
+	SetContext(key string, value interface{})
+	GetContext(key string) interface{}
+	// If the onHttpRequestBody handle is not set, the request body will not be read by default
+	DontReadRequestBody()
+	// If the onHttpResponseBody handle is not set, the request body will not be read by default
+	DontReadResponseBody()
+}
+
+type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
+type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
+type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
 	pluginName            string
-	log                   LogWrapper
+	log                   Log
 	hasCustomConfig       bool
 	parseConfig           ParseConfigFunc[PluginConfig]
 	onHttpRequestHeaders  onHttpHeadersFunc[PluginConfig]
@@ -76,14 +89,14 @@ func ProcessResponseBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) Set
 	}
 }
 
-func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, LogWrapper) error {
+func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) error {
 	return nil
 }
 
 func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
-		log:             LogWrapper{pluginName},
+		log:             Log{pluginName},
 		hasCustomConfig: true,
 	}
 	for _, set := range setFuncs {
@@ -179,6 +192,34 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
 }
 
+func (ctx *CommonHttpCtx[PluginConfig]) Scheme() string {
+	proxywasm.SetEffectiveContext(ctx.contextID)
+	return GetRequestScheme()
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) Host() string {
+	proxywasm.SetEffectiveContext(ctx.contextID)
+	return GetRequestHost()
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) Path() string {
+	proxywasm.SetEffectiveContext(ctx.contextID)
+	return GetRequestPath()
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) Method() string {
+	proxywasm.SetEffectiveContext(ctx.contextID)
+	return GetRequestMethod()
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) DontReadRequestBody() {
+	ctx.needRequestBody = false
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) DontReadResponseBody() {
+	ctx.needResponseBody = false
+}
+
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
 	config, err := ctx.plugin.GetMatchConfig()
 	if err != nil {
@@ -192,8 +233,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 	if ctx.plugin.vm.onHttpRequestHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpRequestHeaders(ctx, *config,
-		&ctx.needRequestBody, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpRequestHeaders(ctx, *config, ctx.plugin.vm.log)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStream bool) types.Action {
@@ -225,8 +265,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, en
 	if ctx.plugin.vm.onHttpResponseHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpResponseHeaders(ctx, *ctx.config,
-		&ctx.needResponseBody, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpResponseHeaders(ctx, *ctx.config, ctx.plugin.vm.log)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfStream bool) types.Action {
