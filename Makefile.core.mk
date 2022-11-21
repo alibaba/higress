@@ -108,6 +108,13 @@ helm-push-kind:
 	cd helm/kind/istio; helm dependency update
 	cd helm/kind; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(CHARTS)"
 
+cue = cue-gen -paths=./external/api/common-protos
+
+gen-api: prebuild
+	cd api;./gen.sh
+
+gen-client: gen-api
+	cd client; make generate-k8s-client
 
 DIRS_TO_CLEAN := $(OUT)
 DIRS_TO_CLEAN += $(OUT_LINUX)

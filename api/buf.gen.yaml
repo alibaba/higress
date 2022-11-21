@@ -1,0 +1,14 @@
+version: v1
+plugins:
+- name: go
+  out: .
+  opt: paths=source_relative
+- name: go-grpc
+  out: .
+  opt: paths=source_relative
+- name: golang-deepcopy
+  out: .
+  opt: paths=source_relative
+- name: golang-jsonshim
+  out: .
+  opt: paths=source_relative
