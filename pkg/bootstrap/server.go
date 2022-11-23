@@ -38,7 +38,7 @@ import (
 	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/keepalive"
-	kubelib "istio.io/istio/pkg/kube"
+	istiokube "istio.io/istio/pkg/kube"
 	"istio.io/pkg/env"
 	"istio.io/pkg/ledger"
 	"istio.io/pkg/log"
@@ -48,6 +48,7 @@ import (
 	ingressconfig "github.com/alibaba/higress/pkg/ingress/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
+	higresskube "github.com/alibaba/higress/pkg/kube"
 )
 
 type XdsOptions struct {
@@ -107,7 +108,7 @@ type readinessProbe func() (bool, error)
 type Server struct {
 	*ServerArgs
 	environment      *model.Environment
-	kubeClient       kubelib.Client
+	kubeClient       higresskube.Client
 	configController model.ConfigStoreCache
 	configStores     []model.ConfigStoreCache
 	httpServer       *http.Server
@@ -346,14 +347,14 @@ func (s *Server) initKubeClient() error {
 		// Already initialized by startup arguments
 		return nil
 	}
-	kubeRestConfig, err := kubelib.DefaultRestConfig(s.RegistryOptions.KubeConfig, "", func(config *rest.Config) {
+	kubeRestConfig, err := istiokube.DefaultRestConfig(s.RegistryOptions.KubeConfig, "", func(config *rest.Config) {
 		config.QPS = s.RegistryOptions.KubeOptions.KubernetesAPIQPS
 		config.Burst = s.RegistryOptions.KubeOptions.KubernetesAPIBurst
 	})
 	if err != nil {
 		return fmt.Errorf("failed creating kube config: %v", err)
 	}
-	s.kubeClient, err = kubelib.NewClient(kubelib.NewClientConfigForRestConfig(kubeRestConfig))
+	s.kubeClient, err = higresskube.NewClient(istiokube.NewClientConfigForRestConfig(kubeRestConfig))
 	if err != nil {
 		return fmt.Errorf("failed creating kube client: %v", err)
 	}
