@@ -37,7 +37,7 @@ func GetRequestHost() string {
 func GetRequestPath() string {
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
-		proxywasm.LogError("parse request path failed")
+		proxywasm.LogError("parse request path failed: " + err.Error())
 		return ""
 	}
 	return path
@@ -46,7 +46,7 @@ func GetRequestPath() string {
 func GetRequestMethod() string {
 	method, err := proxywasm.GetHttpRequestHeader(":method")
 	if err != nil {
-		proxywasm.LogError("parse request path failed")
+		proxywasm.LogError("parse request method failed: " + err.Error())
 		return ""
 	}
 	return method

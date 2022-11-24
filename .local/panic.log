@@ -1,0 +1,55 @@
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.491][33][critical][assert] panic: not implemented
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.491][33][critical][backtrace] Caught Aborted, suspect faulting address 0x13
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.491][33][critical][backtrace] Backtrace (use tools/stack_decode.py to get line numbers):
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.491][33][critical][backtrace] Envoy version: 4b24e8a92d204ce7d0ce90faa2d60705b2cbe3be/1.20.0/Modified/RELEASE/BoringSSL
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.506][33][critical][backtrace] #0: [0x7f0c33e25520]
+ActiveStream 0x56509d3b1e00, stream_id_: 16794530381289454614&filter_manager_:
+  FilterManager 0x56509d3b1e78, state_.has_continue_headers_: 0
+  filter_manager_callbacks_.requestHeaders():
+    ':authority', 'localhost'
+    ':path', '/redirect0'
+    ':method', 'GET'
+    ':scheme', 'http'
+    'user-agent', 'curl/7.84.0'
+    'accept', '*/*'
+    'x-forwarded-for', '172.18.0.1'
+    'x-forwarded-proto', 'http'
+    'x-envoy-internal', 'true'
+    'x-request-id', '6bd41340-6822-4c03-b5d2-c304bd32bd9b'
+    'x-envoy-decorator-operation', 'upstream-example.default.svc.cluster.local:8080/upstream-example(/|$)(.+).*'
+    'x-envoy-attempt-count', '1'
+    'x-b3-traceid', '5d203c00ed7a68c9849c4a05f56f34c3'
+    'x-b3-spanid', '849c4a05f56f34c3'
+    'x-b3-sampled', '0'
+    'req-start-time', '1669259123457'
+    'original-host', 'localhost'
+    'x-envoy-original-path', '/upstream-example/redirect0'
+  filter_manager_callbacks_.requestTrailers():   null
+  filter_manager_callbacks_.responseHeaders():
+    ':status', '201'
+    'location', 'http://web1:8080'
+    'date', 'Thu, 24 Nov 2022 03:05:23 GMT'
+    'content-length', '0'
+    'req-cost-time', '19'
+    'req-arrive-time', '1669259123457'
+    'resp-start-time', '1669259123476'
+    'x-envoy-upstream-service-time', '5'
+  filter_manager_callbacks_.responseTrailers():   null
+  &stream_info_:
+    StreamInfoImpl 0x56509d3b1f78, upstream_connection_id_: 134, protocol_: 1, response_code_: null, response_code_details_: via_upstream, attempt_count_: 1, health_check_request_: 0, route_name_: default/upstream-example
+    OverridableRemoteConnectionInfoSetterStreamInfo 0x56509d3b1f78, remoteAddress(): 172.18.0.1:56568, directRemoteAddress(): 172.18.0.1:56568, localAddress(): 10.244.0.13:80
+Http1::ConnectionImpl 0x56509eb8d708, dispatching_: 1, dispatching_slice_already_drained_: 0, reset_stream_called_: 0, handling_upgrade_: 0, deferred_end_stream_headers_: 1, require_strict_1xx_and_204_headers_: 0, send_strict_1xx_and_204_headers_: 1, processing_trailers_: 0, no_chunked_encoding_header_for_304_: 1, buffered_body_.length(): 0, header_parsing_state_: Done, current_header_field_: , current_header_value_:
+absl::get<ResponseHeaderMapPtr>(headers_or_trailers_): null
+Dumping corresponding downstream request:
+decoder:
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.507][33][critical][backtrace] Caught Segmentation fault, suspect faulting address 0x0
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.507][33][critical][backtrace] Backtrace (use tools/stack_decode.py to get line numbers):
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.507][33][critical][backtrace] Envoy version: 4b24e8a92d204ce7d0ce90faa2d60705b2cbe3be/1.20.0/Modified/RELEASE/BoringSSL
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.507][33][critical][backtrace] #0: [0x7f0c33e25520]
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.538][33][critical][backtrace] #1: Envoy::Http::Http1::ConnectionImpl::dumpState() [0x56509948ac63]
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.550][33][critical][backtrace] #2: Envoy::Event::DispatcherImpl::onFatalError() [0x565099630563]
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.569][33][critical][backtrace] #3: Envoy::FatalErrorHandler::callFatalErrorHandlers() [0x565099db96fd]
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.582][33][critical][backtrace] #4: Envoy::SignalAction::sigHandler() [0x565099db6ef7]
+[Envoy (Epoch 0)] [2022-11-24 03:05:23.582][33][critical][backtrace] #5: [0x7f0c33e25520]
+Our FatalActions triggered a fatal signal.
+2022-11-24T03:05:23.756584Z     error   Epoch 0 exited with error: signal: segmentation fault
