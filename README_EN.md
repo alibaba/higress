@@ -130,7 +130,7 @@ kubectl.exe config use-context kind-higress
 helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio-local
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
-
+Note: The helm version needs to be upgraded to **v3.8.0** and above
 #### step 4. create the ingress and test it
 
 ```bash
