@@ -205,7 +205,7 @@ func TestParseRuleConfig(t *testing.T) {
 		{
 			name:   "no rule",
 			config: `{"_rules_":[]}`,
-			errMsg: "parse config failed, no valid rules",
+			errMsg: "parse config failed, no valid rules; global config parse error:<nil>",
 		},
 		{
 			name:   "invalid rule",
