@@ -160,6 +160,8 @@ kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
 
+注：helm版本需升级至**v3.8.0**及以上
+
 #### 第四步、 创建 Ingress 资源并测试
 
 ```bash
