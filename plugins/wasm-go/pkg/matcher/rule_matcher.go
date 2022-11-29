@@ -16,6 +16,7 @@ package matcher
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
@@ -102,10 +103,12 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 		keyCount--
 	}
 	var pluginConfig PluginConfig
+	var globalConfigError error
 	if keyCount > 0 {
 		err := parsePluginConfig(config, &pluginConfig)
 		if err != nil {
-			proxywasm.LogInfof("parse global config failed, err:%v", err)
+			proxywasm.LogWarnf("parse global config failed, err:%v", err)
+			globalConfigError = err
 		} else {
 			m.globalConfig = pluginConfig
 			m.hasGlobalConfig = true
@@ -115,7 +118,7 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 		if m.hasGlobalConfig {
 			return nil
 		}
-		return errors.New("parse config failed, no valid rules")
+		return fmt.Errorf("parse config failed, no valid rules; global config parse error:%v", globalConfigError)
 	}
 	for _, ruleJson := range rules {
 		var rule RuleConfig[PluginConfig]
