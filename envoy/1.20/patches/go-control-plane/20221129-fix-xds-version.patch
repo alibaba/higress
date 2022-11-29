@@ -1,0 +1,24 @@
+diff -Naur go-control-plane/go.mod new/go.mod
+--- go-control-plane/go.mod	2022-11-29 18:48:27.000000000 +0800
++++ new/go.mod	2022-11-29 18:49:13.000000000 +0800
+@@ -4,7 +4,7 @@
+ 
+ require (
+ 	github.com/census-instrumentation/opencensus-proto v0.2.1
+-	github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158
++	github.com/cncf/xds/go v0.0.0-20220520190051-1e77728a1eaa
+ 	github.com/envoyproxy/protoc-gen-validate v0.1.0
+ 	github.com/golang/protobuf v1.4.3
+ 	github.com/google/go-cmp v0.5.0
+diff -Naur go-control-plane/go.sum new/go.sum
+--- go-control-plane/go.sum	2022-11-29 18:48:27.000000000 +0800
++++ new/go.sum	2022-11-29 18:49:13.000000000 +0800
+@@ -9,6 +9,8 @@
+ github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
+ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158 h1:CevA8fI91PAnP8vpnXuB8ZYAZ5wqY86nAbxfgK8tWO4=
+ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
++github.com/cncf/xds/go v0.0.0-20220520190051-1e77728a1eaa h1:B/lvg4tQ5hfFZd4V2hcSfFVfUvAK6GSFKxIIzwnkv8g=
++github.com/cncf/xds/go v0.0.0-20220520190051-1e77728a1eaa/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
+ github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
+ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+ github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
