@@ -35,6 +35,10 @@ gateway:
   # Pod environment variables
   env: {}
 
+  # Configure the policy for validating JWT, it is used for istio authentication.
+  # Currently, two options are supported: "third-party-jwt" and "first-party-jwt".
+  jwtPolicy: "third-party-jwt"
+
   # Labels to apply to all resources
   labels: {}
 
