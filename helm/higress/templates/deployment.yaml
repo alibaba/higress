@@ -122,7 +122,7 @@ spec:
           - name: ENABLE_INGRESS_GATEWAY_SDS
             value: "false"
           - name: JWT_POLICY
-            value: first-party-jwt
+            value: {{ .Values.gateway.jwtPolicy }}
           - name: ISTIO_META_HTTP10
             value: "1"
           - name: ISTIO_META_CLUSTER_ID
@@ -166,6 +166,11 @@ spec:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           {{- end }}
           volumeMounts:
+          {{- if eq .Values.gateway.jwtPolicy "third-party-jwt" }}
+          - name: istio-token
+            mountPath: /var/run/secrets/tokens
+            readOnly: true
+          {{- end }}
           - name: config
             mountPath: /etc/istio/config
           - name: istio-ca-root-cert
@@ -189,6 +194,15 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
+      {{- if eq .Values.gateway.jwtPolicy "third-party-jwt" }}
+      - name: istio-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: istio-ca
+                expirationSeconds: 43200
+                path: istio-token
+      {{- end }}
       - name: istio-ca-root-cert
         configMap:
           name: istio-ca-root-cert
