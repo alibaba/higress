@@ -43,7 +43,7 @@ spec:
       securityContext:
       {{- if .Values.gateway.securityContext }}
         {{- toYaml .Values.gateway.securityContext | nindent 8 }}
-      {{- else if (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
+      {{- else if and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
         # Safe since 1.22: https://github.com/kubernetes/kubernetes/pull/103326
         sysctls:
         - name: net.ipv4.ip_unprivileged_port_start
@@ -64,7 +64,7 @@ spec:
           securityContext:
           {{- if .Values.gateway.containerSecurityContext }}
             {{- toYaml .Values.gateway.containerSecurityContext | nindent 12 }}
-          {{- else if (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
+          {{- else if and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
             # Safe since 1.22: https://github.com/kubernetes/kubernetes/pull/103326
             capabilities:
               drop:
@@ -181,6 +181,10 @@ spec:
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
+      {{- if .Values.gateway.hostNetwork }}
+      hostNetwork: {{ .Values.gateway.hostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
       {{- with .Values.gateway.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -235,4 +239,3 @@ spec:
               containerName: higress-gateway
               divisor: 1m
               resource: limits.cpu
-        
