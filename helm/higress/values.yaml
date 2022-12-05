@@ -39,6 +39,8 @@ gateway:
   # Currently, two options are supported: "third-party-jwt" and "first-party-jwt".
   jwtPolicy: "third-party-jwt"
 
+  hostNetwork: false
+
   # Labels to apply to all resources
   labels: {}
 
