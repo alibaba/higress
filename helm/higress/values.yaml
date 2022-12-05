@@ -12,7 +12,7 @@ istioNamespace: "istio-system"
 meshConfig: {}
 gateway:
   name: "higress-gateway"
-  replicaCount: 2
+  replicas: 2
   image: gateway
   tag: "268c73301e78514552fe0576fb0059c42c854a5c"
   # revision declares which revision this gateway is a part of
@@ -109,7 +109,7 @@ gateway:
   
 controller:
   name: "higress-controller"
-  replicaCount: 1
+  replicas: 1
   image: higress
   tag: "268c73301e78514552fe0576fb0059c42c854a5c"
   env: {}
