@@ -10,7 +10,7 @@ metadata:
 spec:
   {{- if not .Values.gateway.autoscaling.enabled }}
   {{- if not .Values.global.kind }}
-  replicas: {{ .Values.gateway.replicaCount }}
+  replicas: {{ .Values.gateway.replicas }}
   {{- else }}
   replicas: 1
   {{- end }}
