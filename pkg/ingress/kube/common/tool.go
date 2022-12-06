@@ -28,8 +28,18 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 
+	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
+
+func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
+	if resource == nil || resource.APIGroup == nil ||
+		*resource.APIGroup != netv1.SchemeGroupVersion.String() ||
+		resource.Kind != "McpBridge" || resource.Name != "default" {
+		return false
+	}
+	return true
+}
 
 // V1Available check if the "networking/v1" Ingress is available.
 func V1Available(client kube.Client) bool {

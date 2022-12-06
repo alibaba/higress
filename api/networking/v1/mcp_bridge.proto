@@ -57,7 +57,7 @@ message RegistryConfig {
   string nacosNamespaceId = 8;
   string nacosNamespace = 9;
   repeated string nacosGroups = 10;
-  uint64 nacosRefreshInterval = 11;
+  int64 nacosRefreshInterval = 11;
   string consulNamespace = 12;
   repeated string zkServicesPath = 13;
 }

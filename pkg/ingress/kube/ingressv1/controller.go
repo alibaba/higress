@@ -80,13 +80,13 @@ type controller struct {
 	serviceLister   listerv1.ServiceLister
 	classes         networkingv1.IngressClassInformer
 
-	secretController secret.Controller
+	secretController secret.SecretController
 
 	statusSyncer *statusSyncer
 }
 
 // NewController creates a new Kubernetes controller
-func NewController(localKubeClient, client kubeclient.Client, options common.Options, secretController secret.Controller) common.IngressController {
+func NewController(localKubeClient, client kubeclient.Client, options common.Options, secretController secret.SecretController) common.IngressController {
 	q := workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 
 	ingressInformer := client.KubeInformer().Networking().V1().Ingresses()
@@ -465,8 +465,10 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
 
-	if ingressV1.DefaultBackend != nil && ingressV1.DefaultBackend.Service != nil &&
-		ingressV1.DefaultBackend.Service.Name != "" {
+	if ingressV1.DefaultBackend != nil &&
+		((ingressV1.DefaultBackend.Service != nil &&
+			ingressV1.DefaultBackend.Service.Name != "") ||
+			ingressV1.DefaultBackend.Resource != nil) {
 		convertOptions.HasDefaultBackend = true
 	}
 
@@ -566,7 +568,8 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			// backend service check
 			var event common.Event
-			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder)
+			destinationConfig := wrapper.AnnotationsConfig.Destination
+			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
 
 			if ingressRouteBuilder.Event != common.Normal {
 				event = ingressRouteBuilder.Event
@@ -748,7 +751,8 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
 			// backend service check
 			var event common.Event
-			canary.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder)
+			destinationConfig := wrapper.AnnotationsConfig.Destination
+			canary.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
 			if event != common.Normal {
 				common.IncrementInvalidIngress(c.options.ClusterId, event)
 				ingressRouteBuilder.Event = event
@@ -877,32 +881,38 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 }
 
 func (c *controller) createDefaultRoute(wrapper *common.WrapperConfig, backend *ingress.IngressBackend, host string) *common.WrapperHTTPRoute {
-	if backend == nil || backend.Service == nil || backend.Service.Name == "" {
+	if backend == nil {
 		return nil
 	}
 
-	service := backend.Service
-	namespace := wrapper.Config.Namespace
+	var routeDestination []*networking.HTTPRouteDestination
 
-	port := &networking.PortSelector{}
-	if service.Port.Number > 0 {
-		port.Number = uint32(service.Port.Number)
+	if common.ValidateBackendResource(backend.Resource) {
+		routeDestination = wrapper.AnnotationsConfig.Destination.McpDestination
 	} else {
-		resolvedPort, err := resolveNamedPort(service, namespace, c.serviceLister)
-		if err != nil {
-			return nil
-		}
-		port.Number = uint32(resolvedPort)
-	}
+		service := backend.Service
+		namespace := wrapper.Config.Namespace
 
-	routeDestination := []*networking.HTTPRouteDestination{
-		{
-			Destination: &networking.Destination{
-				Host: util.CreateServiceFQDN(namespace, service.Name),
-				Port: port,
+		port := &networking.PortSelector{}
+		if service.Port.Number > 0 {
+			port.Number = uint32(service.Port.Number)
+		} else {
+			resolvedPort, err := resolveNamedPort(service, namespace, c.serviceLister)
+			if err != nil {
+				return nil
+			}
+			port.Number = uint32(resolvedPort)
+		}
+
+		routeDestination = []*networking.HTTPRouteDestination{
+			{
+				Destination: &networking.Destination{
+					Host: util.CreateServiceFQDN(namespace, service.Name),
+					Port: port,
+				},
+				Weight: 100,
 			},
-			Weight: 100,
-		},
+		}
 	}
 
 	route := &common.WrapperHTTPRoute{
@@ -951,13 +961,16 @@ func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
-	builder *common.IngressRouteBuilder) ([]*networking.HTTPRouteDestination, common.Event) {
+	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
 	if backend == nil || backend.Service == nil {
 		return nil, common.InvalidBackendService
 	}
 
 	service := backend.Service
 	if service.Name == "" {
+		if config != nil {
+			return config.McpDestination, common.Normal
+		}
 		return nil, common.InvalidBackendService
 	}
 

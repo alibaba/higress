@@ -42,6 +42,7 @@ spec:
                     nacosNamespaceId:
                       type: string
                     nacosRefreshInterval:
+                      format: int64
                       type: integer
                     nacosSecretKey:
                       type: string

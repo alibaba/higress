@@ -18,11 +18,8 @@ package fake
 
 import (
 	"context"
-	json "encoding/json"
-	"fmt"
 
 	networkingv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	applyconfigurationnetworkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -118,7 +115,7 @@ func (c *FakeMcpBridges) UpdateStatus(ctx context.Context, mcpBridge *networking
 // Delete takes name of the mcpBridge and deletes it. Returns an error if one occurs.
 func (c *FakeMcpBridges) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(mcpbridgesResource, c.ns, name, opts), &networkingv1.McpBridge{})
+		Invokes(testing.NewDeleteAction(mcpbridgesResource, c.ns, name), &networkingv1.McpBridge{})
 
 	return err
 }
@@ -135,51 +132,6 @@ func (c *FakeMcpBridges) DeleteCollection(ctx context.Context, opts v1.DeleteOpt
 func (c *FakeMcpBridges) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *networkingv1.McpBridge, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(mcpbridgesResource, c.ns, name, pt, data, subresources...), &networkingv1.McpBridge{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*networkingv1.McpBridge), err
-}
-
-// Apply takes the given apply declarative configuration, applies it and returns the applied mcpBridge.
-func (c *FakeMcpBridges) Apply(ctx context.Context, mcpBridge *applyconfigurationnetworkingv1.McpBridgeApplyConfiguration, opts v1.ApplyOptions) (result *networkingv1.McpBridge, err error) {
-	if mcpBridge == nil {
-		return nil, fmt.Errorf("mcpBridge provided to Apply must not be nil")
-	}
-	data, err := json.Marshal(mcpBridge)
-	if err != nil {
-		return nil, err
-	}
-	name := mcpBridge.Name
-	if name == nil {
-		return nil, fmt.Errorf("mcpBridge.Name must be provided to Apply")
-	}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(mcpbridgesResource, c.ns, *name, types.ApplyPatchType, data), &networkingv1.McpBridge{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*networkingv1.McpBridge), err
-}
-
-// ApplyStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-func (c *FakeMcpBridges) ApplyStatus(ctx context.Context, mcpBridge *applyconfigurationnetworkingv1.McpBridgeApplyConfiguration, opts v1.ApplyOptions) (result *networkingv1.McpBridge, err error) {
-	if mcpBridge == nil {
-		return nil, fmt.Errorf("mcpBridge provided to Apply must not be nil")
-	}
-	data, err := json.Marshal(mcpBridge)
-	if err != nil {
-		return nil, err
-	}
-	name := mcpBridge.Name
-	if name == nil {
-		return nil, fmt.Errorf("mcpBridge.Name must be provided to Apply")
-	}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(mcpbridgesResource, c.ns, *name, types.ApplyPatchType, data, "status"), &networkingv1.McpBridge{})
 
 	if obj == nil {
 		return nil, err
