@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/agiledragon/gomonkey/v2"
 	"istio.io/istio/pilot/pkg/features"
@@ -28,7 +27,7 @@ func TestStartWithNoError(t *testing.T) {
 		t.Errorf("failed to create server: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	if err = s.Start(ctx.Done()); err != nil {
