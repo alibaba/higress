@@ -363,6 +363,7 @@ func (s *Server) initHttpServer() error {
 	return nil
 }
 
+// readyHandler checks whether the http server is ready
 func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
 	for name, fn := range s.readinessProbes {
 		if ready, err := fn(); !ready {
