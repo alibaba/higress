@@ -878,7 +878,6 @@ func (m *IngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	IngressLog.Info("Ingress controllers have synced.")
 	if !m.mcpbridgeController.HasSynced() {
 		return false
 	}

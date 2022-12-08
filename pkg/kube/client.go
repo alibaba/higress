@@ -64,3 +64,9 @@ func (c *client) Higress() higressclient.Interface {
 func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 	return c.higressInformer
 }
+
+func (c *client) RunAndWait(stop <-chan struct{}) {
+	c.Client.RunAndWait(stop)
+	c.higressInformer.Start(stop)
+	c.higressInformer.WaitForCacheSync(stop)
+}

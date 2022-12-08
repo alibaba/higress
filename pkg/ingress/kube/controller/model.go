@@ -75,11 +75,11 @@ func (c *CommonController[lister]) AddEventHandler(addOrUpdate func(util.Cluster
 func (c *CommonController[lister]) Run(stop <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
-
 	if !cache.WaitForCacheSync(stop, c.HasSynced) {
 		IngressLog.Errorf("Failed to sync %s controller cache", c.typeName)
 		return
 	}
+	IngressLog.Debugf("%s cache has synced")
 	go wait.Until(c.worker, time.Second, stop)
 	<-stop
 }
