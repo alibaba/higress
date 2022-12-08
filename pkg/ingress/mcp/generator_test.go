@@ -1,12 +1,9 @@
 package mcp
 
 import (
-	"path"
 	"testing"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	extensions "istio.io/api/extensions/v1alpha1"
 	mcp "istio.io/api/mcp/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
@@ -127,9 +124,9 @@ func TestMarshal(t *testing.T) {
 		t.Fatalf("failed to call generate: %v", err)
 	}
 
-	val2, _, err := generateVirtualService(nil, ctx, nil, nil)
+	val2, _, err := generator.Generate(nil, ctx, nil, nil)
 	if err != nil {
-		t.Fatalf("failed to call generate_VirtualService: %v", err)
+		t.Fatalf("failed to call generate: %v", err)
 	}
 
 	c1, c2 := &mcp.Resource{}, &mcp.Resource{}
@@ -146,34 +143,4 @@ func TestMarshal(t *testing.T) {
 	if !c1.Body.Equal(c2.Body) {
 		t.Fatalf("Marshal failed")
 	}
-}
-
-func generateVirtualService(proxy *model.Proxy, push *model.PushContext, w *model.WatchedResource,
-	updates *model.PushRequest) ([]*any.Any, model.XdsLogDetails, error) {
-	configs := push.AllVirtualServices
-	resources := make([]*any.Any, 0)
-	for _, cfg := range configs {
-		body, err := types.MarshalAny(cfg.Spec.(*networking.VirtualService))
-		if err != nil {
-			return nil, model.DefaultXdsLogDetails, err
-		}
-		createTime, err := types.TimestampProto(cfg.CreationTimestamp)
-		if err != nil {
-			return nil, model.DefaultXdsLogDetails, err
-		}
-		resource := &mcp.Resource{
-			Body: body,
-			Metadata: &mcp.Metadata{
-				Name:       path.Join(cfg.Namespace, cfg.Name),
-				CreateTime: createTime,
-			},
-		}
-
-		mcpAny, err := ptypes.MarshalAny(resource) // nolint
-		if err != nil {
-			return nil, model.DefaultXdsLogDetails, err
-		}
-		resources = append(resources, mcpAny)
-	}
-	return resources, model.DefaultXdsLogDetails, nil
 }
