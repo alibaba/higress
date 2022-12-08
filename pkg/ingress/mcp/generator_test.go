@@ -102,19 +102,6 @@ func TestGenerate(t *testing.T) {
 			isErr:     false,
 		},
 		{
-			name: "ServiceEntry",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
-					Spec: &networking.ServiceEntry{},
-				}
-				ctx.AllServiceEntries = []config.Config{cfg}
-				return ctx, cfg.Spec
-			},
-			generator: ServiceEntryGenerator{},
-			isErr:     false,
-		},
-		{
 			name: "WasmPlugin with wrong config",
 			fn: func() (*model.PushContext, any) {
 				ctx := model.NewPushContext()
