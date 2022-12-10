@@ -41,6 +41,9 @@ submodule:
 prebuild: submodule
 	./script/prebuild.sh
 
+.PHONY: default
+default: build
+
 .PHONY: build
 build: prebuild $(OUT)
 	GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)

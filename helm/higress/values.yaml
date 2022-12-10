@@ -12,7 +12,7 @@ istioNamespace: "istio-system"
 meshConfig: {}
 gateway:
   name: "higress-gateway"
-  replicaCount: 2
+  replicas: 2
   image: gateway
   tag: "268c73301e78514552fe0576fb0059c42c854a5c"
   # revision declares which revision this gateway is a part of
@@ -34,6 +34,12 @@ gateway:
 
   # Pod environment variables
   env: {}
+
+  # Configure the policy for validating JWT, it is used for istio authentication.
+  # Currently, two options are supported: "third-party-jwt" and "first-party-jwt".
+  jwtPolicy: "third-party-jwt"
+
+  hostNetwork: false
 
   # Labels to apply to all resources
   labels: {}
@@ -103,11 +109,10 @@ gateway:
   
 controller:
   name: "higress-controller"
-  replicaCount: 1
+  replicas: 1
   image: higress
   tag: "268c73301e78514552fe0576fb0059c42c854a5c"
   env: {}
-  replicaCount: 1
 
   labels: {}
   
