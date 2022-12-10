@@ -8,6 +8,8 @@ export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
 GO ?= go
 
+export GOPROXY ?= https://proxy.golang.com.cn,direct
+
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
 RELEASE_LDFLAGS='-extldflags -static -s -w'
@@ -46,11 +48,11 @@ default: build
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -63,7 +65,7 @@ ifeq ($(BUILD_ALL),true)
 $(OUT_LINUX)/$(shell basename $(1)): build-linux
 else
 $(OUT_LINUX)/$(shell basename $(1)): $(OUT_LINUX)
-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
 endif
 endef
 

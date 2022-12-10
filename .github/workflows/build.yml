@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 2
 
       - name: "run go build"
-        run: make build 
+        run: GOPROXY="https://proxy.golang.org,direct" make build
 
       - name: "run go test and out codecov"
         run: make prebuild; go test ./cmd/... ./pkg/... -race -coverprofile=coverage.out -covermode=atomic
