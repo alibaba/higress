@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"istio.io/api/networking/v1alpha3"
+	"istio.io/pkg/log"
 
 	"github.com/alibaba/higress/pkg/common"
 )
@@ -85,6 +86,8 @@ func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrap
 	} else {
 		data.SetCreateTime(time.Now())
 	}
+
+	log.Debugf("mcp service entry update, name:%s, data:%v", service, data)
 
 	s.toBeUpdated = append(s.toBeUpdated, data)
 	s.sew[service] = data

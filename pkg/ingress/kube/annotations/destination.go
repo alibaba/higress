@@ -42,7 +42,7 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 	}
 	value, err := annotations.ParseStringForHigress(destinationKey)
 	if err != nil {
-		IngressLog.Errorf("parse destination error %v within ingress %/%s", err, config.Namespace, config.Name)
+		IngressLog.Errorf("parse destination error %v within ingress %s/%s", err, config.Namespace, config.Name)
 		return nil
 	}
 	lines := splitLines(value)
@@ -57,14 +57,14 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		if strings.HasSuffix(pairs[0], "%") {
 			weight, err = strconv.Atoi(strings.TrimSuffix(pairs[0], "%"))
 			if err != nil {
-				IngressLog.Errorf("parse destination atoi error %v within ingress %/%s", err, config.Namespace, config.Name)
+				IngressLog.Errorf("parse destination atoi error %v within ingress %s/%s", err, config.Namespace, config.Name)
 				return nil
 			}
-			weightSum += weight
 			addrIndex++
 		}
+		weightSum += weight
 		if len(pairs) < addrIndex+1 {
-			IngressLog.Errorf("destination %s has no address within ingress %/%s", value, config.Namespace, config.Name)
+			IngressLog.Errorf("destination %s has no address within ingress %s/%s", value, config.Namespace, config.Name)
 			return nil
 		}
 		address := pairs[addrIndex]
@@ -88,17 +88,18 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		if port != "" {
 			portNumber, err := strconv.ParseUint(port, 10, 32)
 			if err != nil {
-				IngressLog.Errorf("destination addr %s has invalid port %s within ingress %/%s", address, port, config.Namespace, config.Name)
+				IngressLog.Errorf("destination addr %s has invalid port %s within ingress %s/%s", address, port, config.Namespace, config.Name)
 				return nil
 			}
 			dest.Destination.Port = &networking.PortSelector{
 				Number: uint32(portNumber),
 			}
 		}
+		IngressLog.Debugf("destination generated for ingress %s/%s: %v", config.Namespace, config.Name, dest)
 		destinations = append(destinations, dest)
 	}
 	if weightSum != 100 {
-		IngressLog.Errorf("destination has invalid weight sum %d within ingress %/%s", weightSum, config.Namespace, config.Name)
+		IngressLog.Errorf("destination has invalid weight sum %d within ingress %s/%s", weightSum, config.Namespace, config.Name)
 		return nil
 	}
 	config.Destination = &DestinationConfig{

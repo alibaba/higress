@@ -34,8 +34,6 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/mesh"
-	"istio.io/istio/pkg/config/schema/collection"
-	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/keepalive"
 	istiokube "istio.io/istio/pkg/kube"
@@ -170,15 +168,6 @@ func NewServer(args *ServerArgs) (*Server, error) {
 	return s, nil
 }
 
-var IngressIR = collection.NewSchemasBuilder().
-	MustAdd(collections.IstioExtensionsV1Alpha1Wasmplugins).
-	MustAdd(collections.IstioNetworkingV1Alpha3Destinationrules).
-	MustAdd(collections.IstioNetworkingV1Alpha3Envoyfilters).
-	MustAdd(collections.IstioNetworkingV1Alpha3Gateways).
-	MustAdd(collections.IstioNetworkingV1Alpha3Serviceentries).
-	MustAdd(collections.IstioNetworkingV1Alpha3Virtualservices).
-	Build()
-
 // initRegistryEventHandlers sets up event handlers for config updates
 func (s *Server) initRegistryEventHandlers() error {
 	log.Info("initializing registry event handlers")
@@ -195,7 +184,7 @@ func (s *Server) initRegistryEventHandlers() error {
 		}
 		s.xdsServer.ConfigUpdate(pushReq)
 	}
-	schemas := IngressIR.All()
+	schemas := common.IngressIR.All()
 	for _, schema := range schemas {
 		s.configController.RegisterEventHandler(schema.Resource().GroupVersionKind(), configHandler)
 	}

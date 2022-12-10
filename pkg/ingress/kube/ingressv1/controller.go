@@ -570,7 +570,6 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			var event common.Event
 			destinationConfig := wrapper.AnnotationsConfig.Destination
 			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
-
 			if ingressRouteBuilder.Event != common.Normal {
 				event = ingressRouteBuilder.Event
 			}
@@ -962,18 +961,18 @@ func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
 	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
-	if backend == nil || backend.Service == nil {
+	if backend == nil || (backend.Service == nil && backend.Resource == nil) {
 		return nil, common.InvalidBackendService
 	}
 
-	service := backend.Service
-	if service.Name == "" {
+	if backend.Service == nil {
 		if config != nil {
 			return config.McpDestination, common.Normal
 		}
 		return nil, common.InvalidBackendService
 	}
 
+	service := backend.Service
 	builder.PortName = service.Port.Name
 
 	port := &networking.PortSelector{}

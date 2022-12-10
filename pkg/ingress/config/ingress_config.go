@@ -77,6 +77,8 @@ type IngressConfig struct {
 
 	RegistryReconciler *reconcile.Reconciler
 
+	mcpbridgeReconciled bool
+
 	mcpbridgeController mcpbridge.McpBridgeController
 
 	mcpbridgeLister netlisterv1.McpBridgeLister
@@ -116,11 +118,6 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 
 func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
 	IngressLog.Infof("register resource %v", kind)
-	if kind != gvk.VirtualService && kind != gvk.Gateway &&
-		kind != gvk.DestinationRule && kind != gvk.EnvoyFilter {
-		return
-	}
-
 	switch kind {
 	case gvk.VirtualService:
 		m.virtualServiceHandlers = append(m.virtualServiceHandlers, f)
@@ -204,8 +201,7 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	var configs []config.Config
 	m.mutex.RLock()
 	for _, ingressController := range m.remoteIngressControllers {
-		clusterConfigs := ingressController.List()
-		configs = append(configs, clusterConfigs...)
+		configs = append(configs, ingressController.List()...)
 	}
 	m.mutex.RUnlock()
 
@@ -434,7 +430,6 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 
 	// We generate some specific envoy filter here to avoid duplicated computation.
 	m.convertEnvoyFilter(&convertOptions)
-
 	return out
 }
 
@@ -681,11 +676,18 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 			}
 			for _, f := range m.serviceEntryHandlers {
+				IngressLog.Debug("McpBridge triggerd serviceEntry update")
 				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
 			}
 		})
 	}
-	m.RegistryReconciler.Reconcile(mcpbridge)
+	reconciler := m.RegistryReconciler
+	go func() {
+		reconciler.Reconcile(mcpbridge)
+		m.mutex.Lock()
+		m.mcpbridgeReconciled = true
+		m.mutex.Unlock()
+	}()
 }
 
 func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
@@ -878,7 +880,7 @@ func (m *IngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	if !m.mcpbridgeController.HasSynced() {
+	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")
@@ -903,7 +905,7 @@ func (m *IngressConfig) GetIngressDomains() model.IngressDomainCollection {
 }
 
 func (m *IngressConfig) Schemas() collection.Schemas {
-	return common.Schemas
+	return common.IngressIR
 }
 
 func (m *IngressConfig) Get(config.GroupVersionKind, string, string) *config.Config {

@@ -39,8 +39,8 @@ import (
 const (
 	DefaultNacosTimeout         = 5000
 	DefaultNacosLogLevel        = "warn"
-	DefaultNacosLogDir          = "log/nacos/log/"
-	DefaultNacosCacheDir        = "log/nacos/cache/"
+	DefaultNacosLogDir          = "/var/log/nacos/log/"
+	DefaultNacosCacheDir        = "/var/log/nacos/cache/"
 	DefaultNacosNotLoadCache    = true
 	DefaultNacosLogRotateTime   = "24h"
 	DefaultNacosLogMaxAge       = 3
@@ -98,6 +98,10 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		opt(w)
 	}
 
+	if w.NacosNamespace == "" {
+		w.NacosNamespace = w.NacosNamespaceId
+	}
+
 	log.Infof("new nacos watcher with config Name:%s", w.Name)
 
 	cc := constant.NewClientConfig(
@@ -132,7 +136,11 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
 	return func(w *watcher) {
-		w.NacosNamespaceId = nacosNamespaceId
+		if nacosNamespaceId == "" {
+			w.NacosNamespaceId = "public"
+		} else {
+			w.NacosNamespaceId = nacosNamespaceId
+		}
 	}
 }
 
