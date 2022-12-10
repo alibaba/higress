@@ -47,15 +47,15 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 	}
 	lines := splitLines(value)
 	var destinations []*networking.HTTPRouteDestination
-	var weightSum int
+	var weightSum int64
 	for _, line := range lines {
 		// fmt: [weight] <host>[:port] [subset]
 		// example: 100% my-svc.DEFAULT-GROUP.xxxx.nacos:8080 v1
 		pairs := strings.Fields(line)
-		weight := 100
+		var weight int64 = 100
 		var addrIndex int
 		if strings.HasSuffix(pairs[0], "%") {
-			weight, err = strconv.Atoi(strings.TrimSuffix(pairs[0], "%"))
+			weight, err = strconv.ParseInt(strings.TrimSuffix(pairs[0], "%"), 10, 32)
 			if err != nil {
 				IngressLog.Errorf("parse destination atoi error %v within ingress %s/%s", err, config.Namespace, config.Name)
 				return nil

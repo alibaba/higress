@@ -15,10 +15,20 @@
 package kube
 
 import (
+	"fmt"
+	"reflect"
+	"time"
+
+	"go.uber.org/atomic"
 	istiokube "istio.io/istio/pkg/kube"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
 
 	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
+	higressfake "github.com/alibaba/higress/client/pkg/clientset/versioned/fake"
 	higressinformer "github.com/alibaba/higress/client/pkg/informers/externalversions"
 )
 
@@ -37,9 +47,51 @@ type client struct {
 
 	higress         higressclient.Interface
 	higressInformer higressinformer.SharedInformerFactory
+
+	// If enable, will wait for cache syncs with extremely short delay. This should be used only for tests
+	fastSync               bool
+	informerWatchesPending *atomic.Int32
 }
 
 const resyncInterval = 0
+
+func NewFakeClient(objects ...runtime.Object) Client {
+	c := &client{
+		Client: istiokube.NewFakeClient(objects...),
+	}
+	c.higress = higressfake.NewSimpleClientset()
+	c.higressInformer = higressinformer.NewSharedInformerFactoryWithOptions(c.higress, resyncInterval)
+
+	// https://github.com/kubernetes/kubernetes/issues/95372
+	// There is a race condition in the client fakes, where events that happen between the List and Watch
+	// of an informer are dropped. To avoid this, we explicitly manage the list and watch, ensuring all lists
+	// have an associated watch before continuing.
+	// This would likely break any direct calls to List(), but for now our tests don't do that anyways. If we need
+	// to in the future we will need to identify the Lists that have a corresponding Watch, possibly by looking
+	// at created Informers
+	// an atomic.Int is used instead of sync.WaitGroup because wg.Add and wg.Wait cannot be called concurrently
+	listReactor := func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
+		c.informerWatchesPending.Inc()
+		return false, nil, nil
+	}
+	watchReactor := func(tracker clienttesting.ObjectTracker) func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		return func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+			gvr := action.GetResource()
+			ns := action.GetNamespace()
+			watch, err := tracker.Watch(gvr, ns)
+			if err != nil {
+				return false, nil, err
+			}
+			c.informerWatchesPending.Dec()
+			return true, watch, nil
+		}
+	}
+	fc := c.higress.(*higressfake.Clientset)
+	fc.PrependReactor("list", "&", listReactor)
+	fc.PrependWatchReactor("*", watchReactor(fc.Tracker()))
+	c.fastSync = true
+	return c
+}
 
 func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 	var c client
@@ -68,5 +120,44 @@ func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 func (c *client) RunAndWait(stop <-chan struct{}) {
 	c.Client.RunAndWait(stop)
 	c.higressInformer.Start(stop)
-	c.higressInformer.WaitForCacheSync(stop)
+	if c.fastSync {
+		fastWaitForCacheSync(stop, c.higressInformer)
+		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+			select {
+			case <-stop:
+				return false, fmt.Errorf("channel closed")
+			default:
+			}
+			if c.informerWatchesPending.Load() == 0 {
+				return true, nil
+			}
+			return false, nil
+		})
+	} else {
+		c.higressInformer.WaitForCacheSync(stop)
+	}
+}
+
+type reflectInformerSync interface {
+	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
+}
+
+// Wait for cache sync immediately, rather than with 100ms delay which slows tests
+// See https://github.com/kubernetes/kubernetes/issues/95262#issuecomment-703141573
+func fastWaitForCacheSync(stop <-chan struct{}, informerFactory reflectInformerSync) {
+	returnImmediately := make(chan struct{})
+	close(returnImmediately)
+	_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+		select {
+		case <-stop:
+			return false, fmt.Errorf("channel closed")
+		default:
+		}
+		for _, synced := range informerFactory.WaitForCacheSync(returnImmediately) {
+			if !synced {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
