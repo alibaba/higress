@@ -1,3 +1,17 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package nacos
 
 import (
@@ -25,8 +39,8 @@ import (
 const (
 	DefaultNacosTimeout         = 5000
 	DefaultNacosLogLevel        = "warn"
-	DefaultNacosLogDir          = "log/nacos/log/"
-	DefaultNacosCacheDir        = "log/nacos/cache/"
+	DefaultNacosLogDir          = "/var/log/nacos/log/"
+	DefaultNacosCacheDir        = "/var/log/nacos/cache/"
 	DefaultNacosNotLoadCache    = true
 	DefaultNacosLogRotateTime   = "24h"
 	DefaultNacosLogMaxAge       = 3
@@ -84,6 +98,10 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		opt(w)
 	}
 
+	if w.NacosNamespace == "" {
+		w.NacosNamespace = w.NacosNamespaceId
+	}
+
 	log.Infof("new nacos watcher with config Name:%s", w.Name)
 
 	cc := constant.NewClientConfig(
@@ -118,7 +136,11 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
 	return func(w *watcher) {
-		w.NacosNamespaceId = nacosNamespaceId
+		if nacosNamespaceId == "" {
+			w.NacosNamespaceId = "public"
+		} else {
+			w.NacosNamespaceId = nacosNamespaceId
+		}
 	}
 }
 
