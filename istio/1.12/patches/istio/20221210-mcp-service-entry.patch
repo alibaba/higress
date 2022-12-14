@@ -1,0 +1,85 @@
+diff -Naur istio/pilot/pkg/model/push_context.go istio-new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2022-12-10 16:49:42.000000000 +0800
++++ istio-new/pilot/pkg/model/push_context.go	2022-12-10 15:56:09.000000000 +0800
+@@ -245,6 +245,7 @@
+ 	initializeMutex sync.Mutex
+ 
+ 	// Added by ingress
++	AllServiceEntries   []config.Config
+ 	AllVirtualServices  []config.Config
+ 	AllDestinationRules []config.Config
+ 	AllEnvoyFilters     []config.Config
+@@ -1199,6 +1200,9 @@
+ 		// make sure we copy over things that would be generated in initServiceRegistry
+ 		ps.ServiceIndex = oldPushContext.ServiceIndex
+ 		ps.ServiceAccounts = oldPushContext.ServiceAccounts
++		// Added by ingress
++		ps.AllServiceEntries = oldPushContext.AllServiceEntries
++		// End added by ingress
+ 	}
+ 
+ 	if servicesChanged || gatewayAPIChanged {
+@@ -1214,6 +1218,9 @@
+ 		}
+ 	} else {
+ 		ps.virtualServiceIndex = oldPushContext.virtualServiceIndex
++		// Added by ingress
++		ps.AllVirtualServices = oldPushContext.AllVirtualServices
++		// End added by ingress
+ 	}
+ 
+ 	if destinationRulesChanged {
+@@ -1222,6 +1229,9 @@
+ 		}
+ 	} else {
+ 		ps.destinationRuleIndex = oldPushContext.destinationRuleIndex
++		// Added by ingress
++		ps.AllDestinationRules = oldPushContext.AllDestinationRules
++		// End added by ingress
+ 	}
+ 
+ 	if authnChanged {
+@@ -1255,6 +1265,9 @@
+ 		}
+ 	} else {
+ 		ps.wasmPluginsByNamespace = oldPushContext.wasmPluginsByNamespace
++		// Added by ingress
++		ps.AllWasmplugins = oldPushContext.AllWasmplugins
++		// End added by ingress
+ 	}
+ 
+ 	if envoyFiltersChanged {
+@@ -1263,6 +1276,9 @@
+ 		}
+ 	} else {
+ 		ps.envoyFiltersByNamespace = oldPushContext.envoyFiltersByNamespace
++		// Added by ingress
++		ps.AllEnvoyFilters = oldPushContext.AllEnvoyFilters
++		// End added by ingress
+ 	}
+ 
+ 	if gatewayChanged {
+@@ -1271,6 +1287,9 @@
+ 		}
+ 	} else {
+ 		ps.gatewayIndex = oldPushContext.gatewayIndex
++		// Added by ingress
++		ps.AllGateways = oldPushContext.AllGateways
++		// End added by ingress
+ 	}
+ 
+ 	// Must be initialized in the end
+@@ -1289,6 +1308,13 @@
+ // Caches list of services in the registry, and creates a map
+ // of hostname to service
+ func (ps *PushContext) initServiceRegistry(env *Environment) error {
++	// Added by ingress
++	if env.MCPMode {
++		ps.AllServiceEntries = env.ServiceEntries()
++		return nil
++	}
++	// End added by ingress
++
+ 	services, err := env.Services()
+ 	if err != nil {
+ 		return err

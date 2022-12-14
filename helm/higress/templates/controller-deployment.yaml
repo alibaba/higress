@@ -77,6 +77,9 @@ spec:
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
           {{- end }}
+          volumeMounts:
+          - name: log
+            mountPath: /var/log
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -89,3 +92,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+      - name: log
+        emptyDir: {}

@@ -23,7 +23,7 @@
 
 # This script builds and version stamps the output
 
-export GOPROXY="https://proxy.golang.com.cn,direct"
+export GOPROXY
 
 VERBOSE=${VERBOSE:-"0"}
 V=""
@@ -76,6 +76,7 @@ OPTIMIZATION_FLAGS=(-trimpath)
 if [ "${DEBUG}" == "1" ]; then
     OPTIMIZATION_FLAGS=()
 fi
+
 
 time GOOS=${BUILD_GOOS} GOARCH=${BUILD_GOARCH} ${GOBINARY} build \
         ${V} "${GOBUILDFLAGS_ARRAY[@]}" ${GCFLAGS:+-gcflags "${GCFLAGS}"} \
