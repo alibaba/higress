@@ -38,7 +38,7 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "watch", "list"]
 
-  - apiGroups: ["istio.aliyun.cloud.com"]
+  - apiGroups: ["networking.higress.io"]
     resources: ["mcpbridges"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
