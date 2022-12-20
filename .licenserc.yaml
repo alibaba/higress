@@ -8,6 +8,8 @@ header:
     - '*.md'
     - '*.yml'
     - 'LICENSE'
+    - 'api/**'
+    - 'samples/**'
     - '.github/**'
     - '.licenserc.yaml'
     - 'helm/**'
