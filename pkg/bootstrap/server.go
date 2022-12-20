@@ -34,11 +34,9 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/mesh"
-	"istio.io/istio/pkg/config/schema/collection"
-	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/keepalive"
-	kubelib "istio.io/istio/pkg/kube"
+	istiokube "istio.io/istio/pkg/kube"
 	"istio.io/pkg/env"
 	"istio.io/pkg/ledger"
 	"istio.io/pkg/log"
@@ -48,6 +46,7 @@ import (
 	ingressconfig "github.com/alibaba/higress/pkg/ingress/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
+	higresskube "github.com/alibaba/higress/pkg/kube"
 )
 
 type XdsOptions struct {
@@ -107,7 +106,7 @@ type readinessProbe func() (bool, error)
 type Server struct {
 	*ServerArgs
 	environment      *model.Environment
-	kubeClient       kubelib.Client
+	kubeClient       higresskube.Client
 	configController model.ConfigStoreCache
 	configStores     []model.ConfigStoreCache
 	httpServer       *http.Server
@@ -169,15 +168,6 @@ func NewServer(args *ServerArgs) (*Server, error) {
 	return s, nil
 }
 
-var IngressIR = collection.NewSchemasBuilder().
-	MustAdd(collections.IstioExtensionsV1Alpha1Wasmplugins).
-	MustAdd(collections.IstioNetworkingV1Alpha3Destinationrules).
-	MustAdd(collections.IstioNetworkingV1Alpha3Envoyfilters).
-	MustAdd(collections.IstioNetworkingV1Alpha3Gateways).
-	MustAdd(collections.IstioNetworkingV1Alpha3Serviceentries).
-	MustAdd(collections.IstioNetworkingV1Alpha3Virtualservices).
-	Build()
-
 // initRegistryEventHandlers sets up event handlers for config updates
 func (s *Server) initRegistryEventHandlers() error {
 	log.Info("initializing registry event handlers")
@@ -194,7 +184,7 @@ func (s *Server) initRegistryEventHandlers() error {
 		}
 		s.xdsServer.ConfigUpdate(pushReq)
 	}
-	schemas := IngressIR.All()
+	schemas := common.IngressIR.All()
 	for _, schema := range schemas {
 		s.configController.RegisterEventHandler(schema.Resource().GroupVersionKind(), configHandler)
 	}
@@ -317,6 +307,7 @@ func (s *Server) initXdsServer() error {
 	s.xdsServer.McpGenerators[gvk.EnvoyFilter.String()] = &mcp.EnvoyFilterGenerator{Server: s.xdsServer}
 	s.xdsServer.McpGenerators[gvk.Gateway.String()] = &mcp.GatewayGenerator{Server: s.xdsServer}
 	s.xdsServer.McpGenerators[gvk.VirtualService.String()] = &mcp.VirtualServiceGenerator{Server: s.xdsServer}
+	s.xdsServer.McpGenerators[gvk.ServiceEntry.String()] = &mcp.ServiceEntryGenerator{Server: s.xdsServer}
 	s.xdsServer.ProxyNeedsPush = func(proxy *model.Proxy, req *model.PushRequest) bool {
 		return true
 	}
@@ -346,14 +337,14 @@ func (s *Server) initKubeClient() error {
 		// Already initialized by startup arguments
 		return nil
 	}
-	kubeRestConfig, err := kubelib.DefaultRestConfig(s.RegistryOptions.KubeConfig, "", func(config *rest.Config) {
+	kubeRestConfig, err := istiokube.DefaultRestConfig(s.RegistryOptions.KubeConfig, "", func(config *rest.Config) {
 		config.QPS = s.RegistryOptions.KubeOptions.KubernetesAPIQPS
 		config.Burst = s.RegistryOptions.KubeOptions.KubernetesAPIBurst
 	})
 	if err != nil {
 		return fmt.Errorf("failed creating kube config: %v", err)
 	}
-	s.kubeClient, err = kubelib.NewClient(kubelib.NewClientConfigForRestConfig(kubeRestConfig))
+	s.kubeClient, err = higresskube.NewClient(istiokube.NewClientConfigForRestConfig(kubeRestConfig))
 	if err != nil {
 		return fmt.Errorf("failed creating kube client: %v", err)
 	}

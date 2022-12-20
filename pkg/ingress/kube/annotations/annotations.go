@@ -61,6 +61,8 @@ type Ingress struct {
 	Fallback *FallbackConfig
 
 	Auth *AuthConfig
+
+	Destination *DestinationConfig
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
@@ -129,6 +131,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			loadBalance{},
 			fallback{},
 			auth{},
+			destination{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},

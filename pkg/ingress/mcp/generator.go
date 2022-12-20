@@ -27,6 +27,45 @@ import (
 	"istio.io/istio/pilot/pkg/xds"
 )
 
+type ServiceEntryGenerator struct {
+	Server *xds.DiscoveryServer
+}
+
+func (c ServiceEntryGenerator) Generate(proxy *model.Proxy, push *model.PushContext, w *model.WatchedResource,
+	updates *model.PushRequest) ([]*any.Any, model.XdsLogDetails, error) {
+	resources := make([]*any.Any, 0)
+	configs := push.AllServiceEntries
+	for _, config := range configs {
+		body, err := types.MarshalAny(config.Spec.(*networking.ServiceEntry))
+		if err != nil {
+			return nil, model.DefaultXdsLogDetails, err
+		}
+		createTime, err := types.TimestampProto(config.CreationTimestamp)
+		if err != nil {
+			return nil, model.DefaultXdsLogDetails, err
+		}
+		resource := &mcp.Resource{
+			Body: body,
+			Metadata: &mcp.Metadata{
+				Name:       path.Join(config.Namespace, config.Name),
+				CreateTime: createTime,
+			},
+		}
+		mcpAny, err := ptypes.MarshalAny(resource)
+		if err != nil {
+			return nil, model.DefaultXdsLogDetails, err
+		}
+		resources = append(resources, mcpAny)
+	}
+	return resources, model.DefaultXdsLogDetails, nil
+}
+
+func (c ServiceEntryGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushContext, updates *model.PushRequest,
+	w *model.WatchedResource) ([]*any.Any, []string, model.XdsLogDetails, bool, error) {
+	// TODO: delta implement
+	return nil, nil, model.DefaultXdsLogDetails, false, nil
+}
+
 type VirtualServiceGenerator struct {
 	Server *xds.DiscoveryServer
 }
