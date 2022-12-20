@@ -24,7 +24,6 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/xds"
-	"istio.io/istio/pkg/kube"
 	ingress "k8s.io/api/networking/v1"
 	ingressv1beta1 "k8s.io/api/networking/v1beta1"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	controllerv1beta1 "github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	controllerv1 "github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
+	"github.com/alibaba/higress/pkg/kube"
 )
 
 func TestNormalizeWeightedCluster(t *testing.T) {

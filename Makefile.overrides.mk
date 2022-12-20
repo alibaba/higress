@@ -21,6 +21,13 @@
 BUILD_WITH_CONTAINER ?= 0
 CONTAINER_OPTIONS = --mount type=bind,source=/tmp,destination=/tmp --net=host
 
+GENERATE_API ?= 0
+
+ifeq ($(GENERATE_API),1)
+BUILD_WITH_CONTAINER = 1
+IMAGE_VERSION=release-1.12-2021-11-12T20-52-48
+endif
+
 ifeq ($(BUILD_WITH_CONTAINER),1)
 # create phony targets for the top-level items in the repo
 PHONYS := $(shell ls | grep -v Makefile)

@@ -33,17 +33,20 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/kube"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
-	secretkube "github.com/alibaba/higress/pkg/ingress/kube/secret/kube"
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
+	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
@@ -65,11 +68,20 @@ type IngressConfig struct {
 	gatewayHandlers         []model.EventHandler
 	destinationRuleHandlers []model.EventHandler
 	envoyFilterHandlers     []model.EventHandler
+	serviceEntryHandlers    []model.EventHandler
 	watchErrorHandler       cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
 
 	watchedSecretSet sets.Set
+
+	RegistryReconciler *reconcile.Reconciler
+
+	mcpbridgeReconciled bool
+
+	mcpbridgeController mcpbridge.McpBridgeController
+
+	mcpbridgeLister netlisterv1.McpBridgeLister
 
 	XDSUpdater model.XDSUpdater
 
@@ -86,7 +98,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
-	return &IngressConfig{
+	config := &IngressConfig{
 		remoteIngressControllers: make(map[string]common.IngressController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               XDSUpdater,
@@ -94,18 +106,19 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		clusterId:                clusterId,
 		globalGatewayName: namespace + "/" +
 			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet: sets.NewSet(),
-		namespace:        namespace,
+		watchedSecretSet:    sets.NewSet(),
+		namespace:           namespace,
+		mcpbridgeReconciled: true,
 	}
+	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
+	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
+	config.mcpbridgeController = mcpbridgeController
+	config.mcpbridgeLister = mcpbridgeController.Lister()
+	return config
 }
 
 func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
 	IngressLog.Infof("register resource %v", kind)
-	if kind != gvk.VirtualService && kind != gvk.Gateway &&
-		kind != gvk.DestinationRule && kind != gvk.EnvoyFilter {
-		return
-	}
-
 	switch kind {
 	case gvk.VirtualService:
 		m.virtualServiceHandlers = append(m.virtualServiceHandlers, f)
@@ -118,6 +131,9 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mod
 
 	case gvk.EnvoyFilter:
 		m.envoyFilterHandlers = append(m.envoyFilterHandlers, f)
+
+	case gvk.ServiceEntry:
+		m.serviceEntryHandlers = append(m.serviceEntryHandlers, f)
 	}
 
 	for _, remoteIngressController := range m.remoteIngressControllers {
@@ -126,7 +142,7 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mod
 }
 
 func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressController {
-	secretController := secretkube.NewController(m.localKubeClient, options)
+	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
 	var ingressController common.IngressController
@@ -165,7 +181,8 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	if typ != gvk.Gateway &&
 		typ != gvk.VirtualService &&
 		typ != gvk.DestinationRule &&
-		typ != gvk.EnvoyFilter {
+		typ != gvk.EnvoyFilter &&
+		typ != gvk.ServiceEntry {
 		return nil, common.ErrUnsupportedOp
 	}
 
@@ -200,6 +217,8 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 		return m.convertVirtualService(wrapperConfigs), nil
 	case gvk.DestinationRule:
 		return m.convertDestinationRule(wrapperConfigs), nil
+	case gvk.ServiceEntry:
+		return m.convertServiceEntry(wrapperConfigs), nil
 	}
 
 	return nil, nil
@@ -412,7 +431,6 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 
 	// We generate some specific envoy filter here to avoid duplicated computation.
 	m.convertEnvoyFilter(&convertOptions)
-
 	return out
 }
 
@@ -465,6 +483,26 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	m.mutex.Lock()
 	m.cachedEnvoyFilters = envoyFilters
 	m.mutex.Unlock()
+}
+
+func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Config {
+	if m.RegistryReconciler == nil {
+		return nil
+	}
+	serviceEntries := m.RegistryReconciler.GetAllServiceEntryWrapper()
+	out := make([]config.Config, 0, len(serviceEntries))
+	for _, se := range serviceEntries {
+		out = append(out, config.Config{
+			Meta: config.Meta{
+				GroupVersionKind:  gvk.ServiceEntry,
+				Name:              se.ServiceEntry.Hosts[0],
+				Namespace:         "mcp",
+				CreationTimestamp: se.GetCreateTime(),
+			},
+			Spec: se.ServiceEntry,
+		})
+	}
+	return out
 }
 
 func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) []config.Config {
@@ -615,6 +653,55 @@ func (m *IngressConfig) applyInternalActiveRedirect(convertOptions *common.Conve
 			}
 		}
 		convertOptions.HTTPRoutes[host] = tempRoutes
+	}
+}
+
+func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
+	// TODO: get resource name from config
+	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	mcpbridge, err := m.mcpbridgeLister.McpBridges(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
+	if err != nil {
+		IngressLog.Errorf("Mcpbridge is not found, namespace:%s, name:%s",
+			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
+		return
+	}
+	m.mutex.Lock()
+	m.mcpbridgeReconciled = false
+	m.mutex.Unlock()
+	if m.RegistryReconciler == nil {
+		m.RegistryReconciler = reconcile.NewReconciler(func() {
+			metadata := config.Meta{
+				Name:             "mcpbridge-serviceentry",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.ServiceEntry,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+			for _, f := range m.serviceEntryHandlers {
+				IngressLog.Debug("McpBridge triggerd serviceEntry update")
+				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
+			}
+		})
+	}
+	reconciler := m.RegistryReconciler
+	go func() {
+		reconciler.Reconcile(mcpbridge)
+		m.mutex.Lock()
+		m.mcpbridgeReconciled = true
+		m.mutex.Unlock()
+	}()
+}
+
+func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
+	// TODO: get resource name from config
+	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	if m.RegistryReconciler != nil {
+		go m.RegistryReconciler.Reconcile(nil)
+		m.RegistryReconciler = nil
 	}
 }
 
@@ -785,7 +872,9 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 	}, nil
 }
 
-func (m *IngressConfig) Run(<-chan struct{}) {}
+func (m *IngressConfig) Run(stop <-chan struct{}) {
+	m.mcpbridgeController.Run(stop)
+}
 
 func (m *IngressConfig) HasSynced() bool {
 	m.mutex.RLock()
@@ -795,7 +884,9 @@ func (m *IngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-
+	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled {
+		return false
+	}
 	IngressLog.Info("Ingress config controller synced.")
 	return true
 }
@@ -818,7 +909,7 @@ func (m *IngressConfig) GetIngressDomains() model.IngressDomainCollection {
 }
 
 func (m *IngressConfig) Schemas() collection.Schemas {
-	return common.Schemas
+	return common.IngressIR
 }
 
 func (m *IngressConfig) Get(config.GroupVersionKind, string, string) *config.Config {

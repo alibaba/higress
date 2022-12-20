@@ -11,24 +11,3 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-package secret
-
-import (
-	listerv1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
-
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-)
-
-type Controller interface {
-	AddEventHandler(func(util.ClusterNamespacedName))
-
-	Run(stop <-chan struct{})
-
-	HasSynced() bool
-
-	Lister() listerv1.SecretLister
-
-	Informer() cache.SharedIndexInformer
-}

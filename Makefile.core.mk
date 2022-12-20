@@ -8,6 +8,8 @@ export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
 GO ?= go
 
+export GOPROXY ?= https://proxy.golang.com.cn,direct
+
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
 RELEASE_LDFLAGS='-extldflags -static -s -w'
@@ -41,13 +43,16 @@ submodule:
 prebuild: submodule
 	./script/prebuild.sh
 
+.PHONY: default
+default: build
+
 .PHONY: build
 build: prebuild $(OUT)
-	GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -60,7 +65,7 @@ ifeq ($(BUILD_ALL),true)
 $(OUT_LINUX)/$(shell basename $(1)): build-linux
 else
 $(OUT_LINUX)/$(shell basename $(1)): $(OUT_LINUX)
-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
 endif
 endef
 
@@ -95,7 +100,28 @@ external/package/envoy.tar.gz:
 build-gateway: prebuild external/package/envoy.tar.gz
 	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
+pre-install:
+	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/higress/crds
+	cd helm/istio; helm dependency update
+	cd helm/kind/higress; helm dependency update
+	cd helm/kind/istio; helm dependency update
+
+define create_ns
+   kubectl get namespace | grep $(1) || kubectl create namespace $(1)
+endef
+
+install: pre-install
+	$(call create_ns,istio-system)
+	$(call create_ns,higress-system)
+	helm install istio helm/kind/istio -n istio-system
+	helm install higress helm/kind/higress -n higress-system
+
+upgrade: pre-install
+	helm upgrade istio helm/kind/istio -n istio-system
+	helm upgrade higress helm/kind/higress -n higress-system
+
 helm-push:
+	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/higress/crds
 	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(CHARTS)"
 
 helm-push-istio:
@@ -108,6 +134,13 @@ helm-push-kind:
 	cd helm/kind/istio; helm dependency update
 	cd helm/kind; tar -zcf istio.tgz istio; helm push istio.tgz "oci://$(CHARTS)"
 
+cue = cue-gen -paths=./external/api/common-protos
+
+gen-api: prebuild
+	cd api;./gen.sh
+
+gen-client: gen-api
+	cd client; make generate-k8s-client
 
 DIRS_TO_CLEAN := $(OUT)
 DIRS_TO_CLEAN += $(OUT_LINUX)
