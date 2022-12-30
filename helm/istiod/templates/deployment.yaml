@@ -113,9 +113,9 @@ spec:
             timeoutSeconds: 5
           env:
           - name: HIGRESS_CONTROLLER_SVC
-            value: {{ printf "%s.%s" .Values.global.higressName .Values.global.higressNamespace }}
+            value: {{ printf "%s.%s" .Values.extra.higressName .Values.extra.higressNamespace }}
           - name: HIGRESS_CONTROLLER_PORT
-            value: "{{ .Values.global.higressPort }}"
+            value: "{{ .Values.extra.higressPort }}"
           - name: REVISION
             value: "{{ .Values.revision | default `default` }}"
           - name: JWT_POLICY
@@ -159,7 +159,7 @@ spec:
             value: "{{ .Values.global.istiod.enableAnalysis }}"
           - name: CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
-          {{- if not .Values.global.kind  }}
+          {{- if not .Values.extra.kind  }}
           resources:
 {{- if .Values.pilot.resources }}
 {{ toYaml .Values.pilot.resources | trim | indent 12 }}

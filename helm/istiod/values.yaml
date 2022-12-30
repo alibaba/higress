@@ -220,7 +220,7 @@ meshConfig:
   # What we may configure in mesh config is the ".global" - and use of other suffixes.
   # No hurry to do this in 1.6, we're trying to prove the code.
 
-global:
+extra:
   kind: false
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
@@ -228,6 +228,8 @@ global:
   higressName: "higress-controller"
   higressNamespace: "higress-system"
   higressPort: "15051"
+
+global:
   # Used to locate istiod.
   istioNamespace: istio-system
   # enable pod disruption budget for the control plane, which is used to
