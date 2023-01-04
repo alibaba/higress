@@ -45,3 +45,8 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "watch", "list", "update", "patch", "create", "delete"]
+
+  # Used to verify the JWT tokens
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
