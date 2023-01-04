@@ -42,7 +42,7 @@ func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.Log) types.Action {
 	var DontReadResponseBody = false
-	//////// judge statuscode
+	// judge statuscode
 	for _, item := range config.rules {
 		current_statuscode, err := proxywasm.GetHttpResponseHeader(":status")
 		if err != nil {
@@ -54,7 +54,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 		switch current_statuscode {
 		//case "403", "503":
 		case config_match_statuscode:
-			// X-enge-upward-service-time If the ResponseHeader is not found, it is not forwarded to the back-end service
+			// If the response header `x-envoy-upstream-service-time` is not found, the request has not been forwarded to the backend service
 			x_envoy_upstream_service_time, err := proxywasm.GetHttpResponseHeader("x-envoy-upstream-service-time")
 			if x_envoy_upstream_service_time == "" || len(x_envoy_upstream_service_time) < 1 || err != nil {
 				proxywasm.AddHttpResponseHeader("config_match_statuscode", config_match_statuscode)
