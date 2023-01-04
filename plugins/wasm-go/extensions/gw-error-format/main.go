@@ -56,7 +56,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 		case config_match_statuscode:
 			// If the response header `x-envoy-upstream-service-time` is not found, the request has not been forwarded to the backend service
 			x_envoy_upstream_service_time, err := proxywasm.GetHttpResponseHeader("x-envoy-upstream-service-time")
-			if x_envoy_upstream_service_time == "" || len(x_envoy_upstream_service_time) < 1 || err != nil {
+			if err != nil {
 				proxywasm.AddHttpResponseHeader("config_match_statuscode", config_match_statuscode)
 				proxywasm.AddHttpResponseHeader("config_replace_statuscode", config_replace_statuscode)
 
