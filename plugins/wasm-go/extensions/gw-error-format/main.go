@@ -46,7 +46,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 	for _, item := range config.rules {
 		current_statuscode, err := proxywasm.GetHttpResponseHeader(":status")
 		if err != nil {
-			proxywasm.LogCritical("failed GetHttpResponseHeader :status")
+			log.Critical("failed GetHttpResponseHeader :status")
 		}
 		config_match_statuscode := item.Get("match.statuscode").String()
 		config_replace_statuscode := item.Get("replace.statuscode").String()
@@ -54,29 +54,30 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 		switch current_statuscode {
 		//case "403", "503":
 		case config_match_statuscode:
-			// If the response header `x-envoy-upstream-service-time` is not found, the request has not been forwarded to the backend service
-			x_envoy_upstream_service_time, err := proxywasm.GetHttpResponseHeader("x-envoy-upstream-service-time")
+			// If the response header `x-envoy-upstream-service-time`  is not found,  the request has  not  been  forwarded to the  backend  service
+			_, err := proxywasm.GetHttpResponseHeader("x-envoy-upstream-service-time")
 			if err != nil {
-				proxywasm.AddHttpResponseHeader("config_match_statuscode", config_match_statuscode)
-				proxywasm.AddHttpResponseHeader("config_replace_statuscode", config_replace_statuscode)
+				proxywasm.AddHttpResponseHeader("config-match-statuscode", config_match_statuscode)
+				proxywasm.AddHttpResponseHeader("config-replace-statuscode", config_replace_statuscode)
 
 				proxywasm.RemoveHttpResponseHeader("content-length")
 				// replace statuscode
 				err = proxywasm.ReplaceHttpResponseHeader(":status", config_replace_statuscode)
 				if err != nil {
-					proxywasm.LogCritical("failed ReplaceHttpResponseHeader :status")
+					log.Critical("failed ReplaceHttpResponseHeader :status")
 				}
 				// replace ResponseHeader
 				for _, item_header := range config.set_header {
-					log.Info("config.set_header: " + item_header.String())
 					item_header.ForEach(func(key, value gjson.Result) bool {
 						err := proxywasm.ReplaceHttpResponseHeader(key.String(), value.String())
 						if err != nil {
-							proxywasm.LogCritical("failed ReplaceHttpResponseHeader" + item_header.String())
+							log.Critical("failed ReplaceHttpResponseHeader" + item_header.String())
 						}
 						return true
 					})
 				}
+			} else {
+				ctx.DontReadResponseBody()
 			}
 			return types.ActionContinue
 		default:
@@ -93,18 +94,18 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 func onHttpResponseBody(ctx wrapper.HttpContext, config MyConfig, body []byte, log wrapper.Log) types.Action {
 	bodyStr := string(body)
 
-	//////// judge responsebody
+	// judge responsebody
 	for _, item := range config.rules {
 		config_match_responsebody := item.Get("match.responsebody").String()
 		config_replace_responsebody := item.Get("replace.responsebody").String()
-		proxywasm.LogInfo("bodyStr: " + bodyStr)
-		proxywasm.LogInfo("config_match_responsebody: " + config_match_responsebody)
+		log.Debug("bodyStr: " + bodyStr)
+		log.Debug("config_match_responsebody: " + config_match_responsebody)
 		if bodyStr == config_match_responsebody {
-			proxywasm.LogInfo(bodyStr)
+			log.Debug(bodyStr)
 			// Replace ResponseBody
 			err := proxywasm.ReplaceHttpResponseBody([]byte(config_replace_responsebody))
 			if err != nil {
-				proxywasm.LogCritical("failed config_replace_responsebody" + config_replace_responsebody)
+				log.Critical("failed config_replace_responsebody" + config_replace_responsebody)
 			}
 			return types.ActionContinue
 		}
