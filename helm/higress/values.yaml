@@ -14,7 +14,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "268c73301e78514552fe0576fb0059c42c854a5c"
+  tag: "bf607ae5541ce5c1cc95b4f98b3fd50a83346d33"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -51,8 +51,7 @@ gateway:
     prometheus.io/port: "15020"
     prometheus.io/scrape: "true"
     prometheus.io/path: "/stats/prometheus"
-    inject.istio.io/templates: "gateway"
-    sidecar.istio.io/inject: "true"
+    sidecar.istio.io/inject: "false"
   
   # Define the security context for the pod.
   # If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443.
@@ -111,7 +110,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "268c73301e78514552fe0576fb0059c42c854a5c"
+  tag: "bf607ae5541ce5c1cc95b4f98b3fd50a83346d33"
   env: {}
 
   labels: {}

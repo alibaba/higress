@@ -100,7 +100,28 @@ external/package/envoy.tar.gz:
 build-gateway: prebuild external/package/envoy.tar.gz
 	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
+pre-install:
+	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/higress/crds
+	cd helm/istio; helm dependency update
+	cd helm/kind/higress; helm dependency update
+	cd helm/kind/istio; helm dependency update
+
+define create_ns
+   kubectl get namespace | grep $(1) || kubectl create namespace $(1)
+endef
+
+install: pre-install
+	$(call create_ns,istio-system)
+	$(call create_ns,higress-system)
+	helm install istio helm/kind/istio -n istio-system
+	helm install higress helm/kind/higress -n higress-system
+
+upgrade: pre-install
+	helm upgrade istio helm/kind/istio -n istio-system
+	helm upgrade higress helm/kind/higress -n higress-system
+
 helm-push:
+	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/higress/crds
 	cd helm; tar -zcf higress.tgz higress; helm push higress.tgz "oci://$(CHARTS)"
 
 helm-push-istio:

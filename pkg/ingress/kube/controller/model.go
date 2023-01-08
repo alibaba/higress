@@ -93,7 +93,7 @@ func (c *CommonController[lister]) Run(stop <-chan struct{}) {
 		IngressLog.Errorf("Failed to sync %s controller cache", c.typeName)
 		return
 	}
-	IngressLog.Debugf("%s cache has synced")
+	IngressLog.Debugf("%s cache has synced", c.typeName)
 	go wait.Until(c.worker, time.Second, stop)
 	<-stop
 }

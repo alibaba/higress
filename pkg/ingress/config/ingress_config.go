@@ -106,8 +106,9 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		clusterId:                clusterId,
 		globalGatewayName: namespace + "/" +
 			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet: sets.NewSet(),
-		namespace:        namespace,
+		watchedSecretSet:    sets.NewSet(),
+		namespace:           namespace,
+		mcpbridgeReconciled: true,
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -666,6 +667,9 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
 		return
 	}
+	m.mutex.Lock()
+	m.mcpbridgeReconciled = false
+	m.mutex.Unlock()
 	if m.RegistryReconciler == nil {
 		m.RegistryReconciler = reconcile.NewReconciler(func() {
 			metadata := config.Meta{

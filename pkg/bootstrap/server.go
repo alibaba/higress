@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	"istio.io/api/mesh/v1alpha1"
 	configaggregate "istio.io/istio/pilot/pkg/config/aggregate"
+	"istio.io/istio/pilot/pkg/features"
 	istiogrpc "istio.io/istio/pilot/pkg/grpc"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/server"
@@ -37,6 +38,9 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/keepalive"
 	istiokube "istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/security"
+	"istio.io/istio/security/pkg/server/ca/authenticate"
+	"istio.io/istio/security/pkg/server/ca/authenticate/kubeauth"
 	"istio.io/pkg/env"
 	"istio.io/pkg/ledger"
 	"istio.io/pkg/log"
@@ -149,6 +153,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		s.initHttpServer,
 		s.initConfigController,
 		s.initRegistryEventHandlers,
+		s.initAuthenticators,
 	}
 
 	for _, f := range initFuncList {
@@ -156,6 +161,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 			return nil, err
 		}
 	}
+
 	s.server.RunComponent(func(stop <-chan struct{}) error {
 		s.kubeClient.RunAndWait(stop)
 		return nil
@@ -329,6 +335,18 @@ func (s *Server) initGrpcServer() error {
 	s.grpcServer = grpc.NewServer(grpcOptions...)
 	s.xdsServer.Register(s.grpcServer)
 	reflection.Register(s.grpcServer)
+	return nil
+}
+
+func (s *Server) initAuthenticators() error {
+	authenticators := []security.Authenticator{
+		&authenticate.ClientCertAuthenticator{},
+	}
+	authenticators = append(authenticators,
+		kubeauth.NewKubeJWTAuthenticator(s.environment.Watcher, s.kubeClient, s.RegistryOptions.KubeOptions.ClusterID, nil, features.JwtPolicy))
+	if features.XDSAuth {
+		s.xdsServer.Authenticators = authenticators
+	}
 	return nil
 }
 

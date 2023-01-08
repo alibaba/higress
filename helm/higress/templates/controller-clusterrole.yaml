@@ -38,10 +38,15 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "watch", "list"]
 
-  - apiGroups: ["istio.aliyun.cloud.com"]
+  - apiGroups: ["networking.higress.io"]
     resources: ["mcpbridges"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "watch", "list", "update", "patch", "create", "delete"]
+
+  # Used to verify the JWT tokens
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
