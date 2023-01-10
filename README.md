@@ -265,8 +265,10 @@ kubectl delete ns higress-system
 - Mailing list: higress@googlegroups.com
 
 社区交流群: 
-![image](https://user-images.githubusercontent.com/6763318/205646934-93b7a711-ac3e-448a-a7ce-2156e31d0f7e.png)
+
+![image](https://img.alicdn.com/imgextra/i1/O1CN01d7LmWu1rMB71rfRhA_!!6000000005616-2-tps-720-405.png)
 
 
 开发者群：
-![image](https://user-images.githubusercontent.com/6763318/205646842-2a636aeb-08e2-458c-9478-7c3d8f8c2cde.png)
+
+![image](https://img.alicdn.com/imgextra/i2/O1CN010jFMgn1qTDaHqeIgH_!!6000000005496-2-tps-406-531.png)
