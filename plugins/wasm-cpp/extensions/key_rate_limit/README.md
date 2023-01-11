@@ -1,3 +1,7 @@
+<p>
+   <a href="README_EN.md"> English </a> | 中文
+</p>
+
 # 功能说明
 `key-rate-limit`插件实现了基于特定键值实现限流，键值来源可以是 URL 参数、HTTP 请求头
 
