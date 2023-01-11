@@ -295,12 +295,15 @@ func SplitServiceFQDN(fqdn string) (string, string, bool) {
 
 func ConvertBackendService(routeDestination *networking.HTTPRouteDestination) model.BackendService {
 	parts := strings.Split(routeDestination.Destination.Host, ".")
-	return model.BackendService{
+	service := model.BackendService{
 		Namespace: parts[1],
 		Name:      parts[0],
-		Port:      routeDestination.Destination.Port.Number,
 		Weight:    routeDestination.Weight,
 	}
+	if routeDestination.Destination.Port != nil {
+		service.Port = routeDestination.Destination.Port.Number
+	}
+	return service
 }
 
 func getLoadBalancerIp(svc *v1.Service) []string {
