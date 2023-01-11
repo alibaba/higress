@@ -1,0 +1,10 @@
+apiVersion: extensions.istio.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: hello-world
+  namespace: higress-system
+spec:
+  selector:
+    matchLabels:
+      higress: higress-system-higress-gateway
+  url: oci://registry.cn-guangzhou.aliyuncs.com/strangevy/hello-world:1.0.2

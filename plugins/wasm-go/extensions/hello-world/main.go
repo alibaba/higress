@@ -32,10 +32,10 @@ type HelloWorldConfig struct {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log wrapper.Log) types.Action {
-	err := proxywasm.AddHttpRequestHeader("hello", "world")
-	if err != nil {
-		log.Critical("failed to set request header")
-	}
-	proxywasm.SendHttpResponse(200, nil, []byte("hello world"), -1)
+	address, _ := proxywasm.GetProperty([]string{"remote", "address"})
+	log.Warnf("address: %v", address)
+	port, _ := proxywasm.GetProperty([]string{"remote", "port"})
+	log.Warnf("port: %v", port)
+	// proxywasm.SendHttpResponse(200, nil, append(address, port...), -1)
 	return types.ActionContinue
 }
