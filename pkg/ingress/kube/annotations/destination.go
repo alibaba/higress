@@ -32,6 +32,7 @@ var _ Parser = destination{}
 
 type DestinationConfig struct {
 	McpDestination []*networking.HTTPRouteDestination
+	WeightSum      int64
 }
 
 type destination struct{}
@@ -99,11 +100,11 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		destinations = append(destinations, dest)
 	}
 	if weightSum != 100 {
-		IngressLog.Errorf("destination has invalid weight sum %d within ingress %s/%s", weightSum, config.Namespace, config.Name)
-		return nil
+		IngressLog.Warnf("destination has invalid weight sum %d within ingress %s/%s", weightSum, config.Namespace, config.Name)
 	}
 	config.Destination = &DestinationConfig{
 		McpDestination: destinations,
+		WeightSum:      weightSum,
 	}
 	return nil
 }

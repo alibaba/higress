@@ -575,6 +575,10 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			destinationConfig := wrapper.AnnotationsConfig.Destination
 			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
 
+			if destinationConfig != nil {
+				wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
+			}
+
 			if ingressRouteBuilder.Event != common.Normal {
 				event = ingressRouteBuilder.Event
 			}
@@ -961,7 +965,7 @@ func (c *controller) createServiceKey(service *ingress.IngressBackend, namespace
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return !strings.HasSuffix(route.HTTPRoute.Name, "-canary") && canary.OriginPath == route.OriginPath &&
+	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.OriginPath == route.OriginPath &&
 		canary.OriginPathType == route.OriginPathType
 }
 
