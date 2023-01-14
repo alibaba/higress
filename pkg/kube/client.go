@@ -61,6 +61,7 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	}
 	c.higress = higressfake.NewSimpleClientset()
 	c.higressInformer = higressinformer.NewSharedInformerFactoryWithOptions(c.higress, resyncInterval)
+	c.informerWatchesPending = atomic.NewInt32(0)
 
 	// https://github.com/kubernetes/kubernetes/issues/95372
 	// There is a race condition in the client fakes, where events that happen between the List and Watch
