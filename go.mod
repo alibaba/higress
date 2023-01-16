@@ -16,6 +16,7 @@ replace github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.2.0
 	github.com/dubbogo/go-zookeeper v1.0.4-0.20211212162352-f9d2183d89d5
 	github.com/dubbogo/gost v1.13.1
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
@@ -70,6 +71,7 @@ require (
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/cncf/xds/go v0.0.0-20220520190051-1e77728a1eaa // indirect
 	github.com/containerd/continuity v0.1.0 // indirect
+	github.com/coreos/go-oidc/v3 v3.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0 // indirect
 	github.com/docker/cli v20.10.7+incompatible // indirect

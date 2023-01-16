@@ -570,6 +570,11 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			var event common.Event
 			destinationConfig := wrapper.AnnotationsConfig.Destination
 			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
+
+			if destinationConfig != nil {
+				wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
+			}
+
 			if ingressRouteBuilder.Event != common.Normal {
 				event = ingressRouteBuilder.Event
 			}
