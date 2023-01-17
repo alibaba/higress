@@ -69,6 +69,7 @@ if [[ -z ${BUILDINFO} ]];then
 fi
 
 while read -r line; do
+    echo -e "\n${line}"
     LD_EXTRAFLAGS="${LD_EXTRAFLAGS} -X ${line}"
 done < "${BUILDINFO}"
 
@@ -76,7 +77,6 @@ OPTIMIZATION_FLAGS=(-trimpath)
 if [ "${DEBUG}" == "1" ]; then
     OPTIMIZATION_FLAGS=()
 fi
-
 
 time GOOS=${BUILD_GOOS} GOARCH=${BUILD_GOARCH} ${GOBINARY} build \
         ${V} "${GOBUILDFLAGS_ARRAY[@]}" ${GCFLAGS:+-gcflags "${GCFLAGS}"} \
