@@ -154,6 +154,9 @@ clean-istio:
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
-	rm external/package/envoy.tar.gz
+	rm -rf external/package/envoy.tar.gz
 
-clean: clean-higress clean-gateway
+clean-env:
+	rm -rf out/
+
+clean: clean-higress clean-gateway clean-istio clean-env
