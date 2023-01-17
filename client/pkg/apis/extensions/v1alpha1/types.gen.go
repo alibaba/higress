@@ -33,7 +33,7 @@ import (
 // +cue-gen:WasmPlugin:subresource:status
 // +cue-gen:WasmPlugin:scope:Namespaced
 // +cue-gen:WasmPlugin:resource:categories=higress-io,extensions-higress-io
-// +cue-gen:WasmPlugin:preserveUnknownFields:false
+// +cue-gen:WasmPlugin:preserveUnknownFields:pluginConfig,defaultConfig,matchRules.[].config
 // +cue-gen:WasmPlugin:printerColumn:name=Age,type=date,JSONPath=.metadata.creationTimestamp,description="CreationTimestamp is a timestamp
 // representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations.
 // Clients may not set this value. It is represented in RFC3339 form and is in UTC.

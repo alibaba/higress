@@ -34,6 +34,7 @@ spec:
             properties:
               defaultConfig:
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               imagePullPolicy:
                 description: The pull behaviour to be applied when fetching an OCI
                   image.
@@ -50,6 +51,7 @@ spec:
                   properties:
                     config:
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     domain:
                       items:
                         type: string
@@ -72,6 +74,7 @@ spec:
               pluginConfig:
                 description: The configuration that will be passed on to the plugin.
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               pluginName:
                 type: string
               priority:

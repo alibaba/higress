@@ -277,12 +277,15 @@ func partMd5(raw string) string {
 	return encoded[:4] + encoded[len(encoded)-4:]
 }
 
-func GenerateUniqueRouteName(route *WrapperHTTPRoute) string {
+func GenerateUniqueRouteName(defaultNs string, route *WrapperHTTPRoute) string {
+	if route.WrapperConfig.Config.Namespace == defaultNs {
+		return route.WrapperConfig.Config.Name
+	}
 	return route.Meta()
 }
 
-func GenerateUniqueRouteNameWithSuffix(route *WrapperHTTPRoute, suffix string) string {
-	return CreateConvertedName(route.Meta(), suffix)
+func GenerateUniqueRouteNameWithSuffix(defaultNs string, route *WrapperHTTPRoute, suffix string) string {
+	return CreateConvertedName(GenerateUniqueRouteName(defaultNs, route), suffix)
 }
 
 func SplitServiceFQDN(fqdn string) (string, string, bool) {
