@@ -1,0 +1,46 @@
+run:
+  deadline: 10m
+
+linters:
+  enable:
+    - bodyclose
+    - gofmt
+    - goimports
+    - revive
+    - gosec
+    - misspell
+    - exportloopref
+    - unconvert
+    - unparam
+    - goheader
+    - gocritic
+
+linters-settings:
+  gci:
+    sections:
+      - standard # Captures all standard packages if they do not match another section.
+      - default # Contains all imports that could not be matched to another section type.
+      - prefix(github.com/alibaba/higress/) # Groups all imports with the specified Prefix.
+  goimports:
+    # put imports beginning with prefix after 3rd-party packages;
+    # it's a comma-separated list of prefixes
+    local-prefixes: github.com/alibaba/higress/
+  gofmt:
+    simplify: true
+  unparam:
+    check-exported: false
+
+issues:
+  exclude-rules:
+    - path: zz_generated
+      linters:
+        - goimports
+    - linters:
+        - staticcheck
+      text: "SA1019:"
+    - path: test/e2e
+      linters:
+        - bodyclose
+  # Show the complete output
+  max-issues-per-linter: 0
+  max-same-issues: 0

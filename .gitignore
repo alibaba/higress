@@ -3,8 +3,11 @@ out
 *.out
 *.tgz
 *.wasm
+.DS_Store
+coverage.xml
 .idea/
 bazel-bin
 bazel-out
 bazel-testlogs
 bazel-wasm-cpp
+tools/bin/
