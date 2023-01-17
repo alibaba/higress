@@ -46,6 +46,10 @@ prebuild: submodule
 .PHONY: default
 default: build
 
+.PHONY: go.test.coverage
+go.test.coverage: prebuild
+	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+
 .PHONY: build
 build: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
@@ -86,7 +90,7 @@ include docker/docker.mk
 
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
-export PARENT_GIT_TAG:=$(shell git describe --tags)
+export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz

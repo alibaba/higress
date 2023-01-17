@@ -23,6 +23,7 @@ header:
     - '.gitmodules'
     - 'plugins/**'
     - 'CODEOWNERS'
+    - 'VERSION'
 
   comment: on-failure
 dependency:
