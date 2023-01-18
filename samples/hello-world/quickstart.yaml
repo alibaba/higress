@@ -30,7 +30,7 @@ spec:
         version: v1
     spec:
       containers:
-        - image: gcr.io/k8s-staging-ingressconformance/echoserver:v20221109-7ee2f3e
+        - image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
           imagePullPolicy: IfNotPresent
           name: backend
           ports:
