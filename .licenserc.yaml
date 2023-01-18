@@ -25,6 +25,7 @@ header:
     - 'CODEOWNERS'
     - 'VERSION'
     - 'tools/'
+    - 'test/README.md'
 
   comment: on-failure
 dependency:
