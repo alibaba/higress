@@ -196,14 +196,11 @@ kube-load-image: docker-build $(tools/kind) ## Install the EG image to a kind cl
 
 .PHONY: run-e2e-test
 run-e2e-test:
-	@echo -e "\n\033[36mRunning higress e2e tests\033[0m\n"
-	kubectl apply -f samples/hello-world/quickstart.yaml
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting istiod to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n istio-system deployment/istiod --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
-
-	@echo -e "\n\033[36mSend request to call backend...\033[0m\n"
-	curl -i -v http://localhost/hello-world
+	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true --use-unique-ports=true
