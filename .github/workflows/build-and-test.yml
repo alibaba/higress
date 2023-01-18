@@ -73,7 +73,8 @@ jobs:
       with:
         go-version: 1.19
     - uses: actions/checkout@v3
-    - run: make e2e-test
+    - name: "Run E2E Tests"
+      run: make e2e-test
 
   publish:
     runs-on: ubuntu-latest
