@@ -28,7 +28,8 @@ comma := ,
 
 # source packages to scan for kubetype-gen tags
 kube_source_packages = $(subst $(space),$(empty), \
-	github.com/alibaba/higress/api/networking/v1 \
+	github.com/alibaba/higress/api/networking/v1, \
+	github.com/alibaba/higress/api/extensions/v1alpha1 \
 	)
 
 # base output package for generated files
@@ -38,7 +39,8 @@ kube_api_base_package = $(kube_base_output_package)/apis
 # source packages to scan for kubernetes generator tags, e.g. deepcopy-gen, client-gen, etc.
 # these should correspond to the output packages from kubetype-gen
 kube_api_packages = $(subst $(space),$(empty), \
-	$(kube_api_base_package)/networking/v1 \
+	$(kube_api_base_package)/networking/v1, \
+	$(kube_api_base_package)/extensions/v1alpha1 \
 	)
 # base output package used by kubernetes client-gen
 kube_clientset_package = $(kube_base_output_package)/clientset

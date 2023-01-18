@@ -118,8 +118,8 @@ install: pre-install
 	helm install istio helm/kind/istio -n istio-system --create-namespace
 	helm install higress helm/kind/higress -n higress-system --create-namespace
 
-ENVOY_LATEST_IMAGE_TAG ?= bf607ae5541ce5c1cc95b4f98b3fd50a83346d33
-ISTIO_LATEST_IMAGE_TAG ?= bf607ae5541ce5c1cc95b4f98b3fd50a83346d33
+ENVOY_LATEST_IMAGE_TAG ?= 0.5.4
+ISTIO_LATEST_IMAGE_TAG ?= 0.5.4
 
 install-dev: pre-install
 	helm install istio helm/istio -n istio-system --create-namespace --set-json='pilot.tag="$(ISTIO_LATEST_IMAGE_TAG)"' --set-json='global.kind=true'

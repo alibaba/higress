@@ -16,6 +16,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -23,9 +25,12 @@ import (
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
+	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
+	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
+	istiotype "istio.io/api/type/v1beta1"
 	"istio.io/istio/pilot/pkg/model"
 	networkingutil "istio.io/istio/pilot/pkg/networking/util"
 	"istio.io/istio/pilot/pkg/util/sets"
@@ -36,6 +41,8 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	higressext "github.com/alibaba/higress/api/extensions/v1alpha1"
+	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
@@ -44,6 +51,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
 	"github.com/alibaba/higress/registry/reconcile"
@@ -69,6 +77,7 @@ type IngressConfig struct {
 	destinationRuleHandlers []model.EventHandler
 	envoyFilterHandlers     []model.EventHandler
 	serviceEntryHandlers    []model.EventHandler
+	wasmPluginHandlers      []model.EventHandler
 	watchErrorHandler       cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
@@ -82,6 +91,12 @@ type IngressConfig struct {
 	mcpbridgeController mcpbridge.McpBridgeController
 
 	mcpbridgeLister netlisterv1.McpBridgeLister
+
+	wasmPluginController wasmplugin.WasmPluginController
+
+	wasmPluginLister extlisterv1.WasmPluginLister
+
+	wasmPlugins map[string]*extensions.WasmPlugin
 
 	XDSUpdater model.XDSUpdater
 
@@ -109,11 +124,17 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		watchedSecretSet:    sets.NewSet(),
 		namespace:           namespace,
 		mcpbridgeReconciled: true,
+		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
 	config.mcpbridgeController = mcpbridgeController
 	config.mcpbridgeLister = mcpbridgeController.Lister()
+
+	wasmPluginController := wasmplugin.NewController(localKubeClient, clusterId)
+	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
+	config.wasmPluginController = wasmPluginController
+	config.wasmPluginLister = wasmPluginController.Lister()
 	return config
 }
 
@@ -134,6 +155,9 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mod
 
 	case gvk.ServiceEntry:
 		m.serviceEntryHandlers = append(m.serviceEntryHandlers, f)
+
+	case gvk.WasmPlugin:
+		m.wasmPluginHandlers = append(m.wasmPluginHandlers, f)
 	}
 
 	for _, remoteIngressController := range m.remoteIngressControllers {
@@ -169,7 +193,8 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 		typ != gvk.VirtualService &&
 		typ != gvk.DestinationRule &&
 		typ != gvk.EnvoyFilter &&
-		typ != gvk.ServiceEntry {
+		typ != gvk.ServiceEntry &&
+		typ != gvk.WasmPlugin {
 		return nil, common.ErrUnsupportedOp
 	}
 
@@ -206,6 +231,8 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 		return m.convertDestinationRule(wrapperConfigs), nil
 	case gvk.ServiceEntry:
 		return m.convertServiceEntry(wrapperConfigs), nil
+	case gvk.WasmPlugin:
+		return m.convertWasmPlugin(wrapperConfigs), nil
 	}
 
 	return nil, nil
@@ -472,6 +499,23 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	m.mutex.Unlock()
 }
 
+func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	out := make([]config.Config, 0, len(m.wasmPlugins))
+	for name, wasmPlugin := range m.wasmPlugins {
+		out = append(out, config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.WasmPlugin,
+				Name:             name,
+				Namespace:        m.namespace,
+			},
+			Spec: wasmPlugin,
+		})
+	}
+	return out
+}
+
 func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Config {
 	if m.RegistryReconciler == nil {
 		return nil
@@ -640,6 +684,153 @@ func (m *IngressConfig) applyInternalActiveRedirect(convertOptions *common.Conve
 			}
 		}
 		convertOptions.HTTPRoutes[host] = tempRoutes
+	}
+}
+
+func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*extensions.WasmPlugin, error) {
+	result := &extensions.WasmPlugin{
+		Selector: &istiotype.WorkloadSelector{
+			MatchLabels: map[string]string{
+				"higress": m.namespace + "-higress-gateway",
+			},
+		},
+		Url:             obj.Url,
+		Sha256:          obj.Sha256,
+		ImagePullPolicy: extensions.PullPolicy(obj.ImagePullPolicy),
+		ImagePullSecret: obj.ImagePullSecret,
+		VerificationKey: obj.VerificationKey,
+		PluginConfig:    obj.PluginConfig,
+		PluginName:      obj.PluginName,
+		Phase:           extensions.PluginPhase(obj.Phase),
+		Priority:        obj.Priority,
+	}
+	if result.PluginConfig != nil {
+		return result, nil
+	}
+	result.PluginConfig = obj.DefaultConfig
+	if len(obj.MatchRules) > 0 {
+		if result.PluginConfig == nil {
+			result.PluginConfig = &types.Struct{
+				Fields: map[string]*types.Value{},
+			}
+		}
+		var ruleValues []*types.Value
+		for _, rule := range obj.MatchRules {
+			if rule.Config == nil {
+				return nil, errors.New("invalid rule has no config")
+			}
+			v := &types.Value_StructValue{
+				StructValue: rule.Config,
+			}
+			var matchItems []*types.Value
+			for _, ing := range rule.Ingress {
+				matchItems = append(matchItems, &types.Value{
+					Kind: &types.Value_StringValue{
+						StringValue: ing,
+					},
+				})
+			}
+			if len(matchItems) > 0 {
+				v.StructValue.Fields["_match_route_"] = &types.Value{
+					Kind: &types.Value_ListValue{
+						ListValue: &types.ListValue{
+							Values: matchItems,
+						},
+					},
+				}
+				ruleValues = append(ruleValues, &types.Value{
+					Kind: v,
+				})
+				continue
+			}
+			for _, domain := range rule.Domain {
+				matchItems = append(matchItems, &types.Value{
+					Kind: &types.Value_StringValue{
+						StringValue: domain,
+					},
+				})
+			}
+			if len(matchItems) == 0 {
+				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
+			}
+			v.StructValue.Fields["_match_domain_"] = &types.Value{
+				Kind: &types.Value_ListValue{
+					ListValue: &types.ListValue{
+						Values: matchItems,
+					},
+				},
+			}
+			ruleValues = append(ruleValues, &types.Value{
+				Kind: v,
+			})
+		}
+		result.PluginConfig.Fields["_rules_"] = &types.Value{
+			Kind: &types.Value_ListValue{
+				ListValue: &types.ListValue{
+					Values: ruleValues,
+				},
+			},
+		}
+	}
+	return result, nil
+
+}
+
+func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	wasmPlugin, err := m.wasmPluginLister.WasmPlugins(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
+	if err != nil {
+		IngressLog.Errorf("wasmPlugin is not found, namespace:%s, name:%s",
+			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
+		return
+	}
+	metadata := config.Meta{
+		Name:             clusterNamespacedName.Name + "-wasmplugin",
+		Namespace:        clusterNamespacedName.Namespace,
+		GroupVersionKind: gvk.WasmPlugin,
+		// Set this label so that we do not compare configs and just push.
+		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+	}
+	for _, f := range m.wasmPluginHandlers {
+		IngressLog.Debug("WasmPlugin triggerd update")
+		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
+	}
+	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
+	if err != nil {
+		IngressLog.Errorf("invalid wasmPlugin:%s, err:%v", clusterNamespacedName.Name, err)
+		return
+	}
+	IngressLog.Debugf("wasmPlugin:%s convert to istioWasmPlugin:%v", clusterNamespacedName.Name, istioWasmPlugin)
+	m.mutex.Lock()
+	m.wasmPlugins[clusterNamespacedName.Name] = istioWasmPlugin
+	m.mutex.Unlock()
+}
+
+func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	var hit bool
+	m.mutex.Lock()
+	if _, ok := m.wasmPlugins[clusterNamespacedName.Name]; ok {
+		delete(m.wasmPlugins, clusterNamespacedName.Name)
+		hit = true
+	}
+	m.mutex.Unlock()
+	if hit {
+		metadata := config.Meta{
+			Name:             clusterNamespacedName.Name + "-wasmplugin",
+			Namespace:        clusterNamespacedName.Namespace,
+			GroupVersionKind: gvk.WasmPlugin,
+			// Set this label so that we do not compare configs and just push.
+			Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+		}
+		for _, f := range m.wasmPluginHandlers {
+			IngressLog.Debug("WasmPlugin triggerd update")
+			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventDelete)
+		}
 	}
 }
 
@@ -860,7 +1051,8 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
-	m.mcpbridgeController.Run(stop)
+	go m.mcpbridgeController.Run(stop)
+	go m.wasmPluginController.Run(stop)
 }
 
 func (m *IngressConfig) HasSynced() bool {
@@ -872,6 +1064,9 @@ func (m *IngressConfig) HasSynced() bool {
 		}
 	}
 	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled {
+		return false
+	}
+	if !m.wasmPluginController.HasSynced() {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")

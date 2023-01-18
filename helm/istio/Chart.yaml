@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 1.12.3
+appVersion: 1.12.4
 description: Helm chart for deploying higress istio
 name: istio
 sources:
@@ -12,4 +12,4 @@ dependencies:
   repository: "file://../istiod"
   version: 1.12.0
 type: application
-version: 1.12.3
+version: 1.12.4
