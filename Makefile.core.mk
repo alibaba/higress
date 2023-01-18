@@ -181,7 +181,7 @@ include tools/tools.mk
 include tools/lint.mk
 
 .PHONY: e2e-test
-e2e-test: $(tools/kind) create-cluster kube-load-image install-dev run-e2e-test delete-cluster
+e2e-test: $(tools/kind) delete-cluster create-cluster kube-load-image install-dev run-e2e-test delete-cluster
 
 create-cluster: $(tools/kind)
 	tools/hack/create-cluster.sh
@@ -205,7 +205,5 @@ run-e2e-test:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
 
-	@echo -e "\n\033[36mSend request to call foo service...\033[0m\n"
-	curl -i -v http://localhost/foo
-	@echo -e "\n\n\033[36mSend request to call bar service...\033[0m\n"
-	curl -i -v http://localhost/bar
+	@echo -e "\n\033[36mSend request to call backend...\033[0m\n"
+	curl -i -v http://localhost/hello-world
