@@ -42,6 +42,10 @@ rules:
     resources: ["mcpbridges"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
+  - apiGroups: ["extensions.higress.io"]
+    resources: ["wasmplugins"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "watch", "list", "update", "patch", "create", "delete"]

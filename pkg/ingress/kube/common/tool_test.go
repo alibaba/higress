@@ -198,7 +198,8 @@ func TestGenerateUniqueRouteName(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "bar/foo", GenerateUniqueRouteName(input))
+	assert.Equal(t, "bar/foo", GenerateUniqueRouteName("xxx", input))
+	assert.Equal(t, "foo", GenerateUniqueRouteName("bar", input))
 
 }
 

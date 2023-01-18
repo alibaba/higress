@@ -22,6 +22,7 @@ import (
 	time "time"
 
 	versioned "github.com/alibaba/higress/client/pkg/clientset/versioned"
+	extensions "github.com/alibaba/higress/client/pkg/informers/externalversions/extensions"
 	internalinterfaces "github.com/alibaba/higress/client/pkg/informers/externalversions/internalinterfaces"
 	networking "github.com/alibaba/higress/client/pkg/informers/externalversions/networking"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -170,7 +171,12 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
+	Extensions() extensions.Interface
 	Networking() networking.Interface
+}
+
+func (f *sharedInformerFactory) Extensions() extensions.Interface {
+	return extensions.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Networking() networking.Interface {
