@@ -41,7 +41,7 @@ submodule:
 	git submodule update --init
 
 prebuild: submodule
-	./script/prebuild.sh
+	./tools/hack/prebuild.sh
 
 .PHONY: default
 default: build
@@ -52,11 +52,11 @@ go.test.coverage: prebuild
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -69,7 +69,7 @@ ifeq ($(BUILD_ALL),true)
 $(OUT_LINUX)/$(shell basename $(1)): build-linux
 else
 $(OUT_LINUX)/$(shell basename $(1)): $(OUT_LINUX)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
 endif
 endef
 
@@ -115,10 +115,19 @@ define create_ns
 endef
 
 install: pre-install
-	$(call create_ns,istio-system)
-	$(call create_ns,higress-system)
-	helm install istio helm/kind/istio -n istio-system
-	helm install higress helm/kind/higress -n higress-system
+	helm install istio helm/kind/istio -n istio-system --create-namespace
+	helm install higress helm/kind/higress -n higress-system --create-namespace
+
+ENVOY_LATEST_IMAGE_TAG ?= bf607ae5541ce5c1cc95b4f98b3fd50a83346d33
+ISTIO_LATEST_IMAGE_TAG ?= bf607ae5541ce5c1cc95b4f98b3fd50a83346d33
+
+install-dev: pre-install
+	helm install istio helm/istio -n istio-system --create-namespace --set-json='pilot.tag="$(ISTIO_LATEST_IMAGE_TAG)"' --set-json='global.kind=true'
+	helm install higress helm/higress -n higress-system --create-namespace --set-json='controller.tag="$(TAG)"' --set-json='gateway.replicas=1' --set-json='gateway.tag="$(ENVOY_LATEST_IMAGE_TAG)"' --set-json='global.kind=true'
+
+uninstall:
+	helm uninstall istio -n istio-system
+	helm uninstall higress -n higress-system
 
 upgrade: pre-install
 	helm upgrade istio helm/kind/istio -n istio-system
@@ -163,4 +172,40 @@ clean-gateway: clean-istio
 clean-env:
 	rm -rf out/
 
-clean: clean-higress clean-gateway clean-istio clean-env
+clean-tool:
+	rm -rf tools/bin
+
+clean: clean-higress clean-gateway clean-istio clean-env clean-tool
+
+include tools/tools.mk
+include tools/lint.mk
+
+.PHONY: e2e-test
+e2e-test: $(tools/kind) create-cluster kube-load-image install-dev run-e2e-test delete-cluster
+
+create-cluster: $(tools/kind)
+	tools/hack/create-cluster.sh
+
+.PHONY: delete-cluster
+delete-cluster: $(tools/kind) ## Delete kind cluster.
+	$(tools/kind) delete cluster --name higress
+
+.PHONY: kube-load-image
+kube-load-image: docker-build $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
+
+.PHONY: run-e2e-test
+run-e2e-test:
+	@echo -e "\n\033[36mRunning higress e2e tests\033[0m\n"
+	kubectl apply -f samples/hello-world/quickstart.yaml
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting istiod to be ready...\033[0m\n"
+	kubectl wait --timeout=5m -n istio-system deployment/istiod --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
+
+	@echo -e "\n\033[36mSend request to call foo service...\033[0m\n"
+	curl -i -v http://localhost/foo
+	@echo -e "\n\n\033[36mSend request to call bar service...\033[0m\n"
+	curl -i -v http://localhost/bar

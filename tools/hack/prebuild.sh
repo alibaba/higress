@@ -3,7 +3,7 @@ set -e
 
 ENVOY_VERSION="${ENVOY_VERSION:=1.20}"
 ISITO_VERSION="${ISTIO_VERSION:=1.12}"
-WORK_DIR=`cd $(dirname "$0")/..;pwd`
+WORK_DIR=`cd $(dirname "$0")/../..;pwd`
 
 cd $WORK_DIR
 

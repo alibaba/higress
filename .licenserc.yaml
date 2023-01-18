@@ -24,6 +24,7 @@ header:
     - 'plugins/**'
     - 'CODEOWNERS'
     - 'VERSION'
+    - 'tools/'
 
   comment: on-failure
 dependency:
