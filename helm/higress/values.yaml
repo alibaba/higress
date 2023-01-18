@@ -14,7 +14,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "bf607ae5541ce5c1cc95b4f98b3fd50a83346d33"
+  tag: "0.5.4"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -110,7 +110,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "bf607ae5541ce5c1cc95b4f98b3fd50a83346d33"
+  tag: "0.5.4"
   env: {}
 
   labels: {}
