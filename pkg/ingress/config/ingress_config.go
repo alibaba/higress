@@ -158,19 +158,6 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressCo
 }
 
 func (m *IngressConfig) InitializeCluster(ingressController common.IngressController, stop <-chan struct{}) error {
-	for _, handler := range m.virtualServiceHandlers {
-		ingressController.RegisterEventHandler(gvk.VirtualService, handler)
-	}
-	for _, handler := range m.gatewayHandlers {
-		ingressController.RegisterEventHandler(gvk.Gateway, handler)
-	}
-	for _, handler := range m.destinationRuleHandlers {
-		ingressController.RegisterEventHandler(gvk.DestinationRule, handler)
-	}
-	for _, handler := range m.envoyFilterHandlers {
-		ingressController.RegisterEventHandler(gvk.EnvoyFilter, handler)
-	}
-
 	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
 
 	go ingressController.Run(stop)
