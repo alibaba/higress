@@ -5,7 +5,7 @@ global:
   kind: false
   enableMesh: false
   # Used to locate istiod.
-  istioNamespace: higress-system
+  istioNamespace: istio-system
   # enable pod disruption budget for the control plane, which is used to
   # ensure Istio control plane components are gradually upgraded or recovered.
   defaultPodDisruptionBudget:
@@ -30,7 +30,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 0.5.4
+  tag: 0.6.0
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -322,7 +322,6 @@ ingressClass: ""
 watchNamespace: ""
 enableStatus: false
 clusterName: ""
-istioNamespace: "higress-system"
 # meshConfig defines runtime configuration of components, including Istiod and istio-agent behavior
 # See https://istio.io/docs/reference/config/istio.mesh.v1alpha1/ for all available options
 meshConfig:
@@ -357,7 +356,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "0.5.4"
+  tag: "0.6.0"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -449,7 +448,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "0.5.4"
+  tag: "0.6.0"
   env: {}
 
   labels: {}
@@ -539,7 +538,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 0.5.4
+  tag: 0.6.0
 
   # Can be a full hub/image:tag
   image: pilot

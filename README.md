@@ -151,11 +151,9 @@ kind.exe create cluster --name higress --config=cluster.conf
 kubectl.exe config use-context kind-higress
 ```
 
-#### 第三步、 安装 istio & higress
+#### 第三步、 安装 higress
 
 ```bash
-kubectl create ns istio-system
-helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio-local
 kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
@@ -182,38 +180,21 @@ curl localhost/bar
 ```bash
 kubectl delete -f https://github.com/alibaba/higress/releases/download/v0.5.2/quickstart.yaml
 
-helm uninstall istio -n istio-system
-
 helm uninstall higress -n higress-system
-
-kubectl delete ns istio-system
 
 kubectl delete ns higress-system
 ```
 
 ### 生产环境
 
-#### 第一步、 安装 istio
-
-可以选择安装 higress 发行的 istio 版本:
-
-```bash
-kubectl create ns istio-system
-helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
-```
-
-或者选择安装官方 istio 版本 (将失去部分能力，例如通过 Ingress 注解实现限流的功能):
-
-https://istio.io/latest/docs/setup/install
-
-#### 第二步、 安装 higress
+#### 第一步、 安装 higress
 
 ```bash
 kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
 ```
 
-#### 第三步、 创建 Ingress 资源并测试
+#### 第二步、 创建 Ingress 资源并测试
 
 假设在 default 命名空间下已经部署了一个 test service，服务端口为 80 ，则创建下面这个 K8s Ingress
 
@@ -245,11 +226,7 @@ curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBa
 #### 卸载资源
 
 ```bash
-helm uninstall istio -n istio-system
-
 helm uninstall higress -n higress-system
-
-kubectl delete ns istio-system
 
 kubectl delete ns higress-system
 ```
