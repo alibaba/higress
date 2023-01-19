@@ -21,12 +21,19 @@ spec:
   strategy:
     rollingUpdate:
       maxSurge: {{ .Values.gateway.rollingMaxSurge }}
+      {{- if .Values.global.kind }}
+      maxUnavailable: 100%
+      {{- else }}
       maxUnavailable: {{ .Values.gateway.rollingMaxUnavailable }}
+      {{- end }}
   template:
     metadata:
-      {{- with .Values.gateway.podAnnotations }}
       annotations:
-        {{- toYaml . | nindent 8 }}
+      {{- if .Values.global.enableMesh }}
+        "enableMesh": "true"
+      {{- end }}
+      {{- if .Values.gateway.podAnnotations }}
+        {{- toYaml .Values.gateway.podAnnotations | nindent 8 }}
       {{- end }}
       labels:
         sidecar.istio.io/inject: "false"
@@ -209,7 +216,11 @@ spec:
       {{- end }}
       - name: istio-ca-root-cert
         configMap:
+      {{- if .Values.global.enableMesh }}
           name: istio-ca-root-cert
+      {{- else }}
+          name: higress-ca-root-cert
+      {{- end }}
       - name: config
         configMap:
           name: higress-config

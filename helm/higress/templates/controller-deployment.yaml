@@ -120,6 +120,10 @@ spec:
             value: "{{ .Values.global.istiod.enableAnalysis }}"
           - name: CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
+          {{- if not .Values.global.enableMesh }}
+          - name: CUSTOM_CA_CERT_NAME
+            value: "higress-ca-root-cert"
+          {{- end }}
           {{- if not .Values.global.kind  }}
           resources:
 {{- if .Values.pilot.resources }}
