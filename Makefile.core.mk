@@ -195,8 +195,6 @@ run-e2e-test:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available
-	@echo -e "\n\033[36mWaiting istiod to be ready...\033[0m\n"
-	kubectl wait --timeout=5m -n istio-system deployment/istiod --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true --use-unique-ports=true
