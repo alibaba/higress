@@ -34,6 +34,14 @@ var (
 	serverArgs     *bootstrap.ServerArgs
 	loggingOptions = log.DefaultOptions()
 
+	serverProvider = func(args *bootstrap.ServerArgs) (bootstrap.ServerInterface, error) {
+		return bootstrap.NewServer(serverArgs)
+	}
+
+	waitForMonitorSignal = func(stop chan struct{}) {
+		cmd.WaitSignal(stop)
+	}
+
 	rootCmd = &cobra.Command{
 		Use: "higress",
 	}
@@ -52,7 +60,7 @@ var (
 
 			stop := make(chan struct{})
 
-			server, err := bootstrap.NewServer(serverArgs)
+			server, err := serverProvider(serverArgs)
 			if err != nil {
 				return fmt.Errorf("fail to create higress server: %v", err)
 			}
@@ -61,7 +69,7 @@ var (
 				return fmt.Errorf("fail to start higress server: %v", err)
 			}
 
-			cmd.WaitSignal(stop)
+			waitForMonitorSignal(stop)
 
 			server.WaitUntilCompletion()
 			return nil
