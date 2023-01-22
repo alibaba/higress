@@ -74,7 +74,7 @@ jobs:
         go-version: 1.19
     - uses: actions/checkout@v3
     - name: "Run E2E Tests"
-      run: make e2e-test
+      run: GOPROXY="https://proxy.golang.org,direct" make e2e-test
 
   publish:
     runs-on: ubuntu-latest
