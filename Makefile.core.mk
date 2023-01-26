@@ -176,22 +176,32 @@ clean: clean-higress clean-gateway clean-istio clean-env clean-tool
 include tools/tools.mk
 include tools/lint.mk
 
-.PHONY: e2e-test
-e2e-test: $(tools/kind) delete-cluster create-cluster kube-load-image install-dev run-e2e-test delete-cluster
+# gateway-conformance-test runs gateway api conformance tests.
+.PHONY: gateway-conformance-test
+gateway-conformance-test:
 
+# ingress-conformance-test runs ingress api conformance tests.
+.PHONY: ingress-conformance-test
+ingress-conformance-test: $(tools/kind) delete-cluster create-cluster kube-load-image install-dev run-ingress-e2e-test delete-cluster
+
+# create-cluster creates a kube cluster with kind.
+.PHONY: create-cluster
 create-cluster: $(tools/kind)
 	tools/hack/create-cluster.sh
 
+# delete-cluster deletes a kube cluster.
 .PHONY: delete-cluster
 delete-cluster: $(tools/kind) ## Delete kind cluster.
 	$(tools/kind) delete cluster --name higress
 
+# kube-load-image loads a local built docker image into kube cluster.
 .PHONY: kube-load-image
 kube-load-image: docker-build $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 
-.PHONY: run-e2e-test
-run-e2e-test:
+# run-ingress-e2e-test starts to run ingress e2e tests.
+.PHONY: run-ingress-e2e-test
+run-ingress-e2e-test:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available

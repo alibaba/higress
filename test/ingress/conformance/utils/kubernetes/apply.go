@@ -49,9 +49,6 @@ type Applier struct {
 
 	// IngressClass will be used as the spec.gatewayClassName when applying Gateway resources
 	IngressClass string
-
-	// ControllerName will be used as the spec.controllerName when applying GatewayClass resources
-	ControllerName string
 }
 
 // prepareNamespace adjusts the Namespace labels.

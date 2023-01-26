@@ -70,7 +70,6 @@ type ConformanceTestSuite struct {
 	RoundTripper      roundtripper.RoundTripper
 	GatewayAddress    string
 	IngressClassName  string
-	ControllerName    string
 	Debug             bool
 	Cleanup           bool
 	BaseManifests     string
@@ -150,10 +149,8 @@ func New(s Options) *ConformanceTestSuite {
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("Test Setup: Ensuring IngressClass has been accepted")
-	suite.ControllerName = suite.IngressClassName
 
 	suite.Applier.IngressClass = suite.IngressClassName
-	suite.Applier.ControllerName = suite.ControllerName
 
 	t.Logf("Test Setup: Applying base manifests")
 	suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, suite.BaseManifests, suite.Cleanup)
