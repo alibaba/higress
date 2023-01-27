@@ -1,3 +1,7 @@
+<p>
+   <a href="README_EN.md"> English </a> | 中文
+</p>
+
 # 功能说明
 `custom-response`插件支持配置自定义的响应，包括自定义 HTTP 应答状态码、HTTP 应答头，以及 HTTP 应答 Body。可以用于 Mock 响应，也可以用于判断特定状态码后给出自定义应答，例如在触发网关限流策略时实现自定义响应。
 

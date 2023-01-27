@@ -67,4 +67,4 @@ _rules_:
 ```
 In the rule sample of `_match_route_`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
 In the rule sample of `_match_domain_`, `*.example.com` and `test.com` are the domain names used for request matching. When the current domain name matches the configuration, the rule following shall be applied.
-All rules shall be checked following the order of items in the `_rules_` field，The first matched rule will be applied. All remained will be ignored.
+All rules shall be checked following the order of items in the `_rules_` field, The first matched rule will be applied. All remained will be ignored.
