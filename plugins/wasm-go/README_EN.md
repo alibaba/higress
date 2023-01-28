@@ -42,7 +42,7 @@ spec:
   selector:
     matchLabels:
       higress: higress-system-higress-gateway
-  pluginConfig:
+  defaultConfig:
     block_urls:
     - "swagger.html"
   url: oci://<your_registry_hub>/request-block:1.0.0
