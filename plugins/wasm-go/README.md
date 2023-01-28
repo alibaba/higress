@@ -34,7 +34,7 @@ docker push <your_registry_hub>/request-block:1.0.0
 ### step3. 创建 WasmPlugin 资源
 
 ```yaml
-apiVersion: extensions.istio.io/v1alpha1
+apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
   name: request-block
@@ -70,7 +70,7 @@ content-length: 0
 ## 路由级或域名级生效
 
 ```yaml
-apiVersion: extensions.istio.io/v1alpha1
+apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
   name: request-block

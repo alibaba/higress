@@ -27,7 +27,7 @@
 例如用如下配置使用 request-block 插件 的 1.0.0 版本：
 
 ```yaml
-apiVersion: extensions.istio.io/v1alpha1
+apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
   name: request-block
