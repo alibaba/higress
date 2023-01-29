@@ -34,7 +34,7 @@ docker push <your_registry_hub>/request-block:1.0.0
 ### step3. 创建 WasmPlugin 资源
 
 ```yaml
-apiVersion: extensions.istio.io/v1alpha1
+apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
   name: request-block
@@ -43,7 +43,7 @@ spec:
   selector:
     matchLabels:
       higress: higress-system-higress-gateway
-  pluginConfig:
+  defaultConfig:
     block_urls:
     - "swagger.html"
   url: oci://<your_registry_hub>/request-block:1.0.0
@@ -70,7 +70,7 @@ content-length: 0
 ## 路由级或域名级生效
 
 ```yaml
-apiVersion: extensions.istio.io/v1alpha1
+apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
   name: request-block
@@ -79,29 +79,32 @@ spec:
   selector:
     matchLabels:
       higress: higress-system-higress-gateway 
-  pluginConfig:
+  defaultConfig:
    # 跟上面例子一样，这个配置会全局生效，但如果被下面规则匹配到，则会改为执行命中规则的配置
    block_urls:
    - "swagger.html"
-   _rules_:
+   matchRules:
    # 路由级生效配置
-   - _match_route_:
-     - default/foo
+  - ingress:
+    - default/foo
      # default 命名空间下名为 foo 的 ingress 会执行下面这个配置
-     block_bodys:
-     - "foo"
-   - _match_route_:
-     - default/bar
-     # default 命名空间下名为 bar 的 ingress 会执行下面这个配置
-     block_bodys:
-     - "bar"
+    config:
+      block_bodys:
+      - "foo"
+  - ingress:
+    - default/bar
+    # default 命名空间下名为 bar 的 ingress 会执行下面这个配置
+    config:
+      block_bodys:
+      - "bar"
    # 域名级生效配置
-   - _match_domain_:
-     - "*.example.com"
-     # 若请求匹配了上面的域名, 会执行下面这个配置
-     block_bodys:
-     - "foo"
-     - "bar"
+  - domain:
+    - "*.example.com"
+    # 若请求匹配了上面的域名, 会执行下面这个配置
+    config:
+      block_bodys:
+      - "foo"
+      - "bar"
   url: oci://<your_registry_hub>/request-block:1.0.0
 ```
 
