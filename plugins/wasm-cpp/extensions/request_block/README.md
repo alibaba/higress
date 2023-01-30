@@ -1,3 +1,7 @@
+<p>
+   <a href="README_EN.md"> English </a> | 中文
+</p>
+
 # 功能说明
 `request-block`插件实现了基于 URL、请求头等特征屏蔽 HTTP 请求，可以用于防护部分站点资源不对外部暴露
 
