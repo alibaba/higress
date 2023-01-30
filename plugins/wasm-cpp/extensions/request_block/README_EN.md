@@ -9,9 +9,9 @@
 
 | Name | Type | Requirement |  Default Value | Description |
 | -------- | -------- | -------- | -------- | -------- |
-|  block_urls     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodys` |  -  |  HTTP URLs to be blocked. |
-|  block_headers     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodys` |  -  |  HTTP request headers to be blocked.  |
-|  block_bodys     |  array of string     | Optional. Choose one from following: `block_urls` ,`block_headers`, `block_bodys` |  -  |  HTTP request bodies to be blocked.  |
+|  block_urls     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodies` |  -  |  HTTP URLs to be blocked. |
+|  block_headers     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodies` |  -  |  HTTP request headers to be blocked.  |
+|  block_bodies     |  array of string     | Optional. Choose one from following: `block_urls` ,`block_headers`, `block_bodies` |  -  |  HTTP request bodies to be blocked.  |
 |  blocked_code     |  number     |  Optional     |   403  |  HTTP response status code to be sent when corresponding request is blocked.  |
 |  blocked_message     |  string     |  Optional   |   -  |  HTTP response body to be sent when corresponding request is blocked.   |
 |  case_sensitive     |  bool     |  Optional     |   true  |  Whether to use case-senstive comparison when matching. Enabled by default.   |
@@ -49,7 +49,7 @@ curl http://exmaple.com -H 'my-header: example-value'
 
 ## Block Specific Request Bodies
 ```yaml
-block_bodys:
+block_bodies:
 - "hello world"
 case_sensitive: false
 ```
@@ -69,7 +69,7 @@ _rules_:
 - _match_route_:
   - route-a
   - route-b
-  block_bodys: 
+  block_bodies: 
   - "hello world"
 # Rule 2: Match by domain
 - _match_domain_:
@@ -77,7 +77,7 @@ _rules_:
   - test.com
   block_urls: 
   - "swagger.html"
-  block_bodys:
+  block_bodies:
   - "hello world"
 ```
 In the rule sample of `_match_route_`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
@@ -86,5 +86,5 @@ All rules shall be checked following the order of items in the `_rules_` field, 
 
 # Maximum Request Body Size Limitation
 
-When `block_bodys` is configured, body matching shall only be performed when its size is smaller than 32MB. If not, and no `block_urls` or `block_headers` configuration is matched, the request won't be blocked.
-When `block_bodys` is configured, if the size of request body exceeds the global configuration of DownstreamConnectionBufferLimits, a ``413 Payload Too Large`` response will be returned.
+When `block_bodies` is configured, body matching shall only be performed when its size is smaller than 32MB. If not, and no `block_urls` or `block_headers` configuration is matched, the request won't be blocked.
+When `block_bodies` is configured, if the size of request body exceeds the global configuration of DownstreamConnectionBufferLimits, a ``413 Payload Too Large`` response will be returned.

@@ -83,20 +83,20 @@ spec:
     - default/foo
     # the ingress foo in namespace default will use this config
     config:
-      block_bodys:
+      block_bodies:
       - "foo"
   - ingress:
     - default/bar
     # the ingress bar in namespace default will use this config
     config:
-      block_bodys:
+      block_bodies:
       - "bar"
   # domain-level takes effect
   - domain:
     - "*.example.com"
     # if the request's domain matched, this config will be used
     config:
-      block_bodys:
+      block_bodies:
        - "foo"
        - "bar"
   url: oci://<your_registry_hub>/request-block:1.0.0
