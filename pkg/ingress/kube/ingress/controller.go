@@ -348,6 +348,13 @@ func extractTLSSecretName(host string, tls []ingress.IngressTLS) string {
 }
 
 func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+	if convertOptions == nil {
+		return fmt.Errorf("convertOptions is nil")
+	}
+	if wrapper == nil {
+		return fmt.Errorf("wrapperConfig is nil")
+	}
+
 	// Ignore canary config.
 	if wrapper.AnnotationsConfig.IsCanary() {
 		return nil
@@ -455,6 +462,13 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 }
 
 func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+	if convertOptions == nil {
+		return fmt.Errorf("convertOptions is nil")
+	}
+	if wrapper == nil {
+		return fmt.Errorf("wrapperConfig is nil")
+	}
+
 	// Canary ingress will be processed in the end.
 	if wrapper.AnnotationsConfig.IsCanary() {
 		convertOptions.CanaryIngresses = append(convertOptions.CanaryIngresses, wrapper)
@@ -618,6 +632,13 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 }
 
 func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+	if convertOptions == nil {
+		return fmt.Errorf("convertOptions is nil")
+	}
+	if wrapper == nil {
+		return fmt.Errorf("wrapperConfig is nil")
+	}
+
 	if wrapper.AnnotationsConfig.IsCanary() {
 		return nil
 	}
@@ -688,6 +709,13 @@ func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, 
 }
 
 func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+	if convertOptions == nil {
+		return fmt.Errorf("convertOptions is nil")
+	}
+	if wrapper == nil {
+		return fmt.Errorf("wrapperConfig is nil")
+	}
+
 	byHeader, byWeight := wrapper.AnnotationsConfig.CanaryKind()
 
 	cfg := wrapper.Config
@@ -820,6 +848,13 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 }
 
 func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+	if convertOptions == nil {
+		return fmt.Errorf("convertOptions is nil")
+	}
+	if wrapper == nil {
+		return fmt.Errorf("wrapperConfig is nil")
+	}
+
 	if !wrapper.AnnotationsConfig.NeedTrafficPolicy() {
 		return nil
 	}
@@ -941,6 +976,10 @@ func (c *controller) createDefaultRoute(wrapper *common.WrapperConfig, backend *
 }
 
 func (c *controller) createServiceKey(service *ingress.IngressBackend, namespace string) (common.ServiceKey, error) {
+	if service == nil {
+		return common.ServiceKey{}, fmt.Errorf("ingressBackend is nil")
+	}
+
 	serviceKey := common.ServiceKey{}
 	if service.ServiceName == "" {
 		return serviceKey, errors.New("service name is empty")
@@ -965,7 +1004,7 @@ func (c *controller) createServiceKey(service *ingress.IngressBackend, namespace
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.OriginPath == route.OriginPath &&
+	return route != nil && canary != nil && !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.OriginPath == route.OriginPath &&
 		canary.OriginPathType == route.OriginPathType
 }
 
@@ -1016,6 +1055,10 @@ func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, 
 }
 
 func resolveNamedPort(backend *ingress.IngressBackend, namespace string, serviceLister listerv1.ServiceLister) (int32, error) {
+	if backend == nil {
+		return 0, fmt.Errorf("ingressBackend is nil")
+	}
+
 	svc, err := serviceLister.Services(namespace).Get(backend.ServiceName)
 	if err != nil {
 		return 0, err
@@ -1132,6 +1175,10 @@ func (c *controller) shouldProcessIngressUpdate(ing *ingress.Ingress) (bool, err
 
 // setDefaultMSEIngressOptionalField sets a default value for optional fields when is not defined.
 func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
+	if ing == nil {
+		return
+	}
+
 	for idx, tls := range ing.Spec.TLS {
 		if len(tls.Hosts) == 0 {
 			ing.Spec.TLS[idx].Hosts = []string{common.DefaultHost}
