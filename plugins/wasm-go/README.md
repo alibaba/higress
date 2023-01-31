@@ -89,20 +89,20 @@ spec:
     - default/foo
      # default 命名空间下名为 foo 的 ingress 会执行下面这个配置
     config:
-      block_bodys:
+      block_bodies:
       - "foo"
   - ingress:
     - default/bar
     # default 命名空间下名为 bar 的 ingress 会执行下面这个配置
     config:
-      block_bodys:
+      block_bodies:
       - "bar"
    # 域名级生效配置
   - domain:
     - "*.example.com"
     # 若请求匹配了上面的域名, 会执行下面这个配置
     config:
-      block_bodys:
+      block_bodies:
       - "foo"
       - "bar"
   url: oci://<your_registry_hub>/request-block:1.0.0

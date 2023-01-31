@@ -108,24 +108,24 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     return false;
   }
   if (!JsonArrayIterate(
-          configuration, "block_bodys", [&](const json& item) -> bool {
+          configuration, "block_bodies", [&](const json& item) -> bool {
             auto body = JsonValueAs<std::string>(item);
             if (body.second != Wasm::Common::JsonParserResultDetail::OK) {
-              LOG_WARN("cannot parse block_bodys");
+              LOG_WARN("cannot parse block_bodies");
               return false;
             }
             if (rule.case_sensitive) {
-              rule.block_bodys.push_back(std::move(body.first.value()));
+              rule.block_bodies.push_back(std::move(body.first.value()));
             } else {
-              rule.block_bodys.push_back(
+              rule.block_bodies.push_back(
                   absl::AsciiStrToLower(body.first.value()));
             }
             return true;
           })) {
-    LOG_WARN("failed to parse configuration for block_bodys.");
+    LOG_WARN("failed to parse configuration for block_bodies.");
     return false;
   }
-  if (rule.block_bodys.empty() && rule.block_headers.empty() &&
+  if (rule.block_bodies.empty() && rule.block_headers.empty() &&
       rule.block_urls.empty()) {
     LOG_WARN("there is no block rules");
     return false;
@@ -197,7 +197,7 @@ bool PluginRootContext::checkHeader(const RequestBlockConfigRule& rule,
       }
     }
   }
-  if (!rule.block_bodys.empty()) {
+  if (!rule.block_bodies.empty()) {
     check_body = true;
   }
   return true;
@@ -212,7 +212,7 @@ bool PluginRootContext::checkBody(const RequestBlockConfigRule& rule,
     bodystr = absl::AsciiStrToLower(request_body);
     body = bodystr;
   }
-  for (const auto& block_body : rule.block_bodys) {
+  for (const auto& block_body : rule.block_bodies) {
     if (absl::StrContains(body, block_body)) {
       sendLocalResponse(rule.blocked_code, "", rule.blocked_message, {});
       return false;
