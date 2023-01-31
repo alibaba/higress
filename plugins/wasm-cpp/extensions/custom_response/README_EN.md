@@ -3,7 +3,7 @@
 </p>
 
 # Description
-`custom-response` plugin supports configure custom responses, including custom HTTP response status codes, HTTP response headers and HTTP response body, which can be used in the scenarios of response mocking and sending a custom response for specific status codes, such as customizing the response for rate-limited requests.
+`custom-response` plugin implements a function of sending custom responses, including custom HTTP response status codes, HTTP response headers and HTTP response body, which can be used in the scenarios of response mocking and sending a custom response for specific status codes, such as customizing the response for rate-limited requests.
 
 # Configuration Fields
 

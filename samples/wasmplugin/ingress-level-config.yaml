@@ -12,10 +12,10 @@ spec:
   - ingress:
     - default/foo
     config:
-      block_bodys:
+      block_bodies:
       - "foo"  
   - ingress:
     - default/bar
     config:
-      block_bodys:
+      block_bodies:
       - "bar"
