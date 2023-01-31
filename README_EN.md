@@ -124,10 +124,10 @@ kind.exe create cluster --name higress --config=cluster.conf
 kubectl.exe config use-context kind-higress
 ```
 
-#### step 3. install istio & higress
+#### step 3. install higress
 
 ```bash
-helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio-local
+kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
 ```
 Note: The helm version needs to be upgraded to **v3.8.0** and above
@@ -151,38 +151,21 @@ curl localhost/bar
 ```bash
 kubectl delete -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
 
-helm uninstall istio -n istio-system
-
 helm uninstall higress -n higress-system
-
-kubectl delete ns istio-system
 
 kubectl delete ns higress-system
 ```
 
 ### Production Environment
 
-#### step 1. install istio
-
-select higress istio:
-
-```bash
-kubectl create ns istio-system
-helm install istio -n istio-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/istio
-```
-
-or select official istio (lose some abilities, such as using annotation to limit request rate):
-
-https://istio.io/latest/docs/setup/install
-
-#### step 2. install higress
+#### step 1. install higress
 
 ```bash
 kubectl create ns higress-system
 helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
 ```
 
-#### step 3. create the ingress and test it
+#### step 2. create the ingress and test it
 
 for example there is a service `test` in default namespace.
 
@@ -212,11 +195,7 @@ curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBa
 #### Clean-Up
 
 ```bash
-helm uninstall istio -n istio-system
-
 helm uninstall higress -n higress-system
-
-kubectl delete ns istio-system
 
 kubectl delete ns higress-system
 ```

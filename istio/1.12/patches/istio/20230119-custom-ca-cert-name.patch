@@ -1,0 +1,30 @@
+diff -Naur istio/pilot/pkg/features/pilot.go istio_new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2023-01-19 11:17:16.000000000 +0800
++++ istio_new/pilot/pkg/features/pilot.go	2023-01-19 11:03:37.000000000 +0800
+@@ -562,6 +562,11 @@
+ 
+ 	PrioritizedLeaderElection = env.RegisterBoolVar("PRIORITIZED_LEADER_ELECTION", true,
+ 		"If enabled, the default revision will steal leader locks from non-default revisions").Get()
++
++	// Added by ingress
++	CustomCACertConfigMapName = env.RegisterStringVar("CUSTOM_CA_CERT_NAME", "",
++		"Defines the configmap's name of  istio's root ca certificate").Get()
++	// End added by ingress
+ )
+ 
+ // UnsafeFeaturesEnabled returns true if any unsafe features are enabled.
+diff -Naur istio/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go istio_new/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go
+--- istio/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go	2023-01-19 11:17:19.000000000 +0800
++++ istio_new/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go	2023-01-19 11:20:32.000000000 +0800
+@@ -50,6 +50,11 @@
+ 	if features.ClusterName != "" && features.ClusterName != "Kubernetes" {
+ 		dynamicCACertNamespaceConfigMap = fmt.Sprintf("%s-ca-root-cert", features.ClusterName)
+ 	}
++	// Added by ingress
++	if features.CustomCACertConfigMapName != "" {
++		dynamicCACertNamespaceConfigMap = features.CustomCACertConfigMapName
++	}
++	// End added by ingress
+ }
+ 
+ // NamespaceController manages reconciles a configmap in each namespace with a desired set of data.

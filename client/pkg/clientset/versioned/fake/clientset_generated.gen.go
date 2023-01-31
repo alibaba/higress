@@ -18,6 +18,8 @@ package fake
 
 import (
 	clientset "github.com/alibaba/higress/client/pkg/clientset/versioned"
+	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
+	fakeextensionsv1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1/fake"
 	networkingv1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/networking/v1"
 	fakenetworkingv1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/networking/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,6 +75,11 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// ExtensionsV1alpha1 retrieves the ExtensionsV1alpha1Client
+func (c *Clientset) ExtensionsV1alpha1() extensionsv1alpha1.ExtensionsV1alpha1Interface {
+	return &fakeextensionsv1alpha1.FakeExtensionsV1alpha1{Fake: &c.Fake}
+}
 
 // NetworkingV1 retrieves the NetworkingV1Client
 func (c *Clientset) NetworkingV1() networkingv1.NetworkingV1Interface {

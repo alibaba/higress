@@ -23,6 +23,9 @@ header:
     - '.gitmodules'
     - 'plugins/**'
     - 'CODEOWNERS'
+    - 'VERSION'
+    - 'tools/'
+    - 'test/README.md'
 
   comment: on-failure
 dependency:

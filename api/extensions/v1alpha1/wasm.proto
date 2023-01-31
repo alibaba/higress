@@ -1,0 +1,152 @@
+// Copyright Istio Authors
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+// Modified by Higress Authors
+
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+
+// $schema: higress.extensions.v1alpha1.WasmPlugin
+// $title: WasmPlugin
+// $description: Extend the functionality provided by the envoy through WebAssembly filters.
+
+package higress.extensions.v1alpha1;
+
+option go_package="github.com/alibaba/higress/api/extensions/v1alpha1";
+
+// <!-- crd generation tags
+// +cue-gen:WasmPlugin:groupName:extensions.higress.io
+// +cue-gen:WasmPlugin:version:v1alpha1
+// +cue-gen:WasmPlugin:storageVersion
+// +cue-gen:WasmPlugin:annotations:helm.sh/resource-policy=keep
+// +cue-gen:WasmPlugin:subresource:status
+// +cue-gen:WasmPlugin:scope:Namespaced
+// +cue-gen:WasmPlugin:resource:categories=higress-io,extensions-higress-io
+// +cue-gen:WasmPlugin:preserveUnknownFields:pluginConfig,defaultConfig,matchRules.[].config
+// +cue-gen:WasmPlugin:printerColumn:name=Age,type=date,JSONPath=.metadata.creationTimestamp,description="CreationTimestamp is a timestamp
+// representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations.
+// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+// Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata"
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=extensions.higress.io/v1alpha1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+message WasmPlugin {
+  // URL of a Wasm module or OCI container. If no scheme is present,
+  // defaults to `oci://`, referencing an OCI image. Other valid schemes
+  // are `file://` for referencing .wasm module files present locally
+  // within the proxy container, and `http[s]://` for .wasm module files
+  // hosted remotely.
+  string url = 2;
+
+  // SHA256 checksum that will be used to verify Wasm module or OCI container.
+  // If the `url` field already references a SHA256 (using the `@sha256:`
+  // notation), it must match the value of this field. If an OCI image is
+  // referenced by tag and this field is set, its checksum will be verified
+  // against the contents of this field after pulling.
+  string sha256 = 3;
+
+  // The pull behaviour to be applied when fetching an OCI image. Only
+  // relevant when images are referenced by tag instead of SHA. Defaults
+  // to IfNotPresent, except when an OCI image is referenced in the `url`
+  // and the `latest` tag is used, in which case `Always` is the default,
+  // mirroring K8s behaviour.
+  // Setting is ignored if `url` field is referencing a Wasm module directly
+  // using `file://` or `http[s]://`
+  PullPolicy image_pull_policy = 4;
+
+  // Credentials to use for OCI image pulling.
+  // Name of a K8s Secret in the same namespace as the `WasmPlugin` that
+  // contains a docker pull secret which is to be used to authenticate
+  // against the registry when pulling the image.
+  string image_pull_secret = 5;
+
+  // Public key that will be used to verify signatures of signed OCI images
+  // or Wasm modules. Must be supplied in PEM format.
+  string verification_key = 6;
+
+  // The configuration that will be passed on to the plugin.
+  google.protobuf.Struct plugin_config = 7;
+
+  // The plugin name to be used in the Envoy configuration (used to be called
+  // `rootID`). Some .wasm modules might require this value to select the Wasm
+  // plugin to execute.
+  string plugin_name = 8;
+
+  // Determines where in the filter chain this `WasmPlugin` is to be injected.
+  PluginPhase phase = 9;
+
+  // Determines ordering of `WasmPlugins` in the same `phase`.
+  // When multiple `WasmPlugins` are applied to the same workload in the
+  // same `phase`, they will be applied by priority, in descending order.
+  // If `priority` is not set, or two `WasmPlugins` exist with the same
+  // value, the ordering will be deterministically derived from name and
+  // namespace of the `WasmPlugins`. Defaults to `0`.
+  google.protobuf.Int64Value priority = 10;
+
+  // Extended by Higress, the default configuration takes effect globally
+  google.protobuf.Struct default_config = 101;
+  // Extended by Higress, matching rules take effect
+  repeated MatchRule match_rules = 102;
+}
+
+// Extended by Higress
+message MatchRule {
+  repeated string ingress = 1;
+  repeated string domain = 2;
+  google.protobuf.Struct config = 3;
+}
+
+// The phase in the filter chain where the plugin will be injected.
+enum PluginPhase {
+  // Control plane decides where to insert the plugin. This will generally
+  // be at the end of the filter chain, right before the Router.
+  // Do not specify `PluginPhase` if the plugin is independent of others.
+  UNSPECIFIED_PHASE = 0;
+
+  // Insert plugin before Istio authentication filters.
+  AUTHN = 1;
+
+  // Insert plugin before Istio authorization filters and after Istio authentication filters.
+  AUTHZ = 2;
+
+  // Insert plugin before Istio stats filters and after Istio authorization filters.
+  STATS = 3;
+}
+
+// The pull behaviour to be applied when fetching an OCI image,
+// mirroring K8s behaviour.
+//
+// <!--
+// buf:lint:ignore ENUM_VALUE_UPPER_SNAKE_CASE
+// -->
+enum PullPolicy {
+  // Defaults to IfNotPresent, except for OCI images with tag `latest`, for which
+  // the default will be Always.
+  UNSPECIFIED_POLICY = 0;
+
+  // If an existing version of the image has been pulled before, that
+  // will be used. If no version of the image is present locally, we
+  // will pull the latest version.
+  IfNotPresent = 1;
+
+  // We will always pull the latest version of an image when applying
+  // this plugin.
+  Always = 2;
+}

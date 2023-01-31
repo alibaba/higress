@@ -107,6 +107,11 @@ type ServerArgs struct {
 
 type readinessProbe func() (bool, error)
 
+type ServerInterface interface {
+	Start(stop <-chan struct{}) error
+	WaitUntilCompletion()
+}
+
 type Server struct {
 	*ServerArgs
 	environment      *model.Environment

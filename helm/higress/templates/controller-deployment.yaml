@@ -28,6 +28,139 @@ spec:
       securityContext:
         {{- toYaml .Values.controller.podSecurityContext | nindent 8 }}
       containers:
+{{- if not .Values.global.enableMesh }}
+        - name: discovery
+{{- if contains "/" .Values.pilot.image }}
+          image: "{{ .Values.pilot.image }}"
+{{- else }}
+          image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Values.global.tag }}"
+{{- end }}
+{{- if .Values.global.imagePullPolicy }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+{{- end }}
+          args:
+          - "discovery"
+          - --monitoringAddr=:15014
+{{- if .Values.global.logging.level }}
+          - --log_output_level={{ .Values.global.logging.level }}
+{{- end}}
+{{- if .Values.global.logAsJson }}
+          - --log_as_json
+{{- end }}
+          - --domain
+          - {{ .Values.global.proxy.clusterDomain }}
+{{- if .Values.global.oneNamespace }}
+          - "-a"
+          - {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.pilot.plugins }}
+          - --plugins={{ .Values.pilot.plugins }}
+{{- end }}
+          - --keepaliveMaxServerConnectionAge
+          - "{{ .Values.pilot.keepaliveMaxServerConnectionAge }}"
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          - containerPort: 15010
+            protocol: TCP
+          - containerPort: 15017
+            protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 5
+          env:
+          - name: HIGRESS_CONTROLLER_SVC
+            value: "127.0.0.1"
+          - name: HIGRESS_CONTROLLER_PORT
+            value: "15051"
+          - name: REVISION
+            value: "{{ .Values.revision | default `default` }}"
+          - name: JWT_POLICY
+            value: {{ .Values.global.jwtPolicy }}
+          - name: PILOT_CERT_PROVIDER
+            value: "istiod"
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: SERVICE_ACCOUNT
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.serviceAccountName
+          - name: KUBECONFIG
+            value: /var/run/secrets/remote/config
+          {{- if .Values.pilot.env }}
+          {{- range $key, $val := .Values.pilot.env }}
+          - name: {{ $key }}
+            value: "{{ $val }}"
+          {{- end }}
+          {{- end }}
+{{- if .Values.pilot.traceSampling }}
+          - name: PILOT_TRACE_SAMPLING
+            value: "{{ .Values.pilot.traceSampling }}"
+{{- end }}
+          - name: PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_OUTBOUND
+            value: "{{ .Values.pilot.enableProtocolSniffingForOutbound }}"
+          - name: PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_INBOUND
+            value: "{{ .Values.pilot.enableProtocolSniffingForInbound }}"
+          - name: ISTIOD_ADDR
+            value: istiod{{- if not (eq .Values.revision "") }}-{{ .Values.revision }}{{- end }}.{{ .Release.Namespace }}.svc:15012
+          - name: PILOT_ENABLE_ANALYSIS
+            value: "{{ .Values.global.istiod.enableAnalysis }}"
+          - name: CLUSTER_ID
+            value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
+          {{- if not .Values.global.enableMesh }}
+          - name: CUSTOM_CA_CERT_NAME
+            value: "higress-ca-root-cert"
+          {{- end }}
+          {{- if not .Values.global.kind  }}
+          resources:
+{{- if .Values.pilot.resources }}
+{{ toYaml .Values.pilot.resources | trim | indent 12 }}
+{{- else }}
+{{ toYaml .Values.global.defaultResources | trim | indent 12 }}
+{{- end }}
+          {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsUser: 1337
+            runAsGroup: 1337
+            runAsNonRoot: true
+            capabilities:
+              drop:
+              - ALL
+          volumeMounts:
+          - name: config
+            mountPath: /etc/istio/config
+          {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+          - name: istio-token
+            mountPath: /var/run/secrets/tokens
+            readOnly: true
+          {{- end }}
+          - name: local-certs
+            mountPath: /var/run/secrets/istio-dns
+          - name: cacerts
+            mountPath: /etc/cacerts
+            readOnly: true
+          - name: istio-kubeconfig
+            mountPath: /var/run/secrets/remote
+            readOnly: true
+          {{- if .Values.pilot.jwksResolverExtraRootCA }}
+          - name: extracacerts
+            mountPath: /cacerts
+          {{- end }}
+{{- end }}
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.controller.securityContext | nindent 12 }}
@@ -95,3 +228,36 @@ spec:
       volumes:
       - name: log
         emptyDir: {}
+      {{- if not .Values.global.enableMesh }}
+      - name: config
+        configMap:
+          name: higress-config
+      # Technically not needed on this pod - but it helps debugging/testing SDS
+      # Should be removed after everything works.
+      - emptyDir:
+          medium: Memory
+        name: local-certs
+      {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+      - name: istio-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: {{ .Values.global.sds.token.aud }}
+                expirationSeconds: 43200
+                path: istio-token
+      # Optional: user-generated root
+      - name: cacerts
+        secret:
+          secretName: cacerts
+          optional: true
+      - name: istio-kubeconfig
+        secret:
+          secretName: istio-kubeconfig
+          optional: true
+  {{- if .Values.pilot.jwksResolverExtraRootCA }}
+      - name: extracacerts
+        configMap:
+          name: pilot-jwks-extra-cacerts{{- if not (eq .Values.revision "") }}-{{ .Values.revision }}{{- end }}
+  {{- end }}
+      {{- end }}
+      {{- end }}

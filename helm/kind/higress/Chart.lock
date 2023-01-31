@@ -1,6 +1,6 @@
 dependencies:
 - name: higress
   repository: file://../../higress
-  version: 0.5.3
-digest: sha256:31fd001a558b73f3a5b86d607ccf2c4ff7f206fc232068cfc6722ccd02081031
-generated: "2022-12-16T17:21:23.630507+08:00"
+  version: 0.6.0
+digest: sha256:d5a9a1a3ee640635a1251ac1535a95db79975b39f6ab6b7c742c3e0d11f33533
+generated: "2023-01-19T10:31:59.206741+08:00"

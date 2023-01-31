@@ -19,6 +19,7 @@ package externalversions
 import (
 	"fmt"
 
+	v1alpha1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -50,7 +51,11 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=networking.higress.io, Version=v1
+	// Group=extensions.higress.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("wasmplugins"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().WasmPlugins().Informer()}, nil
+
+		// Group=networking.higress.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("mcpbridges"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Networking().V1().McpBridges().Informer()}, nil
 

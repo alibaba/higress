@@ -41,18 +41,22 @@ submodule:
 	git submodule update --init
 
 prebuild: submodule
-	./script/prebuild.sh
+	./tools/hack/prebuild.sh
 
 .PHONY: default
 default: build
 
+.PHONY: go.test.coverage
+go.test.coverage: prebuild
+	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -65,7 +69,7 @@ ifeq ($(BUILD_ALL),true)
 $(OUT_LINUX)/$(shell basename $(1)): build-linux
 else
 $(OUT_LINUX)/$(shell basename $(1)): $(OUT_LINUX)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) script/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ -tags=$(2) $(1)
 endif
 endef
 
@@ -86,7 +90,7 @@ include docker/docker.mk
 
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
-export PARENT_GIT_TAG:=$(shell git describe --tags)
+export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
@@ -111,13 +115,18 @@ define create_ns
 endef
 
 install: pre-install
-	$(call create_ns,istio-system)
-	$(call create_ns,higress-system)
-	helm install istio helm/kind/istio -n istio-system
-	helm install higress helm/kind/higress -n higress-system
+	helm install higress helm/kind/higress -n higress-system --create-namespace
+
+ENVOY_LATEST_IMAGE_TAG ?= 0.6.0
+ISTIO_LATEST_IMAGE_TAG ?= 0.6.0
+
+install-dev: pre-install
+	helm install higress helm/higress -n higress-system --create-namespace --set-json='controller.tag="$(TAG)"' --set-json='gateway.replicas=1' --set-json='gateway.tag="$(ENVOY_LATEST_IMAGE_TAG)"' --set-json='global.kind=true'
+
+uninstall:
+	helm uninstall higress -n higress-system
 
 upgrade: pre-install
-	helm upgrade istio helm/kind/istio -n istio-system
 	helm upgrade higress helm/kind/higress -n higress-system
 
 helm-push:
@@ -154,6 +163,48 @@ clean-istio:
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
-	rm external/package/envoy.tar.gz
+	rm -rf external/package/envoy.tar.gz
 
-clean: clean-higress clean-gateway
+clean-env:
+	rm -rf out/
+
+clean-tool:
+	rm -rf tools/bin
+
+clean: clean-higress clean-gateway clean-istio clean-env clean-tool
+
+include tools/tools.mk
+include tools/lint.mk
+
+# gateway-conformance-test runs gateway api conformance tests.
+.PHONY: gateway-conformance-test
+gateway-conformance-test:
+
+# ingress-conformance-test runs ingress api conformance tests.
+.PHONY: ingress-conformance-test
+ingress-conformance-test: $(tools/kind) delete-cluster create-cluster kube-load-image install-dev run-ingress-e2e-test delete-cluster
+
+# create-cluster creates a kube cluster with kind.
+.PHONY: create-cluster
+create-cluster: $(tools/kind)
+	tools/hack/create-cluster.sh
+
+# delete-cluster deletes a kube cluster.
+.PHONY: delete-cluster
+delete-cluster: $(tools/kind) ## Delete kind cluster.
+	$(tools/kind) delete cluster --name higress
+
+# kube-load-image loads a local built docker image into kube cluster.
+.PHONY: kube-load-image
+kube-load-image: docker-build $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
+
+# run-ingress-e2e-test starts to run ingress e2e tests.
+.PHONY: run-ingress-e2e-test
+run-ingress-e2e-test:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true --use-unique-ports=true

@@ -548,7 +548,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			}
 			wrapperHttpRoute.OriginPath = path
 			wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
-			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(wrapperHttpRoute)
+			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
@@ -753,7 +753,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			}
 			canary.OriginPath = path
 			canary.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
-			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(canary)
+			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
 			// backend service check
@@ -781,7 +781,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 					if byHeader {
 						IngressLog.Debug("Insert canary route by header")
 						annotations.ApplyByHeader(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
-						canary.HTTPRoute.Name = common.GenerateUniqueRouteName(canary)
+						canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 					} else {
 						IngressLog.Debug("Merge canary route by weight")
 						if route.WeightTotal == 0 {
@@ -809,7 +809,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				convertOptions.HTTPRoutes[rule.Host] = routes
 
 				// Recreate route name.
-				ingressRouteBuilder.RouteName = common.GenerateUniqueRouteName(canary)
+				ingressRouteBuilder.RouteName = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 			} else {
 				convertOptions.IngressRouteCache.Update(targetRoute)
@@ -935,7 +935,7 @@ func (c *controller) createDefaultRoute(wrapper *common.WrapperConfig, backend *
 		OriginPathType:   common.Prefix,
 		OriginPath:       "/",
 	}
-	route.HTTPRoute.Name = common.GenerateUniqueRouteNameWithSuffix(route, "default")
+	route.HTTPRoute.Name = common.GenerateUniqueRouteNameWithSuffix(c.options.SystemNamespace, route, "default")
 
 	return route
 }

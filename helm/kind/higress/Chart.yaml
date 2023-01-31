@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 0.5.3
+appVersion: 0.6.0
 description: Helm chart for deploying higress gateways
 icon: https://higress.io/img/higress_logo_small.png
 keywords:
@@ -11,6 +11,6 @@ sources:
 dependencies:
 - name: higress
   repository: "file://../../higress"
-  version: 0.5.3
+  version: 0.6.0
 type: application
-version: 0.5.3
+version: 0.6.0

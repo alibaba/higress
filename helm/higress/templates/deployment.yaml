@@ -21,12 +21,19 @@ spec:
   strategy:
     rollingUpdate:
       maxSurge: {{ .Values.gateway.rollingMaxSurge }}
+      {{- if .Values.global.kind }}
+      maxUnavailable: 100%
+      {{- else }}
       maxUnavailable: {{ .Values.gateway.rollingMaxUnavailable }}
+      {{- end }}
   template:
     metadata:
-      {{- with .Values.gateway.podAnnotations }}
       annotations:
-        {{- toYaml . | nindent 8 }}
+      {{- if .Values.global.enableMesh }}
+        "enableMesh": "true"
+      {{- end }}
+      {{- if .Values.gateway.podAnnotations }}
+        {{- toYaml .Values.gateway.podAnnotations | nindent 8 }}
       {{- end }}
       labels:
         sidecar.istio.io/inject: "false"
@@ -122,7 +129,7 @@ spec:
           - name: ENABLE_INGRESS_GATEWAY_SDS
             value: "false"
           - name: JWT_POLICY
-            value: {{ .Values.gateway.jwtPolicy }}
+            value: {{ .Values.global.jwtPolicy }}
           - name: ISTIO_META_HTTP10
             value: "1"
           - name: ISTIO_META_CLUSTER_ID
@@ -166,7 +173,7 @@ spec:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           {{- end }}
           volumeMounts:
-          {{- if eq .Values.gateway.jwtPolicy "third-party-jwt" }}
+          {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
           - name: istio-token
             mountPath: /var/run/secrets/tokens
             readOnly: true
@@ -198,7 +205,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-      {{- if eq .Values.gateway.jwtPolicy "third-party-jwt" }}
+      {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
       - name: istio-token
         projected:
           sources:
@@ -209,7 +216,11 @@ spec:
       {{- end }}
       - name: istio-ca-root-cert
         configMap:
+      {{- if .Values.global.enableMesh }}
           name: istio-ca-root-cert
+      {{- else }}
+          name: higress-ca-root-cert
+      {{- end }}
       - name: config
         configMap:
           name: higress-config

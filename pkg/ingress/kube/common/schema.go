@@ -25,4 +25,5 @@ var IngressIR = collection.NewSchemasBuilder().
 	MustAdd(collections.IstioNetworkingV1Alpha3Gateways).
 	MustAdd(collections.IstioNetworkingV1Alpha3Serviceentries).
 	MustAdd(collections.IstioNetworkingV1Alpha3Virtualservices).
+	MustAdd(collections.IstioExtensionsV1Alpha1Wasmplugins).
 	Build()
