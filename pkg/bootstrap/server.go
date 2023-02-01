@@ -88,12 +88,20 @@ type RegistryOptions struct {
 }
 
 type ServerArgs struct {
-	Debug                bool
-	MeshId               string
-	RegionId             string
-	NativeIstio          bool
-	HttpAddress          string
-	GrpcAddress          string
+	Debug       bool
+	MeshId      string
+	RegionId    string
+	NativeIstio bool
+	HttpAddress string
+	GrpcAddress string
+
+	// IngressClass filters which ingress resources the higress controller watches.
+	// The default ingress class is higress.
+	// There are some special cases for special ingress class.
+	// 1. When the ingress class is set as nginx, the higress controller will watch ingress
+	// resources with the nginx ingress class or without any ingress class.
+	// 2. When the ingress class is set empty, the higress controller will watch all ingress
+	// resources in the k8s cluster.
 	IngressClass         string
 	EnableStatus         bool
 	WatchNamespace       string
