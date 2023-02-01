@@ -103,13 +103,13 @@ func TestGenerate(t *testing.T) {
 		},
 		{
 			name: "ServiceEntry",
-			fn: func() *model.PushContext {
+			fn: func() (*model.PushContext, any) {
 				ctx := model.NewPushContext()
 				cfg := config.Config{
 					Spec: &networking.ServiceEntry{},
 				}
 				ctx.AllServiceEntries = []config.Config{cfg}
-				return ctx
+				return ctx, cfg.Spec
 			},
 			generator: ServiceEntryGenerator{},
 			isErr:     false,
