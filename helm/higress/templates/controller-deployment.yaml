@@ -169,10 +169,10 @@ spec:
           - "serve"
           - --gatewaySelectorKey=higress
           - --gatewaySelectorValue={{ .Release.Namespace }}-{{ include "gateway.name" . }}
+          {{- if not .Values.enableStatus }}
           - --enableStatus={{ .Values.enableStatus }}
-          {{- if .Values.ingressClass }}
-          - --ingressClass={{ .Values.ingressClass }}
           {{- end }}
+          - --ingressClass={{ .Values.ingressClass }}
           {{- if .Values.watchNamespace }}
           - --watchNamespace={{ .Values.watchNamespace }}
           {{- end }}
