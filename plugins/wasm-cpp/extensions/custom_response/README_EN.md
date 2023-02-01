@@ -59,7 +59,7 @@ So based on the 302 redirecting mechanism provided by browsers, this can redirec
 
 If you'd like to send other responses when rate-limited, please add other fields into the configuration, referring to the Mock Responses scenario.
 
-## Only Enable for Specific Routes or Domains
+## Only Enabled for Specific Routes or Domains
 ```yaml
 # Use _rules_ field for fine-grained rule configurations 
 _rules_:
