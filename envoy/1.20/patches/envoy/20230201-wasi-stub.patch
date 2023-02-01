@@ -1,0 +1,101 @@
+diff --git a/bazel/foreign_cc/proxy_wasm_cpp_host.patch b/bazel/foreign_cc/proxy_wasm_cpp_host.patch
+new file mode 100644
+index 0000000000..a586116e84
+--- /dev/null
++++ b/bazel/foreign_cc/proxy_wasm_cpp_host.patch
+@@ -0,0 +1,78 @@
++diff --git a/include/proxy-wasm/exports.h b/include/proxy-wasm/exports.h
++index ded6419..334cee4 100644
++--- a/include/proxy-wasm/exports.h
+++++ b/include/proxy-wasm/exports.h
++@@ -129,6 +129,11 @@ Word call_foreign_function(Word function_name, Word function_name_size, Word arg
++ 
++ // Runtime environment functions exported from envoy to wasm.
++ 
+++Word wasi_unstable_path_open(Word fd, Word dir_flags, Word path, Word path_len, Word oflags,
+++                             int64_t fs_rights_base, int64_t fg_rights_inheriting, Word fd_flags,
+++                             Word nwritten_ptr);
+++Word wasi_unstable_fd_prestat_get(Word fd, Word buf_ptr);
+++Word wasi_unstable_fd_prestat_dir_name(Word fd, Word path_ptr, Word path_len);
++ Word wasi_unstable_fd_write(Word fd, Word iovs, Word iovs_len, Word nwritten_ptr);
++ Word wasi_unstable_fd_read(Word, Word, Word, Word);
++ Word wasi_unstable_fd_seek(Word, int64_t, Word, Word);
++@@ -166,7 +171,7 @@ Word pthread_equal(Word left, Word right);
++ #define FOR_ALL_WASI_FUNCTIONS(_f)                                                                 \
++   _f(fd_write) _f(fd_read) _f(fd_seek) _f(fd_close) _f(fd_fdstat_get) _f(environ_get)              \
++       _f(environ_sizes_get) _f(args_get) _f(args_sizes_get) _f(clock_time_get) _f(random_get)      \
++-          _f(proc_exit)
+++          _f(proc_exit) _f(path_open) _f(fd_prestat_get) _f(fd_prestat_dir_name)
++ 
++ // Helpers to generate a stub to pass to VM, in place of a restricted proxy-wasm capability.
++ #define _CREATE_PROXY_WASM_STUB(_fn)                                                               \
++diff --git a/include/proxy-wasm/wasm_vm.h b/include/proxy-wasm/wasm_vm.h
++index c02bb6e..c13c78c 100644
++--- a/include/proxy-wasm/wasm_vm.h
+++++ b/include/proxy-wasm/wasm_vm.h
++@@ -110,6 +110,8 @@ using WasmCallback_WWl = Word (*)(Word, int64_t);
++ using WasmCallback_WWlWW = Word (*)(Word, int64_t, Word, Word);
++ using WasmCallback_WWm = Word (*)(Word, uint64_t);
++ using WasmCallback_WWmW = Word (*)(Word, uint64_t, Word);
+++using WasmCallback_WWWWWWllWW = Word (*)(Word, Word, Word, Word, Word, int64_t, int64_t, Word,
+++                                         Word);
++ using WasmCallback_dd = double (*)(double);
++ 
++ #define FOR_ALL_WASM_VM_IMPORTS(_f)                                                                \
++@@ -127,7 +129,8 @@ using WasmCallback_dd = double (*)(double);
++                                               _f(proxy_wasm::WasmCallback_WWlWW)                   \
++                                                   _f(proxy_wasm::WasmCallback_WWm)                 \
++                                                       _f(proxy_wasm::WasmCallback_WWmW)            \
++-                                                          _f(proxy_wasm::WasmCallback_dd)
+++                                                          _f(proxy_wasm::WasmCallback_WWWWWWllWW)  \
+++                                                              _f(proxy_wasm::WasmCallback_dd)
++ 
++ enum class Cloneable {
++   NotCloneable,      // VMs can not be cloned and should be created from scratch.
++diff --git a/src/exports.cc b/src/exports.cc
++index 0922b2d..d597914 100644
++--- a/src/exports.cc
+++++ b/src/exports.cc
++@@ -648,6 +648,25 @@ Word grpc_send(Word token, Word message_ptr, Word message_size, Word end_stream)
++   return context->grpcSend(token, message.value(), end_stream);
++ }
++ 
+++// __wasi_errno_t path_open(__wasi_fd_t fd, __wasi_lookupflags_t dirflags, const char *path,
+++// size_t path_len, __wasi_oflags_t oflags, __wasi_rights_t fs_rights_base, __wasi_rights_t
+++// fs_rights_inheriting, __wasi_fdflags_t fdflags, __wasi_fd_t *retptr0)
+++Word wasi_unstable_path_open(Word fd, Word dir_flags, Word path, Word path_len, Word oflags,
+++                             int64_t fs_rights_base, int64_t fg_rights_inheriting, Word fd_flags,
+++                             Word nwritten_ptr) {
+++  return 44; // __WASI_ERRNO_NOENT
+++}
+++
+++// __wasi_errno_t __wasi_fd_prestat_get(__wasi_fd_t fd, __wasi_prestat_t *retptr0)
+++Word wasi_unstable_fd_prestat_get(Word fd, Word buf_ptr) {
+++  return 8; // __WASI_ERRNO_BADF
+++}
+++
+++// __wasi_errno_t __wasi_fd_prestat_dir_name(__wasi_fd_t fd, uint8_t * path, __wasi_size_t path_len)
+++Word wasi_unstable_fd_prestat_dir_name(Word fd, Word path_ptr, Word path_len) {
+++  return 52; // __WASI_ERRNO_ENOSYS
+++}
+++
++ // Implementation of writev-like() syscall that redirects stdout/stderr to Envoy
++ // logs.
++ Word writevImpl(Word fd, Word iovs, Word iovs_len, Word *nwritten_ptr) {
+diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
+index bfef00ac85..806100b42d 100644
+--- a/bazel/repositories.bzl
++++ b/bazel/repositories.bzl
+@@ -943,7 +943,11 @@ def _proxy_wasm_cpp_sdk():
+     external_http_archive(name = "proxy_wasm_cpp_sdk")
+ 
+ def _proxy_wasm_cpp_host():
+-    external_http_archive(name = "proxy_wasm_cpp_host")
++    external_http_archive(
++        name = "proxy_wasm_cpp_host",
++        patches = ["@envoy//bazel/foreign_cc:proxy_wasm_cpp_host.patch"],
++        patch_args = ["-p1"],
++    )
+ 
+ def _emscripten_toolchain():
+     external_http_archive(
