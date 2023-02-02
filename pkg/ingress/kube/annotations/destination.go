@@ -37,7 +37,7 @@ type DestinationConfig struct {
 
 type destination struct{}
 
-func (a destination) Parse(annotations Annotations, config *Ingress, globalContext *GlobalContext) error {
+func (a destination) Parse(annotations Annotations, config *Ingress, _ *GlobalContext) error {
 	if !needDestinationConfig(annotations) {
 		return nil
 	}
@@ -55,6 +55,9 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		pairs := strings.Fields(line)
 		var weight int64 = 100
 		var addrIndex int
+		if len(pairs) == 0 {
+			continue
+		}
 		if strings.HasSuffix(pairs[0], "%") {
 			weight, err = strconv.ParseInt(strings.TrimSuffix(pairs[0], "%"), 10, 32)
 			if err != nil {

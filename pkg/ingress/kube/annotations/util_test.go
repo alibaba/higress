@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"istio.io/istio/pilot/pkg/model"
 )
 
@@ -50,4 +51,36 @@ func TestExtraSecret(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSplitBySeparator(t *testing.T) {
+	testCases := []struct {
+		input  string
+		sep    string
+		expect []string
+	}{
+		{
+			input:  "a b c d",
+			sep:    " ",
+			expect: []string{"a", "b", "c", "d"},
+		},
+		{
+			input:  ".1.2.3.4.",
+			sep:    ".",
+			expect: []string{"1", "2", "3", "4"},
+		},
+		{
+			input:  "1....2....3....4",
+			sep:    ".",
+			expect: []string{"1", "2", "3", "4"},
+		},
+	}
+
+	for _, tt := range testCases {
+		got := splitBySeparator(tt.input, tt.sep)
+		if diff := cmp.Diff(tt.expect, got); diff != "" {
+			t.Errorf("TestSplitBySeparator() mismatch (-want +got):\n%s", diff)
+		}
+	}
+
 }
