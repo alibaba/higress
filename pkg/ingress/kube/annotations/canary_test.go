@@ -18,8 +18,111 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	networking "istio.io/api/networking/v1alpha3"
 )
+
+func TestCanaryParse(t *testing.T) {
+	parser := canary{}
+
+	testCases := []struct {
+		name   string
+		input  Annotations
+		expect *CanaryConfig
+	}{
+		{
+			name:   "Don't contain the 'enableCanary' key",
+			input:  Annotations{},
+			expect: nil,
+		},
+		{
+			name: "the 'enableCanary' is false",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary): "false",
+			},
+			expect: &CanaryConfig{
+				Enabled:     false,
+				WeightTotal: defaultCanaryWeightTotal,
+			},
+		},
+		{
+			name: "By header",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary):   "true",
+				buildNginxAnnotationKey(canaryByHeader): "header",
+			},
+			expect: &CanaryConfig{
+				Enabled:     true,
+				Header:      "header",
+				WeightTotal: defaultCanaryWeightTotal,
+			},
+		},
+		{
+			name: "By headerValue",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary):        "true",
+				buildNginxAnnotationKey(canaryByHeader):      "header",
+				buildNginxAnnotationKey(canaryByHeaderValue): "headerValue",
+			},
+			expect: &CanaryConfig{
+				Enabled:     true,
+				Header:      "header",
+				HeaderValue: "headerValue",
+				WeightTotal: defaultCanaryWeightTotal,
+			},
+		},
+		{
+			name: "By headerPattern",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary):          "true",
+				buildNginxAnnotationKey(canaryByHeader):        "header",
+				buildNginxAnnotationKey(canaryByHeaderPattern): "headerPattern",
+			},
+			expect: &CanaryConfig{
+				Enabled:       true,
+				Header:        "header",
+				HeaderPattern: "headerPattern",
+				WeightTotal:   defaultCanaryWeightTotal,
+			},
+		},
+		{
+			name: "By cookie",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary):   "true",
+				buildNginxAnnotationKey(canaryByCookie): "cookie",
+			},
+			expect: &CanaryConfig{
+				Enabled:     true,
+				Cookie:      "cookie",
+				WeightTotal: defaultCanaryWeightTotal,
+			},
+		},
+		{
+			name: "By weight",
+			input: Annotations{
+				buildNginxAnnotationKey(enableCanary):      "true",
+				buildNginxAnnotationKey(canaryWeight):      "50",
+				buildNginxAnnotationKey(canaryWeightTotal): "100",
+			},
+			expect: &CanaryConfig{
+				Enabled:     true,
+				Weight:      50,
+				WeightTotal: 100,
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Ingress{}
+			_ = parser.Parse(tt.input, config, nil)
+			if diff := cmp.Diff(tt.expect, config.Canary); diff != "" {
+				t.Fatalf("TestCanaryParse() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 func TestApplyWeight(t *testing.T) {
 	route := &networking.HTTPRoute{
