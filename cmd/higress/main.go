@@ -28,6 +28,7 @@ import (
 	"istio.io/pkg/version"
 
 	"github.com/alibaba/higress/pkg/bootstrap"
+	innerconstants "github.com/alibaba/higress/pkg/config/constants"
 )
 
 var (
@@ -93,8 +94,8 @@ func init() {
 
 	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorKey, "gatewaySelectorKey", "higress", "gateway resource selector label key")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorValue, "gatewaySelectorValue", "higress-gateway", "gateway resource selector label value")
-	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableStatus, "enableStatus", false, "enable the ingress status syncer which use to update the ip in ingress's status")
-	serveCmd.PersistentFlags().StringVar(&serverArgs.IngressClass, "ingressClass", "", "if not empty, only watch the ingresses have the specified class, otherwise watch all ingresses")
+	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableStatus, "enableStatus", true, "enable the ingress status syncer which use to update the ip in ingress's status")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.IngressClass, "ingressClass", innerconstants.DefaultIngressClass, "if not empty, only watch the ingresses have the specified class, otherwise watch all ingresses")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.WatchNamespace, "watchNamespace", "", "if not empty, only wath the ingresses in the specified namespace, otherwise watch in all namespacees")
 	serveCmd.PersistentFlags().BoolVar(&serverArgs.Debug, "debug", serverArgs.Debug, "if true, enables more debug http api")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.HttpAddress, "httpAddress", serverArgs.HttpAddress, "the http address")

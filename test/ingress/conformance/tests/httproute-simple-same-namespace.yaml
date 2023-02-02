@@ -18,6 +18,7 @@ metadata:
   name: higress-conformance-infra-test
   namespace: higress-conformance-infra
 spec:
+  ingressClassName: higress
   rules:
   - http:
       paths:

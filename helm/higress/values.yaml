@@ -318,9 +318,17 @@ global:
   # mechanisms (e.g., environmental variable CA_PROVIDER).
   caName: ""
 hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-ingressClass: ""
+
+# IngressClass filters which ingress resources the higress controller watches.
+# The default ingress class is higress.
+# There are some special cases for special ingress class.
+# 1. When the ingress class is set as nginx, the higress controller will watch ingress
+# resources with the nginx ingress class or without any ingress class.
+# 2. When the ingress class is set empty, the higress controller will watch all ingress
+# resources in the k8s cluster.
+ingressClass: "higress"
 watchNamespace: ""
-enableStatus: false
+enableStatus: true
 clusterName: ""
 # meshConfig defines runtime configuration of components, including Istiod and istio-agent behavior
 # See https://istio.io/docs/reference/config/istio.mesh.v1alpha1/ for all available options
