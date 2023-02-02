@@ -41,7 +41,7 @@ type RequestBlockConfig struct {
 	caseSensitive  bool
 	blockUrls      []string
 	blockHeaders   []string
-	blockBodys     []string
+	blockBodies     []string
 }
 
 func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log) error {
@@ -75,19 +75,19 @@ func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log)
 			config.blockHeaders = append(config.blockHeaders, strings.ToLower(header))
 		}
 	}
-	for _, item := range json.Get("block_bodys").Array() {
+	for _, item := range json.Get("block_bodies").Array() {
 		body := item.String()
 		if body == "" {
 			continue
 		}
 		if config.caseSensitive {
-			config.blockBodys = append(config.blockBodys, body)
+			config.blockBodies = append(config.blockBodies, body)
 		} else {
-			config.blockBodys = append(config.blockBodys, strings.ToLower(body))
+			config.blockBodies = append(config.blockBodies, strings.ToLower(body))
 		}
 	}
 	if len(config.blockUrls) == 0 && len(config.blockHeaders) == 0 &&
-		len(config.blockBodys) == 0 {
+		len(config.blockBodies) == 0 {
 		return errors.New("there is no block rules")
 	}
 	return nil
@@ -131,7 +131,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, lo
 			}
 		}
 	}
-	if len(config.blockBodys) == 0 {
+	if len(config.blockBodies) == 0 {
 		ctx.DontReadRequestBody()
 	}
 	return types.ActionContinue
@@ -142,7 +142,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config RequestBlockConfig, body 
 	if !config.caseSensitive {
 		bodyStr = strings.ToLower(bodyStr)
 	}
-	for _, blockBody := range config.blockBodys {
+	for _, blockBody := range config.blockBodies {
 		if strings.Contains(bodyStr, blockBody) {
 			proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
 			return types.ActionContinue
