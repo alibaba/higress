@@ -10,7 +10,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 0.6.0
+  tag: 0.6.1
 
   # Can be a full hub/image:tag
   image: pilot
@@ -256,7 +256,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 0.6.0
+  tag: 0.6.1
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
