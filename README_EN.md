@@ -175,6 +175,7 @@ kind: Ingress
 metadata:
   name: simple-example
 spec:
+  ingressClassName: higress
   rules:
   - host: foo.bar.com
     http:

@@ -29,6 +29,7 @@ metadata:
   name: echo
   namespace: default
 spec:
+  ingressClassName: higress
   rules:
   - http:
       paths:

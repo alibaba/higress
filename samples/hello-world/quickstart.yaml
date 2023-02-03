@@ -50,6 +50,7 @@ kind: Ingress
 metadata:
   name: hello-world
 spec:
+  ingressClassName: higress
   rules:
   - http:
       paths:
