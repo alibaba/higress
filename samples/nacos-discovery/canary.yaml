@@ -9,6 +9,7 @@ metadata:
   name: echo-gray
   namespace: default
 spec:
+  ingressClassName: higress
   rules:
   - http:
       paths:
