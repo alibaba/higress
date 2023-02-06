@@ -7,13 +7,18 @@ Higress e2e tests are mainly focusing on two parts for now:
 
 ## Ingress APIs Conformance Tests
 
-Higress provides make target to run ingress api conformance tests: `make e2e-test`. It can be divided into below steps:
+### Architecture
+
+![ingress-arch](./ingress/arch.png)
+
+Higress provides make target to run ingress api conformance tests: `make ingress-conformance-test`. It can be divided into below steps:
 
 1. delete-cluster: checks if we have undeleted kind cluster.
 2. create-cluster: create a new kind cluster.
-3. kube-load-image: build a dev image of higress, and load it into kind cluster.
-4. install-dev: install higress-controller with dev image, and latest higress-gateway, istiod with helm.
-5. run-e2e-test:
+3. docker-build: build a dev image of higress.
+4. kube-load-image: load dev higress-controller image it into kind cluster.
+5. install-dev: install higress-controller with dev image, and latest higress-gateway, istiod with helm.
+6. run-e2e-test:
     1. Setup conformance suite, like define what conformance tests we want to run, in `e2e_test.go` / `higressTests Slice`. Each case we choose to open is difined in `test/ingress/conformance/tests`.
     2. Prepare resources and install them into cluster, like backend services/deployments.
     3. Load conformance tests we choose to open in `e2e_test.go` / `higressTests Slice`, and run them one by one, fail if it is not expected.
