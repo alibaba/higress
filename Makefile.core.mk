@@ -182,7 +182,7 @@ gateway-conformance-test:
 
 # ingress-conformance-test runs ingress api conformance tests.
 .PHONY: ingress-conformance-test
-ingress-conformance-test: $(tools/kind) delete-cluster create-cluster kube-load-image install-dev run-ingress-e2e-test delete-cluster
+ingress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-ingress-e2e-test delete-cluster
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
@@ -196,7 +196,7 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 
 # kube-load-image loads a local built docker image into kube cluster.
 .PHONY: kube-load-image
-kube-load-image: docker-build $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
+kube-load-image: $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 
 # run-ingress-e2e-test starts to run ingress e2e tests.
@@ -207,4 +207,4 @@ run-ingress-e2e-test:
 	kubectl wait --timeout=5m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=5m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true --use-unique-ports=true
+	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true

@@ -87,13 +87,6 @@ type Options struct {
 	RoundTripper     roundtripper.RoundTripper
 	BaseManifests    string
 	NamespaceLabels  map[string]string
-	// ValidUniqueListenerPorts maps each listener port of each Gateway in the
-	// manifests to a valid, unique port. There must be as many
-	// ValidUniqueListenerPorts as there are listeners in the set of manifests.
-	// For example, given two Gateways, each with 2 listeners, there should be
-	// four ValidUniqueListenerPorts.
-	// If empty or nil, ports are not modified.
-	ValidUniqueListenerPorts []int
 
 	// CleanupBaseResources indicates whether or not the base test
 	// resources such as Gateways should be cleaned up after the run.
@@ -130,8 +123,7 @@ func New(s Options) *ConformanceTestSuite {
 		BaseManifests:    s.BaseManifests,
 		GatewayAddress:   s.GatewayAddress,
 		Applier: kubernetes.Applier{
-			NamespaceLabels:          s.NamespaceLabels,
-			ValidUniqueListenerPorts: s.ValidUniqueListenerPorts,
+			NamespaceLabels: s.NamespaceLabels,
 		},
 		SupportedFeatures: s.SupportedFeatures,
 		TimeoutConfig:     s.TimeoutConfig,

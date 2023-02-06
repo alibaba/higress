@@ -1,6 +1,3 @@
-//go:build conformance
-// +build conformance
-
 // Copyright (c) 2022 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,8 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
-var useUniquePorts = flag.Bool("use-unique-ports", true, "whether to use unique ports")
-
 func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
 
@@ -43,28 +38,20 @@ func TestHigressConformanceTests(t *testing.T) {
 
 	require.NoError(t, v1.AddToScheme(client.Scheme()))
 
-	validUniqueListenerPorts := []int{
-		80,
-		443,
-	}
-
-	if !*useUniquePorts {
-		validUniqueListenerPorts = []int{}
-	}
-
 	cSuite := suite.New(suite.Options{
-		Client:                   client,
-		IngressClassName:         *flags.IngressClassName,
-		Debug:                    *flags.ShowDebug,
-		CleanupBaseResources:     *flags.CleanupBaseResources,
-		ValidUniqueListenerPorts: validUniqueListenerPorts,
-		SupportedFeatures:        map[suite.SupportedFeature]bool{},
-		GatewayAddress:           "localhost",
+		Client:               client,
+		IngressClassName:     *flags.IngressClassName,
+		Debug:                *flags.ShowDebug,
+		CleanupBaseResources: *flags.CleanupBaseResources,
+		SupportedFeatures:    map[suite.SupportedFeature]bool{},
+		GatewayAddress:       "localhost",
 	})
+
 	cSuite.Setup(t)
 	higressTests := []suite.ConformanceTest{
 		tests.HTTPRouteSimpleSameNamespace,
 		tests.HTTPRouteHostNameSameNamespace,
 	}
+
 	cSuite.Run(t, higressTests)
 }
