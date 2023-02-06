@@ -39,15 +39,8 @@ import (
 // them to the Kubernetes cluster.
 type Applier struct {
 	NamespaceLabels map[string]string
-	// ValidUniqueListenerPorts maps each listener port of each Gateway in the
-	// manifests to a valid, unique port. There must be as many
-	// ValidUniqueListenerPorts as there are listeners in the set of manifests.
-	// For example, given two Gateways, each with 2 listeners, there should be
-	// four ValidUniqueListenerPorts.
-	// If empty or nil, ports are not modified.
-	ValidUniqueListenerPorts []int
 
-	// IngressClass will be used as the spec.gatewayClassName when applying Gateway resources
+	// IngressClass will be used as the spec.ingressClassName when applying Ingress resources
 	IngressClass string
 }
 
