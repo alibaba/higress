@@ -64,6 +64,7 @@ func TestHigressConformanceTests(t *testing.T) {
 	cSuite.Setup(t)
 	higressTests := []suite.ConformanceTest{
 		tests.HTTPRouteSimpleSameNamespace,
+		tests.HTTPRouteHostNameSameNamespace,
 	}
 	cSuite.Run(t, higressTests)
 }
