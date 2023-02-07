@@ -30,13 +30,22 @@ var HTTPRouteSimpleSameNamespace = suite.ConformanceTest{
 	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates basic routing ability",
 	Manifests:   []string{"tests/httproute-simple-same-namespace.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-
 		t.Run("Simple HTTP request should reach infra-backend", func(t *testing.T) {
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/hello-world"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v1",
-				Namespace: "higress-conformance-infra",
+			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.Assertion{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/hello-world",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
 			})
 		})
 	},
