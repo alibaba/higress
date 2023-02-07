@@ -18,13 +18,14 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/alibaba/higress/test/ingress/conformance/tests"
-	"github.com/alibaba/higress/test/ingress/conformance/utils/flags"
-	"github.com/alibaba/higress/test/ingress/conformance/utils/suite"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/alibaba/higress/test/ingress/conformance/tests"
+	"github.com/alibaba/higress/test/ingress/conformance/utils/flags"
+	"github.com/alibaba/higress/test/ingress/conformance/utils/suite"
 )
 
 func TestHigressConformanceTests(t *testing.T) {
@@ -51,6 +52,7 @@ func TestHigressConformanceTests(t *testing.T) {
 	higressTests := []suite.ConformanceTest{
 		tests.HTTPRouteSimpleSameNamespace,
 		tests.HTTPRouteHostNameSameNamespace,
+		tests.HTTPRouteRewritePath,
 	}
 
 	cSuite.Run(t, higressTests)
