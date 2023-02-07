@@ -32,14 +32,24 @@ var HTTPRouteRewritePath = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 
 		t.Run("Rewrite HTTPRoute Path", func(t *testing.T) {
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request: http.Request{Path: "/svc/foo"},
-				ExpectedRequest: &http.ExpectedRequest{
-					Request: http.Request{Path: "/foo"},
+			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.Assertion{
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{Path: "/svc/foo"},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{Path: "/foo"},
+					},
 				},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v1",
-				Namespace: "higress-conformance-infra",
+
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
 			})
 		})
 	},
