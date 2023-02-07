@@ -24,7 +24,7 @@ spec:
   rules:
   - http:
       paths:
-      - pathType: Exact
+      - pathType: ImplementationSpecific
         path: "/svc/(.*)"
         backend:
           service:
