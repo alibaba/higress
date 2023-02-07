@@ -30,42 +30,94 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 	Description: "A Ingress in the higress-conformance-infra namespace demonstrates host match ability",
 	Manifests:   []string{"tests/httproute-hostname-same-namespace.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo",
+						Host: "bar.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/bar",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/bar",
+						Host: "bar.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/any",
+						Host: "any.bar.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+		}
 
-		t.Run("Simple HTTP request should reach infra-backend", func(t *testing.T) {
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/foo", Host: "foo.com"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v1",
-				Namespace: "higress-conformance-infra",
-			})
-
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/foo", Host: "bar.com"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v2",
-				Namespace: "higress-conformance-infra",
-			})
-
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/bar", Host: "foo.com"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v2",
-				Namespace: "higress-conformance-infra",
-			})
-
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/bar", Host: "bar.com"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v3",
-				Namespace: "higress-conformance-infra",
-			})
-
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.ExpectedResponse{
-				Request:   http.Request{Path: "/any", Host: "any.bar.com"},
-				Response:  http.Response{StatusCode: 200},
-				Backend:   "infra-backend-v1",
-				Namespace: "higress-conformance-infra",
-			})
+		t.Run("HTTP request should reach infra-backend with different hostname", func(t *testing.T) {
+			for _, testcase := range testcases {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
 		})
 	},
 }
