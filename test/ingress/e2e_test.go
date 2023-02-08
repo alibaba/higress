@@ -54,6 +54,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HTTPRouteHostNameSameNamespace,
 		tests.HTTPRouteRewritePath,
 		tests.HTTPRouteRewriteHost,
+		tests.HTTPRouteCanaryHeader,
 	}
 
 	cSuite.Run(t, higressTests)
