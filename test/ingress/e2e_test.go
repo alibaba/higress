@@ -55,6 +55,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HTTPRouteRewritePath,
 		tests.HTTPRouteRewriteHost,
 		tests.HTTPRouteCanaryHeader,
+		tests.HTTPRouteEnableCors,
 	}
 
 	cSuite.Run(t, higressTests)
