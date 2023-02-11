@@ -132,26 +132,3 @@ spec:
             name: bar-service
             port:
               number: 5678
----
-apiVersion: extensions.istio.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: proxy-redirect-example
-  namespace: higress-system
-spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway
-  pluginConfig:
-    "http_status_code":
-      - 201
-      - 301
-      - 302
-      - 303
-      - 307
-      - 308
-    "proxy_redirect":
-      - 'http://web1:8080 http://localhost/web1'
-      - '~*/user/([^/]+)/(.+)$ http://$1.example.com/$2'
-      - 'default'
-  url: oci://registry.cn-hangzhou.aliyuncs.com/dspo/proxy-redirect:20221124-100639
