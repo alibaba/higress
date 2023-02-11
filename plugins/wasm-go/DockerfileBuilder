@@ -1,0 +1,29 @@
+FROM ubuntu as builder
+
+ARG THIS_ARCH
+ARG PLUGIN_NAME
+
+RUN apt-get update \
+  && apt-get install -y wget build-essential\
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://golang.google.cn/dl/go1.19.3.linux-$THIS_ARCH.tar.gz
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.19.3.linux-$THIS_ARCH.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
+
+RUN wget https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_$THIS_ARCH.deb
+RUN dpkg -i tinygo_0.25.0_$THIS_ARCH.deb
+ENV export PATH=$PATH:/usr/local/bin
+
+WORKDIR /workspace
+
+COPY . .
+
+WORKDIR /workspace/extensions/$PLUGIN_NAME
+
+RUN go mod tidy
+RUN tinygo build -o /main.wasm -scheduler=none -target=wasi ./main.go
+
+FROM scratch
+
+COPY --from=builder /main.wasm plugin.wasm
