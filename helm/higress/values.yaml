@@ -1,3 +1,4 @@
+revision: ""
 global:
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
@@ -364,7 +365,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "0.6.1"
+  tag: "0.6.2"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -409,10 +410,6 @@ gateway:
     # Type of service. Set to "None" to disable the service entirely
     type: LoadBalancer
     ports:
-    - name: status-port
-      port: 15021
-      protocol: TCP
-      targetPort: 15021
     - name: http2
       port: 80
       protocol: TCP
