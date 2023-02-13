@@ -2,24 +2,35 @@ FROM ubuntu as builder
 
 ARG THIS_ARCH
 ARG PLUGIN_NAME
+ARG GO_VERSION
+ARG TINYGO_VERSION
+
+ARG this_arch=${THIS_ARCH:-amd64}
+ARG plugin_name=${PLUGIN_NAME:-hello-world}
+ARG go_version=${GO_VERSION:-1.19}
+ARG tinygo_version=${TINYGO_VERSION:-0.25.0}
+
+ARG go_pkg_name=go$go_version.linux-$this_arch.tar.gz
+ARG tinygo_pkg_name=tinygo_${tinygo_version}_$this_arch.deb
+
 
 RUN apt-get update \
-  && apt-get install -y wget build-essential\
+  && apt-get install -y wget build-essential \
   && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://golang.google.cn/dl/go1.19.3.linux-$THIS_ARCH.tar.gz
-RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.19.3.linux-$THIS_ARCH.tar.gz
+RUN wget https://golang.google.cn/dl/$go_pkg_name
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf $go_pkg_name
 ENV PATH=$PATH:/usr/local/go/bin
 
-RUN wget https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_$THIS_ARCH.deb
-RUN dpkg -i tinygo_0.25.0_$THIS_ARCH.deb
+RUN wget https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/$tinygo_pkg_name
+RUN dpkg -i $tinygo_pkg_name
 ENV export PATH=$PATH:/usr/local/bin
 
 WORKDIR /workspace
 
 COPY . .
 
-WORKDIR /workspace/extensions/$PLUGIN_NAME
+WORKDIR /workspace/extensions/$plugin_name
 
 RUN go mod tidy
 RUN tinygo build -o /main.wasm -scheduler=none -target=wasi ./main.go
