@@ -96,13 +96,13 @@ export PARENT_GIT_REVISION:=$(TAG)
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
 build-istio: prebuild
-	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
 
 external/package/envoy.tar.gz:
 	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
 
 build-gateway: prebuild external/package/envoy.tar.gz
-	cd external/istio; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/higress/crds
