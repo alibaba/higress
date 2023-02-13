@@ -8,7 +8,7 @@ ARG TINYGO_VERSION
 ARG this_arch=${THIS_ARCH:-amd64}
 ARG plugin_name=${PLUGIN_NAME:-hello-world}
 ARG go_version=${GO_VERSION:-1.19}
-ARG tinygo_version=${TINYGO_VERSION:-0.25.0}
+ARG tinygo_version=${TINYGO_VERSION:-0.26.0}
 
 ARG go_pkg_name=go$go_version.linux-$this_arch.tar.gz
 ARG tinygo_pkg_name=tinygo_${tinygo_version}_$this_arch.deb
