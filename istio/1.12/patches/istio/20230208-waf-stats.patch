@@ -1,0 +1,18 @@
+diff -Naur istio/tools/packaging/common/envoy_bootstrap.json istio_new/tools/packaging/common/envoy_bootstrap.json
+--- istio/tools/packaging/common/envoy_bootstrap.json	2023-02-08 22:42:41.000000000 +0800
++++ istio_new/tools/packaging/common/envoy_bootstrap.json	2023-02-08 22:19:04.000000000 +0800
+@@ -37,6 +37,14 @@
+     "use_all_default_tags": false,
+     "stats_tags": [
+       {
++        "tag_name": "phase",
++        "regex": "(_phase=([a-z_]+))"
++      },
++      {
++        "tag_name": "ruleid",
++        "regex": "(_ruleid=([0-9]+))"
++      },
++      {
+         "tag_name": "route",
+         "regex": "^vhost\\..*?\\.route\\.([^\\.]+\\.)upstream"
+       },
