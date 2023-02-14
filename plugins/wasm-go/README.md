@@ -42,7 +42,7 @@ output wasm file: extensions/request-block/plugin.wasm
 | `REGISTRY`       | 可选的   | 空                                        | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
 | `IMG`            | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成 | 生成的镜像名称。                                                             |
 | `GO_VERSION`     | 可选的   | 1.19                                     | Go 版本号。                                                              |
-| `TINYGO_VERSION` | 可选的   | 0.25.0                                   | TinyGo 版本号。                                                          |
+| `TINYGO_VERSION` | 可选的   | 0.26.0                                   | TinyGo 版本号。                                                          |
 
 ## 本地构建
 
