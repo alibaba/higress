@@ -73,7 +73,7 @@ var HTTPRouteEnableCors = suite.ConformanceTest{
 				},
 			}, {
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case3: enable cors and allow headers",
+					TestCaseName:    "case3: enable cors and allow origin headers",
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -89,6 +89,26 @@ var HTTPRouteEnableCors = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 						Headers:    map[string]string{"Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Origin": "http://bar.com", "Access-Control-Expose-Headers": "*"},
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case4: enable cors and use forbidden Origin",
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path:    "/foo",
+						Host:    "foo3.com",
+						Method:  "OPTIONS",
+						Headers: map[string]string{"Origin": "http://foo.com"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:    200,
+						AbsentHeaders: []string{"Access-Control-Allow-Credentials", "Access-Control-Allow-Origin", "Access-Control-Expose-Headers"},
 					},
 				},
 			},
