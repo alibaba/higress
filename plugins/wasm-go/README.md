@@ -87,7 +87,7 @@ spec:
       higress: higress-system-higress-gateway
   defaultConfig:
     block_urls:
-      - "swagger.html"
+    - "swagger.html"
   url: oci://<your_registry_hub>/request-block:1.0.0  # 之前构建和推送的 image 地址
 ```
 
@@ -123,31 +123,31 @@ spec:
     matchLabels:
       higress: higress-system-higress-gateway
   defaultConfig:
-    # 跟上面例子一样，这个配置会全局生效，但如果被下面规则匹配到，则会改为执行命中规则的配置
-    block_urls:
-      - "swagger.html"
-    matchRules:
-    # 路由级生效配置
-    - ingress:
-        - default/foo
-        # default 命名空间下名为 foo 的 ingress 会执行下面这个配置
-      config:
-        block_bodies:
-          - "foo"
-    - ingress:
-        - default/bar
-      # default 命名空间下名为 bar 的 ingress 会执行下面这个配置
-      config:
-        block_bodies:
-          - "bar"
-    # 域名级生效配置
-    - domain:
-        - "*.example.com"
-      # 若请求匹配了上面的域名, 会执行下面这个配置
-      config:
-        block_bodies:
-          - "foo"
-          - "bar"
+   # 跟上面例子一样，这个配置会全局生效，但如果被下面规则匹配到，则会改为执行命中规则的配置
+   block_urls:
+   - "swagger.html"
+   matchRules:
+   # 路由级生效配置
+  - ingress:
+    - default/foo
+     # default 命名空间下名为 foo 的 ingress 会执行下面这个配置
+    config:
+      block_bodies:
+      - "foo"
+  - ingress:
+    - default/bar
+    # default 命名空间下名为 bar 的 ingress 会执行下面这个配置
+    config:
+      block_bodies:
+      - "bar"
+   # 域名级生效配置
+  - domain:
+    - "*.example.com"
+    # 若请求匹配了上面的域名, 会执行下面这个配置
+    config:
+      block_bodies:
+      - "foo"
+      - "bar"
   url: oci://<your_registry_hub>/request-block:1.0.0
 ```
 
