@@ -1,30 +1,60 @@
-FROM ubuntu as builder
+ARG WASM_BUILDER=wasm-builder
 
-ARG THIS_ARCH
-ARG PLUGIN_NAME
+FROM ubuntu as wasm-builder
+
 ARG GO_VERSION
 ARG TINYGO_VERSION
-
-ARG this_arch=${THIS_ARCH:-amd64}
-ARG plugin_name=${PLUGIN_NAME:-hello-world}
-ARG go_version=${GO_VERSION:-1.19}
-ARG tinygo_version=${TINYGO_VERSION:-0.26.0}
-
-ARG go_pkg_name=go$go_version.linux-$this_arch.tar.gz
-ARG tinygo_pkg_name=tinygo_${tinygo_version}_$this_arch.deb
-
 
 RUN apt-get update \
   && apt-get install -y wget build-essential \
   && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://golang.google.cn/dl/$go_pkg_name
-RUN rm -rf /usr/local/go && tar -C /usr/local -xzf $go_pkg_name
-ENV PATH=$PATH:/usr/local/go/bin
+RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
+	go_url=; \
+    tinygo_url=; \
+    go_version=${GO_VERSION:-1.19}; \
+    tinygo_version=${TINYGO_VERSION:-0.26.0}; \
+    echo "arch:           '$arch'"; \
+    echo "go go_version:  '$go_version'"; \
+    echo "tinygo_version: '$tinygo_version'"; \
+    ## only support amd64, arm64 and armhf yet.
+    ## go_urls for other architectures:
+    ##  armel: install by source code
+    ##  i386: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
+    ##  mips64el: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
+    ##  ppc64el: https://dl.google.com/go/go1.20.1.linux-ppc64le.tar.gz
+    ##  s390x: https://dl.google.com/go/go1.20.1.linux-s390x.tar.gz
+    ## On these architectures you have to build the tinygo deb package yourself.
+	case "$arch" in \
+		'amd64') \
+            go_url="https://golang.google.cn/dl/go$go_version.linux-amd64.tar.gz"; \
+            tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_amd64.deb"; \
+			;; \
+		'arm64') \
+            go_url="https://golang.google.cn/dl/go$go_version.linux-arm64.tar.gz"; \
+            tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_arm64.deb"; \
+			;; \
+		'armhf') \
+            go_url="https://golang.google.cn/dl/go$go_version.linux-armv6l.tar.gz"; \
+            tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_armhf.deb"; \
+			;; \
+		*) echo >&2 "error: unsupported architecture '$arch' "; exit 1 ;; \
+	esac; \
+    echo "go_url: '$go_url'"; \
+    echo "tinygo_url: '$tinygo_url'"; \
+    wget -O go.tgz "$go_url" --progress=dot:giga; \
+    wget -O tinygo.deb "$tinygo_url" --progress=dot:giga; \
+    echo "Download complete"
 
-RUN wget https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/$tinygo_pkg_name
-RUN dpkg -i $tinygo_pkg_name
-ENV export PATH=$PATH:/usr/local/bin
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go.tgz && rm -rf go.tgz
+RUN dpkg -i tinygo.deb && rm -rf tinygo.deb
+ENV PATH=$PATH:/usr/local/go/bin:/usr/local/bin
+
+ARG WASM_BUILDER=wasm-builder
+FROM $WASM_BUILDER as building
+
+ARG PLUGIN_NAME
+ARG plugin_name=${PLUGIN_NAME:-hello-world}
 
 WORKDIR /workspace
 
@@ -35,6 +65,6 @@ WORKDIR /workspace/extensions/$plugin_name
 RUN go mod tidy
 RUN tinygo build -o /main.wasm -scheduler=none -target=wasi ./main.go
 
-FROM scratch
+FROM scratch as output
 
-COPY --from=builder /main.wasm plugin.wasm
+COPY --from=building /main.wasm plugin.wasm
