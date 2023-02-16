@@ -1,0 +1,21 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: request-block
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/request-block:1.0.0
+  defaultConfig:
+    block_urls:
+    - "swagger.html"
+  matchRules: 
+  - ingress:
+    - default/foo
+    config:
+      block_bodies:
+      - "foo"  
+  - ingress:
+    - default/bar
+    config:
+      block_bodies:
+      - "bar"

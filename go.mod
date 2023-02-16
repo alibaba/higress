@@ -16,17 +16,19 @@ replace github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.9.0
 	github.com/dubbogo/go-zookeeper v1.0.4-0.20211212162352-f9d2183d89d5
 	github.com/dubbogo/gost v1.13.1
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
+	github.com/google/go-cmp v0.5.8
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nacos-group/nacos-sdk-go v1.0.8
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
 	github.com/spf13/cobra v1.2.1
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	go.uber.org/atomic v1.9.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.0
@@ -97,7 +99,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/go-containerregistry v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect

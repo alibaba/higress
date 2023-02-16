@@ -32,11 +32,12 @@ var _ Parser = destination{}
 
 type DestinationConfig struct {
 	McpDestination []*networking.HTTPRouteDestination
+	WeightSum      int64
 }
 
 type destination struct{}
 
-func (a destination) Parse(annotations Annotations, config *Ingress, globalContext *GlobalContext) error {
+func (a destination) Parse(annotations Annotations, config *Ingress, _ *GlobalContext) error {
 	if !needDestinationConfig(annotations) {
 		return nil
 	}
@@ -54,6 +55,9 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		pairs := strings.Fields(line)
 		var weight int64 = 100
 		var addrIndex int
+		if len(pairs) == 0 {
+			continue
+		}
 		if strings.HasSuffix(pairs[0], "%") {
 			weight, err = strconv.ParseInt(strings.TrimSuffix(pairs[0], "%"), 10, 32)
 			if err != nil {
@@ -99,11 +103,11 @@ func (a destination) Parse(annotations Annotations, config *Ingress, globalConte
 		destinations = append(destinations, dest)
 	}
 	if weightSum != 100 {
-		IngressLog.Errorf("destination has invalid weight sum %d within ingress %s/%s", weightSum, config.Namespace, config.Name)
-		return nil
+		IngressLog.Warnf("destination has invalid weight sum %d within ingress %s/%s", weightSum, config.Namespace, config.Name)
 	}
 	config.Destination = &DestinationConfig{
 		McpDestination: destinations,
+		WeightSum:      weightSum,
 	}
 	return nil
 }

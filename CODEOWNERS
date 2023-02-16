@@ -1,4 +1,10 @@
-# Top level
-* @johnlanni @SpecialYang @Lynskylate @gengleilei @NameHaibinZhang
+/api @johnlanni 
+/envoy @gengleilei @johnlanni @Lynskylate
+/istio @SpecialYang @johnlanni
+/pkg @SpecialYang @johnlanni
+/plugins @johnlanni
+/registry @NameHaibinZhang @johnlanni
+/test @Xunzhuo
+/tools @johnlanni @Xunzhuo
 
-# TODO Add code reviewers for subdirectory.
+

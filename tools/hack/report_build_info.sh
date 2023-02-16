@@ -35,7 +35,7 @@ if [[ -z "${IGNORE_DIRTY_TREE}" ]] && ! git diff-index --quiet HEAD --; then
   tree_status="Modified"
 fi
 
-GIT_DESCRIBE_TAG=$(git describe --tags)
+GIT_DESCRIBE_TAG=$(cat VERSION)
 HUB=${HUB:-"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"}
 
 # used by common/scripts/gobuild.sh

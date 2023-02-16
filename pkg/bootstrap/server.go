@@ -88,12 +88,20 @@ type RegistryOptions struct {
 }
 
 type ServerArgs struct {
-	Debug                bool
-	MeshId               string
-	RegionId             string
-	NativeIstio          bool
-	HttpAddress          string
-	GrpcAddress          string
+	Debug       bool
+	MeshId      string
+	RegionId    string
+	NativeIstio bool
+	HttpAddress string
+	GrpcAddress string
+
+	// IngressClass filters which ingress resources the higress controller watches.
+	// The default ingress class is higress.
+	// There are some special cases for special ingress class.
+	// 1. When the ingress class is set as nginx, the higress controller will watch ingress
+	// resources with the nginx ingress class or without any ingress class.
+	// 2. When the ingress class is set empty, the higress controller will watch all ingress
+	// resources in the k8s cluster.
 	IngressClass         string
 	EnableStatus         bool
 	WatchNamespace       string
@@ -106,6 +114,11 @@ type ServerArgs struct {
 }
 
 type readinessProbe func() (bool, error)
+
+type ServerInterface interface {
+	Start(stop <-chan struct{}) error
+	WaitUntilCompletion()
+}
 
 type Server struct {
 	*ServerArgs
@@ -229,7 +242,9 @@ func (s *Server) initConfigController() error {
 
 	// Defer starting the controller until after the service is created.
 	s.server.RunComponent(func(stop <-chan struct{}) error {
-		ingressConfig.InitializeCluster(ingressController, stop)
+		if err := ingressConfig.InitializeCluster(ingressController, stop); err != nil {
+			return err
+		}
 		go s.configController.Run(stop)
 		return nil
 	})
@@ -322,8 +337,7 @@ func (s *Server) initXdsServer() error {
 		s.xdsServer.Start(stop)
 		return nil
 	})
-	s.initGrpcServer()
-	return nil
+	return s.initGrpcServer()
 }
 
 func (s *Server) initGrpcServer() error {
@@ -381,6 +395,7 @@ func (s *Server) initHttpServer() error {
 	return nil
 }
 
+// readyHandler checks whether the http server is ready
 func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
 	for name, fn := range s.readinessProbes {
 		if ready, err := fn(); !ready {
@@ -394,10 +409,7 @@ func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
 
 // cachesSynced checks whether caches have been synced.
 func (s *Server) cachesSynced() bool {
-	if !s.configController.HasSynced() {
-		return false
-	}
-	return true
+	return s.configController.HasSynced()
 }
 
 func (s *Server) waitForCacheSync(stop <-chan struct{}) bool {

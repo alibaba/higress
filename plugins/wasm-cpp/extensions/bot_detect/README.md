@@ -1,3 +1,7 @@
+<p>
+   <a href="README_EN.md"> English </a> | 中文
+</p>
+
 # 功能说明
 `bot-detect`插件可以用于识别并阻止互联网爬虫对站点资源的爬取
 

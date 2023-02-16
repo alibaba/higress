@@ -28,11 +28,20 @@ import (
 	"istio.io/pkg/version"
 
 	"github.com/alibaba/higress/pkg/bootstrap"
+	innerconstants "github.com/alibaba/higress/pkg/config/constants"
 )
 
 var (
 	serverArgs     *bootstrap.ServerArgs
 	loggingOptions = log.DefaultOptions()
+
+	serverProvider = func(args *bootstrap.ServerArgs) (bootstrap.ServerInterface, error) {
+		return bootstrap.NewServer(serverArgs)
+	}
+
+	waitForMonitorSignal = func(stop chan struct{}) {
+		cmd.WaitSignal(stop)
+	}
 
 	rootCmd = &cobra.Command{
 		Use: "higress",
@@ -52,7 +61,7 @@ var (
 
 			stop := make(chan struct{})
 
-			server, err := bootstrap.NewServer(serverArgs)
+			server, err := serverProvider(serverArgs)
 			if err != nil {
 				return fmt.Errorf("fail to create higress server: %v", err)
 			}
@@ -61,7 +70,7 @@ var (
 				return fmt.Errorf("fail to start higress server: %v", err)
 			}
 
-			cmd.WaitSignal(stop)
+			waitForMonitorSignal(stop)
 
 			server.WaitUntilCompletion()
 			return nil
@@ -85,8 +94,8 @@ func init() {
 
 	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorKey, "gatewaySelectorKey", "higress", "gateway resource selector label key")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorValue, "gatewaySelectorValue", "higress-gateway", "gateway resource selector label value")
-	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableStatus, "enableStatus", false, "enable the ingress status syncer which use to update the ip in ingress's status")
-	serveCmd.PersistentFlags().StringVar(&serverArgs.IngressClass, "ingressClass", "", "if not empty, only watch the ingresses have the specified class, otherwise watch all ingresses")
+	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableStatus, "enableStatus", true, "enable the ingress status syncer which use to update the ip in ingress's status")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.IngressClass, "ingressClass", innerconstants.DefaultIngressClass, "if not empty, only watch the ingresses have the specified class, otherwise watch all ingresses")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.WatchNamespace, "watchNamespace", "", "if not empty, only wath the ingresses in the specified namespace, otherwise watch in all namespacees")
 	serveCmd.PersistentFlags().BoolVar(&serverArgs.Debug, "debug", serverArgs.Debug, "if true, enables more debug http api")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.HttpAddress, "httpAddress", serverArgs.HttpAddress, "the http address")
