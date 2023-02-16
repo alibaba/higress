@@ -52,11 +52,11 @@ func (m match) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 		IngressLog.Errorf("parse methods error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
-	if err = m.matchByHeader(annotations, config); err != nil {
+	if config.Match.Headers, err = m.matchByHeaderOrQueryParma(annotations, matchHeader, config.Match.Headers); err != nil {
 		IngressLog.Errorf("parse headers error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
-	if err = m.matchByUrlParam(annotations, config); err != nil {
+	if config.Match.QueryParams, err = m.matchByHeaderOrQueryParma(annotations, matchQuery, config.Match.QueryParams); err != nil {
 		IngressLog.Errorf("parse query params error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
@@ -120,74 +120,22 @@ func (m match) matchByMethod(annotations Annotations, ingress *Ingress) error {
 }
 
 // matchByHeader to parse annotations to find matchHeader config
-func (m match) matchByHeader(annotations Annotations, config *Ingress) error {
+func (m match) matchByHeaderOrQueryParma(annotations Annotations, key string, mmap map[string]map[string]string) (map[string]map[string]string, error) {
 	for k, v := range annotations {
-		if idx := strings.Index(k, matchHeader); idx != -1 {
-			if config.Match.Headers == nil {
-				config.Match.Headers = make(map[string]map[string]string)
+		if idx := strings.Index(k, key); idx != -1 {
+			if mmap == nil {
+				mmap = make(map[string]map[string]string)
 			}
-			if err := m.doMatchHeader(k, v, config, idx+len(matchHeader)+1); err != nil {
-				IngressLog.Errorf("matchByHeader() failed, the key: %v, value : %v, start: %d", k, v, idx+len(matchHeader)+1)
-				return err
+			if err := m.doMatch(k, v, mmap, idx+len(key)+1); err != nil {
+				IngressLog.Errorf("matchByHeader() failed, the key: %v, value : %v, start: %d", k, v, idx+len(key)+1)
+				return mmap, err
 			}
 		}
 	}
-	return nil
+	return mmap, nil
 }
 
-func (m match) matchByUrlParam(annotations Annotations, config *Ingress) error {
-	for k, v := range annotations {
-		if idx := strings.Index(k, matchQuery); idx != -1 {
-			if config.Match.QueryParams == nil {
-				config.Match.QueryParams = make(map[string]map[string]string)
-			}
-			if err := m.doMatchQuery(k, v, config, idx+len(matchQuery)+1); err != nil {
-				IngressLog.Errorf("matchByUrlParam() failed, the key: %v, value : %v, start: %d", k, v, idx+len(matchHeader)+1)
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (m match) doMatchHeader(k, v string, ingress *Ingress, start int) error {
-	config := ingress.Match
-	if start >= len(k) {
-		return ErrInvalidAnnotationName
-	}
-
-	var (
-		idx      int
-		legalIdx = len(HigressAnnotationsPrefix + "/") // the key has a higress prefix
-	)
-
-	if idx = strings.Index(k, exact); idx == legalIdx {
-		if config.Headers[exact] == nil {
-			config.Headers[exact] = make(map[string]string)
-		}
-		config.Headers[exact][k[start:]] = v
-		return nil
-	}
-	if idx = strings.Index(k, regex); idx == legalIdx {
-		if config.Headers[regex] == nil {
-			config.Headers[regex] = make(map[string]string)
-		}
-		config.Headers[regex][k[start:]] = v
-		return nil
-	}
-	if idx = strings.Index(k, prefix); idx == legalIdx {
-		if config.Headers[prefix] == nil {
-			config.Headers[prefix] = make(map[string]string)
-		}
-		config.Headers[prefix][k[start:]] = v
-		return nil
-	}
-
-	return ErrInvalidAnnotationName
-}
-
-func (m match) doMatchQuery(k, v string, ingress *Ingress, start int) error {
-	config := ingress.Match
+func (m match) doMatch(k, v string, mmap map[string]map[string]string, start int) error {
 	if start >= len(k) {
 		return ErrInvalidAnnotationName
 	}
@@ -200,24 +148,24 @@ func (m match) doMatchQuery(k, v string, ingress *Ingress, start int) error {
 	// if idx == -1, it means don't have  exact|regex|prefix
 	// if idx > legalIdx, it means the user key also has exact|regex|prefix. we just match the first one
 	if idx = strings.Index(k, exact); idx == legalIdx {
-		if config.QueryParams[exact] == nil {
-			config.QueryParams[exact] = make(map[string]string)
+		if mmap[exact] == nil {
+			mmap[exact] = make(map[string]string)
 		}
-		config.QueryParams[exact][k[start:]] = v
+		mmap[exact][k[start:]] = v
 		return nil
 	}
 	if idx = strings.Index(k, regex); idx == legalIdx {
-		if config.QueryParams[regex] == nil {
-			config.QueryParams[regex] = make(map[string]string)
+		if mmap[regex] == nil {
+			mmap[regex] = make(map[string]string)
 		}
-		config.QueryParams[regex][k[start:]] = v
+		mmap[regex][k[start:]] = v
 		return nil
 	}
 	if idx = strings.Index(k, prefix); idx == legalIdx {
-		if config.QueryParams[prefix] == nil {
-			config.QueryParams[prefix] = make(map[string]string)
+		if mmap[prefix] == nil {
+			mmap[prefix] = make(map[string]string)
 		}
-		config.QueryParams[prefix][k[start:]] = v
+		mmap[prefix][k[start:]] = v
 		return nil
 	}
 
