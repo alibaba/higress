@@ -19,7 +19,7 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
     echo "tinygo_version: '$tinygo_version'"; \
     ## only support amd64, arm64 and armhf yet.
     ## go_urls for other architectures:
-    ##  armel: install by source code
+    ##  armel: install from source code
     ##  i386: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
     ##  mips64el: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
     ##  ppc64el: https://dl.google.com/go/go1.20.1.linux-ppc64le.tar.gz
