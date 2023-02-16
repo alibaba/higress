@@ -96,12 +96,12 @@ func (m match) ApplyRoute(route *networking.HTTPRoute, ingressCfg *Ingress) {
 }
 
 func (m match) matchByMethod(annotations Annotations, ingress *Ingress) error {
-	if !annotations.HasASAP(matchMethod) {
+	if !annotations.HasHigress(matchMethod) {
 		return nil
 	}
 
 	config := ingress.Match
-	str, err := annotations.ParseStringASAP(matchMethod)
+	str, err := annotations.ParseStringForHigress(matchMethod)
 	if err != nil {
 		return err
 	}
@@ -183,8 +183,6 @@ func (m match) doMatchHeader(k, v string, ingress *Ingress, start int) error {
 		return nil
 	}
 
-	IngressLog.Errorf("idx: %v", idx)
-
 	return ErrInvalidAnnotationName
 }
 
@@ -199,27 +197,31 @@ func (m match) doMatchQuery(k, v string, ingress *Ingress, start int) error {
 		legalIdx = len(HigressAnnotationsPrefix + "/") // the key has a higress prefix
 	)
 
-	// if idx != -1, it means don't have  exact|regex|prefix
+	// if idx == -1, it means don't have  exact|regex|prefix
 	// if idx > legalIdx, it means the user key also has exact|regex|prefix. we just match the first one
 	if idx = strings.Index(k, exact); idx == legalIdx {
 		if config.QueryParams[exact] == nil {
 			config.QueryParams[exact] = make(map[string]string)
 		}
 		config.QueryParams[exact][k[start:]] = v
+		return nil
 	}
 	if idx = strings.Index(k, regex); idx == legalIdx {
 		if config.QueryParams[regex] == nil {
 			config.QueryParams[regex] = make(map[string]string)
 		}
 		config.QueryParams[regex][k[start:]] = v
+		return nil
 	}
 	if idx = strings.Index(k, prefix); idx == legalIdx {
 		if config.QueryParams[prefix] == nil {
 			config.QueryParams[prefix] = make(map[string]string)
 		}
 		config.QueryParams[prefix][k[start:]] = v
+		return nil
 	}
-	return nil
+
+	return ErrInvalidAnnotationName
 }
 
 func isMethod(s string) bool {
