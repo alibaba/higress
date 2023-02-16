@@ -116,7 +116,7 @@ func TestMatch_ParseHeaders(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
-			key := tt.typ + "-" + matchHeader + "-" + tt.key
+			key := buildHigressAnnotationKey(tt.typ + "-" + matchHeader + "-" + tt.key)
 			input := Annotations{key: tt.value}
 			config := &Ingress{}
 			_ = parser.Parse(input, config, nil)
@@ -169,7 +169,7 @@ func TestMatch_ParseQueryParams(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
-			key := tt.typ + "-" + matchQuery + "-" + tt.key
+			key := buildHigressAnnotationKey(tt.typ + "-" + matchQuery + "-" + tt.key)
 			input := Annotations{key: tt.value}
 			config := &Ingress{}
 			_ = parser.Parse(input, config, nil)
@@ -221,6 +221,38 @@ func TestMatch_ApplyRoute(t *testing.T) {
 			input: &networking.HTTPRoute{
 				Match: []*networking.HTTPMatchRequest{
 					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{Exact: "/abc"},
+						},
+					},
+				},
+			},
+			config: &Ingress{
+				Match: &MatchConfig{
+					Headers: map[string]map[string]string{
+						exact: {"new": "new"},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Headers: map[string]*networking.StringMatch{
+							"new": {
+								MatchType: &networking.StringMatch_Exact{Exact: "new"},
+							},
+						},
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{Exact: "/abc"},
+						},
+					},
+				},
+			},
+		},
+		{
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
 						Headers: map[string]*networking.StringMatch{
 							"origin": {
 								MatchType: &networking.StringMatch_Exact{Exact: "origin"},
@@ -258,6 +290,38 @@ func TestMatch_ApplyRoute(t *testing.T) {
 			},
 		},
 		// queryParams
+		{
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{Exact: "/abc"},
+						},
+					},
+				},
+			},
+			config: &Ingress{
+				Match: &MatchConfig{
+					QueryParams: map[string]map[string]string{
+						exact: {"new": "new"},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						QueryParams: map[string]*networking.StringMatch{
+							"new": {
+								MatchType: &networking.StringMatch_Exact{Exact: "new"},
+							},
+						},
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{Exact: "/abc"},
+						},
+					},
+				},
+			},
+		},
 		{
 			input: &networking.HTTPRoute{
 				Match: []*networking.HTTPMatchRequest{

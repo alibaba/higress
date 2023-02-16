@@ -15,6 +15,7 @@
 package annotations
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/alibaba/higress/pkg/ingress/log"
@@ -68,19 +69,28 @@ func (m match) ApplyRoute(route *networking.HTTPRoute, ingressCfg *Ingress) {
 	if config.Methods != nil {
 		for i := 0; i < len(route.Match); i++ {
 			route.Match[i].Method = createMethodMatch(config.Methods...)
+			IngressLog.Debug(fmt.Sprintf("match :%v, methods %v", route.Match[i].Name, route.Match[i].Method))
 		}
 	}
 
 	// apply route for headers
 	if config.Headers != nil {
 		for i := 0; i < len(route.Match); i++ {
+			if route.Match[i].Headers == nil {
+				route.Match[i].Headers = map[string]*networking.StringMatch{}
+			}
 			addHeadersMatch(route.Match[i].Headers, config)
+			IngressLog.Debug(fmt.Sprintf("match headers: %v, headers: %v", route.Match[i].Name, route.Match[i].Headers))
 		}
 	}
 
 	if config.QueryParams != nil {
 		for i := 0; i < len(route.Match); i++ {
+			if route.Match[i].QueryParams == nil {
+				route.Match[i].QueryParams = map[string]*networking.StringMatch{}
+			}
 			addQueryParamsMatch(route.Match[i].QueryParams, config)
+			IngressLog.Debug(fmt.Sprintf("match : %v, queryParams: %v", route.Match[i].Name, route.Match[i].QueryParams))
 		}
 	}
 }
@@ -109,6 +119,7 @@ func (m match) matchByMethod(annotations Annotations, ingress *Ingress) error {
 	return nil
 }
 
+// matchByHeader to parse annotations to find matchHeader config
 func (m match) matchByHeader(annotations Annotations, config *Ingress) error {
 	for k, v := range annotations {
 		if idx := strings.Index(k, matchHeader); idx != -1 {
@@ -116,6 +127,7 @@ func (m match) matchByHeader(annotations Annotations, config *Ingress) error {
 				config.Match.Headers = make(map[string]map[string]string)
 			}
 			if err := m.doMatchHeader(k, v, config, idx+len(matchHeader)+1); err != nil {
+				IngressLog.Errorf("matchByHeader() failed, the key: %v, value : %v, start: %d", k, v, idx+len(matchHeader)+1)
 				return err
 			}
 		}
@@ -130,6 +142,7 @@ func (m match) matchByUrlParam(annotations Annotations, config *Ingress) error {
 				config.Match.QueryParams = make(map[string]map[string]string)
 			}
 			if err := m.doMatchQuery(k, v, config, idx+len(matchQuery)+1); err != nil {
+				IngressLog.Errorf("matchByUrlParam() failed, the key: %v, value : %v, start: %d", k, v, idx+len(matchHeader)+1)
 				return err
 			}
 		}
@@ -143,27 +156,34 @@ func (m match) doMatchHeader(k, v string, ingress *Ingress, start int) error {
 		return ErrInvalidAnnotationName
 	}
 
-	if idx := strings.Index(k, exact); idx == 0 { // if idx > 0, it means the "k" has the keywords
+	var (
+		idx      int
+		legalIdx = len(HigressAnnotationsPrefix + "/") // the key has a higress prefix
+	)
+
+	if idx = strings.Index(k, exact); idx == legalIdx {
 		if config.Headers[exact] == nil {
 			config.Headers[exact] = make(map[string]string)
 		}
 		config.Headers[exact][k[start:]] = v
 		return nil
 	}
-	if idx := strings.Index(k, regex); idx == 0 {
+	if idx = strings.Index(k, regex); idx == legalIdx {
 		if config.Headers[regex] == nil {
 			config.Headers[regex] = make(map[string]string)
 		}
 		config.Headers[regex][k[start:]] = v
 		return nil
 	}
-	if idx := strings.Index(k, prefix); idx == 0 {
+	if idx = strings.Index(k, prefix); idx == legalIdx {
 		if config.Headers[prefix] == nil {
 			config.Headers[prefix] = make(map[string]string)
 		}
 		config.Headers[prefix][k[start:]] = v
 		return nil
 	}
+
+	IngressLog.Errorf("idx: %v", idx)
 
 	return ErrInvalidAnnotationName
 }
@@ -174,19 +194,26 @@ func (m match) doMatchQuery(k, v string, ingress *Ingress, start int) error {
 		return ErrInvalidAnnotationName
 	}
 
-	if idx := strings.Index(k, exact); idx == 0 {
+	var (
+		idx      int
+		legalIdx = len(HigressAnnotationsPrefix + "/") // the key has a higress prefix
+	)
+
+	// if idx != -1, it means don't have  exact|regex|prefix
+	// if idx > legalIdx, it means the user key also has exact|regex|prefix. we just match the first one
+	if idx = strings.Index(k, exact); idx == legalIdx {
 		if config.QueryParams[exact] == nil {
 			config.QueryParams[exact] = make(map[string]string)
 		}
 		config.QueryParams[exact][k[start:]] = v
 	}
-	if idx := strings.Index(k, regex); idx == 0 {
+	if idx = strings.Index(k, regex); idx == legalIdx {
 		if config.QueryParams[regex] == nil {
 			config.QueryParams[regex] = make(map[string]string)
 		}
 		config.QueryParams[regex][k[start:]] = v
 	}
-	if idx := strings.Index(k, prefix); idx == 0 {
+	if idx = strings.Index(k, prefix); idx == legalIdx {
 		if config.QueryParams[prefix] == nil {
 			config.QueryParams[prefix] = make(map[string]string)
 		}
@@ -233,6 +260,9 @@ func addQueryParamsMatch(params map[string]*networking.StringMatch, config *Matc
 
 // merge m2 to m1
 func merge(m1 map[string]*networking.StringMatch, m2 map[string]map[string]string) {
+	if m1 == nil {
+		return
+	}
 	for typ, mmap := range m2 {
 		for k, v := range mmap {
 			switch typ {
@@ -261,7 +291,7 @@ func merge(m1 map[string]*networking.StringMatch, m2 map[string]map[string]strin
 					}
 				}
 			default:
-				IngressLog.Errorf("unknown type: %q is not supported HeaderMatch type", typ)
+				IngressLog.Errorf("unknown type: %q is not supported Match type", typ)
 			}
 		}
 
