@@ -65,6 +65,8 @@ type Ingress struct {
 	Destination *DestinationConfig
 
 	IgnoreCase *IgnoreCaseConfig
+
+	Match *MatchConfig
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
@@ -135,6 +137,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			auth{},
 			destination{},
 			ignoreCaseMatching{},
+			match{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},
@@ -150,6 +153,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			retry{},
 			fallback{},
 			ignoreCaseMatching{},
+			match{},
 		},
 		trafficPolicyHandlers: []TrafficPolicyHandler{
 			upstreamTLS{},
