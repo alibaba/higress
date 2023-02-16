@@ -166,7 +166,8 @@ make builder
 ```
 <details>
 <summary>输出结果</summary>
-<pre><code>image:            wasm-go-builder:go1.20-tinygo0.27.0
+<pre><code>You can use the following command to build the final image in the next stage
+WASM_BUILDER=wasm-go-builder:go1.19-tinygo0.26.0 PLUGIN_NAME= make bb
 </code></pre>
 </details>
 
