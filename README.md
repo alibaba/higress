@@ -163,7 +163,7 @@ helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.ali
 #### 第四步、 创建 Ingress 资源并测试
 
 ```bash
-kubectl apply -f https://github.com/alibaba/higress/releases/download/v0.6.0/quickstart.yaml
+kubectl apply -f https://higress.io/samples/quickstart.yaml
 ```
 
 测试 Ingress 生效：
@@ -178,7 +178,7 @@ curl localhost/bar
 #### 卸载资源
 
 ```bash
-kubectl delete -f https://github.com/alibaba/higress/releases/download/v0.6.0/quickstart.yaml
+kubectl delete -f https://higress.io/samples/quickstart.yaml
 
 helm uninstall higress -n higress-system
 
