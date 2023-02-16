@@ -28,7 +28,7 @@ builder:
 	                               -f DockerfileBuilder \
 	                               .
 	@echo "You can use the following command to build the final image in the next stage"
-	@echo "WASM_BUILDER=${BUILDER_IMG} PLUGIN_NAME= make bb"
+	@echo "WASM_BUILDER=${BUILDER_IMG} PLUGIN_NAME=${PLUGIN_NAME} make bb"
 
 bb: build-on-builder
 build-on-builder:
