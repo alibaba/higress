@@ -134,7 +134,7 @@ Note: The helm version needs to be upgraded to **v3.8.0** and above
 #### step 4. create the ingress and test it
 
 ```bash
-kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
+kubectl apply -f https://higress.io/samples/quickstart.yaml
 ```
 
 Now verify that the ingress works
@@ -149,7 +149,7 @@ curl localhost/bar
 #### Clean-Up
 
 ```bash
-kubectl delete -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
+kubectl delete -f https://higress.io/samples/quickstart.yaml
 
 helm uninstall higress -n higress-system
 
