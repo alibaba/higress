@@ -1,0 +1,47 @@
+global:
+  namespace: efk
+
+elasticsearch:
+  replicas: 3
+  env:
+    javaOpts: "-Xms512m -Xmx512m"
+    maxMapCount: 262144
+    ulimit: 65536
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  volumeClaim:
+    accessMode: ReadWriteOnce
+    storageClassName: standard
+    storage: 3Gi
+
+kibana:
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+fluentd:
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  targets:
+    - namespace: higress-system
+      name: higress-gateway
+  es:
+    host: elasticsearch.{{ .Values.global.namespace }}
+    port: 9200
+  flushThreadCount: 2
+  flushInterval: 5s
+  retryMaxInterval: 30
