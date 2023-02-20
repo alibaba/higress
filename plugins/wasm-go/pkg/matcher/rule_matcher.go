@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
 
@@ -68,7 +69,7 @@ func (m RuleMatcher[PluginConfig]) GetMatchConfig() (*PluginConfig, error) {
 		return nil, err
 	}
 	routeName, err := proxywasm.GetProperty([]string{"route_name"})
-	if err != nil {
+	if err != nil && err != types.ErrorStatusNotFound {
 		return nil, err
 	}
 	for _, rule := range m.ruleConfig {
