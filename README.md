@@ -154,8 +154,8 @@ kubectl.exe config use-context kind-higress
 #### 第三步、 安装 higress
 
 ```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
+helm repo add higress.io https://higress.io/helm-charts
+helm install higress higress.io/higress-local -n higress-system --create-namespace
 ```
 
 注：helm版本需升级至**v3.8.0**及以上
@@ -190,8 +190,8 @@ kubectl delete ns higress-system
 #### 第一步、 安装 higress
 
 ```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
+helm repo add higress.io https://higress.io/helm-charts
+helm install higress higress.io/higress -n higress-system --create-namespace
 ```
 
 #### 第二步、 创建 Ingress 资源并测试
