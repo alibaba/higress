@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewritePath)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewriteHost)
 }
 
 var HTTPRouteRewriteHost = suite.ConformanceTest{
