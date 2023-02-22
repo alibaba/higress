@@ -127,8 +127,8 @@ kubectl.exe config use-context kind-higress
 #### step 3. install higress
 
 ```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
+helm repo add higress.io https://higress.io/helm-charts
+helm install higress higress.io/higress -n higress-system --create-namespace --set global.kind=true
 ```
 Note: The helm version needs to be upgraded to **v3.8.0** and above
 #### step 4. create the ingress and test it
@@ -161,8 +161,8 @@ kubectl delete ns higress-system
 #### step 1. install higress
 
 ```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
+helm repo add higress.io https://higress.io/helm-charts
+helm install higress higress.io/higress -n higress-system --create-namespace
 ```
 
 #### step 2. create the ingress and test it
