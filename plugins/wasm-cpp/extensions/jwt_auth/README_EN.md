@@ -1,5 +1,5 @@
 # Description
-The `jwt-auth` plugin implements authentication and authorization based on JWT(JSON Web Tokens), supports parsing JWTs from URL parameters, request headers, and Cookie fields from HTTP requests, and verifies whether the token has permission to access.
+The `jwt-auth` plugin implements authentication and authorization based on JWT (JSON Web Token), supports parsing JWTs from URL parameters, request headers, and Cookie fields from HTTP requests, and verifies whether the token has permission to access.
 
 The difference between this plugin and the JWT authentication in `Security Capabilities->Authentication and Authorization` is that it provides additional capabilities for identifying the caller's identity, supporting the configuration of different JWT credentials for different callers.
 
@@ -8,7 +8,7 @@ The difference between this plugin and the JWT authentication in `Security Capab
 ## 1. Token-based authentication
 
 ### 1.1 Introduction
-Many open APIs need to identify the identity of the requester and determine whether the requested resource can be returned to the requester based on this identity. Token is a mechanism used for identity verification. Based on this mechanism, the application does not need to retain the user's authentication information or session information on the server, which can realize stateless and distributed web application authorization and provide convenience for application extension.
+Many open APIs need to identify the identity of the caller and determine whether the requested resource can be returned to the caller based on this identity. Token is a mechanism used for identity verification. Based on this mechanism, the application does not need to retain the user's authentication information or session information on the server, which can realize stateless and distributed web application authorization and provide convenience for application extension.
 
 ### 1.2 Process Description
 
@@ -16,7 +16,7 @@ Many open APIs need to identify the identity of the requester and determine whet
 
 The above figure is the business process sequence diagram when the gateway uses JWT for authentication, and the following we will describe the steps marked in the figure in detail in words:
 
-1. The client initiates an authentication request to the API gateway, usually carrying the terminal user's username and password in the request;
+1. The client initiates an authentication request to the API gateway, usually carrying the end user's username and password in the request;
 
 2. The gateway forwards the request directly to the backend service;
 
@@ -32,13 +32,13 @@ The above figure is the business process sequence diagram when the gateway uses 
 
 8. The gateway returns the business response to the client.
 
-In this entire process, the gateway uses the token authentication mechanism to realize the ability of users to use their own user system to authorize their API. Next, we will introduce the structured token Json Web Token (JWT) used by the gateway to implement token authentication.
+In this entire process, the gateway uses the token authentication mechanism to realize the ability of users to use their own user system to authorize their API. Next, we will introduce the structured token JSON Web Token (JWT) used by the gateway to implement token authentication.
 
 ### 1.3 JWT
 
 #### 1.3.1 Introduction
 
-Json Web Token (JWT) is an open standard RFC7519 based on JSON for executing a type of claim to pass between network applications. JWT can generally be used as an independent identity verification token, which can contain user identification, user roles, and permissions information, making it easier to obtain resources from the resource server, and can also add some other necessary declarative information for other business logic, especially suitable for the login scenario of distributed sites.
+JSON Web Token (JWT) is an open standard RFC7519 based on JSON for executing a type of claim to pass between network applications. JWT can generally be used as an independent identity verification token, which can contain user identification, user roles, and permissions information, making it easier to obtain resources from the resource server, and can also add some other necessary declarative information for other business logic, especially suitable for the login scenario of distributed sites.
 
 #### 1.3.2 Composition of JWT
 
@@ -88,12 +88,12 @@ The payload is where the actual information is stored. The details are defined b
 iss: The issuer of the token. This indicates who created the token and is a string value.
 sub: The subject identifier. This is the unique identifier for the end user provided by the issuer, and is no longer than 255 ASCII characters, and is case-sensitive within the issuer's scope.
 aud: The audience(s) of the token, which is an array of case-sensitive strings.
-exp: The expiration time of the token, which is a Unix timestamp in seconds, and any token that is issued after that time is invalid.
-iat: The time at which the token was issued, also a Unix timestamp in seconds.
-jti: The unique identifier for the token, and the value is unique for every token created by the issuer. It is usually a cryptographically random value to prevent conflicts. This component adds a random entropy that an attacker cannot obtain to the structured token, making it more difficult for the token to be guessed or replayed.
+exp: The expiration time of the token, after which the token will be invalidated, is a integer declaration representing the number of seconds since January 1, 1970.
+iat: The issuance time of the token, is a integer declaration representing the number of seconds since January 1, 1970.
+jti: The unique identifier of the token, and the value is unique for every token created by the issuer. It is usually a cryptographically random value to prevent conflicts. This component adds a random entropy that an attacker cannot obtain to the structured token, making it more difficult for the token to be guessed or replayed.
 ```
 
-Custom fields for a user system can also be added, such as the example below adding a "name" field for the user's nickname:
+Custom fields for a user feature can also be added, such as the example below adding a "name" field for the user's nickname:
 
 ```js
 {
@@ -115,13 +115,13 @@ var encodedString = base64UrlEncode(header) + '.' + base64UrlEncode(payload);
 var signature = HMACSHA256(encodedString, '$secret');
 ```
 
-These three parts are then concatenated using periods to form the complete JWT string as shown in the example in section 1.3.2.
+These three parts are then concatenated using periods to form the complete JWT string as shown in the example at the beginning of this section.
 
 #### 1.3.3 Time validity
 
 The gateway will verify the exp field in the token. Once this field has expired, the gateway will consider the token invalid and reject the request directly. The expiration time value must be set.
 
-1.3.4 Several Characteristics of JWT
+#### 1.3.4 Several Characteristics of JWT
 
 1. By default, JWT is not encrypted and cannot write secret data into JWT.
 2. JWT can not only be used for authentication but also for exchanging information. Using JWT effectively can reduce the number of times servers query the database.
@@ -135,7 +135,7 @@ The gateway will verify the exp field in the token. Once this field has expired,
 
 **Method 1: Generate online**
 
-Users can generate the private and public keys used for token generation and verification on this website https://mkjwk.org. The private key is used for the authorization service to issue JWT, and the public key is configured into the JWT plugin for the gateway to verify the signature of the request. Note that the jwks format configuration used by the gateway requires the Public Key in the figure below to be placed in the keys structure, such as: `{"keys":[{"kty":"RSA","e":"AQAB",...}]}`
+Users can generate the private and public keys used for token generation and verification on this website https://mkjwk.org. The private key is used for the authorization service to issue JWT, and the public key is configured into the JWT plugin for the gateway to verify the signature of the request. Note that the JWKs format configuration used by the gateway requires the public key in the figure below to be placed in the keys structure, such as: `{"keys":[{"kty":"RSA","e":"AQAB",...}]}`
 
 <img src="https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2336348951/p135823.png" style="zoom:50%" />
 
@@ -393,7 +393,7 @@ consumers:
 | 
 HTTP Status Code | Error Message               | Reason Description|
 | ----------- | ---------------------- | -------------------------------------------------------------------------------- |
-| 401         | Jwt missing            | The JWT is not provided in the request header. |
-| 401         | Jwt expired            | The JWT has expired. |
-| 401         | Jwt verification fails | The JWT payload verification failed, such as when the iss claim does not match. |
-| 403         | Access Denied          | Access to the current route is denied. |
+| 401         | JWT missing            | The JWT is not provided in the request header. |
+| 401         | JWT expired            | The JWT has expired. |
+| 401         | JWT verification fails | The JWT payload verification failed, such as the iss iss mismatch. |
+| 403         | Access denied          | Access to the current route is denied. |
