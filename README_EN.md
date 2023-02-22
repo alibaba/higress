@@ -128,7 +128,7 @@ kubectl.exe config use-context kind-higress
 
 ```bash
 helm repo add higress.io https://higress.io/helm-charts
-helm install higress higress.io/higress-local -n higress-system --create-namespace
+helm install higress higress.io/higress -n higress-system --create-namespace --set global.kind=true
 ```
 Note: The helm version needs to be upgraded to **v3.8.0** and above
 #### step 4. create the ingress and test it

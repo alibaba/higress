@@ -155,7 +155,7 @@ kubectl.exe config use-context kind-higress
 
 ```bash
 helm repo add higress.io https://higress.io/helm-charts
-helm install higress higress.io/higress-local -n higress-system --create-namespace
+helm install higress higress.io/higress -n higress-system --create-namespace --set global.kind=true
 ```
 
 注：helm版本需升级至**v3.8.0**及以上
