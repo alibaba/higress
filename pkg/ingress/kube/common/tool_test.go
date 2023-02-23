@@ -416,3 +416,77 @@ func TestSortRoutes(t *testing.T) {
 		t.Fatal("should be test-3")
 	}
 }
+
+// TestSortHTTPRoutesWithMoreRules include headers, query params, methods
+func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
+	input := []struct {
+		pathType   PathType
+		path       string
+		method     *networking.StringMatch
+		header     map[string]*networking.StringMatch
+		queryParam map[string]*networking.StringMatch
+	}{
+		{
+			pathType: Exact,
+			path:     "/bar",
+		},
+		{
+			pathType: Prefix,
+			path:     "/bar",
+		},
+		{
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET|PUT"},
+			},
+		},
+		{
+			pathType: Prefix,
+			path:     "/bar",
+			header: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
+		{
+			pathType: Prefix,
+			path:     "/bar",
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
+	}
+
+	origin := []string{"1", "2", "3", "4", "5"}
+	expect := []string{"1", "4", "5", "3", "2"}
+
+	var list []*WrapperHTTPRoute
+	for idx, val := range input {
+		list = append(list, &WrapperHTTPRoute{
+			OriginPath:     val.path,
+			OriginPathType: val.pathType,
+			HTTPRoute: &networking.HTTPRoute{
+				Name: origin[idx],
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Method:      val.method,
+						Headers:     val.header,
+						QueryParams: val.queryParam,
+					},
+				},
+			},
+		})
+	}
+
+	SortHTTPRoutes(list)
+
+	for idx, val := range list {
+		if val.HTTPRoute.Name != expect[idx] {
+			t.Fatalf("should be %s", expect[idx])
+		}
+	}
+}

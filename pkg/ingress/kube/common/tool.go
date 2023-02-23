@@ -175,6 +175,8 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 		return false
 	}
 
+	// default backend,user specified root path => path type => path length =>
+	// header => query param => methods
 	sort.SliceStable(routes, func(i, j int) bool {
 		// Move default backend to end
 		if isDefaultBackend(routes[i]) {
@@ -193,7 +195,21 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 		}
 
 		if routes[i].OriginPathType == routes[j].OriginPathType {
-			return len(routes[i].OriginPath) > len(routes[j].OriginPath)
+			if n, m := len(routes[i].OriginPath), len(routes[j].OriginPath); n != m {
+				return n > m
+			}
+
+			m1, m2 := routes[i].HTTPRoute.Match[0], routes[j].HTTPRoute.Match[0]
+			// headers
+			if n, m := len(m1.Headers), len(m2.Headers); n != m {
+				return n > m
+			}
+			// query params
+			if n, m := len(m1.QueryParams), len(m2.QueryParams); n != m {
+				return n > m
+			}
+			// methods
+			return m1.Method.GetRegex() > m2.Method.GetRegex()
 		}
 
 		if routes[i].OriginPathType == Exact {
