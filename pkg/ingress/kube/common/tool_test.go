@@ -512,10 +512,23 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 				},
 			},
 		},
+		{
+			order:    "10",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+			queryParam: map[string]*networking.StringMatch{
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
 	}
 
-	origin := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9"}
-	expect := []string{"1", "9", "4", "3", "6", "5", "8", "7", "2"}
+	origin := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
+	expect := []string{"1", "9", "10", "4", "3", "6", "5", "8", "7", "2"}
 
 	var list []*WrapperHTTPRoute
 	for idx, val := range input {

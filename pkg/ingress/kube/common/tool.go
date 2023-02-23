@@ -202,8 +202,8 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 
 			m1, m2 := routes[i].HTTPRoute.Match[0], routes[j].HTTPRoute.Match[0]
 			// methods
-			if n, m := len(m1.Method.GetRegex()), len(m2.Method.GetRegex()); true {
-				if n != 0 && m != 0 && n != m {
+			if n, m := len(m1.Method.GetRegex()), len(m2.Method.GetRegex()); n != m {
+				if n != 0 && m != 0 {
 					return n < m
 				} else if n != 0 {
 					return true
@@ -219,6 +219,7 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 			if n, m := len(m1.QueryParams), len(m2.QueryParams); n != m {
 				return n > m
 			}
+			return false
 		}
 
 		if routes[i].OriginPathType == Exact {
