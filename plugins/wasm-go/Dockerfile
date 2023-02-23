@@ -1,2 +1,17 @@
-FROM scratch
-COPY main.wasm plugin.wasm
+ARG BUILDER=docker.io/chenzhongrun/wasm-go-builder:go1.19-tinygo0.26.0
+FROM $BUILDER as builder
+
+ARG PLUGIN_NAME=hello-world
+
+WORKDIR /workspace
+
+COPY . .
+
+WORKDIR /workspace/extensions/$PLUGIN_NAME
+
+RUN go mod tidy
+RUN tinygo build -o /main.wasm -scheduler=none -target=wasi ./main.go
+
+FROM scratch as output
+
+COPY --from=builder /main.wasm plugin.wasm

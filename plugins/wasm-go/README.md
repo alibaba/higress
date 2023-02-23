@@ -4,7 +4,7 @@
 
 此 SDK 用于开发 Higress 的 Wasm 插件
 
-## 使用 Docker 快速构建
+## 使用 Higress wasm-go builder 快速构建
 
 使用以下命令可以快速构建 wasm-go 插件:
 
@@ -16,14 +16,11 @@ $ PLUGIN_NAME=request-block make build
 <summary>输出结果</summary>
 <pre><code>
 DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request-block \
-                               --build-arg GO_VERSION= \
-                               --build-arg TINYGO_VERSION= \
-                               -t request-block:20230213-170844-ca49714 \
-                               -f DockerfileBuilder \
+                               -t request-block:20230223-173305-3b1a471 \
                                --output extensions/request-block .
-[+] Building 84.6s (15/15)                                                                                                                                                                                                                                                0.0s 
+[+] Building 67.7s (12/12) FINISHED
 
-image:            request-block:20230211-184334-f402f86
+image:            request-block:20230223-173305-3b1a471
 output wasm file: extensions/request-block/plugin.wasm
 </code></pre>
 </details>
@@ -39,8 +36,6 @@ output wasm file: extensions/request-block/plugin.wasm
 | `PLUGIN_NAME`    | 可选的   | hello-world                              | 要构建的插件名称。                                                            |
 | `REGISTRY`       | 可选的   | 空                                        | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
 | `IMG`            | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成 | 生成的镜像名称。                                                             |
-| `GO_VERSION`     | 可选的   | 1.19                                     | Go 版本号。                                                              |
-| `TINYGO_VERSION` | 可选的   | 0.25.0                                   | TinyGo 版本号。                                                          |
 
 ## 本地构建
 
@@ -62,10 +57,15 @@ tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-bloc
 
 ### step2. 构建并推送插件的 docker 镜像
 
-使用这份简单的 [dockerfile](./Dockerfile).
+使用这份简单的 Dockerfile
+
+```Dockerfile
+FROM scratch
+COPY main.wasm plugin.wasm
+```
 
 ```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 .
+docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
 docker push <your_registry_hub>/request-block:1.0.0
 ```
 
@@ -151,44 +151,42 @@ spec:
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
 
-## 更多构建细节
+---
+## 构建 wasm-go-builder 镜像
 
-使用 `make build` 会从头构建 wasm-go 的 builder 镜像，然后使用 tinygo 构建 wasm。
-构建过程中会下载 Go 和 Tinygo 安装包，以及执行 apt-get update，会花费大量时间在网络 IO 上。
-如果不想每次构建都从头开始，可以使用分阶段构建。下面介绍分阶段构建的 make 规则。
-
-### `make builder`
-
-`make builder` 用来构建 wasm-go 编译环境镜像。
+前文构建镜像时, 使用 Higress 提前构建好的包含 Go 和 Tinygo 环境的镜像作为基础镜像，该镜像的 Dockerfile 为 目录下的 [DockerfileBuilder](DockerfileBuilder) 文件。
+你可以使用如下命令构建该镜像：
 
 ```bash
-make builder
+docker build --build-arg BASE_IMAGE=docker.io/ubuntu \
+            --build-arg GO_VERSION=1.19 \
+            --build-arg TINYGO_VERSION=0.26.0 \
+            -f DockerfileBuilder \
+            -t wasm-go-builder:go1.19-tinygo0.26.0 \
+            .
 ```
-<details>
-<summary>输出结果</summary>
-<pre><code>You can use the following command to build the final image in the next stage
-WASM_BUILDER=wasm-go-builder:go1.19-tinygo0.26.0 PLUGIN_NAME= make bb
-</code></pre>
-</details>
 
-可以指定 `GO_VERSION`, `TINYGO_VERSION` 参数决定 Go 和 Tinygo 版本号;
-指定 `REGISTRY` 设置要推送的镜像仓库。
-
-一旦构建出 builder 镜像，以后就可以复用这个镜像来构建 wasm-go, 而不必每次都从头开始构建。
-
-### `make build-on-builder` 或 `make bb`
-
-`make build-on-builder` 是利用上一阶段输出的 builder 镜像来构建 wasm-go.
-`make bb` 是 `make build-on-builder` 的别名。
-
-```bash
-WASM_BUILDER=wasm-go-builder:go1.20-tinygo0.27.0 PLUGIN_NAME=request-block make bb
+如果有需要，可以使用 docker buildx 或者 podman 构建 multi-arch 镜像。
+```bash docker buildx
+$ docker buildx create --use --name higress-builder
+$ docker buildx build --platform linux/amd64,linux/arm64	\
+            --build-arg BASE_IMAGE=docker.io/ubuntu \
+            --build-arg GO_VERSION=1.19 \
+            --build-arg TINYGO_VERSION=0.26.0 \
+            -f DockerfileBuilder \
+            -t wasm-go-builder:go1.19-tinygo0.26.0 \
+            --push \
+            .
 ```
-<details>
-<summary>输出结果</summary>
-<pre><code>image:            request-block:20230216-143723-c5845c1
-output wasm file: extensions/request-block/plugin.wasm
-</code></pre>
-</details>
-
-其中 `WASM_BUILDER=wasm-go-builder:go1.20-tinygo0.27.0` 是上一阶段输出的 builder 镜像。
+或
+```bash podman
+podman build --jobs 2 \
+            --platform linux/amd64,linux/arm64 \
+            --manifest wasm-go-builder:go1.19-tinygo0.26.0 \
+            --build-arg BASE_IMAGE=docker.io/ubuntu \
+            --build-arg GO_VERSION=1.19 \
+            --build-arg TINYGO_VERSION=0.26.0 \
+            -f DockerfileBuilder \
+            --format=docker \
+            .
+```
