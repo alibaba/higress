@@ -18,30 +18,35 @@ import (
 	"testing"
 
 	"github.com/alibaba/higress/test/ingress/conformance/utils/http"
+	"github.com/alibaba/higress/test/ingress/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/ingress/conformance/utils/suite"
 )
+
+func init() {
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentDirect)
+}
 
 var HTTPRoutePermanentDirect = suite.ConformanceTest{
 	ShortName:   "HTTPRoutePermanentDirect",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent direct header.",
-	Manifests:   []string{"tests/httproute-permanent-direct.yaml"},
+	Manifests:   []string{"tests/httproute-permanent-redirect.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
+					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
-						Path: "/foo",
+						Host:             "foo.com",
+						Path:             "/foo",
+						UnfollowRedirect: true,
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "bar.com",
-							Path: "/foo",
-						},
+					RedirectRequest: &roundtripper.RedirectRequest{
+						Scheme: "http",
+						Host:   "bar.com",
+						Path:   "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
