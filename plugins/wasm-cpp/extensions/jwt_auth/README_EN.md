@@ -88,8 +88,8 @@ The payload is where the actual information is stored. The details are defined b
 iss: The issuer of the token. This indicates who created the token and is a string value.
 sub: The subject identifier. This is the unique identifier for the end user provided by the issuer, and is no longer than 255 ASCII characters, and is case-sensitive within the issuer's scope.
 aud: The audience(s) of the token, which is an array of case-sensitive strings.
-exp: The expiration time of the token, after which the token will be invalidated, is a integer declaration representing the number of seconds since January 1, 1970.
-iat: The issuance time of the token, is a integer declaration representing the number of seconds since January 1, 1970.
+exp: The expiration time of the token, after which the token will be invalidated, is an integer declaration representing the Unix timestamp in seconds.
+iat: The issuance time of the token, is an integer declaration representing the Unix timestamp in seconds.
 jti: The unique identifier of the token, and the value is unique for every token created by the issuer. It is usually a cryptographically random value to prevent conflicts. This component adds a random entropy that an attacker cannot obtain to the structured token, making it more difficult for the token to be guessed or replayed.
 ```
 
@@ -395,5 +395,5 @@ HTTP Status Code | Error Message               | Reason Description|
 | ----------- | ---------------------- | -------------------------------------------------------------------------------- |
 | 401         | JWT missing            | The JWT is not provided in the request header. |
 | 401         | JWT expired            | The JWT has expired. |
-| 401         | JWT verification fails | The JWT payload verification failed, such as the iss iss mismatch. |
+| 401         | JWT verification fails | The JWT payload verification failed, such as the iss mismatch. |
 | 403         | Access denied          | Access to the current route is denied. |
