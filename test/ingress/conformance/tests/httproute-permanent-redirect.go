@@ -51,7 +51,7 @@ var HTTPRoutePermanentDirect = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("Canary HTTPRoute Traffic Split", func(t *testing.T) {
+		t.Run("HTTPRoute permanent redirect", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
