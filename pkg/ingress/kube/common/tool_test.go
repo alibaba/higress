@@ -420,6 +420,7 @@ func TestSortRoutes(t *testing.T) {
 // TestSortHTTPRoutesWithMoreRules include headers, query params, methods
 func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 	input := []struct {
+		order      string
 		pathType   PathType
 		path       string
 		method     *networking.StringMatch
@@ -427,14 +428,17 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 		queryParam map[string]*networking.StringMatch
 	}{
 		{
+			order:    "1",
 			pathType: Exact,
 			path:     "/bar",
 		},
 		{
+			order:    "2",
 			pathType: Prefix,
 			path:     "/bar",
 		},
 		{
+			order:    "3",
 			pathType: Prefix,
 			path:     "/bar",
 			method: &networking.StringMatch{
@@ -442,6 +446,15 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 			},
 		},
 		{
+			order:    "4",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+		},
+		{
+			order:    "5",
 			pathType: Prefix,
 			path:     "/bar",
 			header: map[string]*networking.StringMatch{
@@ -451,6 +464,20 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 			},
 		},
 		{
+			order:    "6",
+			pathType: Prefix,
+			path:     "/bar",
+			header: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
+		{
+			order:    "7",
 			pathType: Prefix,
 			path:     "/bar",
 			queryParam: map[string]*networking.StringMatch{
@@ -459,10 +486,36 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 				},
 			},
 		},
+		{
+			order:    "8",
+			pathType: Prefix,
+			path:     "/bar",
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
+		{
+			order:    "9",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
 	}
 
-	origin := []string{"1", "2", "3", "4", "5"}
-	expect := []string{"1", "4", "5", "3", "2"}
+	origin := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9"}
+	expect := []string{"1", "9", "4", "3", "6", "5", "8", "7", "2"}
 
 	var list []*WrapperHTTPRoute
 	for idx, val := range input {
@@ -486,7 +539,7 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 
 	for idx, val := range list {
 		if val.HTTPRoute.Name != expect[idx] {
-			t.Fatalf("should be %s", expect[idx])
+			t.Fatalf("should be %s, but got %s", expect[idx], val.HTTPRoute.Name)
 		}
 	}
 }
