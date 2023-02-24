@@ -1,4 +1,4 @@
-ARG BUILDER=docker.io/chenzhongrun/wasm-go-builder:go1.19-tinygo0.26.0
+ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.19-tinygo0.26.0
 FROM $BUILDER as builder
 
 ARG PLUGIN_NAME=hello-world

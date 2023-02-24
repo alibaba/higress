@@ -2,7 +2,7 @@
 
 ## 介绍
 
-此 SDK 用于开发 Higress 的 Wasm 插件
+此 SDK 用于使用 Go 语言开发 Higress 的 Wasm 插件。
 
 ## 使用 Higress wasm-go builder 快速构建
 
@@ -31,11 +31,11 @@ output wasm file: extensions/request-block/plugin.wasm
 
 ### 参数说明
 
-| 参数名称             | 可选/必须 | 默认值                                      | 含义                                                                   |
-|------------------|-------|------------------------------------------|----------------------------------------------------------------------|
-| `PLUGIN_NAME`    | 可选的   | hello-world                              | 要构建的插件名称。                                                            |
-| `REGISTRY`       | 可选的   | 空                                        | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
-| `IMG`            | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成 | 生成的镜像名称。                                                             |
+| 参数名称          | 可选/必须 | 默认值                                       | 含义                                                                   |
+|---------------|-------|-------------------------------------------|----------------------------------------------------------------------|
+| `PLUGIN_NAME` | 可选的   | hello-world                               | 要构建的插件名称。                                                            |
+| `REGISTRY`    | 可选的   | 空                                         | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
+| `IMG`         | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成。 | 生成的镜像名称。如非空，则会覆盖`REGISTRY` 参数。                                       |
 
 ## 本地构建
 
@@ -90,7 +90,6 @@ spec:
 ```
 
 使用 `kubectl apply -f <your-wasm-plugin-yaml>` 使资源生效。
-
 资源生效后，如果请求url携带 `swagger.html`, 则这个请求就会被拒绝，例如：
 
 ```bash
@@ -150,43 +149,3 @@ spec:
 ```
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
-
----
-## 构建 wasm-go-builder 镜像
-
-前文构建镜像时, 使用 Higress 提前构建好的包含 Go 和 Tinygo 环境的镜像作为基础镜像，该镜像的 Dockerfile 为 目录下的 [DockerfileBuilder](DockerfileBuilder) 文件。
-你可以使用如下命令构建该镜像：
-
-```bash
-docker build --build-arg BASE_IMAGE=docker.io/ubuntu \
-            --build-arg GO_VERSION=1.19 \
-            --build-arg TINYGO_VERSION=0.26.0 \
-            -f DockerfileBuilder \
-            -t wasm-go-builder:go1.19-tinygo0.26.0 \
-            .
-```
-
-如果有需要，可以使用 docker buildx 或者 podman 构建 multi-arch 镜像。
-```bash docker buildx
-$ docker buildx create --use --name higress-builder
-$ docker buildx build --platform linux/amd64,linux/arm64	\
-            --build-arg BASE_IMAGE=docker.io/ubuntu \
-            --build-arg GO_VERSION=1.19 \
-            --build-arg TINYGO_VERSION=0.26.0 \
-            -f DockerfileBuilder \
-            -t wasm-go-builder:go1.19-tinygo0.26.0 \
-            --push \
-            .
-```
-或
-```bash podman
-podman build --jobs 2 \
-            --platform linux/amd64,linux/arm64 \
-            --manifest wasm-go-builder:go1.19-tinygo0.26.0 \
-            --build-arg BASE_IMAGE=docker.io/ubuntu \
-            --build-arg GO_VERSION=1.19 \
-            --build-arg TINYGO_VERSION=0.26.0 \
-            -f DockerfileBuilder \
-            --format=docker \
-            .
-```
