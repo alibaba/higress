@@ -2,9 +2,9 @@
 
 ## 介绍
 
-此 SDK 用于开发 Higress 的 Wasm 插件
+此 SDK 用于使用 Go 语言开发 Higress 的 Wasm 插件。
 
-## 使用 Docker 快速构建
+## 使用 Higress wasm-go builder 快速构建
 
 使用以下命令可以快速构建 wasm-go 插件:
 
@@ -16,15 +16,11 @@ $ PLUGIN_NAME=request-block make build
 <summary>输出结果</summary>
 <pre><code>
 DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request-block \
-                               --build-arg THIS_ARCH= \
-                               --build-arg GO_VERSION= \
-                               --build-arg TINYGO_VERSION= \
-                               -t request-block:20230213-170844-ca49714 \
-                               -f DockerfileBuilder \
+                               -t request-block:20230223-173305-3b1a471 \
                                --output extensions/request-block .
-[+] Building 84.6s (16/16)                                                                                                                                                                                                                                                0.0s 
+[+] Building 67.7s (12/12) FINISHED
 
-image:            request-block:20230211-184334-f402f86
+image:            request-block:20230223-173305-3b1a471
 output wasm file: extensions/request-block/plugin.wasm
 </code></pre>
 </details>
@@ -35,14 +31,11 @@ output wasm file: extensions/request-block/plugin.wasm
 
 ### 参数说明
 
-| 参数名称             | 可选/必须 | 默认值                                      | 含义                                                                   |
-|------------------|-------|------------------------------------------|----------------------------------------------------------------------|
-| `THIS_ARCH`      | 可选的   | amd64                                    | 构建插件的机器的指令集架构，在非 amd64 架构的机器上构建时要手动指定。                               |
-| `PLUGIN_NAME`    | 可选的   | hello-world                              | 要构建的插件名称。                                                            |
-| `REGISTRY`       | 可选的   | 空                                        | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
-| `IMG`            | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成 | 生成的镜像名称。                                                             |
-| `GO_VERSION`     | 可选的   | 1.19                                     | Go 版本号。                                                              |
-| `TINYGO_VERSION` | 可选的   | 0.26.0                                   | TinyGo 版本号。                                                          |
+| 参数名称          | 可选/必须 | 默认值                                       | 含义                                                                   |
+|---------------|-------|-------------------------------------------|----------------------------------------------------------------------|
+| `PLUGIN_NAME` | 可选的   | hello-world                               | 要构建的插件名称。                                                            |
+| `REGISTRY`    | 可选的   | 空                                         | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
+| `IMG`         | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成。 | 生成的镜像名称。如非空，则会覆盖`REGISTRY` 参数。                                       |
 
 ## 本地构建
 
@@ -64,10 +57,15 @@ tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-bloc
 
 ### step2. 构建并推送插件的 docker 镜像
 
-使用这份简单的 [dockerfile](./Dockerfile).
+使用这份简单的 Dockerfile
+
+```Dockerfile
+FROM scratch
+COPY main.wasm plugin.wasm
+```
 
 ```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 .
+docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
 docker push <your_registry_hub>/request-block:1.0.0
 ```
 
@@ -92,7 +90,6 @@ spec:
 ```
 
 使用 `kubectl apply -f <your-wasm-plugin-yaml>` 使资源生效。
-
 资源生效后，如果请求url携带 `swagger.html`, 则这个请求就会被拒绝，例如：
 
 ```bash
@@ -152,4 +149,3 @@ spec:
 ```
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
-
