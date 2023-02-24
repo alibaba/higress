@@ -16,3 +16,17 @@ build:
 
 build-push: build
 	docker push ${IMG}
+
+# builder:
+# To build a wasm-go-builder image.
+# If you want to use Go/TinyGo with another version, please modify GO_VERSION/TINYGO_VERSION.
+# After your wasm-go-builder image is built, you can use --build-arg BUILDER=<your-wasm-go-builder> to build plugin image.
+builder:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+			--build-arg BASE_IMAGE=docker.io/ubuntu \
+			--build-arg GO_VERSION=1.19 \
+			--build-arg TINYGO_VERSION=0.26.0 \
+			-f DockerfileBuilder \
+			-t wasm-go-builder:go1.19-tinygo0.26.0 \
+			--push \
+			.
