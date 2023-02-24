@@ -205,11 +205,8 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 			if n, m := len(m1.Method.GetRegex()), len(m2.Method.GetRegex()); n != m {
 				if n != 0 && m != 0 {
 					return n < m
-				} else if n != 0 {
-					return true
-				} else if m != 0 {
-					return false
 				}
+				return n != 0
 			}
 			// headers
 			if n, m := len(m1.Headers), len(m2.Headers); n != m {
