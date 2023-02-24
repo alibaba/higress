@@ -17,7 +17,8 @@ kind: Ingress
 metadata:
   annotations:
     nginx.ingress.kubernetes.io/permanent-redirect: "http://bar.com"
-  name: httproute-permanent-redirect
+    nginx.ingress.kubernetes.io/permanent-redirect-code: "308"
+  name: httproute-permanent-redirect-code
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress

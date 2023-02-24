@@ -23,13 +23,13 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirect)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteAppRoot)
 }
 
-var HTTPRoutePermanentRedirect = suite.ConformanceTest{
-	ShortName:   "HTTPRoutePermanentRedirect",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect header.",
-	Manifests:   []string{"tests/httproute-permanent-redirect.yaml"},
+var HTTPRouteAppRoot = suite.ConformanceTest{
+	ShortName:   "HTTPRouteAppRoot",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the app root.",
+	Manifests:   []string{"tests/httproute-app-root.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -40,23 +40,23 @@ var HTTPRoutePermanentRedirect = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/foo",
+						Path:             "/",
 						UnfollowRedirect: true,
 					},
 					RedirectRequest: &roundtripper.RedirectRequest{
 						Scheme: "http",
-						Host:   "bar.com",
+						Host:   "foo.com",
 						Path:   "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 301,
+						StatusCode: 302,
 					},
 				},
 			},
 		}
-		t.Run("HTTPRoute permanent redirect", func(t *testing.T) {
+		t.Run("HTTPRoute app root", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

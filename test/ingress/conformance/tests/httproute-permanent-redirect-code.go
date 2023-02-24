@@ -23,13 +23,13 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirect)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirectCode)
 }
 
-var HTTPRoutePermanentRedirect = suite.ConformanceTest{
-	ShortName:   "HTTPRoutePermanentRedirect",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect header.",
-	Manifests:   []string{"tests/httproute-permanent-redirect.yaml"},
+var HTTPRoutePermanentRedirectCode = suite.ConformanceTest{
+	ShortName:   "HTTPRoutePermanentRedirectCode",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect code header.",
+	Manifests:   []string{"tests/httproute-permanent-redirect-code.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -51,12 +51,12 @@ var HTTPRoutePermanentRedirect = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 301,
+						StatusCode: 308,
 					},
 				},
 			},
 		}
-		t.Run("HTTPRoute permanent redirect", func(t *testing.T) {
+		t.Run("HTTPRoute permanent redirect code", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

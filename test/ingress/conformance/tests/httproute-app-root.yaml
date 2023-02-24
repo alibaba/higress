@@ -16,8 +16,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/permanent-redirect: "http://bar.com"
-  name: httproute-permanent-redirect
+    nginx.ingress.kubernetes.io/app-root: "/foo"
+  name: httproute-app-root
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -26,7 +26,7 @@ spec:
     http:
       paths:
       - pathType: Prefix
-        path: "/foo"
+        path: "/"
         backend:
           service:
             name: infra-backend-v1
