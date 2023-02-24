@@ -50,5 +50,22 @@ func TestHigressConformanceTests(t *testing.T) {
 
 	cSuite.Setup(t)
 
-	cSuite.Run(t, tests.HigressConformanceTests)
+	higressTests := []suite.ConformanceTest{
+		tests.HTTPRouteSimpleSameNamespace,
+		tests.HTTPRouteHostNameSameNamespace,
+		tests.HTTPRouteRewritePath,
+		tests.HTTPRouteRewriteHost,
+		tests.HTTPRouteCanaryHeader,
+		tests.HTTPRouteEnableCors,
+		tests.HTTPRouteIgnoreCaseMatch,
+		tests.HTTPRouteMatchMethods,
+		tests.HTTPRouteMatchQueryParams,
+		tests.HTTPRouteMatchHeaders,
+		tests.HTTPRouteAppRoot,
+		tests.HTTPRoutePermanentRedirect,
+		tests.HTTPRoutePermanentRedirectCode,
+		tests.HTTPRouteTemporalRedirect,
+	}
+
+	cSuite.Run(t, higressTests)
 }

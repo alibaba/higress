@@ -17,7 +17,7 @@ kind: Ingress
 metadata:
   annotations:
     nginx.ingress.kubernetes.io/app-root: "/foo"
-  name: httproute-permanent-direct
+  name: httproute-app-root
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress

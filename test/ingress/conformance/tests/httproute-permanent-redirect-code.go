@@ -23,12 +23,12 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentDirectCode)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirectCode)
 }
 
-var HTTPRoutePermanentDirectCode = suite.ConformanceTest{
-	ShortName:   "HTTPRoutePermanentDirectCode",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent direct code header.",
+var HTTPRoutePermanentRedirectCode = suite.ConformanceTest{
+	ShortName:   "HTTPRoutePermanentRedirectCode",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect code header.",
 	Manifests:   []string{"tests/httproute-permanent-redirect-code.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

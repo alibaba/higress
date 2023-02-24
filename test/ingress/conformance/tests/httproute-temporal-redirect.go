@@ -23,12 +23,12 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteTemporalDirect)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteTemporalRedirect)
 }
 
-var HTTPRouteTemporalDirect = suite.ConformanceTest{
-	ShortName:   "HTTPRouteTemporalDirect",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the temporal direct header.",
+var HTTPRouteTemporalRedirect = suite.ConformanceTest{
+	ShortName:   "HTTPRouteTemporalRedirect",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the temporal redirect header.",
 	Manifests:   []string{"tests/httproute-temporal-redirect.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

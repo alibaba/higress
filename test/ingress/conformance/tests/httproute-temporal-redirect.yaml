@@ -17,7 +17,7 @@ kind: Ingress
 metadata:
   annotations:
     nginx.ingress.kubernetes.io/temporal-redirect: "http://bar.com"
-  name: httproute-temporal-direct
+  name: httproute-temporal-redirect
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
