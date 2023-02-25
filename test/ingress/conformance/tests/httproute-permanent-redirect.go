@@ -18,71 +18,45 @@ import (
 	"testing"
 
 	"github.com/alibaba/higress/test/ingress/conformance/utils/http"
+	"github.com/alibaba/higress/test/ingress/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/ingress/conformance/utils/suite"
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewriteHost)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirect)
 }
 
-var HTTPRouteRewriteHost = suite.ConformanceTest{
-	ShortName:   "HTTPRouteRewriteHost",
-	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite host",
-	Manifests:   []string{"tests/httproute-rewrite-host.yaml"},
+var HTTPRoutePermanentRedirect = suite.ConformanceTest{
+	ShortName:   "HTTPRoutePermanentRedirect",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect header.",
+	Manifests:   []string{"tests/httproute-permanent-redirect.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/foo",
-						Host: "foo.com",
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "higress.io",
-							Path: "/foo",
-						},
-					},
-				},
-
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
-			}, {
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
-						Host: "bar.com",
+						Host:             "foo.com",
+						Path:             "/foo",
+						UnfollowRedirect: true,
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "higress.io",
-							Path: "/foo",
-						},
+					RedirectRequest: &roundtripper.RedirectRequest{
+						Scheme: "http",
+						Host:   "bar.com",
+						Path:   "/foo",
 					},
 				},
-
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 301,
 					},
-				},
-
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
 				},
 			},
 		}
-
-		t.Run("Rewrite HTTPRoute Host", func(t *testing.T) {
+		t.Run("HTTPRoute permanent redirect", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
