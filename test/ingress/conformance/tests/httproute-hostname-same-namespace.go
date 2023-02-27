@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 	ShortName:   "HTTPRouteHostNameSameNamespace",
-	Description: "A Ingress in the higress-conformance-infra namespace demonstrates host match ability",
+	Description: "A Ingress in the higress-conformance-infra namespace demonstrates host match ability.",
 	Manifests:   []string{"tests/httproute-hostname-same-namespace.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

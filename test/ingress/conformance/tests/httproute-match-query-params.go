@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteMatchQueryParams = suite.ConformanceTest{
 	ShortName:   "HTTPRouteMatchQueryParams",
-	Description: "A single Ingress in the higress-conformance-infra namespace uses the match queryParams",
+	Description: "A single Ingress in the higress-conformance-infra namespace uses the match queryParams.",
 	Manifests:   []string{"tests/httproute-match-query-params.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

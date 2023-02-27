@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteEnableCors = suite.ConformanceTest{
 	ShortName:   "HTTPRouteEnableCors",
-	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates enable cors ability",
+	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates enable cors ability.",
 	Manifests:   []string{"tests/httproute-enable-cors.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
