@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteMatchHeaders = suite.ConformanceTest{
 	ShortName:   "HTTPRouteMatchHeaders",
-	Description: "A single Ingress in the higress-conformance-infra namespace uses the match headers",
+	Description: "A single Ingress in the higress-conformance-infra namespace uses the match headers.",
 	Manifests:   []string{"tests/httproute-match-headers.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
 	ShortName:   "HTTPRouteIgnoreCaseMatch",
-	Description: "A Ingress in the higress-conformance-infra namespace that ignores URI case in HTTP match",
+	Description: "A Ingress in the higress-conformance-infra namespace that ignores URI case in HTTP match.",
 	Manifests:   []string{"tests/httproute-ignore-case-match.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

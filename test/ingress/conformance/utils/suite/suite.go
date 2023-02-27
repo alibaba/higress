@@ -15,6 +15,7 @@
 package suite
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/alibaba/higress/test/ingress/conformance/utils/config"
@@ -164,11 +165,22 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
+
+	t.Logf("Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
 		})
 	}
+}
+
+func globalConformanceTestsListInfo(tests []ConformanceTest) string {
+	var cases string
+	for index, test := range tests {
+		cases += fmt.Sprintf("CaseNum: %d\nCaseName: %s\nScenario: %s\n\n", index+1, test.ShortName, test.Description)
+	}
+
+	return cases
 }
 
 // ConformanceTest is used to define each individual conformance test.

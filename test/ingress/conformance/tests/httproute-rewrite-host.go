@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteRewriteHost = suite.ConformanceTest{
 	ShortName:   "HTTPRouteRewriteHost",
-	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite host",
+	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite host.",
 	Manifests:   []string{"tests/httproute-rewrite-host.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
