@@ -334,6 +334,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		IngressRouteCache:   common.NewIngressRouteCache(),
 		VirtualServices:     map[string]*common.WrapperVirtualService{},
 		HTTPRoutes:          map[string][]*common.WrapperHTTPRoute{},
+		Route2Ingress:       map[uint32]*common.WrapperConfigWithRuleKey{},
 	}
 
 	// convert http route

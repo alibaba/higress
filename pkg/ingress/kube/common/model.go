@@ -151,6 +151,8 @@ type ConvertOptions struct {
 
 	HostAndPath2Ingress map[string]*config.Config
 
+	Route2Ingress map[uint32]*WrapperConfigWithRuleKey
+
 	// Record valid/invalid routes from ingress
 	IngressRouteCache *IngressRouteCache
 

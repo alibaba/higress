@@ -26,9 +26,9 @@ const (
 	exact       = "exact"
 	regex       = "regex"
 	prefix      = "prefix"
-	matchMethod = "match-method"
-	matchQuery  = "match-query"
-	matchHeader = "match-header"
+	MatchMethod = "match-method"
+	MatchQuery  = "match-query"
+	MatchHeader = "match-header"
 	sep         = " "
 )
 
@@ -52,11 +52,11 @@ func (m match) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 		IngressLog.Errorf("parse methods error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
-	if config.Match.Headers, err = m.matchByHeaderOrQueryParma(annotations, matchHeader, config.Match.Headers); err != nil {
+	if config.Match.Headers, err = m.matchByHeaderOrQueryParma(annotations, MatchHeader, config.Match.Headers); err != nil {
 		IngressLog.Errorf("parse headers error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
-	if config.Match.QueryParams, err = m.matchByHeaderOrQueryParma(annotations, matchQuery, config.Match.QueryParams); err != nil {
+	if config.Match.QueryParams, err = m.matchByHeaderOrQueryParma(annotations, MatchQuery, config.Match.QueryParams); err != nil {
 		IngressLog.Errorf("parse query params error %v within ingress %s/%s", err, config.Namespace, config.Name)
 	}
 
@@ -96,12 +96,12 @@ func (m match) ApplyRoute(route *networking.HTTPRoute, ingressCfg *Ingress) {
 }
 
 func (m match) matchByMethod(annotations Annotations, ingress *Ingress) error {
-	if !annotations.HasHigress(matchMethod) {
+	if !annotations.HasHigress(MatchMethod) {
 		return nil
 	}
 
 	config := ingress.Match
-	str, err := annotations.ParseStringForHigress(matchMethod)
+	str, err := annotations.ParseStringForHigress(MatchMethod)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (m match) matchByMethod(annotations Annotations, ingress *Ingress) error {
 	return nil
 }
 
-// matchByHeader to parse annotations to find matchHeader config
+// matchByHeader to parse annotations to find MatchHeader config
 func (m match) matchByHeaderOrQueryParma(annotations Annotations, key string, mmap map[string]map[string]string) (map[string]map[string]string, error) {
 	for k, v := range annotations {
 		if idx := strings.Index(k, key); idx != -1 {

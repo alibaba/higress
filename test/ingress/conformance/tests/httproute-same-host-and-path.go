@@ -41,6 +41,7 @@ var HTTPRouteSameHostAndPath = suite.ConformanceTest{
 						Path: "/hello-world",
 						Headers: map[string]string{
 							"abc": "123",
+							"def": "456",
 						},
 					},
 				},
@@ -52,14 +53,34 @@ var HTTPRouteSameHostAndPath = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
+					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/hello-world",
 						Headers: map[string]string{
-							"edf": "456",
+							"abc": "123",
+							"def": "def",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/hello-world",
+						Headers: map[string]string{
+							"abc": "123",
 						},
 					},
 				},
