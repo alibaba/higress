@@ -18,7 +18,7 @@ metadata:
   name: higress-conformance-infra-ip-not-in-whitelist-test
   namespace: higress-conformance-infra
   annotations:
-    nginx.ingress.kubernetes.io/whitelist-source-range: "2.2.2.2"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "1.1.1.1"
 spec:
   ingressClassName: higress
   rules:
@@ -53,4 +53,3 @@ spec:
             name: infra-backend-v1
             port:
               number: 8080
-              
