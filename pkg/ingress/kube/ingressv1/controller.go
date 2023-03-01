@@ -571,16 +571,16 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				tempHostAndPath = append(tempHostAndPath, hostAndPath)
 			} else {
 				hostAndPath := wrapperHttpRoute.PathFormat()
-				key, str, err := createRuleKey(cfg.Annotations, hostAndPath)
+				hash, key, err := createRuleKey(cfg.Annotations, hostAndPath)
 				if err != nil {
 					return err
 				}
-				if preIngress, exist := convertOptions.Route2Ingress[key]; exist {
+				if preIngress, exist := convertOptions.Route2Ingress[hash]; exist {
 					ingressRouteBuilder.PreIngress = preIngress.Config
 					ingressRouteBuilder.Event = common.DuplicatedRoute
 				}
-				tempRuleHash = append(tempRuleHash, key)
-				tempRuleKey = append(tempRuleKey, str)
+				tempRuleHash = append(tempRuleHash, hash)
+				tempRuleKey = append(tempRuleKey, key)
 			}
 
 			// Two duplicated rules in the same ingress.
