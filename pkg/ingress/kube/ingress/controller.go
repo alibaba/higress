@@ -17,9 +17,11 @@ package ingress
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"path"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -494,9 +496,13 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.NewSet()
 
-	// But in across ingresses case, we will restrict this limit.
-	// When the host, path of two rule in different ingress are same, we think there is a conflict event.
-	var tempHostAndPath []string
+	var (
+		// But in across ingresses case, we will restrict this limit.
+		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+		tempRuleHash []uint32
+		tempRuleKey  []string
+	)
+
 	for _, rule := range ingressV1.Rules {
 		if rule.HTTP == nil || len(rule.HTTP.Paths) == 0 {
 			IngressLog.Warnf("invalid ingress rule %s:%s for host %q in cluster %s, no paths defined", cfg.Namespace, cfg.Name, rule.Host, c.options.ClusterId)
@@ -566,13 +572,17 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
-			// host and path overlay check across different ingresses.
-			hostAndPath := wrapperHttpRoute.BasePathFormat()
-			if preIngress, exist := convertOptions.HostAndPath2Ingress[hostAndPath]; exist {
-				ingressRouteBuilder.PreIngress = preIngress
+			hostAndPath := wrapperHttpRoute.PathFormat()
+			hash, key, err := createRuleKey(cfg.Annotations, hostAndPath)
+			if err != nil {
+				return err
+			}
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[hash]; exist {
+				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 				ingressRouteBuilder.Event = common.DuplicatedRoute
 			}
-			tempHostAndPath = append(tempHostAndPath, hostAndPath)
+			tempRuleHash = append(tempRuleHash, hash)
+			tempRuleKey = append(tempRuleKey, key)
 
 			// Two duplicated rules in the same ingress.
 			if ingressRouteBuilder.Event == common.Normal {
@@ -607,10 +617,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 		}
 
-		for _, item := range tempHostAndPath {
-			// We only record the first
-			if _, exist := convertOptions.HostAndPath2Ingress[item]; !exist {
-				convertOptions.HostAndPath2Ingress[item] = cfg
+		for idx, item := range tempRuleHash {
+			if val, exist := convertOptions.Route2Ingress[item]; !exist || strings.Compare(val.RuleKey, tempRuleKey[idx]) != 0 {
+				convertOptions.Route2Ingress[item] = &common.WrapperConfigWithRuleKey{
+					Config:  cfg,
+					RuleKey: tempRuleKey[idx],
+				}
 			}
 		}
 
@@ -1220,4 +1232,51 @@ func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
 			}
 		}
 	}
+}
+
+// createRuleKey according to the pathType, path, methods, headers, params of rules
+func createRuleKey(annots map[string]string, hostAndPath string) (uint32, string, error) {
+	var (
+		headers []string
+		params  []string
+		sb      strings.Builder
+	)
+
+	// path
+	sb.WriteString(hostAndPath)
+
+	// methods
+	if str, ok := annots[annotations.HigressAnnotationsPrefix+"/"+annotations.MatchMethod]; ok {
+		sb.WriteString(str)
+	}
+	// headers && params
+	for k, _ := range annots {
+		if idx := strings.Index(k, annotations.MatchHeader); idx != -1 {
+			headers = append(headers, k)
+		}
+		if idx := strings.Index(k, annotations.MatchQuery); idx != -1 {
+			params = append(params, k)
+		}
+	}
+	sort.SliceStable(headers, func(i, j int) bool {
+		return headers[i] < headers[j]
+	})
+	sort.SliceStable(params, func(i, j int) bool {
+		return params[i] < params[j]
+	})
+	for idx := range headers {
+		sb.WriteString(headers[idx])
+		sb.WriteString(annots[headers[idx]])
+	}
+	for idx := range params {
+		sb.WriteString(params[idx])
+		sb.WriteString(annots[params[idx]])
+	}
+
+	str, hash := sb.String(), fnv.New32()
+	if _, err := hash.Write([]byte(str)); err != nil {
+		return 0, "", err
+	}
+
+	return hash.Sum32(), str, nil
 }

@@ -61,8 +61,6 @@ var (
 
 	// follow specification of ingress-nginx
 	defaultPathType = ingress.PathTypePrefix
-
-	strictMode = false
 )
 
 type controller struct {
@@ -480,13 +478,8 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.NewSet()
 
-	// But in across ingresses case, we will restrict this limit.
 	var (
-		// if it's strictMode
-		// When the {host, path} of two rule in different ingress are same, we think there is a conflict event.
-		tempHostAndPath []string
-
-		// if it's not strictMode
+		// But in across ingresses case, we will restrict this limit.
 		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
 		tempRuleHash []uint32
 		tempRuleKey  []string
@@ -561,27 +554,17 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
-			if strictMode {
-				// host and path overlay check across different ingresses.
-				hostAndPath := wrapperHttpRoute.BasePathFormat()
-				if preIngress, exist := convertOptions.HostAndPath2Ingress[hostAndPath]; exist {
-					ingressRouteBuilder.PreIngress = preIngress
-					ingressRouteBuilder.Event = common.DuplicatedRoute
-				}
-				tempHostAndPath = append(tempHostAndPath, hostAndPath)
-			} else {
-				hostAndPath := wrapperHttpRoute.PathFormat()
-				hash, key, err := createRuleKey(cfg.Annotations, hostAndPath)
-				if err != nil {
-					return err
-				}
-				if preIngress, exist := convertOptions.Route2Ingress[hash]; exist {
-					ingressRouteBuilder.PreIngress = preIngress.Config
-					ingressRouteBuilder.Event = common.DuplicatedRoute
-				}
-				tempRuleHash = append(tempRuleHash, hash)
-				tempRuleKey = append(tempRuleKey, key)
+			hostAndPath := wrapperHttpRoute.PathFormat()
+			hash, key, err := createRuleKey(cfg.Annotations, hostAndPath)
+			if err != nil {
+				return err
 			}
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[hash]; exist {
+				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
+				ingressRouteBuilder.Event = common.DuplicatedRoute
+			}
+			tempRuleHash = append(tempRuleHash, hash)
+			tempRuleKey = append(tempRuleKey, key)
 
 			// Two duplicated rules in the same ingress.
 			if ingressRouteBuilder.Event == common.Normal {
@@ -614,13 +597,6 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			}
 
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
-		}
-
-		for _, item := range tempHostAndPath {
-			// We only record the first
-			if _, exist := convertOptions.HostAndPath2Ingress[item]; !exist {
-				convertOptions.HostAndPath2Ingress[item] = cfg
-			}
 		}
 
 		for idx, item := range tempRuleHash {
@@ -1239,16 +1215,12 @@ func createRuleKey(annots map[string]string, hostAndPath string) (uint32, string
 		return params[i] < params[j]
 	})
 	for idx := range headers {
-		sb.WriteString("{")
 		sb.WriteString(headers[idx])
 		sb.WriteString(annots[headers[idx]])
-		sb.WriteString("}")
 	}
 	for idx := range params {
-		sb.WriteString("{")
 		sb.WriteString(params[idx])
 		sb.WriteString(annots[params[idx]])
-		sb.WriteString("}")
 	}
 
 	str, hash := sb.String(), fnv.New32()
