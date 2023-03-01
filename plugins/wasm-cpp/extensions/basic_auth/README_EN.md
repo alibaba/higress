@@ -3,14 +3,14 @@
 </p>
 
 # Description 
-`basic-auth` plugin implements the function of authorization based on the HTTP Basic Auth standard.
+`basic-auth` plugin implements the function of authentication based on the HTTP Basic Auth standard.
 
 # Configuration Fields
 
 | Name        | Type            | Requirement | Default Value | Description                                                 |
 | ----------- | --------------- | -------- | ------ | ---------------------------------------------------- |
-| `consumers` | array of object | Required     | -      | Caller of the service for authentication of requests. |
-| `_rules_`   | array of object | Optional     | -      | Configure access permission list for specific routes or domains to authenticate requests.: |
+| `consumers` | array of object | Required     | -      | Caller of the service for authentication of requests |
+| `_rules_`   | array of object | Optional     | -      | Configure access permission list for specific routes or domains to authenticate requests |
 
 Filed descriptions of `consumers` items:
 
@@ -23,9 +23,9 @@ Configuration field descriptions for each item in `_rules_` are as follows:
 
 | Field Name            | Data Type        | Requirement                                          | Default | Description                                               |
 | ---------------- | --------------- | ------------------------------------------------- | ------ | -------------------------------------------------- |
-| `_match_route_`  | array of string | One of `_match_route_` or `_match_domain_` | -      | Configures the routes to match for request authorization.                               |
-| `_match_domain_` | array of string | One of `_match_route_` , `_match_domain_` | -      | Configures the domains to match for request authorization.                                   |
-| `allow`          | array of string | Required                                              | -      | Configures the consumer names allowed to access requests that match the match condition. |
+| `_match_route_`  | array of string | One of `_match_route_` or `_match_domain_` | -      | Configure the routes to match for request authorization                               |
+| `_match_domain_` | array of string | One of `_match_route_` , `_match_domain_` | -      | Configure the domains to match for request authorization                                   |
+| `allow`          | array of string | Required                                              | -      | Configure the consumer names allowed to access requests that match the match condition |
 
 **Note: **
 
@@ -98,7 +98,7 @@ curl -u guest:abc  http://xxx.hello.com/test
 
 ## Enable basic auth for gateway instance
 
-The following configuration does not specify the `_rules_` field, so Basic Auth authentication will effect for gateway instance scope.
+The following configuration does not specify the `_rules_` field, so Basic Auth authentication will be effective for the whole gateway instance.
 
 ```yaml
 consumers:
@@ -108,10 +108,10 @@ consumers:
   name: consumer2
 ```
 
-# Error Code 
+# Error Codes 
 
 | HTTP Status Code | Error Info                                                                       | Reason               |
 | ----------- | ------------------------------------------------------------------------------ | ---------------------- |
 | 401         | Request denied by Basic Auth check. No Basic Authentication information found. | Credentials not provided in the request        |
-| 401         | Request denied by Basic Auth check. Invalid username and/or password           | Invalid username/or password           |
+| 401         | Request denied by Basic Auth check. Invalid username and/or password           | Invalid username and/or password           |
 | 403         | Request denied by Basic Auth check. Unauthorized consumer                      | Unauthorized consumer |
