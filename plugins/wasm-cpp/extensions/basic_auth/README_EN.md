@@ -27,7 +27,7 @@ Configuration field descriptions for each item in `_rules_` are as follows:
 | `_match_domain_` | array of string | One of `_match_route_` , `_match_domain_` | -      | Configure the domains to match for request authorization                                   |
 | `allow`          | array of string | Required                                              | -      | Configure the consumer names allowed to access requests that match the match condition |
 
-**Note: **
+**Note:**
 
 - If the `_rules_` field is not configured, authentication is enabled for all routes of the current gateway instance by default;
 - For authenticated requests,  `X-Mse-Consumer` field will be added to the request header to identify the name of the caller.
