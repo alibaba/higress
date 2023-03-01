@@ -4,12 +4,12 @@
 # - arch: amd64 \
 #   base image: docker.io/ubuntu
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-amd64.tar.gz"
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.26.0/tinygo_0.26.0_amd64.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_amd64.deb
 #
 # - arch: arm64
 #   base image: docker.io/ubuntu
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-arm64.tar.gz
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.26.0/tinygo_0.26.0_arm64.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_arm64.deb
 #
 # - arch: armel
 #   base image: build yourself
@@ -39,7 +39,7 @@
 # - arch: armhf
 #   base image: build your self
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-armv6l.tar.gz
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.26.0/tinygo_0.26.0_armhf.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_armhf.deb
 
 ARG BASE_IMAGE=docker.io/ubuntu
 FROM $BASE_IMAGE
@@ -58,7 +58,7 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
 	go_url=; \
     tinygo_url=; \
     go_version=${GO_VERSION:-1.19}; \
-    tinygo_version=${TINYGO_VERSION:-0.26.0}; \
+    tinygo_version=${TINYGO_VERSION:-0.27.0}; \
     echo "arch:           '$arch'"; \
     echo "go go_version:  '$go_version'"; \
     echo "tinygo_version: '$tinygo_version'"; \
