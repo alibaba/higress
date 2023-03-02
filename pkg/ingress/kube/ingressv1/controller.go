@@ -559,6 +559,8 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			if err != nil {
 				return err
 			}
+			wrapperHttpRoute.RuleKey = key
+			wrapperHttpRoute.RuleHash = hash
 			if WrapPreIngress, exist := convertOptions.Route2Ingress[hash]; exist {
 				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 				ingressRouteBuilder.Event = common.DuplicatedRoute
@@ -775,6 +777,12 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 				continue
 			}
+			hash, key, err := createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
+			if err != nil {
+				return err
+			}
+			canary.RuleKey = key
+			canary.RuleHash = hash
 
 			canaryConfig := wrapper.AnnotationsConfig.Canary
 			if byWeight {
@@ -972,8 +980,7 @@ func (c *controller) createServiceKey(service *ingress.IngressServiceBackend, na
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return !strings.HasSuffix(route.HTTPRoute.Name, "-canary") && canary.OriginPath == route.OriginPath &&
-		canary.OriginPathType == route.OriginPathType
+	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.RuleHash == route.RuleHash && canary.RuleKey == canary.RuleKey
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
