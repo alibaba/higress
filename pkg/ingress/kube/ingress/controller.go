@@ -1025,7 +1025,7 @@ func (c *controller) createServiceKey(service *ingress.IngressBackend, namespace
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
 	return route != nil && canary != nil && !route.WrapperConfig.AnnotationsConfig.IsCanary() &&
-		canary.RuleHash == route.RuleHash && canary.RuleKey == canary.RuleKey
+		canary.RuleHash == route.RuleHash && canary.RuleKey == route.RuleKey
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
