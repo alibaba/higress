@@ -608,7 +608,7 @@ pilot:
 
 
 # Skywalking config settings
-enableSkywalking: true
+enableSkywalking: false
 Skywalking:
   address: "skywalking"
   port: "11800"
