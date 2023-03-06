@@ -318,6 +318,13 @@ global:
   # The default value is "" and when caName="", the CA will be configured by other
   # mechanisms (e.g., environmental variable CA_PROVIDER).
   caName: ""
+
+  customBootstrap:
+    enabled: false
+    skywalking:
+      address: ""
+      port: ""
+
 hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
 # IngressClass filters which ingress resources the higress controller watches.

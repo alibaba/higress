@@ -136,6 +136,10 @@ spec:
             value: "{{ $.Values.clusterName | default `Kubernetes` }}"
           - name: INSTANCE_NAME
             value: "higress-gateway"
+          {{- if .Values.gateway.customBootstrap.enabled }}
+          - name: ISTIO_BOOTSTRAP_OVERRIDE
+            value: /etc/istio/custom-bootstrap/custom_bootstrap.json
+          {{- end }}
           {{- with .Values.gateway.networkGateway }}
           - name: ISTIO_META_REQUESTED_NETWORK_VIEW
             value: "{{.}}"
@@ -188,6 +192,10 @@ spec:
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
+          {{- if .Values.gateway.customBootstrap.enabled }}
+          - mountPath: /etc/istio/custom-bootstrap
+            name: custom-bootstrap-volume
+          {{- end }}
       {{- if .Values.gateway.hostNetwork }}
       hostNetwork: {{ .Values.gateway.hostNetwork }}
       dnsPolicy: ClusterFirstWithHostNet
@@ -224,6 +232,12 @@ spec:
       - name: config
         configMap:
           name: higress-config
+      {{- if .Values.gateway.customBootstrap.enabled }}
+      - configMap:
+          defaultMode: 420
+          name: higress-custom-bootstrap
+        name: custom-bootstrap-volume
+      {{- end }}
       - name: istio-data          
         emptyDir: {}
       - name: proxy-socket
