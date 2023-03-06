@@ -124,7 +124,55 @@ metadata:
   labels:
     {{- include "gateway.labels" . | nindent 4 }}
 data:
-  custom_bootstrap.json:
-    "{\"stats_sinks\":[{\"name\":\"envoy.metrics_service\",\"typed_config\":{\"@type\":\"type.googleapis.com/envoy.config.metrics.v3.MetricsServiceConfig\",\"transport_api_version\":\"V3\",\"grpc_service\":{\"envoy_grpc\":{\"cluster_name\":\"service_skywalking\"}}}}],\"static_resources\":{\"clusters\":[{\"name\":\"service_skywalking\",\"type\":\"LOGICAL_DNS\",\"connect_timeout\":\"5s\",\"http2_protocol_options\":{},\"dns_lookup_family\":\"V4_ONLY\",\"lb_policy\":\"ROUND_ROBIN\",\"load_assignment\":{\"cluster_name\":\"service_skywalking\",\"endpoints\":[{\"lb_endpoints\":[{\"endpoint\":{\"address\":{\"socket_address\":{\"address\":\"{{ .Values.skywalking.address }}\",\"port_value\":\"{{ .Values.Skywalking.port }}\"}}}}]}]}}]}}"
+  custom_bootstrap.json: |-
+    {
+      "stats_sinks": [
+        {
+          "name": "envoy.metrics_service",
+          "typed_config": {
+            "@type": "type.googleapis.com/envoy.config.metrics.v3.MetricsServiceConfig",
+            "transport_api_version": "V3",
+            "grpc_service": {
+              "envoy_grpc": {
+                "cluster_name": "service_skywalking"
+              }
+            }
+          }
+        }
+      ],
+      "static_resources": {
+        "clusters": [
+          {
+            "name": "service_skywalking",
+            "type": "LOGICAL_DNS",
+            "connect_timeout": "5s",
+            "http2_protocol_options": {
+
+            },
+            "dns_lookup_family": "V4_ONLY",
+            "lb_policy": "ROUND_ROBIN",
+            "load_assignment": {
+              "cluster_name": "service_skywalking",
+              "endpoints": [
+                {
+                  "lb_endpoints": [
+                    {
+                      "endpoint": {
+                        "address": {
+                          "socket_address": {
+                            "address": "{{ .Values.Skywalking.address }}",
+                            "port_value": "{{ .Values.Skywalking.port }}"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
 ---
 {{- end }}

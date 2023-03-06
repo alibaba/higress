@@ -610,5 +610,5 @@ pilot:
 # Skywalking config settings
 enableSkywalking: false
 Skywalking:
-  address: "skywalking"
-  port: "11800"
+  address: null  # Must be set explicitly
+  port: null
