@@ -8,5 +8,12 @@ keywords:
 name: higress
 sources:
 - http://github.com/alibaba/higress
+dependencies:
+- name: higress-core
+  repository: "file://../core"
+  version: 0.6.2
+- name: higress-console
+  repository: "https://higress.io/helm-charts/"
+  version: 0.0.3
 type: application
 version: 0.6.2

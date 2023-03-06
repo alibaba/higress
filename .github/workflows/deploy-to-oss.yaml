@@ -33,6 +33,9 @@ jobs:
         with:
           helmv3: 3.7.2
           command: |
+            helmv3 repo add higress.io https://higress.io/helm-charts
+            helmv3 package helm/core --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
+            helmv3 dependency build helm/higress
             helmv3 package helm/higress --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
             helmv3 repo index --url https://higress.io/helm-charts/ --merge ./artifact/index.yaml ./artifact
       # Step 5
