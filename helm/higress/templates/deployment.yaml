@@ -136,7 +136,7 @@ spec:
             value: "{{ $.Values.clusterName | default `Kubernetes` }}"
           - name: INSTANCE_NAME
             value: "higress-gateway"
-          {{- if .Values.gateway.customBootstrap.enabled }}
+          {{- if .Values.enableSkywalking }}
           - name: ISTIO_BOOTSTRAP_OVERRIDE
             value: /etc/istio/custom-bootstrap/custom_bootstrap.json
           {{- end }}
@@ -192,7 +192,7 @@ spec:
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
-          {{- if .Values.gateway.customBootstrap.enabled }}
+          {{- if .Values.enableSkywalking }}
           - mountPath: /etc/istio/custom-bootstrap
             name: custom-bootstrap-volume
           {{- end }}
@@ -232,7 +232,7 @@ spec:
       - name: config
         configMap:
           name: higress-config
-      {{- if .Values.gateway.customBootstrap.enabled }}
+      {{- if .Values.enableSkywalking }}
       - configMap:
           defaultMode: 420
           name: higress-custom-bootstrap
