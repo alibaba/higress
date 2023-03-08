@@ -17,7 +17,6 @@ package ingressv1
 import (
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"path"
 	"reflect"
 	"regexp"
@@ -481,8 +480,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	var (
 		// But in across ingresses case, we will restrict this limit.
 		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
-		tempRuleHash []uint32
-		tempRuleKey  []string
+		tempRuleKey []string
 	)
 
 	for _, rule := range ingressV1.Rules {
@@ -555,17 +553,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
 			hostAndPath := wrapperHttpRoute.PathFormat()
-			hash, key, err := createRuleKey(cfg.Annotations, hostAndPath)
-			if err != nil {
-				return err
-			}
+			key := createRuleKey(cfg.Annotations, hostAndPath)
 			wrapperHttpRoute.RuleKey = key
-			wrapperHttpRoute.RuleHash = hash
-			if WrapPreIngress, exist := convertOptions.Route2Ingress[hash]; exist {
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
 				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 				ingressRouteBuilder.Event = common.DuplicatedRoute
 			}
-			tempRuleHash = append(tempRuleHash, hash)
 			tempRuleKey = append(tempRuleKey, key)
 
 			// Two duplicated rules in the same ingress.
@@ -601,7 +594,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 		}
 
-		for idx, item := range tempRuleHash {
+		for idx, item := range tempRuleKey {
 			if val, exist := convertOptions.Route2Ingress[item]; !exist || strings.Compare(val.RuleKey, tempRuleKey[idx]) != 0 {
 				convertOptions.Route2Ingress[item] = &common.WrapperConfigWithRuleKey{
 					Config:  cfg,
@@ -777,12 +770,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 				continue
 			}
-			hash, key, err := createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
-			if err != nil {
-				return err
-			}
-			canary.RuleKey = key
-			canary.RuleHash = hash
+			canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
 
 			canaryConfig := wrapper.AnnotationsConfig.Canary
 			if byWeight {
@@ -980,7 +968,7 @@ func (c *controller) createServiceKey(service *ingress.IngressServiceBackend, na
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.RuleHash == route.RuleHash && canary.RuleKey == route.RuleKey
+	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.RuleKey == route.RuleKey
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
@@ -1192,48 +1180,60 @@ func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
 }
 
 // createRuleKey according to the pathType, path, methods, headers, params of rules
-func createRuleKey(annots map[string]string, hostAndPath string) (uint32, string, error) {
+func createRuleKey(annots map[string]string, hostAndPath string) string {
 	var (
-		headers []string
-		params  []string
+		headers [][2]string
+		params  [][2]string
 		sb      strings.Builder
+		sep     byte = '\n'
 	)
 
 	// path
 	sb.WriteString(hostAndPath)
+	sb.WriteByte(sep)
 
 	// methods
 	if str, ok := annots[annotations.HigressAnnotationsPrefix+"/"+annotations.MatchMethod]; ok {
 		sb.WriteString(str)
 	}
+	sb.WriteByte(sep)
+
+	start := len(annotations.HigressAnnotationsPrefix) + 1 // example: higress.io/exact-match-header-key: value
 	// headers && params
-	for k, _ := range annots {
+	for k, val := range annots {
 		if idx := strings.Index(k, annotations.MatchHeader); idx != -1 {
-			headers = append(headers, k)
+			key := k[start:idx] + k[idx+len(annotations.MatchHeader)+1:]
+			headers = append(headers, [2]string{key, val})
 		}
 		if idx := strings.Index(k, annotations.MatchQuery); idx != -1 {
-			params = append(params, k)
+			key := k[start:idx] + k[idx+len(annotations.MatchQuery)+1:]
+			params = append(params, [2]string{key, val})
 		}
 	}
 	sort.SliceStable(headers, func(i, j int) bool {
-		return headers[i] < headers[j]
+		return headers[i][0] < headers[j][0]
 	})
 	sort.SliceStable(params, func(i, j int) bool {
-		return params[i] < params[j]
+		return params[i][0] < params[j][0]
 	})
 	for idx := range headers {
-		sb.WriteString(headers[idx])
-		sb.WriteString(annots[headers[idx]])
+		if idx != 0 {
+			sb.WriteByte('\f')
+		}
+		sb.WriteString(headers[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(headers[idx][1])
 	}
+	sb.WriteByte(sep)
 	for idx := range params {
-		sb.WriteString(params[idx])
-		sb.WriteString(annots[params[idx]])
+		if idx != 0 {
+			sb.WriteByte('\f')
+		}
+		sb.WriteString(params[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(params[idx][1])
 	}
+	sb.WriteByte(sep)
 
-	str, hash := sb.String(), fnv.New32()
-	if _, err := hash.Write([]byte(str)); err != nil {
-		return 0, "", err
-	}
-
-	return hash.Sum32(), str, nil
+	return sb.String()
 }
