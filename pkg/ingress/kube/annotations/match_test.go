@@ -33,7 +33,7 @@ func TestMatch_ParseMethods(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(matchMethod): "PUT POST PATCH",
+				buildHigressAnnotationKey(MatchMethod): "PUT POST PATCH",
 			},
 			expect: &MatchConfig{
 				Methods: []string{"PUT", "POST", "PATCH"},
@@ -41,7 +41,7 @@ func TestMatch_ParseMethods(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(matchMethod): "PUT PUT",
+				buildHigressAnnotationKey(MatchMethod): "PUT PUT",
 			},
 			expect: &MatchConfig{
 				Methods: []string{"PUT"},
@@ -49,7 +49,7 @@ func TestMatch_ParseMethods(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(matchMethod): "put post patch",
+				buildHigressAnnotationKey(MatchMethod): "put post patch",
 			},
 			expect: &MatchConfig{
 				Methods: []string{"PUT", "POST", "PATCH"},
@@ -57,7 +57,7 @@ func TestMatch_ParseMethods(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(matchMethod): "geet",
+				buildHigressAnnotationKey(MatchMethod): "geet",
 			},
 			expect: &MatchConfig{},
 		},
@@ -116,7 +116,7 @@ func TestMatch_ParseHeaders(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
-			key := buildHigressAnnotationKey(tt.typ + "-" + matchHeader + "-" + tt.key)
+			key := buildHigressAnnotationKey(tt.typ + "-" + MatchHeader + "-" + tt.key)
 			input := Annotations{key: tt.value}
 			config := &Ingress{}
 			_ = parser.Parse(input, config, nil)
@@ -169,7 +169,7 @@ func TestMatch_ParseQueryParams(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
-			key := buildHigressAnnotationKey(tt.typ + "-" + matchQuery + "-" + tt.key)
+			key := buildHigressAnnotationKey(tt.typ + "-" + MatchQuery + "-" + tt.key)
 			input := Annotations{key: tt.value}
 			config := &Ingress{}
 			_ = parser.Parse(input, config, nil)
