@@ -416,3 +416,143 @@ func TestSortRoutes(t *testing.T) {
 		t.Fatal("should be test-3")
 	}
 }
+
+// TestSortHTTPRoutesWithMoreRules include headers, query params, methods
+func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
+	input := []struct {
+		order      string
+		pathType   PathType
+		path       string
+		method     *networking.StringMatch
+		header     map[string]*networking.StringMatch
+		queryParam map[string]*networking.StringMatch
+	}{
+		{
+			order:    "1",
+			pathType: Exact,
+			path:     "/bar",
+		},
+		{
+			order:    "2",
+			pathType: Prefix,
+			path:     "/bar",
+		},
+		{
+			order:    "3",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET|PUT"},
+			},
+		},
+		{
+			order:    "4",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+		},
+		{
+			order:    "5",
+			pathType: Prefix,
+			path:     "/bar",
+			header: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
+		{
+			order:    "6",
+			pathType: Prefix,
+			path:     "/bar",
+			header: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
+		{
+			order:    "7",
+			pathType: Prefix,
+			path:     "/bar",
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
+		{
+			order:    "8",
+			pathType: Prefix,
+			path:     "/bar",
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
+		{
+			order:    "9",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+			queryParam: map[string]*networking.StringMatch{
+				"foo": {
+					MatchType: &networking.StringMatch_Exact{Exact: "bar"},
+				},
+			},
+		},
+		{
+			order:    "10",
+			pathType: Prefix,
+			path:     "/bar",
+			method: &networking.StringMatch{
+				MatchType: &networking.StringMatch_Regex{Regex: "GET"},
+			},
+			queryParam: map[string]*networking.StringMatch{
+				"bar": {
+					MatchType: &networking.StringMatch_Exact{Exact: "foo"},
+				},
+			},
+		},
+	}
+
+	origin := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
+	expect := []string{"1", "9", "10", "4", "3", "6", "5", "8", "7", "2"}
+
+	var list []*WrapperHTTPRoute
+	for idx, val := range input {
+		list = append(list, &WrapperHTTPRoute{
+			OriginPath:     val.path,
+			OriginPathType: val.pathType,
+			HTTPRoute: &networking.HTTPRoute{
+				Name: origin[idx],
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Method:      val.method,
+						Headers:     val.header,
+						QueryParams: val.queryParam,
+					},
+				},
+			},
+		})
+	}
+
+	SortHTTPRoutes(list)
+
+	for idx, val := range list {
+		if val.HTTPRoute.Name != expect[idx] {
+			t.Fatalf("should be %s, but got %s", expect[idx], val.HTTPRoute.Name)
+		}
+	}
+}
