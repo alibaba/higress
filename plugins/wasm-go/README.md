@@ -80,9 +80,6 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway
   defaultConfig:
     block_urls:
     - "swagger.html"
@@ -116,9 +113,6 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway
   defaultConfig:
    # 跟上面例子一样，这个配置会全局生效，但如果被下面规则匹配到，则会改为执行命中规则的配置
    block_urls:
