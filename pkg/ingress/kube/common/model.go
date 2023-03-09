@@ -150,7 +150,7 @@ type ConvertOptions struct {
 	IngressDomainCache *IngressDomainCache
 
 	// the host, path, headers, params of rule => ingress
-	Route2Ingress map[uint32]*WrapperConfigWithRuleKey
+	Route2Ingress map[string]*WrapperConfigWithRuleKey
 
 	// Record valid/invalid routes from ingress
 	IngressRouteCache *IngressRouteCache

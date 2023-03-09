@@ -76,7 +76,6 @@ type WrapperHTTPRoute struct {
 	WeightTotal      int32
 	IsDefaultBackend bool
 	RuleKey          string
-	RuleHash         uint32
 }
 
 func (w *WrapperHTTPRoute) Meta() string {
