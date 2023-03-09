@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
@@ -103,7 +104,7 @@ func testApplyCanaryIngress(t *testing.T, c common.IngressController) {
 						Valid:   make(map[string]*common.IngressDomainBuilder),
 						Invalid: make([]model.IngressDomain, 0),
 					},
-					Route2Ingress:     map[uint32]*common.WrapperConfigWithRuleKey{},
+					Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
 					VirtualServices:   make(map[string]*common.WrapperVirtualService),
 					Gateways:          make(map[string]*common.WrapperGateway),
 					IngressRouteCache: &common.IngressRouteCache{},
@@ -193,7 +194,7 @@ func testApplyDefaultBackend(t *testing.T, c common.IngressController) {
 						Valid:   make(map[string]*common.IngressDomainBuilder),
 						Invalid: make([]model.IngressDomain, 0),
 					},
-					Route2Ingress:     map[uint32]*common.WrapperConfigWithRuleKey{},
+					Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
 					VirtualServices:   make(map[string]*common.WrapperVirtualService),
 					Gateways:          make(map[string]*common.WrapperGateway),
 					IngressRouteCache: &common.IngressRouteCache{},
@@ -385,7 +386,7 @@ func testConvertHTTPRoute(t *testing.T, c common.IngressController) {
 						Valid:   make(map[string]*common.IngressDomainBuilder),
 						Invalid: make([]model.IngressDomain, 0),
 					},
-					Route2Ingress:     map[uint32]*common.WrapperConfigWithRuleKey{},
+					Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
 					VirtualServices:   make(map[string]*common.WrapperVirtualService),
 					Gateways:          make(map[string]*common.WrapperGateway),
 					IngressRouteCache: &common.IngressRouteCache{},
@@ -474,7 +475,7 @@ func testConvertTrafficPolicy(t *testing.T, c common.IngressController) {
 						Valid:   make(map[string]*common.IngressDomainBuilder),
 						Invalid: make([]model.IngressDomain, 0),
 					},
-					Route2Ingress:         map[uint32]*common.WrapperConfigWithRuleKey{},
+					Route2Ingress:         map[string]*common.WrapperConfigWithRuleKey{},
 					VirtualServices:       make(map[string]*common.WrapperVirtualService),
 					Gateways:              make(map[string]*common.WrapperGateway),
 					IngressRouteCache:     &common.IngressRouteCache{},
@@ -1290,4 +1291,35 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 	if !should {
 		t.Fatal("should be true")
 	}
+}
+
+func TestCreateRuleKey(t *testing.T) {
+	sep := "\n\n"
+	wrapperHttpRoute := &common.WrapperHTTPRoute{
+		Host:           "higress.com",
+		OriginPathType: common.Prefix,
+		OriginPath:     "/foo",
+	}
+
+	annots := annotations.Annotations{
+		buildHigressAnnotationKey(annotations.MatchMethod):                         "GET PUT",
+		buildHigressAnnotationKey("exact-" + annotations.MatchHeader + "-abc"):     "123",
+		buildHigressAnnotationKey("prefix-" + annotations.MatchHeader + "-def"):    "456",
+		buildHigressAnnotationKey("exact-" + annotations.MatchQuery + "-region"):   "beijing",
+		buildHigressAnnotationKey("prefix-" + annotations.MatchQuery + "-user-id"): "user-",
+	}
+	expect := "higress.com-prefix-/foo" + sep + //host-pathType-path
+		"GET PUT" + sep + // method
+		"exact-abc\t123" + "\n" + "prefix-def\t456" + sep + // header
+		"exact-region\tbeijing" + "\n" + "prefix-user-id\tuser-" + sep // params
+
+	key := createRuleKey(annots, wrapperHttpRoute.PathFormat())
+	if diff := cmp.Diff(expect, key); diff != "" {
+
+		t.Errorf("CreateRuleKey() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func buildHigressAnnotationKey(key string) string {
+	return annotations.HigressAnnotationsPrefix + "/" + key
 }
