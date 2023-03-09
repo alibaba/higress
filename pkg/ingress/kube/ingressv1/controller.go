@@ -1185,18 +1185,19 @@ func createRuleKey(annots map[string]string, hostAndPath string) string {
 		headers [][2]string
 		params  [][2]string
 		sb      strings.Builder
-		sep     byte = '\n'
 	)
+
+	sep := "\n\n"
 
 	// path
 	sb.WriteString(hostAndPath)
-	sb.WriteByte(sep)
+	sb.WriteString(sep)
 
 	// methods
 	if str, ok := annots[annotations.HigressAnnotationsPrefix+"/"+annotations.MatchMethod]; ok {
 		sb.WriteString(str)
 	}
-	sb.WriteByte(sep)
+	sb.WriteString(sep)
 
 	start := len(annotations.HigressAnnotationsPrefix) + 1 // example: higress.io/exact-match-header-key: value
 	// headers && params
@@ -1218,22 +1219,22 @@ func createRuleKey(annots map[string]string, hostAndPath string) string {
 	})
 	for idx := range headers {
 		if idx != 0 {
-			sb.WriteByte('\f')
+			sb.WriteByte('\n')
 		}
 		sb.WriteString(headers[idx][0])
 		sb.WriteByte('\t')
 		sb.WriteString(headers[idx][1])
 	}
-	sb.WriteByte(sep)
+	sb.WriteString(sep)
 	for idx := range params {
 		if idx != 0 {
-			sb.WriteByte('\f')
+			sb.WriteByte('\n')
 		}
 		sb.WriteString(params[idx][0])
 		sb.WriteByte('\t')
 		sb.WriteString(params[idx][1])
 	}
-	sb.WriteByte(sep)
+	sb.WriteString(sep)
 
 	return sb.String()
 }

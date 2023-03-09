@@ -1294,7 +1294,7 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 }
 
 func TestCreateRuleKey(t *testing.T) {
-	sep := "\n"
+	sep := "\n\n"
 	wrapperHttpRoute := &common.WrapperHTTPRoute{
 		Host:           "higress.com",
 		OriginPathType: common.Prefix,
@@ -1310,12 +1310,12 @@ func TestCreateRuleKey(t *testing.T) {
 	}
 	expect := "higress.com-prefix-/foo" + sep + //host-pathType-path
 		"GET PUT" + sep + // method
-		"exact-abc\t123" + "\f" + "prefix-def\t456" + sep + // header
-		"exact-region\tbeijing" + "\f" + "prefix-user-id\tuser-" + sep // params
+		"exact-abc\t123" + "\n" + "prefix-def\t456" + sep + // header
+		"exact-region\tbeijing" + "\n" + "prefix-user-id\tuser-" + sep // params
 
 	key := createRuleKey(annots, wrapperHttpRoute.PathFormat())
-
 	if diff := cmp.Diff(expect, key); diff != "" {
+
 		t.Errorf("CreateRuleKey() mismatch (-want +got):\n%s", diff)
 	}
 }
