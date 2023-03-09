@@ -78,9 +78,6 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway
   defaultConfig:
     block_urls:
     - "swagger.html"
@@ -110,9 +107,6 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway 
   defaultConfig:
    # this config will take effect globally (all incoming requests not matched by rules below)
    block_urls:
