@@ -175,6 +175,9 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 		return false
 	}
 
+	// default backend,user specified root path => path type => path length =>
+	// methods => header => query param
+	// refer https://gateway-api.sigs.k8s.io/v1alpha2/references/spec/#gateway.networking.k8s.io/v1beta1.HTTPRouteSpec
 	sort.SliceStable(routes, func(i, j int) bool {
 		// Move default backend to end
 		if isDefaultBackend(routes[i]) {
@@ -193,7 +196,27 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 		}
 
 		if routes[i].OriginPathType == routes[j].OriginPathType {
-			return len(routes[i].OriginPath) > len(routes[j].OriginPath)
+			if in, jn := len(routes[i].OriginPath), len(routes[j].OriginPath); in != jn {
+				return in > jn
+			}
+
+			match1, match2 := routes[i].HTTPRoute.Match[0], routes[j].HTTPRoute.Match[0]
+			// methods
+			if in, jn := len(match1.Method.GetRegex()), len(match2.Method.GetRegex()); in != jn {
+				if in != 0 && jn != 0 {
+					return in < jn
+				}
+				return in != 0
+			}
+			// headers
+			if in, jn := len(match1.Headers), len(match2.Headers); in != jn {
+				return in > jn
+			}
+			// query params
+			if in, jn := len(match1.QueryParams), len(match2.QueryParams); in != jn {
+				return in > jn
+			}
+			return false
 		}
 
 		if routes[i].OriginPathType == Exact {

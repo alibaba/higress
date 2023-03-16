@@ -20,6 +20,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -494,9 +495,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.NewSet()
 
-	// But in across ingresses case, we will restrict this limit.
-	// When the host, path of two rule in different ingress are same, we think there is a conflict event.
-	var tempHostAndPath []string
+	var (
+		// But in across ingresses case, we will restrict this limit.
+		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+		tempRuleKey []string
+	)
+
 	for _, rule := range ingressV1.Rules {
 		if rule.HTTP == nil || len(rule.HTTP.Paths) == 0 {
 			IngressLog.Warnf("invalid ingress rule %s:%s for host %q in cluster %s, no paths defined", cfg.Namespace, cfg.Name, rule.Host, c.options.ClusterId)
@@ -566,13 +570,14 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
-			// host and path overlay check across different ingresses.
-			hostAndPath := wrapperHttpRoute.BasePathFormat()
-			if preIngress, exist := convertOptions.HostAndPath2Ingress[hostAndPath]; exist {
-				ingressRouteBuilder.PreIngress = preIngress
+			hostAndPath := wrapperHttpRoute.PathFormat()
+			key := createRuleKey(cfg.Annotations, hostAndPath)
+			wrapperHttpRoute.RuleKey = key
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
+				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 				ingressRouteBuilder.Event = common.DuplicatedRoute
 			}
-			tempHostAndPath = append(tempHostAndPath, hostAndPath)
+			tempRuleKey = append(tempRuleKey, key)
 
 			// Two duplicated rules in the same ingress.
 			if ingressRouteBuilder.Event == common.Normal {
@@ -607,10 +612,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 		}
 
-		for _, item := range tempHostAndPath {
-			// We only record the first
-			if _, exist := convertOptions.HostAndPath2Ingress[item]; !exist {
-				convertOptions.HostAndPath2Ingress[item] = cfg
+		for idx, item := range tempRuleKey {
+			if val, exist := convertOptions.Route2Ingress[item]; !exist || strings.Compare(val.RuleKey, tempRuleKey[idx]) != 0 {
+				convertOptions.Route2Ingress[item] = &common.WrapperConfigWithRuleKey{
+					Config:  cfg,
+					RuleKey: tempRuleKey[idx],
+				}
 			}
 		}
 
@@ -794,6 +801,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 				continue
 			}
+			canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
 
 			canaryConfig := wrapper.AnnotationsConfig.Canary
 			if byWeight {
@@ -1004,8 +1012,7 @@ func (c *controller) createServiceKey(service *ingress.IngressBackend, namespace
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return route != nil && canary != nil && !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.OriginPath == route.OriginPath &&
-		canary.OriginPathType == route.OriginPathType
+	return route != nil && canary != nil && !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.RuleKey == route.RuleKey
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
@@ -1220,4 +1227,64 @@ func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
 			}
 		}
 	}
+}
+
+// createRuleKey according to the pathType, path, methods, headers, params of rules
+func createRuleKey(annots map[string]string, hostAndPath string) string {
+	var (
+		headers [][2]string
+		params  [][2]string
+		sb      strings.Builder
+	)
+
+	sep := "\n\n"
+
+	// path
+	sb.WriteString(hostAndPath)
+	sb.WriteString(sep)
+
+	// methods
+	if str, ok := annots[annotations.HigressAnnotationsPrefix+"/"+annotations.MatchMethod]; ok {
+		sb.WriteString(str)
+	}
+	sb.WriteString(sep)
+
+	start := len(annotations.HigressAnnotationsPrefix) + 1 // example: higress.io/exact-match-header-key: value
+	// headers && params
+	for k, val := range annots {
+		if idx := strings.Index(k, annotations.MatchHeader); idx != -1 {
+			key := k[start:idx] + k[idx+len(annotations.MatchHeader)+1:]
+			headers = append(headers, [2]string{key, val})
+		}
+		if idx := strings.Index(k, annotations.MatchQuery); idx != -1 {
+			key := k[start:idx] + k[idx+len(annotations.MatchQuery)+1:]
+			params = append(params, [2]string{key, val})
+		}
+	}
+	sort.SliceStable(headers, func(i, j int) bool {
+		return headers[i][0] < headers[j][0]
+	})
+	sort.SliceStable(params, func(i, j int) bool {
+		return params[i][0] < params[j][0]
+	})
+	for idx := range headers {
+		if idx != 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(headers[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(headers[idx][1])
+	}
+	sb.WriteString(sep)
+	for idx := range params {
+		if idx != 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(params[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(params[idx][1])
+	}
+	sb.WriteString(sep)
+
+	return sb.String()
 }

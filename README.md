@@ -155,7 +155,7 @@ kubectl.exe config use-context kind-higress
 
 ```bash
 helm repo add higress.io https://higress.io/helm-charts
-helm install higress higress.io/higress -n higress-system --create-namespace --set global.kind=true
+helm install higress higress.io/higress -n higress-system --set global.kind=true --create-namespace --render-subchart-notes 
 ```
 
 注：helm版本需升级至**v3.8.0**及以上
@@ -191,7 +191,7 @@ kubectl delete ns higress-system
 
 ```bash
 helm repo add higress.io https://higress.io/helm-charts
-helm install higress higress.io/higress -n higress-system --create-namespace
+helm install higress higress.io/higress -n higress-system --create-namespace --render-subchart-notes
 ```
 
 #### 第二步、 创建 Ingress 资源并测试

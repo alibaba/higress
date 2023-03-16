@@ -38,6 +38,11 @@ type WrapperConfig struct {
 	AnnotationsConfig *annotations.Ingress
 }
 
+type WrapperConfigWithRuleKey struct {
+	Config  *config.Config
+	RuleKey string
+}
+
 type WrapperGateway struct {
 	Gateway       *networking.Gateway
 	WrapperConfig *WrapperConfig
@@ -70,6 +75,7 @@ type WrapperHTTPRoute struct {
 	OriginPathType   PathType
 	WeightTotal      int32
 	IsDefaultBackend bool
+	RuleKey          string
 }
 
 func (w *WrapperHTTPRoute) Meta() string {

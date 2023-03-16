@@ -65,6 +65,9 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HTTPRoutePermanentRedirect,
 		tests.HTTPRoutePermanentRedirectCode,
 		tests.HTTPRouteTemporalRedirect,
+		tests.HTTPRouteSameHostAndPath,
+		tests.HTTPRouteCanaryHeaderWithCustomizedHeader,
+		tests.HTTPRouteWhitelistSourceRange,
 	}
 
 	cSuite.Run(t, higressTests)

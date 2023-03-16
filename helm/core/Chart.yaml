@@ -5,15 +5,8 @@ icon: https://higress.io/img/higress_logo_small.png
 keywords:
 - higress
 - gateways
-name: higress
+name: higress-core
 sources:
 - http://github.com/alibaba/higress
-dependencies:
-- name: higress-core
-  repository: "file://../core"
-  version: 0.7.0
-- name: higress-console
-  repository: "https://higress.io/helm-charts/"
-  version: 0.1.0
 type: application
 version: 0.7.0
