@@ -4,7 +4,9 @@ global:
   # for internal usage only, not to be configured by users.
   autoscalingv2API: true
   kind: false
-  enableMesh: false
+  enableIstioAPI: false
+  # Deprecated
+  enableHigressIstio: false
   # Used to locate istiod.
   istioNamespace: istio-system
   # enable pod disruption budget for the control plane, which is used to
@@ -31,7 +33,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 0.6.1
+  tag: 0.7.0
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -365,7 +367,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "0.6.2"
+  tag: "0.7.0"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -453,7 +455,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "0.6.1"
+  tag: "0.7.0"
   env: {}
 
   labels: {}
@@ -543,7 +545,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 0.6.1
+  tag: 0.7.0
 
   # Can be a full hub/image:tag
   image: pilot
