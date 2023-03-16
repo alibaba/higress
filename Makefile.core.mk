@@ -119,7 +119,7 @@ ENVOY_LATEST_IMAGE_TAG ?= 0.7.0
 ISTIO_LATEST_IMAGE_TAG ?= 0.7.0
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag="$(TAG)"' --set 'gateway.replicas=1' --set 'gateway.tag="$(ENVOY_LATEST_IMAGE_TAG)"' --set 'global.kind=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.kind=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
