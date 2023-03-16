@@ -29,8 +29,8 @@ spec:
   template:
     metadata:
       annotations:
-      {{- if .Values.global.enableMesh }}
-        "enableMesh": "true"
+      {{- if .Values.global.enableHigressIstio }}
+        "enableHigressIstio": "true"
       {{- end }}
       {{- if .Values.gateway.podAnnotations }}
         {{- toYaml .Values.gateway.podAnnotations | nindent 8 }}
@@ -224,7 +224,7 @@ spec:
       {{- end }}
       - name: istio-ca-root-cert
         configMap:
-      {{- if .Values.global.enableMesh }}
+      {{- if .Values.global.enableHigressIstio }}
           name: istio-ca-root-cert
       {{- else }}
           name: higress-ca-root-cert
