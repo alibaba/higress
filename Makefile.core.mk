@@ -106,13 +106,13 @@ build-istio: prebuild
 
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
-	cd helm/higress; helm dependency build
 
 define create_ns
    kubectl get namespace | grep $(1) || kubectl create namespace $(1)
 endef
 
 install: pre-install
+	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.kind=true'
 
 ENVOY_LATEST_IMAGE_TAG ?= 0.7.0
@@ -125,6 +125,7 @@ uninstall:
 	helm uninstall higress -n higress-system
 
 upgrade: pre-install
+	cd helm/higress; helm dependency build
 	helm upgrade higress helm/higress -n higress-system --set 'global.kind=true'
 
 helm-push:
