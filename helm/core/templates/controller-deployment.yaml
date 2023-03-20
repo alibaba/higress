@@ -28,7 +28,7 @@ spec:
       securityContext:
         {{- toYaml .Values.controller.podSecurityContext | nindent 8 }}
       containers:
-{{- if not .Values.global.enableMesh }}
+{{- if not .Values.global.enableHigressIstio }}
         - name: discovery
 {{- if contains "/" .Values.pilot.image }}
           image: "{{ .Values.pilot.image }}"
@@ -120,7 +120,11 @@ spec:
             value: "{{ .Values.global.istiod.enableAnalysis }}"
           - name: CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
-          {{- if not .Values.global.enableMesh }}
+          {{- if .Values.global.enableIstioAPI }}
+          - name: HIGRESS_ENABLE_ISTIO_API
+            value: "true"
+          {{- end }}
+          {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
             value: "higress-ca-root-cert"
           {{- end }}
@@ -228,7 +232,7 @@ spec:
       volumes:
       - name: log
         emptyDir: {}
-      {{- if not .Values.global.enableMesh }}
+      {{- if not .Values.global.enableHigressIstio }}
       - name: config
         configMap:
           name: higress-config

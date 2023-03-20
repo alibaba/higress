@@ -101,6 +101,9 @@ external/package/envoy.tar.gz:
 build-gateway: prebuild external/package/envoy.tar.gz
 	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
+build-istio: prebuild
+	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
 
@@ -109,19 +112,21 @@ define create_ns
 endef
 
 install: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set-json='global.kind=true'
+	cd helm/higress; helm dependency build
+	helm install higress helm/higress -n higress-system --create-namespace --set 'global.kind=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 0.6.0
-ISTIO_LATEST_IMAGE_TAG ?= 0.6.0
+ENVOY_LATEST_IMAGE_TAG ?= 0.7.0
+ISTIO_LATEST_IMAGE_TAG ?= 0.7.0
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set-json='controller.tag="$(TAG)"' --set-json='gateway.replicas=1' --set-json='gateway.tag="$(ENVOY_LATEST_IMAGE_TAG)"' --set-json='global.kind=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.kind=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
 
 upgrade: pre-install
-	helm upgrade higress helm/core -n higress-system --set-json='global.kind=true'
+	cd helm/higress; helm dependency build
+	helm upgrade higress helm/higress -n higress-system --set 'global.kind=true'
 
 helm-push:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
