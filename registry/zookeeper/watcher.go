@@ -103,27 +103,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		log.Info("connect zk error")
 		return nil, errors.New("connect zk error")
 	}
-	connectEvent := make(chan zk.Event, 2)
-	newClient.RegisterEvent("", connectEvent)
-	connectTimer := time.NewTimer(timeout)
-	connectTimout := false
-FOR:
-	for {
-		select {
-		case ev := <-connectEvent:
-			if ev.State == zk.StateConnected {
-				break FOR
-			}
-		case <-connectTimer.C:
-			connectTimout = true
-			break FOR
-		}
-	}
-	if connectTimout {
-		return nil, errors.New("connect zk timeout")
-	}
-	log.Info("zk connected")
-	newClient.UnregisterEvent("", connectEvent)
 	w.reconnectCh = newClient.Reconnect()
 	w.zkClient = newClient
 	go func() {
