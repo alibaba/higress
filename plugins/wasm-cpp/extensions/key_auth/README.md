@@ -109,7 +109,7 @@ consumers:
   name: consumer2
 keys:
 - apikey
-- x-api-key
+in_query: true
 ```
 
 # 相关错误码
