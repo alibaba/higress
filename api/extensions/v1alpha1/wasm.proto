@@ -105,7 +105,7 @@ message WasmPlugin {
   // Extended by Higress, matching rules take effect
   repeated MatchRule match_rules = 102;
   // diable the default config
-  bool config_disable = 103;
+  bool default_config_disable = 103;
 }
 
 // Extended by Higress
