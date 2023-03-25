@@ -35,6 +35,8 @@ spec:
               defaultConfig:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              defaultConfigDisable:
+                type: boolean
               imagePullPolicy:
                 description: The pull behaviour to be applied when fetching an OCI
                   image.
@@ -52,6 +54,8 @@ spec:
                     config:
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+                    configDisable:
+                      type: boolean
                     domain:
                       items:
                         type: string

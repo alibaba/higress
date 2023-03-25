@@ -104,6 +104,8 @@ message WasmPlugin {
   google.protobuf.Struct default_config = 101;
   // Extended by Higress, matching rules take effect
   repeated MatchRule match_rules = 102;
+  // diable the default config
+  bool default_config_disable = 103;
 }
 
 // Extended by Higress
@@ -111,6 +113,7 @@ message MatchRule {
   repeated string ingress = 1;
   repeated string domain = 2;
   google.protobuf.Struct config = 3;
+  bool config_disable = 4;
 }
 
 // The phase in the filter chain where the plugin will be injected.
