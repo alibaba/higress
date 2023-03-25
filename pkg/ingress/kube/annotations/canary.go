@@ -106,6 +106,8 @@ func ApplyByWeight(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 	// We will process total weight in the end.
 	route.Route = append(route.Route, canary.Route[0])
 
+	// canary route use the header control applied on itself.
+	headerControl{}.ApplyRoute(canary, canaryIngress)
 	// Move route level to destination level
 	canary.Route[0].Headers = canary.Headers
 
@@ -165,6 +167,10 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 			},
 		}
 	}
+
+	canary.Headers = nil
+	// canary route use the header control applied on itself.
+	headerControl{}.ApplyRoute(canary, canaryIngress)
 
 	// First add normal route cluster
 	canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,

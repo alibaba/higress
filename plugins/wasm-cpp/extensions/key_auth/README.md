@@ -44,7 +44,7 @@ consumers:
   name: consumer2
 keys:
 - apikey
-- x-api-key
+in_query: true
 # 使用 _rules_ 字段进行细粒度规则配置
 _rules_:
 # 规则一：按路由名称匹配生效
@@ -109,7 +109,7 @@ consumers:
   name: consumer2
 keys:
 - apikey
-- x-api-key
+in_query: true
 ```
 
 # 相关错误码

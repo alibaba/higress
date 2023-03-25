@@ -707,7 +707,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	if result.PluginConfig != nil {
 		return result, nil
 	}
-	result.PluginConfig = obj.DefaultConfig
+	if !obj.DefaultConfigDisable {
+		result.PluginConfig = obj.DefaultConfig
+	}
 	if len(obj.MatchRules) > 0 {
 		if result.PluginConfig == nil {
 			result.PluginConfig = &types.Struct{
@@ -716,6 +718,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		}
 		var ruleValues []*types.Value
 		for _, rule := range obj.MatchRules {
+			if rule.ConfigDisable {
+				continue
+			}
 			if rule.Config == nil {
 				return nil, errors.New("invalid rule has no config")
 			}

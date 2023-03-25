@@ -1,0 +1,20 @@
+diff --color -Naur external/istio/pkg/wasm/imagefetcher.go external/istio_new/pkg/wasm/imagefetcher.go
+--- istio/pkg/wasm/imagefetcher.go	2023-03-19 17:56:55.238354950 +0800
++++ istio_new/pkg/wasm/imagefetcher.go	2023-03-19 17:56:40.630410241 +0800
+@@ -176,12 +176,12 @@
+ 		return nil, fmt.Errorf("could not fetch layers: %v", err)
+ 	}
+ 
+-	// The image must be single-layered.
+-	if len(layers) != 1 {
+-		return nil, fmt.Errorf("number of layers must be 1 but got %d", len(layers))
++	// The image must have at least one layer.
++	if len(layers) == 0 {
++		return nil, fmt.Errorf("number of layers must be greater than zero")
+ 	}
+ 
+-	layer := layers[0]
++	layer := layers[len(layers)-1]
+ 	mt, err := layer.MediaType()
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not get media type: %v", err)
