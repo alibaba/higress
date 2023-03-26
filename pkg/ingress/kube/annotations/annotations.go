@@ -62,6 +62,8 @@ type Ingress struct {
 
 	Auth *AuthConfig
 
+	Authz *AuthzConfig
+
 	Destination *DestinationConfig
 
 	IgnoreCase *IgnoreCaseConfig
@@ -138,6 +140,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			destination{},
 			ignoreCaseMatching{},
 			match{},
+			authz{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},

@@ -15,6 +15,8 @@
 package config
 
 import (
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"testing"
 
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
@@ -598,6 +600,57 @@ func TestConstructBasicAuthEnvoyFilter(t *testing.T) {
 	}
 	envoyFilter := config.Spec.(*networking.EnvoyFilter)
 	pb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[0].Patch.Value, false)
+	if err != nil {
+		t.Fatalf("build object error %v", err)
+	}
+	target := proto.Clone(pb).(*httppb.HttpFilter)
+	t.Log(target)
+}
+
+func TestConstructExtAuthzEnvoyFilter(t *testing.T) {
+	authz := &annotations.AuthzConfig{
+		AuthzType: "ext-authz",
+		ExtAuthz: &annotations.ExtAuthzConfig{
+			AuthzProto: annotations.HTTP,
+			AuthzService: &annotations.ServiceConfig{
+				Timeout:     "10s",
+				ServiceName: "ext-authz",
+				ServicePort: 8000,
+			},
+			RbacPolicyId: "ext-authz-policy",
+		},
+	}
+	pathType := networkingv1beta1.PathTypeExact
+	rules := []networkingv1beta1.IngressRule{
+		{
+			Host: "*",
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
+						{
+							Path:     "/foo",
+							PathType: &pathType,
+							Backend: networkingv1beta1.IngressBackend{
+								ServiceName: "foo-service",
+								ServicePort: intstr.IntOrString{
+									Type:   intstr.Int,
+									IntVal: 5678,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	config, err := constructExtAuthzEnvoyFilter(authz, rules, "test", true)
+	if err != nil {
+		t.Fatalf("construct error %v", err)
+	}
+	envoyFilter := config.Spec.(*networking.EnvoyFilter)
+	pb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[0].Patch.Value, false)
+	//pb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[1].Patch.Value, false)
 	if err != nil {
 		t.Fatalf("build object error %v", err)
 	}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/api/networking/v1beta1"
 	"strings"
 	"sync"
 
@@ -444,13 +445,14 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 	}
 
 	// We generate some specific envoy filter here to avoid duplicated computation.
-	m.convertEnvoyFilter(&convertOptions)
+	m.convertEnvoyFilter(&convertOptions, configs)
 	return out
 }
 
-func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions) {
+func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions, configs []common.WrapperConfig) {
+
 	var envoyFilters []config.Config
-	mappings := map[string]*common.Rule{}
+	basicAuthMappings := map[string]*common.Rule{}
 
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
@@ -464,8 +466,8 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			}
 
 			key := auth.AuthSecret.String() + "/" + auth.AuthRealm
-			if rule, exist := mappings[key]; !exist {
-				mappings[key] = &common.Rule{
+			if rule, exist := basicAuthMappings[key]; !exist {
+				basicAuthMappings[key] = &common.Rule{
 					Realm:       auth.AuthRealm,
 					MatchRoute:  []string{route.HTTPRoute.Name},
 					Credentials: auth.Credentials,
@@ -477,10 +479,31 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		}
 	}
 
-	IngressLog.Infof("Found %d number of basic auth", len(mappings))
-	if len(mappings) > 0 {
+	for _, cfg := range configs {
+		ingressV1, ok := cfg.Config.Spec.(v1beta1.IngressSpec)
+		if !ok {
+			continue
+		}
+		authz := cfg.AnnotationsConfig.Authz
+		ignoreCaseConfig := cfg.AnnotationsConfig.IgnoreCase
+		ignoreCase := false
+		if ignoreCaseConfig != nil && ignoreCaseConfig.IgnoreUriCase {
+			ignoreCase = true
+		}
+		if authz != nil {
+			extAuthz, err := constructExtAuthzEnvoyFilter(authz, ingressV1.Rules, m.namespace, ignoreCase)
+			if err != nil {
+				IngressLog.Errorf("Construct external authz filter error %v", err)
+			} else {
+				envoyFilters = append(envoyFilters, *extAuthz)
+			}
+		}
+	}
+
+	IngressLog.Infof("Found %d number of basic auth", len(basicAuthMappings))
+	if len(basicAuthMappings) > 0 {
 		rules := &common.BasicAuthRules{}
-		for _, rule := range mappings {
+		for _, rule := range basicAuthMappings {
 			rules.Rules = append(rules.Rules, rule)
 		}
 
@@ -965,6 +988,311 @@ func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptio
 			IngressLog.Errorf("Apply canary ingress %s/%s fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
 		}
 	}
+}
+
+func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta1.IngressRule, namespace string, ignoreCase bool) (*config.Config, error) {
+	extAuthz := authz.ExtAuthz
+	extAuthzFilterConfig := map[string]*types.Value{
+		"@type": buildGogoTypedStringValue("type.googleapis.com/envoy.config.filter.network.ext_authz.v2.ExtAuthz"),
+		"filter_enabled_metadata": {
+			Kind: &types.Value_StructValue{StructValue: &types.Struct{
+				Fields: map[string]*types.Value{
+					"filter": buildGogoTypedStringValue("envoy.filters.http.rbac"),
+					"path": buildGogoTypedListValue(
+						[]*types.Value{
+							buildGogoTypedSingleStringPairMap("key", authz.ExtAuthz.RbacPolicyId),
+						}),
+					"value": buildGogoTypedSinglePairMap("string_match",
+						buildGogoTypedSingleStringPairMap("exact", extAuthz.RbacPolicyId)),
+				},
+			}},
+		},
+	}
+	authzService := extAuthz.AuthzService
+	cluster := fmt.Sprintf(
+		"outbound|%d||%s.%s.svc.cluster.local",
+		authzService.ServicePort,
+		authzService.ServiceName, namespace)
+	uri := fmt.Sprintf("%s.%s.svc.cluster.local", authzService.ServiceName, namespace)
+	if extAuthz.AuthzProto == annotations.HTTP {
+		httpServiceConfig := map[string]*types.Value{
+			"serverUri": buildGogoTypedStructValue(
+				map[string]*types.Value{
+					"uri":     buildGogoTypedStringValue(uri),
+					"cluster": buildGogoTypedStringValue(cluster),
+					"timeout": buildGogoTypedStringValue(authzService.Timeout),
+				}),
+		}
+		if authzService.ServicePathPrefix != "" {
+			httpServiceConfig["pathPrefix"] = buildGogoTypedStringValue(authzService.ServicePathPrefix)
+		}
+		authorizationRequestConfig := map[string]*types.Value{}
+		var reqHeadersAllowed []*types.Value
+		reqHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.ReqAllowedHeadersContains, reqHeadersAllowed)
+		reqHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.ReqAllowedHeadersExact, reqHeadersAllowed)
+		reqHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.ReqAllowedHeadersSuffix, reqHeadersAllowed)
+		reqHeadersAllowed = appendListStringAsSinglePairMapToList("contains", authzService.ReqAllowedHeadersContains, reqHeadersAllowed)
+
+		if len(reqHeadersAllowed) > 0 {
+			authorizationRequestConfig["allowedHeaders"] = buildGogoTypedListValue(reqHeadersAllowed)
+			authorizationRequest := buildGogoTypedStructValue(authorizationRequestConfig)
+			httpServiceConfig["authorizationRequest"] = authorizationRequest
+		}
+
+		authorizationResponseConfig := map[string]*types.Value{}
+		var respUpstreamHeadersAllowed []*types.Value
+		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedUpstreamHeadersPrefix, respUpstreamHeadersAllowed)
+		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.RespAllowedUpstreamHeadersContains, respUpstreamHeadersAllowed)
+		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.RespAllowedUpstreamHeadersSuffix, respUpstreamHeadersAllowed)
+		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("contains", authzService.RespAllowedUpstreamHeadersContains, respUpstreamHeadersAllowed)
+		if len(respUpstreamHeadersAllowed) > 0 {
+			authorizationResponseConfig["allowedUpstreamHeaders"] = buildGogoTypedListValue(respUpstreamHeadersAllowed)
+		}
+
+		var respClientHeadersAllowed []*types.Value
+		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedClientHeadersPrefix, respClientHeadersAllowed)
+		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.RespAllowedClientHeadersExact, respClientHeadersAllowed)
+		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.RespAllowedClientHeadersSuffix, respClientHeadersAllowed)
+		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedClientHeadersContains, respClientHeadersAllowed)
+
+		if len(respClientHeadersAllowed) > 0 {
+			authorizationResponseConfig["allowed_client_headers"] = buildGogoTypedListValue(respClientHeadersAllowed)
+		}
+
+		if len(authorizationResponseConfig) > 0 {
+			authorizationResponse := buildGogoTypedStructValue(authorizationResponseConfig)
+			httpServiceConfig["authorizationResponse"] = authorizationResponse
+		}
+
+		httpService := &types.Value{
+			Kind: &types.Value_StructValue{StructValue: &types.Struct{
+				Fields: httpServiceConfig,
+			}},
+		}
+		extAuthzFilterConfig["httpService"] = httpService
+	}
+
+	if extAuthz.AuthzProto == annotations.GRPC {
+		grpcService := &types.Value{
+			Kind: &types.Value_StructValue{StructValue: &types.Struct{
+				Fields: map[string]*types.Value{
+					"envoyGrpc": buildGogoTypedSingleStringPairMap("clusterName", cluster),
+					"timeout":   buildGogoTypedStringValue(authzService.Timeout),
+				},
+			}},
+		}
+		extAuthzFilterConfig["grpcService"] = grpcService
+	}
+
+	withRequestBodyConfig := map[string]*types.Value{
+		"packAsBytes": {
+			Kind: &types.Value_BoolValue{
+				BoolValue: extAuthz.PackAsBytes,
+			},
+		},
+		"allowPartialMessage": {
+			Kind: &types.Value_BoolValue{
+				BoolValue: extAuthz.ReqAllowPartial,
+			},
+		},
+	}
+	if extAuthz.ReqMaxBytes > 0 {
+		withRequestBodyConfig["maxRequestBytes"] = &types.Value{
+			Kind: &types.Value_NumberValue{
+				NumberValue: float64(extAuthz.ReqMaxBytes),
+			},
+		}
+	}
+	extAuthzFilterConfig["withRequestBody"] = buildGogoTypedStructValue(withRequestBodyConfig)
+	var permissions *types.Value
+	var routePathList []*types.Value
+	permissionsStructed := false
+	for _, rule := range rules {
+		host := rule.Host
+		if host == "*" {
+			permissions = buildGogoTypedListValue([]*types.Value{
+				buildGogoTypedSingleStringPairMap("any", "true"),
+			})
+			permissionsStructed = true
+			break
+		}
+		hostType := "exact"
+		if strings.HasPrefix(host, "*") {
+			host = host[1:]
+			hostType = "suffix"
+		}
+		httpPaths := rule.HTTP.Paths
+		var andRules []*types.Value
+		for _, httpPath := range httpPaths {
+
+			var pathType string
+			switch *httpPath.PathType {
+			case v1beta1.PathTypeExact:
+				pathType = "exact"
+			case v1beta1.PathTypePrefix:
+				pathType = "prefix"
+			}
+			path := map[string]*types.Value{
+				"ignore_case": &types.Value{
+					Kind: &types.Value_BoolValue{
+						BoolValue: ignoreCase,
+					},
+				},
+				pathType: buildGogoTypedStringValue(httpPath.Path),
+			}
+			pathRule := buildGogoTypedSinglePairMap("url_path", buildGogoTypedStructValue(path))
+			hostRule := buildGogoTypedSinglePairMap(
+				"header",
+				buildGogoTypedStructValue(map[string]*types.Value{
+					"name":         buildGogoTypedStringValue("Host"),
+					"string_match": buildGogoTypedSinglePairMap(hostType, buildGogoTypedStringValue(host)),
+				}))
+			andRules = append(andRules, pathRule)
+			andRules = append(andRules, hostRule)
+		}
+		orRule := &types.Value{}
+		routePathList = append(routePathList, orRule)
+	}
+	if !permissionsStructed {
+		permissions = buildGogoTypedListValue([]*types.Value{
+			buildGogoTypedSinglePairMap("or_rules",
+				buildGogoTypedSinglePairMap("rules", buildGogoTypedListValue(routePathList))),
+		})
+	}
+	policy := &types.Value{
+		Kind: &types.Value_StructValue{StructValue: &types.Struct{
+			Fields: map[string]*types.Value{
+				"permissions": permissions,
+				"principals": buildGogoTypedListValue([]*types.Value{
+					buildGogoTypedSingleStringPairMap("any", "true"),
+				}),
+			},
+		}},
+	}
+	rbacFilterConfig := map[string]*types.Value{
+		"@type": buildGogoTypedStringValue("type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC"),
+		"shadow_rules": {
+			Kind: &types.Value_StructValue{StructValue: &types.Struct{
+				Fields: map[string]*types.Value{
+					"action":   buildGogoTypedStringValue("ALLOW"),
+					"policies": buildGogoTypedSinglePairMap(authz.ExtAuthz.RbacPolicyId, policy),
+				},
+			}},
+		},
+	}
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.EnvoyFilter,
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "extAuthz"),
+			Namespace:        namespace,
+		},
+		Spec: &networking.EnvoyFilter{
+			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &networking.EnvoyFilter_ListenerMatch{
+								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.http_connection_manager",
+										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+											Name: "envoy.filters.http.cors",
+										},
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
+						Value: &types.Struct{
+							Fields: map[string]*types.Value{
+								"typed_config": buildGogoTypedStructValue(extAuthzFilterConfig),
+							},
+						},
+					},
+				},
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &networking.EnvoyFilter_ListenerMatch{
+								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.http_connection_manager",
+										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+											Name: "envoy.filters.http.ext_authz",
+										},
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &types.Struct{
+							Fields: map[string]*types.Value{
+								"typed_config": buildGogoTypedStructValue(rbacFilterConfig),
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func appendListStringAsSinglePairMapToList(key string, values []string, gogoList []*types.Value) []*types.Value {
+	if len(values) > 0 {
+		for _, value := range values {
+			gogoList = append(gogoList, buildGogoTypedSingleStringPairMap(key, value))
+		}
+	}
+	return gogoList
+}
+
+func buildGogoTypedSingleStringPairMap(key string, value string) *types.Value {
+	gogo := buildGogoTypedSinglePairMap(key, buildGogoTypedStringValue(value))
+	return gogo
+}
+
+func buildGogoTypedSinglePairMap(key string, value *types.Value) *types.Value {
+	gogo := &types.Value{
+		Kind: &types.Value_StructValue{StructValue: &types.Struct{
+			Fields: map[string]*types.Value{
+				key: value,
+			},
+		}},
+	}
+	return gogo
+}
+
+func buildGogoTypedStringValue(value string) *types.Value {
+	gogo := &types.Value{
+		Kind: &types.Value_StringValue{StringValue: value},
+	}
+	return gogo
+}
+
+func buildGogoTypedStructValue(mapValue map[string]*types.Value) *types.Value {
+	gogo := &types.Value{
+		Kind: &types.Value_StructValue{StructValue: &types.Struct{
+			Fields: mapValue,
+		}},
+	}
+	return gogo
+}
+
+func buildGogoTypedListValue(listValue []*types.Value) *types.Value {
+	gogo := &types.Value{
+		Kind: &types.Value_ListValue{ListValue: &types.ListValue{
+			Values: listValue,
+		}},
+	}
+	return gogo
 }
 
 func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace string) (*config.Config, error) {
