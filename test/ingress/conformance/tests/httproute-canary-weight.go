@@ -32,7 +32,7 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		tt := []struct {
 			assertion http.Assertion
-			succRate  float32
+			succRate  float64
 		}{
 			{
 				succRate: 1.0,

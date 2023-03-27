@@ -492,12 +492,8 @@ func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripp
 
 	rate := float64(succ) / totalRequest
 	minSuccRate, maxSuccRate := math.Min(succRate-rateDeviation, 0), math.Max(succRate+rateDeviation, 1.0)
-	if 0 < minSuccRate && rate < minSuccRate {
-		t.Errorf("Test failed, expect the minSuccRate is %v, got %v", minSuccRate, rate)
-		return
-	}
-	if 0 < maxSuccRate && maxSuccRate > rate {
-		t.Errorf("Test failed, expect the maxSuccRate is %v, got %v", maxSuccRate, rate)
+	if rate < minSuccRate || maxSuccRate > rate {
+		t.Errorf("Test failed, expect the minSuccRate is %v, the maxSuccRate is %v, but got %v", minSuccRate, maxSuccRate, rate)
 		return
 	}
 
