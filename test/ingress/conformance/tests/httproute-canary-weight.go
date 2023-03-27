@@ -31,15 +31,13 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-canary-weight.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		tt := []struct {
-			assertion http.Assertion
-			totReq    int                           // total request
-			fn        func(succ int, fail int) bool // the results are determined by the number of successful and failed requests
+			assertion   http.Assertion
+			minSuccRate float32
+			maxSuccRate float32
 		}{
 			{
-				totReq: 100,
-				fn: func(succ int, fail int) bool { // avoid accidentally incorrect request failures
-					return succ > 90
-				},
+				minSuccRate: 0.9,
+				maxSuccRate: 1.0,
 				assertion: http.Assertion{
 					// test if the weight is 0
 					Meta: http.AssertionMeta{
@@ -59,10 +57,8 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 					},
 				},
 			}, { // test if the weight is 100
-				totReq: 100,
-				fn: func(succ int, fail int) bool {
-					return succ > 90
-				},
+				minSuccRate: 0.9,
+				maxSuccRate: 1.0,
 				assertion: http.Assertion{
 					Meta: http.AssertionMeta{
 						TargetBackend:   "infra-backend-v2",
@@ -81,10 +77,8 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 					},
 				},
 			}, {
-				totReq: 100,
-				fn: func(succ int, fail int) bool {
-					return succ > 40
-				},
+				minSuccRate: 0.4,
+				maxSuccRate: 0.6,
 				assertion: http.Assertion{
 					Meta: http.AssertionMeta{
 						TargetBackend:   "infra-backend-v2",
@@ -107,7 +101,7 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 
 		t.Run("Canary HTTPRoute Traffic Split", func(t *testing.T) {
 			for _, testcase := range tt {
-				http.MakeRequestAndCountExpectedResponse(t, suite.RoundTripper, suite.GatewayAddress, testcase.assertion, testcase.totReq, testcase.fn)
+				http.MakeRequestAndCountExpectedResponse(t, suite.RoundTripper, suite.GatewayAddress, testcase.assertion, testcase.minSuccRate, testcase.maxSuccRate)
 			}
 		})
 	},

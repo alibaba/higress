@@ -126,6 +126,8 @@ type Response struct {
 // maxTimeToConsistency, the test will fail.
 const requiredConsecutiveSuccesses = 3
 
+const totalRequest = 100
+
 // MakeRequestAndExpectEventuallyConsistentResponse makes a request with the given parameters,
 // understanding that the request may fail for some amount of time.
 //
@@ -452,7 +454,7 @@ func getRequest(gwAddr string, expected Assertion) roundtripper.Request {
 }
 
 // MakeRequestAndCountExpectedResponse make 'totReq' requests and determine whether to test results according to 'fn' callback function
-func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, totReq int, fn func(int, int) bool) {
+func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, minSuccRate, maxSuccRate float32) {
 	t.Helper()
 
 	if expected.Request.ActualRequest.Method == "" {
@@ -468,7 +470,7 @@ func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripp
 	req := getRequest(gwAddr, expected)
 
 	succ, fail := 0, 0
-	for i := 0; i < totReq; i++ {
+	for i := 0; i < totalRequest; i++ {
 		cReq, cRes, err := r.CaptureRoundTrip(req)
 		if err != nil {
 			fail += 1
@@ -485,8 +487,15 @@ func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripp
 		succ += 1
 	}
 
-	if !fn(succ, fail) {
-		t.Logf("Test failed, the num of succ: %d, the num of fail: %d, the sum of req: %d", succ, fail, totReq)
+	rate := float32(succ) / totalRequest
+	if 0 < minSuccRate && rate < minSuccRate {
+		t.Errorf("Test failed, expect the minSuccRate is %v, got %v", minSuccRate, rate)
+		return
 	}
+	if 0 < maxSuccRate && maxSuccRate > rate {
+		t.Errorf("Test failed, expect the maxSuccRate is %v, got %v", maxSuccRate, rate)
+		return
+	}
+
 	t.Logf("Test passed")
 }
