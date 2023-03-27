@@ -32,3 +32,17 @@ spec:
             name: infra-backend-v1
             port:
               number: 8080
+      - pathType: Prefix
+        path: "/bar"
+        backend:
+          service:
+            name: infra-backend-v2
+            port:
+              number: 8080
+      - pathType: Prefix
+        path: "/cat/"
+        backend:
+          service:
+            name: infra-backend-v3
+            port:
+              number: 8080

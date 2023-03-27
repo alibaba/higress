@@ -22,13 +22,13 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteIgnoreCaseMatch)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteMatchPath)
 }
 
-var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
-	ShortName:   "HTTPRouteIgnoreCaseMatch",
-	Description: "A Ingress in the higress-conformance-infra namespace that ignores URI case in HTTP match.",
-	Manifests:   []string{"tests/httproute-ignore-case-match.yaml"},
+var HTTPRouteMatchPath = suite.ConformanceTest{
+	ShortName:   "HTTPRouteMatchPath",
+	Description: "A Ingress in the higress-conformance-infra namespace that match different path.",
+	Manifests:   []string{"tests/httproute-enable-ignore-case.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -50,13 +50,62 @@ var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
 				},
 			}, {
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case2: enable ignoreCase",
-					TargetBackend:   "infra-backend-v1",
+					TestCaseName:    "case2: path is '/bar' and match prefix path successfully",
+					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/fOO",
+						Path: "/bar",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName: "case2: path is '/bar' and match prefix path failed",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/bard",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 404,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case3: path is '/cat/' and match prefix path successfully",
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/cat",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case4: path is '/cat/' and match prefix path successfully",
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/cat/ok",
 						Host: "foo.com",
 					},
 				},
@@ -68,7 +117,7 @@ var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
 			},
 		}
 
-		t.Run("Enable IgnoreCase Cases Split", func(t *testing.T) {
+		t.Run("HTTPRoute Match different path Cases", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

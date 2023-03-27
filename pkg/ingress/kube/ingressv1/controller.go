@@ -507,7 +507,9 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		}
 
 		wrapperHttpRoutes := make([]*common.WrapperHTTPRoute, 0, len(rule.HTTP.Paths))
-		for _, httpPath := range rule.HTTP.Paths {
+		extraExactPaths := make([]ingress.HTTPIngressPath, 0)
+
+		convertPath := func(httpPath ingress.HTTPIngressPath) {
 			wrapperHttpRoute := &common.WrapperHTTPRoute{
 				HTTPRoute:     &networking.HTTPRoute{},
 				WrapperConfig: wrapper,
@@ -515,6 +517,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				ClusterId:     c.options.ClusterId,
 			}
 			httpMatch := &networking.HTTPMatchRequest{}
+			pathTypeExact := ingress.PathTypeExact
 
 			path := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
@@ -539,9 +542,22 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 							MatchType: &networking.StringMatch_Prefix{Prefix: path},
 						}
 					} else {
-						path = strings.TrimSuffix(path, "/")
+						// the path maybe prefix /xxx or prefix /xxx/
+						// we both convert it to prefix /xxx/ and exact /xxx
+						var extraExactPath string
+						if path[len(path)-1] != '/' { // prefix /xxx
+							extraExactPath = path
+							path = path + "/"
+						} else {
+							extraExactPath = path[:len(path)-1]
+						}
+						extraExactPaths = append(extraExactPaths, ingress.HTTPIngressPath{
+							Path:     extraExactPath,
+							PathType: &pathTypeExact,
+							Backend:  httpPath.Backend,
+						})
 						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + common.PrefixMatchRegex},
+							MatchType: &networking.StringMatch_Prefix{Prefix: path},
 						}
 					}
 				}
@@ -592,6 +608,14 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			}
 
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
+		}
+
+		for _, httpPath := range rule.HTTP.Paths {
+			convertPath(httpPath)
+		}
+
+		for _, httpPath := range extraExactPaths {
+			convertPath(httpPath)
 		}
 
 		for idx, item := range tempRuleKey {
