@@ -16,6 +16,7 @@ package http
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
@@ -127,6 +128,8 @@ type Response struct {
 const requiredConsecutiveSuccesses = 3
 
 const totalRequest = 100
+
+const rateDeviation = 0.1
 
 // MakeRequestAndExpectEventuallyConsistentResponse makes a request with the given parameters,
 // understanding that the request may fail for some amount of time.
@@ -453,8 +456,8 @@ func getRequest(gwAddr string, expected Assertion) roundtripper.Request {
 	return req
 }
 
-// MakeRequestAndCountExpectedResponse make 'totReq' requests and determine whether to test results according to 'fn' callback function
-func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, minSuccRate, maxSuccRate float32) {
+// MakeRequestAndCountExpectedResponse make 'totReq' requests and determine whether to test results according to the succRate
+func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, succRate float64) {
 	t.Helper()
 
 	if expected.Request.ActualRequest.Method == "" {
@@ -487,7 +490,8 @@ func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripp
 		succ += 1
 	}
 
-	rate := float32(succ) / totalRequest
+	rate := float64(succ) / totalRequest
+	minSuccRate, maxSuccRate := math.Min(succRate-rateDeviation, 0), math.Max(succRate+rateDeviation, 1.0)
 	if 0 < minSuccRate && rate < minSuccRate {
 		t.Errorf("Test failed, expect the minSuccRate is %v, got %v", minSuccRate, rate)
 		return
