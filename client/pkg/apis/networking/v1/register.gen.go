@@ -41,6 +41,8 @@ func Resource(resource string) schema.GroupResource {
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
+		&Http2Rpc{},
+		&Http2RpcList{},
 		&McpBridge{},
 		&McpBridgeList{},
 	)

@@ -16,4 +16,6 @@
 
 package v1
 
+type Http2RpcExpansion interface{}
+
 type McpBridgeExpansion interface{}

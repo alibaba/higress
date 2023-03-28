@@ -24,12 +24,17 @@ import (
 
 type NetworkingV1Interface interface {
 	RESTClient() rest.Interface
+	Http2RpcsGetter
 	McpBridgesGetter
 }
 
 // NetworkingV1Client is used to interact with features provided by the networking.higress.io group.
 type NetworkingV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *NetworkingV1Client) Http2Rpcs(namespace string) Http2RpcInterface {
+	return newHttp2Rpcs(c, namespace)
 }
 
 func (c *NetworkingV1Client) McpBridges(namespace string) McpBridgeInterface {

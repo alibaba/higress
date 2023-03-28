@@ -22,6 +22,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Http2Rpcs returns a Http2RpcInformer.
+	Http2Rpcs() Http2RpcInformer
 	// McpBridges returns a McpBridgeInformer.
 	McpBridges() McpBridgeInformer
 }
@@ -35,6 +37,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// Http2Rpcs returns a Http2RpcInformer.
+func (v *version) Http2Rpcs() Http2RpcInformer {
+	return &http2RpcInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // McpBridges returns a McpBridgeInformer.
