@@ -507,115 +507,89 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		}
 
 		wrapperHttpRoutes := make([]*common.WrapperHTTPRoute, 0, len(rule.HTTP.Paths))
-		extraExactPaths := make([]ingress.HTTPIngressPath, 0)
 
-		convertPath := func(httpPath ingress.HTTPIngressPath) {
-			wrapperHttpRoute := &common.WrapperHTTPRoute{
-				HTTPRoute:     &networking.HTTPRoute{},
-				WrapperConfig: wrapper,
-				Host:          rule.Host,
-				ClusterId:     c.options.ClusterId,
-			}
-			httpMatch := &networking.HTTPMatchRequest{}
-			pathTypeExact := ingress.PathTypeExact
-
-			path := httpPath.Path
+		for _, httpPath := range rule.HTTP.Paths {
+			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
-				wrapperHttpRoute.OriginPathType = common.Regex
-				httpMatch.Uri = &networking.StringMatch{
-					MatchType: &networking.StringMatch_Regex{Regex: httpPath.Path + ".*"},
-				}
+				pathType = common.Regex
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
-					wrapperHttpRoute.OriginPathType = common.Exact
-					httpMatch.Uri = &networking.StringMatch{
-						MatchType: &networking.StringMatch_Exact{Exact: httpPath.Path},
-					}
+					pathType = common.Exact
 				case ingress.PathTypePrefix:
-					wrapperHttpRoute.OriginPathType = common.Prefix
-					// borrow from implement of official istio code.
-					if path == "/" {
-						wrapperVS.ConfiguredDefaultBackend = true
-						// Optimize common case of / to not needed regex
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					} else {
-						// the path maybe prefix /xxx or prefix /xxx/
-						// we both convert it to prefix /xxx/ and exact /xxx
-						var extraExactPath string
-						if path[len(path)-1] != '/' { // prefix /xxx
-							extraExactPath = path
-							path = path + "/"
-						} else {
-							extraExactPath = path[:len(path)-1]
-						}
-						extraExactPaths = append(extraExactPaths, ingress.HTTPIngressPath{
-							Path:     extraExactPath,
-							PathType: &pathTypeExact,
-							Backend:  httpPath.Backend,
-						})
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					}
+					pathType = common.Prefix
 				}
 			}
-			wrapperHttpRoute.OriginPath = path
-			wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
-			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 
-			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
+			var httpMatchs []*networking.HTTPMatchRequest
+			httpMatchs = c.generateHttpMatch(pathType, httpPath.Path, wrapperVS)
 
-			hostAndPath := wrapperHttpRoute.PathFormat()
-			key := createRuleKey(cfg.Annotations, hostAndPath)
-			wrapperHttpRoute.RuleKey = key
-			if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
-				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
-				ingressRouteBuilder.Event = common.DuplicatedRoute
-			}
-			tempRuleKey = append(tempRuleKey, key)
+			for _, httpMatch := range httpMatchs {
+				wrapperHttpRoute := &common.WrapperHTTPRoute{
+					HTTPRoute:     &networking.HTTPRoute{},
+					WrapperConfig: wrapper,
+					Host:          rule.Host,
+					ClusterId:     c.options.ClusterId,
+				}
 
-			// Two duplicated rules in the same ingress.
-			if ingressRouteBuilder.Event == common.Normal {
-				pathFormat := wrapperHttpRoute.PathFormat()
-				if definedRules.Contains(pathFormat) {
-					ingressRouteBuilder.PreIngress = cfg
+				switch httpMatch.Uri.GetMatchType().(type) {
+				case *networking.StringMatch_Exact:
+					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetExact()
+					wrapperHttpRoute.OriginPathType = common.Exact
+				case *networking.StringMatch_Prefix:
+					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetPrefix()
+					wrapperHttpRoute.OriginPathType = common.Prefix
+				case *networking.StringMatch_Regex:
+					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetRegex()
+					wrapperHttpRoute.OriginPathType = common.Regex
+				}
+				wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
+				wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
+
+				ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
+
+				hostAndPath := wrapperHttpRoute.PathFormat()
+				key := createRuleKey(cfg.Annotations, hostAndPath)
+				wrapperHttpRoute.RuleKey = key
+				if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
+					ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 					ingressRouteBuilder.Event = common.DuplicatedRoute
 				}
-				definedRules.Insert(pathFormat)
+				tempRuleKey = append(tempRuleKey, key)
+
+				// Two duplicated rules in the same ingress.
+				if ingressRouteBuilder.Event == common.Normal {
+					pathFormat := wrapperHttpRoute.PathFormat()
+					if definedRules.Contains(pathFormat) {
+						ingressRouteBuilder.PreIngress = cfg
+						ingressRouteBuilder.Event = common.DuplicatedRoute
+					}
+					definedRules.Insert(pathFormat)
+				}
+
+				// backend service check
+				var event common.Event
+				destinationConfig := wrapper.AnnotationsConfig.Destination
+				wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
+
+				if destinationConfig != nil {
+					wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
+				}
+
+				if ingressRouteBuilder.Event != common.Normal {
+					event = ingressRouteBuilder.Event
+				}
+
+				if event != common.Normal {
+					common.IncrementInvalidIngress(c.options.ClusterId, event)
+					ingressRouteBuilder.Event = event
+				} else {
+					wrapperHttpRoutes = append(wrapperHttpRoutes, wrapperHttpRoute)
+				}
+
+				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 			}
 
-			// backend service check
-			var event common.Event
-			destinationConfig := wrapper.AnnotationsConfig.Destination
-			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
-
-			if destinationConfig != nil {
-				wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
-			}
-
-			if ingressRouteBuilder.Event != common.Normal {
-				event = ingressRouteBuilder.Event
-			}
-
-			if event != common.Normal {
-				common.IncrementInvalidIngress(c.options.ClusterId, event)
-				ingressRouteBuilder.Event = event
-			} else {
-				wrapperHttpRoutes = append(wrapperHttpRoutes, wrapperHttpRoute)
-			}
-
-			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
-		}
-
-		for _, httpPath := range rule.HTTP.Paths {
-			convertPath(httpPath)
-		}
-
-		for _, httpPath := range extraExactPaths {
-			convertPath(httpPath)
 		}
 
 		for idx, item := range tempRuleKey {
@@ -642,6 +616,40 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	}
 
 	return nil
+}
+
+func (c *controller) generateHttpMatch(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
+	var httpMatchs []*networking.HTTPMatchRequest
+
+	httpMatch := &networking.HTTPMatchRequest{}
+	switch pathType {
+	case common.Regex:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Regex{Regex: path + ".*"},
+		}
+	case common.Exact:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Exact{Exact: path},
+		}
+	case common.Prefix:
+		if path == "/" {
+			wrapperVS.ConfiguredDefaultBackend = true
+			// Optimize common case of / to not needed regex
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: path},
+			}
+		} else {
+			newPath := strings.TrimSuffix(path, "/")
+			httpMatchs = append(httpMatchs, c.generateHttpMatch(common.Exact, newPath, wrapperVS)...)
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: newPath + "/"},
+			}
+		}
+	}
+
+	httpMatchs = append(httpMatchs, httpMatch)
+
+	return httpMatchs
 }
 
 func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
