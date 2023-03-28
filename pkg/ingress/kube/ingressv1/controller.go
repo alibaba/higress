@@ -521,7 +521,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			}
 
 			var httpMatchs []*networking.HTTPMatchRequest
-			httpMatchs = c.generateHttpMatch(pathType, httpPath.Path, wrapperVS)
+			httpMatchs = c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
 
 			for _, httpMatch := range httpMatchs {
 				wrapperHttpRoute := &common.WrapperHTTPRoute{
@@ -617,8 +617,8 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	return nil
 }
 
-func (c *controller) generateHttpMatch(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
-	var httpMatchs []*networking.HTTPMatchRequest
+func (c *controller) generateHttpMatches(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
+	var httpMatches []*networking.HTTPMatchRequest
 
 	httpMatch := &networking.HTTPMatchRequest{}
 	switch pathType {
@@ -641,16 +641,16 @@ func (c *controller) generateHttpMatch(pathType common.PathType, path string, wr
 			}
 		} else {
 			newPath := strings.TrimSuffix(path, "/")
-			httpMatchs = append(httpMatchs, c.generateHttpMatch(common.Exact, newPath, wrapperVS)...)
+			httpMatches = append(httpMatches, c.generateHttpMatches(common.Exact, newPath, wrapperVS)...)
 			httpMatch.Uri = &networking.StringMatch{
 				MatchType: &networking.StringMatch_Prefix{Prefix: newPath + "/"},
 			}
 		}
 	}
 
-	httpMatchs = append(httpMatchs, httpMatch)
+	httpMatches = append(httpMatches, httpMatch)
 
-	return httpMatchs
+	return httpMatches
 }
 
 func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
@@ -749,8 +749,6 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			continue
 		}
 
-		// here
-
 		for _, httpPath := range rule.HTTP.Paths {
 			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
@@ -764,9 +762,9 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				}
 			}
 
-			var httpMatchs []*networking.HTTPMatchRequest
-			httpMatchs = c.generateHttpMatch(pathType, httpPath.Path, nil)
-			for _, httpMatch := range httpMatchs {
+			var httpMatches []*networking.HTTPMatchRequest
+			httpMatches = c.generateHttpMatches(pathType, httpPath.Path, nil)
+			for _, httpMatch := range httpMatches {
 				canary := &common.WrapperHTTPRoute{
 					HTTPRoute:     &networking.HTTPRoute{},
 					WrapperConfig: wrapper,
