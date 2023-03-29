@@ -42,10 +42,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	higressext "github.com/alibaba/higress/api/extensions/v1alpha1"
+	higressv1 "github.com/alibaba/higress/api/networking/v1"
 	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
 	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
@@ -98,6 +100,12 @@ type IngressConfig struct {
 
 	wasmPlugins map[string]*extensions.WasmPlugin
 
+	http2rpcController http2rpc.Http2RpcController
+
+	http2rpcLister netlisterv1.Http2RpcLister
+
+	http2rpcs map[string]*higressv1.Http2Rpc
+
 	XDSUpdater model.XDSUpdater
 
 	annotationHandler annotations.AnnotationHandler
@@ -135,6 +143,11 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
 	config.wasmPluginController = wasmPluginController
 	config.wasmPluginLister = wasmPluginController.Lister()
+
+	http2rpcController := http2rpc.NewController(localKubeClient, clusterId)
+	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
+	config.http2rpcController = http2rpcController
+	config.http2rpcLister = http2rpcController.Lister()
 	return config
 }
 
@@ -909,6 +922,37 @@ func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamesp
 	if m.RegistryReconciler != nil {
 		go m.RegistryReconciler.Reconcile(nil)
 		m.RegistryReconciler = nil
+	}
+}
+
+func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	http2rpc, err := m.http2rpcLister.Http2Rpcs(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
+	if err != nil {
+		IngressLog.Errorf("http2rpc is not found, namespace:%s, name:%s",
+			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
+		return
+	}
+	m.mutex.Lock()
+	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
+	m.mutex.Unlock()
+}
+
+func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	var hit bool
+	m.mutex.Lock()
+	if _, ok := m.http2rpcs[clusterNamespacedName.Name]; ok {
+		delete(m.http2rpcs, clusterNamespacedName.Name)
+		hit = true
+	}
+	m.mutex.Unlock()
+	if hit {
+		IngressLog.Debug("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
 	}
 }
 
