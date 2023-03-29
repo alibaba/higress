@@ -83,7 +83,10 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 		delete(r.registries, k)
 		delete(r.watchers, k)
 	}
-	for k, v := range toBeCreated {
+	for k, v := range toBeUpdated {
+		r.watchers[k].Stop()
+		delete(r.registries, k)
+		delete(r.watchers, k)
 		watcher, err := r.generateWatcherFromRegistryConfig(v, &wg)
 		if err != nil {
 			errHappened = true
@@ -95,10 +98,7 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 		r.watchers[k] = watcher
 		r.registries[k] = v
 	}
-	for k, v := range toBeUpdated {
-		r.watchers[k].Stop()
-		delete(r.registries, k)
-		delete(r.watchers, k)
+	for k, v := range toBeCreated {
 		watcher, err := r.generateWatcherFromRegistryConfig(v, &wg)
 		if err != nil {
 			errHappened = true
