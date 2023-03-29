@@ -1,3 +1,7 @@
+**If you are reporting *any* crash or *any* potential security issue, *do not*
+open an issue in this repo. Please report the issue via [ASRC](https://security.alibaba.com/)(Alibaba Security Response Center) where the issue will be triaged appropriately.**
+
+
 ---
 name: Bug Report
 about: If you would like to report an issue to Higress, please use this template.
