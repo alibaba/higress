@@ -28,7 +28,7 @@ func init() {
 var HTTPRouteMatchPath = suite.ConformanceTest{
 	ShortName:   "HTTPRouteMatchPath",
 	Description: "A Ingress in the higress-conformance-infra namespace that match different path.",
-	Manifests:   []string{"tests/httproute-enable-ignore-case.yaml"},
+	Manifests:   []string{"tests/httproute-match-path.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -106,6 +106,22 @@ var HTTPRouteMatchPath = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/cat/ok",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo/",
 						Host: "foo.com",
 					},
 				},

@@ -23,6 +23,13 @@ spec:
   - host: "foo.com"
     http:
       paths:
+      - pathType: Prefix
+        path: "/foo"
+        backend:
+          service:
+            name: infra-backend-v2
+            port:
+              number: 8080
       - pathType: Exact
         path: "/foo"
         backend:

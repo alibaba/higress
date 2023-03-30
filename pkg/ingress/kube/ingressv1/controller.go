@@ -520,17 +520,17 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				}
 			}
 
-			var httpMatchs []*networking.HTTPMatchRequest
-			httpMatchs = c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
+			wrapperHttpRoute := &common.WrapperHTTPRoute{
+				HTTPRoute:     &networking.HTTPRoute{},
+				WrapperConfig: wrapper,
+				Host:          rule.Host,
+				ClusterId:     c.options.ClusterId,
+			}
 
-			for _, httpMatch := range httpMatchs {
-				wrapperHttpRoute := &common.WrapperHTTPRoute{
-					HTTPRoute:     &networking.HTTPRoute{},
-					WrapperConfig: wrapper,
-					Host:          rule.Host,
-					ClusterId:     c.options.ClusterId,
-				}
-
+			// if the pathType is Prefix, it will have 2 httpMatches, the first is the type of Exact and the next is Prefix
+			// so if the pathType is Prefix, the wrapperHttpRoute.OriginPathType is still Prefix, though it has been assigned twice
+			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
+			for _, httpMatch := range httpMatches {
 				switch httpMatch.Uri.GetMatchType().(type) {
 				case *networking.StringMatch_Exact:
 					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetExact()
@@ -542,53 +542,52 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetRegex()
 					wrapperHttpRoute.OriginPathType = common.Regex
 				}
-				wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
-				wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
+				wrapperHttpRoute.HTTPRoute.Match = append(wrapperHttpRoute.HTTPRoute.Match, httpMatch)
+			}
+			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 
-				ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
+			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
-				hostAndPath := wrapperHttpRoute.PathFormat()
-				key := createRuleKey(cfg.Annotations, hostAndPath)
-				wrapperHttpRoute.RuleKey = key
-				if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
-					ingressRouteBuilder.PreIngress = WrapPreIngress.Config
+			hostAndPath := wrapperHttpRoute.PathFormat()
+			key := createRuleKey(cfg.Annotations, hostAndPath)
+			wrapperHttpRoute.RuleKey = key
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
+				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
+				ingressRouteBuilder.Event = common.DuplicatedRoute
+			}
+			tempRuleKey = append(tempRuleKey, key)
+
+			// Two duplicated rules in the same ingress.
+			if ingressRouteBuilder.Event == common.Normal {
+				pathFormat := wrapperHttpRoute.PathFormat()
+				if definedRules.Contains(pathFormat) {
+					ingressRouteBuilder.PreIngress = cfg
 					ingressRouteBuilder.Event = common.DuplicatedRoute
 				}
-				tempRuleKey = append(tempRuleKey, key)
-
-				// Two duplicated rules in the same ingress.
-				if ingressRouteBuilder.Event == common.Normal {
-					pathFormat := wrapperHttpRoute.PathFormat()
-					if definedRules.Contains(pathFormat) {
-						ingressRouteBuilder.PreIngress = cfg
-						ingressRouteBuilder.Event = common.DuplicatedRoute
-					}
-					definedRules.Insert(pathFormat)
-				}
-
-				// backend service check
-				var event common.Event
-				destinationConfig := wrapper.AnnotationsConfig.Destination
-				wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
-
-				if destinationConfig != nil {
-					wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
-				}
-
-				if ingressRouteBuilder.Event != common.Normal {
-					event = ingressRouteBuilder.Event
-				}
-
-				if event != common.Normal {
-					common.IncrementInvalidIngress(c.options.ClusterId, event)
-					ingressRouteBuilder.Event = event
-				} else {
-					wrapperHttpRoutes = append(wrapperHttpRoutes, wrapperHttpRoute)
-				}
-
-				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
+				definedRules.Insert(pathFormat)
 			}
 
+			// backend service check
+			var event common.Event
+			destinationConfig := wrapper.AnnotationsConfig.Destination
+			wrapperHttpRoute.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
+
+			if destinationConfig != nil {
+				wrapperHttpRoute.WeightTotal = int32(destinationConfig.WeightSum)
+			}
+
+			if ingressRouteBuilder.Event != common.Normal {
+				event = ingressRouteBuilder.Event
+			}
+
+			if event != common.Normal {
+				common.IncrementInvalidIngress(c.options.ClusterId, event)
+				ingressRouteBuilder.Event = event
+			} else {
+				wrapperHttpRoutes = append(wrapperHttpRoutes, wrapperHttpRoute)
+			}
+
+			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 		}
 
 		for idx, item := range tempRuleKey {
