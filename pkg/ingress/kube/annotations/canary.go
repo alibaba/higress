@@ -133,8 +133,8 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 	canary.Route = temp.Route
 
 	// Modified match base on by header
-	for _, match := range canary.Match {
-		if canaryConfig.Header != "" {
+	if canaryConfig.Header != "" {
+		for _, match := range canary.Match {
 			match.Headers = map[string]*networking.StringMatch{
 				canaryConfig.Header: {
 					MatchType: &networking.StringMatch_Exact{
@@ -159,7 +159,9 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 					},
 				}
 			}
-		} else if canaryConfig.Cookie != "" {
+		}
+	} else if canaryConfig.Cookie != "" {
+		for _, match := range canary.Match {
 			match.Headers = map[string]*networking.StringMatch{
 				"cookie": {
 					MatchType: &networking.StringMatch_Regex{
