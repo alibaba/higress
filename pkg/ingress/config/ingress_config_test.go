@@ -649,11 +649,17 @@ func TestConstructExtAuthzEnvoyFilter(t *testing.T) {
 		t.Fatalf("construct error %v", err)
 	}
 	envoyFilter := config.Spec.(*networking.EnvoyFilter)
-	pb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[0].Patch.Value, false)
-	//pb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[1].Patch.Value, false)
+	extAuthzPb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[0].Patch.Value, false)
 	if err != nil {
 		t.Fatalf("build object error %v", err)
 	}
-	target := proto.Clone(pb).(*httppb.HttpFilter)
+	target := proto.Clone(extAuthzPb).(*httppb.HttpFilter)
+	t.Log(target)
+
+	rbacPb, err := xds.BuildXDSObjectFromStruct(networking.EnvoyFilter_HTTP_FILTER, envoyFilter.ConfigPatches[1].Patch.Value, false)
+	if err != nil {
+		t.Fatalf("build object error %v", err)
+	}
+	target = proto.Clone(rbacPb).(*httppb.HttpFilter)
 	t.Log(target)
 }

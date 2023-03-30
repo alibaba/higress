@@ -18,14 +18,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	rbacpb "github.com/envoyproxy/go-control-plane/envoy/config/rbac/v3"
+	envoy_config_route_v3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	v32 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	"github.com/golang/protobuf/ptypes/duration"
 	"k8s.io/api/networking/v1beta1"
 	"strings"
 	"sync"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	ext_authz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
+	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/rbac/v3"
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
+	"github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -992,20 +999,29 @@ func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptio
 
 func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta1.IngressRule, namespace string, ignoreCase bool) (*config.Config, error) {
 	extAuthz := authz.ExtAuthz
-	extAuthzFilterConfig := map[string]*types.Value{
-		"@type": buildGogoTypedStringValue("type.googleapis.com/envoy.config.filter.network.ext_authz.v2.ExtAuthz"),
-		"filter_enabled_metadata": {
-			Kind: &types.Value_StructValue{StructValue: &types.Struct{
-				Fields: map[string]*types.Value{
-					"filter": buildGogoTypedStringValue("envoy.filters.http.rbac"),
-					"path": buildGogoTypedListValue(
-						[]*types.Value{
-							buildGogoTypedSingleStringPairMap("key", authz.ExtAuthz.RbacPolicyId),
-						}),
-					"value": buildGogoTypedSinglePairMap("string_match",
-						buildGogoTypedSingleStringPairMap("exact", extAuthz.RbacPolicyId)),
+	e := &ext_authz.ExtAuthz{
+		FilterEnabledMetadata: &v32.MetadataMatcher{
+			Filter: "envoy.filters.http.rbac",
+			Path: []*envoy_type_matcher_v3.MetadataMatcher_PathSegment{
+				{
+					Segment: &envoy_type_matcher_v3.MetadataMatcher_PathSegment_Key{
+						Key: "shadow_effective_policy_id",
+					},
 				},
-			}},
+			},
+			Value: &envoy_type_matcher_v3.ValueMatcher{
+				MatchPattern: &envoy_type_matcher_v3.ValueMatcher_StringMatch{
+					StringMatch: &envoy_type_matcher_v3.StringMatcher{
+						MatchPattern: &envoy_type_matcher_v3.StringMatcher_Exact{
+							Exact: extAuthz.RbacPolicyId,
+						},
+					},
+				},
+			},
+		},
+		WithRequestBody: &ext_authz.BufferSettings{
+			AllowPartialMessage: extAuthz.ReqAllowPartial,
+			PackAsBytes:         extAuthz.PackAsBytes,
 		},
 	}
 	authzService := extAuthz.AuthzService
@@ -1015,170 +1031,188 @@ func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta
 		authzService.ServiceName, namespace)
 	uri := fmt.Sprintf("%s.%s.svc.cluster.local", authzService.ServiceName, namespace)
 	if extAuthz.AuthzProto == annotations.HTTP {
-		httpServiceConfig := map[string]*types.Value{
-			"serverUri": buildGogoTypedStructValue(
-				map[string]*types.Value{
-					"uri":     buildGogoTypedStringValue(uri),
-					"cluster": buildGogoTypedStringValue(cluster),
-					"timeout": buildGogoTypedStringValue(authzService.Timeout),
-				}),
+		httpService := &ext_authz.ExtAuthz_HttpService{
+			HttpService: &ext_authz.HttpService{
+				ServerUri: &corev3.HttpUri{
+					HttpUpstreamType: &corev3.HttpUri_Cluster{
+						Cluster: cluster,
+					},
+					Timeout: &duration.Duration{
+						Seconds: 10,
+					},
+					Uri: uri,
+				},
+				PathPrefix: authzService.ServicePathPrefix,
+			},
 		}
 		if authzService.ServicePathPrefix != "" {
-			httpServiceConfig["pathPrefix"] = buildGogoTypedStringValue(authzService.ServicePathPrefix)
+			httpService.HttpService.PathPrefix = authzService.ServicePathPrefix
 		}
-		authorizationRequestConfig := map[string]*types.Value{}
-		var reqHeadersAllowed []*types.Value
-		reqHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.ReqAllowedHeadersContains, reqHeadersAllowed)
-		reqHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.ReqAllowedHeadersExact, reqHeadersAllowed)
-		reqHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.ReqAllowedHeadersSuffix, reqHeadersAllowed)
-		reqHeadersAllowed = appendListStringAsSinglePairMapToList("contains", authzService.ReqAllowedHeadersContains, reqHeadersAllowed)
-
-		if len(reqHeadersAllowed) > 0 {
-			authorizationRequestConfig["allowedHeaders"] = buildGogoTypedListValue(reqHeadersAllowed)
-			authorizationRequest := buildGogoTypedStructValue(authorizationRequestConfig)
-			httpServiceConfig["authorizationRequest"] = authorizationRequest
+		if authzService.AuthorizationRequest != "" {
+			AuthorizationRequest := &ext_authz.AuthorizationRequest{}
+			json.Unmarshal([]byte(authzService.AuthorizationRequest), AuthorizationRequest)
+			httpService.HttpService.AuthorizationRequest = AuthorizationRequest
 		}
-
-		authorizationResponseConfig := map[string]*types.Value{}
-		var respUpstreamHeadersAllowed []*types.Value
-		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedUpstreamHeadersPrefix, respUpstreamHeadersAllowed)
-		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.RespAllowedUpstreamHeadersContains, respUpstreamHeadersAllowed)
-		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.RespAllowedUpstreamHeadersSuffix, respUpstreamHeadersAllowed)
-		respUpstreamHeadersAllowed = appendListStringAsSinglePairMapToList("contains", authzService.RespAllowedUpstreamHeadersContains, respUpstreamHeadersAllowed)
-		if len(respUpstreamHeadersAllowed) > 0 {
-			authorizationResponseConfig["allowedUpstreamHeaders"] = buildGogoTypedListValue(respUpstreamHeadersAllowed)
+		if authzService.AuthorizationResponse != "" {
+			AuthorizationResponse := &ext_authz.AuthorizationResponse{}
+			json.Unmarshal([]byte(authzService.AuthorizationRequest), AuthorizationResponse)
+			httpService.HttpService.AuthorizationResponse = AuthorizationResponse
 		}
-
-		var respClientHeadersAllowed []*types.Value
-		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedClientHeadersPrefix, respClientHeadersAllowed)
-		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("exact", authzService.RespAllowedClientHeadersExact, respClientHeadersAllowed)
-		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("suffix", authzService.RespAllowedClientHeadersSuffix, respClientHeadersAllowed)
-		respClientHeadersAllowed = appendListStringAsSinglePairMapToList("prefix", authzService.RespAllowedClientHeadersContains, respClientHeadersAllowed)
-
-		if len(respClientHeadersAllowed) > 0 {
-			authorizationResponseConfig["allowed_client_headers"] = buildGogoTypedListValue(respClientHeadersAllowed)
-		}
-
-		if len(authorizationResponseConfig) > 0 {
-			authorizationResponse := buildGogoTypedStructValue(authorizationResponseConfig)
-			httpServiceConfig["authorizationResponse"] = authorizationResponse
-		}
-
-		httpService := &types.Value{
-			Kind: &types.Value_StructValue{StructValue: &types.Struct{
-				Fields: httpServiceConfig,
-			}},
-		}
-		extAuthzFilterConfig["httpService"] = httpService
+		e.Services = httpService
 	}
 
 	if extAuthz.AuthzProto == annotations.GRPC {
-		grpcService := &types.Value{
-			Kind: &types.Value_StructValue{StructValue: &types.Struct{
-				Fields: map[string]*types.Value{
-					"envoyGrpc": buildGogoTypedSingleStringPairMap("clusterName", cluster),
-					"timeout":   buildGogoTypedStringValue(authzService.Timeout),
+		grpcService := &ext_authz.ExtAuthz_GrpcService{
+			GrpcService: &corev3.GrpcService{
+				TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
+					EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{
+						ClusterName: cluster,
+					},
 				},
-			}},
+				Timeout: &duration.Duration{
+					Seconds: 10,
+				},
+			},
 		}
-		extAuthzFilterConfig["grpcService"] = grpcService
+		e.Services = grpcService
 	}
 
-	withRequestBodyConfig := map[string]*types.Value{
-		"packAsBytes": {
-			Kind: &types.Value_BoolValue{
-				BoolValue: extAuthz.PackAsBytes,
-			},
-		},
-		"allowPartialMessage": {
-			Kind: &types.Value_BoolValue{
-				BoolValue: extAuthz.ReqAllowPartial,
-			},
-		},
-	}
 	if extAuthz.ReqMaxBytes > 0 {
-		withRequestBodyConfig["maxRequestBytes"] = &types.Value{
-			Kind: &types.Value_NumberValue{
-				NumberValue: float64(extAuthz.ReqMaxBytes),
-			},
-		}
+		e.WithRequestBody.MaxRequestBytes = extAuthz.ReqMaxBytes
 	}
-	extAuthzFilterConfig["withRequestBody"] = buildGogoTypedStructValue(withRequestBodyConfig)
-	var permissions *types.Value
-	var routePathList []*types.Value
-	permissionsStructed := false
+
+	extAuthzAny, err := anypb.New(e)
+	if err != nil {
+		return nil, err
+	}
+
+	typedConfig := &httppb.HttpFilter{
+		Name: "envoy.filters.http.ext_authz",
+		ConfigType: &httppb.HttpFilter_TypedConfig{
+			TypedConfig: extAuthzAny,
+		},
+	}
+
+	gogoTypedConfig, err := util.MessageToGoGoStruct(typedConfig)
+	if err != nil {
+		return nil, err
+	}
+	var permissions []*rbacpb.Permission
 	for _, rule := range rules {
 		host := rule.Host
 		if host == "*" {
-			permissions = buildGogoTypedListValue([]*types.Value{
-				buildGogoTypedSingleStringPairMap("any", "true"),
-			})
-			permissionsStructed = true
-			break
-		}
-		hostType := "exact"
-		if strings.HasPrefix(host, "*") {
-			host = host[1:]
-			hostType = "suffix"
-		}
-		httpPaths := rule.HTTP.Paths
-		var andRules []*types.Value
-		for _, httpPath := range httpPaths {
-
-			var pathType string
-			switch *httpPath.PathType {
-			case v1beta1.PathTypeExact:
-				pathType = "exact"
-			case v1beta1.PathTypePrefix:
-				pathType = "prefix"
-			}
-			path := map[string]*types.Value{
-				"ignore_case": &types.Value{
-					Kind: &types.Value_BoolValue{
-						BoolValue: ignoreCase,
+			permissions = []*rbacpb.Permission{
+				{
+					Rule: &rbacpb.Permission_Any{
+						Any: true,
 					},
 				},
-				pathType: buildGogoTypedStringValue(httpPath.Path),
 			}
-			pathRule := buildGogoTypedSinglePairMap("url_path", buildGogoTypedStructValue(path))
-			hostRule := buildGogoTypedSinglePairMap(
-				"header",
-				buildGogoTypedStructValue(map[string]*types.Value{
-					"name":         buildGogoTypedStringValue("Host"),
-					"string_match": buildGogoTypedSinglePairMap(hostType, buildGogoTypedStringValue(host)),
-				}))
-			andRules = append(andRules, pathRule)
-			andRules = append(andRules, hostRule)
+			break
 		}
-		orRule := &types.Value{}
-		routePathList = append(routePathList, orRule)
-	}
-	if !permissionsStructed {
-		permissions = buildGogoTypedListValue([]*types.Value{
-			buildGogoTypedSinglePairMap("or_rules",
-				buildGogoTypedSinglePairMap("rules", buildGogoTypedListValue(routePathList))),
-		})
-	}
-	policy := &types.Value{
-		Kind: &types.Value_StructValue{StructValue: &types.Struct{
-			Fields: map[string]*types.Value{
-				"permissions": permissions,
-				"principals": buildGogoTypedListValue([]*types.Value{
-					buildGogoTypedSingleStringPairMap("any", "true"),
-				}),
-			},
-		}},
-	}
-	rbacFilterConfig := map[string]*types.Value{
-		"@type": buildGogoTypedStringValue("type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC"),
-		"shadow_rules": {
-			Kind: &types.Value_StructValue{StructValue: &types.Struct{
-				Fields: map[string]*types.Value{
-					"action":   buildGogoTypedStringValue("ALLOW"),
-					"policies": buildGogoTypedSinglePairMap(authz.ExtAuthz.RbacPolicyId, policy),
+		hostPermission := &rbacpb.Permission{}
+		if strings.HasPrefix(host, "*") {
+			host = host[1:]
+			hostMatcher := &envoy_type_matcher_v3.StringMatcher_Suffix{
+				Suffix: host,
+			}
+			hostPermission.Rule = &rbacpb.Permission_UrlPath{
+				UrlPath: &envoy_type_matcher_v3.PathMatcher{
+					Rule: &envoy_type_matcher_v3.PathMatcher_Path{
+						Path: &envoy_type_matcher_v3.StringMatcher{
+							MatchPattern: hostMatcher,
+							IgnoreCase:   ignoreCase,
+						},
+					},
 				},
-			}},
+			}
+		} else {
+			hostMatcher := &envoy_type_matcher_v3.StringMatcher_Exact{
+				Exact: host,
+			}
+			hostPermission.Rule = &rbacpb.Permission_UrlPath{
+				UrlPath: &envoy_type_matcher_v3.PathMatcher{
+					Rule: &envoy_type_matcher_v3.PathMatcher_Path{
+						Path: &envoy_type_matcher_v3.StringMatcher{
+							MatchPattern: hostMatcher,
+							IgnoreCase:   ignoreCase,
+						},
+					},
+				},
+			}
+		}
+		httpPaths := rule.HTTP.Paths
+		var andRules []*rbacpb.Permission
+		for _, httpPath := range httpPaths {
+			pathPermission := &rbacpb.Permission{}
+			switch *httpPath.PathType {
+			case v1beta1.PathTypeExact:
+				pathMatchPattern := &envoy_type_matcher_v3.StringMatcher_Exact{
+					Exact: httpPath.Path,
+				}
+				pathPermission.Rule = &rbacpb.Permission_Header{
+					Header: &envoy_config_route_v3.HeaderMatcher{
+						HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+							StringMatch: &envoy_type_matcher_v3.StringMatcher{
+								MatchPattern: pathMatchPattern,
+								IgnoreCase:   ignoreCase,
+							},
+						},
+					},
+				}
+			case v1beta1.PathTypePrefix:
+				pathMatchPattern := &envoy_type_matcher_v3.StringMatcher_Prefix{
+					Prefix: httpPath.Path,
+				}
+				pathPermission.Rule = &rbacpb.Permission_Header{
+					Header: &envoy_config_route_v3.HeaderMatcher{
+						HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+							StringMatch: &envoy_type_matcher_v3.StringMatcher{
+								MatchPattern: pathMatchPattern,
+								IgnoreCase:   ignoreCase,
+							},
+						},
+					},
+				}
+			}
+			andRules = append(andRules, hostPermission)
+			andRules = append(andRules, pathPermission)
+		}
+		orRule := &rbacpb.Permission{
+			Rule: &rbacpb.Permission_OrRules{
+				OrRules: &rbacpb.Permission_Set{
+					Rules: andRules,
+				},
+			},
+		}
+		permissions = append(permissions, orRule)
+	}
+
+	Rbac := &rbac.RBAC{
+		ShadowRules: &rbacpb.RBAC{
+			Policies: map[string]*rbacpb.Policy{
+				authz.ExtAuthz.RbacPolicyId: {
+					Permissions: permissions,
+				},
+			},
+			Action: rbacpb.RBAC_ALLOW,
 		},
+	}
+	rbacAny, err := anypb.New(Rbac)
+	if err != nil {
+		return nil, err
+	}
+
+	rbacTypedConfig := &httppb.HttpFilter{
+		Name: "envoy.filters.http.rbac",
+		ConfigType: &httppb.HttpFilter_TypedConfig{
+			TypedConfig: rbacAny,
+		},
+	}
+
+	rbacGogoTypedConfig, err := util.MessageToGoGoStruct(rbacTypedConfig)
+	if err != nil {
+		return nil, err
 	}
 	return &config.Config{
 		Meta: config.Meta{
@@ -1207,11 +1241,7 @@ func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta
 					},
 					Patch: &networking.EnvoyFilter_Patch{
 						Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
-						Value: &types.Struct{
-							Fields: map[string]*types.Value{
-								"typed_config": buildGogoTypedStructValue(extAuthzFilterConfig),
-							},
-						},
+						Value:     gogoTypedConfig,
 					},
 				},
 				{
@@ -1233,66 +1263,12 @@ func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta
 					},
 					Patch: &networking.EnvoyFilter_Patch{
 						Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
-						Value: &types.Struct{
-							Fields: map[string]*types.Value{
-								"typed_config": buildGogoTypedStructValue(rbacFilterConfig),
-							},
-						},
+						Value:     rbacGogoTypedConfig,
 					},
 				},
 			},
 		},
 	}, nil
-}
-
-func appendListStringAsSinglePairMapToList(key string, values []string, gogoList []*types.Value) []*types.Value {
-	if len(values) > 0 {
-		for _, value := range values {
-			gogoList = append(gogoList, buildGogoTypedSingleStringPairMap(key, value))
-		}
-	}
-	return gogoList
-}
-
-func buildGogoTypedSingleStringPairMap(key string, value string) *types.Value {
-	gogo := buildGogoTypedSinglePairMap(key, buildGogoTypedStringValue(value))
-	return gogo
-}
-
-func buildGogoTypedSinglePairMap(key string, value *types.Value) *types.Value {
-	gogo := &types.Value{
-		Kind: &types.Value_StructValue{StructValue: &types.Struct{
-			Fields: map[string]*types.Value{
-				key: value,
-			},
-		}},
-	}
-	return gogo
-}
-
-func buildGogoTypedStringValue(value string) *types.Value {
-	gogo := &types.Value{
-		Kind: &types.Value_StringValue{StringValue: value},
-	}
-	return gogo
-}
-
-func buildGogoTypedStructValue(mapValue map[string]*types.Value) *types.Value {
-	gogo := &types.Value{
-		Kind: &types.Value_StructValue{StructValue: &types.Struct{
-			Fields: mapValue,
-		}},
-	}
-	return gogo
-}
-
-func buildGogoTypedListValue(listValue []*types.Value) *types.Value {
-	gogo := &types.Value{
-		Kind: &types.Value_ListValue{ListValue: &types.ListValue{
-			Values: listValue,
-		}},
-	}
-	return gogo
 }
 
 func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace string) (*config.Config, error) {

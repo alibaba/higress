@@ -73,6 +73,8 @@ type ServiceConfig struct {
 	ServiceName                        string
 	ServicePort                        int
 	ServicePathPrefix                  string
+	AuthorizationRequest               string
+	AuthorizationResponse              string
 	ReqAllowedHeadersExact             []string
 	ReqAllowedHeadersPrefix            []string
 	ReqAllowedHeadersSuffix            []string
