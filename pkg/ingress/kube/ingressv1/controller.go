@@ -761,16 +761,15 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				}
 			}
 
-			var httpMatches []*networking.HTTPMatchRequest
-			httpMatches = c.generateHttpMatches(pathType, httpPath.Path, nil)
-			for _, httpMatch := range httpMatches {
-				canary := &common.WrapperHTTPRoute{
-					HTTPRoute:     &networking.HTTPRoute{},
-					WrapperConfig: wrapper,
-					Host:          rule.Host,
-					ClusterId:     c.options.ClusterId,
-				}
+			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, nil)
+			canary := &common.WrapperHTTPRoute{
+				HTTPRoute:     &networking.HTTPRoute{},
+				WrapperConfig: wrapper,
+				Host:          rule.Host,
+				ClusterId:     c.options.ClusterId,
+			}
 
+			for _, httpMatch := range httpMatches {
 				switch httpMatch.Uri.GetMatchType().(type) {
 				case *networking.StringMatch_Exact:
 					canary.OriginPath = httpMatch.Uri.GetExact()
@@ -782,70 +781,72 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 					canary.OriginPath = httpMatch.Uri.GetRegex()
 					canary.OriginPathType = common.Regex
 				}
-				canary.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
-				canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
-
-				ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
-				// backend service check
-				var event common.Event
-				destinationConfig := wrapper.AnnotationsConfig.Destination
-				canary.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
-				if event != common.Normal {
-					common.IncrementInvalidIngress(c.options.ClusterId, event)
-					ingressRouteBuilder.Event = event
-					convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
-					continue
-				}
-				canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
-
-				canaryConfig := wrapper.AnnotationsConfig.Canary
-				if byWeight {
-					canary.HTTPRoute.Route[0].Weight = int32(canaryConfig.Weight)
-				}
-
-				pos := 0
-				var targetRoute *common.WrapperHTTPRoute
-				for _, route := range routes {
-					if isCanaryRoute(canary, route) {
-						targetRoute = route
-						// Header, Cookie
-						if byHeader {
-							IngressLog.Debug("Insert canary route by header")
-							annotations.ApplyByHeader(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
-							canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
-						} else {
-							IngressLog.Debug("Merge canary route by weight")
-							if route.WeightTotal == 0 {
-								route.WeightTotal = int32(canaryConfig.WeightTotal)
-							}
-							annotations.ApplyByWeight(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
-						}
-
-						break
-					}
-					pos += 1
-				}
-
-				IngressLog.Debugf("Canary route is %v", canary)
-				if targetRoute == nil {
-					continue
-				}
-
-				if byHeader {
-					// Inherit policy from normal route
-					canary.WrapperConfig.AnnotationsConfig.Auth = targetRoute.WrapperConfig.AnnotationsConfig.Auth
-
-					routes = append(routes[:pos+1], routes[pos:]...)
-					routes[pos] = canary
-					convertOptions.HTTPRoutes[rule.Host] = routes
-
-					// Recreate route name.
-					ingressRouteBuilder.RouteName = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
-					convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
-				} else {
-					convertOptions.IngressRouteCache.Update(targetRoute)
-				}
+				canary.HTTPRoute.Match = append(canary.HTTPRoute.Match, httpMatch)
 			}
+
+			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
+
+			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
+			// backend service check
+			var event common.Event
+			destinationConfig := wrapper.AnnotationsConfig.Destination
+			canary.HTTPRoute.Route, event = c.backendToRouteDestination(&httpPath.Backend, cfg.Namespace, ingressRouteBuilder, destinationConfig)
+			if event != common.Normal {
+				common.IncrementInvalidIngress(c.options.ClusterId, event)
+				ingressRouteBuilder.Event = event
+				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
+				continue
+			}
+			canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
+
+			canaryConfig := wrapper.AnnotationsConfig.Canary
+			if byWeight {
+				canary.HTTPRoute.Route[0].Weight = int32(canaryConfig.Weight)
+			}
+
+			pos := 0
+			var targetRoute *common.WrapperHTTPRoute
+			for _, route := range routes {
+				if isCanaryRoute(canary, route) {
+					targetRoute = route
+					// Header, Cookie
+					if byHeader {
+						IngressLog.Debug("Insert canary route by header")
+						annotations.ApplyByHeader(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
+						canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
+					} else {
+						IngressLog.Debug("Merge canary route by weight")
+						if route.WeightTotal == 0 {
+							route.WeightTotal = int32(canaryConfig.WeightTotal)
+						}
+						annotations.ApplyByWeight(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
+					}
+
+					break
+				}
+				pos += 1
+			}
+
+			IngressLog.Debugf("Canary route is %v", canary)
+			if targetRoute == nil {
+				continue
+			}
+
+			if byHeader {
+				// Inherit policy from normal route
+				canary.WrapperConfig.AnnotationsConfig.Auth = targetRoute.WrapperConfig.AnnotationsConfig.Auth
+
+				routes = append(routes[:pos+1], routes[pos:]...)
+				routes[pos] = canary
+				convertOptions.HTTPRoutes[rule.Host] = routes
+
+				// Recreate route name.
+				ingressRouteBuilder.RouteName = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
+				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
+			} else {
+				convertOptions.IngressRouteCache.Update(targetRoute)
+			}
+
 		}
 	}
 	return nil

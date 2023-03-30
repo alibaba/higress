@@ -64,6 +64,74 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path:    "/foo",
+						Host:    "canary.higress.io",
+						Headers: map[string]string{"traffic-split-higress": "true"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path:    "/foo/bar",
+						Host:    "canary.higress.io",
+						Headers: map[string]string{"traffic-split-higress": "true"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo",
+						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo/bar",
+						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
 			},
 		}
 
