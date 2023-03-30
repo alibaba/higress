@@ -84,6 +84,39 @@ func TestDestinationParse(t *testing.T) {
 				WeightSum: 100,
 			},
 		},
+		{
+			input: Annotations{
+				buildHigressAnnotationKey(destinationKey): "providers:com.alibaba.nacos.example.dubbo.service.DemoService:1.0.0:.DEFAULT-GROUP.public.nacos",
+			},
+			expect: &DestinationConfig{
+				McpDestination: []*networking.HTTPRouteDestination{
+					{
+						Destination: &networking.Destination{
+							Host: "providers:com.alibaba.nacos.example.dubbo.service.DemoService:1.0.0:.DEFAULT-GROUP.public.nacos",
+						},
+						Weight: 100,
+					},
+				},
+				WeightSum: 100,
+			},
+		},
+		{
+			input: Annotations{
+				buildHigressAnnotationKey(destinationKey): "providers:com.alibaba.nacos.example.dubbo.service.DemoService:1.0.0:.DEFAULT-GROUP.public.nacos:8080",
+			},
+			expect: &DestinationConfig{
+				McpDestination: []*networking.HTTPRouteDestination{
+					{
+						Destination: &networking.Destination{
+							Host: "providers:com.alibaba.nacos.example.dubbo.service.DemoService:1.0.0:.DEFAULT-GROUP.public.nacos",
+							Port: &networking.PortSelector{Number: 8080},
+						},
+						Weight: 100,
+					},
+				},
+				WeightSum: 100,
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
