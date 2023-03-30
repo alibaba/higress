@@ -15,10 +15,10 @@
 package ingressv1
 
 import (
-	"github.com/google/go-cmp/cmp"
-	networking "istio.io/api/networking/v1alpha3"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	networking "istio.io/api/networking/v1alpha3"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
