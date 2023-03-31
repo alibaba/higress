@@ -1,3 +1,7 @@
+<p>
+   <a href="README_EN.md">English</a> | 中文
+</p>
+
 # 功能说明
 `basic-auth`插件实现了基于 HTTP Basic Auth 标准进行认证鉴权的功能
 

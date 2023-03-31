@@ -58,8 +58,6 @@ type watcher struct {
 	RegistryType         provider.ServiceRegistryType `json:"registry_type"`
 	Status               provider.WatcherStatus       `json:"status"`
 	namingClient         naming_client.INamingClient
-	updateHandler        provider.ServiceUpdateHandler
-	readyHandler         provider.ReadyHandler
 	cache                memory.Cache
 	mutex                *sync.Mutex
 	stop                 chan struct{}
@@ -200,7 +198,7 @@ func (w *watcher) Run() {
 	defer ticker.Stop()
 	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
 	w.fetchAllServices()
-	w.readyHandler(true)
+	w.Ready(true)
 	for {
 		select {
 		case <-ticker.C:
@@ -218,7 +216,6 @@ func (w *watcher) fetchAllServices() error {
 		return nil
 	}
 	fetchedServices := make(map[string]bool)
-
 	for _, groupName := range w.NacosGroups {
 		for page := 1; ; page++ {
 			ss, err := w.namingClient.GetAllServicesInfo(vo.GetAllServiceInfoParam{
@@ -305,7 +302,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 	host := strings.Join([]string{serviceName, suffix}, common.DotSeparator)
 
 	return func(services []model.SubscribeService, err error) {
-		defer w.updateHandler()
+		defer w.UpdateService()
 
 		//log.Info("callback", "serviceName", serviceName, "suffix", suffix, "details", services)
 
@@ -388,8 +385,8 @@ func (w *watcher) Stop() {
 		w.cache.DeleteServiceEntryWrapper(host)
 	}
 	w.isStop = true
-	w.stop <- struct{}{}
-	w.readyHandler(false)
+	close(w.stop)
+	w.Ready(false)
 }
 
 func (w *watcher) IsHealthy() bool {
@@ -398,14 +395,6 @@ func (w *watcher) IsHealthy() bool {
 
 func (w *watcher) GetRegistryType() string {
 	return w.RegistryType.String()
-}
-
-func (w *watcher) AppendServiceUpdateHandler(f func()) {
-	w.updateHandler = f
-}
-
-func (w *watcher) ReadyHandler(f func(bool)) {
-	w.readyHandler = f
 }
 
 func shouldSubscribe(serviceName string) bool {

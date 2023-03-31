@@ -737,7 +737,10 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	if result.PluginConfig != nil {
 		return result, nil
 	}
-	result.PluginConfig = obj.DefaultConfig
+	if !obj.DefaultConfigDisable {
+		result.PluginConfig = obj.DefaultConfig
+	}
+	hasValidRule := false
 	if len(obj.MatchRules) > 0 {
 		if result.PluginConfig == nil {
 			result.PluginConfig = &types.Struct{
@@ -746,6 +749,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		}
 		var ruleValues []*types.Value
 		for _, rule := range obj.MatchRules {
+			if rule.ConfigDisable {
+				continue
+			}
 			if rule.Config == nil {
 				return nil, errors.New("invalid rule has no config")
 			}
@@ -794,13 +800,19 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				Kind: v,
 			})
 		}
-		result.PluginConfig.Fields["_rules_"] = &types.Value{
-			Kind: &types.Value_ListValue{
-				ListValue: &types.ListValue{
-					Values: ruleValues,
+		if len(ruleValues) > 0 {
+			hasValidRule = true
+			result.PluginConfig.Fields["_rules_"] = &types.Value{
+				Kind: &types.Value_ListValue{
+					ListValue: &types.ListValue{
+						Values: ruleValues,
+					},
 				},
-			},
+			}
 		}
+	}
+	if !hasValidRule && obj.DefaultConfigDisable {
+		return nil, nil
 	}
 	return result, nil
 
@@ -830,6 +842,14 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
 	if err != nil {
 		IngressLog.Errorf("invalid wasmPlugin:%s, err:%v", clusterNamespacedName.Name, err)
+		return
+	}
+	if istioWasmPlugin == nil {
+		IngressLog.Infof("wasmPlugin:%s will not be transferred to istio since config disabled",
+			clusterNamespacedName.Name)
+		m.mutex.Lock()
+		delete(m.wasmPlugins, clusterNamespacedName.Name)
+		m.mutex.Unlock()
 		return
 	}
 	IngressLog.Debugf("wasmPlugin:%s convert to istioWasmPlugin:%v", clusterNamespacedName.Name, istioWasmPlugin)

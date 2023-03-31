@@ -29,6 +29,7 @@ import (
 type Cache interface {
 	UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper)
 	DeleteServiceEntryWrapper(service string)
+	PurgeStaleService()
 	UpdateServiceEntryEnpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
 	GetServiceByEndpoints(requestVersions, endpoints map[string]bool, versionKey string, protocol common.Protocol) map[string][]string
 	GetAllServiceEntry() []*v1alpha3.ServiceEntry
@@ -39,20 +40,22 @@ type Cache interface {
 
 func NewCache() Cache {
 	return &store{
-		mux:         &sync.RWMutex{},
-		sew:         make(map[string]*ServiceEntryWrapper),
-		toBeUpdated: make([]*ServiceEntryWrapper, 0),
-		toBeDeleted: make([]*ServiceEntryWrapper, 0),
-		ip2services: make(map[string]map[string]bool),
+		mux:           &sync.RWMutex{},
+		sew:           make(map[string]*ServiceEntryWrapper),
+		toBeUpdated:   make([]*ServiceEntryWrapper, 0),
+		toBeDeleted:   make([]*ServiceEntryWrapper, 0),
+		ip2services:   make(map[string]map[string]bool),
+		deferedDelete: make(map[string]struct{}),
 	}
 }
 
 type store struct {
-	mux         *sync.RWMutex
-	sew         map[string]*ServiceEntryWrapper
-	toBeUpdated []*ServiceEntryWrapper
-	toBeDeleted []*ServiceEntryWrapper
-	ip2services map[string]map[string]bool
+	mux           *sync.RWMutex
+	sew           map[string]*ServiceEntryWrapper
+	toBeUpdated   []*ServiceEntryWrapper
+	toBeDeleted   []*ServiceEntryWrapper
+	ip2services   map[string]map[string]bool
+	deferedDelete map[string]struct{}
 }
 
 func (s *store) UpdateServiceEntryEnpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string) {
@@ -105,6 +108,12 @@ func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrap
 
 	s.toBeUpdated = append(s.toBeUpdated, data)
 	s.sew[service] = data
+	// service is updated, should not be deleted
+	if _, ok := s.deferedDelete[service]; ok {
+		delete(s.deferedDelete, service)
+		log.Debugf("service in deferedDelete updated, host:%s", service)
+	}
+	log.Infof("ServiceEntry updated, host:%s", service)
 }
 
 func (s *store) DeleteServiceEntryWrapper(service string) {
@@ -114,7 +123,18 @@ func (s *store) DeleteServiceEntryWrapper(service string) {
 	if data, exist := s.sew[service]; exist {
 		s.toBeDeleted = append(s.toBeDeleted, data)
 	}
-	delete(s.sew, service)
+	s.deferedDelete[service] = struct{}{}
+}
+
+// should only be called when reconcile is done
+func (s *store) PurgeStaleService() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	for service := range s.deferedDelete {
+		delete(s.sew, service)
+		delete(s.deferedDelete, service)
+		log.Infof("ServiceEntry deleted, host:%s", service)
+	}
 }
 
 // GetServiceByEndpoints get the list of services of which "address:port" contained by the endpoints
