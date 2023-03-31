@@ -19,28 +19,18 @@ import (
 )
 
 const (
-	authzTypeAnn                          = "authz-type"
-	protoAnn                              = "ext-authz-proto"
-	serviceAnn                            = "ext-authz-service"
-	servicePortAnn                        = "ext-authz-service-port"
-	servicePathPrefixAnn                  = "ext-authz-http-service-path-prefix"
-	reqAllowedHeadersExactAnn             = "ext-authz-req-allowed-headers-exact"
-	reqAllowedHeadersPrefixAnn            = "ext-authz-req-allowed-headers-prefix"
-	reqAllowedHeadersSuffixAnn            = "ext-authz-req-allowed-headers-suffix"
-	reqAllowedHeadersContainsAnn          = "ext-authz-req-allowed-headers-contains"
-	respAllowedUpstreamHeadersExactAnn    = "ext-authz-req-allowed-upstream-headers-exact"
-	respAllowedUpstreamHeadersPrefixAnn   = "ext-authz-req-allowed-upstream-headers-prefix"
-	respAllowedUpstreamHeadersSuffixAnn   = "ext-authz-req-allowed-upstream-headers-suffix"
-	respAllowedUpstreamHeadersContainsAnn = "ext-authz-req-allowed-upstream-headers-contains"
-	respAllowedClientHeadersExactAnn      = "ext-authz-req-allowed-client-headers-exact"
-	respAllowedClientHeadersPrefixAnn     = "ext-authz-req-allowed-client-headers-prefix"
-	respAllowedClientHeadersSuffixAnn     = "ext-authz-req-allowed-client-headers-suffix"
-	respAllowedClientHeadersContainsAnn   = "ext-authz-req-allowed-client-headers-contains"
-	rbacPolicyIdAnn                       = "ext-authz-rbac-policy-id"
-	reqMaxBytesAnn                        = "ext-authz-req-max-bytes"
-	reqAllowPartialAnn                    = "ext-authz-req-allow-partial"
-	packAsBytesAnn                        = "ext-authz-pack-as-bytes"
-	serviceTimeOutAnn                     = "ext-authz-timeout"
+	authzTypeAnn             = "authz-type"
+	protoAnn                 = "ext-authz-proto"
+	serviceAnn               = "ext-authz-service"
+	servicePortAnn           = "ext-authz-service-port"
+	servicePathPrefixAnn     = "ext-authz-http-service-path-prefix"
+	rbacPolicyIdAnn          = "ext-authz-rbac-policy-id"
+	reqMaxBytesAnn           = "ext-authz-req-max-bytes"
+	reqAllowPartialAnn       = "ext-authz-req-allow-partial"
+	packAsBytesAnn           = "ext-authz-pack-as-bytes"
+	serviceTimeOutAnn        = "ext-authz-timeout"
+	authorizationRequestAnn  = "ext-authz-request"
+	authorizationResponseAnn = "ext-authz-response"
 
 	defaultAuthzType = "ext-authz"
 )
@@ -69,24 +59,12 @@ type ExtAuthzConfig struct {
 }
 
 type ServiceConfig struct {
-	Timeout                            string
-	ServiceName                        string
-	ServicePort                        int
-	ServicePathPrefix                  string
-	AuthorizationRequest               string
-	AuthorizationResponse              string
-	ReqAllowedHeadersExact             []string
-	ReqAllowedHeadersPrefix            []string
-	ReqAllowedHeadersSuffix            []string
-	ReqAllowedHeadersContains          []string
-	RespAllowedUpstreamHeadersExact    []string
-	RespAllowedUpstreamHeadersPrefix   []string
-	RespAllowedUpstreamHeadersSuffix   []string
-	RespAllowedUpstreamHeadersContains []string
-	RespAllowedClientHeadersExact      []string
-	RespAllowedClientHeadersPrefix     []string
-	RespAllowedClientHeadersSuffix     []string
-	RespAllowedClientHeadersContains   []string
+	Timeout               string
+	ServiceName           string
+	ServicePort           int
+	ServicePathPrefix     string
+	AuthorizationRequest  string
+	AuthorizationResponse string
 }
 
 type authz struct{}
@@ -143,41 +121,11 @@ func (a authz) Parse(annotations Annotations, config *Ingress, globalContext *Gl
 	if servicePathPrefix, err := annotations.ParseStringForHigress(servicePathPrefixAnn); err == nil {
 		serviceConfig.ServicePathPrefix = servicePathPrefix
 	}
-	if reqAllowedHeadersExact, err := annotations.ParseStringForHigress(reqAllowedHeadersExactAnn); err == nil {
-		serviceConfig.ReqAllowedHeadersExact = splitStringWithSpaceTrim(reqAllowedHeadersExact)
+	if authorizationRequest, err := annotations.ParseStringForHigress(authorizationRequestAnn); err == nil {
+		serviceConfig.AuthorizationRequest = authorizationRequest
 	}
-	if reqAllowedHeadersPrefix, err := annotations.ParseStringForHigress(reqAllowedHeadersPrefixAnn); err == nil {
-		serviceConfig.ReqAllowedHeadersPrefix = splitStringWithSpaceTrim(reqAllowedHeadersPrefix)
-	}
-	if reqAllowedHeadersSuffix, err := annotations.ParseStringForHigress(reqAllowedHeadersSuffixAnn); err == nil {
-		serviceConfig.ReqAllowedHeadersSuffix = splitStringWithSpaceTrim(reqAllowedHeadersSuffix)
-	}
-	if reqAllowedHeadersContains, err := annotations.ParseStringForHigress(reqAllowedHeadersContainsAnn); err == nil {
-		serviceConfig.ReqAllowedHeadersContains = splitStringWithSpaceTrim(reqAllowedHeadersContains)
-	}
-	if respAllowedUpstreamHeadersExact, err := annotations.ParseStringForHigress(respAllowedUpstreamHeadersExactAnn); err == nil {
-		serviceConfig.RespAllowedUpstreamHeadersExact = splitStringWithSpaceTrim(respAllowedUpstreamHeadersExact)
-	}
-	if respAllowedUpstreamHeadersPrefix, err := annotations.ParseStringForHigress(respAllowedUpstreamHeadersPrefixAnn); err == nil {
-		serviceConfig.RespAllowedUpstreamHeadersPrefix = splitStringWithSpaceTrim(respAllowedUpstreamHeadersPrefix)
-	}
-	if respAllowedUpstreamHeadersSuffix, err := annotations.ParseStringForHigress(respAllowedUpstreamHeadersSuffixAnn); err == nil {
-		serviceConfig.RespAllowedUpstreamHeadersSuffix = splitStringWithSpaceTrim(respAllowedUpstreamHeadersSuffix)
-	}
-	if respAllowedUpstreamHeadersContains, err := annotations.ParseStringForHigress(respAllowedUpstreamHeadersContainsAnn); err == nil {
-		serviceConfig.RespAllowedUpstreamHeadersContains = splitStringWithSpaceTrim(respAllowedUpstreamHeadersContains)
-	}
-	if respAllowedClientHeadersExact, err := annotations.ParseStringForHigress(respAllowedClientHeadersExactAnn); err == nil {
-		serviceConfig.RespAllowedClientHeadersExact = splitStringWithSpaceTrim(respAllowedClientHeadersExact)
-	}
-	if respAllowedClientHeadersPrefix, err := annotations.ParseStringForHigress(respAllowedClientHeadersPrefixAnn); err == nil {
-		serviceConfig.RespAllowedClientHeadersPrefix = splitStringWithSpaceTrim(respAllowedClientHeadersPrefix)
-	}
-	if respAllowedClientHeadersSuffix, err := annotations.ParseStringForHigress(respAllowedClientHeadersSuffixAnn); err == nil {
-		serviceConfig.RespAllowedClientHeadersSuffix = splitStringWithSpaceTrim(respAllowedClientHeadersSuffix)
-	}
-	if respAllowedClientHeadersContains, err := annotations.ParseStringForHigress(respAllowedClientHeadersContainsAnn); err == nil {
-		serviceConfig.RespAllowedClientHeadersContains = splitStringWithSpaceTrim(respAllowedClientHeadersContains)
+	if authorizationResponse, err := annotations.ParseStringForHigress(authorizationResponseAnn); err == nil {
+		serviceConfig.AuthorizationRequest = authorizationResponse
 	}
 	if rbacPolicyId, err := annotations.ParseStringForHigress(rbacPolicyIdAnn); err == nil {
 		extAuthzConfig.RbacPolicyId = rbacPolicyId
@@ -186,7 +134,6 @@ func (a authz) Parse(annotations Annotations, config *Ingress, globalContext *Gl
 		extAuthzConfig.RbacPolicyId = rbacPolicyId
 	}
 	if reqMaxBytes, err := annotations.ParseUint32ForHigress(reqMaxBytesAnn); err == nil {
-
 		extAuthzConfig.ReqMaxBytes = reqMaxBytes
 	}
 	if reqAllowPartial, err := annotations.ParseBoolForHigress(reqAllowPartialAnn); err == nil {
