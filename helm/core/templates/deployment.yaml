@@ -9,7 +9,7 @@ metadata:
     {{- .Values.gateway.annotations | toYaml | nindent 4 }}
 spec:
   {{- if not .Values.gateway.autoscaling.enabled }}
-  {{- if not .Values.global.kind }}
+  {{- if not (or .Values.global.local .Values.global.kind) }}
   replicas: {{ .Values.gateway.replicas }}
   {{- else }}
   replicas: 1
@@ -21,7 +21,7 @@ spec:
   strategy:
     rollingUpdate:
       maxSurge: {{ .Values.gateway.rollingMaxSurge }}
-      {{- if .Values.global.kind }}
+      {{- if or .Values.global.local .Values.global.kind }}
       maxUnavailable: 100%
       {{- else }}
       maxUnavailable: {{ .Values.gateway.rollingMaxUnavailable }}
@@ -152,7 +152,7 @@ spec:
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
-          {{- if .Values.global.kind }}
+          {{- if or .Values.global.local .Values.global.kind }}
           - containerPort: 80
             hostPort: 80
             name: http
@@ -172,7 +172,7 @@ spec:
             periodSeconds: 2
             successThreshold: 1
             timeoutSeconds: 3
-          {{- if not .Values.global.kind  }}
+          {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           {{- end }}
