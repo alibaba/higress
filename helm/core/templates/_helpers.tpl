@@ -87,3 +87,11 @@ higress: {{ include "controller.name" . }}
 {{- .Values.controller.serviceAccount.name | default "default" }}
 {{- end }}
 {{- end }}
+
+{{- define "controller.jwtPolicy" -}}
+{{- if semverCompare ">=1.21-0" .Capabilities.KubeVersion.GitVersion }}
+{{- .Values.global.jwtPolicy | default "third-party-jwt" }}
+{{- else }}
+{{- print "first-party-jwt" }}
+{{- end }}
+{{- end }}

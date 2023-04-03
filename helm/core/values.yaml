@@ -455,7 +455,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "0.7.0"
+  tag: "0.7.1"
   env: {}
 
   labels: {}

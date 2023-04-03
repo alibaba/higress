@@ -129,7 +129,7 @@ spec:
           - name: ENABLE_INGRESS_GATEWAY_SDS
             value: "false"
           - name: JWT_POLICY
-            value: {{ .Values.global.jwtPolicy }}
+            value: {{ include "controller.jwtPolicy" . }}
           - name: ISTIO_META_HTTP10
             value: "1"
           - name: ISTIO_META_CLUSTER_ID
@@ -177,7 +177,7 @@ spec:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           {{- end }}
           volumeMounts:
-          {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+          {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
           - name: istio-token
             mountPath: /var/run/secrets/tokens
             readOnly: true
@@ -213,7 +213,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-      {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+      {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
       - name: istio-token
         projected:
           sources:
