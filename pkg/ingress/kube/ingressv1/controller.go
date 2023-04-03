@@ -518,16 +518,22 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
+				wrapperHttpRoute.OriginPath = httpPath.Path
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
 					pathType = common.Exact
+					wrapperHttpRoute.OriginPath = httpPath.Path
 				case ingress.PathTypePrefix:
 					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						wrapperHttpRoute.OriginPath = httpPath.Path
+					} else {
+						wrapperHttpRoute.OriginPath = strings.TrimSuffix(httpPath.Path, "/")
+					}
 				}
 			}
 			wrapperHttpRoute.OriginPathType = pathType
-			wrapperHttpRoute.OriginPath = httpPath.Path
 
 			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
 			for _, httpMatch := range httpMatches {
@@ -748,16 +754,22 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
+				canary.OriginPath = httpPath.Path
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
 					pathType = common.Exact
+					canary.OriginPath = httpPath.Path
 				case ingress.PathTypePrefix:
 					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						canary.OriginPath = httpPath.Path
+					} else {
+						canary.OriginPath = strings.TrimSuffix(httpPath.Path, "/")
+					}
 				}
 			}
 			canary.OriginPathType = pathType
-			canary.OriginPath = httpPath.Path
 
 			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, nil)
 			for _, httpMatch := range httpMatches {
