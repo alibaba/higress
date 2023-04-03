@@ -508,6 +508,13 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		wrapperHttpRoutes := make([]*common.WrapperHTTPRoute, 0, len(rule.HTTP.Paths))
 
 		for _, httpPath := range rule.HTTP.Paths {
+			wrapperHttpRoute := &common.WrapperHTTPRoute{
+				HTTPRoute:     &networking.HTTPRoute{},
+				WrapperConfig: wrapper,
+				Host:          rule.Host,
+				ClusterId:     c.options.ClusterId,
+			}
+
 			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
@@ -519,29 +526,11 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 					pathType = common.Prefix
 				}
 			}
+			wrapperHttpRoute.OriginPathType = pathType
+			wrapperHttpRoute.OriginPath = httpPath.Path
 
-			wrapperHttpRoute := &common.WrapperHTTPRoute{
-				HTTPRoute:     &networking.HTTPRoute{},
-				WrapperConfig: wrapper,
-				Host:          rule.Host,
-				ClusterId:     c.options.ClusterId,
-			}
-
-			// if the pathType is Prefix, it will have 2 httpMatches, the first is the type of Exact and the next is Prefix
-			// so if the pathType is Prefix, the wrapperHttpRoute.OriginPathType is still Prefix, though it has been assigned twice
 			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
 			for _, httpMatch := range httpMatches {
-				switch httpMatch.Uri.GetMatchType().(type) {
-				case *networking.StringMatch_Exact:
-					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetExact()
-					wrapperHttpRoute.OriginPathType = common.Exact
-				case *networking.StringMatch_Prefix:
-					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetPrefix()
-					wrapperHttpRoute.OriginPathType = common.Prefix
-				case *networking.StringMatch_Regex:
-					wrapperHttpRoute.OriginPath = httpMatch.Uri.GetRegex()
-					wrapperHttpRoute.OriginPathType = common.Regex
-				}
 				wrapperHttpRoute.HTTPRoute.Match = append(wrapperHttpRoute.HTTPRoute.Match, httpMatch)
 			}
 			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
@@ -749,6 +738,13 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 		}
 
 		for _, httpPath := range rule.HTTP.Paths {
+			canary := &common.WrapperHTTPRoute{
+				HTTPRoute:     &networking.HTTPRoute{},
+				WrapperConfig: wrapper,
+				Host:          rule.Host,
+				ClusterId:     c.options.ClusterId,
+			}
+
 			var pathType common.PathType
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
@@ -760,30 +756,13 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 					pathType = common.Prefix
 				}
 			}
+			canary.OriginPathType = pathType
+			canary.OriginPath = httpPath.Path
 
 			httpMatches := c.generateHttpMatches(pathType, httpPath.Path, nil)
-			canary := &common.WrapperHTTPRoute{
-				HTTPRoute:     &networking.HTTPRoute{},
-				WrapperConfig: wrapper,
-				Host:          rule.Host,
-				ClusterId:     c.options.ClusterId,
-			}
-
 			for _, httpMatch := range httpMatches {
-				switch httpMatch.Uri.GetMatchType().(type) {
-				case *networking.StringMatch_Exact:
-					canary.OriginPath = httpMatch.Uri.GetExact()
-					canary.OriginPathType = common.Exact
-				case *networking.StringMatch_Prefix:
-					canary.OriginPath = httpMatch.Uri.GetPrefix()
-					canary.OriginPathType = common.Prefix
-				case *networking.StringMatch_Regex:
-					canary.OriginPath = httpMatch.Uri.GetRegex()
-					canary.OriginPathType = common.Regex
-				}
 				canary.HTTPRoute.Match = append(canary.HTTPRoute.Match, httpMatch)
 			}
-
 			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
