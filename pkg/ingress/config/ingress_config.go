@@ -15,6 +15,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -36,6 +38,7 @@ import (
 	"istio.io/istio/pilot/pkg/util/sets"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -468,6 +471,17 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
 			if strings.HasSuffix(route.HTTPRoute.Name, "app-root") {
+				continue
+			}
+
+			http2rpc := route.WrapperConfig.AnnotationsConfig.Http2Rpc
+			if http2rpc != nil {
+				envoyFilter, err := m.constructHttp2RpcEnvoyFilter(http2rpc, route, m.namespace)
+				if err != nil {
+					IngressLog.Errorf("Construct basic auth filter error %v", err)
+				} else {
+					envoyFilters = append(envoyFilters, *envoyFilter)
+				}
 				continue
 			}
 
@@ -1038,6 +1052,170 @@ func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptio
 			IngressLog.Errorf("Apply canary ingress %s/%s fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
 		}
 	}
+}
+
+func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations.Http2RpcConfig, route *common.WrapperHTTPRoute, namespace string) (*config.Config, error) {
+	mappings := m.http2rpcs
+	if _, exist := mappings[http2rpcConfig.Name]; !exist {
+		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD %v", http2rpcConfig.Name)
+		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
+	}
+	http2rpcCRD := mappings[http2rpcConfig.Name]
+
+	httpRoute := route.HTTPRoute
+	httpRouteDestination := httpRoute.Route[0]
+	httpRouteDestinationHostName := host.Name(httpRouteDestination.Destination.Host)
+	serviceName := model.BuildSubsetKey(model.TrafficDirectionOutbound, httpRouteDestination.Destination.Subset, httpRouteDestinationHostName, int(httpRouteDestination.Destination.Port.Number))
+
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.EnvoyFilter,
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, http2rpcConfig.Name),
+			Namespace:        namespace,
+		},
+		Spec: &networking.EnvoyFilter{
+			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &networking.EnvoyFilter_ListenerMatch{
+								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+											Name: "envoy.filters.http.router",
+										},
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: buildPatchStruct(`{
+							"name":"envoy.filters.http.http_dubbo_transcoder",
+							"typed_config":{
+								"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
+								"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
+							}
+						}`),
+					},
+				},
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+							RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+								Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+									Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+										Name: httpRoute.Name,
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_MERGE,
+						Value:     buildHttp2RpcMethods(http2rpcCRD),
+					},
+				},
+				{
+					ApplyTo: networking.EnvoyFilter_CLUSTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+							Cluster: &networking.EnvoyFilter_ClusterMatch{
+								Service: serviceName,
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_MERGE,
+						Value: buildPatchStruct(`{
+							"upstream_config": {
+								"name":"envoy.upstreams.http.dubbo_tcp",
+								"typed_config":{
+									"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
+									"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"}
+							}
+						}`),
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
+	httpRouterTemplate := `{
+		"route": {
+			"upgrade_configs": [
+				{
+					"connect_config": {
+						"allow_post": true
+					},
+					"upgrade_type": "CONNECT"
+				}
+			]
+		},
+		"typed_per_filter_config": {
+			"envoy.filters.http.http_dubbo_transcoder": {
+				"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+				"type_url": "type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder",
+				"value": {
+					"request_validation_options": {
+						"reject_unknown_method": true,
+						"reject_unknown_query_parameters": true
+					},
+					"services_mapping": {
+						"group": "dev",
+						"name": "%s",
+						"version": "%s",
+						"method_mapping": %s
+					},
+					"url_unescape_spec": "ALL_CHARACTERS_EXCEPT_RESERVED"
+				}
+			}
+		}
+	}`
+	var methods []interface{}
+	for _, serviceMethod := range http2rpcCRD.GetMethods() {
+		var method = make(map[string]interface{})
+		method["name"] = serviceMethod.GetServiceMethod()
+		var passthrough_setting = make(map[string]interface{})
+		passthrough_setting["passthrough_all_headers"] = true
+		method["passthrough_setting"] = passthrough_setting
+		var params []interface{}
+		for _, methodParam := range serviceMethod.GetParams() {
+			var param = make(map[string]interface{})
+			param["extract_key"] = methodParam.GetParamKey()
+			param["extract_key_spec"] = "ALL_QUERY_PARAMETER"
+			param["mapping_type"] = "java.lang.String"
+			params = append(params, param)
+		}
+		method["parameter_mapping"] = params
+		var path_matcher = make(map[string]interface{})
+		passthrough_setting["match_http_method_spec"] = "ALL_GET"
+		passthrough_setting["match_pattern"] = serviceMethod.GetHttpPath()
+		method["path_matcher"] = path_matcher
+		methods = append(methods, method)
+	}
+	name := http2rpcCRD.RouteService
+	version := "1.0.0"
+	strBuffer := new(bytes.Buffer)
+	methodsJsonStr, _ := json.Marshal(methods)
+	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))
+	result := buildPatchStruct(strBuffer.String())
+	return result
+}
+
+func buildPatchStruct(config string) *types.Struct {
+	val := &types.Struct{}
+	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
+	return val
 }
 
 func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace string) (*config.Config, error) {
