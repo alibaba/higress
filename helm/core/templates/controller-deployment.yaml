@@ -80,7 +80,7 @@ spec:
           - name: REVISION
             value: "{{ .Values.revision | default `default` }}"
           - name: JWT_POLICY
-            value: {{ .Values.global.jwtPolicy }}
+            value: {{ include "controller.jwtPolicy" . }}
           - name: PILOT_CERT_PROVIDER
             value: "istiod"
           - name: POD_NAME
@@ -147,7 +147,7 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /etc/istio/config
-          {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+          {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
           - name: istio-token
             mountPath: /var/run/secrets/tokens
             readOnly: true
@@ -241,7 +241,7 @@ spec:
       - emptyDir:
           medium: Memory
         name: local-certs
-      {{- if eq .Values.global.jwtPolicy "third-party-jwt" }}
+      {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
       - name: istio-token
         projected:
           sources:
@@ -249,6 +249,7 @@ spec:
                 audience: {{ .Values.global.sds.token.aud }}
                 expirationSeconds: 43200
                 path: istio-token
+      {{- end }}
       # Optional: user-generated root
       - name: cacerts
         secret:
@@ -263,5 +264,4 @@ spec:
         configMap:
           name: pilot-jwks-extra-cacerts{{- if not (eq .Values.revision "") }}-{{ .Values.revision }}{{- end }}
   {{- end }}
-      {{- end }}
       {{- end }}
