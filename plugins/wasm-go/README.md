@@ -117,7 +117,7 @@ spec:
    # 跟上面例子一样，这个配置会全局生效，但如果被下面规则匹配到，则会改为执行命中规则的配置
    block_urls:
    - "swagger.html"
-   matchRules:
+  matchRules:
    # 路由级生效配置
   - ingress:
     - default/foo
