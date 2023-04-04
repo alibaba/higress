@@ -128,7 +128,7 @@ spec:
           - name: CUSTOM_CA_CERT_NAME
             value: "higress-ca-root-cert"
           {{- end }}
-          {{- if not .Values.global.kind  }}
+          {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
 {{- if .Values.pilot.resources }}
 {{ toYaml .Values.pilot.resources | trim | indent 12 }}
@@ -210,7 +210,7 @@ spec:
             {{- end }}
           readinessProbe:
             {{- toYaml .Values.controller.probe | nindent 12 }}
-          {{- if not .Values.global.kind  }}
+          {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
           {{- end }}

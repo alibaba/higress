@@ -130,20 +130,20 @@ endef
 
 install: pre-install
 	cd helm/higress; helm dependency build
-	helm install higress helm/higress -n higress-system --create-namespace --set 'global.kind=true'
+	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
 ENVOY_LATEST_IMAGE_TAG ?= 0.7.0
 ISTIO_LATEST_IMAGE_TAG ?= 0.7.0
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.kind=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
 
 upgrade: pre-install
 	cd helm/higress; helm dependency build
-	helm upgrade higress helm/higress -n higress-system --set 'global.kind=true'
+	helm upgrade higress helm/higress -n higress-system --set 'global.local=true'
 
 helm-push:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
