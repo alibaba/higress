@@ -533,20 +533,16 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			}
 
 			var pathType common.PathType
-			var originPath string
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
-				originPath = httpPath.Path
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
 					pathType = common.Exact
-					originPath = httpPath.Path
 				case ingress.PathTypePrefix:
 					pathType = common.Prefix
 					if httpPath.Path != "/" {
-						originPath = httpPath.Path
-					} else {
 						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
@@ -744,20 +740,16 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			}
 
 			var pathType common.PathType
-			var originPath string
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
 				pathType = common.Regex
-				originPath = httpPath.Path
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
 					pathType = common.Exact
-					originPath = httpPath.Path
 				case ingress.PathTypePrefix:
 					pathType = common.Prefix
 					if httpPath.Path != "/" {
-						originPath = httpPath.Path
-					} else {
 						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
