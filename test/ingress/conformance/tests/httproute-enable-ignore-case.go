@@ -22,13 +22,13 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteIgnoreCaseMatch)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteEnableIgnoreCase)
 }
 
-var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
-	ShortName:   "HTTPRouteIgnoreCaseMatch",
+var HTTPRouteEnableIgnoreCase = suite.ConformanceTest{
+	ShortName:   "HTTPRouteEnableIgnoreCase",
 	Description: "A Ingress in the higress-conformance-infra namespace that ignores URI case in HTTP match.",
-	Manifests:   []string{"tests/httproute-ignore-case-match.yaml"},
+	Manifests:   []string{"tests/httproute-enable-ignore-case.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -57,6 +57,40 @@ var HTTPRouteIgnoreCaseMatch = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/fOO",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case3: enable ignoreCase",
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/BAR",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case4: enable ignoreCase",
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/CAT/ok",
 						Host: "foo.com",
 					},
 				},

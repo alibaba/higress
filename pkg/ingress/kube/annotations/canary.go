@@ -134,37 +134,41 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 
 	// Modified match base on by header
 	if canaryConfig.Header != "" {
-		canary.Match[0].Headers = map[string]*networking.StringMatch{
-			canaryConfig.Header: {
-				MatchType: &networking.StringMatch_Exact{
-					Exact: "always",
-				},
-			},
-		}
-		if canaryConfig.HeaderValue != "" {
-			canary.Match[0].Headers = map[string]*networking.StringMatch{
+		for _, match := range canary.Match {
+			match.Headers = map[string]*networking.StringMatch{
 				canaryConfig.Header: {
-					MatchType: &networking.StringMatch_Regex{
-						Regex: "always|" + canaryConfig.HeaderValue,
+					MatchType: &networking.StringMatch_Exact{
+						Exact: "always",
 					},
 				},
 			}
-		} else if canaryConfig.HeaderPattern != "" {
-			canary.Match[0].Headers = map[string]*networking.StringMatch{
-				canaryConfig.Header: {
-					MatchType: &networking.StringMatch_Regex{
-						Regex: canaryConfig.HeaderPattern,
+			if canaryConfig.HeaderValue != "" {
+				match.Headers = map[string]*networking.StringMatch{
+					canaryConfig.Header: {
+						MatchType: &networking.StringMatch_Regex{
+							Regex: "always|" + canaryConfig.HeaderValue,
+						},
 					},
-				},
+				}
+			} else if canaryConfig.HeaderPattern != "" {
+				match.Headers = map[string]*networking.StringMatch{
+					canaryConfig.Header: {
+						MatchType: &networking.StringMatch_Regex{
+							Regex: canaryConfig.HeaderPattern,
+						},
+					},
+				}
 			}
 		}
 	} else if canaryConfig.Cookie != "" {
-		canary.Match[0].Headers = map[string]*networking.StringMatch{
-			"cookie": {
-				MatchType: &networking.StringMatch_Regex{
-					Regex: "^(.\\*?;)?(" + canaryConfig.Cookie + "=always)(;.\\*)?$",
+		for _, match := range canary.Match {
+			match.Headers = map[string]*networking.StringMatch{
+				"cookie": {
+					MatchType: &networking.StringMatch_Regex{
+						Regex: "^(.\\*?;)?(" + canaryConfig.Cookie + "=always)(;.\\*)?$",
+					},
 				},
-			},
+			}
 		}
 	}
 

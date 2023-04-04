@@ -22,92 +22,25 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteCanaryHeader)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteMatchPath)
 }
 
-var HTTPRouteCanaryHeader = suite.ConformanceTest{
-	ShortName:   "HTTPRouteCanaryHeader",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the canary header traffic split.",
-	Manifests:   []string{"tests/httproute-canary-header.yaml"},
+var HTTPRouteMatchPath = suite.ConformanceTest{
+	ShortName:   "HTTPRouteMatchPath",
+	Description: "A Ingress in the higress-conformance-infra namespace that match different path.",
+	Manifests:   []string{"tests/httproute-match-path.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case1: normal request",
 					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path:    "/echo",
-						Host:    "canary.higress.io",
-						Headers: map[string]string{"traffic-split-higress": "true"},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/echo",
-						Host: "canary.higress.io",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path:    "/foo",
-						Host:    "canary.higress.io",
-						Headers: map[string]string{"traffic-split-higress": "true"},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path:    "/foo/bar",
-						Host:    "canary.higress.io",
-						Headers: map[string]string{"traffic-split-higress": "true"},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/foo",
-						Host: "canary.higress.io",
+						Host: "foo.com",
 					},
 				},
 				Response: http.AssertionResponse{
@@ -115,16 +48,81 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			},
-			{
+			}, {
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case2: path is '/bar' and match prefix path successfully",
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/bar",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName: "case2: path is '/bar' and match prefix path failed",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/bard",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 404,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case3: path is '/cat/' and match prefix path successfully",
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo/bar",
-						Host: "canary.higress.io",
+						Path: "/cat",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case4: path is '/cat/' and match prefix path successfully",
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/cat/ok",
+						Host: "foo.com",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo/",
+						Host: "foo.com",
 					},
 				},
 				Response: http.AssertionResponse{
@@ -135,10 +133,11 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 			},
 		}
 
-		t.Run("Canary HTTPRoute Traffic Split", func(t *testing.T) {
+		t.Run("HTTPRoute Match different path Cases", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
 		})
+
 	},
 }
