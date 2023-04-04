@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package options
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/alibaba/higress/pkg/cmd"
+	"github.com/spf13/pflag"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
-func main() {
-	if err := cmd.GetRootCommand().Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+var DefaultConfigFlags = genericclioptions.NewConfigFlags(true)
+
+func AddKubeConfigFlags(flags *pflag.FlagSet) {
+	flags.StringVar(DefaultConfigFlags.KubeConfig, "kubeconfig", *DefaultConfigFlags.KubeConfig,
+		"Path to the kubeconfig file to use for CLI requests.")
+	flags.StringVar(DefaultConfigFlags.Context, "context", *DefaultConfigFlags.Context,
+		"The name of the kubeconfig context to use.")
 }

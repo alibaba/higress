@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/alibaba/higress/pkg/cmd"
+	"github.com/alibaba/higress/pkg/cmd/hgctl"
 )
 
 func main() {
-	if err := cmd.GetRootCommand().Execute(); err != nil {
+	if err := hgctl.GetRootCommand().Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
