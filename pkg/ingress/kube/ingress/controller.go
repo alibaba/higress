@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"path"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -532,40 +531,25 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				Host:          rule.Host,
 				ClusterId:     c.options.ClusterId,
 			}
-			httpMatch := &networking.HTTPMatchRequest{}
 
-			path := httpPath.Path
+			var pathType common.PathType
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
-				wrapperHttpRoute.OriginPathType = common.Regex
-				httpMatch.Uri = &networking.StringMatch{
-					MatchType: &networking.StringMatch_Regex{Regex: httpPath.Path + ".*"},
-				}
+				pathType = common.Regex
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
-					wrapperHttpRoute.OriginPathType = common.Exact
-					httpMatch.Uri = &networking.StringMatch{
-						MatchType: &networking.StringMatch_Exact{Exact: httpPath.Path},
-					}
+					pathType = common.Exact
 				case ingress.PathTypePrefix:
-					wrapperHttpRoute.OriginPathType = common.Prefix
-					// borrow from implement of official istio code.
-					if path == "/" {
-						wrapperVS.ConfiguredDefaultBackend = true
-						// Optimize common case of / to not needed regex
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					} else {
-						path = strings.TrimSuffix(path, "/")
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + common.PrefixMatchRegex},
-						}
+					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
 			}
-			wrapperHttpRoute.OriginPath = path
-			wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
+			wrapperHttpRoute.OriginPath = originPath
+			wrapperHttpRoute.OriginPathType = pathType
+			wrapperHttpRoute.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
 			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
@@ -748,46 +732,31 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 		}
 
 		for _, httpPath := range rule.HTTP.Paths {
-			path := httpPath.Path
-
 			canary := &common.WrapperHTTPRoute{
 				HTTPRoute:     &networking.HTTPRoute{},
 				WrapperConfig: wrapper,
 				Host:          rule.Host,
 				ClusterId:     c.options.ClusterId,
 			}
-			httpMatch := &networking.HTTPMatchRequest{}
 
+			var pathType common.PathType
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
-				canary.OriginPathType = common.Regex
-				httpMatch.Uri = &networking.StringMatch{
-					MatchType: &networking.StringMatch_Regex{Regex: httpPath.Path + ".*"},
-				}
+				pathType = common.Regex
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
-					canary.OriginPathType = common.Exact
-					httpMatch.Uri = &networking.StringMatch{
-						MatchType: &networking.StringMatch_Exact{Exact: httpPath.Path},
-					}
+					pathType = common.Exact
 				case ingress.PathTypePrefix:
-					canary.OriginPathType = common.Prefix
-					// borrow from implement of official istio code.
-					if path == "/" {
-						// Optimize common case of / to not needed regex
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					} else {
-						path = strings.TrimSuffix(path, "/")
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + common.PrefixMatchRegex},
-						}
+					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
 			}
-			canary.OriginPath = path
-			canary.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
+			canary.OriginPath = originPath
+			canary.OriginPathType = pathType
+			canary.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, nil)
 			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
@@ -1178,6 +1147,42 @@ func (c *controller) shouldProcessIngressUpdate(ing *ingress.Ingress) (bool, err
 	c.mutex.Unlock()
 
 	return preProcessed, nil
+}
+
+func (c *controller) generateHttpMatches(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
+	var httpMatches []*networking.HTTPMatchRequest
+
+	httpMatch := &networking.HTTPMatchRequest{}
+	switch pathType {
+	case common.Regex:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Regex{Regex: path + ".*"},
+		}
+	case common.Exact:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Exact{Exact: path},
+		}
+	case common.Prefix:
+		if path == "/" {
+			if wrapperVS != nil {
+				wrapperVS.ConfiguredDefaultBackend = true
+			}
+			// Optimize common case of / to not needed regex
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: path},
+			}
+		} else {
+			newPath := strings.TrimSuffix(path, "/")
+			httpMatches = append(httpMatches, c.generateHttpMatches(common.Exact, newPath, wrapperVS)...)
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: newPath + "/"},
+			}
+		}
+	}
+
+	httpMatches = append(httpMatches, httpMatch)
+
+	return httpMatches
 }
 
 // setDefaultMSEIngressOptionalField sets a default value for optional fields when is not defined.
