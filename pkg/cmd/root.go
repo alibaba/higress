@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
-import (
-	"fmt"
-	"os"
+import "github.com/spf13/cobra"
 
-	"github.com/alibaba/higress/pkg/cmd"
-)
-
-func main() {
-	if err := cmd.GetRootCommand().Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+// GetRootCommand returns the root cobra command to be executed
+// by main.
+func GetRootCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "higress",
+		Short: "Higress",
+		Long:  "Next-generation Cloud Native Gateway",
 	}
+
+	cmd.AddCommand(getServerCommand())
+	cmd.AddCommand(getVersionCommand())
+
+	return cmd
 }

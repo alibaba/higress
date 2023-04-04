@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"github.com/alibaba/higress/pkg/bootstrap"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/alibaba/higress/pkg/bootstrap"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestServe(t *testing.T) {
+	serveCmd := getServerCommand()
 	runEBackup := serveCmd.RunE
 	argsBackup := os.Args
 	serverProviderBackup := serverProvider
@@ -53,7 +55,9 @@ func TestServe(t *testing.T) {
 		time.Sleep(delay)
 		close(stop)
 	}
-	main()
+
+	serveCmd.Execute()
+
 	end := time.Now()
 
 	cost := end.Sub(start)

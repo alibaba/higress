@@ -12,18 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/alibaba/higress/pkg/cmd"
+	"github.com/alibaba/higress/pkg/cmd/version"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	if err := cmd.GetRootCommand().Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+// getVersionCommand returns the version cobra command to be executed.
+func getVersionCommand() *cobra.Command {
+	var output string
+
+	cmd := &cobra.Command{
+		Use:     "version",
+		Aliases: []string{"versions", "v"},
+		Short:   "Show versions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return version.Print(cmd.OutOrStdout(), output)
+		},
 	}
+
+	cmd.PersistentFlags().StringVarP(&output, "output", "o", "", "One of 'yaml' or 'json'")
+
+	return cmd
 }

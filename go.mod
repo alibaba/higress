@@ -27,11 +27,14 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nacos-group/nacos-sdk-go v1.0.8
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
+	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.2.1
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/atomic v1.9.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.0
+	gopkg.in/yaml.v2 v2.4.0
 	istio.io/api v0.0.0-20211122181927-8da52c66ff23
 	istio.io/client-go v1.12.0-rc.1.0.20211118171212-b744b6f111e4
 	istio.io/gogo-genproto v0.0.0-20211115195057-0e34bdd2be67
@@ -39,8 +42,11 @@ require (
 	istio.io/pkg v0.0.0-20211115195056-e379f31ee62a
 	k8s.io/api v0.22.2
 	k8s.io/apimachinery v0.22.2
+	k8s.io/cli-runtime v0.22.2
 	k8s.io/client-go v0.22.2
+	k8s.io/kubectl v0.22.2
 	sigs.k8s.io/controller-runtime v0.10.2
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
@@ -142,7 +148,6 @@ require (
 	github.com/opencontainers/runc v1.0.2 // indirect
 	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.2 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -154,7 +159,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/toolkits/concurrent v0.0.0-20150624120057-a4371d70e3e3 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	github.com/yl2chen/cidranger v1.0.2 // indirect
@@ -181,21 +185,17 @@ require (
 	gopkg.in/ini.v1 v1.66.2 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.22.2 // indirect
-	k8s.io/cli-runtime v0.22.2 // indirect
 	k8s.io/component-base v0.22.2 // indirect
 	k8s.io/klog/v2 v2.10.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211020163157-7327e2aaee2b // indirect
-	k8s.io/kubectl v0.22.2 // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	sigs.k8s.io/gateway-api v0.4.0 // indirect
 	sigs.k8s.io/kustomize/api v0.8.11 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 	sigs.k8s.io/mcs-api v0.1.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
 replace github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
