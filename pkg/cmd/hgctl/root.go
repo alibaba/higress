@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package hgctl
 
-import (
-	"fmt"
-	"os"
+import "github.com/spf13/cobra"
 
-	"github.com/alibaba/higress/pkg/cmd"
-)
-
-func main() {
-	if err := cmd.GetRootCommand().Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+// GetRootCommand returns the root cobra command to be executed
+// by hgctl main.
+func GetRootCommand() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:               "hgctl",
+		Long:              "A command line utility for operating Higress",
+		SilenceUsage:      true,
+		DisableAutoGenTag: true,
 	}
+
+	rootCmd.AddCommand(newVersionCommand())
+
+	return rootCmd
 }

@@ -6,13 +6,20 @@ export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
+VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/version
+
+GIT_COMMIT:=$(shell git rev-parse HEAD)
+
+GO_LDFLAGS += -X $(VERSION_PACKAGE).higressVersion=$(shell cat VERSION) \
+	-X $(VERSION_PACKAGE).gitCommitID=$(GIT_COMMIT)
+
 GO ?= go
 
 export GOPROXY ?= https://proxy.golang.com.cn,direct
 
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
-RELEASE_LDFLAGS='-extldflags -static -s -w'
+RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)
@@ -32,7 +39,9 @@ endif
 
 HIGRESS_DOCKER_BUILD_TOP:=${OUT_LINUX}/docker_build
 
-BINARIES:=./cmd/higress
+HIGRESS_BINARIES:=./cmd/higress
+
+HGCTL_BINARIES:=./cmd/hgctl
 
 $(OUT):
 	@mkdir -p $@
@@ -52,11 +61,19 @@ go.test.coverage: prebuild
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
+
+.PHONY: build-hgctl
+build-hgctl: $(OUT)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
+
+.PHONY: build-linux-hgctl
+build-linux-hgctl: $(OUT)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -73,14 +90,14 @@ $(OUT_LINUX)/$(shell basename $(1)): $(OUT_LINUX)
 endif
 endef
 
-$(foreach bin,$(BINARIES),$(eval $(call build-linux,$(bin),"")))
+$(foreach bin,$(HIGRESS_BINARIES),$(eval $(call build-linux,$(bin),"")))
 
 # Create helper targets for each binary, like "pilot-discovery"
 # As an optimization, these still build everything
-$(foreach bin,$(BINARIES),$(shell basename $(bin))): build
+$(foreach bin,$(HIGRESS_BINARIES),$(shell basename $(bin))): build
 ifneq ($(OUT_LINUX),$(LOCAL_OUT))
 # if we are on linux already, then this rule is handled by build-linux above, which handles BUILD_ALL variable
-$(foreach bin,$(BINARIES),${LOCAL_OUT}/$(shell basename $(bin))): build
+$(foreach bin,$(HIGRESS_BINARIES),${LOCAL_OUT}/$(shell basename $(bin))): build
 endif
 
 .PHONY: push
@@ -185,7 +202,7 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 
 # kube-load-image loads a local built docker image into kube cluster.
 .PHONY: kube-load-image
-kube-load-image: $(tools/kind) ## Install the EG image to a kind cluster using the provided $IMAGE and $TAG.
+kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 
 # run-ingress-e2e-test starts to run ingress e2e tests.
