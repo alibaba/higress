@@ -3,7 +3,8 @@ global:
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
   autoscalingv2API: true
-  kind: false
+  local: false # When deploying to a local cluster (e.g.: kind cluster), set this to true.
+  kind: false # Deprecated. Please use "global.local" instead. Will be removed later.
   enableIstioAPI: false
   # Deprecated
   enableHigressIstio: false
