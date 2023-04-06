@@ -38,18 +38,28 @@ const (
 )
 
 func retrieveConfigDump(args []string, includeEds bool) ([]byte, error) {
-	if len(args) == 0 {
-		return nil, fmt.Errorf("pod name is required")
-	}
-
-	podName = args[0]
-
-	if podName == "" {
-		return nil, fmt.Errorf("pod name is required")
+	if len(args) != 0 {
+		podName = args[0]
 	}
 
 	if podNamespace == "" {
 		return nil, fmt.Errorf("pod namespace is required")
+	}
+
+	if podName == "" || len(args) == 0 {
+		c, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+		if err != nil {
+			return nil, fmt.Errorf("failed to build kubernetes client: %w", err)
+		}
+		podList, err := c.PodsForSelector(podNamespace, "app=higress-gateway")
+		if err != nil {
+			return nil, err
+		}
+		if len(podList.Items) == 0 {
+			return nil, fmt.Errorf("higress gateway pod is not existed in namespace %s", podNamespace)
+		}
+
+		podName = podList.Items[0].GetName()
 	}
 
 	fw, err := portForwarder(types.NamespacedName{
