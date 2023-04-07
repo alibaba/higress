@@ -71,13 +71,21 @@ func (r rewrite) Parse(annotations Annotations, config *Ingress, _ *GlobalContex
 func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 	rewriteConfig := config.Rewrite
 	if rewriteConfig == nil || (rewriteConfig.RewriteTarget == "" &&
-		rewriteConfig.RewriteHost == "") {
+		rewriteConfig.RewriteHost == "" && rewriteConfig.RewritePath == "") {
 		return
 	}
 
 	route.Rewrite = &networking.HTTPRewrite{}
 	if rewriteConfig.RewritePath != "" {
 		route.Rewrite.Uri = rewriteConfig.RewritePath
+		for _, match := range route.Match {
+			if strings.HasSuffix(match.Uri.GetPrefix(), "/") {
+				if !strings.HasSuffix(route.Rewrite.Uri, "/") {
+					route.Rewrite.Uri += "/"
+				}
+				break
+			}
+		}
 	} else if rewriteConfig.RewriteTarget != "" {
 		route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
 			Pattern:      route.Match[0].Uri.GetRegex(),
@@ -107,5 +115,5 @@ func NeedRegexMatch(annotations map[string]string) bool {
 
 func needRewriteConfig(annotations Annotations) bool {
 	return annotations.HasASAP(rewriteTarget) || annotations.HasASAP(useRegex) ||
-		annotations.HasASAP(upstreamVhost)
+		annotations.HasASAP(upstreamVhost) || annotations.HasHigress(rewritePath)
 }
