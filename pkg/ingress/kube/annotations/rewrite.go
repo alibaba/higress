@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	rewritePath   = "rewrite-path"
 	rewriteTarget = "rewrite-target"
 	useRegex      = "use-regex"
 	upstreamVhost = "upstream-vhost"
@@ -38,6 +39,7 @@ type RewriteConfig struct {
 	RewriteTarget string
 	UseRegex      bool
 	RewriteHost   string
+	RewritePath   string
 }
 
 type rewrite struct{}
@@ -51,8 +53,9 @@ func (r rewrite) Parse(annotations Annotations, config *Ingress, _ *GlobalContex
 	rewriteConfig.RewriteTarget, _ = annotations.ParseStringASAP(rewriteTarget)
 	rewriteConfig.UseRegex, _ = annotations.ParseBoolASAP(useRegex)
 	rewriteConfig.RewriteHost, _ = annotations.ParseStringASAP(upstreamVhost)
+	rewriteConfig.RewritePath, _ = annotations.ParseStringForHigress(rewritePath)
 
-	if rewriteConfig.RewriteTarget != "" {
+	if rewriteConfig.RewritePath == "" && rewriteConfig.RewriteTarget != "" {
 		// When rewrite target is present and not empty,
 		// we will enforce regex match on all rules in this ingress.
 		rewriteConfig.UseRegex = true
@@ -68,12 +71,22 @@ func (r rewrite) Parse(annotations Annotations, config *Ingress, _ *GlobalContex
 func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 	rewriteConfig := config.Rewrite
 	if rewriteConfig == nil || (rewriteConfig.RewriteTarget == "" &&
-		rewriteConfig.RewriteHost == "") {
+		rewriteConfig.RewriteHost == "" && rewriteConfig.RewritePath == "") {
 		return
 	}
 
 	route.Rewrite = &networking.HTTPRewrite{}
-	if rewriteConfig.RewriteTarget != "" {
+	if rewriteConfig.RewritePath != "" {
+		route.Rewrite.Uri = rewriteConfig.RewritePath
+		for _, match := range route.Match {
+			if strings.HasSuffix(match.Uri.GetPrefix(), "/") {
+				if !strings.HasSuffix(route.Rewrite.Uri, "/") {
+					route.Rewrite.Uri += "/"
+				}
+				break
+			}
+		}
+	} else if rewriteConfig.RewriteTarget != "" {
 		route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
 			Pattern:      route.Match[0].Uri.GetRegex(),
 			Substitution: rewriteConfig.RewriteTarget,
@@ -102,5 +115,5 @@ func NeedRegexMatch(annotations map[string]string) bool {
 
 func needRewriteConfig(annotations Annotations) bool {
 	return annotations.HasASAP(rewriteTarget) || annotations.HasASAP(useRegex) ||
-		annotations.HasASAP(upstreamVhost)
+		annotations.HasASAP(upstreamVhost) || annotations.HasHigress(rewritePath)
 }
