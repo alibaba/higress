@@ -102,8 +102,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config HttpCallConfig, log wr
 			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
 				log.Errorf("http call failed, status: %d", statusCode)
-				proxywasm.SendHttpResponse(http.StatusInternalServerError, nil,
-					[]byte("http call failed"), -1)
 				return
 			}
 			// avoid protocol error
