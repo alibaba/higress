@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	rewritePath   = "rewrite-path"
 	rewriteTarget = "rewrite-target"
 	useRegex      = "use-regex"
 	upstreamVhost = "upstream-vhost"
@@ -38,6 +39,7 @@ type RewriteConfig struct {
 	RewriteTarget string
 	UseRegex      bool
 	RewriteHost   string
+	RewritePath   string
 }
 
 type rewrite struct{}
@@ -51,8 +53,9 @@ func (r rewrite) Parse(annotations Annotations, config *Ingress, _ *GlobalContex
 	rewriteConfig.RewriteTarget, _ = annotations.ParseStringASAP(rewriteTarget)
 	rewriteConfig.UseRegex, _ = annotations.ParseBoolASAP(useRegex)
 	rewriteConfig.RewriteHost, _ = annotations.ParseStringASAP(upstreamVhost)
+	rewriteConfig.RewritePath, _ = annotations.ParseStringForHigress(rewritePath)
 
-	if rewriteConfig.RewriteTarget != "" {
+	if rewriteConfig.RewritePath == "" && rewriteConfig.RewriteTarget != "" {
 		// When rewrite target is present and not empty,
 		// we will enforce regex match on all rules in this ingress.
 		rewriteConfig.UseRegex = true
@@ -73,7 +76,9 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 	}
 
 	route.Rewrite = &networking.HTTPRewrite{}
-	if rewriteConfig.RewriteTarget != "" {
+	if rewriteConfig.RewritePath != "" {
+		route.Rewrite.Uri = rewriteConfig.RewritePath
+	} else if rewriteConfig.RewriteTarget != "" {
 		route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
 			Pattern:      route.Match[0].Uri.GetRegex(),
 			Substitution: rewriteConfig.RewriteTarget,

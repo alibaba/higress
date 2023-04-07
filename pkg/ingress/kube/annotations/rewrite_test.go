@@ -241,6 +241,41 @@ func TestRewriteApplyRoute(t *testing.T) {
 				},
 			},
 		},
+		{
+			config: &Ingress{
+				Rewrite: &RewriteConfig{
+					RewriteTarget: "/test",
+					RewritePath:   "/test",
+					RewriteHost:   "test.com",
+				},
+			},
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+				Rewrite: &networking.HTTPRewrite{
+					Uri:       "/test",
+					Authority: "test.com",
+				},
+			},
+		},
 	}
 
 	for _, inputCase := range inputCases {
