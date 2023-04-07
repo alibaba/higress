@@ -60,3 +60,9 @@ jobs:
           This release **might not be stable**.
 
           It is only intended for developers wishing to try out the latest features in Higress, some of which may not be fully implemented.
+
+          Try latest version of `hgctl` with:
+
+          ``` shell
+            curl -Ls https://raw.githubusercontent.com/alibaba/higress/main/tools/hack/get-hgctl.sh | VERSION=latest bash
+          ```
