@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
 namespace {
@@ -40,11 +41,16 @@ bool getToken(int rule_id, const std::string &key) {
   for (int i = 0; i < maxGetTokenRetry; i++) {
     if (WasmResult::Ok !=
         getSharedData(tokenBucketKey, &token_bucket_data, &cas)) {
-      return false;
+      continue;
     }
     uint64_t token_left =
         *reinterpret_cast<const uint64_t *>(token_bucket_data->data());
+    LOG_DEBUG(absl::StrFormat(
+        "ratelimit get token: id:%d, tokenBucketKey:%s, token left:%u", rule_id,
+        tokenBucketKey, token_left));
     if (token_left == 0) {
+      LOG_DEBUG(absl::StrFormat("get token failed, id:%d, tokenBucketKey:%s",
+                                rule_id, tokenBucketKey));
       return false;
     }
     token_left -= 1;
@@ -52,12 +58,18 @@ bool getToken(int rule_id, const std::string &key) {
         tokenBucketKey,
         {reinterpret_cast<const char *>(&token_left), sizeof(token_left)}, cas);
     if (res == WasmResult::Ok) {
+      LOG_DEBUG(
+          absl::StrFormat("ratelimit token update success: id:%d, "
+                          "tokenBucketKey:%s, token left:%u",
+                          rule_id, tokenBucketKey, token_left));
       return true;
     }
     if (res == WasmResult::CasMismatch) {
       continue;
     }
-    return false;
+    LOG_WARN(absl::StrFormat("got invalid result:%d, id:%d, tokenBucketKey:%s",
+                             res, rule_id, tokenBucketKey));
+    return true;
   }
 
   LOG_WARN("get token failed with cas mismatch");
@@ -86,12 +98,21 @@ void refillToken(const std::vector<std::pair<int, LimitItem>> &rules) {
     if (now - last_update < rule.second.refill_interval_nanosec) {
       continue;
     }
+    LOG_DEBUG(
+        absl::StrFormat("ratelimit rule need refilled, id:%s, "
+                        "lastRefilledKey:%s, now:%u, last_update:%u",
+                        id, lastRefilledKey, now, last_update));
     // Otherwise, try set last updated time. If updated failed because of cas
     // mismatch, the bucket is going to be refilled by other VMs.
     auto res = setSharedData(
         lastRefilledKey, {reinterpret_cast<const char *>(&now), sizeof(now)},
         last_update_cas);
     if (res == WasmResult::CasMismatch) {
+      LOG_DEBUG(
+          absl::StrFormat("ratelimit update lastRefilledKey casmismatch,  the "
+                          "bucket is going to be refilled by other VMs, id:%s, "
+                          "lastRefilledKey:%s",
+                          id, lastRefilledKey));
       continue;
     }
     do {
@@ -115,6 +136,10 @@ void refillToken(const std::vector<std::pair<int, LimitItem>> &rules) {
               last_update_cas)) {
         continue;
       }
+      LOG_DEBUG(
+          absl::StrFormat("ratelimit token refilled: id:%s, "
+                          "tokenBucketKey:%s, token left:%u",
+                          id, tokenBucketKey, token_left));
       break;
     } while (true);
   }
@@ -138,6 +163,10 @@ bool initializeTokenBucket(
       setSharedData(tokenBucketKey,
                     {reinterpret_cast<const char *>(&rule.second.max_tokens),
                      sizeof(uint64_t)});
+      LOG_INFO(absl::StrFormat(
+          "ratelimit rule created: id:%s, lastRefilledKey:%s, "
+          "tokenBucketKey:%s, max_tokens:%u",
+          id, lastRefilledKey, tokenBucketKey, rule.second.max_tokens));
       continue;
     }
     // reconfigure
@@ -172,6 +201,10 @@ bool initializeTokenBucket(
       }
       break;
     } while (true);
+    LOG_INFO(absl::StrFormat(
+        "ratelimit rule reconfigured: id:%s, lastRefilledKey:%s, "
+        "tokenBucketKey:%s, max_tokens:%u",
+        id, lastRefilledKey, tokenBucketKey, rule.second.max_tokens));
   }
   return true;
 }

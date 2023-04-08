@@ -211,8 +211,7 @@ bool PluginRootContext::onConfigure(size_t size) {
   // Parse configuration JSON string.
   if (size > 0 && !configure(size)) {
     LOG_WARN("configuration has errors initialization will not continue.");
-    setInvalidConfig();
-    return true;
+    return false;
   }
   return true;
 }

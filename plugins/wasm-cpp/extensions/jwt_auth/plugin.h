@@ -73,6 +73,7 @@ struct Consumer {
 
 struct JwtAuthConfigRule {
   std::vector<Consumer> consumers;
+  std::vector<std::string> enable_headers;
 };
 
 // PluginRootContext is the root context for all streams processed by the
