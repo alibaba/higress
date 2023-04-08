@@ -173,12 +173,12 @@ spec:
           - "serve"
           - --gatewaySelectorKey=higress
           - --gatewaySelectorValue={{ .Release.Namespace }}-{{ include "gateway.name" . }}
-          {{- if not .Values.enableStatus }}
-          - --enableStatus={{ .Values.enableStatus }}
+          {{- if not .Values.global.enableStatus }}
+          - --enableStatus={{ .Values.global.enableStatus }}
           {{- end }}
-          - --ingressClass={{ .Values.ingressClass }}
-          {{- if .Values.watchNamespace }}
-          - --watchNamespace={{ .Values.watchNamespace }}
+          - --ingressClass={{ .Values.global.ingressClass }}
+          {{- if .Values.global.watchNamespace }}
+          - --watchNamespace={{ .Values.global.watchNamespace }}
           {{- end }}
           env:
           - name: POD_NAME
