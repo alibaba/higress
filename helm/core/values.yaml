@@ -9,6 +9,7 @@ global:
   # resources in the k8s cluster.
   ingressClass: "higress"
   watchNamespace: ""
+  disableAlpnH2: true
   enableStatus: true
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
@@ -44,7 +45,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 0.7.0
+  tag: 1.0.0-rc
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -368,7 +369,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "0.7.0"
+  tag: "1.0.0-rc"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -456,7 +457,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "0.7.1"
+  tag: "1.0.0-rc"
   env: {}
 
   labels: {}
@@ -546,7 +547,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 0.7.0
+  tag: 1.0.0-rc
 
   # Can be a full hub/image:tag
   image: pilot

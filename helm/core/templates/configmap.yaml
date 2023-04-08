@@ -29,6 +29,9 @@
     {{- end }}
 
     defaultConfig:
+      {{- if .Values.global.disableAlpnH2 }}
+      disableAlpnH2: true
+      {{- end }}
       {{- if .Values.global.meshID }}
       meshId: {{ .Values.global.meshID }}
       {{- end }}
