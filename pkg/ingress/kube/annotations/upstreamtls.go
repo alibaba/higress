@@ -75,17 +75,6 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 		}
 	}
 
-	secretName, _ := annotations.ParseStringASAP(proxySSLSecret)
-	namespacedName := util.SplitNamespacedName(secretName)
-	if namespacedName.Name == "" {
-		return nil
-	}
-
-	if namespacedName.Namespace == "" {
-		namespacedName.Namespace = config.Namespace
-	}
-	upstreamTLSConfig.SecretName = namespacedName.String()
-
 	if sslVerify, err := annotations.ParseStringASAP(proxySSLVerify); err == nil {
 		if OnOffRegex.MatchString(sslVerify) {
 			upstreamTLSConfig.SSLVerify = onOffToBool(sslVerify)
@@ -96,9 +85,20 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 
 	if enableSNI, err := annotations.ParseStringASAP(proxySSLServerName); err == nil {
 		if OnOffRegex.MatchString(enableSNI) {
-			upstreamTLSConfig.SSLVerify = onOffToBool(enableSNI)
+			upstreamTLSConfig.EnableSNI = onOffToBool(enableSNI)
 		}
 	}
+
+	secretName, _ := annotations.ParseStringASAP(proxySSLSecret)
+	namespacedName := util.SplitNamespacedName(secretName)
+	if namespacedName.Name == "" {
+		return nil
+	}
+
+	if namespacedName.Namespace == "" {
+		namespacedName.Namespace = config.Namespace
+	}
+	upstreamTLSConfig.SecretName = namespacedName.String()
 
 	return nil
 }
