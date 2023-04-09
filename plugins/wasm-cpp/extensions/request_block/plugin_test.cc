@@ -128,7 +128,7 @@ TEST_F(RequestBlockTest, CaseSensitive) {
 {
    "block_urls": ["?foo=bar", "swagger.html"],
    "block_headers": ["headerKey", "headerValue"],
-   "block_bodies": ["Hello World"]
+   "block_bodys": ["Hello World"]
 })";
 
   config_.set({configuration.data(), configuration.size()});
@@ -188,7 +188,7 @@ TEST_F(RequestBlockTest, CaseInsensitive) {
    "blocked_code": 404,
    "block_urls": ["?foo=bar", "swagger.html"],
    "block_headers": ["headerKey", "headerValue"],
-   "block_bodies": ["Hello World"]
+   "block_bodys": ["Hello World"]
 })";
 
   config_.set({configuration.data(), configuration.size()});

@@ -20,6 +20,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
+#include "common/common_util.h"
+
 namespace Wasm::Common::Http {
 
 std::string_view stripPortFromHost(std::string_view request_host) {
@@ -188,7 +190,7 @@ std::vector<std::string> getAllOfHeader(std::string_view key) {
   std::vector<std::string> result;
   auto headers = getRequestHeaderPairs()->pairs();
   for (auto& header : headers) {
-    if (absl::EqualsIgnoreCase(header.first, key)) {
+    if (absl::EqualsIgnoreCase(Wasm::Common::stdToAbsl(header.first), Wasm::Common::stdToAbsl(key))) {
       result.push_back(std::string(header.second));
     }
   }
@@ -197,7 +199,7 @@ std::vector<std::string> getAllOfHeader(std::string_view key) {
 
 void forEachCookie(
     std::string_view cookie_header,
-    const std::function<bool(absl::string_view, absl::string_view)>&
+    const std::function<bool(std::string_view, std::string_view)>&
         cookie_consumer) {
   auto cookie_headers = getAllOfHeader(cookie_header);
 
@@ -223,7 +225,7 @@ void forEachCookie(
         v = v.substr(1, v.size() - 2);
       }
 
-      if (!cookie_consumer(k, v)) {
+      if (!cookie_consumer(Wasm::Common::abslToStd(k), Wasm::Common::abslToStd(v))) {
         return;
       }
     }
@@ -263,7 +265,7 @@ std::string buildOriginalUri(std::optional<uint32_t> max_path_length) {
   auto scheme = scheme_ptr->view();
   auto host_ptr = getRequestHeader(Header::Host);
   auto host = host_ptr->view();
-  return absl::StrCat(scheme, "://", host, final_path);
+  return absl::StrCat(Wasm::Common::stdToAbsl(scheme), "://", Wasm::Common::stdToAbsl(host),  Wasm::Common::stdToAbsl(final_path));
 }
 
 }  // namespace Wasm::Common::Http

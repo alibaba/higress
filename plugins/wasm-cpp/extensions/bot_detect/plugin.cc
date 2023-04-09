@@ -78,13 +78,13 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
           LOG_WARN("cannot parse allow");
           return false;
         }
-        try {
-          rule.allow.push_back(
-              std::make_unique<ReMatcher>(regex.first.value()));
-        } catch (const std::runtime_error& e) {
-          LOG_WARN(e.what());
+        auto re = std::make_unique<ReMatcher>(regex.first.value());
+        if (!re->error().empty()) {
+          LOG_WARN(re->error());
           return false;
         }
+        rule.allow.push_back(std::move(re));
+
         return true;
       })) {
     LOG_WARN("failed to parse configuration for allow.");
@@ -96,12 +96,13 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
           LOG_WARN("cannot parse deny");
           return false;
         }
-        try {
-          rule.deny.push_back(std::make_unique<ReMatcher>(regex.first.value()));
-        } catch (const std::runtime_error& e) {
-          LOG_WARN(e.what());
+        auto re = std::make_unique<ReMatcher>(regex.first.value());
+        if (!re->error().empty()) {
+          LOG_WARN(re->error());
           return false;
         }
+        rule.deny.push_back(std::move(re));
+
         return true;
       })) {
     LOG_WARN("failed to parse configuration for deny.");
@@ -114,8 +115,7 @@ bool PluginRootContext::onConfigure(size_t size) {
   // Parse configuration JSON string.
   if (size > 0 && !configure(size)) {
     LOG_WARN("configuration has errors initialization will not continue.");
-    setInvalidConfig();
-    return true;
+    return false;
   }
   if (size == 0) {
     // support empty config
