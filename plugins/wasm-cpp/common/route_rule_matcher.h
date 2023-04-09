@@ -126,6 +126,12 @@ class RouteRuleMatcher {
       LOG_DEBUG("no match config");
       return true;
     }
+    if (!config.second && global_auth_ && !global_auth_.value()) {
+      // No allow set, means no need to check auth if global_auth is false
+      LOG_DEBUG(
+          "no allow set found, and global auth is false, no need to auth");
+      return true;
+    }
     return checkPlugin(config.first.value(), config.second);
   }
 
@@ -220,8 +226,9 @@ class RouteRuleMatcher {
         break;
       }
     }
-    return is_matched ? std::make_pair(match_config, allow_set)
-                      : std::make_pair(std::nullopt, std::nullopt);
+    return is_matched || (global_auth_ && global_auth_.value())
+               ? std::make_pair(match_config, allow_set)
+               : std::make_pair(std::nullopt, std::nullopt);
   }
 
   void setEmptyGlobalConfig() { global_config_ = PluginConfig{}; }
@@ -287,6 +294,18 @@ class RouteRuleMatcher {
     if (it != config.end()) {
       has_rules = true;
       key_count--;
+    }
+    auto auth_it = config.find("global_auth");
+    if (auth_it != config.end()) {
+      auto global_auth_value = JsonValueAs<bool>(auth_it.value());
+      if (global_auth_value.second !=
+              Wasm::Common::JsonParserResultDetail::OK ||
+          !global_auth_value.first) {
+        LOG_WARN(
+            "failed to parse 'global_auth' field in filter configuration.");
+        return false;
+      }
+      global_auth_ = global_auth_value.first.value();
     }
     PluginConfig plugin_config;
     // has other config fields
@@ -455,6 +474,7 @@ class RouteRuleMatcher {
   }
 
   bool invalid_config_ = false;
+  std::optional<bool> global_auth_ = std::nullopt;
   std::vector<RuleConfig> rule_config_;
   std::vector<AuthRuleConfig> auth_rule_config_;
   std::optional<PluginConfig> global_config_ = std::nullopt;

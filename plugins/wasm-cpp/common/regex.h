@@ -29,16 +29,19 @@ class CompiledGoogleReMatcher {
                           bool do_program_size_check = true)
       : regex_(regex, re2::RE2::Quiet) {
     if (!regex_.ok()) {
-      throw std::runtime_error(regex_.error());
+      error_ = regex_.error();
+      return;
     }
     if (do_program_size_check) {
       const auto regex_program_size =
           static_cast<uint32_t>(regex_.ProgramSize());
       if (regex_program_size > 100) {
-        throw std::runtime_error("too complex regex: " + regex);
+        error_ = "too complex regex: " + regex;
       }
     }
   }
+
+  const std::string& error() const { return error_; }
 
   bool match(std::string_view value) const {
     return re2::RE2::FullMatch(re2::StringPiece(value.data(), value.size()),
@@ -56,6 +59,7 @@ class CompiledGoogleReMatcher {
 
  private:
   const re2::RE2 regex_;
+  std::string error_;
 };
 
 }  // namespace Wasm::Common::Regex
