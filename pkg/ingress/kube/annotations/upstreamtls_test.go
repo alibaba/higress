@@ -143,7 +143,7 @@ func TestApplyTrafficPolicy(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
-			parser.ApplyTrafficPolicy(testCase.input, testCase.config)
+			parser.ApplyTrafficPolicy(nil, testCase.input, testCase.config)
 			if diff := cmp.Diff(testCase.expect, testCase.input); diff != "" {
 				t.Fatalf("TestApplyTrafficPolicy() mismatch (-want +got): \n%s", diff)
 			}

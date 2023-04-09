@@ -136,14 +136,16 @@ func (l loadBalance) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 	return nil
 }
 
-func (l loadBalance) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
+func (l loadBalance) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy, portTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
 	loadBalanceConfig := config.LoadBalance
 	if loadBalanceConfig == nil {
 		return
 	}
 
+	var loadBalancer *networking.LoadBalancerSettings
+
 	if loadBalanceConfig.cookie != nil {
-		trafficPolicy.LoadBalancer = &networking.LoadBalancerSettings{
+		loadBalancer = &networking.LoadBalancerSettings{
 			LbPolicy: &networking.LoadBalancerSettings_ConsistentHash{
 				ConsistentHash: &networking.LoadBalancerSettings_ConsistentHashLB{
 					HashKey: &networking.LoadBalancerSettings_ConsistentHashLB_HttpCookie{
@@ -171,17 +173,24 @@ func (l loadBalance) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_
 				},
 			}
 		}
-		trafficPolicy.LoadBalancer = &networking.LoadBalancerSettings{
+		loadBalancer = &networking.LoadBalancerSettings{
 			LbPolicy: &networking.LoadBalancerSettings_ConsistentHash{
 				ConsistentHash: consistentHash,
 			},
 		}
 	} else {
-		trafficPolicy.LoadBalancer = &networking.LoadBalancerSettings{
+		loadBalancer = &networking.LoadBalancerSettings{
 			LbPolicy: &networking.LoadBalancerSettings_Simple{
 				Simple: loadBalanceConfig.simple,
 			},
 		}
+	}
+
+	if trafficPolicy != nil {
+		trafficPolicy.LoadBalancer = loadBalancer
+	}
+	if portTrafficPolicy != nil {
+		portTrafficPolicy.LoadBalancer = loadBalancer
 	}
 }
 

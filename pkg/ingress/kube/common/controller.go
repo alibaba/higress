@@ -28,9 +28,10 @@ import (
 )
 
 type ServiceKey struct {
-	Namespace string
-	Name      string
-	Port      int32
+	Namespace   string
+	Name        string
+	ServiceFQDN string
+	Port        int32
 }
 
 type WrapperConfig struct {
@@ -98,8 +99,9 @@ type WrapperVirtualService struct {
 }
 
 type WrapperTrafficPolicy struct {
-	TrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy
-	WrapperConfig *WrapperConfig
+	TrafficPolicy     *networking.TrafficPolicy
+	PortTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy
+	WrapperConfig     *WrapperConfig
 }
 
 type WrapperDestinationRule struct {

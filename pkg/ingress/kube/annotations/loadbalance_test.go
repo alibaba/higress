@@ -229,7 +229,7 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 
 	for _, inputCase := range inputCases {
 		t.Run("", func(t *testing.T) {
-			loadBalance.ApplyTrafficPolicy(inputCase.input, inputCase.config)
+			loadBalance.ApplyTrafficPolicy(nil, inputCase.input, inputCase.config)
 			if !reflect.DeepEqual(inputCase.input, inputCase.expect) {
 				t.Fatal("Should be equal")
 			}
