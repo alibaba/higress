@@ -23,12 +23,36 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 ![arch](https://img.alicdn.com/imgextra/i4/O1CN01OgGP1728t0xeRfRYJ_!!6000000007989-0-tps-1726-1366.jpg)
 
 ## Summary
-
+    
+- [**功能展示**](#功能展示)
 - [**使用场景**](#使用场景)
 - [**核心优势**](#核心优势)
 - [**Quick Start**](https://higress.io/zh-cn/docs/user/quickstart)
 - [**社区**](#社区)
 
+## 功能展示
+    
+- **可观测开箱即用**    
+
+![](https://img.alicdn.com/imgextra/i1/O1CN016n7gBU1UCnrfOBOZC_!!6000000002482-1-tps-1778-1012.gif)
+    
+- **多种服务发现**
+
+![](https://img.alicdn.com/imgextra/i2/O1CN0142CxRS1of0ZKg5soq_!!6000000005251-1-tps-1778-1012.gif)
+    
+- **丰富的路由能力**
+    
+![](https://img.alicdn.com/imgextra/i3/O1CN01lExhus1IvR4Q8kGmY_!!6000000000955-1-tps-1778-1012.gif)
+    
+- **域名和证书**
+
+![](https://img.alicdn.com/imgextra/i4/O1CN01eQhgZD1ggMonjdj9u_!!6000000004171-1-tps-1778-1012.gif)
+    
+- **插件机制**
+    
+![](https://img.alicdn.com/imgextra/i2/O1CN01t7XqQB1s6R8cM5ZRS_!!6000000005717-1-tps-1778-1012.gif)
+    
+    
 ## 使用场景
 
 - **Kubernetes Ingress 网关**:
