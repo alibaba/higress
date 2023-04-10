@@ -32,7 +32,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 ## 功能展示
     
-- **可观测开箱即用**    
+- **可观测开箱即用**
 
 ![](./docs/images/monitor.gif)
     
