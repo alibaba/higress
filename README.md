@@ -32,27 +32,41 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 ## 功能展示
     
-- **可观测开箱即用**    
+- **丰富的可观测**
 
-![](https://img.alicdn.com/imgextra/i1/O1CN016n7gBU1UCnrfOBOZC_!!6000000002482-1-tps-1778-1012.gif)
+  提供开箱即用的可观测，Grafana&Prometheus 可以使用内置的也可对接自建的
+
+  ![](./docs/images/monitor.gif)
     
+
+- **插件扩展机制**
+
+  官方提供了多种插件，用户也可以[开发](./plugins/wasm-go)自己的插件，构建成 docker/oci 镜像后在控制台配置，可以实时变更插件逻辑，对流量完全无损。
+
+  ![](./docs/images/plugin.gif)
+
+
 - **多种服务发现**
 
-![](https://img.alicdn.com/imgextra/i2/O1CN0142CxRS1of0ZKg5soq_!!6000000005251-1-tps-1778-1012.gif)
+  默认提供 K8s Service 服务发现，通过配置可以对接 Nacos/ZooKeeper 等注册中心实现服务发现，也可以基于静态 IP 或者 DNS 来发现
+
+  ![](./docs/images/service-source.gif)
     
-- **丰富的路由能力**
-    
-![](https://img.alicdn.com/imgextra/i3/O1CN01lExhus1IvR4Q8kGmY_!!6000000000955-1-tps-1778-1012.gif)
-    
+
 - **域名和证书**
 
-![](https://img.alicdn.com/imgextra/i4/O1CN01eQhgZD1ggMonjdj9u_!!6000000004171-1-tps-1778-1012.gif)
-    
-- **插件机制**
-    
-![](https://img.alicdn.com/imgextra/i2/O1CN01t7XqQB1s6R8cM5ZRS_!!6000000005717-1-tps-1778-1012.gif)
-    
-    
+  可以创建管理 TLS 证书，并配置域名的 HTTP/HTTPS 行为，域名策略里支持对特定域名生效插件
+
+  ![](./docs/images/domain.gif)
+
+
+- **丰富的路由能力**
+
+  通过上面定义的服务发现机制，发现的服务会出现在服务列表中；创建路由时，选择域名，定义路由匹配机制，再选择目标服务进行路由；路由策略里支持对特定路由生效插件
+
+  ![](./docs/images/route-service.gif)
+
+
 ## 使用场景
 
 - **Kubernetes Ingress 网关**:
