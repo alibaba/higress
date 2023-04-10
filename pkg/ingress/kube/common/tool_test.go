@@ -47,7 +47,7 @@ func TestConstructRouteName(t *testing.T) {
 				OriginPath:     "/test/(.*)/?[0-9]",
 				HTTPRoute:      &networking.HTTPRoute{},
 			},
-			expect: "*.test.com-regex-/test/(.*)/?[0-9]",
+			expect: "*.test.com-prefixRegex-/test/(.*)/?[0-9]",
 		},
 		{
 			input: &WrapperHTTPRoute{
