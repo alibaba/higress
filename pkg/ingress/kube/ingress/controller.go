@@ -848,20 +848,9 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 	}
 
 	if ingressV1Beta.Backend != nil {
-		serviceKey, err := c.createServiceKey(ingressV1Beta.Backend, cfg.Namespace)
+		err := c.storeBackendTrafficPolicy(wrapper, ingressV1Beta.Backend, convertOptions.Service2TrafficPolicy)
 		if err != nil {
-			IngressLog.Errorf("ignore default service %s within ingress %s/%s", serviceKey.Name, cfg.Namespace, cfg.Name)
-		} else {
-			if _, exist := convertOptions.Service2TrafficPolicy[serviceKey]; !exist {
-				convertOptions.Service2TrafficPolicy[serviceKey] = &common.WrapperTrafficPolicy{
-					TrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
-						Port: &networking.PortSelector{
-							Number: uint32(serviceKey.Port),
-						},
-					},
-					WrapperConfig: wrapper,
-				}
-			}
+			IngressLog.Errorf("ignore default service within ingress %s/%s, since error:%v", cfg.Namespace, cfg.Name, err)
 		}
 	}
 
@@ -871,22 +860,46 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 		}
 
 		for _, httpPath := range rule.HTTP.Paths {
-			if httpPath.Backend.ServiceName == "" {
-				continue
-			}
-
-			serviceKey, err := c.createServiceKey(&httpPath.Backend, cfg.Namespace)
+			err := c.storeBackendTrafficPolicy(wrapper, &httpPath.Backend, convertOptions.Service2TrafficPolicy)
 			if err != nil {
-				IngressLog.Errorf("ignore service %s within ingress %s/%s", serviceKey.Name, cfg.Namespace, cfg.Name)
-				continue
+				IngressLog.Errorf("ignore service within ingress %s/%s, since error:%v", cfg.Namespace, cfg.Name, err)
 			}
+		}
+	}
 
-			if _, exist := convertOptions.Service2TrafficPolicy[serviceKey]; exist {
-				continue
+	return nil
+}
+
+func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, backend *ingress.IngressBackend, store map[common.ServiceKey]*common.WrapperTrafficPolicy) error {
+	if backend == nil {
+		return errors.New("invalid empty backend")
+	}
+	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
+		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
+			serviceKey := common.ServiceKey{
+				Namespace:   "mcp",
+				Name:        dest.Destination.Host,
+				ServiceFQDN: dest.Destination.Host,
 			}
+			if _, exist := store[serviceKey]; !exist {
+				store[serviceKey] = &common.WrapperTrafficPolicy{
+					TrafficPolicy: &networking.TrafficPolicy{},
+					WrapperConfig: wrapper,
+				}
+			}
+		}
+	} else {
+		if backend.ServiceName == "" {
+			return nil
+		}
+		serviceKey, err := c.createServiceKey(backend, wrapper.Config.Namespace)
+		if err != nil {
+			return fmt.Errorf("ignore service %s within ingress %s/%s", serviceKey.Name, wrapper.Config.Namespace, wrapper.Config.Name)
+		}
 
-			convertOptions.Service2TrafficPolicy[serviceKey] = &common.WrapperTrafficPolicy{
-				TrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
+		if _, exist := store[serviceKey]; !exist {
+			store[serviceKey] = &common.WrapperTrafficPolicy{
+				PortTrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
 					Port: &networking.PortSelector{
 						Number: uint32(serviceKey.Port),
 					},
@@ -895,7 +908,6 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 			}
 		}
 	}
-
 	return nil
 }
 

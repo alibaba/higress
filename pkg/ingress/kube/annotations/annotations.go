@@ -192,8 +192,8 @@ func (h *AnnotationHandlerManager) ApplyRoute(route *networking.HTTPRoute, confi
 	}
 }
 
-func (h *AnnotationHandlerManager) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
+func (h *AnnotationHandlerManager) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy, portTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
 	for _, handler := range h.trafficPolicyHandlers {
-		handler.ApplyTrafficPolicy(trafficPolicy, config)
+		handler.ApplyTrafficPolicy(trafficPolicy, portTrafficPolicy, config)
 	}
 }

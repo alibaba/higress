@@ -75,6 +75,20 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 		}
 	}
 
+	if sslVerify, err := annotations.ParseStringASAP(proxySSLVerify); err == nil {
+		if OnOffRegex.MatchString(sslVerify) {
+			upstreamTLSConfig.SSLVerify = onOffToBool(sslVerify)
+		}
+	}
+
+	upstreamTLSConfig.SNI, _ = annotations.ParseStringASAP(proxySSLName)
+
+	if enableSNI, err := annotations.ParseStringASAP(proxySSLServerName); err == nil {
+		if OnOffRegex.MatchString(enableSNI) {
+			upstreamTLSConfig.EnableSNI = onOffToBool(enableSNI)
+		}
+	}
+
 	secretName, _ := annotations.ParseStringASAP(proxySSLSecret)
 	namespacedName := util.SplitNamespacedName(secretName)
 	if namespacedName.Name == "" {
@@ -86,32 +100,19 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 	}
 	upstreamTLSConfig.SecretName = namespacedName.String()
 
-	if sslVerify, err := annotations.ParseStringASAP(proxySSLVerify); err == nil {
-		if OnOffRegex.MatchString(sslVerify) {
-			upstreamTLSConfig.SSLVerify = onOffToBool(sslVerify)
-		}
-	}
-
-	upstreamTLSConfig.SNI, _ = annotations.ParseStringASAP(proxySSLName)
-
-	if enableSNI, err := annotations.ParseStringASAP(proxySSLServerName); err == nil {
-		if OnOffRegex.MatchString(enableSNI) {
-			upstreamTLSConfig.SSLVerify = onOffToBool(enableSNI)
-		}
-	}
-
 	return nil
 }
 
-func (u upstreamTLS) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
+func (u upstreamTLS) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy, portTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
 	if config.UpstreamTLS == nil {
 		return
 	}
 
 	upstreamTLSConfig := config.UpstreamTLS
 
+	var connectionPool *networking.ConnectionPoolSettings
 	if isH2(upstreamTLSConfig.BackendProtocol) {
-		trafficPolicy.ConnectionPool = &networking.ConnectionPoolSettings{
+		connectionPool = &networking.ConnectionPoolSettings{
 			Http: &networking.ConnectionPoolSettings_HTTPSettings{
 				H2UpgradePolicy: networking.ConnectionPoolSettings_HTTPSettings_UPGRADE,
 			},
@@ -125,8 +126,14 @@ func (u upstreamTLS) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_
 	} else if isHTTPS(upstreamTLSConfig.BackendProtocol) {
 		tls = processSimple(config)
 	}
-
-	trafficPolicy.Tls = tls
+	if trafficPolicy != nil {
+		trafficPolicy.ConnectionPool = connectionPool
+		trafficPolicy.Tls = tls
+	}
+	if portTrafficPolicy != nil {
+		portTrafficPolicy.ConnectionPool = connectionPool
+		portTrafficPolicy.Tls = tls
+	}
 }
 
 func processMTLS(config *Ingress) *networking.ClientTLSSettings {
