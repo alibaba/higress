@@ -47,6 +47,7 @@ func TestUpstreamTLSParse(t *testing.T) {
 				SSLVerify:       true,
 				SNI:             "SSLName",
 				SecretName:      "namespace/SSLSecret",
+				EnableSNI:       true,
 			},
 		},
 		{
@@ -60,9 +61,10 @@ func TestUpstreamTLSParse(t *testing.T) {
 			},
 			expect: &UpstreamTLSConfig{
 				BackendProtocol: "HTTP2",
-				SSLVerify:       false,
-				SNI:             "",
+				SSLVerify:       true,
+				SNI:             "SSLName",
 				SecretName:      "",
+				EnableSNI:       true,
 			},
 		},
 	}
