@@ -47,6 +47,7 @@ func TestUpstreamTLSParse(t *testing.T) {
 				SSLVerify:       true,
 				SNI:             "SSLName",
 				SecretName:      "namespace/SSLSecret",
+				EnableSNI:       true,
 			},
 		},
 		{
@@ -60,9 +61,10 @@ func TestUpstreamTLSParse(t *testing.T) {
 			},
 			expect: &UpstreamTLSConfig{
 				BackendProtocol: "HTTP2",
-				SSLVerify:       false,
-				SNI:             "",
+				SSLVerify:       true,
+				SNI:             "SSLName",
 				SecretName:      "",
+				EnableSNI:       true,
 			},
 		},
 	}
@@ -143,7 +145,7 @@ func TestApplyTrafficPolicy(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
-			parser.ApplyTrafficPolicy(testCase.input, testCase.config)
+			parser.ApplyTrafficPolicy(nil, testCase.input, testCase.config)
 			if diff := cmp.Diff(testCase.expect, testCase.input); diff != "" {
 				t.Fatalf("TestApplyTrafficPolicy() mismatch (-want +got): \n%s", diff)
 			}

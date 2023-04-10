@@ -559,27 +559,36 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 	IngressLog.Debugf("traffic policy number %d", len(convertOptions.Service2TrafficPolicy))
 
 	for _, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		m.annotationHandler.ApplyTrafficPolicy(wrapperTrafficPolicy.TrafficPolicy, wrapperTrafficPolicy.WrapperConfig.AnnotationsConfig)
+		m.annotationHandler.ApplyTrafficPolicy(wrapperTrafficPolicy.TrafficPolicy, wrapperTrafficPolicy.PortTrafficPolicy, wrapperTrafficPolicy.WrapperConfig.AnnotationsConfig)
 	}
 
 	// Merge multi-port traffic policy per service into one destination rule.
 	destinationRules := map[string]*common.WrapperDestinationRule{}
 	for key, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		serviceName := util.CreateServiceFQDN(key.Namespace, key.Name)
+		var serviceName string
+		if key.ServiceFQDN != "" {
+			serviceName = key.ServiceFQDN
+		} else {
+			serviceName = util.CreateServiceFQDN(key.Namespace, key.Name)
+		}
 		dr, exist := destinationRules[serviceName]
 		if !exist {
+			trafficPolicy := &networking.TrafficPolicy{}
+			if wrapperTrafficPolicy.PortTrafficPolicy != nil {
+				trafficPolicy.PortLevelSettings = []*networking.TrafficPolicy_PortTrafficPolicy{wrapperTrafficPolicy.PortTrafficPolicy}
+			} else if wrapperTrafficPolicy.TrafficPolicy != nil {
+				trafficPolicy = wrapperTrafficPolicy.TrafficPolicy
+			}
 			dr = &common.WrapperDestinationRule{
 				DestinationRule: &networking.DestinationRule{
-					Host: serviceName,
-					TrafficPolicy: &networking.TrafficPolicy{
-						PortLevelSettings: []*networking.TrafficPolicy_PortTrafficPolicy{wrapperTrafficPolicy.TrafficPolicy},
-					},
+					Host:          serviceName,
+					TrafficPolicy: trafficPolicy,
 				},
 				WrapperConfig: wrapperTrafficPolicy.WrapperConfig,
 				ServiceKey:    key,
 			}
-		} else {
-			dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, wrapperTrafficPolicy.TrafficPolicy)
+		} else if wrapperTrafficPolicy.PortTrafficPolicy != nil {
+			dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, wrapperTrafficPolicy.PortTrafficPolicy)
 		}
 
 		destinationRules[serviceName] = dr

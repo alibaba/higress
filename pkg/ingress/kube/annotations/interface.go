@@ -38,5 +38,5 @@ type RouteHandler interface {
 
 type TrafficPolicyHandler interface {
 	// ApplyTrafficPolicy parsed ingress annotation config reflected on traffic policy
-	ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress)
+	ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy, portTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress)
 }
