@@ -76,7 +76,15 @@ func (i *Ingress) NeedRegexMatch() bool {
 		return false
 	}
 
-	return i.Rewrite.RewriteTarget != "" || i.Rewrite.UseRegex
+	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsStrictRegexMatch()
+}
+
+func (i *Ingress) IsPrefixRegexMatch() bool {
+	return i.Rewrite.UseRegex
+}
+
+func (i *Ingress) IsStrictRegexMatch() bool {
+	return i.Rewrite.FullPathRegex
 }
 
 func (i *Ingress) IsCanary() bool {

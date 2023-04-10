@@ -59,7 +59,9 @@ const (
 
 	Prefix PathType = "prefix"
 
-	Regex PathType = "regex"
+	PrefixRegex PathType = "prefixRegex"
+
+	StrictRegex PathType = "strictRegex"
 
 	DefaultStatusUpdateInterval = 10 * time.Second
 

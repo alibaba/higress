@@ -43,7 +43,7 @@ func TestConstructRouteName(t *testing.T) {
 		{
 			input: &WrapperHTTPRoute{
 				Host:           "*.test.com",
-				OriginPathType: Regex,
+				OriginPathType: PrefixRegex,
 				OriginPath:     "/test/(.*)/?[0-9]",
 				HTTPRoute:      &networking.HTTPRoute{},
 			},
@@ -390,7 +390,7 @@ func TestSortRoutes(t *testing.T) {
 				AnnotationsConfig: &annotations.Ingress{},
 			},
 			Host:           "test.com",
-			OriginPathType: Regex,
+			OriginPathType: PrefixRegex,
 			OriginPath:     "/d(.*)",
 			ClusterId:      "cluster1",
 			HTTPRoute: &networking.HTTPRoute{
