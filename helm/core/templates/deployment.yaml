@@ -1,3 +1,13 @@
+{{- $unprivilegedPortSupported := true }}
+{{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
+    {{- $kernelVersion := $node.status.nodeInfo.kernelVersion }}
+    {{- if $kernelVersion }}
+      {{- $kernelVersion = regexFind "^(\\d+\\.\\d+\\.\\d+)" $kernelVersion }}
+      {{- if and $kernelVersion (semverCompare "<4.11.0" $kernelVersion) }}
+      {{-   $unprivilegedPortSupported = false }}
+      {{- end }}
+    {{- end }}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -50,7 +60,7 @@ spec:
       securityContext:
       {{- if .Values.gateway.securityContext }}
         {{- toYaml .Values.gateway.securityContext | nindent 8 }}
-      {{- else if and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
+      {{- else if and $unprivilegedPortSupported (and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion)) }}
         # Safe since 1.22: https://github.com/kubernetes/kubernetes/pull/103326
         sysctls:
         - name: net.ipv4.ip_unprivileged_port_start
@@ -71,7 +81,7 @@ spec:
           securityContext:
           {{- if .Values.gateway.containerSecurityContext }}
             {{- toYaml .Values.gateway.containerSecurityContext | nindent 12 }}
-          {{- else if and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion) }}
+          {{- else if and $unprivilegedPortSupported (and (not .Values.gateway.hostNetwork) (semverCompare ">=1.22-0" .Capabilities.KubeVersion.GitVersion)) }}
             # Safe since 1.22: https://github.com/kubernetes/kubernetes/pull/103326
             capabilities:
               drop:
