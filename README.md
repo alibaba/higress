@@ -30,42 +30,6 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 - [**Quick Start**](https://higress.io/zh-cn/docs/user/quickstart)
 - [**社区**](#社区)
 
-## 功能展示
-    
-- **丰富的可观测**
-
-  提供开箱即用的可观测，Grafana&Prometheus 可以使用内置的也可对接自建的
-
-  ![](./docs/images/monitor.gif)
-    
-
-- **插件扩展机制**
-
-  官方提供了多种插件，用户也可以[开发](./plugins/wasm-go)自己的插件，构建成 docker/oci 镜像后在控制台配置，可以实时变更插件逻辑，对流量完全无损。
-
-  ![](./docs/images/plugin.gif)
-
-
-- **多种服务发现**
-
-  默认提供 K8s Service 服务发现，通过配置可以对接 Nacos/ZooKeeper 等注册中心实现服务发现，也可以基于静态 IP 或者 DNS 来发现
-
-  ![](./docs/images/service-source.gif)
-    
-
-- **域名和证书**
-
-  可以创建管理 TLS 证书，并配置域名的 HTTP/HTTPS 行为，域名策略里支持对特定域名生效插件
-
-  ![](./docs/images/domain.gif)
-
-
-- **丰富的路由能力**
-
-  通过上面定义的服务发现机制，发现的服务会出现在服务列表中；创建路由时，选择域名，定义路由匹配机制，再选择目标服务进行路由；路由策略里支持对特定路由生效插件
-
-  ![](./docs/images/route-service.gif)
-
 
 ## 使用场景
 
@@ -110,6 +74,42 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
   提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级。
 
   插件支持热更新，变更插件逻辑和配置都对流量无损。
+
+## 功能展示
+    
+- **丰富的可观测**
+
+  提供开箱即用的可观测，Grafana&Prometheus 可以使用内置的也可对接自建的
+
+  ![](./docs/images/monitor.gif)
+    
+
+- **插件扩展机制**
+
+  官方提供了多种插件，用户也可以[开发](./plugins/wasm-go)自己的插件，构建成 docker/oci 镜像后在控制台配置，可以实时变更插件逻辑，对流量完全无损。
+
+  ![](./docs/images/plugin.gif)
+
+
+- **多种服务发现**
+
+  默认提供 K8s Service 服务发现，通过配置可以对接 Nacos/ZooKeeper 等注册中心实现服务发现，也可以基于静态 IP 或者 DNS 来发现
+
+  ![](./docs/images/service-source.gif)
+    
+
+- **域名和证书**
+
+  可以创建管理 TLS 证书，并配置域名的 HTTP/HTTPS 行为，域名策略里支持对特定域名生效插件
+
+  ![](./docs/images/domain.gif)
+
+
+- **丰富的路由能力**
+
+  通过上面定义的服务发现机制，发现的服务会出现在服务列表中；创建路由时，选择域名，定义路由匹配机制，再选择目标服务进行路由；路由策略里支持对特定路由生效插件
+
+  ![](./docs/images/route-service.gif)
 
 
 ## 社区
