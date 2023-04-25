@@ -35,20 +35,15 @@ spec:
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: de-graphql
+  name: de-graphql-github-api
   namespace: higress-system
 spec:
+  defaultConfigDisable: true
   matchRules:
-    - ingress:
-        - higress-system/github-api
-      config:
-        timeout: 5000
-        endPoint: /graphql
-        serviceSource: dns
-        serviceName: github
-        servicePort: 443
+    - config:
         domain: api.github.com
-        gql: |
+        endPoint: /graphql
+        gql: |-
           query ($owner:String! $name:String!){
              repository(owner:$owner, name:$name) {
                name
@@ -56,4 +51,11 @@ spec:
                description
             }
           }
+        serviceName: github
+        servicePort: 443
+        serviceSource: dns
+        timeout: 5000
+      configDisable: false
+      ingress:
+        - github-api
   url: oci://docker.io/2456868764/de-graphql:1.0.0

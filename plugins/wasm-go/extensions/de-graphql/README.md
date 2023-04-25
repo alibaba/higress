@@ -125,7 +125,7 @@ spec:
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: de-graphql
+  name: de-graphql-github-api
   namespace: higress-system
 spec:
   matchRules:
