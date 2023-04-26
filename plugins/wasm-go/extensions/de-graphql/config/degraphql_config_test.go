@@ -135,7 +135,7 @@ func TestDeGraphQLConfig_ParseGqlFromUrl(t *testing.T) {
 	}
 }
 
-func TestDeGraphQLConfig_SetEndPoint(t *testing.T) {
+func TestDeGraphQLConfig_SetEndpoint(t *testing.T) {
 
 	tests := []struct {
 		name     string
@@ -158,7 +158,7 @@ func TestDeGraphQLConfig_SetEndPoint(t *testing.T) {
 
 		{
 			name:     "with value",
-			endPoint: "/graphql2",
+			endPoint: " /graphql2 ",
 			wantErr:  nil,
 			want:     "/graphql2",
 		},
@@ -166,12 +166,12 @@ func TestDeGraphQLConfig_SetEndPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DeGraphQLConfig{}
-			err := d.SetEndPoint(tt.endPoint)
+			err := d.SetEndpoint(tt.endPoint)
 			assert.Equal(t, tt.wantErr, err)
 			if err != nil {
 				return
 			}
-			assert.Equal(t, tt.want, d.endPoint)
+			assert.Equal(t, tt.want, d.endpoint)
 		})
 	}
 }

@@ -42,7 +42,7 @@ spec:
   matchRules:
     - config:
         domain: api.github.com
-        endPoint: /graphql
+        endpoint: /graphql
         gql: |-
           query ($owner:String! $name:String!){
              repository(owner:$owner, name:$name) {

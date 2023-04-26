@@ -22,7 +22,7 @@ static_resources:
                         - match:
                             prefix: "/api"
                           route:
-                            cluster: web_service
+                            cluster: mock_service
                 http_filters:
                   - name: envoy.filters.http.wasm
                     typed_config:
@@ -39,7 +39,7 @@ static_resources:
                                 "serviceName": "github",
                                 "servicePort": 443,
                                 "domain": "api.github.com",
-                                "endPoint": "/graphql",
+                                "endpoint": "/graphql",
                                 "timeout": 2000
                               }
                           vm_config:
@@ -83,7 +83,7 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
-    - name: web_service
+    - name: mock_service
       connect_timeout: 0.25s
       type: STATIC
       lb_policy: ROUND_ROBIN

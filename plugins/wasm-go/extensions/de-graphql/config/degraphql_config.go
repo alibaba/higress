@@ -22,6 +22,13 @@ import (
 	"strings"
 )
 
+const (
+	DefaultEndpoint          string = "/graphql"
+	DefaultConnectionTimeout uint32 = 5000
+)
+
+var gqlVariableRegex = regexp.MustCompile(`\$(\w+)\s*:\s*(String|Float|Int|Boolean)(!?)`)
+
 type VariableType string
 
 const (
@@ -41,34 +48,34 @@ type Variable struct {
 type DeGraphQLConfig struct {
 	client    wrapper.HttpClient
 	gql       string
-	endPoint  string
+	endpoint  string
 	timeout   uint32
 	variables []Variable
 }
 
-func (d *DeGraphQLConfig) SetEndPoint(endPoint string) error {
-	if strings.Trim(endPoint, " ") == "" {
-		d.endPoint = "/graphql"
+func (d *DeGraphQLConfig) SetEndpoint(endpoint string) error {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		d.endpoint = DefaultEndpoint
 	} else {
-		d.endPoint = endPoint
+		d.endpoint = endpoint
 	}
 	return nil
 }
 
-func (d *DeGraphQLConfig) GetEndPoint() string {
-	return d.endPoint
+func (d *DeGraphQLConfig) GetEndpoint() string {
+	return d.endpoint
 }
 
 func (d *DeGraphQLConfig) GetTimeout() uint32 {
 	return d.timeout
 }
 
-func (d *DeGraphQLConfig) SetTimeout(timeout int64) {
+func (d *DeGraphQLConfig) SetTimeout(timeout uint32) {
 	if timeout <= 0 {
-		// Default timeout is 5000 Millisecond
-		d.timeout = 5000
+		d.timeout = DefaultConnectionTimeout
 	} else {
-		d.timeout = uint32(timeout)
+		d.timeout = timeout
 	}
 }
 
@@ -81,13 +88,12 @@ func (d *DeGraphQLConfig) GetClient() wrapper.HttpClient {
 }
 
 func (d *DeGraphQLConfig) SetGql(gql string) error {
-	if strings.Trim(gql, " ") == "" {
+	if strings.TrimSpace(gql) == "" {
 		return errors.New("gql can't be empty")
 	}
 	d.gql = gql
-	reg := regexp.MustCompile(`\$(\w+)\s*:\s*(String|Float|Int|Boolean)(!?)`)
 	d.variables = make([]Variable, 0)
-	matches := reg.FindAllStringSubmatch(d.gql, -1)
+	matches := gqlVariableRegex.FindAllStringSubmatch(d.gql, -1)
 	if len(matches) > 0 {
 		for _, subMatch := range matches {
 			variable := Variable{}
@@ -102,12 +108,7 @@ func (d *DeGraphQLConfig) SetGql(gql string) error {
 			case "Boolean":
 				variable.typ = BooleanType
 			}
-			if subMatch[3] == "!" {
-				variable.blank = false
-			} else {
-				variable.blank = true
-			}
-
+			variable.blank = subMatch[3] != "!"
 			d.variables = append(d.variables, variable)
 		}
 
@@ -124,7 +125,7 @@ func (d *DeGraphQLConfig) GetVersion() string {
 }
 
 func (d *DeGraphQLConfig) ParseGqlFromUrl(requestUrl string) (string, error) {
-	if strings.Trim(requestUrl, " ") == "" {
+	if strings.TrimSpace(requestUrl) == "" {
 		return "", errors.New("request url can't be empty")
 	}
 
@@ -189,7 +190,6 @@ func (d *DeGraphQLConfig) ParseGqlFromUrl(requestUrl string) (string, error) {
 	}
 
 	build.WriteString("}")
-
 	return build.String(), nil
 }
 

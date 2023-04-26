@@ -40,18 +40,18 @@ func main() {
 func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log wrapper.Log) error {
 	log.Debug("parseConfig()")
 	gql := json.Get("gql").String()
-	endPoint := json.Get("endPoint").String()
+	endpoint := json.Get("endpoint").String()
 	timeout := json.Get("timeout").Int()
-	log.Debugf("gql:%s endPoint:%s timeout:%d", gql, endPoint, timeout)
+	log.Debugf("gql:%s endpoint:%s timeout:%d", gql, endpoint, timeout)
 	err := config.SetGql(gql)
 	if err != nil {
 		return err
 	}
-	err = config.SetEndPoint(endPoint)
+	err = config.SetEndpoint(endpoint)
 	if err != nil {
 		return err
 	}
-	config.SetTimeout(timeout)
+	config.SetTimeout(uint32(timeout))
 	serviceSource := json.Get("serviceSource").String()
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
@@ -108,7 +108,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 	}
 	replaceBody, err := config.ParseGqlFromUrl(requestUrl)
 	if err != nil {
-		log.Errorf("failed to parse request url %s : %v", requestUrl, err)
+		log.Warnf("failed to parse request url %s : %v", requestUrl, err)
 	}
 	log.Debugf("replace body:%s", replaceBody)
 
@@ -120,10 +120,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 			headers = append(headers[:i], headers[i+1:]...)
 		}
 	}
-	// Add head Content-Type: application/json
+	// Add header Content-Type: application/json
 	headers = append(headers, [2]string{"Content-Type", "application/json"})
 	// Call upstream graphql endpoint
-	config.GetClient().Post(config.GetEndPoint(), headers, []byte(replaceBody),
+	config.GetClient().Post(config.GetEndpoint(), headers, []byte(replaceBody),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			// Pass response headers and body to client
 			headers := make([][2]string, 0, len(responseHeaders)+3)
@@ -131,7 +131,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 				headers = append(headers, [2]string{headK, headV[0]})
 			}
 			// Add debug headers
-			headers = append(headers, [2]string{"x-degraphql-endpoint", config.GetEndPoint()})
+			headers = append(headers, [2]string{"x-degraphql-endpoint", config.GetEndpoint()})
 			headers = append(headers, [2]string{"x-degraphql-timeout", fmt.Sprintf("%d", config.GetTimeout())})
 			headers = append(headers, [2]string{"x-degraphql-version", config.GetVersion()})
 			proxywasm.SendHttpResponse(uint32(statusCode), headers, responseBody, -1)
