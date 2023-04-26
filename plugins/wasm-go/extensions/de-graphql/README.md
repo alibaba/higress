@@ -55,7 +55,7 @@ query ($owner : String!, $name : String!) {
 ```
 
 
-### github GraphQL 测试
+### GitHub GraphQL 测试
 
 使用 curl 命令查询 GraphQL， 用有效 JSON 请求体发出 POST 请求。 有效请求体必须包含一个名为 query 的字符串。
 
