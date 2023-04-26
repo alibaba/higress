@@ -5,7 +5,7 @@ The `hmac-auth` plugin implements the generation of tamper-proof signatures for 
 
 | Name         |  Data Type       | Required     | Default | Description                                                                                                                |
 | ------------- | --------------- | -------------| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `consumers`   | array of object | Required     | -      | Configure the caller of the service to authenticate the request.                                                                                 |
+| `consumers`   | array of object | Required     | -      | Configures the caller of the service to authenticate the request.                                                                                 |
 | `date_offset` | number          | Optional     | -      | Configures the maximum allowed time deviation of the client, in seconds. It is used to parse the client's UTC time from `the Date` header of the request, and can be used to prevent replay attacks. If not configured, no validation is performed. |
 | `_rules_`     | array of object | Optional     | -      | Configures the access control list for specific routes or domains, used for authorization of requests.                                                              |
 
@@ -80,7 +80,7 @@ consumers:
 ```
 
 
-# Description of Signature Mechanism
+# Description of Signing Mechanism
 
 ## Configuration Preparation
 
@@ -207,7 +207,7 @@ String sign = Base64.encodeBase64String(result);
 
 In summary, the `stringToSign` is decoded using UTF-8 to obtain a Byte array. Then, an encryption algorithm is used to encrypt the Byte array, and finally, the Base64 algorithm is used to encode the encrypted data, resulting in the final signature.
 
-### The process of adding a signature
+### The Process of Adding a Signature
 
 The client needs to include the following four headers in the HTTP request to be transmitted to the API gateway for signature verification:
 
