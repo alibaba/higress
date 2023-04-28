@@ -29,10 +29,9 @@ set_header:
 - Access-Control-Allow-Credentials: "true"
 - Access-Control-Allow-Origin: "*"
 - Access-Control-Allow-Headers: "*"
-- Access-Control-Allow-Method: "*"
+- Access-Control-Allow-Methods: "*"
 - Access-Control-Expose-Headers: "*"
 - Content-Type:  "application/json;charset=UTF-8"
-- Custom-Header: "HelloWorld"
 ```
 
 ## 示例说明：

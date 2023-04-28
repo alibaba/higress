@@ -28,7 +28,6 @@ func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
 	config.rules = json.Get("rules").Array()
 	for _, item := range config.rules {
 		log.Info("config.rules: " + item.String())
-		// judge config is empty
 		if item.Get("match.statuscode").String() == "" {
 			return errors.New("missing match.statuscode in config")
 		}
@@ -41,32 +40,20 @@ func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
 }
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.Log) types.Action {
-	var DontReadResponseBody = false
-	// judge statuscode
-	for _, item := range config.rules {
-		current_statuscode, err := proxywasm.GetHttpResponseHeader(":status")
-		if err != nil {
-			log.Critical("failed GetHttpResponseHeader :status")
-		}
-		config_match_statuscode := item.Get("match.statuscode").String()
-		config_replace_statuscode := item.Get("replace.statuscode").String()
+	dontReadResponseBody := false
+	currentStatuscode, _ := proxywasm.GetHttpResponseHeader(":status")
 
-		switch current_statuscode {
-		//case "403", "503":
-		case config_match_statuscode:
+	for _, item := range config.rules {
+		configMatchStatuscode := item.Get("match.statuscode").String()
+		configReplaceStatuscode := item.Get("replace.statuscode").String()
+		switch currentStatuscode {
+		// configMatchStatuscode value example: "403" or "503":
+		case configMatchStatuscode:
 			// If the response header `x-envoy-upstream-service-time`  is not found,  the request has  not  been  forwarded to the  backend  service
 			_, err := proxywasm.GetHttpResponseHeader("x-envoy-upstream-service-time")
 			if err != nil {
-				proxywasm.AddHttpResponseHeader("config-match-statuscode", config_match_statuscode)
-				proxywasm.AddHttpResponseHeader("config-replace-statuscode", config_replace_statuscode)
-
 				proxywasm.RemoveHttpResponseHeader("content-length")
-				// replace statuscode
-				err = proxywasm.ReplaceHttpResponseHeader(":status", config_replace_statuscode)
-				if err != nil {
-					log.Critical("failed ReplaceHttpResponseHeader :status")
-				}
-				// replace ResponseHeader
+				proxywasm.ReplaceHttpResponseHeader(":status", configReplaceStatuscode)
 				for _, item_header := range config.set_header {
 					item_header.ForEach(func(key, value gjson.Result) bool {
 						err := proxywasm.ReplaceHttpResponseHeader(key.String(), value.String())
@@ -76,16 +63,20 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 						return true
 					})
 				}
+				// goto func onHttpResponseBody
+				return types.ActionContinue
 			} else {
-				ctx.DontReadResponseBody()
+				dontReadResponseBody = true
+				break
 			}
-			return types.ActionContinue
 		default:
-			DontReadResponseBody = true
+			// There is no matching rule
+			dontReadResponseBody = true
 		}
 	}
 
-	if DontReadResponseBody == true {
+	// If there is no rule match or no header for x-envoy-upstream-service-time, the onHttpResponseBody is not exec
+	if dontReadResponseBody == true {
 		ctx.DontReadResponseBody()
 	}
 	return types.ActionContinue
@@ -94,19 +85,11 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 func onHttpResponseBody(ctx wrapper.HttpContext, config MyConfig, body []byte, log wrapper.Log) types.Action {
 	bodyStr := string(body)
 
-	// judge responsebody
 	for _, item := range config.rules {
-		config_match_responsebody := item.Get("match.responsebody").String()
-		config_replace_responsebody := item.Get("replace.responsebody").String()
-		log.Debug("bodyStr: " + bodyStr)
-		log.Debug("config_match_responsebody: " + config_match_responsebody)
-		if bodyStr == config_match_responsebody {
-			log.Debug(bodyStr)
-			// Replace ResponseBody
-			err := proxywasm.ReplaceHttpResponseBody([]byte(config_replace_responsebody))
-			if err != nil {
-				log.Critical("failed config_replace_responsebody" + config_replace_responsebody)
-			}
+		configMatchResponsebody := item.Get("match.responsebody").String()
+		configReplaceResponsebody := item.Get("replace.responsebody").String()
+		if bodyStr == configMatchResponsebody {
+			proxywasm.ReplaceHttpResponseBody([]byte(configReplaceResponsebody))
 			return types.ActionContinue
 		}
 	}
