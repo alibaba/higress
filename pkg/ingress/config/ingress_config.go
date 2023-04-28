@@ -330,10 +330,10 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 
 func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
-		HostAndPath2Ingress: map[string]*config.Config{},
-		IngressRouteCache:   common.NewIngressRouteCache(),
-		VirtualServices:     map[string]*common.WrapperVirtualService{},
-		HTTPRoutes:          map[string][]*common.WrapperHTTPRoute{},
+		IngressRouteCache: common.NewIngressRouteCache(),
+		VirtualServices:   map[string]*common.WrapperVirtualService{},
+		HTTPRoutes:        map[string][]*common.WrapperHTTPRoute{},
+		Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
 	}
 
 	// convert http route
@@ -559,27 +559,36 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 	IngressLog.Debugf("traffic policy number %d", len(convertOptions.Service2TrafficPolicy))
 
 	for _, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		m.annotationHandler.ApplyTrafficPolicy(wrapperTrafficPolicy.TrafficPolicy, wrapperTrafficPolicy.WrapperConfig.AnnotationsConfig)
+		m.annotationHandler.ApplyTrafficPolicy(wrapperTrafficPolicy.TrafficPolicy, wrapperTrafficPolicy.PortTrafficPolicy, wrapperTrafficPolicy.WrapperConfig.AnnotationsConfig)
 	}
 
 	// Merge multi-port traffic policy per service into one destination rule.
 	destinationRules := map[string]*common.WrapperDestinationRule{}
 	for key, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		serviceName := util.CreateServiceFQDN(key.Namespace, key.Name)
+		var serviceName string
+		if key.ServiceFQDN != "" {
+			serviceName = key.ServiceFQDN
+		} else {
+			serviceName = util.CreateServiceFQDN(key.Namespace, key.Name)
+		}
 		dr, exist := destinationRules[serviceName]
 		if !exist {
+			trafficPolicy := &networking.TrafficPolicy{}
+			if wrapperTrafficPolicy.PortTrafficPolicy != nil {
+				trafficPolicy.PortLevelSettings = []*networking.TrafficPolicy_PortTrafficPolicy{wrapperTrafficPolicy.PortTrafficPolicy}
+			} else if wrapperTrafficPolicy.TrafficPolicy != nil {
+				trafficPolicy = wrapperTrafficPolicy.TrafficPolicy
+			}
 			dr = &common.WrapperDestinationRule{
 				DestinationRule: &networking.DestinationRule{
-					Host: serviceName,
-					TrafficPolicy: &networking.TrafficPolicy{
-						PortLevelSettings: []*networking.TrafficPolicy_PortTrafficPolicy{wrapperTrafficPolicy.TrafficPolicy},
-					},
+					Host:          serviceName,
+					TrafficPolicy: trafficPolicy,
 				},
 				WrapperConfig: wrapperTrafficPolicy.WrapperConfig,
 				ServiceKey:    key,
 			}
-		} else {
-			dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, wrapperTrafficPolicy.TrafficPolicy)
+		} else if wrapperTrafficPolicy.PortTrafficPolicy != nil {
+			dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, wrapperTrafficPolicy.PortTrafficPolicy)
 		}
 
 		destinationRules[serviceName] = dr
@@ -707,7 +716,10 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	if result.PluginConfig != nil {
 		return result, nil
 	}
-	result.PluginConfig = obj.DefaultConfig
+	if !obj.DefaultConfigDisable {
+		result.PluginConfig = obj.DefaultConfig
+	}
+	hasValidRule := false
 	if len(obj.MatchRules) > 0 {
 		if result.PluginConfig == nil {
 			result.PluginConfig = &types.Struct{
@@ -716,6 +728,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		}
 		var ruleValues []*types.Value
 		for _, rule := range obj.MatchRules {
+			if rule.ConfigDisable {
+				continue
+			}
 			if rule.Config == nil {
 				return nil, errors.New("invalid rule has no config")
 			}
@@ -764,13 +779,19 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				Kind: v,
 			})
 		}
-		result.PluginConfig.Fields["_rules_"] = &types.Value{
-			Kind: &types.Value_ListValue{
-				ListValue: &types.ListValue{
-					Values: ruleValues,
+		if len(ruleValues) > 0 {
+			hasValidRule = true
+			result.PluginConfig.Fields["_rules_"] = &types.Value{
+				Kind: &types.Value_ListValue{
+					ListValue: &types.ListValue{
+						Values: ruleValues,
+					},
 				},
-			},
+			}
 		}
+	}
+	if !hasValidRule && obj.DefaultConfigDisable {
+		return nil, nil
 	}
 	return result, nil
 
@@ -800,6 +821,14 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
 	if err != nil {
 		IngressLog.Errorf("invalid wasmPlugin:%s, err:%v", clusterNamespacedName.Name, err)
+		return
+	}
+	if istioWasmPlugin == nil {
+		IngressLog.Infof("wasmPlugin:%s will not be transferred to istio since config disabled",
+			clusterNamespacedName.Name)
+		m.mutex.Lock()
+		delete(m.wasmPlugins, clusterNamespacedName.Name)
+		m.mutex.Unlock()
 		return
 	}
 	IngressLog.Debugf("wasmPlugin:%s convert to istioWasmPlugin:%v", clusterNamespacedName.Name, istioWasmPlugin)

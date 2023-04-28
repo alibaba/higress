@@ -124,6 +124,14 @@ func TestRewriteParse(t *testing.T) {
 				RewriteHost:   "test.com",
 			},
 		},
+		{
+			input: Annotations{
+				buildHigressAnnotationKey(rewritePath): "/test",
+			},
+			expect: &RewriteConfig{
+				RewritePath: "/test",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -238,6 +246,87 @@ func TestRewriteApplyRoute(t *testing.T) {
 						Substitution: "/test",
 					},
 					Authority: "test.com",
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				Rewrite: &RewriteConfig{
+					RewriteTarget: "/test",
+					RewritePath:   "/test",
+					RewriteHost:   "test.com",
+				},
+			},
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+				Rewrite: &networking.HTTPRewrite{
+					Uri:       "/test",
+					Authority: "test.com",
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				Rewrite: &RewriteConfig{
+					RewritePath: "/test",
+				},
+			},
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Prefix{
+								Prefix: "/hello/",
+							},
+						},
+					},
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{
+								Exact: "/hello",
+							},
+						},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Prefix{
+								Prefix: "/hello/",
+							},
+						},
+					},
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{
+								Exact: "/hello",
+							},
+						},
+					},
+				},
+				Rewrite: &networking.HTTPRewrite{
+					Uri: "/test/",
 				},
 			},
 		},

@@ -1,0 +1,48 @@
+name: Deploy Artifacts to OSS
+
+on:
+  push:
+    tags:
+    - "v*.*.*"
+
+jobs:
+  deploy-to-oss:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1
+      - name: Checkout
+        uses: actions/checkout@v3
+      # Step 2
+      - name: Download Helm Charts Index
+        uses: doggycool/ossutil-github-action@master
+        with:
+          ossArgs: 'cp -r -u oss://higress-website-cn-hongkong/helm-charts/index.yaml ./artifact/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com
+      # Step 3
+      - id: calc-version
+        name: Calculate Version Number
+        run: |
+          version=$(echo ${{ github.ref_name }} | cut -c2-)
+          echo "Version=$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+      # Step 4
+      - name: Build Artifact
+        uses: stefanprodan/kube-tools@v1
+        with:
+          helmv3: 3.7.2
+          command: |
+            helmv3 repo add higress.io https://higress.io/helm-charts
+            helmv3 package helm/core --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
+            helmv3 dependency build helm/higress
+            helmv3 package helm/higress --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
+            helmv3 repo index --url https://higress.io/helm-charts/ --merge ./artifact/index.yaml ./artifact
+      # Step 5
+      - name: Upload to OSS
+        uses: doggycool/ossutil-github-action@master
+        with:
+          ossArgs: 'cp -r -u ./artifact/ oss://higress-website-cn-hongkong/helm-charts/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com

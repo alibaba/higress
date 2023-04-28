@@ -50,8 +50,6 @@ type watcher struct {
 	RegistryType       provider.ServiceRegistryType `json:"registry_type"`
 	Status             provider.WatcherStatus       `json:"status"`
 	serviceRemaind     *atomic.Int32
-	updateHandler      provider.ServiceUpdateHandler
-	readyHandler       provider.ReadyHandler
 	cache              memory.Cache
 	mutex              *sync.Mutex
 	stop               chan struct{}
@@ -103,27 +101,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		log.Info("connect zk error")
 		return nil, errors.New("connect zk error")
 	}
-	connectEvent := make(chan zk.Event, 2)
-	newClient.RegisterEvent("", connectEvent)
-	connectTimer := time.NewTimer(timeout)
-	connectTimout := false
-FOR:
-	for {
-		select {
-		case ev := <-connectEvent:
-			if ev.State == zk.StateConnected {
-				break FOR
-			}
-		case <-connectTimer.C:
-			connectTimout = true
-			break FOR
-		}
-	}
-	if connectTimout {
-		return nil, errors.New("connect zk timeout")
-	}
-	log.Info("zk connected")
-	newClient.UnregisterEvent("", connectEvent)
 	w.reconnectCh = newClient.Reconnect()
 	w.zkClient = newClient
 	go func() {
@@ -360,7 +337,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 			Suffix:       "zookeeper",
 			RegistryType: w.Type,
 		})
-		w.updateHandler()
+		w.UpdateService()
 	} else if eventType.Action == EventTypeDel {
 		w.seMux.Lock()
 		value, ok := w.serviceEntry[host]
@@ -391,7 +368,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 				RegistryType: w.Type,
 			})
 		}
-		w.updateHandler()
+		w.UpdateService()
 	}
 	return true
 }
@@ -601,7 +578,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 			}
 		}
 		w.seMux.Unlock()
-		w.updateHandler()
+		w.UpdateService()
 	}
 }
 
@@ -702,7 +679,7 @@ func (w *watcher) Run() {
 		case <-ticker.C:
 			var needNewFetch bool
 			if w.IsReady() {
-				w.readyHandler(true)
+				w.Ready(true)
 				needNewFetch = true
 			}
 			if firstFetchErr != nil || needNewFetch {
@@ -733,15 +710,13 @@ func (w *watcher) Stop() {
 	for key := range w.serviceEntry {
 		w.cache.DeleteServiceEntryWrapper(key)
 	}
-	w.updateHandler()
+	w.UpdateService()
 	w.seMux.Unlock()
 
-	w.stop <- struct{}{}
-	w.Done <- struct{}{}
 	close(w.stop)
 	close(w.Done)
 	w.zkClient.Close()
-	w.readyHandler(false)
+	w.Ready(false)
 }
 
 func (w *watcher) IsHealthy() bool {
@@ -750,14 +725,6 @@ func (w *watcher) IsHealthy() bool {
 
 func (w *watcher) GetRegistryType() string {
 	return w.RegistryType.String()
-}
-
-func (w *watcher) AppendServiceUpdateHandler(f func()) {
-	w.updateHandler = f
-}
-
-func (w *watcher) ReadyHandler(f func(bool)) {
-	w.readyHandler = f
 }
 
 func (w *watcher) IsReady() bool {

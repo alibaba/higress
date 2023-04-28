@@ -25,6 +25,7 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/registry"
+	"github.com/alibaba/higress/registry/direct"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
@@ -77,6 +78,26 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 	errHappened := false
 	log.Infof("ReconcileRegistries, toBeCreated: %d, toBeUpdated: %d, toBeDeleted: %d",
 		len(toBeCreated), len(toBeUpdated), len(toBeDeleted))
+	for k := range toBeDeleted {
+		r.watchers[k].Stop()
+		delete(r.registries, k)
+		delete(r.watchers, k)
+	}
+	for k, v := range toBeUpdated {
+		r.watchers[k].Stop()
+		delete(r.registries, k)
+		delete(r.watchers, k)
+		watcher, err := r.generateWatcherFromRegistryConfig(v, &wg)
+		if err != nil {
+			errHappened = true
+			log.Errorf("ReconcileRegistries failed, err:%v", err)
+			continue
+		}
+
+		go watcher.Run()
+		r.watchers[k] = watcher
+		r.registries[k] = v
+	}
 	for k, v := range toBeCreated {
 		watcher, err := r.generateWatcherFromRegistryConfig(v, &wg)
 		if err != nil {
@@ -89,31 +110,12 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 		r.watchers[k] = watcher
 		r.registries[k] = v
 	}
-	for k, v := range toBeUpdated {
-		go r.watchers[k].Stop()
-		delete(r.registries, k)
-		delete(r.watchers, k)
-		watcher, err := r.generateWatcherFromRegistryConfig(v, &wg)
-		if err != nil {
-			errHappened = true
-			log.Errorf("ReconcileRegistries failed, err:%v", err)
-			continue
-		}
-
-		go watcher.Run()
-		r.watchers[k] = watcher
-		r.registries[k] = v
-	}
-	for k := range toBeDeleted {
-		go r.watchers[k].Stop()
-		delete(r.registries, k)
-		delete(r.watchers, k)
-	}
 	if errHappened {
 		log.Error("ReconcileRegistries failed, Init Watchers failed")
 		return
 	}
 	wg.Wait()
+	r.Cache.PurgeStaleService()
 	log.Infof("Registries is reconciled")
 }
 
@@ -158,6 +160,14 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			zookeeper.WithPort(registry.Port),
 			zookeeper.WithZkServicesPath(registry.ZkServicesPath),
 		)
+	case string(Static), string(DNS):
+		watcher, err = direct.NewWatcher(
+			r.Cache,
+			direct.WithType(registry.Type),
+			direct.WithName(registry.Name),
+			direct.WithDomain(registry.Domain),
+			direct.WithPort(registry.Port),
+		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)
 	}
@@ -172,7 +182,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 		once.Do(func() {
 			wg.Done()
 			if ready {
-				log.Infof("Registry Watcher is  ready, type:%s, name:%s", registry.Type, registry.Name)
+				log.Infof("Registry Watcher is ready, type:%s, name:%s", registry.Type, registry.Name)
 			}
 		})
 	})

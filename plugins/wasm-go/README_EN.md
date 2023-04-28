@@ -1,36 +1,75 @@
 ## Intro
 
-This SDK is used to develop the WASM Plugins of Higress.
-## Requirements
+This SDK is used to develop the WASM Plugins for Higress in Go.
 
-(need support Go's type parameters)
+## Quick build with Higress wasm-go builder
+
+The wasm-go plugin can be built quickly with the following command:
+
+```bash
+$ PLUGIN_NAME=request-block make build
+```
+
+<details>
+<summary>Output</summary>
+<pre><code>
+DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request-block \
+                               -t request-block:20230223-173305-3b1a471 \
+                               --output extensions/request-block .
+[+] Building 67.7s (12/12) FINISHED
+
+image:            request-block:20230223-173305-3b1a471
+output wasm file: extensions/request-block/plugin.wasm
+</code></pre>
+</details>
+
+This command eventually builds a wasm file and a Docker image.
+This local wasm file is exported to the specified plugin's directory and can be used directly for debugging.
+You can also use `make build-push` to build and push the image at the same time.
+
+### Environmental parameters
+
+| Name          | Optional/Required | Default                                                                                                      | 含义                                                                                                                                  |
+|---------------|-------------------|--------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `PLUGIN_NAME` | Optional          | hello-world                                                                                                  | The name of the plugin to build.                                                                                                    |
+| `REGISTRY`    | Optional          | empty                                                                                                        | The regitstry address of the generated image, e.g. `example.registry.io/my-name/`.  Note that the REGISTRY value should end with /. |
+| `IMG`         | Optional          | If it is empty, it is generated based on the repository address, plugin name, build time, and git commit id. | The generated image tag will override the `REGISTRY` parameter if it is not empty.                                                  |
+
+## Build on local yourself
+
+You can also build wasm locally and copy it to a Docker image. This requires a local build environment:
 
 Go version: >= 1.18
 
 TinyGo version: >= 0.25.0
 
-## Quick Examples
+The following is an example of building the plugin [request-block](extensions/request-block).
 
-Use the [request-block](example/request-block) as an example
-
-### step1. compile to wasm
+### step1. build wasm
 
 ```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi ./example/request-block/main.go
+tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-block/main.go
 ```
 
-### step2. build&push docker image
+### step2. build and push docker image
 
-Use this [dockerfile](./Dockerfile).
+A simple Dockerfile:
+
+```Dockerfile
+FROM scratch
+COPY main.wasm plugin.wasm
+```
 
 ```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 .
+docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
 docker push <your_registry_hub>/request-block:1.0.0
 ```
 
-### step3. create WasmPlugin resource
+## Apply WasmPlugin API
 
 Read this [document](https://istio.io/latest/docs/reference/config/proxy_extensions/wasm-plugin/) to learn more about wasmplugin.
+
+Create a WasmPlugin API resource:
 
 ```yaml
 apiVersion: extensions.higress.io/v1alpha1
@@ -39,16 +78,14 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway
   defaultConfig:
     block_urls:
     - "swagger.html"
   url: oci://<your_registry_hub>/request-block:1.0.0
 ```
 
-If the url in request contains the `swagger.html`, the request will be blocked.
+When the resource is applied on the Kubernetes cluster with `kubectl apply -f <your-wasm-plugin-yaml>`,
+the request will be blocked if the string `swagger.html` in the url. 
 
 ```bash
 curl <your_gateway_address>/api/user/swagger.html
@@ -70,9 +107,6 @@ metadata:
   name: request-block
   namespace: higress-system
 spec:
-  selector:
-    matchLabels:
-      higress: higress-system-higress-gateway 
   defaultConfig:
    # this config will take effect globally (all incoming requests not matched by rules below)
    block_urls:

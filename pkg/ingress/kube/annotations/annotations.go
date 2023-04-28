@@ -65,6 +65,10 @@ type Ingress struct {
 	Destination *DestinationConfig
 
 	IgnoreCase *IgnoreCaseConfig
+
+	Match *MatchConfig
+
+	HeaderControl *HeaderControlConfig
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
@@ -135,6 +139,8 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			auth{},
 			destination{},
 			ignoreCaseMatching{},
+			match{},
+			headerControl{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},
@@ -150,6 +156,8 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			retry{},
 			fallback{},
 			ignoreCaseMatching{},
+			match{},
+			headerControl{},
 		},
 		trafficPolicyHandlers: []TrafficPolicyHandler{
 			upstreamTLS{},
@@ -184,8 +192,8 @@ func (h *AnnotationHandlerManager) ApplyRoute(route *networking.HTTPRoute, confi
 	}
 }
 
-func (h *AnnotationHandlerManager) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
+func (h *AnnotationHandlerManager) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy, portTrafficPolicy *networking.TrafficPolicy_PortTrafficPolicy, config *Ingress) {
 	for _, handler := range h.trafficPolicyHandlers {
-		handler.ApplyTrafficPolicy(trafficPolicy, config)
+		handler.ApplyTrafficPolicy(trafficPolicy, portTrafficPolicy, config)
 	}
 }

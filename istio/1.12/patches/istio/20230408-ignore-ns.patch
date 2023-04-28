@@ -1,0 +1,54 @@
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/route/route.go istio-new/pilot/pkg/networking/core/v1alpha3/route/route.go
+--- istio/pilot/pkg/networking/core/v1alpha3/route/route.go	2023-04-08 16:02:02.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/route/route.go	2023-04-07 18:19:20.000000000 +0800
+@@ -1049,6 +1049,10 @@
+ 		out.QueryParameterMatchSpecifier = &route.QueryParameterMatcher_StringMatch{
+ 			StringMatch: &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Exact{Exact: m.Exact}},
+ 		}
++	case *networking.StringMatch_Prefix:
++		out.QueryParameterMatchSpecifier = &route.QueryParameterMatcher_StringMatch{
++			StringMatch: &matcher.StringMatcher{MatchPattern: &matcher.StringMatcher_Prefix{Prefix: m.Prefix}},
++		}
+ 	case *networking.StringMatch_Regex:
+ 		out.QueryParameterMatchSpecifier = &route.QueryParameterMatcher_StringMatch{
+ 			StringMatch: &matcher.StringMatcher{
+diff -Naur istio/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go istio-new/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go
+--- istio/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go	2023-04-08 16:02:02.000000000 +0800
++++ istio-new/pilot/pkg/serviceregistry/kube/controller/namespacecontroller.go	2023-04-08 14:35:57.000000000 +0800
+@@ -16,6 +16,7 @@
+ 
+ import (
+ 	"fmt"
++	"os"
+ 	"time"
+ 
+ 	v1 "k8s.io/api/core/v1"
+@@ -171,9 +172,16 @@
+ 	return k8s.InsertDataToConfigMap(nc.client, nc.configmapLister, meta, nc.caBundleWatcher.GetCABundle())
+ }
+ 
++var podNs = os.Getenv("POD_NAMESPACE")
++
+ // On namespace change, update the config map.
+ // If terminating, this will be skipped
+ func (nc *NamespaceController) namespaceChange(ns *v1.Namespace) {
++	// Added by ingress
++	if ns.Name != podNs {
++		return
++	}
++	// End added by ingress
+ 	if ns.Status.Phase != v1.NamespaceTerminating {
+ 		nc.syncNamespace(ns.Name)
+ 	}
+@@ -186,6 +194,11 @@
+ 		log.Errorf("failed to convert to configmap: %v", err)
+ 		return
+ 	}
++	// Added by ingress
++	if cm.Namespace != podNs {
++		return
++	}
++	// End added by ingress
+ 	// This is a change to a configmap we don't watch, ignore it
+ 	if cm.Name != dynamicCACertNamespaceConfigMap {
+ 		return

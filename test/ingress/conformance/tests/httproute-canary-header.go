@@ -22,12 +22,12 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewritePath)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteCanaryHeader)
 }
 
 var HTTPRouteCanaryHeader = suite.ConformanceTest{
 	ShortName:   "HTTPRouteCanaryHeader",
-	Description: "The Ingress in the higress-conformance-infra namespace uses the canary header traffic split",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the canary header traffic split.",
 	Manifests:   []string{"tests/httproute-canary-header.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
@@ -56,6 +56,74 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/echo",
+						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path:    "/foo",
+						Host:    "canary.higress.io",
+						Headers: map[string]string{"traffic-split-higress": "true"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			}, {
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path:    "/foo/bar",
+						Host:    "canary.higress.io",
+						Headers: map[string]string{"traffic-split-higress": "true"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo",
+						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v3",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo/bar",
 						Host: "canary.higress.io",
 					},
 				},

@@ -26,6 +26,7 @@ header:
     - 'VERSION'
     - 'tools/'
     - 'test/README.md'
+    - 'pkg/cmd/hgctl/testdata/config'
 
   comment: on-failure
 dependency:

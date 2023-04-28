@@ -1,0 +1,12 @@
+apiVersion: v2
+appVersion: 1.0.0-rc
+description: Helm chart for deploying higress gateways
+icon: https://higress.io/img/higress_logo_small.png
+keywords:
+- higress
+- gateways
+name: higress-core
+sources:
+- http://github.com/alibaba/higress
+type: application
+version: 1.0.0-rc

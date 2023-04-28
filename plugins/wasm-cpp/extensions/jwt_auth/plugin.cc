@@ -135,11 +135,16 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
                     [&](const json& from_header) -> bool {
                       JSON_FIND_FIELD(from_header, name);
                       JSON_FIELD_VALUE_AS(std::string, from_header, name);
-                      JSON_FIND_FIELD(from_header, value_prefix);
-                      JSON_FIELD_VALUE_AS(std::string, from_header,
-                                          value_prefix);
-                      from_headers.push_back(FromHeader{
-                          from_header_name, from_header_value_prefix});
+                      std::string header_value_prefix;
+                      auto from_header_value_prefix_json =
+                          from_header.find("value_prefix");
+                      if (from_header_value_prefix_json != from_header.end()) {
+                        JSON_FIELD_VALUE_AS(std::string, from_header,
+                                            value_prefix);
+                        header_value_prefix = from_header_value_prefix;
+                      }
+                      from_headers.push_back(
+                          FromHeader{from_header_name, header_value_prefix});
                       return true;
                     })) {
               LOG_WARN("failed to parse 'from_headers' in consumer: " +
@@ -229,6 +234,18 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     LOG_INFO("at least one consumer has to be configured for a rule.");
     return false;
   }
+  std::vector<std::string> enable_headers;
+  if (!JsonArrayIterate(configuration, "enable_headers",
+                        [&](const json& enable_header_json) -> bool {
+                          JSON_VALUE_AS(std::string, enable_header_json,
+                                        enable_header, "invalid item");
+                          enable_headers.push_back(enable_header);
+                          return true;
+                        })) {
+    LOG_WARN("failed to parse 'enable_headers'");
+    return false;
+  }
+  rule.enable_headers = std::move(enable_headers);
   return true;
 }
 
@@ -307,6 +324,20 @@ Status PluginRootContext::consumerVerify(
 bool PluginRootContext::checkPlugin(
     const JwtAuthConfigRule& rule,
     const std::optional<std::unordered_set<std::string>>& allow_set) {
+  if (!rule.enable_headers.empty()) {
+    bool skip_auth = true;
+    for (const auto& enable_header : rule.enable_headers) {
+      auto header_ptr = getRequestHeader(enable_header);
+      if (header_ptr->size() > 0) {
+        LOG_DEBUG("enable by header: " + header_ptr->toString());
+        skip_auth = false;
+        break;
+      }
+    }
+    if (skip_auth) {
+      return true;
+    }
+  }
   std::optional<Status> err_status;
   bool verified = false;
   uint64_t now = getCurrentTimeNanoseconds() / 1e9;
@@ -354,8 +385,7 @@ bool PluginRootContext::onConfigure(size_t size) {
   // Parse configuration JSON string.
   if (size > 0 && !configure(size)) {
     LOG_WARN("configuration has errors initialization will not continue.");
-    setInvalidConfig();
-    return true;
+    return false;
   }
   return true;
 }

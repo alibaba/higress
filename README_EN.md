@@ -21,7 +21,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 - [**Use Cases**](#use-cases)
 - [**Higress Features**](#higress-features)
-- [**Quick Start**](#quick-start)
+- [**Quick Start**](https://higress.io/en-us/docs/user/quickstart)
 - [**Thanks**](#thanks)
 
 ## Use Cases
@@ -44,162 +44,25 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 ## Higress Features
 
-   （TODO）
+- **Easy to use**
+
+  Provide one-stop gateway solutions for traffic scheduling, service management, and security protection, support Console, K8s Ingress, and Gateway API configuration methods, and also support HTTP to Dubbo protocol conversion, and easily complete protocol mapping configuration.  
   
-## Quick Start
+- **Easy to expand**
 
-- [**Local Environment**](#local-environment)
-- [**Production Environment**](#production-environment)
+  Provides Wasm, Lua, and out-of-process plug-in extension mechanisms, so that multi-language plug-in writing is no longer an obstacle. The granularity of plug-in effectiveness supports not only the global level, domain name level, but also fine-grained routing level
+  
+- **Dynamic hot update**
+  
+  Get rid of the traffic jitter caused by reload at the bottom, the configuration change takes effect in milliseconds and the business is not affected, the Wasm plug-in is hot updated and the traffic is not damaged
+  
+- **Smooth upgrade**
 
-### Local Environment
+  Compatible with 80%+ usage scenarios of Nginx Ingress Annotation, and provides more feature-rich annotations, easy to handle Nginx Ingress migration in one step
+  
+- **Security**
 
-#### step 1. install kubectl & kind
-
-**On MacOS:**
-
-```bash
-curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/darwin/amd64/kubectl
-# for Intel Macs
-[ $(uname -m) = x86_64 ]&& curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-darwin-amd64
-# for M1 / ARM Macs
-[ $(uname -m) = arm64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-darwin-arm64
-chmod +x ./kind ./kubectl
-mv ./kind ./kubectl /some-dir-in-your-PATH/
-```
-
-**On Windows in PowerShell:**
-
-```bash
-curl.exe -Lo kubectl.exe https://storage.googleapis.com/kubernetes-release/release/$(curl.exe -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/windows/amd64/kubectl.exe
-curl.exe -Lo kind-windows-amd64.exe https://kind.sigs.k8s.io/dl/v0.17.0/kind-windows-amd64
-Move-Item .\kind-windows-amd64.exe c:\some-dir-in-your-PATH\kind.exe
-Move-Item .\kubectl.exe c:\some-dir-in-your-PATH\kubectl.exe
-```
-
-**On Linux:**
-
-```bash
-curl -Lo ./kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
-curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64
-chmod +x ./kind ./kubectl
-sudo mv ./kind ./kubectl /usr/local/bin/kind
-```
-
-#### step 2. create kind cluster
-
-create a cluster config file: `cluster.conf`
-
-```yaml
-# cluster.conf
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  kubeadmConfigPatches:
-  - |
-    kind: InitConfiguration
-    nodeRegistration:
-      kubeletExtraArgs:
-        node-labels: "ingress-ready=true"
-  extraPortMappings:
-  - containerPort: 80
-    hostPort: 80
-    protocol: TCP
-  - containerPort: 443
-    hostPort: 443
-    protocol: TCP
-```
-
-Mac & Linux:
-
-```bash
-kind create cluster --name higress --config=cluster.conf
-kubectl config use-context kind-higress
-```
-
-Windows:
-
-```bash
-kind.exe create cluster --name higress --config=cluster.conf
-kubectl.exe config use-context kind-higress
-```
-
-#### step 3. install higress
-
-```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress-local
-```
-Note: The helm version needs to be upgraded to **v3.8.0** and above
-#### step 4. create the ingress and test it
-
-```bash
-kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
-```
-
-Now verify that the ingress works
-
-```bash
-# should output "foo"
-curl localhost/foo
-# should output "bar"
-curl localhost/bar
-```
-
-#### Clean-Up
-
-```bash
-kubectl delete -f https://kind.sigs.k8s.io/examples/ingress/usage.yaml
-
-helm uninstall higress -n higress-system
-
-kubectl delete ns higress-system
-```
-
-### Production Environment
-
-#### step 1. install higress
-
-```bash
-kubectl create ns higress-system
-helm install higress -n higress-system oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/charts/higress 
-```
-
-#### step 2. create the ingress and test it
-
-for example there is a service `test` in default namespace.
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: simple-example
-spec:
-  ingressClassName: higress
-  rules:
-  - host: foo.bar.com
-    http:
-      paths:
-      - path: /foo
-        pathType: Prefix
-        backend:
-          service:
-            name: test
-            port:
-              number: 80  
-```
-
-```bash
-curl "$(k get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"/foo -H 'host: foo.bar.com'
-```
-
-#### Clean-Up
-
-```bash
-helm uninstall higress -n higress-system
-
-kubectl delete ns higress-system
-```
+  Provides JWT, OIDC, custom authentication and authentication, deeply integrates open source web application firewall.
 
 ### Thanks
 

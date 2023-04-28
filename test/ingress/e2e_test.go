@@ -49,6 +49,7 @@ func TestHigressConformanceTests(t *testing.T) {
 	})
 
 	cSuite.Setup(t)
+
 	higressTests := []suite.ConformanceTest{
 		tests.HTTPRouteSimpleSameNamespace,
 		tests.HTTPRouteHostNameSameNamespace,
@@ -56,7 +57,19 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HTTPRouteRewriteHost,
 		tests.HTTPRouteCanaryHeader,
 		tests.HTTPRouteEnableCors,
-		tests.HTTPRouteIgnoreCaseMatch,
+		tests.HTTPRouteEnableIgnoreCase,
+		tests.HTTPRouteMatchMethods,
+		tests.HTTPRouteMatchQueryParams,
+		tests.HTTPRouteMatchHeaders,
+		tests.HTTPRouteAppRoot,
+		tests.HTTPRoutePermanentRedirect,
+		tests.HTTPRoutePermanentRedirectCode,
+		tests.HTTPRouteTemporalRedirect,
+		tests.HTTPRouteSameHostAndPath,
+		tests.HTTPRouteCanaryHeaderWithCustomizedHeader,
+		tests.HTTPRouteWhitelistSourceRange,
+		tests.HTTPRouteCanaryWeight,
+		tests.HTTPRouteMatchPath,
 	}
 
 	cSuite.Run(t, higressTests)

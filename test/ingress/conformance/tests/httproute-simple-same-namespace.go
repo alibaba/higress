@@ -27,7 +27,7 @@ func init() {
 
 var HTTPRouteSimpleSameNamespace = suite.ConformanceTest{
 	ShortName:   "HTTPRouteSimpleSameNamespace",
-	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates basic routing ability",
+	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates basic routing ability.",
 	Manifests:   []string{"tests/httproute-simple-same-namespace.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("Simple HTTP request should reach infra-backend", func(t *testing.T) {

@@ -1,9 +1,0 @@
-dependencies:
-- name: base
-  repository: file://../../base
-  version: 1.12.0
-- name: istiod
-  repository: file://../../istiod
-  version: 1.12.0
-digest: sha256:ce57290cabf7b0a85a150017cfdfcb2e25f18de7e8c93f5f3020750f9a65ece3
-generated: "2022-11-13T13:50:54.129765+08:00"

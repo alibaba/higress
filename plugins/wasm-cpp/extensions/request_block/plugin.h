@@ -45,7 +45,7 @@ struct RequestBlockConfigRule {
   bool case_sensitive = true;
   std::vector<std::string> block_urls;
   std::vector<std::string> block_headers;
-  std::vector<std::string> block_bodies;
+  std::vector<std::string> block_bodys;
 };
 
 // PluginRootContext is the root context for all streams processed by the

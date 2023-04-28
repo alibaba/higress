@@ -1,0 +1,55 @@
+diff -Naur envoy/bazel/envoy_binary.bzl envoy-new/bazel/envoy_binary.bzl
+--- envoy/bazel/envoy_binary.bzl	2023-04-08 20:52:57.041729111 +0800
++++ envoy-new/bazel/envoy_binary.bzl	2023-04-08 20:50:53.657603065 +0800
+@@ -80,7 +80,7 @@
+         "@envoy//bazel:boringssl_fips": [],
+         "@envoy//bazel:windows_x86_64": [],
+         "//conditions:default": ["-pie"],
+-    }) + _envoy_select_exported_symbols(["-Wl,-E"])
++    }) + _envoy_select_exported_symbols(["-Wl,-E"]) + envoy_select_alimesh(["-lcrypt"])
+ 
+ def _envoy_stamped_deps():
+     return select({
+diff -Naur envoy/bazel/repositories.bzl envoy-new/bazel/repositories.bzl
+--- envoy/bazel/repositories.bzl	2023-04-08 20:52:57.085730582 +0800
++++ envoy-new/bazel/repositories.bzl	2023-04-08 20:27:20.110335884 +0800
+@@ -272,6 +272,8 @@
+         actual = "@bazel_tools//tools/cpp/runfiles",
+     )
+ 
++    _com_github_higress_wasm_extensions()
++
+ def _boringssl():
+     external_http_archive(
+         name = "boringssl",
+@@ -1066,6 +1068,17 @@
+         actual = "@com_github_wasm_c_api//:wasmtime_lib",
+     )
+ 
++def _com_github_higress_wasm_extensions():
++    native.local_repository(
++        name = "com_github_higress_wasm_extensions",
++        path = "../../wasm-cpp",
++    )
++
++    native.bind(
++        name = "basic_auth_lib",
++        actual = "@com_github_higress_wasm_extensions//extensions/basic_auth:basic_auth_lib",
++    )
++    
+ def _rules_fuzzing():
+     external_http_archive(
+         name = "rules_fuzzing",
+diff -Naur envoy/source/exe/BUILD envoy-new/source/exe/BUILD
+--- envoy/source/exe/BUILD	2023-04-08 20:52:57.053729512 +0800
++++ envoy-new/source/exe/BUILD	2023-04-08 19:48:37.420667254 +0800
+@@ -43,6 +43,9 @@
+         "//bazel:darwin": envoy_all_extensions(DARWIN_SKIP_TARGETS),
+         "//conditions:default": envoy_all_extensions(),
+     }),
++    alimesh_deps = [
++        "//external:basic_auth_lib",
++    ],
+ )
+ 
+ envoy_cc_library(

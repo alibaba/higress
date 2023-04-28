@@ -909,7 +909,8 @@ TEST_F(BasicAuthTest, GlobalDeny) {
 }
 
 TEST_F(BasicAuthTest, GlobalWithConsumerDeny) {
-  std::string configuration = R"(
+  {
+    std::string configuration = R"(
 {
   "consumers" : [
     {"credential" : "ok:test", "name" : "consumer_ok"},
@@ -932,36 +933,171 @@ TEST_F(BasicAuthTest, GlobalWithConsumerDeny) {
     }
   ]
 })";
-  BufferBase buffer;
-  buffer.set({configuration.data(), configuration.size()});
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
 
-  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
-      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
-  EXPECT_TRUE(root_context_->configure(configuration.size()));
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
 
-  cred_ = "wrong-cred";
-  route_name_ = "config";
-  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
-  EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
-                                                testing::_, testing::_));
-  EXPECT_EQ(context_->onRequestHeaders(0, false),
-            FilterHeadersStatus::StopIteration);
+    cred_ = "wrong-cred";
+    route_name_ = "not match";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
 
-  authority_ = "www.example.com";
-  cred_ = "admin2:admin2";
-  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
-  EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
-                                                testing::_, testing::_));
-  EXPECT_EQ(context_->onRequestHeaders(0, false),
-            FilterHeadersStatus::StopIteration);
+    cred_ = "wrong-cred";
+    route_name_ = "config";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
 
-  route_name_ = "config";
-  cred_ = "admin4:admin4";
-  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
-  EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
-                                                testing::_, testing::_));
-  EXPECT_EQ(context_->onRequestHeaders(0, false),
-            FilterHeadersStatus::StopIteration);
+    authority_ = "www.example.com";
+    cred_ = "admin2:admin2";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+
+    route_name_ = "config";
+    cred_ = "admin4:admin4";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+  }
+  {
+    std::string configuration = R"(
+{
+  "global_auth": true,
+  "consumers" : [
+    {"credential" : "ok:test", "name" : "consumer_ok"},
+    {"credential" : "admin2:admin2", "name" : "consumer2"},
+    {"credential" : "admin:admin", "name" : "consumer"}
+  ],
+  "_rules_" : [
+    {
+      "_match_route_" : ["test", "config"], 
+      "consumers" : [
+        {"credential" : "admin3:admin3", "name" : "consumer3"},
+        {"credential" : "YWRtaW41OmFkbWluNQ==", "name" : "consumer5"} 
+      ]
+    }, 
+    {
+      "_match_domain_" : ["test.com", "*.example.com"],
+      "consumers" : [
+        {"credential" : "admin4:admin4", "name" : "consumer4"}
+      ]
+    }
+  ]
+})";
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
+
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+    cred_ = "wrong-cred";
+    route_name_ = "not match";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+
+    cred_ = "wrong-cred";
+    route_name_ = "config";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+
+    authority_ = "www.example.com";
+    cred_ = "admin2:admin2";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+
+    route_name_ = "config";
+    cred_ = "admin4:admin4";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+  }
+}
+
+TEST_F(BasicAuthTest, OnConfigureNoRulesAuth) {
+  // enable global auth
+  {
+    std::string configuration = R"(
+{
+  "consumers" : [
+    {"credential" : "getuser1:123456", "name" : "consumer1"}
+  ]
+})";
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
+
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+    cred_ = "admin:admin";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_CALL(*mock_context_, sendLocalResponse(401, testing::_, testing::_,
+                                                  testing::_, testing::_));
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+    cred_ = "getuser1:123456";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
+  }
+  // disable global auth
+  {
+    std::string configuration = R"(
+{
+  "consumers" : [
+    {"credential" : "getuser1:123456", "name" : "consumer1"}
+  ],
+  "global_auth": false
+})";
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
+
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+    cred_ = "admin:admin";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
+    cred_ = "getuser1:123456";
+    authorization_header_ =
+        "Basic " + Base64::encode(cred_.data(), cred_.size());
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
+  }
 }
 
 }  // namespace basic_auth

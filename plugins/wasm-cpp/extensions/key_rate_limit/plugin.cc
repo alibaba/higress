@@ -169,6 +169,7 @@ bool PluginRootContext::checkPlugin(int rule_id,
     return true;
   }
   if (!getToken(rule_id, key)) {
+    LOG_INFO(absl::StrCat("request rate limited by key: ", key));
     tooManyRequest();
     return false;
   }
@@ -181,8 +182,7 @@ bool PluginRootContext::onConfigure(size_t size) {
   // Parse configuration JSON string.
   if (size > 0 && !configure(size)) {
     LOG_WARN("configuration has errors initialization will not continue.");
-    setInvalidConfig();
-    return true;
+    return false;
   }
   const auto& rules = getRules();
   for (const auto& rule : rules) {
@@ -191,7 +191,7 @@ bool PluginRootContext::onConfigure(size_t size) {
     }
   }
   initializeTokenBucket(limits_);
-  proxy_set_tick_period_milliseconds(1000);
+  proxy_set_tick_period_milliseconds(500);
   return true;
 }
 

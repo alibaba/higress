@@ -17,6 +17,8 @@ package ingressv1
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	networking "istio.io/api/networking/v1alpha3"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -74,5 +76,40 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 	should, _ = c.shouldProcessIngressUpdate(&ingress3)
 	if !should {
 		t.Fatal("should be true")
+	}
+}
+
+func TestGenerateHttpMatches(t *testing.T) {
+	c := controller{}
+
+	tt := []struct {
+		pathType common.PathType
+		path     string
+		expect   []*networking.HTTPMatchRequest
+	}{
+		{
+			pathType: common.Prefix,
+			path:     "/foo",
+			expect: []*networking.HTTPMatchRequest{
+				{
+					Uri: &networking.StringMatch{
+						MatchType: &networking.StringMatch_Exact{Exact: "/foo"},
+					},
+				}, {
+					Uri: &networking.StringMatch{
+						MatchType: &networking.StringMatch_Prefix{Prefix: "/foo/"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, testcase := range tt {
+		httpMatches := c.generateHttpMatches(testcase.pathType, testcase.path, nil)
+		for idx, httpMatch := range httpMatches {
+			if diff := cmp.Diff(httpMatch, testcase.expect[idx]); diff != "" {
+				t.Errorf("generateHttpMatches() mismatch (-want +got):\n%s", diff)
+			}
+		}
 	}
 }

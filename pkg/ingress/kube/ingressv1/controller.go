@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
-	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -476,9 +476,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.NewSet()
 
-	// But in across ingresses case, we will restrict this limit.
-	// When the host, path of two rule in different ingress are same, we think there is a conflict event.
-	var tempHostAndPath []string
+	var (
+		// But in across ingresses case, we will restrict this limit.
+		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+		tempRuleKey []string
+	)
+
 	for _, rule := range ingressV1.Rules {
 		if rule.HTTP == nil || len(rule.HTTP.Paths) == 0 {
 			IngressLog.Warnf("invalid ingress rule %s:%s for host %q in cluster %s, no paths defined", cfg.Namespace, cfg.Name, rule.Host, c.options.ClusterId)
@@ -503,6 +506,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		}
 
 		wrapperHttpRoutes := make([]*common.WrapperHTTPRoute, 0, len(rule.HTTP.Paths))
+
 		for _, httpPath := range rule.HTTP.Paths {
 			wrapperHttpRoute := &common.WrapperHTTPRoute{
 				HTTPRoute:     &networking.HTTPRoute{},
@@ -510,51 +514,37 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				Host:          rule.Host,
 				ClusterId:     c.options.ClusterId,
 			}
-			httpMatch := &networking.HTTPMatchRequest{}
 
-			path := httpPath.Path
+			var pathType common.PathType
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
-				wrapperHttpRoute.OriginPathType = common.Regex
-				httpMatch.Uri = &networking.StringMatch{
-					MatchType: &networking.StringMatch_Regex{Regex: httpPath.Path + ".*"},
-				}
+				pathType = common.Regex
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
-					wrapperHttpRoute.OriginPathType = common.Exact
-					httpMatch.Uri = &networking.StringMatch{
-						MatchType: &networking.StringMatch_Exact{Exact: httpPath.Path},
-					}
+					pathType = common.Exact
 				case ingress.PathTypePrefix:
-					wrapperHttpRoute.OriginPathType = common.Prefix
-					// borrow from implement of official istio code.
-					if path == "/" {
-						wrapperVS.ConfiguredDefaultBackend = true
-						// Optimize common case of / to not needed regex
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					} else {
-						path = strings.TrimSuffix(path, "/")
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + common.PrefixMatchRegex},
-						}
+					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
 			}
-			wrapperHttpRoute.OriginPath = path
-			wrapperHttpRoute.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
+			wrapperHttpRoute.OriginPath = originPath
+			wrapperHttpRoute.OriginPathType = pathType
+			wrapperHttpRoute.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, wrapperVS)
 			wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
 
-			// host and path overlay check across different ingresses.
-			hostAndPath := wrapperHttpRoute.BasePathFormat()
-			if preIngress, exist := convertOptions.HostAndPath2Ingress[hostAndPath]; exist {
-				ingressRouteBuilder.PreIngress = preIngress
+			hostAndPath := wrapperHttpRoute.PathFormat()
+			key := createRuleKey(cfg.Annotations, hostAndPath)
+			wrapperHttpRoute.RuleKey = key
+			if WrapPreIngress, exist := convertOptions.Route2Ingress[key]; exist {
+				ingressRouteBuilder.PreIngress = WrapPreIngress.Config
 				ingressRouteBuilder.Event = common.DuplicatedRoute
 			}
-			tempHostAndPath = append(tempHostAndPath, hostAndPath)
+			tempRuleKey = append(tempRuleKey, key)
 
 			// Two duplicated rules in the same ingress.
 			if ingressRouteBuilder.Event == common.Normal {
@@ -589,10 +579,12 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 		}
 
-		for _, item := range tempHostAndPath {
-			// We only record the first
-			if _, exist := convertOptions.HostAndPath2Ingress[item]; !exist {
-				convertOptions.HostAndPath2Ingress[item] = cfg
+		for idx, item := range tempRuleKey {
+			if val, exist := convertOptions.Route2Ingress[item]; !exist || strings.Compare(val.RuleKey, tempRuleKey[idx]) != 0 {
+				convertOptions.Route2Ingress[item] = &common.WrapperConfigWithRuleKey{
+					Config:  cfg,
+					RuleKey: tempRuleKey[idx],
+				}
 			}
 		}
 
@@ -611,6 +603,42 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	}
 
 	return nil
+}
+
+func (c *controller) generateHttpMatches(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
+	var httpMatches []*networking.HTTPMatchRequest
+
+	httpMatch := &networking.HTTPMatchRequest{}
+	switch pathType {
+	case common.Regex:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Regex{Regex: path + ".*"},
+		}
+	case common.Exact:
+		httpMatch.Uri = &networking.StringMatch{
+			MatchType: &networking.StringMatch_Exact{Exact: path},
+		}
+	case common.Prefix:
+		if path == "/" {
+			if wrapperVS != nil {
+				wrapperVS.ConfiguredDefaultBackend = true
+			}
+			// Optimize common case of / to not needed regex
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: path},
+			}
+		} else {
+			newPath := strings.TrimSuffix(path, "/")
+			httpMatches = append(httpMatches, c.generateHttpMatches(common.Exact, newPath, wrapperVS)...)
+			httpMatch.Uri = &networking.StringMatch{
+				MatchType: &networking.StringMatch_Prefix{Prefix: newPath + "/"},
+			}
+		}
+	}
+
+	httpMatches = append(httpMatches, httpMatch)
+
+	return httpMatches
 }
 
 func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
@@ -710,46 +738,31 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 		}
 
 		for _, httpPath := range rule.HTTP.Paths {
-			path := httpPath.Path
-
 			canary := &common.WrapperHTTPRoute{
 				HTTPRoute:     &networking.HTTPRoute{},
 				WrapperConfig: wrapper,
 				Host:          rule.Host,
 				ClusterId:     c.options.ClusterId,
 			}
-			httpMatch := &networking.HTTPMatchRequest{}
 
+			var pathType common.PathType
+			originPath := httpPath.Path
 			if wrapper.AnnotationsConfig.NeedRegexMatch() {
-				canary.OriginPathType = common.Regex
-				httpMatch.Uri = &networking.StringMatch{
-					MatchType: &networking.StringMatch_Regex{Regex: httpPath.Path + ".*"},
-				}
+				pathType = common.Regex
 			} else {
 				switch *httpPath.PathType {
 				case ingress.PathTypeExact:
-					canary.OriginPathType = common.Exact
-					httpMatch.Uri = &networking.StringMatch{
-						MatchType: &networking.StringMatch_Exact{Exact: httpPath.Path},
-					}
+					pathType = common.Exact
 				case ingress.PathTypePrefix:
-					canary.OriginPathType = common.Prefix
-					// borrow from implement of official istio code.
-					if path == "/" {
-						// Optimize common case of / to not needed regex
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Prefix{Prefix: path},
-						}
-					} else {
-						path = strings.TrimSuffix(path, "/")
-						httpMatch.Uri = &networking.StringMatch{
-							MatchType: &networking.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + common.PrefixMatchRegex},
-						}
+					pathType = common.Prefix
+					if httpPath.Path != "/" {
+						originPath = strings.TrimSuffix(httpPath.Path, "/")
 					}
 				}
 			}
-			canary.OriginPath = path
-			canary.HTTPRoute.Match = []*networking.HTTPMatchRequest{httpMatch}
+			canary.OriginPath = originPath
+			canary.OriginPathType = pathType
+			canary.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, nil)
 			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
@@ -763,6 +776,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 				convertOptions.IngressRouteCache.Add(ingressRouteBuilder)
 				continue
 			}
+			canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
 
 			canaryConfig := wrapper.AnnotationsConfig.Canary
 			if byWeight {
@@ -811,6 +825,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			} else {
 				convertOptions.IngressRouteCache.Update(targetRoute)
 			}
+
 		}
 	}
 	return nil
@@ -833,20 +848,9 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 	}
 
 	if ingressV1.DefaultBackend != nil {
-		serviceKey, err := c.createServiceKey(ingressV1.DefaultBackend.Service, cfg.Namespace)
+		err := c.storeBackendTrafficPolicy(wrapper, ingressV1.DefaultBackend, convertOptions.Service2TrafficPolicy)
 		if err != nil {
-			IngressLog.Errorf("ignore default service %s within ingress %s/%s", serviceKey.Name, cfg.Namespace, cfg.Name)
-		} else {
-			if _, exist := convertOptions.Service2TrafficPolicy[serviceKey]; !exist {
-				convertOptions.Service2TrafficPolicy[serviceKey] = &common.WrapperTrafficPolicy{
-					TrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
-						Port: &networking.PortSelector{
-							Number: uint32(serviceKey.Port),
-						},
-					},
-					WrapperConfig: wrapper,
-				}
-			}
+			IngressLog.Errorf("ignore default service within ingress %s/%s, since error:%v", cfg.Namespace, cfg.Name, err)
 		}
 	}
 
@@ -856,22 +860,46 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 		}
 
 		for _, httpPath := range rule.HTTP.Paths {
-			if httpPath.Backend.Service == nil {
-				continue
-			}
-
-			serviceKey, err := c.createServiceKey(httpPath.Backend.Service, cfg.Namespace)
+			err := c.storeBackendTrafficPolicy(wrapper, &httpPath.Backend, convertOptions.Service2TrafficPolicy)
 			if err != nil {
-				IngressLog.Errorf("ignore service %s within ingress %s/%s", serviceKey.Name, cfg.Namespace, cfg.Name)
-				continue
+				IngressLog.Errorf("ignore service within ingress %s/%s, since error:%v", cfg.Namespace, cfg.Name, err)
 			}
+		}
+	}
 
-			if _, exist := convertOptions.Service2TrafficPolicy[serviceKey]; exist {
-				continue
+	return nil
+}
+
+func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, backend *ingress.IngressBackend, store map[common.ServiceKey]*common.WrapperTrafficPolicy) error {
+	if backend == nil {
+		return errors.New("invalid empty backend")
+	}
+	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
+		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
+			serviceKey := common.ServiceKey{
+				Namespace:   "mcp",
+				Name:        dest.Destination.Host,
+				ServiceFQDN: dest.Destination.Host,
 			}
+			if _, exist := store[serviceKey]; !exist {
+				store[serviceKey] = &common.WrapperTrafficPolicy{
+					TrafficPolicy: &networking.TrafficPolicy{},
+					WrapperConfig: wrapper,
+				}
+			}
+		}
+	} else {
+		if backend.Service == nil {
+			return nil
+		}
+		serviceKey, err := c.createServiceKey(backend.Service, wrapper.Config.Namespace)
+		if err != nil {
+			return fmt.Errorf("ignore service %s within ingress %s/%s", serviceKey.Name, wrapper.Config.Namespace, wrapper.Config.Name)
+		}
 
-			convertOptions.Service2TrafficPolicy[serviceKey] = &common.WrapperTrafficPolicy{
-				TrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
+		if _, exist := store[serviceKey]; !exist {
+			store[serviceKey] = &common.WrapperTrafficPolicy{
+				PortTrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
 					Port: &networking.PortSelector{
 						Number: uint32(serviceKey.Port),
 					},
@@ -880,7 +908,6 @@ func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions,
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -960,8 +987,7 @@ func (c *controller) createServiceKey(service *ingress.IngressServiceBackend, na
 }
 
 func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
-	return !strings.HasSuffix(route.HTTPRoute.Name, "-canary") && canary.OriginPath == route.OriginPath &&
-		canary.OriginPathType == route.OriginPathType
+	return !route.WrapperConfig.AnnotationsConfig.IsCanary() && canary.RuleKey == route.RuleKey
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
@@ -1170,4 +1196,64 @@ func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
 			}
 		}
 	}
+}
+
+// createRuleKey according to the pathType, path, methods, headers, params of rules
+func createRuleKey(annots map[string]string, hostAndPath string) string {
+	var (
+		headers [][2]string
+		params  [][2]string
+		sb      strings.Builder
+	)
+
+	sep := "\n\n"
+
+	// path
+	sb.WriteString(hostAndPath)
+	sb.WriteString(sep)
+
+	// methods
+	if str, ok := annots[annotations.HigressAnnotationsPrefix+"/"+annotations.MatchMethod]; ok {
+		sb.WriteString(str)
+	}
+	sb.WriteString(sep)
+
+	start := len(annotations.HigressAnnotationsPrefix) + 1 // example: higress.io/exact-match-header-key: value
+	// headers && params
+	for k, val := range annots {
+		if idx := strings.Index(k, annotations.MatchHeader); idx != -1 {
+			key := k[start:idx] + k[idx+len(annotations.MatchHeader)+1:]
+			headers = append(headers, [2]string{key, val})
+		}
+		if idx := strings.Index(k, annotations.MatchQuery); idx != -1 {
+			key := k[start:idx] + k[idx+len(annotations.MatchQuery)+1:]
+			params = append(params, [2]string{key, val})
+		}
+	}
+	sort.SliceStable(headers, func(i, j int) bool {
+		return headers[i][0] < headers[j][0]
+	})
+	sort.SliceStable(params, func(i, j int) bool {
+		return params[i][0] < params[j][0]
+	})
+	for idx := range headers {
+		if idx != 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(headers[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(headers[idx][1])
+	}
+	sb.WriteString(sep)
+	for idx := range params {
+		if idx != 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(params[idx][0])
+		sb.WriteByte('\t')
+		sb.WriteString(params[idx][1])
+	}
+	sb.WriteString(sep)
+
+	return sb.String()
 }

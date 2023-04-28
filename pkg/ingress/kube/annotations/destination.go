@@ -73,10 +73,14 @@ func (a destination) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 		}
 		address := pairs[addrIndex]
 		host := address
-		var port string
+		var port uint64
 		colon := strings.LastIndex(address, ":")
 		if colon != -1 {
-			host, port = address[:colon], address[colon+1:]
+			var err error
+			port, err = strconv.ParseUint(address[colon+1:], 10, 32)
+			if err == nil && port > 0 && port < 65536 {
+				host = address[:colon]
+			}
 		}
 		var subset string
 		if len(pairs) >= addrIndex+2 {
@@ -89,14 +93,9 @@ func (a destination) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 			},
 			Weight: int32(weight),
 		}
-		if port != "" {
-			portNumber, err := strconv.ParseUint(port, 10, 32)
-			if err != nil {
-				IngressLog.Errorf("destination addr %s has invalid port %s within ingress %s/%s", address, port, config.Namespace, config.Name)
-				return nil
-			}
+		if port > 0 {
 			dest.Destination.Port = &networking.PortSelector{
-				Number: uint32(portNumber),
+				Number: uint32(port),
 			}
 		}
 		IngressLog.Debugf("destination generated for ingress %s/%s: %v", config.Namespace, config.Name, dest)

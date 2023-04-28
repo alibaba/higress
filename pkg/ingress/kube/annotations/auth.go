@@ -135,6 +135,9 @@ func convertCredentials(secretType authSecretType, secret *corev1.Secret) ([]str
 		}
 		userList := strings.Split(string(users), "\n")
 		for _, item := range userList {
+			if !strings.Contains(item, ":") {
+				continue
+			}
 			result = append(result, item)
 		}
 	case authMapAuthSecretType:

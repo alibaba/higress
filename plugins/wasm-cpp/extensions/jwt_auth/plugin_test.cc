@@ -84,6 +84,9 @@ class JwtAuthTest : public ::testing::Test {
           if (header == "Authorization") {
             *result = jwt_header_;
           }
+          if (header == "x-custom-header") {
+            *result = custom_header_;
+          }
           return WasmResult::Ok;
         });
     ON_CALL(*mock_context_, addHeaderMapValue(WasmHeaderMapType::RequestHeaders,
@@ -118,6 +121,7 @@ class JwtAuthTest : public ::testing::Test {
   std::string authority_;
   std::string route_name_;
   std::string jwt_header_;
+  std::string custom_header_;
   uint64_t current_time_;
 };
 
@@ -146,7 +150,8 @@ TEST_F(JwtAuthTest, RSA) {
 }
 
 TEST_F(JwtAuthTest, OCT) {
-  std::string configuration = R"(
+  {
+    std::string configuration = R"(
 {
     "consumers": [
         {
@@ -156,17 +161,65 @@ TEST_F(JwtAuthTest, OCT) {
         }
     ]
 })";
-  BufferBase buffer;
-  buffer.set({configuration.data(), configuration.size()});
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
 
-  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
-      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
-  EXPECT_TRUE(root_context_->configure(configuration.size()));
-  current_time_ = 1665673819 * 1e9;
-  jwt_header_ =
-      R"(Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKmc)";
-  EXPECT_EQ(context_->onRequestHeaders(0, false),
-            FilterHeadersStatus::Continue);
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+    current_time_ = 1665673819 * 1e9;
+    jwt_header_ =
+        R"(Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKmc)";
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
+  }
+  {
+    std::string configuration = R"(
+{
+    "consumers": [
+        {
+            "name": "consumer-2",
+            "issuer": "abcd",
+            "jwks": "{\"keys\":[{\"kty\":\"oct\",\"kid\":\"123\",\"k\":\"hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew\",\"alg\":\"HS256\"}]}"
+        }
+    ]
+})";
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
+
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+    current_time_ = 1665673819 * 1e9;
+    jwt_header_ =
+        R"(Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKm1)";
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::StopIteration);
+  }
+  {
+    std::string configuration = R"(
+{
+    "consumers": [
+        {
+            "name": "consumer-2",
+            "issuer": "abcd",
+            "jwks": "{\"keys\":[{\"kty\":\"oct\",\"kid\":\"123\",\"k\":\"hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew\",\"alg\":\"HS256\"}]}"
+        }
+    ],
+   "global_auth": false
+})";
+    BufferBase buffer;
+    buffer.set({configuration.data(), configuration.size()});
+
+    EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+        .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+    EXPECT_TRUE(root_context_->configure(configuration.size()));
+    current_time_ = 1665673819 * 1e9;
+    jwt_header_ =
+        R"(Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKm1)";
+    EXPECT_EQ(context_->onRequestHeaders(0, false),
+              FilterHeadersStatus::Continue);
+  }
 }
 
 TEST_F(JwtAuthTest, AuthZ) {
@@ -260,6 +313,97 @@ TEST_F(JwtAuthTest, ClaimToHeader) {
   EXPECT_CALL(*mock_context_,
               addHeaderMapValue(testing::_, std::string_view("X-Mse-Consumer"),
                                 std::string_view("consumer-2")));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
+TEST_F(JwtAuthTest, CustomHeader) {
+  std::string configuration = R"(
+{
+    "consumers": [
+        {
+            "name": "consumer-2",
+            "issuer": "abcd",
+            "from_headers": [
+               {
+                 "name": "x-custom-header",
+                 "value_prefix": "token "
+               },
+               {
+                 "name": "Authorization"
+               }
+            ],
+            "jwks": "{\"keys\":[{\"kty\":\"oct\",\"kid\":\"123\",\"k\":\"hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew\",\"alg\":\"HS256\"}]}"
+        }
+    ]
+})";
+  BufferBase buffer;
+  buffer.set({configuration.data(), configuration.size()});
+
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+  custom_header_ =
+      R"(token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKmc)";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  custom_header_.clear();
+  jwt_header_ =
+      R"(eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKmc)";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
+TEST_F(JwtAuthTest, SkipAuthHeader) {
+  std::string configuration = R"(
+{
+    "consumers": [
+        {
+            "name": "consumer-1",
+            "issuer": "abc",
+            "jwks": "{\"keys\":[{\"kty\":\"RSA\",\"e\":\"AQAB\",\"use\":\"sig\",\"kid\":\"123\",\"alg\":\"RS256\",\"n\":\"i0B67f1jggT9QJlZ_8QL9QQ56LfurrqDhpuu8BxtVcfxrYmaXaCtqTn7OfCuca7cGHdrJIjq99rz890NmYFZuvhaZ-LMt2iyiSb9LZJAeJmHf7ecguXS_-4x3hvbsrgUDi9tlg7xxbqGYcrco3anmalAFxsbswtu2PAXLtTnUo6aYwZsWA6ksq4FL3-anPNL5oZUgIp3HGyhhLTLdlQcC83jzxbguOim-0OEz-N4fniTYRivK7MlibHKrJfO3xa_6whBS07HW4Ydc37ZN3Rx9Ov3ZyV0idFblU519nUdqp_inXj1eEpynlxH60Ys_aTU2POGZh_25KXGdF_ZC_MSRw\"}]}"
+        },
+        {
+            "name": "consumer-2",
+            "issuer": "abcd",
+            "jwks": "{\"keys\":[{\"kty\":\"oct\",\"kid\":\"123\",\"k\":\"hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew\",\"alg\":\"HS256\"}]}"
+        }
+    ],
+    "enable_headers": ["x-custom-header"],
+    "_rules_": [{
+            "_match_route_": [
+                "test1"
+            ],
+            "allow": [
+                "consumer-1"
+            ]
+        },
+        {
+            "_match_route_": [
+                "test2"
+            ],
+            "allow": [
+                "consumer-2"
+            ]
+        }
+    ]
+})";
+  BufferBase buffer;
+  buffer.set({configuration.data(), configuration.size()});
+
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+  current_time_ = 1665673819 * 1e9;
+  jwt_header_ =
+      R"(Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxNjY1NjczODE5fQ.7BVJOAobz_xYjsenu_CsYhYbgF1gMcqZSpaeQ8HwKmc)";
+  route_name_ = "test1";
+  custom_header_ = "123";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(403, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  custom_header_ = "";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
 }
