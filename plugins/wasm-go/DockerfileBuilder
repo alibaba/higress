@@ -4,13 +4,13 @@
 # - arch: amd64
 #   base image: docker.io/ubuntu
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-amd64.tar.gz"
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_amd64.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_amd64.deb
 #   oras_url: https://github.com/oras-project/oras/releases/download/v1.0.0/oras_1.0.0_linux_amd64.tar.gz
 #
 # - arch: arm64
 #   base image: docker.io/ubuntu
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-arm64.tar.gz
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_arm64.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_arm64.deb
 #   oras_url: https://github.com/oras-project/oras/releases/download/v1.0.0/oras_1.0.0_linux_arm64.tar.gz
 #
 # - arch: armel
@@ -46,7 +46,7 @@
 # - arch: armhf
 #   base image: build your self
 #   go_url: https://golang.google.cn/dl/go1.20.1.linux-armv6l.tar.gz
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.27.0/tinygo_0.27.0_armhf.deb
+#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_armhf.deb
 #   oras_url: build your self
 
 ARG BASE_IMAGE=docker.io/ubuntu
@@ -64,7 +64,7 @@ RUN apt-get update \
 
 
 RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
-	go_url=; \
+    go_url=; \
     tinygo_url=; \
     go_version=${GO_VERSION:-1.19}; \
     tinygo_version=${TINYGO_VERSION:-0.27.0}; \
@@ -73,19 +73,19 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
     echo "go go_version:  '$go_version'"; \
     echo "tinygo_version: '$tinygo_version'"; \
     echo "oras_version: '$oras_version'"; \
-	case "$arch" in \
-		'amd64') \
+    case "$arch" in \
+        'amd64') \
             go_url="https://golang.google.cn/dl/go$go_version.linux-amd64.tar.gz"; \
             tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_amd64.deb"; \
             oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_amd64.tar.gz"; \
-			;; \
-		'arm64') \
+            ;; \
+        'arm64') \
             go_url="https://golang.google.cn/dl/go$go_version.linux-arm64.tar.gz"; \
             tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_arm64.deb"; \
             oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_arm64.tar.gz"; \
-			;; \
-		*) echo >&2 "error: unsupported architecture '$arch' "; exit 1 ;; \
-	esac; \
+            ;; \
+        *) echo >&2 "error: unsupported architecture '$arch' "; exit 1 ;; \
+    esac; \
     echo "go_url: '$go_url'"; \
     echo "tinygo_url: '$tinygo_url'"; \
     echo "oras_url: '$oras_url'"; \
