@@ -4,6 +4,16 @@
   Next-generation Cloud Native Gateway
 </h1>
 
+[![Build Status](https://github.com/alibaba/higress/workflows/build%20and%20codecov/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
+[![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+
+[**Official Site**](https://higress.io/en-us/) &nbsp; |
+&nbsp; [**Docs**](https://higress.io/en-us/docs/overview/what-is-higress) &nbsp; |
+&nbsp; [**Blog**](https://higress.io/en-us/blog) &nbsp; |
+&nbsp; [**Developer**](https://higress.io/en-us/docs/developers/developers_dev) &nbsp; |
+&nbsp; [**Higress in Cloud**](https://www.alibabacloud.com/product/microservices-engine?spm=higress-website.topbar.0.0.0) &nbsp;
+
+
 <p>
    English | <a href="README.md">中文<a/>
 </p>
