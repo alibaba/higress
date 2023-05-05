@@ -28,8 +28,7 @@ Security issues are always treated seriously. As our usual principle, we discour
 ## Reporting general issues
 
 To be honest, we regard every user of Higress as a very kind contributor. After experiencing Higress, you may have 
-some feedback for the project. Then feel free to open an issue via [NEW ISSUE](https://github.
-com/alibaba/higress/issues/new/choose).
+some feedback for the project. Then feel free to open an issue via [NEW ISSUE](https://github.com/alibaba/higress/issues/new/choose).
 
 Since we collaborate project Higress in a distributed way, we appreciate **WELL-WRITTEN**, **DETAILED**, **EXPLICIT** issue reports. To make the communication more efficient, we wish everyone could search if your issue is an existing one in the searching list. If you find it existing, please add your details in comments under the existing issue instead of opening a brand new one.
 
