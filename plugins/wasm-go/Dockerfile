@@ -1,7 +1,9 @@
 ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.19-tinygo0.27.0-oras1.0.0
 FROM $BUILDER as builder
 
-ENV GOPROXY https://goproxy.cn
+
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 
 ARG PLUGIN_NAME=hello-world
 
