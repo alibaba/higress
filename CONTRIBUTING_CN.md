@@ -27,7 +27,7 @@
 
 ## 报告一般问题
 
-老实说，我们把每一个 Higress 用户都视为非常善良的贡献者。在体验了 Higress 之后，您可能会对项目有一些反馈。然后随时通过 [NEW ISSUE](https://github. com/alibaba/higress/issues/new/choose)打开一个问题。
+老实说，我们把每一个 Higress 用户都视为非常善良的贡献者。在体验了 Higress 之后，您可能会对项目有一些反馈。然后随时通过 [NEW ISSUE](https://github.com/alibaba/higress/issues/new/choose)打开一个问题。
 
 因为我们在一个分布式的方式合作项目Higress，我们欣赏写得很好的，详细的，准确的问题报告。为了让沟通更高效，我们希望每个人都可以搜索您的问题是否在搜索列表中。如果您发现它存在，请在现有问题下的评论中添加您的详细信息，而不是打开一个全新的问题。
 

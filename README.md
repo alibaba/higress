@@ -8,9 +8,10 @@
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 [**官网**](https://higress.io/) &nbsp; |
-&nbsp; [**文档**](https://higress.io/zh-cn/docs/overview/what-is-higress.html) &nbsp; |
-&nbsp; [**博客**](https://higress.io/zh-cn/blog/index.html) &nbsp; |
-&nbsp; [**开发指引**](https://higress.io/zh-cn/docs/dev/code.html) &nbsp; 
+&nbsp; [**文档**](https://higress.io/zh-cn/docs/overview/what-is-higress) &nbsp; |
+&nbsp; [**博客**](https://higress.io/zh-cn/blog) &nbsp; |
+&nbsp; [**开发指引**](https://higress.io/zh-cn/docs/developers/developers_dev) &nbsp; |
+&nbsp; [**Higress 企业版**](https://www.aliyun.com/product/aliware/mse?spm=higress-website.topbar.0.0.0) &nbsp;
 
 
 <p>
