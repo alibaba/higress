@@ -3,6 +3,8 @@ REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
 GO_VERSION ?= 1.19
 TINYGO_VERSION ?= 0.25.0
 ORAS_VERSION ?= 1.0.0
+HIGRESS_VERSION ?= 1.0.0-rc
+USE_HIGRESS_TINYGO ?= true
 BUILDER ?= ${REGISTRY}wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-oras${ORAS_VERSION}
 BUILD_TIME := $(shell date "+%Y%m%d-%H%M%S")
 COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null)
@@ -14,7 +16,7 @@ GOPROXY := $(shell go env GOPROXY)
 build:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
-								--build-arg GOPROXY=$(GOPROXY) \
+	                            --build-arg GOPROXY=$(GOPROXY) \
 	                            -t ${IMG} \
 	                            --output extensions/${PLUGIN_NAME} \
 	                            .
@@ -48,6 +50,8 @@ builder:
 			--build-arg GO_VERSION=$(GO_VERSION) \
 			--build-arg TINYGO_VERSION=$(TINYGO_VERSION) \
 			--build-arg ORAS_VERSION=$(ORAS_VERSION) \
+			--build-arg HIGRESS_VERSION=$(HIGRESS_VERSION) \
+			--build-arg USE_HIGRESS_TINYGO=$(USE_HIGRESS_TINYGO) \
 			-f DockerfileBuilder \
 			-t ${BUILDER} \
 			--push \
