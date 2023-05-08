@@ -1,4 +1,4 @@
-ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.19-tinygo0.27.0-oras1.0.0
+ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.19-tinygo0.25.0-oras1.0.0
 FROM $BUILDER as builder
 
 
