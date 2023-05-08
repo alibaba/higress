@@ -7,11 +7,13 @@ BUILDER ?= ${REGISTRY}wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-or
 BUILD_TIME := $(shell date "+%Y%m%d-%H%M%S")
 COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null)
 IMG ?= ${REGISTRY}${PLUGIN_NAME}:${BUILD_TIME}-${COMMIT_ID}
+GOPROXY := $(shell go env GOPROXY)
 
 .DEFAULT:
 build:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
+								--build-arg GOPROXY=$(GOPROXY) \
 	                            -t ${IMG} \
 	                            --output extensions/${PLUGIN_NAME} \
 	                            .
