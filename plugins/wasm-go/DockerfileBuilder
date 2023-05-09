@@ -61,7 +61,7 @@ ARG USE_HIGRESS_TINYGO
 LABEL go_version=$GO_VERSION tinygo_version=$TINYGO_VERSION oras_version=$ORAS_VERSION
 
 RUN apt-get update \
-  && apt-get install -y wget build-essential \
+  && apt-get install -y wget \
   && rm -rf /var/lib/apt/lists/*
 
 RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
@@ -85,7 +85,7 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
             then \
                 tinygo_url="https://github.com/alibaba/higress/releases/download/v$higress_version/higress-tinygo${tinygo_version}.linux-amd64.tar.gz"; \
             else \
-                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_amd64.deb"; \
+                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo${tinygo_version}.linux-amd64.tar.gz"; \
             fi; \
             oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_amd64.tar.gz"; \
             ;; \
@@ -95,7 +95,7 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
             then \
                 tinygo_url="https://github.com/alibaba/higress/releases/download/v$higress_version/higress-tinygo${tinygo_version}.linux-arm64.tar.gz"; \
             else \
-                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo_${tinygo_version}_arm64.deb"; \
+                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo${tinygo_version}.linux-arm64.tar.gz"; \
             fi; \
             oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_arm64.tar.gz"; \
             ;; \
@@ -105,14 +105,8 @@ RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
     wget -O go.tgz "$go_url" --progress=dot:giga; \
     rm -rf /usr/local/go && tar -C /usr/local -xzf go.tgz && rm -rf go.tgz; \
     echo "tinygo_url: '$tinygo_url'"; \
-    if [ "$use_higress_tinygo" = "true" ]; \
-    then \
-        wget -O tinygo.tgz "$tinygo_url" --progress=dot:giga; \
-        rm -rf /usr/local/tinygo && tar -C /usr/local -xzf tinygo.tgz && rm -rf tinygo.tgz; \
-    else \
-        wget -O tinygo.deb "$tinygo_url" --progress=dot:giga; \
-        dpkg -i tinygo.deb && rm -rf tinygo.deb; \
-    fi; \
+    wget -O tinygo.tgz "$tinygo_url" --progress=dot:giga; \
+    rm -rf /usr/local/tinygo && tar -C /usr/local -xzf tinygo.tgz && rm -rf tinygo.tgz; \
     echo "oras_url: '$oras_url'"; \
     wget -O oras.tgz "$oras_url" --progress=dot:giga; \
     tar -C /usr/local/bin -xzf oras.tgz && rm -rf oras.tgz; \
