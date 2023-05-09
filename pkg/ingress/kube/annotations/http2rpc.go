@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	http2rpcKey = "http2rpc-name"
+	http2rpcKey        = "http2rpc-name"
+	rpcDestinationName = "rpc-destination-name"
 )
 
 // help to conform http2rpc implements method of Parse
@@ -35,7 +36,8 @@ func (a http2rpc) Parse(annotations Annotations, config *Ingress, _ *GlobalConte
 	if !needHttp2RpcConfig(annotations) {
 		return nil
 	}
-	value, err := annotations.ParseStringForHigress(destinationKey)
+	value, err := annotations.ParseStringForHigress(rpcDestinationName)
+	IngressLog.Infof("Parse http2rpc ingress name %s", value)
 	if err != nil {
 		IngressLog.Errorf("parse http2rpc error %v within ingress %s/%s", err, config.Namespace, config.Name)
 		return nil
@@ -47,5 +49,5 @@ func (a http2rpc) Parse(annotations Annotations, config *Ingress, _ *GlobalConte
 }
 
 func needHttp2RpcConfig(annotations Annotations) bool {
-	return annotations.HasHigress(destinationKey)
+	return annotations.HasHigress(rpcDestinationName)
 }

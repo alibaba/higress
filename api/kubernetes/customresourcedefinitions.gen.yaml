@@ -110,7 +110,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "helm.sh/resource-policy": keep
-  name: Http2Rpcs.networking.higress.io
+  name: http2rpcs.networking.higress.io
 spec:
   group: networking.higress.io
   names:
@@ -118,7 +118,7 @@ spec:
     - higress-io
     kind: Http2Rpc
     listKind: Http2RpcList
-    plural: Http2Rpcs
+    plural: http2rpcs
     singular: http2rpc
   scope: Namespaced
   versions:

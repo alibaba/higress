@@ -38,7 +38,6 @@ import (
 	"istio.io/istio/pilot/pkg/util/sets"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
-	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -136,6 +135,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		namespace:           namespace,
 		mcpbridgeReconciled: true,
 		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
+		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -476,13 +476,14 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 
 			http2rpc := route.WrapperConfig.AnnotationsConfig.Http2Rpc
 			if http2rpc != nil {
+				IngressLog.Infof("Found http2rpc for name %s", http2rpc.Name)
 				envoyFilter, err := m.constructHttp2RpcEnvoyFilter(http2rpc, route, m.namespace)
 				if err != nil {
-					IngressLog.Errorf("Construct basic auth filter error %v", err)
+					IngressLog.Errorf("Construct http2rpc EnvoyFilter error %v", err)
 				} else {
+					IngressLog.Infof("Append http2rpc EnvoyFilter for name %s", http2rpc.Name)
 					envoyFilters = append(envoyFilters, *envoyFilter)
 				}
-				continue
 			}
 
 			auth := route.WrapperConfig.AnnotationsConfig.Auth
@@ -952,6 +953,7 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	m.mutex.Lock()
 	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
 	m.mutex.Unlock()
+	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
 }
 
 func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
@@ -1056,6 +1058,7 @@ func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptio
 
 func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations.Http2RpcConfig, route *common.WrapperHTTPRoute, namespace string) (*config.Config, error) {
 	mappings := m.http2rpcs
+	IngressLog.Infof("Found http2rpc mappings %v", mappings)
 	if _, exist := mappings[http2rpcConfig.Name]; !exist {
 		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD %v", http2rpcConfig.Name)
 		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
@@ -1064,8 +1067,12 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 
 	httpRoute := route.HTTPRoute
 	httpRouteDestination := httpRoute.Route[0]
-	httpRouteDestinationHostName := host.Name(httpRouteDestination.Destination.Host)
-	serviceName := model.BuildSubsetKey(model.TrafficDirectionOutbound, httpRouteDestination.Destination.Subset, httpRouteDestinationHostName, int(httpRouteDestination.Destination.Port.Number))
+	// httpRouteDestinationHostName := host.Name(httpRouteDestination.Destination.Host)
+	// IngressLog.Infof("Found http2rpc httpRouteDestinationHostName %v", httpRouteDestinationHostName)
+	// IngressLog.Infof("Found http2rpc Destination.Port %v", httpRouteDestination.Destination.Port)
+	// port := int(httpRouteDestination.Destination.GetPort().Number)
+	// IngressLog.Infof("Found http2rpc port %d", port)
+	// serviceName := model.BuildSubsetKey(model.TrafficDirectionOutbound, httpRouteDestination.Destination.Subset, httpRouteDestinationHostName, port)
 
 	return &config.Config{
 		Meta: config.Meta{
@@ -1097,7 +1104,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 						Value: buildPatchStruct(`{
 							"name":"envoy.filters.http.http_dubbo_transcoder",
 							"typed_config":{
-								"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
+								"'@type'":"type.googleapis.com/udpa.type.v1.TypedStruct",
 								"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
 							}
 						}`),
@@ -1128,7 +1135,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 						Context: networking.EnvoyFilter_GATEWAY,
 						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
 							Cluster: &networking.EnvoyFilter_ClusterMatch{
-								Service: serviceName,
+								Service: httpRouteDestination.Destination.Host,
 							},
 						},
 					},
@@ -1138,8 +1145,9 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 							"upstream_config": {
 								"name":"envoy.upstreams.http.dubbo_tcp",
 								"typed_config":{
-									"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
-									"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"}
+									"'@type'":"type.googleapis.com/udpa.type.v1.TypedStruct",
+									"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
+								}
 							}
 						}`),
 					},
@@ -1163,7 +1171,7 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 		},
 		"typed_per_filter_config": {
 			"envoy.filters.http.http_dubbo_transcoder": {
-				"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+				"'@type'": "type.googleapis.com/udpa.type.v1.TypedStruct",
 				"type_url": "type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder",
 				"value": {
 					"request_validation_options": {
@@ -1171,7 +1179,6 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 						"reject_unknown_query_parameters": true
 					},
 					"services_mapping": {
-						"group": "dev",
 						"name": "%s",
 						"version": "%s",
 						"method_mapping": %s
@@ -1198,8 +1205,8 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 		}
 		method["parameter_mapping"] = params
 		var path_matcher = make(map[string]interface{})
-		passthrough_setting["match_http_method_spec"] = "ALL_GET"
-		passthrough_setting["match_pattern"] = serviceMethod.GetHttpPath()
+		path_matcher["match_http_method_spec"] = serviceMethod.HttpMethods[0]
+		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
 		method["path_matcher"] = path_matcher
 		methods = append(methods, method)
 	}
@@ -1208,6 +1215,7 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 	strBuffer := new(bytes.Buffer)
 	methodsJsonStr, _ := json.Marshal(methods)
 	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))
+	IngressLog.Infof("Found http2rpc buildHttp2RpcMethods %s", strBuffer.String())
 	result := buildPatchStruct(strBuffer.String())
 	return result
 }
@@ -1304,6 +1312,7 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 func (m *IngressConfig) Run(stop <-chan struct{}) {
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
+	go m.http2rpcController.Run(stop)
 }
 
 func (m *IngressConfig) HasSynced() bool {
@@ -1318,6 +1327,9 @@ func (m *IngressConfig) HasSynced() bool {
 		return false
 	}
 	if !m.wasmPluginController.HasSynced() {
+		return false
+	}
+	if !m.http2rpcController.HasSynced() {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")

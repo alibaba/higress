@@ -218,9 +218,14 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 	$(tools/kind) delete cluster --name higress
 
 # kube-load-image loads a local built docker image into kube cluster.
+# dubbo-provider-demo和nacos-standlone-rc3的镜像已经上传到阿里云镜像库，第一次需要先拉到本地
+# docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.1
+# docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
+	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
+	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 
 # run-ingress-e2e-test starts to run ingress e2e tests.
 .PHONY: run-ingress-e2e-test
