@@ -1104,7 +1104,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 						Value: buildPatchStruct(`{
 							"name":"envoy.filters.http.http_dubbo_transcoder",
 							"typed_config":{
-								"'@type'":"type.googleapis.com/udpa.type.v1.TypedStruct",
+								"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
 								"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
 							}
 						}`),
@@ -1145,8 +1145,8 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 							"upstream_config": {
 								"name":"envoy.upstreams.http.dubbo_tcp",
 								"typed_config":{
-									"'@type'":"type.googleapis.com/udpa.type.v1.TypedStruct",
-									"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
+									"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
+									"type_url":"type.googleapis.com/envoy.extensions.upstreams.http.dubbo_tcp.v3.DubboTcpConnectionPoolProto"
 								}
 							}
 						}`),
@@ -1171,7 +1171,7 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 		},
 		"typed_per_filter_config": {
 			"envoy.filters.http.http_dubbo_transcoder": {
-				"'@type'": "type.googleapis.com/udpa.type.v1.TypedStruct",
+				"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
 				"type_url": "type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder",
 				"value": {
 					"request_validation_options": {
@@ -1199,8 +1199,8 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 		for _, methodParam := range serviceMethod.GetParams() {
 			var param = make(map[string]interface{})
 			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = "ALL_QUERY_PARAMETER"
-			param["mapping_type"] = "java.lang.String"
+			param["extract_key_spec"] = methodParam.GetParamSource()
+			param["mapping_type"] = methodParam.GetParamType()
 			params = append(params, param)
 		}
 		method["parameter_mapping"] = params
