@@ -40,6 +40,7 @@ type HttpContext interface {
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
+type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
@@ -51,6 +52,7 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpRequestBody     onHttpBodyFunc[PluginConfig]
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
+	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
@@ -86,6 +88,12 @@ func ProcessResponseHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig
 func ProcessResponseBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
 	return func(ctx *CommonVmCtx[PluginConfig]) {
 		ctx.onHttpResponseBody = f
+	}
+}
+
+func ProcessStreamDoneBy[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
+	return func(ctx *CommonVmCtx[PluginConfig]) {
+		ctx.onHttpStreamDone = f
 	}
 }
 
@@ -288,4 +296,14 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 		return types.ActionContinue
 	}
 	return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() {
+	if ctx.config == nil {
+		return
+	}
+	if ctx.plugin.vm.onHttpStreamDone == nil {
+		return
+	}
+	ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config, ctx.plugin.vm.log)
 }
