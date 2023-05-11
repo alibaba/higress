@@ -390,10 +390,10 @@ consumers:
 ```
 
 # Common Error Codes
-| 
-HTTP Status Code | Error Message               | Reason Description|
-| ----------- | ---------------------- | -------------------------------------------------------------------------------- |
-| 401         | JWT missing            | The JWT is not provided in the request header. |
-| 401         | JWT expired            | The JWT has expired. |
-| 401         | JWT verification fails | The JWT payload verification failed, such as the iss mismatch. |
-| 403         | Access denied          | Access to the current route is denied. |
+
+| HTTP Status Code | Error Message               | Reason Description|
+|------------------| ---------------------- | -------------------------------------------------------------------------------- |
+| 401              | JWT missing            | The JWT is not provided in the request header. |
+| 401              | JWT expired            | The JWT has expired. |
+| 401              | JWT verification fails | The JWT payload verification failed, such as the iss mismatch. |
+| 403              | Access denied          | Access to the current route is denied. |
