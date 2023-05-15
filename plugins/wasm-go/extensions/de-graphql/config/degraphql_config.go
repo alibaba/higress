@@ -16,7 +16,6 @@ package config
 
 import (
 	"errors"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"net/url"
 	"regexp"
 	"strings"
@@ -46,11 +45,19 @@ type Variable struct {
 }
 
 type DeGraphQLConfig struct {
-	client    wrapper.HttpClient
 	gql       string
 	endpoint  string
+	domain    string
 	timeout   uint32
 	variables []Variable
+}
+
+func (d *DeGraphQLConfig) GetDomain() string {
+	return d.domain
+}
+
+func (d *DeGraphQLConfig) SetDomain(domain string) {
+	d.domain = domain
 }
 
 func (d *DeGraphQLConfig) SetEndpoint(endpoint string) error {
@@ -77,14 +84,6 @@ func (d *DeGraphQLConfig) SetTimeout(timeout uint32) {
 	} else {
 		d.timeout = timeout
 	}
-}
-
-func (d *DeGraphQLConfig) SetClient(client wrapper.HttpClient) {
-	d.client = client
-}
-
-func (d *DeGraphQLConfig) GetClient() wrapper.HttpClient {
-	return d.client
 }
 
 func (d *DeGraphQLConfig) SetGql(gql string) error {

@@ -35,9 +35,6 @@ static_resources:
                             value: |-
                               {
                                 "gql": "query ($owner:String! $name:String!){\n repository(owner:$owner, name:$name) {\n name\n forkCount\n description\n}\n}",
-                                "serviceSource": "dns",
-                                "serviceName": "github",
-                                "servicePort": 443,
                                 "domain": "api.github.com",
                                 "endpoint": "/graphql",
                                 "timeout": 2000
