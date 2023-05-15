@@ -14,6 +14,7 @@
 |  limit_keys     |  array of object     | Required     |   -  |  Rate-limiting thresholds when matching specific key-values |
 
 Field descriptions of `limit_keys` items:
+
 | Name | Type | Requirement |  Default Value | Description |
 | -------- | -------- | -------- | -------- | -------- |
 |  key     |  string     | Required     |   -  |  Value to match of the specific key |
