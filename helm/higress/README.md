@@ -52,5 +52,5 @@ The command removes all the Kubernetes components associated with the chart and 
 | higress-console.web.login.prompt | Prompt message to be displayed on the login page | "" |
 | higress-console.admin.password.value | If not empty, the admin password will be configured to the specified value. | "" |
 | higress-console.admin.password.length | The length of random admin password generated during installation. Only works when `higress-console.admin.password.value` is not set. | 8 |
-| higress-console.o11y.enabled | If `true`, o11y suite (Grafana + Promethues) will be installed. | false |
+| higress-console.o11y.enabled | If `true`, o11y suite (Grafana + Promethues) will be installed.<br /><br />**Note:** Due to the limitation of the built-in PersistentVolumeClaim configuration, any upcoming `helm upgrade` command will fail if the installation has the built-in o11y suite enabled. | false |
 | higress-console.pvc.rwxSupported | Set to `false` when installing to a standard K8s cluster and the target cluster doesn't support the ReadWriteMany access mode of PersistentVolumeClaim. | true |
