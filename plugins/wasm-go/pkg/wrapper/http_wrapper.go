@@ -115,7 +115,7 @@ func HttpCall(cluster Cluster, method, path string, headers [][2]string, body []
 			requestID, code, normalResponse, respBody)
 		callback(code, headers, respBody)
 	})
-	proxywasm.LogDebugf("http call start, id: %s, cluster: %+v, method: %s, path: %s, body: %s, timeout: %d",
-		requestID, cluster, method, path, body, timeout)
+	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, path: %s, body: %s, timeout: %d",
+		requestID, cluster.ClusterName(), method, path, body, timeout)
 	return err
 }
