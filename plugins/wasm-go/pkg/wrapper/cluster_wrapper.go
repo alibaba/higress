@@ -17,11 +17,32 @@ package wrapper
 import (
 	"fmt"
 	"strings"
+
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 )
 
 type Cluster interface {
 	ClusterName() string
 	HostName() string
+}
+
+type RouteCluster struct {
+	Host string
+}
+
+func (c RouteCluster) ClusterName() string {
+	routeName, err := proxywasm.GetProperty([]string{"cluster_name"})
+	if err != nil {
+		proxywasm.LogErrorf("get route cluster failed, err:%v", err)
+	}
+	return string(routeName)
+}
+
+func (c RouteCluster) HostName() string {
+	if c.Host != "" {
+		return c.Host
+	}
+	return GetRequestHost()
 }
 
 type K8sCluster struct {

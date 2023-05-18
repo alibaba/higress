@@ -15,7 +15,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -42,7 +41,8 @@ func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log wrapper.
 	gql := json.Get("gql").String()
 	endpoint := json.Get("endpoint").String()
 	timeout := json.Get("timeout").Int()
-	log.Debugf("gql:%s endpoint:%s timeout:%d", gql, endpoint, timeout)
+	domain := json.Get("domain").String()
+	log.Debugf("gql:%s endpoint:%s timeout:%d domain:%s", gql, endpoint, timeout, domain)
 	err := config.SetGql(gql)
 	if err != nil {
 		return err
@@ -52,48 +52,7 @@ func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log wrapper.
 		return err
 	}
 	config.SetTimeout(uint32(timeout))
-	serviceSource := json.Get("serviceSource").String()
-	serviceName := json.Get("serviceName").String()
-	servicePort := json.Get("servicePort").Int()
-	log.Debugf("serviceSource:%s serviceName:%s servicePort:%d", serviceSource, serviceName, servicePort)
-	if serviceName == "" || servicePort == 0 {
-		return errors.New("invalid service config")
-	}
-	switch serviceSource {
-	case "k8s":
-		namespace := json.Get("namespace").String()
-		config.SetClient(wrapper.NewClusterClient(wrapper.K8sCluster{
-			ServiceName: serviceName,
-			Namespace:   namespace,
-			Port:        servicePort,
-		}))
-		return nil
-	case "nacos":
-		namespace := json.Get("namespace").String()
-		config.SetClient(wrapper.NewClusterClient(wrapper.NacosCluster{
-			ServiceName: serviceName,
-			NamespaceID: namespace,
-			Port:        servicePort,
-		}))
-		return nil
-	case "ip":
-		config.SetClient(wrapper.NewClusterClient(wrapper.StaticIpCluster{
-			ServiceName: serviceName,
-			Port:        servicePort,
-		}))
-		return nil
-	case "dns":
-		domain := json.Get("domain").String()
-		config.SetClient(wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: serviceName,
-			Port:        servicePort,
-			Domain:      domain,
-		}))
-		return nil
-	default:
-		return errors.New("unknown service source: " + serviceSource)
-	}
-
+	config.SetDomain(domain)
 	return nil
 }
 
@@ -122,8 +81,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 	}
 	// Add header Content-Type: application/json
 	headers = append(headers, [2]string{"Content-Type", "application/json"})
+	client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: config.GetDomain()})
 	// Call upstream graphql endpoint
-	config.GetClient().Post(config.GetEndpoint(), headers, []byte(replaceBody),
+	client.Post(config.GetEndpoint(), headers, []byte(replaceBody),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			// Pass response headers and body to client
 			headers := make([][2]string, 0, len(responseHeaders)+3)

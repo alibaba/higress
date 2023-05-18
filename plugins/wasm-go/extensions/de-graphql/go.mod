@@ -2,6 +2,8 @@ module de-graphql
 
 go 1.19
 
+replace github.com/alibaba/higress/plugins/wasm-go => ../..
+
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230410091208-df60dd43079c
 	github.com/stretchr/testify v1.8.0
