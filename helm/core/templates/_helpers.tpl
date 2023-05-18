@@ -95,3 +95,7 @@ higress: {{ include "controller.name" . }}
 {{- print "first-party-jwt" }}
 {{- end }}
 {{- end }}
+
+{{- define "skywalking.enabled" -}}
+and .Values.skywalking.enabled .Values.skywalking.service.address 
+{{- end }}

@@ -610,7 +610,8 @@ pilot:
 
 
 # Skywalking config settings
-enableSkywalking: false
-Skywalking:
-  address: "skywalking-oap.higress-system.svc"
-  port: 11800
+skywalking:
+  enabled: false
+  service:
+    address: ~
+    port: 11800
