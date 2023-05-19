@@ -1,6 +1,6 @@
 # 功能说明
 
-`rewrite` 插件可以用于修改请求域名（Host）以及请求路径（Path），通常用于后端服务的域名/路由与网关侧域名/路由不一致时的配置，与 [Rewrite Annotation](https://higress.io/zh-cn/docs/user/annotation-use-case#rewrite%E9%87%8D%E5%86%99path) 实现的效果一致。
+`rewrite` 插件可以用于修改请求域名（Host）以及请求路径（Path），通常用于后端服务的域名/路由与网关侧域名/路由不一致时的配置，与 [Rewrite Annotation](https://higress.io/zh-cn/docs/user/annotation-use-case/#rewrite%E9%87%8D%E5%86%99path%E5%92%8Chost) 实现的效果一致。
 
 
 # 配置字段
