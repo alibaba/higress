@@ -156,6 +156,8 @@ spec:
                 type: array
               routeService:
                 type: string
+              routeServiceVersion:
+                type: string
               routeType:
                 type: string
             type: object

@@ -32,10 +32,6 @@ var HTTPRouteHttp2Rpc = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:   "foo.com",
@@ -44,6 +40,7 @@ var HTTPRouteHttp2Rpc = suite.ConformanceTest{
 					},
 				},
 				Response: http.AssertionResponse{
+					ExpectedResponseNoRequest: true,
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 					},

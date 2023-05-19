@@ -20,6 +20,7 @@ metadata:
 spec:
   routeType: "DUBBO"
   routeService: "com.dubbo.demo.api.DemoService"
+  routeServiceVersion: "1.0.0"
   methods: 
   - serviceMethod: "sayHello"
     headersAttach: "*"

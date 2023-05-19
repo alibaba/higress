@@ -45,7 +45,8 @@ option go_package = "github.com/alibaba/higress/api/networking/v1";
 message Http2Rpc {
   string routeType = 1 [(google.api.field_behavior) = REQUIRED]; 
   string routeService = 2 [(google.api.field_behavior) = REQUIRED]; 
-  repeated Method methods = 3 [(google.api.field_behavior) = REQUIRED]; 
+  string routeServiceVersion = 3 [(google.api.field_behavior) = OPTIONAL]; 
+  repeated Method methods = 4 [(google.api.field_behavior) = REQUIRED]; 
 }
 
 message Method {

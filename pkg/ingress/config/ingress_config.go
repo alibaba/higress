@@ -58,6 +58,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
@@ -549,6 +550,7 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 		return nil
 	}
 	serviceEntries := m.RegistryReconciler.GetAllServiceEntryWrapper()
+	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
 	out := make([]config.Config, 0, len(serviceEntries))
 	for _, se := range serviceEntries {
 		out = append(out, config.Config{
@@ -1060,19 +1062,23 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	mappings := m.http2rpcs
 	IngressLog.Infof("Found http2rpc mappings %v", mappings)
 	if _, exist := mappings[http2rpcConfig.Name]; !exist {
-		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD %v", http2rpcConfig.Name)
+		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD", http2rpcConfig.Name)
 		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
 	}
 	http2rpcCRD := mappings[http2rpcConfig.Name]
 
+	routeType := http2rpcCRD.RouteType
+	if routeType != "DUBBO" {
+		IngressLog.Errorf("Http2RpcConfig name %s, not support Http2Rpc CRD routeType %s", http2rpcConfig.Name, routeType)
+		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
+	}
+
 	httpRoute := route.HTTPRoute
 	httpRouteDestination := httpRoute.Route[0]
-	// httpRouteDestinationHostName := host.Name(httpRouteDestination.Destination.Host)
-	// IngressLog.Infof("Found http2rpc httpRouteDestinationHostName %v", httpRouteDestinationHostName)
-	// IngressLog.Infof("Found http2rpc Destination.Port %v", httpRouteDestination.Destination.Port)
-	// port := int(httpRouteDestination.Destination.GetPort().Number)
-	// IngressLog.Infof("Found http2rpc port %d", port)
-	// serviceName := model.BuildSubsetKey(model.TrafficDirectionOutbound, httpRouteDestination.Destination.Subset, httpRouteDestinationHostName, port)
+	typeStruct, err := m.constructHttp2RpcMethods(http2rpcCRD)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
 
 	return &config.Config{
 		Meta: config.Meta{
@@ -1126,7 +1132,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 					},
 					Patch: &networking.EnvoyFilter_Patch{
 						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     buildHttp2RpcMethods(http2rpcCRD),
+						Value:     typeStruct,
 					},
 				},
 				{
@@ -1157,7 +1163,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	}, nil
 }
 
-func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
+func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) (*types.Struct, error) {
 	httpRouterTemplate := `{
 		"route": {
 			"upgrade_configs": [
@@ -1211,13 +1217,13 @@ func buildHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) *types.Struct {
 		methods = append(methods, method)
 	}
 	name := http2rpcCRD.RouteService
-	version := "1.0.0"
+	version := http2rpcCRD.RouteServiceVersion
 	strBuffer := new(bytes.Buffer)
 	methodsJsonStr, _ := json.Marshal(methods)
 	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))
 	IngressLog.Infof("Found http2rpc buildHttp2RpcMethods %s", strBuffer.String())
 	result := buildPatchStruct(strBuffer.String())
-	return result
+	return result, nil
 }
 
 func buildPatchStruct(config string) *types.Struct {
@@ -1307,6 +1313,30 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 			},
 		},
 	}, nil
+}
+
+func QueryByName(serviceEntries []*memory.ServiceEntryWrapper, serviceName string) (*memory.ServiceEntryWrapper, error) {
+	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
+	for _, se := range serviceEntries {
+		if se.ServiceName == serviceName {
+			return se, nil
+		}
+	}
+	return nil, fmt.Errorf("can't find ServiceEntry by serviceName:%v", serviceName)
+}
+
+func QueryRpcServiceVersion(serviceEntry *memory.ServiceEntryWrapper, serviceName string) (string, error) {
+	IngressLog.Infof("Found http2rpc serviceEntry %s", serviceEntry)
+	IngressLog.Infof("Found http2rpc ServiceEntry %s", serviceEntry.ServiceEntry)
+	IngressLog.Infof("Found http2rpc WorkloadSelector %s", serviceEntry.ServiceEntry.WorkloadSelector)
+	IngressLog.Infof("Found http2rpc Labels %s", serviceEntry.ServiceEntry.WorkloadSelector.Labels)
+	labels := (*serviceEntry).ServiceEntry.WorkloadSelector.Labels
+	for key, value := range labels {
+		if key == "version" {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("can't get RpcServiceVersion for serviceName:%v", serviceName)
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
