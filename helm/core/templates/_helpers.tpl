@@ -97,5 +97,7 @@ higress: {{ include "controller.name" . }}
 {{- end }}
 
 {{- define "skywalking.enabled" -}}
-and .Values.skywalking.enabled .Values.skywalking.service.address 
+{{- if and .Values.skywalking.enabled .Values.skywalking.service.address }}
+true
+{{- end }}
 {{- end }}
