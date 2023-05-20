@@ -33,13 +33,13 @@ func TestHttp2RpcParse(t *testing.T) {
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(destinationKey): "",
+				buildHigressAnnotationKey(rpcDestinationName): "",
 			},
 			expect: nil,
 		},
 		{
 			input: Annotations{
-				buildHigressAnnotationKey(destinationKey): "http-dubbo-alibaba-nacos-example-DemoService",
+				buildHigressAnnotationKey(rpcDestinationName): "http-dubbo-alibaba-nacos-example-DemoService",
 			},
 			expect: &Http2RpcConfig{
 				Name: "http-dubbo-alibaba-nacos-example-DemoService",

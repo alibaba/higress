@@ -970,7 +970,7 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Debug("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
+		IngressLog.Debugf("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
 	}
 }
 
