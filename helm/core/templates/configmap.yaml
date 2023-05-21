@@ -122,7 +122,7 @@ data:
 {{- include "mesh" . }}
 {{- end }}
 ---
-{{- if .Values.enableSkywalking  }}
+{{- if include "skywalking.enabled" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -154,7 +154,6 @@ data:
             "type": "LOGICAL_DNS",
             "connect_timeout": "5s",
             "http2_protocol_options": {
-
             },
             "dns_lookup_family": "V4_ONLY",
             "lb_policy": "ROUND_ROBIN",
@@ -167,8 +166,8 @@ data:
                       "endpoint": {
                         "address": {
                           "socket_address": {
-                            "address": "{{ .Values.Skywalking.address }}",
-                            "port_value": "{{ .Values.Skywalking.port }}"
+                            "address": "{{ .Values.skywalking.service.address }}",
+                            "port_value": "{{ .Values.skywalking.service.port }}"
                           }
                         }
                       }
