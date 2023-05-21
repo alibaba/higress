@@ -70,6 +70,8 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HTTPRouteWhitelistSourceRange,
 		tests.HTTPRouteCanaryWeight,
 		tests.HTTPRouteMatchPath,
+		tests.HTTPFORCEREDIRCTHTTPS,
+		tests.HTTPREDIRCTASHTTPS,
 	}
 
 	cSuite.Run(t, higressTests)
