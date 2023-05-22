@@ -27,7 +27,7 @@ func init() {
 }
 
 var HTTPFORCEREDIRCTHTTPS = suite.ConformanceTest{
-	ShortName:   "HTTPFORCEREDIRCTHTTPS",
+	ShortName:   "HttpForceRedirectHttps",
 	Description: " The ingress in the higress-conformance-infra namespace enforces server-side HTTPS with forced redirection.",
 	Manifests:   []string{"tests/httproute-force-redirect-https.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {

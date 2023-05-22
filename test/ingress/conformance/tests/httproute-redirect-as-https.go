@@ -27,7 +27,7 @@ func init() {
 }
 
 var HTTPREDIRCTASHTTPS = suite.ConformanceTest{
-	ShortName:   "HTTPREDIRCTASHTTPS",
+	ShortName:   "HttpRedirectAsHttps",
 	Description: "The Ingress in the higress-conformance-infra namespace Server-side HTTPS enforcement through redirect.",
 	Manifests:   []string{"tests/httproute-redirct-as-https.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
