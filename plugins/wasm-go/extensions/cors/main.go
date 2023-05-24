@@ -76,12 +76,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
 	method, _ := proxywasm.GetHttpRequestHeader(":method")
 	host := ctx.Host()
-	schema := ctx.Scheme()
-	log.Debugf("schema:%s, host:%s, method:%s, request:%s", schema, host, method, requestUrl)
+	scheme := ctx.Scheme()
+	log.Debugf("scheme:%s, host:%s, method:%s, request:%s", scheme, host, method, requestUrl)
 	// Get headers
 	headers, _ := proxywasm.GetHttpRequestHeaders()
 	// Process request
-	httpCorsContext, err := corsConfig.Process(schema, host, method, headers)
+	httpCorsContext, err := corsConfig.Process(scheme, host, method, headers)
 	if err != nil {
 		log.Warnf("failed to process %s : %v", requestUrl, err)
 		return types.ActionContinue

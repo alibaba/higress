@@ -25,23 +25,18 @@ import (
 const (
 	defaultMatchAll     = "*"
 	defaultAllowMethods = "GET, PUT, POST, DELETE, PATCH, OPTIONS"
-	defaultAllowHeaders = "DNT,Keep-Alive,User-Agent,X-Requested-With," +
+	defaultAllowHeaders = "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With," +
 		"If-Modified-Since,Cache-Control,Content-Type,Authorization"
-	defaultAllowCredentials = false
-	defaultMaxAge           = 7200
-
-	defaultBadHttpStatus       = 403
-	defaultBadHttpResponseBody = "Invalid CORS request"
-
-	protocalHttpName  = "http"
-	protocalHttpPort  = "80"
-	protocalHttpsName = "https"
-	protocalHttpsPort = "443"
+	defaultMaxAge     = 1728000
+	protocolHttpName  = "http"
+	protocolHttpPort  = "80"
+	protocolHttpsName = "https"
+	protocolHttpsPort = "443"
 
 	HeaderPluginDebug = "X-Cors-Version"
 	HeaderPluginTrace = "X-Cors-Trace"
 	HeaderOrigin      = "Origin"
-	HTTPMethodOptions = "OPTIONS"
+	HttpMethodOptions = "OPTIONS"
 
 	HeaderAccessControlAllowOrigin      = "Access-Control-Allow-Origin"
 	HeaderAccessControlAllowMethods     = "Access-Control-Allow-Methods"
@@ -110,12 +105,12 @@ type CorsConfig struct {
 
 	// allowMethods  A list of method for which cross-origin requests are allowed
 	// The special value "*" allows all methods.
-	// By default, it is set to "GET, PUT, POST, DELETE, PATCH, HEAD，OPTIONS".
+	// By default, it is set to "GET, PUT, POST, DELETE, PATCH, OPTIONS".
 	allowMethods []string
 
 	// allowHeaders A list of headers that a pre-flight request can list as allowed
 	// The special value "*" allows actual requests to send any header
-	// By default, it is set to "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+	// By default, it is set to "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
 	allowHeaders []string
 
 	// exposeHeaders A list of response headers an actual response might have and can be exposed.
@@ -128,7 +123,7 @@ type CorsConfig struct {
 	allowCredentials bool
 
 	// maxAge Configure how long, in seconds, the response from a pre-flight request can be cached by clients.
-	// By default, it is set to 7200 seconds.
+	// By default, it is set to 1728000 seconds.
 	maxAge int
 }
 
@@ -154,7 +149,7 @@ func (c *CorsConfig) FillDefaultValues() {
 		c.allowOrigins = []string{defaultMatchAll}
 	}
 	if len(c.allowHeaders) == 0 {
-		c.allowHeaders = []string{defaultMatchAll}
+		c.allowHeaders = []string{defaultAllowHeaders}
 	}
 	if len(c.allowMethods) == 0 {
 		c.allowMethods = strings.Split(defaultAllowMethods, "，")
@@ -241,8 +236,8 @@ func (c *CorsConfig) SetMaxAge(maxAge int) {
 	}
 }
 
-func (c *CorsConfig) Process(schema string, host string, method string, headers [][2]string) (HttpCorsContext, error) {
-	schema = strings.ToLower(strings.TrimSpace(schema))
+func (c *CorsConfig) Process(scheme string, host string, method string, headers [][2]string) (HttpCorsContext, error) {
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
 	host = strings.ToLower(strings.TrimSpace(host))
 	method = strings.ToLower(strings.TrimSpace(method))
 
@@ -269,7 +264,7 @@ func (c *CorsConfig) Process(schema string, host string, method string, headers 
 	}
 
 	// Parse if request is CORS and pre-flight request.
-	isCorsRequest := c.isCorsRequest(schema, host, origin)
+	isCorsRequest := c.isCorsRequest(scheme, host, origin)
 	isPreFlight := c.isPreFlight(origin, method, controlRequestMethod)
 	httpCorsContext.IsCorsRequest = isCorsRequest
 	httpCorsContext.IsPreFlight = isPreFlight
@@ -409,10 +404,10 @@ func (c *CorsConfig) checkMethods(requestMethod string) (string, bool) {
 }
 
 func (c *CorsConfig) isPreFlight(origin, method, controllerRequestMethod string) bool {
-	return len(origin) > 0 && strings.ToLower(method) == strings.ToLower(HTTPMethodOptions) && len(controllerRequestMethod) > 0
+	return len(origin) > 0 && strings.ToLower(method) == strings.ToLower(HttpMethodOptions) && len(controllerRequestMethod) > 0
 }
 
-func (c *CorsConfig) isCorsRequest(schema, host, origin string) bool {
+func (c *CorsConfig) isCorsRequest(scheme, host, origin string) bool {
 	if len(origin) == 0 {
 		return false
 	}
@@ -422,8 +417,8 @@ func (c *CorsConfig) isCorsRequest(schema, host, origin string) bool {
 		return false
 	}
 
-	// Check schema
-	if strings.ToLower(schema) != strings.ToLower(url.Scheme) {
+	// Check scheme
+	if strings.ToLower(scheme) != strings.ToLower(url.Scheme) {
 		return true
 	}
 
@@ -431,7 +426,7 @@ func (c *CorsConfig) isCorsRequest(schema, host, origin string) bool {
 	port := ""
 	originPort := ""
 	originHost := ""
-	host, port = c.getHostAndPort(schema, host)
+	host, port = c.getHostAndPort(scheme, host)
 	originHost, originPort = c.getHostAndPort(url.Scheme, url.Host)
 	if host != originHost || port != originPort {
 		return true
@@ -440,9 +435,9 @@ func (c *CorsConfig) isCorsRequest(schema, host, origin string) bool {
 	return false
 }
 
-func (c *CorsConfig) getHostAndPort(schema string, host string) (string, string) {
+func (c *CorsConfig) getHostAndPort(scheme string, host string) (string, string) {
 	// Get host and port
-	schema = strings.ToLower(schema)
+	scheme = strings.ToLower(scheme)
 	host = strings.ToLower(host)
 	port := ""
 	hosts := strings.Split(host, ":")
@@ -450,12 +445,12 @@ func (c *CorsConfig) getHostAndPort(schema string, host string) (string, string)
 		host = hosts[0]
 		port = hosts[1]
 	}
-	// Get default port according schema
-	if len(port) == 0 && schema == protocalHttpName {
-		port = protocalHttpPort
+	// Get default port according scheme
+	if len(port) == 0 && scheme == protocolHttpName {
+		port = protocolHttpPort
 	}
-	if len(port) == 0 && schema == protocalHttpsName {
-		port = protocalHttpsPort
+	if len(port) == 0 && scheme == protocolHttpsName {
+		port = protocolHttpsPort
 	}
 	return host, port
 }

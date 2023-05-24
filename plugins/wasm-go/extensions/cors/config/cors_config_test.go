@@ -23,21 +23,21 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		schema   string
+		scheme   string
 		host     string
 		wantHost string
 		wantPort string
 	}{
 		{
 			name:     "http without port",
-			schema:   "http",
+			scheme:   "http",
 			host:     "http.example.com",
 			wantHost: "http.example.com",
 			wantPort: "80",
 		},
 		{
 			name:     "https without port",
-			schema:   "https",
+			scheme:   "https",
 			host:     "http.example.com",
 			wantHost: "http.example.com",
 			wantPort: "443",
@@ -45,7 +45,7 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 
 		{
 			name:     "http with port and case insensitive",
-			schema:   "hTTp",
+			scheme:   "hTTp",
 			host:     "hTTp.Example.com:8080",
 			wantHost: "http.example.com",
 			wantPort: "8080",
@@ -53,7 +53,7 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 
 		{
 			name:     "https with port and case insensitive",
-			schema:   "hTTps",
+			scheme:   "hTTps",
 			host:     "hTTp.Example.com:8080",
 			wantHost: "http.example.com",
 			wantPort: "8080",
@@ -61,7 +61,7 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 
 		{
 			name:     "protocal is not http",
-			schema:   "wss",
+			scheme:   "wss",
 			host:     "hTTp.Example.com",
 			wantHost: "http.example.com",
 			wantPort: "",
@@ -69,7 +69,7 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 
 		{
 			name:     "protocal is not http",
-			schema:   "wss",
+			scheme:   "wss",
 			host:     "hTTp.Example.com:8080",
 			wantHost: "http.example.com",
 			wantPort: "8080",
@@ -78,7 +78,7 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &CorsConfig{}
-			host, port := c.getHostAndPort(tt.schema, tt.host)
+			host, port := c.getHostAndPort(tt.scheme, tt.host)
 			assert.Equal(t, tt.wantHost, host)
 			assert.Equal(t, tt.wantPort, port)
 		})
@@ -88,21 +88,21 @@ func TestCorsConfig_getHostAndPort(t *testing.T) {
 func TestCorsConfig_isCorsRequest(t *testing.T) {
 	tests := []struct {
 		name   string
-		schema string
+		scheme string
 		host   string
 		origin string
 		want   bool
 	}{
 		{
 			name:   "blank origin",
-			schema: "http",
+			scheme: "http",
 			host:   "httpbin.example.com",
 			origin: "",
 			want:   false,
 		},
 		{
 			name:   "normal equal case with space and case ",
-			schema: "http",
+			scheme: "http",
 			host:   "httpbin.example.com",
 			origin: "http://hTTPbin.Example.com",
 			want:   false,
@@ -110,21 +110,21 @@ func TestCorsConfig_isCorsRequest(t *testing.T) {
 
 		{
 			name:   "cors request with port diff",
-			schema: "http",
+			scheme: "http",
 			host:   "httpbin.example.com",
 			origin: " http://httpbin.example.com:8080 ",
 			want:   true,
 		},
 		{
-			name:   "cors request with schema diff",
-			schema: "http",
+			name:   "cors request with scheme diff",
+			scheme: "http",
 			host:   "httpbin.example.com",
 			origin: " https://HTTPpbin.Example.com ",
 			want:   true,
 		},
 		{
 			name:   "cors request with host diff",
-			schema: "http",
+			scheme: "http",
 			host:   "httpbin.example.com",
 			origin: " http://HTTPpbin.Example.org ",
 			want:   true,
@@ -133,7 +133,7 @@ func TestCorsConfig_isCorsRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &CorsConfig{}
-			assert.Equalf(t, tt.want, c.isCorsRequest(tt.schema, tt.host, tt.origin), "isCorsRequest(%v, %v, %v)", tt.schema, tt.host, tt.origin)
+			assert.Equalf(t, tt.want, c.isCorsRequest(tt.scheme, tt.host, tt.origin), "isCorsRequest(%v, %v, %v)", tt.scheme, tt.host, tt.origin)
 		})
 	}
 }
