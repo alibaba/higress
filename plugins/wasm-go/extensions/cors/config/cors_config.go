@@ -28,7 +28,7 @@ const (
 	defaultAllAllowMethods = "GET, PUT, POST, DELETE, PATCH, OPTIONS, HEAD, TRACE, CONNECT"
 	defaultAllowHeaders    = "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With," +
 		"If-Modified-Since,Cache-Control,Content-Type,Authorization"
-	defaultMaxAge     = 1728000
+	defaultMaxAge     = 86400
 	protocolHttpName  = "http"
 	protocolHttpPort  = "80"
 	protocolHttpsName = "https"
@@ -124,7 +124,7 @@ type CorsConfig struct {
 	allowCredentials bool
 
 	// maxAge Configure how long, in seconds, the response from a pre-flight request can be cached by clients.
-	// By default, it is set to 1728000 seconds.
+	// By default, it is set to 86400 seconds.
 	maxAge int
 }
 
