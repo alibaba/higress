@@ -15,7 +15,7 @@
 | max_age               | number          | 选填    | 7200秒                                                                                                                     | 浏览器缓存 CORS 结果的最大时间，单位为秒。<br/>在这个时间范围内，浏览器会复用上一次的检查结果                                                                                                                         |
 
 > 注意
-> * allow_credentials 是一个很敏感的选项，请谨慎开启。开启之后，allow_credentials 和 allow_origin 为 * 不能同时使用，同时设置时， allow_origin 值为 "*" 生效。
+> * allow_credentials 是一个很敏感的选项，请谨慎开启。开启之后，allow_credentials 和 allow_origins 为 * 不能同时使用，同时设置时， allow_origins 值为 "*" 生效。
 > * allow_origins 和 allow_origin_patterns 可以同时设置， 先检查 allow_origins 是否匹配，然后再检查 allow_origin_patterns 是否匹配
 > * 非法 CORS 请求， HTTP 状态码返回是 403， 返回体内容为 "Invalid CORS request"
 
@@ -196,7 +196,7 @@ Invalid CORS request
 ### 非法 CORS Method 预检请求
 
 ```shell
-curl -v -X OPTIONS -H "Origin: http://httpbin2.example.org:9090" -H  "Host: httpbin.example.com" -H "Access-Control-Request-Method: DELETE"  http://127.0.0.1:8080/anything/get\?foo\=1
+curl -v -X OPTIONS -H "Origin: http://httpbin2.example.org:9090" -H  "Host: httpbin.example.com" -H "Access-Control-Request-Method: DELETE"  http://127.0.0.1/anything/get\?foo\=1
 
 < HTTP/1.1 403 Forbidden
 < content-length: 49
