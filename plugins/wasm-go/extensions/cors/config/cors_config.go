@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	defaultMatchAll     = "*"
-	defaultAllowMethods = "GET, PUT, POST, DELETE, PATCH, OPTIONS"
-	defaultAllowHeaders = "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With," +
+	defaultMatchAll        = "*"
+	defaultAllowMethods    = "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+	defaultAllAllowMethods = "GET, PUT, POST, DELETE, PATCH, OPTIONS, HEAD, TRACE, CONNECT"
+	defaultAllowHeaders    = "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With," +
 		"If-Modified-Since,Cache-Control,Content-Type,Authorization"
 	defaultMaxAge     = 1728000
 	protocolHttpName  = "http"
@@ -393,7 +394,7 @@ func (c *CorsConfig) checkMethods(requestMethod string) (string, bool) {
 	// Find method existed in allowMethods configuration
 	for _, method := range c.allowMethods {
 		if method == defaultMatchAll {
-			return defaultMatchAll, true
+			return defaultAllAllowMethods, true
 		}
 		if strings.ToLower(method) == strings.ToLower(requestMethod) {
 			return strings.Join(c.allowMethods, ","), true
