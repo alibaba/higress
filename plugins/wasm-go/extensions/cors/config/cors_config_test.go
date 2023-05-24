@@ -307,8 +307,8 @@ func TestCorsConfig_checkOrigin(t *testing.T) {
 			name:                "allowOrigins *",
 			allowOrigins:        []string{defaultMatchAll},
 			allowOriginPatterns: []OriginPattern{},
-			origin:              "http://httpbin.example.com",
-			wantOrigin:          "*",
+			origin:              "http://Httpbin.Example.COM",
+			wantOrigin:          "http://Httpbin.Example.COM",
 			wantOk:              true,
 		},
 

@@ -336,7 +336,7 @@ func (c *CorsConfig) checkOrigin(origin string) (string, bool) {
 	// Check exact match
 	for _, allowOrigin := range c.allowOrigins {
 		if allowOrigin == defaultMatchAll {
-			return defaultMatchAll, true
+			return origin, true
 		}
 		if strings.ToLower(allowOrigin) == matchOrigin {
 			return origin, true
