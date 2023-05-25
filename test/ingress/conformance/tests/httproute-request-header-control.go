@@ -32,6 +32,12 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 1: add one",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/foo1",
@@ -39,6 +45,8 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
+							Path: "/foo1",
+							Host: "foo.com",
 							Headers: map[string]string{
 								"stage": "test",
 							},
@@ -53,6 +61,12 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 				},
 			},
 			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 2: add more",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/foo2",
@@ -60,6 +74,8 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
+							Path: "/foo2",
+							Host: "foo.com",
 							Headers: map[string]string{
 								"stage":  "test",
 								"canary": "true",
@@ -75,6 +91,12 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 				},
 			},
 			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 3: update one",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/foo3",
@@ -85,9 +107,10 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
+							Path: "/foo3",
+							Host: "foo.com",
 							Headers: map[string]string{
-								"stage":  "pro",
-								"canary": "true",
+								"stage": "pro",
 							},
 						},
 					},
@@ -100,16 +123,91 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 				},
 			},
 			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: update more",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/foo4",
+						Host: "foo.com",
+						Headers: map[string]string{
+							"stage":  "test",
+							"canary": "true",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/foo4",
+							Host: "foo.com",
+							Headers: map[string]string{
+								"stage":  "pro",
+								"canary": "false",
+							},
+						},
+					},
+				},
+
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 5: remove one",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo5",
 						Host: "foo.com",
 						Headers: map[string]string{
 							"stage": "test",
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/foo5",
+							Host: "foo.com",
+						},
 						AbsentHeaders: []string{"stage"},
+					},
+				},
+
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 6: remove more",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/foo6",
+						Host: "foo.com",
+						Headers: map[string]string{
+							"stage":  "test",
+							"canary": "true",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/foo6",
+							Host: "foo.com",
+						},
+						AbsentHeaders: []string{"stage", "canary"},
 					},
 				},
 
