@@ -57,7 +57,7 @@ var HttpRedirectAsHttps = suite.ConformanceTest{
 			},
 		}
 
-		t.Run("HTTPREDIRCTASHTTPS", func(t *testing.T) {
+		t.Run("HttpRedirectAsHttps", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
