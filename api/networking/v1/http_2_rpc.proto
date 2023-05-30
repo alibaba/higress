@@ -43,22 +43,24 @@ option go_package = "github.com/alibaba/higress/api/networking/v1";
 // +k8s:deepcopy-gen=true
 // -->
 message Http2Rpc {
-  string routeType = 1 [(google.api.field_behavior) = REQUIRED]; 
-  string routeService = 2 [(google.api.field_behavior) = REQUIRED]; 
-  string routeServiceVersion = 3 [(google.api.field_behavior) = OPTIONAL]; 
+  oneof destination {
+    string dubbo_service = 1;
+    string grpc_service = 2;
+ }
+  string route_service_version = 3 [(google.api.field_behavior) = OPTIONAL]; 
   repeated Method methods = 4 [(google.api.field_behavior) = REQUIRED]; 
 }
 
 message Method {
-  string serviceMethod = 1 [(google.api.field_behavior) = REQUIRED]; 
-  string httpPath = 2 [(google.api.field_behavior) = REQUIRED];
-  repeated string httpMethods = 3 [(google.api.field_behavior) = REQUIRED];
-  string headersAttach = 4;
+  string service_method = 1 [(google.api.field_behavior) = REQUIRED]; 
+  string http_path = 2 [(google.api.field_behavior) = REQUIRED];
+  repeated string http_methods = 3 [(google.api.field_behavior) = REQUIRED];
+  string headers_attach = 4;
   repeated Param params = 5;
 }
 
 message Param {
-  string paramSource = 1 [(google.api.field_behavior) = REQUIRED]; 
-  string paramKey = 2 [(google.api.field_behavior) = REQUIRED];
-  string paramType = 3 [(google.api.field_behavior) = REQUIRED];
+  string param_source = 1 [(google.api.field_behavior) = REQUIRED]; 
+  string param_key = 2 [(google.api.field_behavior) = REQUIRED];
+  string param_type = 3 [(google.api.field_behavior) = REQUIRED];
 }

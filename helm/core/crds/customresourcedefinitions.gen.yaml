@@ -127,7 +127,22 @@ spec:
       openAPIV3Schema:
         properties:
           spec:
+            oneOf:
+            - not:
+                anyOf:
+                - required:
+                  - dubboService
+                - required:
+                  - grpcService
+            - required:
+              - dubboService
+            - required:
+              - grpcService
             properties:
+              dubboService:
+                type: string
+              grpcService:
+                type: string
               methods:
                 items:
                   properties:
@@ -154,11 +169,7 @@ spec:
                       type: string
                   type: object
                 type: array
-              routeService:
-                type: string
               routeServiceVersion:
-                type: string
-              routeType:
                 type: string
             type: object
           status:

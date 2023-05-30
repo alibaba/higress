@@ -1067,9 +1067,8 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	}
 	http2rpcCRD := mappings[http2rpcConfig.Name]
 
-	routeType := http2rpcCRD.RouteType
-	if routeType != "DUBBO" {
-		IngressLog.Errorf("Http2RpcConfig name %s, not support Http2Rpc CRD routeType %s", http2rpcConfig.Name, routeType)
+	if http2rpcCRD.GetDubboService() == "" {
+		IngressLog.Errorf("Http2RpcConfig name %s, only support Http2Rpc CRD dubboService type", http2rpcConfig.Name)
 		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
 	}
 
@@ -1216,7 +1215,7 @@ func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc
 		method["path_matcher"] = path_matcher
 		methods = append(methods, method)
 	}
-	name := http2rpcCRD.RouteService
+	name := http2rpcCRD.GetDubboService()
 	version := http2rpcCRD.RouteServiceVersion
 	strBuffer := new(bytes.Buffer)
 	methodsJsonStr, _ := json.Marshal(methods)
