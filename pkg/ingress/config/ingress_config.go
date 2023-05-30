@@ -63,8 +63,25 @@ import (
 )
 
 var (
-	_ model.ConfigStoreCache = &IngressConfig{}
-	_ model.IngressStore     = &IngressConfig{}
+	_                 model.ConfigStoreCache = &IngressConfig{}
+	_                 model.IngressStore     = &IngressConfig{}
+	Http2RpcMethodMap                        = func() map[string]string {
+		return map[string]string{
+			"GET":    "ALL_GET",
+			"POST":   "ALL_POST",
+			"PUT":    "ALL_PUT",
+			"DELETE": "ALL_DELETE",
+			"PATCH":  "ALL_PATCH",
+		}
+	}
+	Http2RpcParamSourceMap = func() map[string]string {
+		return map[string]string{
+			"QUERY":  "ALL_QUERY_PARAMETER",
+			"HEADER": "ALL_HEADER",
+			"PATH":   "ALL_PATH",
+			"BODY":   "ALL_BODY",
+		}
+	}
 )
 
 type IngressConfig struct {
@@ -1204,19 +1221,19 @@ func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc
 		for _, methodParam := range serviceMethod.GetParams() {
 			var param = make(map[string]interface{})
 			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = methodParam.GetParamSource()
+			param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
 			param["mapping_type"] = methodParam.GetParamType()
 			params = append(params, param)
 		}
 		method["parameter_mapping"] = params
 		var path_matcher = make(map[string]interface{})
-		path_matcher["match_http_method_spec"] = serviceMethod.HttpMethods[0]
+		path_matcher["match_http_method_spec"] = Http2RpcMethodMap()[serviceMethod.HttpMethods[0]]
 		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
 		method["path_matcher"] = path_matcher
 		methods = append(methods, method)
 	}
 	name := http2rpcCRD.GetDubboService()
-	version := http2rpcCRD.RouteServiceVersion
+	version := http2rpcCRD.DubboServiceVersion
 	strBuffer := new(bytes.Buffer)
 	methodsJsonStr, _ := json.Marshal(methods)
 	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))

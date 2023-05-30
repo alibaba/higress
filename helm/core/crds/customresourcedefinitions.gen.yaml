@@ -141,6 +141,8 @@ spec:
             properties:
               dubboService:
                 type: string
+              dubboServiceVersion:
+                type: string
               grpcService:
                 type: string
               methods:
@@ -169,8 +171,6 @@ spec:
                       type: string
                   type: object
                 type: array
-              routeServiceVersion:
-                type: string
             type: object
           status:
             type: object
