@@ -73,6 +73,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		tests.HttpForceRedirectHttps,
 		tests.HttpRedirectAsHttps,
 		tests.HTTPRouteRequestHeaderControl,
+		tests.HTTPRouteDownstreamEncryption,
 	}
 
 	cSuite.Run(t, higressTests)
