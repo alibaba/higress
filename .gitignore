@@ -13,3 +13,4 @@ bazel-testlogs
 bazel-wasm-cpp
 tools/bin/
 helm/**/charts/**.tgz
+target/
