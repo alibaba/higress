@@ -70,6 +70,38 @@ type Request struct {
 	Path             string
 	Headers          map[string]string
 	UnfollowRedirect bool
+	TLSConfig        *TLSConfig
+}
+
+// TLSConfig defines the TLS configuration for the client.
+// When this field is set, the HTTPS protocol is used.
+type TLSConfig struct {
+	// MinVersion specifies the minimum TLS version,
+	// e.g. tls.VersionTLS12.
+	MinVersion uint16
+	// MinVersion specifies the maximum TLS version,
+	// e.g. tls.VersionTLS13.
+	MaxVersion uint16
+	// SNI is short for Server Name Indication.
+	// If this field is not specified, the value will be equal to `Host`.
+	SNI string
+	// CipherSuites can specify multiple client cipher suites,
+	// e.g. tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA.
+	CipherSuites []uint16
+	// Certificates defines the certificate chain
+	Certificates Certificates
+}
+
+// Certificates contains CA and client certificate chain
+type Certificates struct {
+	CACerts        [][]byte
+	ClientKeyPairs []ClientKeyPair
+}
+
+// ClientKeyPair is a pair of client certificate and private key.
+type ClientKeyPair struct {
+	ClientCert []byte
+	ClientKey  []byte
 }
 
 // ExpectedRequest defines expected properties of a request that reaches a backend.
@@ -102,6 +134,36 @@ const requiredConsecutiveSuccesses = 3
 func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripper.RoundTripper, timeoutConfig config.TimeoutConfig, gwAddr string, expected Assertion) {
 	t.Helper()
 
+	var (
+		scheme    = "http"
+		protocol  = "HTTP"
+		tlsConfig *roundtripper.TLSConfig
+	)
+	if expected.Request.ActualRequest.TLSConfig != nil {
+		scheme = "https"
+		protocol = "HTTPS"
+		clientKeyPairs := make([]roundtripper.ClientKeyPair, 0, len(expected.Request.ActualRequest.TLSConfig.Certificates.ClientKeyPairs))
+		for _, keyPair := range expected.Request.ActualRequest.TLSConfig.Certificates.ClientKeyPairs {
+			clientKeyPairs = append(clientKeyPairs, roundtripper.ClientKeyPair{
+				ClientCert: keyPair.ClientCert,
+				ClientKey:  keyPair.ClientKey,
+			})
+		}
+		tlsConfig = &roundtripper.TLSConfig{
+			MinVersion:   expected.Request.ActualRequest.TLSConfig.MinVersion,
+			MaxVersion:   expected.Request.ActualRequest.TLSConfig.MaxVersion,
+			SNI:          expected.Request.ActualRequest.TLSConfig.SNI,
+			CipherSuites: expected.Request.ActualRequest.TLSConfig.CipherSuites,
+			Certificates: roundtripper.Certificates{
+				CACert:         expected.Request.ActualRequest.TLSConfig.Certificates.CACerts,
+				ClientKeyPairs: clientKeyPairs,
+			},
+		}
+		if tlsConfig.SNI == "" {
+			tlsConfig.SNI = expected.Request.ActualRequest.Host
+		}
+	}
+
 	if expected.Request.ActualRequest.Method == "" {
 		expected.Request.ActualRequest.Method = "GET"
 	}
@@ -110,17 +172,18 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 		expected.Response.ExpectedResponse.StatusCode = 200
 	}
 
-	t.Logf("Making %s request to http://%s%s", expected.Request.ActualRequest.Method, gwAddr, expected.Request.ActualRequest.Path)
+	t.Logf("Making %s request to %s://%s%s", expected.Request.ActualRequest.Method, scheme, gwAddr, expected.Request.ActualRequest.Path)
 
 	path, query, _ := strings.Cut(expected.Request.ActualRequest.Path, "?")
 
 	req := roundtripper.Request{
 		Method:           expected.Request.ActualRequest.Method,
 		Host:             expected.Request.ActualRequest.Host,
-		URL:              url.URL{Scheme: "http", Host: gwAddr, Path: path, RawQuery: query},
-		Protocol:         "HTTP",
+		URL:              url.URL{Scheme: scheme, Host: gwAddr, Path: path, RawQuery: query},
+		Protocol:         protocol,
 		Headers:          map[string][]string{},
 		UnfollowRedirect: expected.Request.ActualRequest.UnfollowRedirect,
+		TLSConfig:        tlsConfig,
 	}
 
 	if expected.Request.ActualRequest.Headers != nil {
