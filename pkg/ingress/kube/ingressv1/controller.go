@@ -520,8 +520,8 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
 				if annotationsConfig.IsPrefixRegexMatch() {
 					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsStrictRegexMatch() {
-					pathType = common.StrictRegex
+				} else if annotationsConfig.IsFullPathRegexMatch() {
+					pathType = common.FullPathRegex
 				}
 			} else {
 				switch *httpPath.PathType {
@@ -618,7 +618,7 @@ func (c *controller) generateHttpMatches(pathType common.PathType, path string, 
 		httpMatch.Uri = &networking.StringMatch{
 			MatchType: &networking.StringMatch_Regex{Regex: path + ".*"},
 		}
-	case common.StrictRegex:
+	case common.FullPathRegex:
 		httpMatch.Uri = &networking.StringMatch{
 			MatchType: &networking.StringMatch_Regex{Regex: path + "$"},
 		}
@@ -758,8 +758,8 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
 				if annotationsConfig.IsPrefixRegexMatch() {
 					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsStrictRegexMatch() {
-					pathType = common.StrictRegex
+				} else if annotationsConfig.IsFullPathRegexMatch() {
+					pathType = common.FullPathRegex
 				}
 			} else {
 				switch *httpPath.PathType {

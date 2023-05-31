@@ -76,14 +76,14 @@ func (i *Ingress) NeedRegexMatch() bool {
 		return false
 	}
 
-	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsStrictRegexMatch()
+	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
 }
 
 func (i *Ingress) IsPrefixRegexMatch() bool {
 	return i.Rewrite.UseRegex
 }
 
-func (i *Ingress) IsStrictRegexMatch() bool {
+func (i *Ingress) IsFullPathRegexMatch() bool {
 	return i.Rewrite.FullPathRegex
 }
 
