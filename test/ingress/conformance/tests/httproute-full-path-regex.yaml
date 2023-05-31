@@ -16,8 +16,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
-  name: httproute-rewrite-path
+    nginx.ingress.kubernetes.io/use-regex: "true"
+  name: httproute-ingress-use-regex
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -25,10 +25,29 @@ spec:
   - http:
       paths:
       - pathType: ImplementationSpecific
-        path: "/svc/(.*)"
+        path: "/foo/[A-Z0-9]{3}"
         backend:
           service:
             name: infra-backend-v1
             port:
               number: 8080
-
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/full-path-regex: "true"
+  name: httproute-higress-full-path-regex
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: ImplementationSpecific
+            path: "/bar/[A-Z0-9]{3}"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
