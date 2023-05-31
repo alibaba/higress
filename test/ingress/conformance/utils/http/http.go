@@ -423,3 +423,70 @@ func setRedirectRequestDefaults(req *roundtripper.Request, cRes *roundtripper.Ca
 		expected.Request.RedirectRequest.Path = req.URL.Path
 	}
 }
+
+func getRequest(gwAddr string, expected Assertion) roundtripper.Request {
+	path, query, _ := strings.Cut(expected.Request.ActualRequest.Path, "?")
+
+	req := roundtripper.Request{
+		Method:           expected.Request.ActualRequest.Method,
+		Host:             expected.Request.ActualRequest.Host,
+		URL:              url.URL{Scheme: "http", Host: gwAddr, Path: path, RawQuery: query},
+		Protocol:         "HTTP",
+		Headers:          map[string][]string{},
+		UnfollowRedirect: expected.Request.ActualRequest.UnfollowRedirect,
+	}
+
+	if expected.Request.ActualRequest.Headers != nil {
+		for name, value := range expected.Request.ActualRequest.Headers {
+			req.Headers[name] = []string{value}
+		}
+	}
+
+	backendSetHeaders := []string{}
+	for name, val := range expected.Response.AdditionalResponseHeaders {
+		backendSetHeaders = append(backendSetHeaders, name+":"+val)
+	}
+	req.Headers["X-Echo-Set-Header"] = []string{strings.Join(backendSetHeaders, ",")}
+
+	return req
+}
+
+// MakeRequestAndCountExpectedResponse make 'totReq' requests and determine whether to test results according to 'fn' callback function
+func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, totReq int, fn func(int, int) bool) {
+	t.Helper()
+
+	if expected.Request.ActualRequest.Method == "" {
+		expected.Request.ActualRequest.Method = "GET"
+	}
+
+	if expected.Response.ExpectedResponse.StatusCode == 0 {
+		expected.Response.ExpectedResponse.StatusCode = 200
+	}
+
+	t.Logf("Making %s request to http://%s%s", expected.Request.ActualRequest.Method, gwAddr, expected.Request.ActualRequest.Path)
+
+	req := getRequest(gwAddr, expected)
+
+	succ, fail := 0, 0
+	for i := 0; i < totReq; i++ {
+		cReq, cRes, err := r.CaptureRoundTrip(req)
+		if err != nil {
+			fail += 1
+			t.Logf("Request failed, not ready yet: %v (failed count: %v)", err.Error(), fail)
+			continue
+		}
+
+		if err := CompareRequest(&req, cReq, cRes, expected); err != nil {
+			fail += 1
+			t.Logf("Response expectation failed for request: %v  not ready yet: %v (failed count: %v)", req, err, fail)
+			continue
+		}
+
+		succ += 1
+	}
+
+	if !fn(succ, fail) {
+		t.Logf("Test failed, the num of succ: %d, the num of fail: %d, the sum of req: %d", succ, fail, totReq)
+	}
+	t.Logf("Test passed")
+}

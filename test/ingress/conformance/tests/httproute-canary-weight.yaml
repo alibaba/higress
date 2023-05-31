@@ -95,3 +95,45 @@ spec:
                 name: infra-backend-v1
                 port:
                   number: 8080
+---
+# Test if the weight is 50
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "50"
+  name: ingress-echo-canary-weight-50
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-50
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-echo-weight-50
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-50
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
