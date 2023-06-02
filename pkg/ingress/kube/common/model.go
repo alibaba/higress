@@ -59,7 +59,11 @@ const (
 
 	Prefix PathType = "prefix"
 
-	Regex PathType = "regex"
+	// PrefixRegex :if PathType is PrefixRegex, then the /foo/bar/[A-Z0-9]{3} is actually ^/foo/bar/[A-Z0-9]{3}.*
+	PrefixRegex PathType = "prefixRegex"
+
+	// FullPathRegex :if PathType is FullPathRegex, then the /foo/bar/[A-Z0-9]{3} is actually ^/foo/bar/[A-Z0-9]{3}$
+	FullPathRegex PathType = "fullPathRegex"
 
 	DefaultStatusUpdateInterval = 10 * time.Second
 
