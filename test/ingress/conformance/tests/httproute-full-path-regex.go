@@ -22,21 +22,18 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewritePath)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteFullPathRegex)
 }
 
-var HTTPRouteRewritePath = suite.ConformanceTest{
-	ShortName:   "HTTPRouteRewritePath",
-	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite path.",
-	Manifests:   []string{"tests/httproute-rewrite-path.yaml"},
+var HTTPRouteFullPathRegex = suite.ConformanceTest{
+	ShortName:   "HTTPRouteFullPathRegex",
+	Description: "test for 'higress.io/full-path-regex' annotation",
+	Manifests:   []string{"tests/httproute-full-path-regex.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testCases := []http.Assertion{
 			{
 				Request: http.AssertionRequest{
-					ActualRequest: http.Request{Path: "/svc/foo"},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{Path: "/foo"},
-					},
+					ActualRequest: http.Request{Path: "/foo/1234"},
 				},
 
 				Response: http.AssertionResponse{
@@ -49,10 +46,40 @@ var HTTPRouteRewritePath = suite.ConformanceTest{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
+			}, {
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{Path: "/bar/123"},
+				},
+
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+			}, {
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{Path: "/bar/1234"},
+				},
+
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 404,
+					},
+				},
+
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
 			},
 		}
 
-		t.Run("Rewrite HTTPRoute Path", func(t *testing.T) {
+		t.Run("Test for 'higress.io/full-path-regex'", func(t *testing.T) {
 			for _, testCase := range testCases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testCase)
 			}
