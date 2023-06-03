@@ -1,0 +1,18 @@
+diff --color -Naur external/istio/pkg/revisions/default_watcher.go external/istio_new/pkg/revisions/default_watcher.go
+--- istio/pkg/revisions/default_watcher.go	2023-06-03 14:29:33.458875485 +0800
++++ istio_new/pkg/revisions/default_watcher.go	2023-06-03 14:29:27.410841215 +0800
+@@ -52,8 +53,12 @@
+ 		revision: revision,
+ 		mu:       sync.Mutex{},
+ 	}
+-	p.webhookInformer = client.KubeInformer().Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+-	p.webhookInformer.AddEventHandler(p.makeHandler())
++
++	// Commented by ingress
++	// Higress doesn't need to watch MutatingWebhookConfigurations, and it will break compatibility with K8s < v1.16.0.
++	// p.webhookInformer = client.KubeInformer().Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
++	// p.webhookInformer.AddEventHandler(p.makeHandler())
++	// End commented by ingress
+ 
+ 	return p
+ }
