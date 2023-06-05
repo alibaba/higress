@@ -82,7 +82,7 @@ static_resources:
                                     "route_1"
                                   ],
                                   "secRules": [
-                                    "SecDebugLogLevel 9",
+                                    "SecDebugLogLevel 3",
                                     "SecRuleEngine On",
                                     "SecAction \"id:102,phase:1,deny\""
                                   ]
@@ -92,7 +92,7 @@ static_resources:
                                     "route_2"
                                   ],
                                   "secRules": [
-                                    "SecDebugLogLevel 9",
+                                    "SecDebugLogLevel 3",
                                     "SecRuleEngine On",
                                     "SecAction \"id:102,phase:1,pass\""
                                   ]

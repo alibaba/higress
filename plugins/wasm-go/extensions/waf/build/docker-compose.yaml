@@ -7,7 +7,8 @@ services:
       - 8083:8080
 
   flask:
-    image: liuxr25/flask-helloworld:latest
+    # image: liuxr25/flask-helloworld:latest
+    build: .
     environment:
       - MAX_BODY_SIZE=15728640 # 15 MiB
     ports:
@@ -39,7 +40,7 @@ services:
       - --log-path
       - /home/envoy/logs/envoy.log
     volumes:
-      - ../build:/build
+      - .:/build
       - .:/conf
       - logs:/home/envoy/logs:rw
     ports:
