@@ -168,7 +168,7 @@ spec:
                 type: object
               type: array
           type: object
-h          type: object
+          type: object
           x-kubernetes-preserve-unknown-fields: true
       type: object
   subresources:
