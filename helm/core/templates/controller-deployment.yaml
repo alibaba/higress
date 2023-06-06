@@ -100,6 +100,10 @@ spec:
                 fieldPath: spec.serviceAccountName
           - name: KUBECONFIG
             value: /var/run/secrets/remote/config
+          - name: PRIORITIZED_LEADER_ELECTION
+            value: "false"
+          - name: INJECT_ENABLED
+            value: "false"
           {{- if .Values.pilot.env }}
           {{- range $key, $val := .Values.pilot.env }}
           - name: {{ $key }}
