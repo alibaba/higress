@@ -18,13 +18,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	rbacpb "github.com/envoyproxy/go-control-plane/envoy/config/rbac/v3"
+	envoy_config_route_v3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	v32 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	"github.com/golang/protobuf/ptypes/duration"
+	"k8s.io/api/networking/v1beta1"
 	"strings"
 	"sync"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	ext_authz "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_authz/v3"
+	rbac "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/rbac/v3"
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
+	"github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -444,13 +452,14 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 	}
 
 	// We generate some specific envoy filter here to avoid duplicated computation.
-	m.convertEnvoyFilter(&convertOptions)
+	m.convertEnvoyFilter(&convertOptions, configs)
 	return out
 }
 
-func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions) {
+func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions, configs []common.WrapperConfig) {
+
 	var envoyFilters []config.Config
-	mappings := map[string]*common.Rule{}
+	basicAuthMappings := map[string]*common.Rule{}
 
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
@@ -464,8 +473,8 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			}
 
 			key := auth.AuthSecret.String() + "/" + auth.AuthRealm
-			if rule, exist := mappings[key]; !exist {
-				mappings[key] = &common.Rule{
+			if rule, exist := basicAuthMappings[key]; !exist {
+				basicAuthMappings[key] = &common.Rule{
 					Realm:       auth.AuthRealm,
 					MatchRoute:  []string{route.HTTPRoute.Name},
 					Credentials: auth.Credentials,
@@ -477,10 +486,31 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		}
 	}
 
-	IngressLog.Infof("Found %d number of basic auth", len(mappings))
-	if len(mappings) > 0 {
+	for _, cfg := range configs {
+		ingressV1, ok := cfg.Config.Spec.(v1beta1.IngressSpec)
+		if !ok {
+			continue
+		}
+		authz := cfg.AnnotationsConfig.Authz
+		ignoreCaseConfig := cfg.AnnotationsConfig.IgnoreCase
+		ignoreCase := false
+		if ignoreCaseConfig != nil && ignoreCaseConfig.IgnoreUriCase {
+			ignoreCase = true
+		}
+		if authz != nil {
+			extAuthz, err := constructExtAuthzEnvoyFilter(authz, ingressV1.Rules, m.namespace, ignoreCase)
+			if err != nil {
+				IngressLog.Errorf("Construct external authz filter error %v", err)
+			} else {
+				envoyFilters = append(envoyFilters, *extAuthz)
+			}
+		}
+	}
+
+	IngressLog.Infof("Found %d number of basic auth", len(basicAuthMappings))
+	if len(basicAuthMappings) > 0 {
 		rules := &common.BasicAuthRules{}
-		for _, rule := range mappings {
+		for _, rule := range basicAuthMappings {
 			rules.Rules = append(rules.Rules, rule)
 		}
 
@@ -994,6 +1024,280 @@ func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptio
 			IngressLog.Errorf("Apply canary ingress %s/%s fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
 		}
 	}
+}
+
+func constructExtAuthzEnvoyFilter(authz *annotations.AuthzConfig, rules []v1beta1.IngressRule, namespace string, ignoreCase bool) (*config.Config, error) {
+	extAuthz := authz.ExtAuthz
+	e := &ext_authz.ExtAuthz{
+		FilterEnabledMetadata: &v32.MetadataMatcher{
+			Filter: "envoy.filters.http.rbac",
+			Path: []*envoy_type_matcher_v3.MetadataMatcher_PathSegment{
+				{
+					Segment: &envoy_type_matcher_v3.MetadataMatcher_PathSegment_Key{
+						Key: "shadow_effective_policy_id",
+					},
+				},
+			},
+			Value: &envoy_type_matcher_v3.ValueMatcher{
+				MatchPattern: &envoy_type_matcher_v3.ValueMatcher_StringMatch{
+					StringMatch: &envoy_type_matcher_v3.StringMatcher{
+						MatchPattern: &envoy_type_matcher_v3.StringMatcher_Exact{
+							Exact: extAuthz.RbacPolicyId,
+						},
+					},
+				},
+			},
+		},
+		WithRequestBody: &ext_authz.BufferSettings{
+			AllowPartialMessage: extAuthz.ReqAllowPartial,
+			PackAsBytes:         extAuthz.PackAsBytes,
+		},
+	}
+	authzService := extAuthz.AuthzService
+	cluster := fmt.Sprintf(
+		"outbound|%d||%s.%s.svc.cluster.local",
+		authzService.ServicePort,
+		authzService.ServiceName, namespace)
+	uri := fmt.Sprintf("%s.%s.svc.cluster.local", authzService.ServiceName, namespace)
+	if extAuthz.AuthzProto == annotations.HTTP {
+		httpService := &ext_authz.ExtAuthz_HttpService{
+			HttpService: &ext_authz.HttpService{
+				ServerUri: &corev3.HttpUri{
+					HttpUpstreamType: &corev3.HttpUri_Cluster{
+						Cluster: cluster,
+					},
+					Timeout: &duration.Duration{
+						Seconds: 10,
+					},
+					Uri: uri,
+				},
+				PathPrefix: authzService.ServicePathPrefix,
+			},
+		}
+		if authzService.ServicePathPrefix != "" {
+			httpService.HttpService.PathPrefix = authzService.ServicePathPrefix
+		}
+		if authzService.AuthorizationRequest != "" {
+			AuthorizationRequest := &ext_authz.AuthorizationRequest{}
+			json.Unmarshal([]byte(authzService.AuthorizationRequest), AuthorizationRequest)
+			httpService.HttpService.AuthorizationRequest = AuthorizationRequest
+		}
+		if authzService.AuthorizationResponse != "" {
+			AuthorizationResponse := &ext_authz.AuthorizationResponse{}
+			json.Unmarshal([]byte(authzService.AuthorizationRequest), AuthorizationResponse)
+			httpService.HttpService.AuthorizationResponse = AuthorizationResponse
+		}
+		e.Services = httpService
+	}
+
+	if extAuthz.AuthzProto == annotations.GRPC {
+		grpcService := &ext_authz.ExtAuthz_GrpcService{
+			GrpcService: &corev3.GrpcService{
+				TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
+					EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{
+						ClusterName: cluster,
+					},
+				},
+				Timeout: &duration.Duration{
+					Seconds: 10,
+				},
+			},
+		}
+		e.Services = grpcService
+	}
+
+	if extAuthz.ReqMaxBytes > 0 {
+		e.WithRequestBody.MaxRequestBytes = extAuthz.ReqMaxBytes
+	}
+
+	extAuthzAny, err := anypb.New(e)
+	if err != nil {
+		return nil, err
+	}
+
+	typedConfig := &httppb.HttpFilter{
+		Name: "envoy.filters.http.ext_authz",
+		ConfigType: &httppb.HttpFilter_TypedConfig{
+			TypedConfig: extAuthzAny,
+		},
+	}
+
+	gogoTypedConfig, err := util.MessageToGoGoStruct(typedConfig)
+	if err != nil {
+		return nil, err
+	}
+	var permissions []*rbacpb.Permission
+	for _, rule := range rules {
+		host := rule.Host
+		if host == "*" {
+			permissions = []*rbacpb.Permission{
+				{
+					Rule: &rbacpb.Permission_Any{
+						Any: true,
+					},
+				},
+			}
+			break
+		}
+		hostPermission := &rbacpb.Permission{}
+		if strings.HasPrefix(host, "*") {
+			host = host[1:]
+			hostMatcher := &envoy_type_matcher_v3.StringMatcher_Suffix{
+				Suffix: host,
+			}
+			hostPermission.Rule = &rbacpb.Permission_UrlPath{
+				UrlPath: &envoy_type_matcher_v3.PathMatcher{
+					Rule: &envoy_type_matcher_v3.PathMatcher_Path{
+						Path: &envoy_type_matcher_v3.StringMatcher{
+							MatchPattern: hostMatcher,
+							IgnoreCase:   ignoreCase,
+						},
+					},
+				},
+			}
+		} else {
+			hostMatcher := &envoy_type_matcher_v3.StringMatcher_Exact{
+				Exact: host,
+			}
+			hostPermission.Rule = &rbacpb.Permission_UrlPath{
+				UrlPath: &envoy_type_matcher_v3.PathMatcher{
+					Rule: &envoy_type_matcher_v3.PathMatcher_Path{
+						Path: &envoy_type_matcher_v3.StringMatcher{
+							MatchPattern: hostMatcher,
+							IgnoreCase:   ignoreCase,
+						},
+					},
+				},
+			}
+		}
+		httpPaths := rule.HTTP.Paths
+		var andRules []*rbacpb.Permission
+		for _, httpPath := range httpPaths {
+			pathPermission := &rbacpb.Permission{}
+			switch *httpPath.PathType {
+			case v1beta1.PathTypeExact:
+				pathMatchPattern := &envoy_type_matcher_v3.StringMatcher_Exact{
+					Exact: httpPath.Path,
+				}
+				pathPermission.Rule = &rbacpb.Permission_Header{
+					Header: &envoy_config_route_v3.HeaderMatcher{
+						HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+							StringMatch: &envoy_type_matcher_v3.StringMatcher{
+								MatchPattern: pathMatchPattern,
+								IgnoreCase:   ignoreCase,
+							},
+						},
+					},
+				}
+			case v1beta1.PathTypePrefix:
+				pathMatchPattern := &envoy_type_matcher_v3.StringMatcher_Prefix{
+					Prefix: httpPath.Path,
+				}
+				pathPermission.Rule = &rbacpb.Permission_Header{
+					Header: &envoy_config_route_v3.HeaderMatcher{
+						HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+							StringMatch: &envoy_type_matcher_v3.StringMatcher{
+								MatchPattern: pathMatchPattern,
+								IgnoreCase:   ignoreCase,
+							},
+						},
+					},
+				}
+			}
+			andRules = append(andRules, hostPermission)
+			andRules = append(andRules, pathPermission)
+		}
+		orRule := &rbacpb.Permission{
+			Rule: &rbacpb.Permission_OrRules{
+				OrRules: &rbacpb.Permission_Set{
+					Rules: andRules,
+				},
+			},
+		}
+		permissions = append(permissions, orRule)
+	}
+
+	Rbac := &rbac.RBAC{
+		ShadowRules: &rbacpb.RBAC{
+			Policies: map[string]*rbacpb.Policy{
+				authz.ExtAuthz.RbacPolicyId: {
+					Permissions: permissions,
+				},
+			},
+			Action: rbacpb.RBAC_ALLOW,
+		},
+	}
+	rbacAny, err := anypb.New(Rbac)
+	if err != nil {
+		return nil, err
+	}
+
+	rbacTypedConfig := &httppb.HttpFilter{
+		Name: "envoy.filters.http.rbac",
+		ConfigType: &httppb.HttpFilter_TypedConfig{
+			TypedConfig: rbacAny,
+		},
+	}
+
+	rbacGogoTypedConfig, err := util.MessageToGoGoStruct(rbacTypedConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.EnvoyFilter,
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "extAuthz"),
+			Namespace:        namespace,
+		},
+		Spec: &networking.EnvoyFilter{
+			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &networking.EnvoyFilter_ListenerMatch{
+								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.http_connection_manager",
+										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+											Name: "envoy.filters.http.cors",
+										},
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
+						Value:     gogoTypedConfig,
+					},
+				},
+				{
+					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &networking.EnvoyFilter_ListenerMatch{
+								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.http_connection_manager",
+										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+											Name: "envoy.filters.http.ext_authz",
+										},
+									},
+								},
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value:     rbacGogoTypedConfig,
+					},
+				},
+			},
+		},
+	}, nil
 }
 
 func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace string) (*config.Config, error) {
