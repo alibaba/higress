@@ -206,6 +206,10 @@ spec:
           - mountPath: /etc/istio/custom-bootstrap
             name: custom-bootstrap-volume
           {{- end }}
+          {{- if .Values.global.volumeWasmPlugins }}
+          - mountPath: /opt/plugins
+            name: local-wasmplugins-volume
+          {{- end }}
       {{- if .Values.gateway.hostNetwork }}
       hostNetwork: {{ .Values.gateway.hostNetwork }}
       dnsPolicy: ClusterFirstWithHostNet
@@ -274,3 +278,9 @@ spec:
               containerName: higress-gateway
               divisor: 1m
               resource: limits.cpu
+      {{- if .Values.global.volumeWasmPlugins }}
+      - name: local-wasmplugins-volume
+        hostPath:
+          path: /opt/plugins
+          type: Directory
+      {{- end }}
