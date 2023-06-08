@@ -24,7 +24,7 @@ if [ ! -n "$INNER_PLUGIN_NAME" ]; then
     echo "build all wasmplugins under folder of $EXTENSIONS_DIR"
     for file in `ls $EXTENSIONS_DIR`                                   
         do
-            if [ -d $EXTENSIONS_DIR$file ]; then #注意此处之间一定要加上空格，否则会报错
+            if [ -d $EXTENSIONS_DIR$file ]; then 
                 name=${file##*/}
                 echo "build wasmplugin name of $name"
                 PLUGIN_NAME=${name} make build
