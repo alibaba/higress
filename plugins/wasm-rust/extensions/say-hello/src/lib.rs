@@ -16,6 +16,7 @@ use higress_wasm_rust::log::Log;
 use higress_wasm_rust::rule_matcher::RuleMatcher;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, ContextType, LogLevel};
+use serde::Deserialize;
 use serde_json::{from_slice, Value};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -34,7 +35,7 @@ struct SayHello {
     rule_matcher: Rc<RefCell<RuleMatcher<SayHelloConfig>>>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Deserialize)]
 struct SayHelloConfig {
     name: String,
 }
@@ -73,9 +74,7 @@ impl RootContext for SayHelloRoot {
 
         self.rule_matcher
             .borrow_mut()
-            .parse_rule_config(&value, |value| {
-                Ok(SayHelloConfig { name: value["name"].as_str().unwrap_or("").to_string() })
-            })
+            .parse_rule_config(&value)
             .is_ok()
     }
 

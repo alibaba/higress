@@ -9,6 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-proxy-wasm = "0.2.1"
 higress-wasm-rust = { path = "../../", version = "0.1.0" }
-serde_json = "1.0.96"
+proxy-wasm = "0.2.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

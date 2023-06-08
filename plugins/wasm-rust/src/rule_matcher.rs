@@ -18,6 +18,7 @@ use proxy_wasm::hostcalls::log;
 use proxy_wasm::types::LogLevel;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
+use serde::de::DeserializeOwned;
 
 enum Category {
     Route,
@@ -54,12 +55,11 @@ pub struct RuleMatcher<PluginConfig> {
 
 impl<PluginConfig> RuleMatcher<PluginConfig>
 where
-    PluginConfig: Default,
+    PluginConfig: Default+DeserializeOwned,
 {
     pub fn parse_rule_config(
         &mut self,
         config: &Value,
-        parse_plugin_config: fn(&Value) -> Result<PluginConfig, WasmRustError>,
     ) -> Result<(), WasmRustError> {
         let empty_object = Map::new();
         let empty_vec = Vec::new();
@@ -81,7 +81,7 @@ where
 
         let mut global_config_error: WasmRustError = WasmRustError::default();
         if key_count > 0 {
-            match parse_plugin_config(config) {
+            match serde_json::from_value::<PluginConfig>(config.clone()) {
                 Ok(plugin_config) => {
                     self.global_config = Some(plugin_config);
                 }
@@ -91,7 +91,7 @@ where
                         format!("parse global config failed, err:{:?}", err).as_str(),
                     )
                     .unwrap();
-                    global_config_error = err;
+                    global_config_error = WasmRustError::new(err.to_string());
                 }
             }
         }
@@ -107,9 +107,9 @@ where
         }
 
         for rule_json in rules {
-            let config = match parse_plugin_config(rule_json) {
+            let config = match serde_json::from_value::<PluginConfig>(rule_json.clone()) {
                 Ok(config) => config,
-                Err(error) => return Err(error),
+                Err(error) => return Err(WasmRustError::new(error.to_string())),
             };
             let routes = RuleMatcher::<PluginConfig>::parse_route_match_config(rule_json);
             let hosts = RuleMatcher::<PluginConfig>::parse_host_match_config(rule_json);
