@@ -15,7 +15,12 @@ Higress e2e tests are mainly focusing on two parts for now:
 
 ![ingress-workflow](./ingress/pipeline.png)
 
-Higress provides make target to run ingress api conformance tests: `make ingress-conformance-test`. It can be divided into below steps:
+Higress provides make target to run ingress api conformance tests and wasmplugin tests,
+
++  API Tests: `make ingress-conformance-test`
++  WasmPlugin Tests: `make ingress-wasmplugin-test`
+
+It can be divided into below steps:
 
 1. delete-cluster: checks if we have undeleted kind cluster.
 2. create-cluster: create a new kind cluster.
