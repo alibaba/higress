@@ -14,3 +14,4 @@ bazel-wasm-cpp
 tools/bin/
 helm/**/charts/**.tgz
 target/
+tools/hack/cluster.conf
