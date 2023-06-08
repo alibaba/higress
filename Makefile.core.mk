@@ -128,6 +128,9 @@ build-gateway: prebuild external/package/envoy.tar.gz
 build-istio: prebuild
 	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
 
+build-wasmplugins: 
+	./tools/hack/build-wasm-plugins.sh
+
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
 
@@ -144,6 +147,9 @@ ISTIO_LATEST_IMAGE_TAG ?= 1.0.0
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
+
+install-dev-wasmplugin: build-wasmplugins pre-install
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -197,6 +203,10 @@ gateway-conformance-test:
 .PHONY: ingress-conformance-test
 ingress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-ingress-e2e-test delete-cluster
 
+# ingress-wasmplugin-test runs ingress wasmplugin tests.
+.PHONY: ingress-wasmplugin-test
+ingress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-ingress-e2e-test-wasmplugin delete-cluster
+
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
 create-cluster: $(tools/kind)
@@ -221,3 +231,13 @@ run-ingress-e2e-test:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true
+
+# run-ingress-e2e-test starts to run ingress e2e tests.
+.PHONY: run-ingress-e2e-test-wasmplugin
+run-ingress-e2e-test-wasmplugin:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/ingress/e2e_test.go -isWasmPluginTest=true --ingress-class=higress --debug=true
