@@ -28,6 +28,17 @@ func (this *Http2Rpc) UnmarshalJSON(b []byte) error {
 	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for DubboService
+func (this *DubboService) MarshalJSON() ([]byte, error) {
+	str, err := Http_2RpcMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for DubboService
+func (this *DubboService) UnmarshalJSON(b []byte) error {
+	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 // MarshalJSON is a custom marshaler for Method
 func (this *Method) MarshalJSON() ([]byte, error) {
 	str, err := Http_2RpcMarshaler.MarshalToString(this)
@@ -47,6 +58,17 @@ func (this *Param) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON is a custom unmarshaler for Param
 func (this *Param) UnmarshalJSON(b []byte) error {
+	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
+// MarshalJSON is a custom marshaler for GrpcService
+func (this *GrpcService) MarshalJSON() ([]byte, error) {
+	str, err := Http_2RpcMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for GrpcService
+func (this *GrpcService) UnmarshalJSON(b []byte) error {
 	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 

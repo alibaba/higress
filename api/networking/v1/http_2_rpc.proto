@@ -44,11 +44,15 @@ option go_package = "github.com/alibaba/higress/api/networking/v1";
 // -->
 message Http2Rpc {
   oneof destination {
-    string dubbo_service = 1;
-    string grpc_service = 2;
+    DubboService dubbo = 1;
+    GrpcService  grpc = 2;
  }
-  string dubbo_service_version = 3 [(google.api.field_behavior) = OPTIONAL];
-  repeated Method methods = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message DubboService {
+  string service = 1 [(google.api.field_behavior) = REQUIRED];
+  string version = 2 [(google.api.field_behavior) = OPTIONAL];
+  repeated Method methods = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 message Method {
@@ -63,4 +67,7 @@ message Param {
   string param_source = 1 [(google.api.field_behavior) = REQUIRED];
   string param_key = 2 [(google.api.field_behavior) = REQUIRED];
   string param_type = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GrpcService {
 }

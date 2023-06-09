@@ -131,46 +131,49 @@ spec:
             - not:
                 anyOf:
                 - required:
-                  - dubboService
+                  - dubbo
                 - required:
-                  - grpcService
+                  - grpc
             - required:
-              - dubboService
+              - dubbo
             - required:
-              - grpcService
+              - grpc
             properties:
-              dubboService:
-                type: string
-              dubboServiceVersion:
-                type: string
-              grpcService:
-                type: string
-              methods:
-                items:
-                  properties:
-                    headersAttach:
-                      type: string
-                    httpMethods:
-                      items:
-                        type: string
-                      type: array
-                    httpPath:
-                      type: string
-                    params:
-                      items:
-                        properties:
-                          paramKey:
+              dubbo:
+                properties:
+                  methods:
+                    items:
+                      properties:
+                        headersAttach:
+                          type: string
+                        httpMethods:
+                          items:
                             type: string
-                          paramSource:
-                            type: string
-                          paramType:
-                            type: string
-                        type: object
-                      type: array
-                    serviceMethod:
-                      type: string
-                  type: object
-                type: array
+                          type: array
+                        httpPath:
+                          type: string
+                        params:
+                          items:
+                            properties:
+                              paramKey:
+                                type: string
+                              paramSource:
+                                type: string
+                              paramType:
+                                type: string
+                            type: object
+                          type: array
+                        serviceMethod:
+                          type: string
+                      type: object
+                    type: array
+                  service:
+                    type: string
+                  version:
+                    type: string
+                type: object
+              grpc:
+                type: object
             type: object
           status:
             type: object

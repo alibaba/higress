@@ -18,19 +18,20 @@ metadata:
   name: httproute-http2rpc-demo
   namespace: higress-system
 spec:
-  dubboService: "com.dubbo.demo.api.DemoService"
-  dubboServiceVersion: "1.0.0"
-  methods: 
-  - serviceMethod: "sayHello"
-    headersAttach: "*"
-    httpMethods: 
-    - "GET"
-    - “POST”
-    httpPath: "/sayhello"
-    params:
-    - paramKey: "name"
-      paramSource: "QUERY"
-      paramType: "java.lang.String"
+  dubbo: 
+    service: "com.dubbo.demo.api.DemoService"
+    version: "1.0.0"
+    methods: 
+    - serviceMethod: "sayHello"
+      headersAttach: "*"
+      httpMethods: 
+      - "GET"
+      - “POST”
+      httpPath: "/sayhello"
+      params:
+      - paramKey: "name"
+        paramSource: "QUERY"
+        paramType: "java.lang.String"
 ---
 apiVersion: networking.higress.io/v1
 kind: McpBridge

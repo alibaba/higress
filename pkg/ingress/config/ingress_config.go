@@ -1084,14 +1084,14 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	}
 	http2rpcCRD := mappings[http2rpcConfig.Name]
 
-	if http2rpcCRD.GetDubboService() == "" {
-		IngressLog.Errorf("Http2RpcConfig name %s, only support Http2Rpc CRD dubboService type", http2rpcConfig.Name)
+	if http2rpcCRD.GetDubbo() == nil {
+		IngressLog.Errorf("Http2RpcConfig name %s, only support Http2Rpc CRD Dubbo Service type", http2rpcConfig.Name)
 		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
 	}
 
 	httpRoute := route.HTTPRoute
 	httpRouteDestination := httpRoute.Route[0]
-	typeStruct, err := m.constructHttp2RpcMethods(http2rpcCRD)
+	typeStruct, err := m.constructHttp2RpcMethods(http2rpcCRD.GetDubbo())
 	if err != nil {
 		return nil, errors.New(err.Error())
 	}
@@ -1179,7 +1179,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	}, nil
 }
 
-func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc) (*types.Struct, error) {
+func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) (*types.Struct, error) {
 	httpRouterTemplate := `{
 		"route": {
 			"upgrade_configs": [
@@ -1211,7 +1211,7 @@ func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc
 		}
 	}`
 	var methods []interface{}
-	for _, serviceMethod := range http2rpcCRD.GetMethods() {
+	for _, serviceMethod := range dubbo.GetMethods() {
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var passthrough_setting = make(map[string]interface{})
@@ -1232,8 +1232,8 @@ func (m *IngressConfig) constructHttp2RpcMethods(http2rpcCRD *higressv1.Http2Rpc
 		method["path_matcher"] = path_matcher
 		methods = append(methods, method)
 	}
-	name := http2rpcCRD.GetDubboService()
-	version := http2rpcCRD.DubboServiceVersion
+	name := dubbo.GetService()
+	version := dubbo.GetVersion()
 	strBuffer := new(bytes.Buffer)
 	methodsJsonStr, _ := json.Marshal(methods)
 	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))

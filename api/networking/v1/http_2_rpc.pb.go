@@ -42,11 +42,9 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // -->
 type Http2Rpc struct {
 	// Types that are valid to be assigned to Destination:
-	//	*Http2Rpc_DubboService
-	//	*Http2Rpc_GrpcService
+	//	*Http2Rpc_Dubbo
+	//	*Http2Rpc_Grpc
 	Destination          isHttp2Rpc_Destination `protobuf_oneof:"destination"`
-	DubboServiceVersion  string                 `protobuf:"bytes,3,opt,name=dubbo_service_version,json=dubboServiceVersion,proto3" json:"dubbo_service_version,omitempty"`
-	Methods              []*Method              `protobuf:"bytes,4,rep,name=methods,proto3" json:"methods,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
 	XXX_unrecognized     []byte                 `json:"-"`
 	XXX_sizecache        int32                  `json:"-"`
@@ -91,15 +89,15 @@ type isHttp2Rpc_Destination interface {
 	Size() int
 }
 
-type Http2Rpc_DubboService struct {
-	DubboService string `protobuf:"bytes,1,opt,name=dubbo_service,json=dubboService,proto3,oneof" json:"dubbo_service,omitempty"`
+type Http2Rpc_Dubbo struct {
+	Dubbo *DubboService `protobuf:"bytes,1,opt,name=dubbo,proto3,oneof" json:"dubbo,omitempty"`
 }
-type Http2Rpc_GrpcService struct {
-	GrpcService string `protobuf:"bytes,2,opt,name=grpc_service,json=grpcService,proto3,oneof" json:"grpc_service,omitempty"`
+type Http2Rpc_Grpc struct {
+	Grpc *GrpcService `protobuf:"bytes,2,opt,name=grpc,proto3,oneof" json:"grpc,omitempty"`
 }
 
-func (*Http2Rpc_DubboService) isHttp2Rpc_Destination() {}
-func (*Http2Rpc_GrpcService) isHttp2Rpc_Destination()  {}
+func (*Http2Rpc_Dubbo) isHttp2Rpc_Destination() {}
+func (*Http2Rpc_Grpc) isHttp2Rpc_Destination()  {}
 
 func (m *Http2Rpc) GetDestination() isHttp2Rpc_Destination {
 	if m != nil {
@@ -108,30 +106,16 @@ func (m *Http2Rpc) GetDestination() isHttp2Rpc_Destination {
 	return nil
 }
 
-func (m *Http2Rpc) GetDubboService() string {
-	if x, ok := m.GetDestination().(*Http2Rpc_DubboService); ok {
-		return x.DubboService
+func (m *Http2Rpc) GetDubbo() *DubboService {
+	if x, ok := m.GetDestination().(*Http2Rpc_Dubbo); ok {
+		return x.Dubbo
 	}
-	return ""
+	return nil
 }
 
-func (m *Http2Rpc) GetGrpcService() string {
-	if x, ok := m.GetDestination().(*Http2Rpc_GrpcService); ok {
-		return x.GrpcService
-	}
-	return ""
-}
-
-func (m *Http2Rpc) GetDubboServiceVersion() string {
-	if m != nil {
-		return m.DubboServiceVersion
-	}
-	return ""
-}
-
-func (m *Http2Rpc) GetMethods() []*Method {
-	if m != nil {
-		return m.Methods
+func (m *Http2Rpc) GetGrpc() *GrpcService {
+	if x, ok := m.GetDestination().(*Http2Rpc_Grpc); ok {
+		return x.Grpc
 	}
 	return nil
 }
@@ -139,9 +123,72 @@ func (m *Http2Rpc) GetMethods() []*Method {
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Http2Rpc) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*Http2Rpc_DubboService)(nil),
-		(*Http2Rpc_GrpcService)(nil),
+		(*Http2Rpc_Dubbo)(nil),
+		(*Http2Rpc_Grpc)(nil),
 	}
+}
+
+type DubboService struct {
+	Service              string    `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Version              string    `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Methods              []*Method `protobuf:"bytes,3,rep,name=methods,proto3" json:"methods,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *DubboService) Reset()         { *m = DubboService{} }
+func (m *DubboService) String() string { return proto.CompactTextString(m) }
+func (*DubboService) ProtoMessage()    {}
+func (*DubboService) Descriptor() ([]byte, []int) {
+	return fileDescriptor_dc706c3b890c1c84, []int{1}
+}
+func (m *DubboService) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DubboService) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DubboService.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DubboService) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DubboService.Merge(m, src)
+}
+func (m *DubboService) XXX_Size() int {
+	return m.Size()
+}
+func (m *DubboService) XXX_DiscardUnknown() {
+	xxx_messageInfo_DubboService.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DubboService proto.InternalMessageInfo
+
+func (m *DubboService) GetService() string {
+	if m != nil {
+		return m.Service
+	}
+	return ""
+}
+
+func (m *DubboService) GetVersion() string {
+	if m != nil {
+		return m.Version
+	}
+	return ""
+}
+
+func (m *DubboService) GetMethods() []*Method {
+	if m != nil {
+		return m.Methods
+	}
+	return nil
 }
 
 type Method struct {
@@ -159,7 +206,7 @@ func (m *Method) Reset()         { *m = Method{} }
 func (m *Method) String() string { return proto.CompactTextString(m) }
 func (*Method) ProtoMessage()    {}
 func (*Method) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dc706c3b890c1c84, []int{1}
+	return fileDescriptor_dc706c3b890c1c84, []int{2}
 }
 func (m *Method) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -236,7 +283,7 @@ func (m *Param) Reset()         { *m = Param{} }
 func (m *Param) String() string { return proto.CompactTextString(m) }
 func (*Param) ProtoMessage()    {}
 func (*Param) Descriptor() ([]byte, []int) {
-	return fileDescriptor_dc706c3b890c1c84, []int{2}
+	return fileDescriptor_dc706c3b890c1c84, []int{3}
 }
 func (m *Param) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -286,44 +333,86 @@ func (m *Param) GetParamType() string {
 	return ""
 }
 
+type GrpcService struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GrpcService) Reset()         { *m = GrpcService{} }
+func (m *GrpcService) String() string { return proto.CompactTextString(m) }
+func (*GrpcService) ProtoMessage()    {}
+func (*GrpcService) Descriptor() ([]byte, []int) {
+	return fileDescriptor_dc706c3b890c1c84, []int{4}
+}
+func (m *GrpcService) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GrpcService) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GrpcService.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GrpcService) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GrpcService.Merge(m, src)
+}
+func (m *GrpcService) XXX_Size() int {
+	return m.Size()
+}
+func (m *GrpcService) XXX_DiscardUnknown() {
+	xxx_messageInfo_GrpcService.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GrpcService proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*Http2Rpc)(nil), "higress.networking.v1.Http2Rpc")
+	proto.RegisterType((*DubboService)(nil), "higress.networking.v1.DubboService")
 	proto.RegisterType((*Method)(nil), "higress.networking.v1.Method")
 	proto.RegisterType((*Param)(nil), "higress.networking.v1.Param")
+	proto.RegisterType((*GrpcService)(nil), "higress.networking.v1.GrpcService")
 }
 
 func init() { proto.RegisterFile("networking/v1/http_2_rpc.proto", fileDescriptor_dc706c3b890c1c84) }
 
 var fileDescriptor_dc706c3b890c1c84 = []byte{
-	// 433 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0x4f, 0x6b, 0x13, 0x41,
-	0x18, 0xc6, 0x9d, 0x24, 0x8d, 0xed, 0x24, 0xe9, 0x61, 0xa4, 0xb0, 0x88, 0xc6, 0xd8, 0x52, 0x2c,
-	0x28, 0xbb, 0x34, 0x7a, 0x10, 0xc1, 0x43, 0x73, 0x2a, 0x88, 0x50, 0xb6, 0xe2, 0xc1, 0xcb, 0x32,
-	0xbb, 0xfb, 0xba, 0x33, 0x34, 0xd9, 0x19, 0x66, 0x26, 0xab, 0xfb, 0x0d, 0x3d, 0xfa, 0x09, 0x44,
-	0xf6, 0x93, 0xc8, 0xfc, 0xd9, 0x9a, 0x80, 0x5e, 0x9f, 0xf7, 0xf7, 0x3e, 0x3c, 0xcf, 0xcc, 0x8b,
-	0xe7, 0x35, 0x98, 0x6f, 0x42, 0xdd, 0xf1, 0xba, 0x4a, 0x9a, 0xcb, 0x84, 0x19, 0x23, 0xb3, 0x65,
-	0xa6, 0x64, 0x11, 0x4b, 0x25, 0x8c, 0x20, 0x27, 0x8c, 0x57, 0x0a, 0xb4, 0x8e, 0xff, 0x72, 0x71,
-	0x73, 0xf9, 0xf8, 0x59, 0x25, 0x44, 0xb5, 0x86, 0x84, 0x4a, 0x9e, 0x7c, 0xe5, 0xb0, 0x2e, 0xb3,
-	0x1c, 0x18, 0x6d, 0xb8, 0x50, 0x7e, 0xef, 0xf4, 0x17, 0xc2, 0x87, 0xd7, 0xc6, 0xc8, 0x65, 0x2a,
-	0x0b, 0x72, 0x8e, 0x67, 0xe5, 0x36, 0xcf, 0x45, 0xa6, 0x41, 0x35, 0xbc, 0x80, 0x08, 0x2d, 0xd0,
-	0xc5, 0xd1, 0xf5, 0x83, 0x74, 0xea, 0xe4, 0x5b, 0xaf, 0x92, 0x33, 0x3c, 0xad, 0x94, 0x2c, 0xee,
-	0xa9, 0x41, 0xa0, 0x26, 0x56, 0xed, 0xa1, 0xb7, 0xf8, 0x64, 0xcf, 0x2b, 0x6b, 0x40, 0x69, 0x2e,
-	0xea, 0x68, 0x68, 0xe9, 0xd5, 0xa8, 0xbb, 0x42, 0x28, 0x7d, 0xb4, 0xeb, 0xfb, 0xd9, 0x03, 0xe4,
-	0x3d, 0x7e, 0xb8, 0x01, 0xc3, 0x44, 0xa9, 0xa3, 0xd1, 0x62, 0x78, 0x31, 0x59, 0x3e, 0x8d, 0xff,
-	0x59, 0x2e, 0xfe, 0xe8, 0x28, 0x67, 0x35, 0x48, 0xfb, 0x9d, 0xd5, 0x0c, 0x4f, 0x4a, 0xd0, 0x86,
-	0xd7, 0xd4, 0x70, 0x51, 0xdb, 0x82, 0x63, 0x0f, 0x92, 0x97, 0xf8, 0xb8, 0x0f, 0xe3, 0x61, 0xdf,
-	0x2f, 0x18, 0xcc, 0xc2, 0x2c, 0xc0, 0xcf, 0xf1, 0x91, 0x7b, 0x64, 0x49, 0x0d, 0xf3, 0x0d, 0x03,
-	0x77, 0x68, 0xe5, 0x1b, 0x6a, 0x18, 0x79, 0x81, 0xa7, 0x0e, 0xe9, 0xd3, 0x0e, 0x17, 0xc3, 0x7b,
-	0x6a, 0x62, 0x27, 0xde, 0x4a, 0x93, 0x73, 0x7c, 0xcc, 0x80, 0x96, 0xa0, 0x74, 0x46, 0x8d, 0xa1,
-	0x05, 0x8b, 0x46, 0xd6, 0x30, 0x9d, 0x05, 0xf5, 0xca, 0x89, 0xe4, 0x0d, 0x1e, 0x4b, 0xaa, 0xe8,
-	0x46, 0x47, 0x07, 0xae, 0xf7, 0x93, 0xff, 0xf4, 0xbe, 0xb1, 0x50, 0x1a, 0xd8, 0xd3, 0xef, 0xf8,
-	0xc0, 0x09, 0x36, 0x8e, 0x93, 0x32, 0x2d, 0xb6, 0xaa, 0xff, 0xbc, 0x3e, 0x8e, 0x9b, 0xdc, 0xba,
-	0x81, 0xad, 0xe6, 0xc1, 0x3b, 0x68, 0xf7, 0xab, 0x39, 0xf9, 0x03, 0xb4, 0xe4, 0x0c, 0x63, 0x8f,
-	0x98, 0x56, 0xc2, 0xce, 0x97, 0x0d, 0x52, 0xbf, 0xfa, 0xa9, 0x95, 0xb0, 0x7a, 0xf7, 0xa3, 0x9b,
-	0xa3, 0x9f, 0xdd, 0x1c, 0xfd, 0xee, 0xe6, 0xe8, 0xcb, 0xab, 0x8a, 0x1b, 0xb6, 0xcd, 0xe3, 0x42,
-	0x6c, 0x12, 0xba, 0xe6, 0x39, 0xcd, 0x69, 0x12, 0xf2, 0xbb, 0xf3, 0xdb, 0x3b, 0xe0, 0x7c, 0xec,
-	0xce, 0xef, 0xf5, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x09, 0xcd, 0xd3, 0xc9, 0xd8, 0x02, 0x00,
-	0x00,
+	// 455 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x93, 0xdf, 0x6a, 0xd4, 0x40,
+	0x18, 0xc5, 0x9d, 0xfd, 0xd7, 0xf6, 0x4b, 0xb7, 0x17, 0x03, 0x42, 0x10, 0x8d, 0x35, 0x45, 0x2c,
+	0x28, 0x09, 0x5d, 0xbd, 0x10, 0xc5, 0x8b, 0x2e, 0x82, 0x05, 0x11, 0x4a, 0xea, 0x95, 0x37, 0x61,
+	0x92, 0x8c, 0x99, 0xa1, 0xbb, 0x99, 0x61, 0x66, 0x36, 0xba, 0x0f, 0x21, 0xf8, 0x58, 0x5e, 0xfa,
+	0x04, 0x22, 0xfb, 0x24, 0x92, 0x99, 0x84, 0xcd, 0x4a, 0xf7, 0x2e, 0x9c, 0xf3, 0x3b, 0xdf, 0x9c,
+	0x2f, 0x99, 0x40, 0x50, 0x51, 0xf3, 0x4d, 0xa8, 0x5b, 0x5e, 0x95, 0x71, 0x7d, 0x11, 0x33, 0x63,
+	0x64, 0x3a, 0x4b, 0x95, 0xcc, 0x23, 0xa9, 0x84, 0x11, 0xf8, 0x3e, 0xe3, 0xa5, 0xa2, 0x5a, 0x47,
+	0x5b, 0x2e, 0xaa, 0x2f, 0x1e, 0x3c, 0x2e, 0x85, 0x28, 0x17, 0x34, 0x26, 0x92, 0xc7, 0x5f, 0x39,
+	0x5d, 0x14, 0x69, 0x46, 0x19, 0xa9, 0xb9, 0x50, 0x2e, 0x17, 0xfe, 0x44, 0x70, 0x78, 0x65, 0x8c,
+	0x9c, 0x25, 0x32, 0xc7, 0x6f, 0x61, 0x5c, 0xac, 0xb2, 0x4c, 0xf8, 0xe8, 0x14, 0x9d, 0x7b, 0xb3,
+	0xb3, 0xe8, 0xce, 0xa1, 0xd1, 0xfb, 0x86, 0xb9, 0xa1, 0xaa, 0xe6, 0x39, 0xbd, 0xba, 0x97, 0xb8,
+	0x0c, 0x7e, 0x0d, 0xa3, 0x52, 0xc9, 0xdc, 0x1f, 0xd8, 0x6c, 0xb8, 0x27, 0xfb, 0x41, 0xc9, 0x7c,
+	0x1b, 0xb5, 0x89, 0xf9, 0x14, 0xbc, 0x82, 0x6a, 0xc3, 0x2b, 0x62, 0xb8, 0xa8, 0xc2, 0x1f, 0x08,
+	0x8e, 0xfb, 0x47, 0xe0, 0x00, 0x0e, 0xb4, 0x7b, 0xb4, 0xc5, 0x8e, 0xe6, 0xa3, 0xcd, 0x25, 0x1a,
+	0x24, 0x9d, 0xd8, 0xf8, 0x35, 0x55, 0x9a, 0x8b, 0xca, 0x1e, 0xee, 0x7c, 0x94, 0x74, 0x22, 0x7e,
+	0x07, 0x07, 0x4b, 0x6a, 0x98, 0x28, 0xb4, 0x3f, 0x3c, 0x1d, 0x9e, 0x7b, 0xb3, 0x47, 0x7b, 0xca,
+	0x7d, 0xb2, 0x54, 0x37, 0xbe, 0xcd, 0x84, 0x7f, 0x10, 0x4c, 0x9c, 0x83, 0x9f, 0xc3, 0x49, 0x7b,
+	0x68, 0xea, 0xdc, 0x9d, 0x42, 0xd3, 0xd6, 0x6b, 0xe1, 0x27, 0x70, 0x64, 0x3f, 0x93, 0x24, 0x86,
+	0xf5, 0x8a, 0x0d, 0x92, 0xc3, 0x46, 0xbe, 0x26, 0x86, 0xe1, 0x67, 0x70, 0x6c, 0x91, 0x7e, 0xbd,
+	0x8e, 0xf2, 0x1a, 0xc7, 0x8d, 0xd2, 0xf8, 0x29, 0x9c, 0x30, 0x4a, 0x0a, 0xaa, 0x74, 0x4a, 0x8c,
+	0x21, 0x39, 0xf3, 0x47, 0xcd, 0xc0, 0x64, 0xda, 0xaa, 0x97, 0x56, 0xc4, 0xaf, 0x60, 0x22, 0x89,
+	0x22, 0x4b, 0xed, 0x8f, 0xed, 0xa2, 0x0f, 0xf7, 0x2c, 0x7a, 0xdd, 0x40, 0x49, 0xcb, 0x86, 0xdf,
+	0x61, 0x6c, 0x85, 0xa6, 0x8e, 0x95, 0x52, 0x2d, 0x56, 0xea, 0xbf, 0xb7, 0xed, 0x59, 0xe7, 0xc6,
+	0x1a, 0xcd, 0x6a, 0x0e, 0xbc, 0xa5, 0xeb, 0xdd, 0xd5, 0xac, 0xfc, 0x91, 0xae, 0xf1, 0x19, 0x80,
+	0x43, 0xcc, 0x5a, 0x52, 0x7f, 0xd8, 0x63, 0x5c, 0xf4, 0xf3, 0x5a, 0xd2, 0x70, 0x0a, 0x5e, 0xef,
+	0x42, 0xcc, 0xdf, 0xfc, 0xda, 0x04, 0xe8, 0xf7, 0x26, 0x40, 0x7f, 0x37, 0x01, 0xfa, 0xf2, 0xa2,
+	0xe4, 0x86, 0xad, 0xb2, 0x28, 0x17, 0xcb, 0x98, 0x2c, 0x78, 0x46, 0x32, 0x12, 0xb7, 0xeb, 0xd8,
+	0xfb, 0xbc, 0xf3, 0x47, 0x64, 0x13, 0x7b, 0x9f, 0x5f, 0xfe, 0x0b, 0x00, 0x00, 0xff, 0xff, 0x79,
+	0xc4, 0x13, 0x39, 0x29, 0x03, 0x00, 0x00,
 }
 
 func (m *Http2Rpc) Marshal() (dAtA []byte, err error) {
@@ -350,27 +439,6 @@ func (m *Http2Rpc) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Methods) > 0 {
-		for iNdEx := len(m.Methods) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Methods[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintHttp_2Rpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if len(m.DubboServiceVersion) > 0 {
-		i -= len(m.DubboServiceVersion)
-		copy(dAtA[i:], m.DubboServiceVersion)
-		i = encodeVarintHttp_2Rpc(dAtA, i, uint64(len(m.DubboServiceVersion)))
-		i--
-		dAtA[i] = 0x1a
-	}
 	if m.Destination != nil {
 		{
 			size := m.Destination.Size()
@@ -383,34 +451,103 @@ func (m *Http2Rpc) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Http2Rpc_DubboService) MarshalTo(dAtA []byte) (int, error) {
+func (m *Http2Rpc_Dubbo) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Http2Rpc_DubboService) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Http2Rpc_Dubbo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	i -= len(m.DubboService)
-	copy(dAtA[i:], m.DubboService)
-	i = encodeVarintHttp_2Rpc(dAtA, i, uint64(len(m.DubboService)))
-	i--
-	dAtA[i] = 0xa
+	if m.Dubbo != nil {
+		{
+			size, err := m.Dubbo.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintHttp_2Rpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
 	return len(dAtA) - i, nil
 }
-func (m *Http2Rpc_GrpcService) MarshalTo(dAtA []byte) (int, error) {
+func (m *Http2Rpc_Grpc) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Http2Rpc_GrpcService) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Http2Rpc_Grpc) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	i -= len(m.GrpcService)
-	copy(dAtA[i:], m.GrpcService)
-	i = encodeVarintHttp_2Rpc(dAtA, i, uint64(len(m.GrpcService)))
-	i--
-	dAtA[i] = 0x12
+	if m.Grpc != nil {
+		{
+			size, err := m.Grpc.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintHttp_2Rpc(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
 	return len(dAtA) - i, nil
 }
+func (m *DubboService) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DubboService) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DubboService) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Methods) > 0 {
+		for iNdEx := len(m.Methods) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Methods[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintHttp_2Rpc(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.Version) > 0 {
+		i -= len(m.Version)
+		copy(dAtA[i:], m.Version)
+		i = encodeVarintHttp_2Rpc(dAtA, i, uint64(len(m.Version)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Service) > 0 {
+		i -= len(m.Service)
+		copy(dAtA[i:], m.Service)
+		i = encodeVarintHttp_2Rpc(dAtA, i, uint64(len(m.Service)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *Method) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -530,6 +667,33 @@ func (m *Param) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *GrpcService) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GrpcService) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GrpcService) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintHttp_2Rpc(dAtA []byte, offset int, v uint64) int {
 	offset -= sovHttp_2Rpc(v)
 	base := offset
@@ -550,7 +714,47 @@ func (m *Http2Rpc) Size() (n int) {
 	if m.Destination != nil {
 		n += m.Destination.Size()
 	}
-	l = len(m.DubboServiceVersion)
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Http2Rpc_Dubbo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Dubbo != nil {
+		l = m.Dubbo.Size()
+		n += 1 + l + sovHttp_2Rpc(uint64(l))
+	}
+	return n
+}
+func (m *Http2Rpc_Grpc) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Grpc != nil {
+		l = m.Grpc.Size()
+		n += 1 + l + sovHttp_2Rpc(uint64(l))
+	}
+	return n
+}
+func (m *DubboService) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Service)
+	if l > 0 {
+		n += 1 + l + sovHttp_2Rpc(uint64(l))
+	}
+	l = len(m.Version)
 	if l > 0 {
 		n += 1 + l + sovHttp_2Rpc(uint64(l))
 	}
@@ -566,26 +770,6 @@ func (m *Http2Rpc) Size() (n int) {
 	return n
 }
 
-func (m *Http2Rpc_DubboService) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.DubboService)
-	n += 1 + l + sovHttp_2Rpc(uint64(l))
-	return n
-}
-func (m *Http2Rpc_GrpcService) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.GrpcService)
-	n += 1 + l + sovHttp_2Rpc(uint64(l))
-	return n
-}
 func (m *Method) Size() (n int) {
 	if m == nil {
 		return 0
@@ -646,6 +830,18 @@ func (m *Param) Size() (n int) {
 	return n
 }
 
+func (m *GrpcService) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func sovHttp_2Rpc(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
@@ -683,9 +879,9 @@ func (m *Http2Rpc) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DubboService", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Dubbo", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowHttp_2Rpc
@@ -695,27 +891,116 @@ func (m *Http2Rpc) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthHttp_2Rpc
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLengthHttp_2Rpc
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Destination = &Http2Rpc_DubboService{string(dAtA[iNdEx:postIndex])}
+			v := &DubboService{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Destination = &Http2Rpc_Dubbo{v}
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GrpcService", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Grpc", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowHttp_2Rpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &GrpcService{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Destination = &Http2Rpc_Grpc{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipHttp_2Rpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DubboService) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowHttp_2Rpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DubboService: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DubboService: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Service", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -743,41 +1028,41 @@ func (m *Http2Rpc) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Destination = &Http2Rpc_GrpcService{string(dAtA[iNdEx:postIndex])}
+			m.Service = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowHttp_2Rpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DubboServiceVersion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowHttp_2Rpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthHttp_2Rpc
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthHttp_2Rpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.DubboServiceVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Methods", wireType)
 			}
@@ -1171,6 +1456,57 @@ func (m *Param) Unmarshal(dAtA []byte) error {
 			}
 			m.ParamType = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipHttp_2Rpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthHttp_2Rpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GrpcService) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowHttp_2Rpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GrpcService: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GrpcService: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipHttp_2Rpc(dAtA[iNdEx:])
