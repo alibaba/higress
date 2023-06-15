@@ -19,6 +19,7 @@ Higress provides make target to run ingress api conformance tests and wasmplugin
 
 +  API Tests: `make ingress-conformance-test`
 +  WasmPlugin Tests: `make ingress-wasmplugin-test`
+    + Only build one WasmPlugin for testing: `PLUGIN_NAME=request-block make ingress-wasmplugin-test`
 
 It can be divided into below steps:
 
