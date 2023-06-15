@@ -18,6 +18,19 @@ set -euo pipefail
 
 cd ./plugins/wasm-go/
 
-# developer need to declear new wasmplugins here for test 
-PLUGIN_NAME=http-call make build
-PLUGIN_NAME=request-block make build
+INNER_PLUGIN_NAME=${PLUGIN_NAME-""}
+if [ ! -n "$INNER_PLUGIN_NAME" ]; then
+    EXTENSIONS_DIR=$(pwd)"/extensions/"
+    echo "build all wasmplugins under folder of $EXTENSIONS_DIR"
+    for file in `ls $EXTENSIONS_DIR`                                   
+        do
+            if [ -d $EXTENSIONS_DIR$file ]; then 
+                name=${file##*/}
+                echo "build wasmplugin name of $name"
+                PLUGIN_NAME=${name} make build
+            fi
+        done
+else
+    echo "build wasmplugin name of $INNER_PLUGIN_NAME"
+    PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
+fi
