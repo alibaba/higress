@@ -46,6 +46,10 @@ rules:
     resources: ["wasmplugins"]
     verbs: ["get", "list", "watch"]
 
+  - apiGroups: ["networking.higress.io"]
+    resources: ["http2rpcs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "watch", "list", "update", "patch", "create", "delete"]
