@@ -26,6 +26,10 @@ type FakeNetworkingV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeNetworkingV1) Http2Rpcs(namespace string) v1.Http2RpcInterface {
+	return &FakeHttp2Rpcs{c, namespace}
+}
+
 func (c *FakeNetworkingV1) McpBridges(namespace string) v1.McpBridgeInterface {
 	return &FakeMcpBridges{c, namespace}
 }

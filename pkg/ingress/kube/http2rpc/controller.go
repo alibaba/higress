@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mcpbridge
+package http2rpc
 
 import (
 	"istio.io/istio/pkg/kube/controllers"
@@ -23,14 +23,14 @@ import (
 	kubeclient "github.com/alibaba/higress/pkg/kube"
 )
 
-type McpBridgeController controller.Controller[listersv1.McpBridgeLister]
+type Http2RpcController controller.Controller[listersv1.Http2RpcLister]
 
-func NewController(client kubeclient.Client, clusterId string) McpBridgeController {
-	informer := client.HigressInformer().Networking().V1().McpBridges().Informer()
-	return controller.NewCommonController("mcpbridge", client.HigressInformer().Networking().V1().McpBridges().Lister(),
-		informer, GetMcpBridge, clusterId)
+func NewController(client kubeclient.Client, clusterId string) Http2RpcController {
+	informer := client.HigressInformer().Networking().V1().Http2Rpcs().Informer()
+	return controller.NewCommonController("http2rpc", client.HigressInformer().Networking().V1().Http2Rpcs().Lister(),
+		informer, GetHttp2Rpc, clusterId)
 }
 
-func GetMcpBridge(lister listersv1.McpBridgeLister, namespacedName types.NamespacedName) (controllers.Object, error) {
-	return lister.McpBridges(namespacedName.Namespace).Get(namespacedName.Name)
+func GetHttp2Rpc(lister listersv1.Http2RpcLister, namespacedName types.NamespacedName) (controllers.Object, error) {
+	return lister.Http2Rpcs(namespacedName.Namespace).Get(namespacedName.Name)
 }
