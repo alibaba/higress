@@ -59,6 +59,8 @@ type AssertionResponse struct {
 	// AdditionalResponseHeaders is a set of headers
 	// the echoserver should set in its response.
 	AdditionalResponseHeaders map[string]string
+	// set not need to judge response has request info
+	ExpectedResponseNoRequest bool
 }
 
 // Request can be used as both the request to make and a means to verify
@@ -263,7 +265,7 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 	if expected.Response.ExpectedResponse.StatusCode != cRes.StatusCode {
 		return fmt.Errorf("expected status code to be %d, got %d", expected.Response.ExpectedResponse.StatusCode, cRes.StatusCode)
 	}
-	if cRes.StatusCode == 200 {
+	if cRes.StatusCode == 200 && !expected.Response.ExpectedResponseNoRequest {
 		// The request expected to arrive at the backend is
 		// the same as the request made, unless otherwise
 		// specified.

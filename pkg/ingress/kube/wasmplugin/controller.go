@@ -15,16 +15,9 @@
 package wasmplugin
 
 import (
-	"time"
-
 	"istio.io/istio/pkg/kube/controllers"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/cache"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
-	"github.com/alibaba/higress/client/pkg/clientset/versioned"
-	informersv1 "github.com/alibaba/higress/client/pkg/informers/externalversions/extensions/v1alpha1"
 	listersv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
 	kubeclient "github.com/alibaba/higress/pkg/kube"
@@ -33,11 +26,8 @@ import (
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]
 
 func NewController(client kubeclient.Client, clusterId string) WasmPluginController {
-	informer := client.HigressInformer().InformerFor(&v1.WasmPlugin{}, func(k versioned.Interface, resync time.Duration) cache.SharedIndexInformer {
-		return informersv1.NewWasmPluginInformer(k, metav1.NamespaceAll, resync,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	})
-	return controller.NewCommonController("wasmplugin", listersv1.NewWasmPluginLister(informer.GetIndexer()),
+	informer := client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Informer()
+	return controller.NewCommonController("wasmplugin", client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Lister(),
 		informer, GetWasmPlugin, clusterId)
 }
 

@@ -83,6 +83,7 @@ func TestHigressConformanceTests(t *testing.T) {
 			tests.HTTPRouteRequestHeaderControl,
 			tests.HTTPRouteDownstreamEncryption,
 			tests.HTTPRouteFullPathRegex,
+			tests.HTTPRouteHttp2Rpc,
 		}
 	}
 

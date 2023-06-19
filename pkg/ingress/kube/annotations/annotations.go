@@ -69,6 +69,8 @@ type Ingress struct {
 	Match *MatchConfig
 
 	HeaderControl *HeaderControlConfig
+
+	Http2Rpc *Http2RpcConfig
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
@@ -149,6 +151,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},
+			http2rpc{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},

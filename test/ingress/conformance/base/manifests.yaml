@@ -318,3 +318,42 @@ spec:
         resources:
           requests:
             cpu: 10m
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nacos-standlone-rc3
+  namespace: higress-system
+  labels:
+    name: nacos-standlone-rc3
+spec:
+  containers:
+  - name: nacos-standlone-rc3
+    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3 
+    ports:
+    - containerPort: 8848
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nacos-standlone-rc3-service
+  namespace: higress-system
+spec:
+  selector:
+    name: nacos-standlone-rc3
+  clusterIP: None
+  ports:
+  - name: foo # name is not required for single-port Services
+    port: 8848
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dubbo-demo-provider
+  namespace: higress-system
+spec:
+  containers:
+  - name: dubbo-demo-provider
+    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.1
+    ports:
+    - containerPort: 20880
