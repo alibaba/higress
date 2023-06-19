@@ -1,0 +1,30 @@
+diff --color -Naur istio/pilot/pkg/features/pilot.go istio_new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2023-06-18 20:13:57.715044832 +0800
++++ istio_new/pilot/pkg/features/pilot.go	2023-06-18 20:11:40.310406690 +0800
+@@ -359,6 +359,9 @@
+ 	EnableUnsafeAdminEndpoints = env.RegisterBoolVar("UNSAFE_ENABLE_ADMIN_ENDPOINTS", false,
+ 		"If this is set to true, dangerous admin endpoints will be exposed on the debug interface. Not recommended for production.").Get()
+ 
++	DebugAuth = env.RegisterBoolVar("DEBUG_AUTH", true,
++		"If this is set to false, the debug interface will allow all anonymous request from any remote host, which is not recommended for production").Get()
++
+ 	XDSAuth = env.RegisterBoolVar("XDS_AUTH", true,
+ 		"If true, will authenticate XDS clients.").Get()
+ 
+diff --color -Naur istio/pilot/pkg/xds/debug.go istio_new/pilot/pkg/xds/debug.go
+--- istio/pilot/pkg/xds/debug.go	2023-06-18 20:13:57.695044739 +0800
++++ istio_new/pilot/pkg/xds/debug.go	2023-06-18 20:11:40.286406579 +0800
+@@ -218,8 +218,12 @@
+ 	if internalMux != nil {
+ 		internalMux.HandleFunc(path, handler)
+ 	}
++	handlerFunc := http.HandlerFunc(handler)
++	if features.DebugAuth {
++		handlerFunc = s.allowAuthenticatedOrLocalhost(handlerFunc)
++	}
+ 	// Add handler with auth; this is expose on an HTTP server
+-	mux.HandleFunc(path, s.allowAuthenticatedOrLocalhost(http.HandlerFunc(handler)))
++	mux.HandleFunc(path, handlerFunc)
+ }
+ 
+ func (s *DiscoveryServer) allowAuthenticatedOrLocalhost(next http.Handler) http.HandlerFunc {
