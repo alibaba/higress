@@ -138,3 +138,55 @@ spec:
 
 The rules will be matched in the order of configuration. If one match is found, it will stop, and the matching configuration will take effect.
 
+
+## E2E test
+
+When you complete a GO plug-in function, you can create associated e2e test cases at the same time, and complete the test verification of the plug-in function locally.
+
+### step1. write test cases
+In the directory of `./ test/ingress/conformance`, add the xxx.yaml file and xxx.go file. Such as test for `request-block` wasm-plugin,
+
+./test/ingress/conformance/request-block.yaml
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+...
+...
+spec:
+  defaultConfig:
+    block_urls:
+    - "swagger.html"
+  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+```
+`Above of the url, the name of after extensions indicates the name of the folder where the plug-in resides.`
+
+./test/ingress/conformance/request-block.go
+
+### step2. add test cases
+Add the test cases written above to the e2e test list,
+
+./test/ingress/conformance/request-block.yaml
+
+```
+...
+cSuite.Setup(t)
+	var higressTests []suite.ConformanceTest
+
+	if *isWasmPluginTest {
+		higressTests = []suite.ConformanceTest{
+			tests.WasmPluginsRequestBlock,
+      //Add your newly written case method name here
+		}
+	} else {
+		higressTests = []suite.ConformanceTest{
+			tests.HTTPRouteSimpleSameNamespace,
+			tests.HTTPRouteHostNameSameNamespace,
+...
+```
+
+### step3. compile and run test cases
+Considering that building wasm locally is time-consuming, we support building only the plug-ins that need to be tested (at the same time, you can also temporarily modify the list of test cases in the second small step above, and only execute your newly written cases).
+
+```bash
+PLUGIN_NAME=request-block make ingress-wasmplugin-test
+```
