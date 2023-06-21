@@ -143,3 +143,55 @@ spec:
 ```
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
+
+## E2E测试
+
+当你完成一个GO语言的插件功能时, 可以同时创建关联的e2e test cases, 并在本地对插件功能完成测试验证。
+
+### step1. 编写 test cases
+在目录./test/ingress/conformance下面, 分别添加xxx.yaml文件和xxx.go文件, 比如测试插件request-block
+
+./test/ingress/conformance/request-block.yaml
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+...
+...
+spec:
+  defaultConfig:
+    block_urls:
+    - "swagger.html"
+  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+```
+`其中url中extensions后面的'request-block'为插件所在文件夹名称`
+
+./test/ingress/conformance/request-block.go
+
+### step2. 添加 test cases
+将上述所写test cases添加到e2e测试列表中,
+
+./test/ingress/conformance/request-block.yaml
+
+```
+...
+cSuite.Setup(t)
+	var higressTests []suite.ConformanceTest
+
+	if *isWasmPluginTest {
+		higressTests = []suite.ConformanceTest{
+			tests.WasmPluginsRequestBlock,
+      //这里新增你新写的case方法名称
+		}
+	} else {
+		higressTests = []suite.ConformanceTest{
+			tests.HTTPRouteSimpleSameNamespace,
+			tests.HTTPRouteHostNameSameNamespace,
+...
+```
+
+### step3. 编译插件并执行 test cases
+考虑到本地构建wasm比较耗时, 我们支持只构建需要测试的插件(同时你也可以临时修改上面第二小步的测试cases列表, 只执行你新写的case)。
+
+```bash
+PLUGIN_NAME=request-block make ingress-wasmplugin-test
+```
