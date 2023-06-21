@@ -70,6 +70,7 @@ jobs:
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress"
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
+            echo "Image: $image"
             docker tag $BUILT_IMAGE:$GITHUB_SHA $image
             docker push $image
           done
@@ -137,6 +138,7 @@ jobs:
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot"
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
+            echo "Image: $image"
             docker tag $BUILT_IMAGE:$GITHUB_SHA $image
             docker push $image
           done
