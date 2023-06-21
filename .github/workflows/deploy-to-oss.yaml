@@ -4,10 +4,13 @@ on:
   push:
     tags:
     - "v*.*.*"
+  workflow_dispatch: ~
 
 jobs:
   deploy-to-oss:
     runs-on: ubuntu-latest
+    environment:
+      name: oss
     steps:
       # Step 1
       - name: Checkout
