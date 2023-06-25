@@ -115,6 +115,7 @@ func (p *NacosAddressProvider) GetNacosAddress(oldAddress string) <-chan string 
 	go func() {
 		var addr string
 		p.cond.L.Lock()
+		defer p.cond.L.Unlock()
 		log.Debugf("get nacos address, p.nacosAddr, oldAddress", p.nacosAddr, oldAddress)
 		for p.nacosAddr == oldAddress || p.nacosAddr == "" {
 			if p.isStop.Load() {
@@ -123,7 +124,6 @@ func (p *NacosAddressProvider) GetNacosAddress(oldAddress string) <-chan string 
 			p.cond.Wait()
 		}
 		addr = p.nacosAddr
-		p.cond.L.Unlock()
 		addressChan <- addr
 	}()
 	return addressChan
@@ -160,6 +160,7 @@ func (p *NacosAddressProvider) addressDiscovery() {
 	}
 	needUpdate := true
 	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
 	for _, address := range addrVec {
 		ip := net.ParseIP(address)
 		if ip == nil {
@@ -181,5 +182,4 @@ func (p *NacosAddressProvider) addressDiscovery() {
 			p.nacosBackupAddr = append(p.nacosBackupAddr[:i], p.nacosBackupAddr[i+1:]...)
 		}
 	}
-	p.cond.L.Unlock()
 }
