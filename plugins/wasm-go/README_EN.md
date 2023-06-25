@@ -29,11 +29,11 @@ You can also use `make build-push` to build and push the image at the same time.
 
 ### Environmental parameters
 
-| Name          | Optional/Required | Default                                                                                                      | 含义                                                                                                                                  |
-|---------------|-------------------|--------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `PLUGIN_NAME` | Optional          | hello-world                                                                                                  | The name of the plugin to build.                                                                                                    |
-| `REGISTRY`    | Optional          | empty                                                                                                        | The regitstry address of the generated image, e.g. `example.registry.io/my-name/`.  Note that the REGISTRY value should end with /. |
-| `IMG`         | Optional          | If it is empty, it is generated based on the repository address, plugin name, build time, and git commit id. | The generated image tag will override the `REGISTRY` parameter if it is not empty.                                                  |
+| Name          | Optional/Required | Default                                                                                                      | meaning                                                                                                                              |
+|---------------|---------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `PLUGIN_NAME` | Optional      | hello-world                                                                                                  | The name of the plugin to build.                                                                                                     |
+| `REGISTRY`    | Optional      | empty                                                                                                        | The registry address of the generated image, e.g. `example.registry.io/my-name/`.  Note that the REGISTRY value should end with /.   |
+| `IMG`         | Optional      | If it is empty, it is generated based on the repository address, plugin name, build time, and git commit id. | The generated image tag will override the `REGISTRY` parameter if it is not empty.                                                   |
 
 ## Build on local yourself
 
