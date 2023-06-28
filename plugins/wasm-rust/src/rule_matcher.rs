@@ -163,6 +163,17 @@ where
         return self.global_config.as_ref();
     }
 
+    pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
+        self.global_config = match self.global_config.as_ref() {
+            None => None,
+            Some(config) => Some(rewrite(config))
+        };
+
+        for rule_config in &mut self.rule_config {
+            rule_config.config = rewrite(&rule_config.config);
+        }
+    }
+
     fn parse_route_match_config(config: &Value) -> HashSet<String> {
         let empty_vec = Vec::new();
         let keys = config[MATCH_ROUTE_KEY].as_array().unwrap_or(&empty_vec);
