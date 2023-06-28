@@ -13,12 +13,12 @@
 // limitations under the License.
 
 use higress_wasm_rust::log::Log;
-use higress_wasm_rust::rule_matcher::RuleMatcher;
+use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, ContextType, LogLevel};
 use serde::Deserialize;
-use serde_json::{from_slice, Value};
 use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::rc::Rc;
 
 proxy_wasm::main! {{
@@ -53,29 +53,12 @@ impl Context for SayHelloRoot {}
 
 impl RootContext for SayHelloRoot {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
-        let config_buffer = match self.get_plugin_configuration() {
-            None => {
-                self.log
-                    .error("Error when configuring RootContext, no configuration supplied");
-                return false;
-            }
-            Some(bytes) => bytes,
-        };
-
-        let value = match from_slice::<Value>(config_buffer.as_slice()) {
-            Err(error) => {
-                self.log.error(
-                    format!("cannot parse plugin configuration JSON string: {}", error).as_str(),
-                );
-                return false;
-            }
-            Ok(value) => value,
-        };
-
-        self.rule_matcher
-            .borrow_mut()
-            .parse_rule_config(&value)
-            .is_ok()
+        on_configure(
+            self,
+            _plugin_configuration_size,
+            self.rule_matcher.borrow_mut().deref_mut(),
+            &self.log,
+        )
     }
 
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
