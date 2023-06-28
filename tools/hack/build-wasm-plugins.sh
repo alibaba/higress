@@ -24,6 +24,9 @@ if [ ! -n "$INNER_PLUGIN_NAME" ]; then
     echo "build all wasmplugins under folder of $EXTENSIONS_DIR"
     for file in `ls $EXTENSIONS_DIR`                                   
         do
+            if [ file == 'waf' ]; then 
+                continue
+            fi
             if [ -d $EXTENSIONS_DIR$file ]; then 
                 name=${file##*/}
                 echo "build wasmplugin name of $name"
