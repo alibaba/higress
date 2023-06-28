@@ -2,14 +2,15 @@ package wasmplugin
 
 import (
 	"errors"
+	"strconv"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/corazawaf/coraza/v3"
 	ctypes "github.com/corazawaf/coraza/v3/types"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-	"strconv"
-	"strings"
 )
 
 func PluginStart() {
@@ -38,6 +39,7 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 			secRules = append(secRules, "Include @demo-conf")
 			secRules = append(secRules, "Include @crs-setup-demo-conf")
 			secRules = append(secRules, "Include @owasp_crs/*.conf")
+			secRules = append(secRules, "SecRuleEngine On")
 		}
 	}
 	value = json.Get("secRules")
@@ -47,19 +49,19 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 			secRules = append(secRules, rule)
 		}
 	}
-	
+
 	// log.Debugf("[rinfx log] %s", strings.Join(secRules, "\n"))
 	conf := coraza.NewWAFConfig().WithRootFS(root)
 	// error: Failed to load Wasm module due to a missing import: wasi_snapshot_preview1.fd_filestat_get
 	// because without fs.go
 	waf, err := coraza.NewWAF(conf.WithDirectives(strings.Join(secRules, "\n")))
-	
+
 	config.waf = waf
 	if err != nil {
 		log.Errorf("Failed to create waf conf: %v", err)
 		return errors.New("failed to create waf conf")
 	}
-	
+
 	return nil
 }
 
@@ -289,7 +291,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 	}
 
 	interruption, _, err := tx.WriteResponseBody(body)
-	log.Infof("[rinfx debug] ResponseBody %s", string(body))
+	// log.Infof("[rinfx debug] ResponseBody %s", string(body))
 	if err != nil {
 		log.Error("Failed to write response body")
 		return types.ActionContinue
