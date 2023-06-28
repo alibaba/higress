@@ -31,22 +31,35 @@ type WafConfig struct {
 
 func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 	var secRules []string
-	for _, item := range json.Get("secRules").Array() {
-		rule := item.String()
-		secRules = append(secRules, rule)
+	var value gjson.Result
+	value = json.Get("useCRS")
+	if value.Exists() {
+		if value.Bool() {
+			secRules = append(secRules, "Include @demo-conf")
+			secRules = append(secRules, "Include @crs-setup-demo-conf")
+			secRules = append(secRules, "Include @owasp_crs/*.conf")
+		}
 	}
-	log.Debugf("[rinfx log] %s", strings.Join(secRules, "\n"))
+	value = json.Get("secRules")
+	if value.Exists() {
+		for _, item := range json.Get("secRules").Array() {
+			rule := item.String()
+			secRules = append(secRules, rule)
+		}
+	}
+	
+	// log.Debugf("[rinfx log] %s", strings.Join(secRules, "\n"))
 	conf := coraza.NewWAFConfig().WithRootFS(root)
 	// error: Failed to load Wasm module due to a missing import: wasi_snapshot_preview1.fd_filestat_get
 	// because without fs.go
 	waf, err := coraza.NewWAF(conf.WithDirectives(strings.Join(secRules, "\n")))
-	//_, _ = coraza.NewWAF(coraza.NewWAFConfig().WithDirectives(`SecRule REMOTE_ADDR "@rx .*" "id:1,phase:1,deny,status:403"`))
+	
 	config.waf = waf
 	if err != nil {
 		log.Errorf("Failed to create waf conf: %v", err)
 		return errors.New("failed to create waf conf")
 	}
-	//config.tx = config.waf.NewTransaction()
+	
 	return nil
 }
 
@@ -71,7 +84,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 	// proxy-wasm.
 
 	if tx.IsRuleEngineOff() {
-		log.Infof("[rinfx log] OnHttpRequestHeaders, RuleEngine Off, url = %s", uri)
+		// log.Infof("[rinfx log] OnHttpRequestHeaders, RuleEngine Off, url = %s", uri)
 		return types.ActionContinue
 	}
 	// OnHttpRequestHeaders does not terminate if IP/Port retrieve goes wrong
@@ -80,7 +93,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 
 	tx.ProcessConnection(srcIP, srcPort, dstIP, dstPort)
 
-	proxywasm.LogInfof("[rinfx log] OnHttpRequestHeaders, RuleEngine On, url = %s", uri)
+	// proxywasm.LogInfof("[rinfx log] OnHttpRequestHeaders, RuleEngine On, url = %s", uri)
 
 	method, err := proxywasm.GetHttpRequestHeader(":method")
 	if err != nil {
@@ -125,7 +138,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
-	log.Info("[rinfx log] OnHttpRequestBody")
+	// log.Info("[rinfx log] OnHttpRequestBody")
 
 	if ctx.GetContext("interruptionHandled").(bool) {
 		log.Error("OnHttpRequestBody, interruption already handled")
@@ -180,7 +193,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
-	log.Info("[rinfx log] OnHttpResponseHeaders")
+	// log.Info("[rinfx log] OnHttpResponseHeaders")
 
 	if ctx.GetContext("interruptionHandled").(bool) {
 		log.Error("OnHttpResponseHeaders, interruption already handled")
@@ -225,7 +238,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 
 	for _, h := range hs {
 		tx.AddResponseHeader(h[0], h[1])
-		log.Infof("[rinfx debug] ResponseHeaders %s: %s", h[0], h[1])
+		// log.Infof("[rinfx debug] ResponseHeaders %s: %s", h[0], h[1])
 	}
 
 	interruption := tx.ProcessResponseHeaders(code, ctx.GetContext("httpProtocol").(string))
@@ -237,7 +250,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
-	log.Info("[rinfx log] OnHttpResponseBody")
+	// log.Info("[rinfx log] OnHttpResponseBody")
 
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// At response body phase, proxy-wasm currently relies on emptying the response body as a way of
@@ -301,7 +314,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 }
 
 func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) {
-	log.Info("[rinfx log] OnHttpStreamDone")
+	// log.Info("[rinfx log] OnHttpStreamDone")
 
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 

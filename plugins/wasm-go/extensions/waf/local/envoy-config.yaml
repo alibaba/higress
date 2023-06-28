@@ -36,21 +36,23 @@ static_resources:
                             path: "/user-agent"
                           route:
                             cluster: httpbin_server
-                        - name: "route_3"
+                        - name: "route_flask"
                           match:
-                            path: "/flask/test1"
+                            prefix: "/flask"
                           route:
                             cluster: flask_server
-                        - name: "route_4"
-                          match:
-                            path: "/flask/test2"
-                          route:
-                            cluster: flask_server
-                        - name: "route_finally"
+                        - name: "route_httpbin"
                           match:
                             prefix: "/"
                           route:
                             cluster: httpbin_server
+                        # - name: "route_mock"
+                        #   match:
+                        #     prefix: "/"
+                        #   direct_response:
+                        #     status: 200
+                        #     body:
+                        #       inline_string: "mock response\n"
                 http_filters:
                   - name: envoy.filters.http.wasm
                     typed_config:
@@ -62,14 +64,10 @@ static_resources:
                           "@type": "type.googleapis.com/google.protobuf.StringValue"
                           value: |
                             {
+                              "useCRS": true,
                               "secRules": [
-                                "Include @demo-conf",
-                                "Include @crs-setup-demo-conf",
-                                "SecDefaultAction \"phase:3,log,auditlog,pass\"",
-                                "SecDefaultAction \"phase:4,log,auditlog,pass\"",
-                                "SecDefaultAction \"phase:5,log,auditlog,pass\"",
                                 "SecDebugLogLevel 3",
-                                "Include @owasp_crs/*.conf",
+                                "SecRuleEngine On",
                                 "SecRule REQUEST_URI \"@streq /admin\" \"id:101,phase:1,t:lowercase,deny\"",
                                 "SecRule REQUEST_BODY \"@rx maliciouspayload\" \"id:102,phase:2,t:lowercase,deny\"",
                                 "SecRule RESPONSE_HEADERS::status \"@rx 406\" \"id:103,phase:3,t:lowercase,deny\"",
@@ -101,7 +99,7 @@ static_resources:
                             }
                         vm_config:
                           runtime: "envoy.wasm.runtime.v8"
-                          vm_id: "my_vm_id"
+                          vm_id: "10086"
                           code:
                             local:
                               filename: "build/main.wasm"

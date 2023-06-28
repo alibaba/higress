@@ -158,7 +158,7 @@ func Check() {
 
 // Build builds the Coraza wasm plugin.
 func Build() error {
-	if err := os.MkdirAll("build", 0755); err != nil {
+	if err := os.MkdirAll("local", 0755); err != nil {
 		return err
 	}
 
@@ -182,11 +182,19 @@ func Build() error {
 		}
 	}
 
-	if err := sh.RunV("tinygo", "build", "-gc=custom", "-opt=2", "-o", filepath.Join("build", "mainraw.wasm"), "-scheduler=none", "-target=wasi", buildTagArg); err != nil {
+	if err := sh.RunV("tinygo", "build", "-gc=custom", "-opt=2", "-o", filepath.Join("local", "mainraw.wasm"), "-scheduler=none", "-target=wasi", buildTagArg); err != nil {
 		return err
 	}
 
-	return patchWasm(filepath.Join("build", "mainraw.wasm"), filepath.Join("build", "main.wasm"), initialPages)
+	if err := patchWasm(filepath.Join("local", "mainraw.wasm"), filepath.Join("local", "main.wasm"), initialPages); err != nil {
+		return err
+	}
+
+	if err := sh.RunV("rm", filepath.Join("local", "mainraw.wasm")); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // E2e runs e2e tests with a built plugin against the example deployment. Requires docker-compose.
