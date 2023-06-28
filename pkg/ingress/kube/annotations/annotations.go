@@ -69,6 +69,8 @@ type Ingress struct {
 	Match *MatchConfig
 
 	HeaderControl *HeaderControlConfig
+
+	Http2Rpc *Http2RpcConfig
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
@@ -76,7 +78,15 @@ func (i *Ingress) NeedRegexMatch() bool {
 		return false
 	}
 
-	return i.Rewrite.RewriteTarget != "" || i.Rewrite.UseRegex
+	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
+}
+
+func (i *Ingress) IsPrefixRegexMatch() bool {
+	return i.Rewrite.UseRegex
+}
+
+func (i *Ingress) IsFullPathRegexMatch() bool {
+	return i.Rewrite.FullPathRegex
 }
 
 func (i *Ingress) IsCanary() bool {
@@ -141,6 +151,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},
+			http2rpc{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},

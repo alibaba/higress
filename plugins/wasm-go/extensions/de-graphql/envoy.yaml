@@ -22,7 +22,7 @@ static_resources:
                         - match:
                             prefix: "/api"
                           route:
-                            cluster: mock_service
+                            cluster: github
                 http_filters:
                   - name: envoy.filters.http.wasm
                     typed_config:
@@ -35,9 +35,6 @@ static_resources:
                             value: |-
                               {
                                 "gql": "query ($owner:String! $name:String!){\n repository(owner:$owner, name:$name) {\n name\n forkCount\n description\n}\n}",
-                                "serviceSource": "dns",
-                                "serviceName": "github",
-                                "servicePort": 443,
                                 "domain": "api.github.com",
                                 "endpoint": "/graphql",
                                 "timeout": 2000
@@ -96,7 +93,7 @@ static_resources:
                     socket_address:
                       address: 127.0.0.1
                       port_value: 8099
-    - name: outbound|443||github.dns
+    - name: github
       connect_timeout: 0.5s
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -107,7 +104,7 @@ static_resources:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
       load_assignment:
-        cluster_name: outbound|443||github.dns
+        cluster_name: github
         endpoints:
           - lb_endpoints:
               - endpoint:

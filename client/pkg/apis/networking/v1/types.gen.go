@@ -26,6 +26,48 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // <!-- crd generation tags
+// +cue-gen:Http2Rpc:groupName:networking.higress.io
+// +cue-gen:Http2Rpc:version:v1
+// +cue-gen:Http2Rpc:storageVersion
+// +cue-gen:Http2Rpc:annotations:helm.sh/resource-policy=keep
+// +cue-gen:Http2Rpc:subresource:status
+// +cue-gen:Http2Rpc:scope:Namespaced
+// +cue-gen:Http2Rpc:resource:categories=higress-io,plural=Http2Rpcs
+// +cue-gen:Http2Rpc:preserveUnknownFields:false
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=networking.higress.io/v1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+type Http2Rpc struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Spec defines the implementation of this definition.
+	// +optional
+	Spec networkingv1.Http2Rpc `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+
+	Status v1alpha1.IstioStatus `json:"status"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Http2RpcList is a collection of Http2Rpcs.
+type Http2RpcList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Items           []Http2Rpc `json:"items" protobuf:"bytes,2,rep,name=items"`
+}
+
+// please upgrade the proto package
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// <!-- crd generation tags
 // +cue-gen:McpBridge:groupName:networking.higress.io
 // +cue-gen:McpBridge:version:v1
 // +cue-gen:McpBridge:storageVersion

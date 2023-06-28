@@ -1,0 +1,90 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/auth-tls-secret: foo-secret-cacert
+  name: httproute-downstream-encryption-auth
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "foo1.com"
+      secretName: foo-secret
+  rules:
+    - host: "foo1.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/foo1"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/ssl-cipher: ECDHE-RSA-AES128-SHA
+    higress.io/auth-tls-secret: foo-secret-cacert
+  name: httproute-downstream-encryption-cipher-1
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "foo2.com"
+      secretName: foo-secret
+  rules:
+    - host: "foo2.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/foo2"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/ssl-cipher: ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-ECDSA-AES128-SHA,ECDHE-ECDSA-AES256-SHA
+    higress.io/auth-tls-secret: foo-secret-cacert
+  name: httproute-downstream-encryption-cipher-2
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "foo3.com"
+      secretName: foo-secret
+  rules:
+    - host: "foo3.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/foo3"
+            backend:
+              service:
+                name: infra-backend-v3
+                port:
+                  number: 8080

@@ -16,6 +16,8 @@ package roundtripper
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,6 +43,29 @@ type Request struct {
 	Method           string
 	Headers          map[string][]string
 	UnfollowRedirect bool
+	TLSConfig        *TLSConfig
+}
+
+// TLSConfig defines the TLS configuration for the client.
+// When this field is set, the HTTPS protocol is used.
+type TLSConfig struct {
+	MinVersion   uint16
+	MaxVersion   uint16
+	SNI          string
+	CipherSuites []uint16
+	Certificates Certificates
+}
+
+// Certificates defines the self-signed client and CA certificate chain
+type Certificates struct {
+	CACert         [][]byte
+	ClientKeyPairs []ClientKeyPair
+}
+
+// ClientKeyPair is a pair of client certificate and private key.
+type ClientKeyPair struct {
+	ClientCert []byte
+	ClientKey  []byte
 }
 
 // CapturedRequest contains request metadata captured from an echoserver
@@ -95,6 +120,35 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		}
 	}
 
+	if request.TLSConfig != nil {
+		pool := x509.NewCertPool()
+		for _, caCert := range request.TLSConfig.Certificates.CACert {
+			pool.AppendCertsFromPEM(caCert)
+		}
+		var clientCerts []tls.Certificate
+		for _, keyPair := range request.TLSConfig.Certificates.ClientKeyPairs {
+			newClientCert, err := tls.X509KeyPair(keyPair.ClientCert, keyPair.ClientKey)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to load client key pair: %w", err)
+			}
+			clientCerts = append(clientCerts, newClientCert)
+		}
+
+		client.Transport = &http.Transport{
+			TLSHandshakeTimeout: d.TimeoutConfig.TLSHandshakeTimeout,
+			DisableKeepAlives:   true,
+			TLSClientConfig: &tls.Config{
+				MinVersion:         request.TLSConfig.MinVersion,
+				MaxVersion:         request.TLSConfig.MaxVersion,
+				ServerName:         request.TLSConfig.SNI,
+				CipherSuites:       request.TLSConfig.CipherSuites,
+				RootCAs:            pool,
+				Certificates:       clientCerts,
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+
 	method := "GET"
 	if request.Method != "" {
 		method = request.Method
@@ -130,6 +184,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 	if err != nil {
 		return nil, nil, err
 	}
+	defer client.CloseIdleConnections()
 	defer resp.Body.Close()
 
 	if d.Debug {

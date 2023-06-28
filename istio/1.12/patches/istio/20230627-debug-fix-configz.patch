@@ -1,0 +1,15 @@
+diff -Naur istio/pilot/pkg/xds/debug.go istio-new/pilot/pkg/xds/debug.go
+--- istio/pilot/pkg/xds/debug.go	2023-06-27 14:08:00.000000000 +0800
++++ istio-new/pilot/pkg/xds/debug.go	2023-06-27 14:07:04.000000000 +0800
+@@ -469,6 +469,11 @@
+ 	s.Env.IstioConfigStore.Schemas().ForEach(func(schema collection.Schema) bool {
+ 		cfg, _ := s.Env.IstioConfigStore.List(schema.Resource().GroupVersionKind(), "")
+ 		// Added by ingress
++		copied := make([]config.Config, len(cfg))
++		for i := range copied {
++			copied[i] = cfg[i].DeepCopy()
++		}
++		cfg = copied
+ 		switch schema.Resource().GroupVersionKind().String() {
+ 		case gvk.Gateway.String():
+ 			cfg = model.GatewayFilter(cfg)
