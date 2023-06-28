@@ -14,11 +14,13 @@
 
 use crate::error::WasmRustError;
 use crate::internal::{get_http_request_header, get_property};
+use crate::log::Log;
 use proxy_wasm::hostcalls::log;
+use proxy_wasm::traits::RootContext;
 use proxy_wasm::types::LogLevel;
-use serde_json::{Map, Value};
-use std::collections::HashSet;
 use serde::de::DeserializeOwned;
+use serde_json::{from_slice, Map, Value};
+use std::collections::HashSet;
 
 enum Category {
     Route,
@@ -55,12 +57,9 @@ pub struct RuleMatcher<PluginConfig> {
 
 impl<PluginConfig> RuleMatcher<PluginConfig>
 where
-    PluginConfig: Default+DeserializeOwned,
+    PluginConfig: Default + DeserializeOwned,
 {
-    pub fn parse_rule_config(
-        &mut self,
-        config: &Value,
-    ) -> Result<(), WasmRustError> {
+    pub fn parse_rule_config(&mut self, config: &Value) -> Result<(), WasmRustError> {
         let empty_object = Map::new();
         let empty_vec = Vec::new();
 
@@ -215,4 +214,29 @@ where
         }
         false
     }
+}
+
+pub fn on_configure<RC: RootContext, PluginConfig: Default + DeserializeOwned>(
+    root_context: &RC,
+    _plugin_configuration_size: usize,
+    rule_matcher: &mut RuleMatcher<PluginConfig>,
+    log: &Log,
+) -> bool {
+    let config_buffer = match root_context.get_plugin_configuration() {
+        None => {
+            log.error("Error when configuring RootContext, no configuration supplied");
+            return false;
+        }
+        Some(bytes) => bytes,
+    };
+
+    let value = match from_slice::<Value>(config_buffer.as_slice()) {
+        Err(error) => {
+            log.error(format!("cannot parse plugin configuration JSON string: {}", error).as_str());
+            return false;
+        }
+        Ok(value) => value,
+    };
+
+    rule_matcher.parse_rule_config(&value).is_ok()
 }
