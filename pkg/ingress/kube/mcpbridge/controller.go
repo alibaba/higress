@@ -15,16 +15,9 @@
 package mcpbridge
 
 import (
-	"time"
-
 	"istio.io/istio/pkg/kube/controllers"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/cache"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	"github.com/alibaba/higress/client/pkg/clientset/versioned"
-	informersv1 "github.com/alibaba/higress/client/pkg/informers/externalversions/networking/v1"
 	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
 	kubeclient "github.com/alibaba/higress/pkg/kube"
@@ -33,11 +26,8 @@ import (
 type McpBridgeController controller.Controller[listersv1.McpBridgeLister]
 
 func NewController(client kubeclient.Client, clusterId string) McpBridgeController {
-	informer := client.HigressInformer().InformerFor(&v1.McpBridge{}, func(k versioned.Interface, resync time.Duration) cache.SharedIndexInformer {
-		return informersv1.NewMcpBridgeInformer(k, metav1.NamespaceAll, resync,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	})
-	return controller.NewCommonController("mcpbridge", listersv1.NewMcpBridgeLister(informer.GetIndexer()),
+	informer := client.HigressInformer().Networking().V1().McpBridges().Informer()
+	return controller.NewCommonController("mcpbridge", client.HigressInformer().Networking().V1().McpBridges().Lister(),
 		informer, GetMcpBridge, clusterId)
 }
 

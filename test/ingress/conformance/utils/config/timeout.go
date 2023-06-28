@@ -68,6 +68,10 @@ type TimeoutConfig struct {
 	// RequestTimeout represents the maximum time for making an HTTP Request with the roundtripper.
 	// Max value for conformant implementation: None
 	RequestTimeout time.Duration
+
+	// TLSHandshakeTimeout represents the maximum time for waiting for a TLS handshake. Zero means no timeout.
+	// Max value for conformant implementation: None
+	TLSHandshakeTimeout time.Duration
 }
 
 // DefaultTimeoutConfig populates a TimeoutConfig with the default values.
@@ -86,6 +90,7 @@ func DefaultTimeoutConfig() TimeoutConfig {
 		MaxTimeToConsistency:           30 * time.Second,
 		NamespacesMustBeReady:          300 * time.Second,
 		RequestTimeout:                 10 * time.Second,
+		TLSHandshakeTimeout:            10 * time.Second,
 	}
 }
 
@@ -129,5 +134,8 @@ func SetupTimeoutConfig(timeoutConfig *TimeoutConfig) {
 	}
 	if timeoutConfig.RequestTimeout == 0 {
 		timeoutConfig.RequestTimeout = defaultTimeoutConfig.RequestTimeout
+	}
+	if timeoutConfig.TLSHandshakeTimeout == 0 {
+		timeoutConfig.TLSHandshakeTimeout = defaultTimeoutConfig.TLSHandshakeTimeout
 	}
 }

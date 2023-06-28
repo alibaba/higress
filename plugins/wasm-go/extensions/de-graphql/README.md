@@ -100,10 +100,6 @@ curl 'https://api.github.com/graphql' -X POST \
 | `gql`           | graphql 查询              | 不能为空       |
 | `endpoint`      | graphql 查询端点            | `/graphql` |
 | `timeout`       | 查询连接超时，单位毫秒             | `5000`     |
-| `serviceSource` | 服务来源：k8s, nacos,dns, ip | 不能为空       |
-| `serviceName`   | 服务名称                    | 不能为空       |
-| `servicePort`   | 服务端口                    | 不能为空       |
-| `namespace`     | 服务命名空间， 当服务来源是nacos需要配置 |      |
 | `domain`        | 服务域名，当服务来源是dns配置        |      |
 
 ### 插件使用
@@ -158,9 +154,6 @@ spec:
     config:
       timeout: 5000
       endpoint: /graphql
-      serviceSource: dns
-      serviceName: github
-      servicePort: 443
       domain: api.github.com
       gql: |
            query ($owner:String! $name:String!){

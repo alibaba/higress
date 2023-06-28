@@ -30,9 +30,8 @@ var HTTPRouteRewritePath = suite.ConformanceTest{
 	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite path.",
 	Manifests:   []string{"tests/httproute-rewrite-path.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-
-		t.Run("Rewrite HTTPRoute Path", func(t *testing.T) {
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.Assertion{
+		testCases := []http.Assertion{
+			{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{Path: "/svc/foo"},
 					ExpectedRequest: &http.ExpectedRequest{
@@ -50,7 +49,14 @@ var HTTPRouteRewritePath = suite.ConformanceTest{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
-			})
+			},
+		}
+
+		t.Run("Rewrite HTTPRoute Path", func(t *testing.T) {
+			for _, testCase := range testCases {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testCase)
+			}
+
 		})
 	},
 }

@@ -16,6 +16,14 @@
 
 package v1
 
+// Http2RpcListerExpansion allows custom methods to be added to
+// Http2RpcLister.
+type Http2RpcListerExpansion interface{}
+
+// Http2RpcNamespaceListerExpansion allows custom methods to be added to
+// Http2RpcNamespaceLister.
+type Http2RpcNamespaceListerExpansion interface{}
+
 // McpBridgeListerExpansion allows custom methods to be added to
 // McpBridgeLister.
 type McpBridgeListerExpansion interface{}

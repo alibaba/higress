@@ -1,0 +1,67 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: mcp-cors-httpbin
+  namespace: higress-system
+spec:
+  registries:
+    - domain: httpbin.org
+      name: httpbin
+      port: 80
+      type: dns
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: httpbin.dns
+    higress.io/upstream-vhost: "httpbin.org"
+    higress.io/backend-protocol: HTTP
+  name: ingress-cors-httpbin
+  namespace: higress-system
+spec:
+  ingressClassName: higress
+  rules:
+    - host: httpbin.example.com
+      http:
+        paths:
+          - backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: mcp-cors-httpbin
+            path: /
+            pathType: Prefix
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: wasm-cors-httpbin
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+    - config:
+        allow_origins:
+          - http://httpbin.example.net
+        allow_origin_patterns:
+          - http://*.example.com:[*]
+          - http://*.example.org:[9090,8080]
+        allow_methods:
+          - GET
+          - POST
+          - PATCH
+        allow_headers:
+          - Content-Type
+          - Token
+          - Authorization
+        expose_headers:
+          - X-Custom-Header
+          - X-Env-UTM
+        allow_credentials: true
+        max_age: 3600
+      configDisable: false
+      ingress:
+        - ingress-cors-httpbin
+  url: oci://docker.io/2456868764/cors:1.0.0
+  imagePullPolicy: Always
