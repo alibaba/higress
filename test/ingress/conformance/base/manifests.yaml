@@ -323,7 +323,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: nacos-standlone-rc3
-  namespace: higress-system
+  namespace: higress-conformance-app-backend
   labels:
     name: nacos-standlone-rc3
 spec:
@@ -337,7 +337,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nacos-standlone-rc3-service
-  namespace: higress-system
+  namespace: higress-conformance-app-backend
 spec:
   selector:
     name: nacos-standlone-rc3
@@ -350,10 +350,15 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: dubbo-demo-provider
-  namespace: higress-system
+  namespace: higress-conformance-app-backend
 spec:
   containers:
   - name: dubbo-demo-provider
-    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.1
+    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.2
+    env:
+    - name: NACOS_K8S_NAMESPACE
+      value: higress-conformance-app-backend
+    - name: DUBBO_GROUP
+      value: dev
     ports:
     - containerPort: 20880

@@ -1200,11 +1200,7 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 						"reject_unknown_method": true,
 						"reject_unknown_query_parameters": true
 					},
-					"services_mapping": {
-						"name": "%s",
-						"version": "%s",
-						"method_mapping": %s
-					},
+					"services_mapping": %s,
 					"url_unescape_spec": "ALL_CHARACTERS_EXCEPT_RESERVED"
 				}
 			}
@@ -1214,9 +1210,6 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 	for _, serviceMethod := range dubbo.GetMethods() {
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
-		var passthrough_setting = make(map[string]interface{})
-		passthrough_setting["passthrough_all_headers"] = true
-		method["passthrough_setting"] = passthrough_setting
 		var params []interface{}
 		for _, methodParam := range serviceMethod.GetParams() {
 			var param = make(map[string]interface{})
@@ -1230,13 +1223,29 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		path_matcher["match_http_method_spec"] = Http2RpcMethodMap()[serviceMethod.HttpMethods[0]]
 		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
 		method["path_matcher"] = path_matcher
+		var passthrough_setting = make(map[string]interface{})
+		var headersAttach = serviceMethod.GetHeadersAttach()
+		if headersAttach == "" {
+			passthrough_setting["passthrough_all_headers"] = false
+		} else if headersAttach == "*" {
+			passthrough_setting["passthrough_all_headers"] = true
+		} else {
+			passthrough_setting["passthrough_headers"] = headersAttach
+		}
+		method["passthrough_setting"] = passthrough_setting
 		methods = append(methods, method)
 	}
-	name := dubbo.GetService()
-	version := dubbo.GetVersion()
+	var serviceMapping = make(map[string]interface{})
+	var dubboServiceGroup = dubbo.GetGroup()
+	if dubboServiceGroup != "" {
+		serviceMapping["group"] = dubboServiceGroup
+	}
+	serviceMapping["name"] = dubbo.GetService()
+	serviceMapping["version"] = dubbo.GetVersion()
+	serviceMapping["method_mapping"] = methods
 	strBuffer := new(bytes.Buffer)
-	methodsJsonStr, _ := json.Marshal(methods)
-	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))
+	serviceMappingJsonStr, _ := json.Marshal(serviceMapping)
+	fmt.Fprintf(strBuffer, httpRouterTemplate, string(serviceMappingJsonStr))
 	IngressLog.Infof("Found http2rpc buildHttp2RpcMethods %s", strBuffer.String())
 	result := buildPatchStruct(strBuffer.String())
 	return result, nil
