@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use higress_wasm_rust::log::Log;
-use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher};
+use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, ContextType, LogLevel};
 use serde::Deserialize;
@@ -28,11 +28,11 @@ proxy_wasm::main! {{
 
 struct SayHelloRoot {
     log: Log,
-    rule_matcher: Rc<RefCell<RuleMatcher<SayHelloConfig>>>,
+    rule_matcher: SharedRuleMatcher<SayHelloConfig>,
 }
 
 struct SayHello {
-    rule_matcher: Rc<RefCell<RuleMatcher<SayHelloConfig>>>,
+    rule_matcher: SharedRuleMatcher<SayHelloConfig>,
 }
 
 #[derive(Default, Debug, Deserialize)]
