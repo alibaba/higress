@@ -137,7 +137,7 @@ where
         Ok(())
     }
 
-    pub fn get_match_config(&self) -> Option<(&PluginConfig, usize)> {
+    pub fn get_match_config(&self) -> Option<(usize, &PluginConfig)> {
         let host = get_http_request_header(":authority").unwrap_or_default();
         let route_name = get_property(vec!["route_name"]).unwrap_or_default();
 
@@ -145,7 +145,7 @@ where
             match rule.category {
                 Category::Host => {
                     if self.host_match(rule, host.as_str()) {
-                        return Some((&rule.config, i));
+                        return Some((i, &rule.config));
                     }
                 }
                 Category::Route => {
@@ -154,7 +154,7 @@ where
                             .unwrap_or_else(|_| "".to_string())
                             .as_str(),
                     ) {
-                        return Some((&rule.config, i));
+                        return Some((i, &rule.config));
                     }
                 }
             }
@@ -162,7 +162,7 @@ where
 
         self.global_config
             .as_ref()
-            .map(|config| (config, usize::MAX))
+            .map(|config| (usize::MAX, config))
     }
 
     pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
