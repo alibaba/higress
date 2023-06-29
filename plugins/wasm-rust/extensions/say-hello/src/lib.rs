@@ -82,7 +82,7 @@ impl HttpContext for SayHello {
                 self.send_http_response(200, vec![], Some("Hello, World!".as_bytes()));
                 return Action::Continue;
             }
-            Some(config) => config,
+            Some(config) => config.0,
         };
 
         self.send_http_response(

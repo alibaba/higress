@@ -137,15 +137,15 @@ where
         Ok(())
     }
 
-    pub fn get_match_config(&self) -> Option<&PluginConfig> {
+    pub fn get_match_config(&self) -> Option<(&PluginConfig, usize)> {
         let host = get_http_request_header(":authority").unwrap_or_default();
         let route_name = get_property(vec!["route_name"]).unwrap_or_default();
 
-        for rule in &self.rule_config {
+        for (i, rule) in self.rule_config.iter().enumerate() {
             match rule.category {
                 Category::Host => {
                     if self.host_match(rule, host.as_str()) {
-                        return Some(&rule.config);
+                        return Some((&rule.config, i));
                     }
                 }
                 Category::Route => {
@@ -154,20 +154,19 @@ where
                             .unwrap_or_else(|_| "".to_string())
                             .as_str(),
                     ) {
-                        return Some(&rule.config);
+                        return Some((&rule.config, i));
                     }
                 }
             }
         }
 
-        return self.global_config.as_ref();
+        self.global_config
+            .as_ref()
+            .map(|config| (config, usize::MAX))
     }
 
     pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
-        self.global_config = match self.global_config.as_ref() {
-            None => None,
-            Some(config) => Some(rewrite(config))
-        };
+        self.global_config = self.global_config.as_ref().map(rewrite);
 
         for rule_config in &mut self.rule_config {
             rule_config.config = rewrite(&rule_config.config);
