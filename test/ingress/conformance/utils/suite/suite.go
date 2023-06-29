@@ -159,6 +159,8 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 		"higress-conformance-infra",
 		"higress-conformance-app-backend",
 		"higress-conformance-web-backend",
+		"nacos-standlone-rc3",
+		"dubbo-demo-provider",
 	}
 	kubernetes.NamespacesMustBeAccepted(t, suite.Client, suite.TimeoutConfig, namespaces)
 }

@@ -51,15 +51,16 @@ message Http2Rpc {
 
 message DubboService {
   string service = 1 [(google.api.field_behavior) = REQUIRED];
-  string version = 2 [(google.api.field_behavior) = OPTIONAL];
-  repeated Method methods = 3 [(google.api.field_behavior) = REQUIRED];
+  string version = 2 [(google.api.field_behavior) = REQUIRED];
+  string group = 3 [(google.api.field_behavior) = OPTIONAL];
+  repeated Method methods = 4 [(google.api.field_behavior) = REQUIRED];
 }
 
 message Method {
   string service_method = 1 [(google.api.field_behavior) = REQUIRED];
-  string http_path = 2 [(google.api.field_behavior) = REQUIRED];
-  repeated string http_methods = 3 [(google.api.field_behavior) = REQUIRED];
-  string headers_attach = 4;
+  string headers_attach = 2 [(google.api.field_behavior) = OPTIONAL];
+  string http_path = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated string http_methods = 4 [(google.api.field_behavior) = REQUIRED];
   repeated Param params = 5;
 }
 

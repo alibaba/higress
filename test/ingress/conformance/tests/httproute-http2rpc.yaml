@@ -19,18 +19,18 @@ metadata:
   namespace: higress-system
 spec:
   dubbo: 
-    service: "com.dubbo.demo.api.DemoService"
-    version: "1.0.0"
+    service: com.dubbo.demo.api.DemoService
+    version: 1.0.0
+    group: dev
     methods: 
-    - serviceMethod: "sayHello"
+    - serviceMethod: sayHello
       headersAttach: "*"
       httpMethods: 
-      - "GET"
-      - “POST”
-      httpPath: "/sayhello"
+      - GET
+      httpPath: "/dubbo/hello"
       params:
-      - paramKey: "name"
-        paramSource: "QUERY"
+      - paramKey: name
+        paramSource: QUERY
         paramType: "java.lang.String"
 ---
 apiVersion: networking.higress.io/v1
@@ -40,7 +40,7 @@ metadata:
   namespace: higress-system
 spec:
   registries:
-  - domain: nacos-standlone-rc3-service
+  - domain: nacos-standlone-rc3-service.higress-conformance-app-backend
     nacosGroups:
     - DEFAULT_GROUP
     name: nacos-service-resource
@@ -51,7 +51,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    higress.io/destination: providers:com.dubbo.demo.api.DemoService:1.0.0:.DEFAULT-GROUP.public.nacos
+    higress.io/destination: providers:com.dubbo.demo.api.DemoService:1.0.0:dev.DEFAULT-GROUP.public.nacos
     higress.io/rpc-destination-name: httproute-http2rpc-demo
   name: httproute-http2rpc-demo-ingress
   namespace: higress-system
@@ -62,7 +62,7 @@ spec:
     http:
       paths:
       - pathType: Prefix
-        path: /
+        path: /dubbo
         backend:
           resource:
             apiGroup: networking.higress.io

@@ -141,6 +141,8 @@ spec:
             properties:
               dubbo:
                 properties:
+                  group:
+                    type: string
                   methods:
                     items:
                       properties:

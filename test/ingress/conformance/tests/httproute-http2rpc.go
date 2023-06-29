@@ -35,7 +35,7 @@ var HTTPRouteHttp2Rpc = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:   "foo.com",
-						Path:   "/sayhello?name=hisoka",
+						Path:   "/dubbo/hello?name=higress",
 						Method: "GET",
 					},
 				},
