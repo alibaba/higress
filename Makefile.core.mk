@@ -199,13 +199,13 @@ include tools/lint.mk
 .PHONY: gateway-conformance-test
 gateway-conformance-test:
 
-# ingress-conformance-test runs ingress api conformance tests.
-.PHONY: ingress-conformance-test
-ingress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-ingress-e2e-test delete-cluster
+# higress-conformance-test runs ingress api conformance tests.
+.PHONY: higress-conformance-test
+higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-higress-e2e-test delete-cluster
 
-# ingress-wasmplugin-test runs ingress wasmplugin tests.
-.PHONY: ingress-wasmplugin-test
-ingress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-ingress-e2e-test-wasmplugin delete-cluster
+# higress-wasmplugin-test runs ingress wasmplugin tests.
+.PHONY: higress-wasmplugin-test
+higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
@@ -229,22 +229,22 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 
-# run-ingress-e2e-test starts to run ingress e2e tests.
-.PHONY: run-ingress-e2e-test
-run-ingress-e2e-test:
+# run-higress-e2e-test starts to run ingress e2e tests.
+.PHONY: run-higress-e2e-test
+run-higress-e2e-test:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/ingress/e2e_test.go --ingress-class=higress --debug=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true
 
-# run-ingress-e2e-test starts to run ingress e2e tests.
-.PHONY: run-ingress-e2e-test-wasmplugin
-run-ingress-e2e-test-wasmplugin:
+# run-higress-e2e-test starts to run ingress e2e tests.
+.PHONY: run-higress-e2e-test-wasmplugin
+run-higress-e2e-test-wasmplugin:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/ingress/e2e_test.go -isWasmPluginTest=true --ingress-class=higress --debug=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true --ingress-class=higress --debug=true
