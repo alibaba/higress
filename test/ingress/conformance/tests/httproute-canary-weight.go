@@ -30,48 +30,74 @@ var HTTPRouteCanaryWeight = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace uses the canary weight traffic split.",
 	Manifests:   []string{"tests/httproute-canary-weight.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		testcases := []http.Assertion{
-			// test if the weight is 0
+		tt := []struct {
+			assertion http.Assertion
+			succRate  float64
+		}{
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/weight-0",
-						Host: "canary.higress.io",
+				succRate: 1.0,
+				assertion: http.Assertion{
+					// test if the weight is 0
+					Meta: http.AssertionMeta{
+						TargetBackend:   "infra-backend-v1",
+						TargetNamespace: "higress-conformance-infra",
+					},
+					Request: http.AssertionRequest{
+						ActualRequest: http.Request{
+							Path: "/weight-0",
+							Host: "canary.higress.io",
+						},
+					},
+					Response: http.AssertionResponse{
+						ExpectedResponse: http.Response{
+							StatusCode: 200,
+						},
 					},
 				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
+			}, { // test if the weight is 100
+				succRate: 1.0,
+				assertion: http.Assertion{
+					Meta: http.AssertionMeta{
+						TargetBackend:   "infra-backend-v2",
+						TargetNamespace: "higress-conformance-infra",
+					},
+					Request: http.AssertionRequest{
+						ActualRequest: http.Request{
+							Path: "/weight-100",
+							Host: "canary.higress.io",
+						},
+					},
+					Response: http.AssertionResponse{
+						ExpectedResponse: http.Response{
+							StatusCode: 200,
+						},
 					},
 				},
-			},
-			// test if the weight is 100
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/weight-100",
-						Host: "canary.higress.io",
+			}, {
+				succRate: 0.5,
+				assertion: http.Assertion{
+					Meta: http.AssertionMeta{
+						TargetBackend:   "infra-backend-v2",
+						TargetNamespace: "higress-conformance-infra",
 					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
+					Request: http.AssertionRequest{
+						ActualRequest: http.Request{
+							Path: "/weight-50",
+							Host: "canary.higress.io",
+						},
+					},
+					Response: http.AssertionResponse{
+						ExpectedResponse: http.Response{
+							StatusCode: 200,
+						},
 					},
 				},
 			},
 		}
 
 		t.Run("Canary HTTPRoute Traffic Split", func(t *testing.T) {
-			for _, testcase := range testcases {
-				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			for _, testcase := range tt {
+				http.MakeRequestAndCountExpectedResponse(t, suite.RoundTripper, suite.GatewayAddress, testcase.assertion, testcase.succRate)
 			}
 		})
 	},

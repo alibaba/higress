@@ -16,6 +16,7 @@ package http
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
@@ -127,6 +128,10 @@ type Response struct {
 // before making additional assertions on the response body. If this number is not reached within
 // maxTimeToConsistency, the test will fail.
 const requiredConsecutiveSuccesses = 3
+
+const totalRequest = 100
+
+const rateDeviation = 0.1
 
 // MakeRequestAndExpectEventuallyConsistentResponse makes a request with the given parameters,
 // understanding that the request may fail for some amount of time.
@@ -424,4 +429,74 @@ func setRedirectRequestDefaults(req *roundtripper.Request, cRes *roundtripper.Ca
 	if expected.Request.RedirectRequest.Path == "" {
 		expected.Request.RedirectRequest.Path = req.URL.Path
 	}
+}
+
+func getRequest(gwAddr string, expected Assertion) roundtripper.Request {
+	path, query, _ := strings.Cut(expected.Request.ActualRequest.Path, "?")
+
+	req := roundtripper.Request{
+		Method:           expected.Request.ActualRequest.Method,
+		Host:             expected.Request.ActualRequest.Host,
+		URL:              url.URL{Scheme: "http", Host: gwAddr, Path: path, RawQuery: query},
+		Protocol:         "HTTP",
+		Headers:          map[string][]string{},
+		UnfollowRedirect: expected.Request.ActualRequest.UnfollowRedirect,
+	}
+
+	if expected.Request.ActualRequest.Headers != nil {
+		for name, value := range expected.Request.ActualRequest.Headers {
+			req.Headers[name] = []string{value}
+		}
+	}
+
+	backendSetHeaders := []string{}
+	for name, val := range expected.Response.AdditionalResponseHeaders {
+		backendSetHeaders = append(backendSetHeaders, name+":"+val)
+	}
+	req.Headers["X-Echo-Set-Header"] = []string{strings.Join(backendSetHeaders, ",")}
+
+	return req
+}
+
+// MakeRequestAndCountExpectedResponse make 'totReq' requests and determine whether to test results according to the succRate
+func MakeRequestAndCountExpectedResponse(t *testing.T, r roundtripper.RoundTripper, gwAddr string, expected Assertion, succRate float64) {
+	t.Helper()
+
+	if expected.Request.ActualRequest.Method == "" {
+		expected.Request.ActualRequest.Method = "GET"
+	}
+
+	if expected.Response.ExpectedResponse.StatusCode == 0 {
+		expected.Response.ExpectedResponse.StatusCode = 200
+	}
+
+	t.Logf("Making %s request to http://%s%s", expected.Request.ActualRequest.Method, gwAddr, expected.Request.ActualRequest.Path)
+
+	req := getRequest(gwAddr, expected)
+
+	succ, fail := 0, 0
+	for i := 0; i < totalRequest; i++ {
+		cReq, cRes, err := r.CaptureRoundTrip(req)
+		if err != nil {
+			fail += 1
+			t.Logf("Request failed, not ready yet: %v (failed count: %v)", err.Error(), fail)
+			continue
+		}
+
+		if err := CompareRequest(&req, cReq, cRes, expected); err != nil {
+			fail += 1
+			t.Logf("Response expectation failed for request: %v  not ready yet: %v (failed count: %v)", req, err, fail)
+			continue
+		}
+
+		succ += 1
+	}
+
+	rate := float64(succ) / totalRequest
+	minSuccRate, maxSuccRate := math.Max(succRate-rateDeviation, 0), math.Min(succRate+rateDeviation, 1.0)
+	if rate < minSuccRate || maxSuccRate < rate {
+		t.Errorf("Test failed, expect the minSuccRate is %v, the maxSuccRate is %v, but got %v", minSuccRate, maxSuccRate, rate)
+		return
+	}
+	t.Logf("Test passed")
 }
