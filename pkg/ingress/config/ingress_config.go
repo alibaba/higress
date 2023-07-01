@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"strings"
 	"sync"
 
@@ -126,6 +127,8 @@ type IngressConfig struct {
 
 	http2rpcs map[string]*higressv1.Http2Rpc
 
+	tracingMgr *configmap.TracingMgr
+
 	XDSUpdater model.XDSUpdater
 
 	annotationHandler annotations.AnnotationHandler
@@ -169,6 +172,10 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
 	config.http2rpcController = http2rpcController
 	config.http2rpcLister = http2rpcController.Lister()
+
+	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
+	config.tracingMgr = configmap.NewTracingMgr(namespace, higressConfigController, higressConfigController.Lister())
+
 	return config
 }
 
@@ -536,6 +543,15 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		} else {
 			envoyFilters = append(envoyFilters, *basicAuth)
 		}
+	}
+
+	// Build tracing envoy filter
+	tracingEnvoyFilter, err := m.tracingMgr.ConstructTracingEnvoyFilter()
+	if err != nil {
+		IngressLog.Errorf("Construct tracing EnvoyFilter error %v", err)
+	} else if tracingEnvoyFilter != nil {
+		IngressLog.Infof("Append tracing EnvoyFilter")
+		envoyFilters = append(envoyFilters, *tracingEnvoyFilter)
 	}
 
 	// TODO Support other envoy filters
@@ -1359,6 +1375,7 @@ func (m *IngressConfig) Run(stop <-chan struct{}) {
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
 	go m.http2rpcController.Run(stop)
+	go m.tracingMgr.HigressConfigController.Run(stop)
 }
 
 func (m *IngressConfig) HasSynced() bool {
@@ -1376,6 +1393,9 @@ func (m *IngressConfig) HasSynced() bool {
 		return false
 	}
 	if !m.http2rpcController.HasSynced() {
+		return false
+	}
+	if !m.tracingMgr.HigressConfigController.HasSynced() {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")
