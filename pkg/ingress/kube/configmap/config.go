@@ -14,6 +14,10 @@
 
 package configmap
 
+import (
+	"encoding/json"
+)
+
 type Result int32
 
 const (
@@ -34,4 +38,9 @@ func NewDefaultHigressConfig() *HigressConfig {
 		Tracing: NewDefaultTracing(),
 	}
 	return higressConfig
+}
+
+func GetHigressConfigString(higressConfig *HigressConfig) string {
+	bytes, _ := json.Marshal(higressConfig)
+	return string(bytes)
 }

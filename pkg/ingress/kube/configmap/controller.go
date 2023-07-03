@@ -94,6 +94,8 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 	if name.Namespace != c.Namespace || name.Name != HigressConfigMapName {
 		return
 	}
+
+	IngressLog.Infof("configmapMgr AddOrUpdateHigressConfig")
 	higressConfigmap, err := c.HigressConfigLister.Get(HigressConfigMapName)
 	if err != nil {
 		IngressLog.Errorf("higress-config configmap is not found, namespace:%s, name:%s",
@@ -107,19 +109,26 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 
 	newHigressConfig := NewDefaultHigressConfig()
 	if err = yaml.Unmarshal([]byte(higressConfigmap.Data[HigressConfigMapKey]), newHigressConfig); err != nil {
-		IngressLog.Errorf("data:%s,  convert to higressconfig error, error: %+v", higressConfigmap.Data[HigressConfigMapKey], err)
+		IngressLog.Errorf("data:%s,  convert to higress config error, error: %+v", higressConfigmap.Data[HigressConfigMapKey], err)
 		return
 	}
 
 	for _, itemController := range c.ItemControllers {
 		if itemErr := itemController.ValidHigressConfig(newHigressConfig); itemErr != nil {
-			IngressLog.Errorf("configmap %s controller valid higressconfig error, error: %+v", itemController.GetName(), itemErr)
+			IngressLog.Errorf("configmap %s controller valid higress config error, error: %+v", itemController.GetName(), itemErr)
 			return
 		}
 	}
 
 	oldHigressConfig := c.GetHigressConfig()
+	IngressLog.Infof("configmapMgr oldHigressConfig: %s", GetHigressConfigString(oldHigressConfig))
+	IngressLog.Infof("configmapMgr newHigressConfig: %s", GetHigressConfigString(newHigressConfig))
 	result, _ := c.CompareHigressConfig(oldHigressConfig, newHigressConfig)
+	IngressLog.Infof("configmapMgr CompareHigressConfig reuslt is %d", result)
+
+	if result == ResultNothing {
+		return
+	}
 
 	if result == ResultDelete {
 		newHigressConfig = NewDefaultHigressConfig()
