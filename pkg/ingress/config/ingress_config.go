@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"strings"
 	"sync"
 
@@ -50,6 +49,7 @@ import (
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
@@ -127,7 +127,7 @@ type IngressConfig struct {
 
 	http2rpcs map[string]*higressv1.Http2Rpc
 
-	tracingMgr *configmap.TracingMgr
+	configmapMgr *configmap.ConfigmapMgr
 
 	XDSUpdater model.XDSUpdater
 
@@ -174,7 +174,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	config.http2rpcLister = http2rpcController.Lister()
 
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
-	config.tracingMgr = configmap.NewTracingMgr(namespace, higressConfigController, higressConfigController.Lister())
+	config.configmapMgr = configmap.NewConfigmapMgr(namespace, higressConfigController, higressConfigController.Lister())
 
 	return config
 }
@@ -545,13 +545,15 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		}
 	}
 
-	// Build tracing envoy filter
-	tracingEnvoyFilter, err := m.tracingMgr.ConstructTracingEnvoyFilter()
+	// Build configmap envoy filters
+	configmapEnvoyFilters, err := m.configmapMgr.ConstructEnvoyFilters()
 	if err != nil {
-		IngressLog.Errorf("Construct tracing EnvoyFilter error %v", err)
-	} else if tracingEnvoyFilter != nil {
-		IngressLog.Infof("Append tracing EnvoyFilter")
-		envoyFilters = append(envoyFilters, *tracingEnvoyFilter)
+		IngressLog.Errorf("Construct configmap EnvoyFilters error %v", err)
+	} else {
+		for _, envoyFilter := range configmapEnvoyFilters {
+			envoyFilters = append(envoyFilters, *envoyFilter)
+		}
+		IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
 	}
 
 	// TODO Support other envoy filters
@@ -1375,7 +1377,7 @@ func (m *IngressConfig) Run(stop <-chan struct{}) {
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
 	go m.http2rpcController.Run(stop)
-	go m.tracingMgr.HigressConfigController.Run(stop)
+	go m.configmapMgr.HigressConfigController.Run(stop)
 }
 
 func (m *IngressConfig) HasSynced() bool {
@@ -1395,7 +1397,7 @@ func (m *IngressConfig) HasSynced() bool {
 	if !m.http2rpcController.HasSynced() {
 		return false
 	}
-	if !m.tracingMgr.HigressConfigController.HasSynced() {
+	if !m.configmapMgr.HigressConfigController.HasSynced() {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")

@@ -15,7 +15,9 @@
 package configmap
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"sync/atomic"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
@@ -23,101 +25,214 @@ import (
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
-	listersv1 "k8s.io/client-go/listers/core/v1"
-	"sigs.k8s.io/yaml"
 )
 
-type TracingMgr struct {
-	Namespace               string
-	HigressConfigController HigressConfigController
-	HigressConfigLister     listersv1.ConfigMapNamespaceLister
-	higressConfig           atomic.Value
+const (
+	higressTracingEnvoyFilterName = "higress-config-tracing"
+	defaultTimeout                = 500
+	defaultSampling               = 100.0
+)
+
+type Tracing struct {
+	// Flag to control trace
+	Enable bool `json:"enable,omitempty"`
+	// The percentage of requests (0.0 - 100.0) that will be randomly selected for trace generation,
+	// if not requested by the client or not forced. Default is 100.0.
+	Sampling float64 `json:"sampling,omitempty"`
+	// The timeout for the gRPC request. Default is 500ms
+	Timeout int32 `json:"timeout,omitempty"`
+	// The tracer implementation to be used by Envoy.
+	//
+	// Types that are assignable to Tracer:
+	Zipkin        *Zipkin        `json:"zipkin,omitempty"`
+	Skywalking    *Skywalking    `json:"skywalking,omitempty"`
+	OpenTelemetry *OpenTelemetry `json:"opentelemetry,omitempty"`
 }
 
-func NewTracingMgr(namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister) *TracingMgr {
+// Zipkin defines configuration for a Zipkin tracer.
+type Zipkin struct {
+	// Address of the Zipkin service (e.g. _zipkin:9411_).
+	Service string `json:"service,omitempty"`
+	Port    string `json:"port,omitempty"`
+}
 
-	tracingMgr := &TracingMgr{
-		Namespace:               namespace,
-		HigressConfigController: higressConfigController,
-		HigressConfigLister:     higressConfigLister,
-		higressConfig:           atomic.Value{},
+// Defines configuration for a Skywalking tracer.
+type Skywalking struct {
+	// Address of the Skywalking tracer.
+	Service string `json:"service,omitempty"`
+	Port    string `json:"port,omitempty"`
+	// The access token
+	AccessToken string `json:"access_token,omitempty"`
+}
+
+type OpenTelemetry struct {
+	// Address of OpenTelemetry tracer.
+	Service string `json:"service,omitempty"`
+	Port    string `json:"port,omitempty"`
+}
+
+func validServiceAndPort(service string, port string) bool {
+	if len(service) == 0 || len(port) == 0 {
+		return false
 	}
-	tracingMgr.HigressConfigController.AddEventHandler(tracingMgr.AddOrUpdateHigressConfig)
-	tracingMgr.SetHigressConfig(NewDefaultHigressConfig())
+	return true
+}
+
+func ValidTracing(t *Tracing) error {
+	if t == nil {
+		return nil
+	}
+	if t.Timeout <= 0 {
+		return errors.New("timeout can not be less than zero")
+	}
+
+	if t.Sampling < 0 || t.Sampling > 100 {
+		return errors.New("sampling must be in (0.0 - 100.0)")
+	}
+
+	tracerNum := 0
+	if t.Zipkin != nil {
+		if validServiceAndPort(t.Zipkin.Service, t.Zipkin.Port) {
+			tracerNum++
+		} else {
+			return errors.New("zipkin service and port can not be empty")
+		}
+	}
+
+	if t.Skywalking != nil {
+		if validServiceAndPort(t.Skywalking.Service, t.Skywalking.Port) {
+			tracerNum++
+		} else {
+			return errors.New("skywalking service and port can not be empty")
+		}
+	}
+
+	if t.OpenTelemetry != nil {
+		if validServiceAndPort(t.OpenTelemetry.Service, t.OpenTelemetry.Port) {
+			tracerNum++
+		} else {
+			return errors.New("opentelemetry service and port can not be empty")
+		}
+	}
+
+	if tracerNum != 1 {
+		return errors.New("only one of skywalking，zipkin and opentelemetry configuration can be set")
+	}
+	return nil
+}
+
+func CompareTracing(old *Tracing, new *Tracing) (Result, error) {
+	if old == nil && new == nil {
+		return ResultNothing, nil
+	}
+
+	if new == nil {
+		return ResultDelete, nil
+	}
+
+	if !reflect.DeepEqual(old, new) {
+		return ResultReplace, nil
+	}
+
+	return ResultNothing, nil
+}
+
+func NewDefaultTracing() *Tracing {
+	tracing := &Tracing{
+		Enable:   false,
+		Timeout:  defaultTimeout,
+		Sampling: defaultSampling,
+	}
+	return tracing
+}
+
+type TracingController struct {
+	Namespace string
+	tracing   atomic.Value
+	Name      string
+}
+
+func NewTracingController(namespace string) *TracingController {
+	tracingMgr := &TracingController{
+		Namespace: namespace,
+		tracing:   atomic.Value{},
+		Name:      "tracing",
+	}
+	tracingMgr.SetTracing(NewDefaultTracing())
 	return tracingMgr
 }
 
-func (t *TracingMgr) SetHigressConfig(higressConfig *HigressConfig) {
-	t.higressConfig.Store(higressConfig)
+func (t *TracingController) SetTracing(higressConfig *Tracing) {
+	t.tracing.Store(higressConfig)
 }
 
-func (t *TracingMgr) GetHigressConfig() *HigressConfig {
-	value := t.higressConfig.Load()
+func (t *TracingController) GetTracing() *Tracing {
+	value := t.tracing.Load()
 	if value != nil {
-		if higressConfig, ok := value.(*HigressConfig); ok {
-			return higressConfig
+		if tracing, ok := value.(*Tracing); ok {
+			return tracing
 		}
 	}
 	return nil
 }
 
-func (t *TracingMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName) {
-	if name.Namespace != t.Namespace || name.Name != HigressConfigMapName {
-		return
-	}
-	higressConfigmap, err := t.HigressConfigLister.Get(HigressConfigMapName)
-	if err != nil {
-		IngressLog.Errorf("higress-config configmap is not found, namespace:%s, name:%s",
-			name.Namespace, name.Name)
-		return
+func (t *TracingController) GetName() string {
+	return t.Name
+}
+
+func (t *TracingController) AddOrUpdateHigressConfig(name util.ClusterNamespacedName, old *HigressConfig, new *HigressConfig) error {
+	if err := ValidTracing(new.Tracing); err != nil {
+		IngressLog.Errorf("data:%+v convert to tracing , error: %+v", new.Tracing, err)
+		return nil
 	}
 
-	if _, ok := higressConfigmap.Data[HigressConfigMapKey]; !ok {
-		return
-	}
-
-	newHigressConfig := NewDefaultHigressConfig()
-	if err = yaml.Unmarshal([]byte(higressConfigmap.Data[HigressConfigMapKey]), newHigressConfig); err != nil {
-		IngressLog.Errorf("data:%s,  convert to higressconfig error, error: %+v", higressConfigmap.Data[HigressConfigMapKey], err)
-		return
-	}
-
-	if err = ValidTracing(newHigressConfig); err != nil {
-		IngressLog.Errorf("data:%s,  convert to higress config map, error: %+v", higressConfigmap.Data[HigressConfigMapKey], err)
-		return
-	}
-
-	result, _ := CompareTracing(t.GetHigressConfig(), newHigressConfig)
+	result, _ := CompareTracing(old.Tracing, new.Tracing)
 
 	switch result {
 	case ResultReplace:
-		t.SetHigressConfig(newHigressConfig)
-		IngressLog.Infof("AddOrUpdate Higress config")
+		t.SetTracing(new.Tracing)
+		IngressLog.Infof("AddOrUpdate Higress config tracing")
 	case ResultDelete:
-		t.SetHigressConfig(NewDefaultHigressConfig())
-		IngressLog.Infof("Delete Higress config")
+		t.SetTracing(NewDefaultTracing())
+		IngressLog.Infof("Delete Higress config tracing")
 	}
 
+	return nil
 }
 
-func (t *TracingMgr) ConstructTracingEnvoyFilter() (*config.Config, error) {
-	higressConfig := t.GetHigressConfig()
-	namespace := t.Namespace
+func (t *TracingController) ValidHigressConfig(higressConfig *HigressConfig) error {
 	if higressConfig == nil {
-		return nil, nil
+		return nil
 	}
-	if higressConfig.Tracing.Enable == false {
-		return nil, nil
-	}
-	tracingConfig := t.constructTracingTracer(higressConfig, namespace)
-	if len(tracingConfig) == 0 {
-		return nil, nil
+	if higressConfig.Tracing == nil {
+		return nil
 	}
 
-	return &config.Config{
+	return ValidTracing(higressConfig.Tracing)
+}
+
+func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {
+	configs := make([]*config.Config, 0)
+	tracing := t.GetTracing()
+	namespace := t.Namespace
+
+	if tracing == nil {
+		return configs, nil
+	}
+
+	if tracing.Enable == false {
+		return configs, nil
+	}
+
+	tracingConfig := t.constructTracingTracer(tracing, namespace)
+	if len(tracingConfig) == 0 {
+		return configs, nil
+	}
+
+	config := &config.Config{
 		Meta: config.Meta{
 			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             HigressTracingEnvoyFilterName,
+			Name:             higressTracingEnvoyFilterName,
 			Namespace:        namespace,
 		},
 		Spec: &networking.EnvoyFilter{
@@ -171,14 +286,17 @@ func (t *TracingMgr) ConstructTracingEnvoyFilter() (*config.Config, error) {
 				},
 			},
 		},
-	}, nil
+	}
+
+	configs = append(configs, config)
+	return configs, nil
 }
 
-func (t *TracingMgr) constructTracingTracer(higressConfig *HigressConfig, namespace string) string {
+func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace string) string {
 	tracingConfig := ""
-	timeout := float32(higressConfig.Tracing.Timeout) / 1000
-	if higressConfig.Tracing.Skywalking != nil {
-		skywalking := higressConfig.Tracing.Skywalking
+	timeout := float32(tracing.Timeout) / 1000
+	if tracing.Skywalking != nil {
+		skywalking := tracing.Skywalking
 		tracingConfig = fmt.Sprintf(`{
 	"name": "envoy.filters.network.http_connection_manager",
 	"typed_config": {
@@ -205,11 +323,11 @@ func (t *TracingMgr) constructTracingTracer(higressConfig *HigressConfig, namesp
 			}
 		}
 	}
-}`, namespace, skywalking.AccessToken, skywalking.Port, skywalking.Service, timeout, higressConfig.Tracing.Sampling)
+}`, namespace, skywalking.AccessToken, skywalking.Port, skywalking.Service, timeout, tracing.Sampling)
 	}
 
-	if higressConfig.Tracing.Zipkin != nil {
-		zipkin := higressConfig.Tracing.Zipkin
+	if tracing.Zipkin != nil {
+		zipkin := tracing.Zipkin
 		tracingConfig = fmt.Sprintf(`{
 	"name": "envoy.filters.network.http_connection_manager",
 	"typed_config": {
@@ -231,11 +349,11 @@ func (t *TracingMgr) constructTracingTracer(higressConfig *HigressConfig, namesp
 			}
 		}
 	}
-}`, zipkin.Port, zipkin.Service, higressConfig.Tracing.Sampling)
+}`, zipkin.Port, zipkin.Service, tracing.Sampling)
 	}
 
-	if higressConfig.Tracing.OpenTelemetry != nil {
-		opentelemetry := higressConfig.Tracing.OpenTelemetry
+	if tracing.OpenTelemetry != nil {
+		opentelemetry := tracing.OpenTelemetry
 		tracingConfig = fmt.Sprintf(`{
 	"name": "envoy.filters.network.http_connection_manager",
 	"typed_config": {
@@ -259,7 +377,7 @@ func (t *TracingMgr) constructTracingTracer(higressConfig *HigressConfig, namesp
 			}
 		}
 	}
-}`, namespace, opentelemetry.Port, opentelemetry.Service, timeout, higressConfig.Tracing.Sampling)
+}`, namespace, opentelemetry.Port, opentelemetry.Service, timeout, tracing.Sampling)
 	}
 	return tracingConfig
 }
