@@ -142,9 +142,9 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 func (c *ConfigmapMgr) ConstructEnvoyFilters() ([]*config.Config, error) {
 	configs := make([]*config.Config, 0)
 	for _, itemController := range c.ItemControllers {
-		IngressLog.Infof("controller name:%s AConstructEnvoyFilters", itemController.GetName())
+		IngressLog.Infof("controller %s ConstructEnvoyFilters", itemController.GetName())
 		if itemConfigs, err := itemController.ConstructEnvoyFilters(); err != nil {
-			IngressLog.Errorf("controller name:%s ConstructEnvoyFilters error, error: %+v", itemController.GetName(), err)
+			IngressLog.Errorf("controller %s ConstructEnvoyFilters error, error: %+v", itemController.GetName(), err)
 		} else {
 			configs = append(configs, itemConfigs...)
 		}
