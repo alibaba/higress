@@ -174,7 +174,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	config.http2rpcLister = http2rpcController.Lister()
 
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
-	config.configmapMgr = configmap.NewConfigmapMgr(namespace, higressConfigController, higressConfigController.Lister())
+	config.configmapMgr = configmap.NewConfigmapMgr(XDSUpdater, namespace, higressConfigController, higressConfigController.Lister())
 
 	return config
 }
@@ -248,8 +248,24 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	if typ == gvk.EnvoyFilter {
 		m.mutex.RLock()
 		defer m.mutex.RUnlock()
-		IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
-		return m.cachedEnvoyFilters, nil
+		var envoyFilters []config.Config
+		// Build configmap envoy filters
+		configmapEnvoyFilters, err := m.configmapMgr.ConstructEnvoyFilters()
+		if err != nil {
+			IngressLog.Errorf("Construct configmap EnvoyFilters error %v", err)
+		} else {
+			for _, envoyFilter := range configmapEnvoyFilters {
+				envoyFilters = append(envoyFilters, *envoyFilter)
+			}
+			IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
+		}
+		if len(envoyFilters) == 0 {
+			IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
+			return m.cachedEnvoyFilters, nil
+		}
+		envoyFilters = append(envoyFilters, m.cachedEnvoyFilters...)
+		IngressLog.Infof("resource type %s, configs number %d", typ, len(envoyFilters))
+		return envoyFilters, nil
 	}
 
 	var configs []config.Config
@@ -543,17 +559,6 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		} else {
 			envoyFilters = append(envoyFilters, *basicAuth)
 		}
-	}
-
-	// Build configmap envoy filters
-	configmapEnvoyFilters, err := m.configmapMgr.ConstructEnvoyFilters()
-	if err != nil {
-		IngressLog.Errorf("Construct configmap EnvoyFilters error %v", err)
-	} else {
-		for _, envoyFilter := range configmapEnvoyFilters {
-			envoyFilters = append(envoyFilters, *envoyFilter)
-		}
-		IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
 	}
 
 	// TODO Support other envoy filters

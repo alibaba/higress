@@ -27,7 +27,11 @@ const (
 
 	HigressConfigMapName = "higress-config"
 	HigressConfigMapKey  = "higress"
+
+	ModelUpdatedReason = "higress configmap updated"
 )
+
+type ItemEventHandler = func(name string)
 
 type HigressConfig struct {
 	Tracing *Tracing `json:"tracing,omitempty"`

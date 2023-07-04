@@ -147,9 +147,10 @@ func NewDefaultTracing() *Tracing {
 }
 
 type TracingController struct {
-	Namespace string
-	tracing   atomic.Value
-	Name      string
+	Namespace    string
+	tracing      atomic.Value
+	Name         string
+	eventHandler ItemEventHandler
 }
 
 func NewTracingController(namespace string) *TracingController {
@@ -192,9 +193,13 @@ func (t *TracingController) AddOrUpdateHigressConfig(name util.ClusterNamespaced
 	case ResultReplace:
 		t.SetTracing(new.Tracing)
 		IngressLog.Infof("AddOrUpdate Higress config tracing")
+		t.eventHandler(higressTracingEnvoyFilterName)
+		IngressLog.Infof("send event with filter name:%s", higressTracingEnvoyFilterName)
 	case ResultDelete:
 		t.SetTracing(NewDefaultTracing())
 		IngressLog.Infof("Delete Higress config tracing")
+		t.eventHandler(higressTracingEnvoyFilterName)
+		IngressLog.Infof("send event with filter name:%s", higressTracingEnvoyFilterName)
 	}
 
 	return nil
@@ -209,6 +214,10 @@ func (t *TracingController) ValidHigressConfig(higressConfig *HigressConfig) err
 	}
 
 	return ValidTracing(higressConfig.Tracing)
+}
+
+func (t *TracingController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
+	t.eventHandler = eventHandler
 }
 
 func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {

@@ -15,17 +15,20 @@
 package configmap
 
 import (
+	"reflect"
+	"sync/atomic"
+
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
-	"reflect"
 	"sigs.k8s.io/yaml"
-	"sync/atomic"
 )
 
 type HigressConfigController controller.Controller[listersv1.ConfigMapNamespaceLister]
@@ -45,6 +48,7 @@ type ItemController interface {
 	AddOrUpdateHigressConfig(name util.ClusterNamespacedName, old *HigressConfig, new *HigressConfig) error
 	ValidHigressConfig(higressConfig *HigressConfig) error
 	ConstructEnvoyFilters() ([]*config.Config, error)
+	RegisterItemEventHandler(eventHandler ItemEventHandler)
 }
 
 type ConfigmapMgr struct {
@@ -53,11 +57,13 @@ type ConfigmapMgr struct {
 	HigressConfigLister     listersv1.ConfigMapNamespaceLister
 	higressConfig           atomic.Value
 	ItemControllers         []ItemController
+	XDSUpdater              model.XDSUpdater
 }
 
-func NewConfigmapMgr(namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister) *ConfigmapMgr {
+func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister) *ConfigmapMgr {
 
 	configmapMgr := &ConfigmapMgr{
+		XDSUpdater:              XDSUpdater,
 		Namespace:               namespace,
 		HigressConfigController: higressConfigController,
 		HigressConfigLister:     higressConfigLister,
@@ -68,6 +74,7 @@ func NewConfigmapMgr(namespace string, higressConfigController HigressConfigCont
 
 	tracingController := NewTracingController(namespace)
 	configmapMgr.AddItemControllers(tracingController)
+	configmapMgr.initEventHandlers()
 
 	return configmapMgr
 }
@@ -144,6 +151,7 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 		}
 		c.SetHigressConfig(newHigressConfig)
 		IngressLog.Infof("configmapMgr higress config AddOrUpdate success, reuslt is %d", result)
+		// Call updateConfig
 	}
 
 }
@@ -171,4 +179,24 @@ func (c *ConfigmapMgr) CompareHigressConfig(old *HigressConfig, new *HigressConf
 	}
 
 	return ResultNothing, nil
+}
+
+func (c *ConfigmapMgr) initEventHandlers() error {
+	itemEventHandler := func(name string) {
+		c.XDSUpdater.ConfigUpdate(&model.PushRequest{
+			Full: true,
+			ConfigsUpdated: map[model.ConfigKey]struct{}{{
+				Kind:      gvk.EnvoyFilter,
+				Name:      name,
+				Namespace: c.Namespace,
+			}: {}},
+			Reason: []model.TriggerReason{ModelUpdatedReason},
+		})
+	}
+
+	for _, itemController := range c.ItemControllers {
+		itemController.RegisterItemEventHandler(itemEventHandler)
+	}
+
+	return nil
 }
