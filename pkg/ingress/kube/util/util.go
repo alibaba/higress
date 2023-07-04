@@ -82,3 +82,9 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 func CreateServiceFQDN(namespace, name string) string {
 	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, DefaultDomainSuffix)
 }
+
+func BuildPatchStruct(config string) *types.Struct {
+	val := &types.Struct{}
+	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
+	return val
+}
