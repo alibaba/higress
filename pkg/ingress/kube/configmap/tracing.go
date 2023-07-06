@@ -15,6 +15,7 @@
 package configmap
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -56,7 +57,7 @@ type Zipkin struct {
 	Port    string `json:"port,omitempty"`
 }
 
-// Defines configuration for a Skywalking tracer.
+// Skywalking Defines configuration for a Skywalking tracer.
 type Skywalking struct {
 	// Address of the Skywalking tracer.
 	Service string `json:"service,omitempty"`
@@ -65,6 +66,7 @@ type Skywalking struct {
 	AccessToken string `json:"access_token,omitempty"`
 }
 
+// OpenTelemetry Defines configuration for a OpenTelemetry tracer.
 type OpenTelemetry struct {
 	// Address of OpenTelemetry tracer.
 	Service string `json:"service,omitempty"`
@@ -78,7 +80,7 @@ func validServiceAndPort(service string, port string) bool {
 	return true
 }
 
-func ValidTracing(t *Tracing) error {
+func validTracing(t *Tracing) error {
 	if t == nil {
 		return nil
 	}
@@ -121,7 +123,7 @@ func ValidTracing(t *Tracing) error {
 	return nil
 }
 
-func CompareTracing(old *Tracing, new *Tracing) (Result, error) {
+func compareTracing(old *Tracing, new *Tracing) (Result, error) {
 	if old == nil && new == nil {
 		return ResultNothing, nil
 	}
@@ -135,6 +137,16 @@ func CompareTracing(old *Tracing, new *Tracing) (Result, error) {
 	}
 
 	return ResultNothing, nil
+}
+
+func deepCopyTracing(tracing *Tracing) (*Tracing, error) {
+	newTracing := NewDefaultTracing()
+	bytes, err := json.Marshal(tracing)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, newTracing)
+	return newTracing, err
 }
 
 func NewDefaultTracing() *Tracing {
@@ -163,8 +175,8 @@ func NewTracingController(namespace string) *TracingController {
 	return tracingMgr
 }
 
-func (t *TracingController) SetTracing(higressConfig *Tracing) {
-	t.tracing.Store(higressConfig)
+func (t *TracingController) SetTracing(tracing *Tracing) {
+	t.tracing.Store(tracing)
 }
 
 func (t *TracingController) GetTracing() *Tracing {
@@ -182,19 +194,23 @@ func (t *TracingController) GetName() string {
 }
 
 func (t *TracingController) AddOrUpdateHigressConfig(name util.ClusterNamespacedName, old *HigressConfig, new *HigressConfig) error {
-	if err := ValidTracing(new.Tracing); err != nil {
+	if err := validTracing(new.Tracing); err != nil {
 		IngressLog.Errorf("data:%+v convert to tracing , error: %+v", new.Tracing, err)
 		return nil
 	}
 
-	result, _ := CompareTracing(old.Tracing, new.Tracing)
+	result, _ := compareTracing(old.Tracing, new.Tracing)
 
 	switch result {
 	case ResultReplace:
-		t.SetTracing(new.Tracing)
-		IngressLog.Infof("AddOrUpdate Higress config tracing")
-		t.eventHandler(higressTracingEnvoyFilterName)
-		IngressLog.Infof("send event with filter name:%s", higressTracingEnvoyFilterName)
+		if newTracing, err := deepCopyTracing(new.Tracing); err != nil {
+			IngressLog.Infof("tracing deepcopy error:%v", err)
+		} else {
+			t.SetTracing(newTracing)
+			IngressLog.Infof("AddOrUpdate Higress config tracing")
+			t.eventHandler(higressTracingEnvoyFilterName)
+			IngressLog.Infof("send event with filter name:%s", higressTracingEnvoyFilterName)
+		}
 	case ResultDelete:
 		t.SetTracing(NewDefaultTracing())
 		IngressLog.Infof("Delete Higress config tracing")
@@ -213,7 +229,7 @@ func (t *TracingController) ValidHigressConfig(higressConfig *HigressConfig) err
 		return nil
 	}
 
-	return ValidTracing(higressConfig.Tracing)
+	return validTracing(higressConfig.Tracing)
 }
 
 func (t *TracingController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
