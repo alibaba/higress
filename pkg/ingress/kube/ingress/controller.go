@@ -293,8 +293,9 @@ func (c *controller) HasSynced() bool {
 }
 
 func (c *controller) List() []config.Config {
+	c.mutex.RLock()
 	out := make([]config.Config, 0, len(c.ingresses))
-
+	c.mutex.RUnlock()
 	for _, raw := range c.ingressInformer.GetStore().List() {
 		ing, ok := raw.(*ingress.Ingress)
 		if !ok {
