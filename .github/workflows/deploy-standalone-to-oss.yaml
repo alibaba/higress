@@ -1,0 +1,37 @@
+name: Deploy Standalone to OSS
+
+on:
+  push:
+    tags:
+    - "v*.*.*"
+  workflow_dispatch: ~
+
+jobs:
+  deploy-to-oss:
+    runs-on: ubuntu-latest
+    environment:
+      name: oss
+    steps:
+      # Step 1
+      - name: Checkout
+        uses: actions/checkout@v3
+      # Step 2
+      - id: package
+        name: Prepare Standalone Package
+        run: |
+          mkdir ./artifact
+          cp ./tools/get-higress.sh ./artifact
+          LOCAL_RELEASE_URL="https://github.com/higress-group/higress-standalone/releases"
+          VERSION=$(curl -Ls $LOCAL_RELEASE_URL | grep 'href="/higress-group/higress-standalone/releases/tag/v[0-9]*.[0-9]*.[0-9]*\"' | sed -E 's/.*\/higress-group\/higress-standalone\/releases\/tag\/(v[0-9\.]+)".*/\1/g' | head -1)
+          DOWNLOAD_URL="https://github.com/higress-group/higress-standalone/archive/refs/tags/${VERSION}.tar.gz"
+          curl -SsL "$DOWNLOAD_URL" -o "./artifact/higress-${VERSION}.tar.gz"
+          echo -n "$VERSION" > ./artifact/VERSION
+          echo "Version=$VERSION"
+      # Step 3
+      - name: Upload to OSS
+        uses: doggycool/ossutil-github-action@master
+        with:
+          ossArgs: 'cp -r -u ./artifact/ oss://higress-website-cn-hongkong/standalone/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com
