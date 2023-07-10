@@ -149,7 +149,6 @@ REPO_BASE_URL="https://higress.io/standalone"
 
 # checkDesiredVersion checks if the desired version is available.
 checkDesiredVersion() {
-  echo "VERSION"
   if [ -z "$VERSION" ]; then
     local version_url="${REPO_BASE_URL}/VERSION"
     if [ "${HAS_CURL}" == "true" ]; then
@@ -158,7 +157,6 @@ checkDesiredVersion() {
       VERSION=$(wget $version_url -O - 2>/dev/null)
     fi
   fi
-  echo $VERSION
 }
 
 # download downloads the latest package
