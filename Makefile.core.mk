@@ -112,7 +112,10 @@ endif
 # for now docker is limited to Linux compiles - why ?
 include docker/docker.mk
 
-docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
+docker-build: docker.higress
+ ## Build and push docker images to registry defined by $HUB and $TAG
+docker-build-base:
+	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base .
 
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
