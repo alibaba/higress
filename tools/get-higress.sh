@@ -167,9 +167,9 @@ download() {
   HIGRESS_TMP_FILE="$HIGRESS_TMP_ROOT/$HIGRESS_DIST"
   echo "Downloading $DOWNLOAD_URL..."
   if [ "${HAS_CURL}" == "true" ]; then
-    curl -SsL "$DOWNLOAD_URL" -o "$HIGRESS_TMP_FILE"
+    curl -SsL "$DOWNLOAD_URL" > "$HIGRESS_TMP_FILE"
   elif [ "${HAS_WGET}" == "true" ]; then
-    wget -q -O "$HIGRESS_TMP_FILE" "$DOWNLOAD_URL"
+    wget -q -O - "$DOWNLOAD_URL" > "$HIGRESS_TMP_FILE"
   fi
 }
 
