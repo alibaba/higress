@@ -32,6 +32,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 - [**Use Cases**](#use-cases)
 - [**Higress Features**](#higress-features)
 - [**Quick Start**](https://higress.io/en-us/docs/user/quickstart)
+- [**Community**](#community)
 - [**Thanks**](#thanks)
 
 ## Use Cases
