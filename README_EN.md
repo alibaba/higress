@@ -74,6 +74,10 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
   Provides JWT, OIDC, custom authentication and authentication, deeply integrates open source web application firewall.
 
+## Community
+
+[Slack](https://w1689142780-euk177225.slack.com/archives/C05GEL4TGTG): to get invited go [here](https://communityinviter.com/apps/w1689142780-euk177225/higress).
+
 ### Thanks
 
 Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
