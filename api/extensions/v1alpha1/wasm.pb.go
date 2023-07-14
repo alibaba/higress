@@ -171,7 +171,7 @@ type WasmPlugin struct {
 	DefaultConfig *types.Struct `protobuf:"bytes,101,opt,name=default_config,json=defaultConfig,proto3" json:"default_config,omitempty"`
 	// Extended by Higress, matching rules take effect
 	MatchRules []*MatchRule `protobuf:"bytes,102,rep,name=match_rules,json=matchRules,proto3" json:"match_rules,omitempty"`
-	// diable the default config
+	// disable the default config
 	DefaultConfigDisable bool     `protobuf:"varint,103,opt,name=default_config_disable,json=defaultConfigDisable,proto3" json:"default_config_disable,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
