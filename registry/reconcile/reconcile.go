@@ -16,6 +16,7 @@ package reconcile
 
 import (
 	"errors"
+	"github.com/alibaba/higress/registry/consul"
 	"path"
 	"reflect"
 	"sync"
@@ -159,6 +160,18 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			zookeeper.WithDomain(registry.Domain),
 			zookeeper.WithPort(registry.Port),
 			zookeeper.WithZkServicesPath(registry.ZkServicesPath),
+		)
+	case string(Consul):
+		watcher, err = consul.NewWatcher(
+			r.Cache,
+			consul.WithType(registry.Type),
+			consul.WithName(registry.Name),
+			consul.WithDomain(registry.Domain),
+			consul.WithPort(registry.Port),
+			consul.WithAuthToken(registry.ConsulAuthToken),
+			consul.WithDatacenter(registry.ConsulDatacenter),
+			consul.WithServiceTag(registry.ConsulServiceTag),
+			consul.WithRefreshInterval(registry.ConsulRefreshInterval),
 		)
 	case string(Static), string(DNS):
 		watcher, err = direct.NewWatcher(
