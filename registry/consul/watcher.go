@@ -147,6 +147,7 @@ func (w *watcher) fetchAllServices() error {
 	for serviceName, tags := range services {
 		log.Infof("consul fetch service:%s, tags:%v", serviceName, tags)
 		if w.filterTags(w.ConsulServiceTag, tags) {
+			log.Infof("consul find match service:%s, tags:%v", serviceName, tags)
 			fetchedServices[serviceName] = true
 		}
 	}
@@ -288,6 +289,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 			serviceEntry := w.generateServiceEntry(host, services)
 			log.Infof("consul subscribe callback generate ServiceEntry:%v", serviceEntry)
 			if serviceEntry != nil {
+				log.Infof("consul update cache:%s", host)
 				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
@@ -295,6 +297,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 					RegistryType: w.Type,
 				})
 			} else {
+				log.Infof("consul delete cache:%s", host)
 				w.cache.DeleteServiceEntryWrapper(host)
 			}
 		}
