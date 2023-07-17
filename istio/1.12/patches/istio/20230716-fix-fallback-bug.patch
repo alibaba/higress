@@ -1,0 +1,91 @@
+From cade9561ee5854a20a9c5e4c8a447a919a5b1779 Mon Sep 17 00:00:00 2001
+From: shiqi wang <shiqi.wang1@huawei.com>
+Date: Mon, 17 Jul 2023 18:41:03 +0000
+Subject: [PATCH] fix-fallback-bug
+
+---
+ .../networking/core/v1alpha3/route/route.go   | 35 +++----------------
+ 1 file changed, 5 insertions(+), 30 deletions(-)
+
+diff --git a/pilot/pkg/networking/core/v1alpha3/route/route.go b/pilot/pkg/networking/core/v1alpha3/route/route.go
+index f15412624d..76517b9517 100644
+--- a/pilot/pkg/networking/core/v1alpha3/route/route.go
++++ b/pilot/pkg/networking/core/v1alpha3/route/route.go
+@@ -28,7 +28,6 @@ import (
+ 	matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+ 	xdstype "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+ 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+-	"github.com/hashicorp/go-version"
+ 	any "google.golang.org/protobuf/types/known/anypb"
+ 	"google.golang.org/protobuf/types/known/durationpb"
+ 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
+@@ -669,7 +668,6 @@ func translateRoute(
+ 		}
+ 		var singleClusterConfig *fallback.ClusterFallbackConfig
+ 		var weightedClusterConfig *fallback.ClusterFallbackConfig
+-		isSupportFallback := supportFallback(node)
+ 		// Added by ingress
+ 		if len(in.Route) == 1 {
+ 			route := in.Route[0]
+@@ -731,9 +729,9 @@ func translateRoute(
+ 			}
+ 
+ 			// Added by ingress
+-			if isSupportFallback && singleClusterConfig != nil {
++			if singleClusterConfig != nil {
+ 				action.ClusterSpecifier = &route.RouteAction_InlineClusterSpecifierPlugin{
+-					InlineClusterSpecifierPlugin: buildClusterSpecifierPlugin(isSupportFallback, singleClusterConfig),
++					InlineClusterSpecifierPlugin: buildClusterSpecifierPlugin(singleClusterConfig),
+ 				}
+ 			}
+ 		} else {
+@@ -741,7 +739,7 @@ func translateRoute(
+ 				WeightedClusters: &route.WeightedCluster{
+ 					Clusters: weighted,
+ 					// Added by ingress
+-					InlineClusterSpecifierPlugin: buildClusterSpecifierPlugin(isSupportFallback, weightedClusterConfig),
++					InlineClusterSpecifierPlugin: buildClusterSpecifierPlugin(weightedClusterConfig),
+ 				},
+ 			}
+ 		}
+@@ -1577,8 +1575,8 @@ func IgnoreRedirect(redirect *networking.HTTPRedirect, port int) bool {
+ 	return false
+ }
+ 
+-func buildClusterSpecifierPlugin(isSupport bool, config *fallback.ClusterFallbackConfig) *route.ClusterSpecifierPlugin {
+-	if !isSupport || config == nil {
++func buildClusterSpecifierPlugin(config *fallback.ClusterFallbackConfig) *route.ClusterSpecifierPlugin {
++	if config == nil {
+ 		return nil
+ 	}
+ 
+@@ -1589,26 +1587,3 @@ func buildClusterSpecifierPlugin(isSupport bool, config *fallback.ClusterFallbac
+ 		},
+ 	}
+ }
+-
+-var notSupportFallback, _ = version.NewVersion("1.20.6")
+-
+-func supportFallback(proxy *model.Proxy) (isSupport bool) {
+-	defer func() {
+-		log.Debugf("proxy %s support fallback %v", proxy.ID, isSupport)
+-	}()
+-
+-	rawVersion, exist := proxy.Metadata.Raw["ENVOY_VERSION"]
+-	if !exist {
+-		return
+-	}
+-
+-	versionStr := rawVersion.(string)
+-	log.Debugf("Envoy version is %s", versionStr)
+-	curVersion, err := version.NewVersion(versionStr)
+-	if err != nil {
+-		return
+-	}
+-
+-	isSupport = curVersion.GreaterThan(notSupportFallback)
+-	return
+-}
+-- 
+2.17.1
+
