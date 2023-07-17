@@ -3,7 +3,7 @@ module github.com/corazawaf/coraza-proxy-wasm
 go 1.19
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230504075705-7e358eb1db7c
+	github.com/alibaba/higress/plugins/wasm-go v0.0.0
 	github.com/corazawaf/coraza-wasilibs v0.0.0-20230408002644-e2e3af21f503
 	github.com/corazawaf/coraza/v3 v3.0.0-rc.1.0.20230407165813-a18681b1ec28
 	github.com/stretchr/testify v1.8.0
@@ -33,5 +33,5 @@ require (
 )
 
 replace (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230504075705-7e358eb1db7c => github.com/rinfx/higress/plugins/wasm-go v0.0.0-20230508112120-f2d89b0606ee
+	replace github.com/alibaba/higress/plugins/wasm-go => ../..
 )
