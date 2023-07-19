@@ -38,8 +38,8 @@ var HTTPRouteDefaultBackend = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/bar-error",
-						Host: "bar.com",
+						Host: "foo.com",
+						Path: "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
