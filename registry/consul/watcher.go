@@ -95,6 +95,7 @@ func WithRefreshInterval(refreshInterval int64) WatcherOption {
 func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
 	w := &watcher{
 		WatchingServices: make(map[string]bool),
+		watchers:         make(map[string]*watch.Plan),
 		RegistryType:     provider.Consul,
 		Status:           provider.UnHealthy,
 		cache:            cache,
@@ -126,7 +127,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 }
 
 func (w *watcher) fetchAllServices() error {
-	log.Infof("consul start to fetch services")
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	if w.isStop {
@@ -145,9 +145,7 @@ func (w *watcher) fetchAllServices() error {
 	}
 
 	for serviceName, tags := range services {
-		log.Infof("consul fetch service:%s, tags:%v", serviceName, tags)
 		if w.filterTags(w.ConsulServiceTag, tags) {
-			log.Infof("consul find match service:%s, tags:%v", serviceName, tags)
 			fetchedServices[serviceName] = true
 		}
 	}
@@ -195,6 +193,7 @@ func (w *watcher) filterTags(consulTag string, tags []string) bool {
 }
 
 func (w *watcher) Run() {
+	log.Infof("consul Run()")
 	ticker := time.NewTicker(time.Duration(w.ConsulRefreshInterval))
 	defer ticker.Stop()
 	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
@@ -203,6 +202,7 @@ func (w *watcher) Run() {
 	for {
 		select {
 		case <-ticker.C:
+			log.Infof("consul ticker start")
 			w.fetchAllServices()
 		case <-w.stop:
 			return
@@ -211,6 +211,7 @@ func (w *watcher) Run() {
 }
 
 func (w *watcher) Stop() {
+	log.Infof("consul Stop()")
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
@@ -219,7 +220,6 @@ func (w *watcher) Stop() {
 		if err == nil {
 			delete(w.WatchingServices, serviceName)
 		}
-
 		// clean the cache
 		suffix := strings.Join([]string{serviceName, w.ConsulDatacenter, w.Type}, common.DotSeparator)
 		host := strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
@@ -239,12 +239,10 @@ func (w *watcher) GetRegistryType() string {
 }
 
 func (w *watcher) unsubscribe(serviceName string) error {
-	log.Debugf("consul unsubscribe service, serviceName:%s", serviceName)
+	log.Infof("consul unsubscribe service, serviceName:%s", serviceName)
 	if plan, ok := w.watchers[serviceName]; ok {
 		plan.Stop()
-		w.mutex.Lock()
 		delete(w.watchers, serviceName)
-		w.mutex.Unlock()
 	}
 	return nil
 }
@@ -267,10 +265,7 @@ func (w *watcher) subscribe(serviceName string) error {
 	plan.Token = w.ConsulAuthToken
 	plan.Datacenter = w.ConsulDatacenter
 	go plan.Run(w.serverAddress)
-
-	w.mutex.Lock()
 	w.watchers[serviceName] = plan
-	w.mutex.Unlock()
 	return nil
 }
 
@@ -282,14 +277,10 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 		log.Infof("consul subscribe callback service, host:%s, serviceName:%s", host, serviceName)
 		switch services := data.(type) {
 		case []*consulapi.ServiceEntry:
-			for _, entry := range services {
-				log.Infof("consul subscribe callback service changed, service:%s, status:%s", entry.Service.Service, entry.Checks.AggregatedStatus())
-			}
 			defer w.UpdateService()
 			serviceEntry := w.generateServiceEntry(host, services)
-			log.Infof("consul subscribe callback generate ServiceEntry:%v", serviceEntry)
 			if serviceEntry != nil {
-				log.Infof("consul update cache:%s", host)
+				log.Infof("consul host %s, update cache", host)
 				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
@@ -297,8 +288,8 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 					RegistryType: w.Type,
 				})
 			} else {
-				log.Infof("consul delete cache:%s", host)
-				w.cache.DeleteServiceEntryWrapper(host)
+				log.Infof("consul host %s is nil", host)
+				//w.cache.DeleteServiceEntryWrapper(host)
 			}
 		}
 	}
