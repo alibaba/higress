@@ -16,6 +16,7 @@ package test
 
 import (
 	"flag"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,8 @@ import (
 )
 
 var isWasmPluginTest = flag.Bool("isWasmPluginTest", false, "")
+var wasmPluginType = flag.String("WasmPluginType", "GO", "")
+var wasmPluginName = flag.String("WasmPluginName", "", "")
 
 func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
@@ -53,8 +56,18 @@ func TestHigressConformanceTests(t *testing.T) {
 	var higressTests []suite.ConformanceTest
 
 	if *isWasmPluginTest {
-		higressTests = []suite.ConformanceTest{
-			tests.WasmPluginsRequestBlock,
+		if strings.Compare(*wasmPluginType, "CPP") == 0 {
+			m := make(map[string]suite.ConformanceTest)
+			m["request_block"] = tests.CPPWasmPluginsRequestBlock
+			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
+
+			higressTests = []suite.ConformanceTest{
+				m[*wasmPluginName],
+			}
+		} else {
+			higressTests = []suite.ConformanceTest{
+				tests.WasmPluginsRequestBlock,
+			}
 		}
 	} else {
 		higressTests = []suite.ConformanceTest{

@@ -7,63 +7,31 @@ This SDK is used to develop the WASM Plugins for Higress in Go.
 The wasm-go plugin can be built quickly with the following command:
 
 ```bash
-$ PLUGIN_NAME=request-block make build
+$ PLUGIN_NAME=request_block make build
 ```
 
 <details>
 <summary>Output</summary>
 <pre><code>
-DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request-block \
-                               -t request-block:20230223-173305-3b1a471 \
-                               --output extensions/request-block .
-[+] Building 67.7s (12/12) FINISHED
+DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request_block \
+                                    -t request_block:20230721-141120-aa17e95 \
+                                    --output extensions/request_block \
+                                    .
+[+] Building 2.3s (10/10) FINISHED 
 
-image:            request-block:20230223-173305-3b1a471
-output wasm file: extensions/request-block/plugin.wasm
+output wasm file: extensions/request_block/plugin.wasm
 </code></pre>
 </details>
 
 This command eventually builds a wasm file and a Docker image.
 This local wasm file is exported to the specified plugin's directory and can be used directly for debugging.
-You can also use `make build-push` to build and push the image at the same time.
 
 ### Environmental parameters
 
-| Name          | Optional/Required | Default                                                                                                      | meaning                                                                                                                              |
-|---------------|---------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `PLUGIN_NAME` | Optional      | hello-world                                                                                                  | The name of the plugin to build.                                                                                                     |
-| `REGISTRY`    | Optional      | empty                                                                                                        | The registry address of the generated image, e.g. `example.registry.io/my-name/`.  Note that the REGISTRY value should end with /.   |
-| `IMG`         | Optional      | If it is empty, it is generated based on the repository address, plugin name, build time, and git commit id. | The generated image tag will override the `REGISTRY` parameter if it is not empty.                                                   |
-
-## Build on local yourself
-
-You can also build wasm locally and copy it to a Docker image. This requires a local build environment:
-
-Go version: >= 1.18
-
-TinyGo version: >= 0.25.0
-
-The following is an example of building the plugin [request-block](extensions/request-block).
-
-### step1. build wasm
-
-```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-block/main.go
-```
-
-### step2. build and push docker image
-
-A simple Dockerfile:
-
-```Dockerfile
-FROM scratch
-COPY main.wasm plugin.wasm
-```
-
-```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
-docker push <your_registry_hub>/request-block:1.0.0
-```
+| Name          | Optional/Required | Default                                                                                                      | meaning                                                                                                                                            |
+|---------------|---------------|------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `PLUGIN_NAME` | Optional      | hello-world                                                              | The name of the plugin to build.      |
+| `IMG`         | Optional      | If it is empty, it is generated based on the repository address, plugin name, build time, and git commit id. | The generated image tag will override the `REGISTRY` parameter if it is not empty. |
 
 ## Apply WasmPlugin API
 
@@ -177,6 +145,7 @@ cSuite.Setup(t)
 			m := make(map[string]suite.ConformanceTest)
 			m["request_block"] = tests.CPPWasmPluginsRequestBlock
 			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
+        //Add your newly written case method name here
 
 			higressTests = []suite.ConformanceTest{
 				m[*wasmPluginName],
@@ -184,7 +153,6 @@ cSuite.Setup(t)
 		} else {
 			higressTests = []suite.ConformanceTest{
 				tests.WasmPluginsRequestBlock,
-        //Add your newly written case method name here
 			}
 		}
 	} else {
@@ -195,5 +163,5 @@ cSuite.Setup(t)
 Considering that building wasm locally is time-consuming, we support building only the plug-ins that need to be tested (at the same time, you can also temporarily modify the list of test cases in the second small step above, and only execute your newly written cases).
 
 ```bash
-PLUGIN_NAME=request-block make higress-wasmplugin-test
+PLUGIN_TYPE=CPP PLUGIN_NAME=request_block make higress-wasmplugin-test
 ```
