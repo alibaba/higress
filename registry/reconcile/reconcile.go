@@ -16,7 +16,6 @@ package reconcile
 
 import (
 	"errors"
-	"github.com/alibaba/higress/registry/consul"
 	"path"
 	"reflect"
 	"sync"
@@ -26,6 +25,7 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/registry"
+	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
