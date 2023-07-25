@@ -107,7 +107,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-  ingress-conformance-test:
+  higress-conformance-test:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
@@ -141,10 +141,10 @@ jobs:
           
     - run: git stash # restore patch
 
-    - name: "Run Ingress Conformance Tests"
-      run: GOPROXY="https://proxy.golang.org,direct" make ingress-conformance-test
+    - name: "Run Higress E2E Conformance Tests"
+      run: GOPROXY="https://proxy.golang.org,direct" make higress-conformance-test
       
-  ingress-wasmplugin-test:
+  higress-wasmplugin-test:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
@@ -179,10 +179,10 @@ jobs:
     - run: git stash # restore patch
 
     - name: "Run Ingress WasmPlugins Tests"
-      run: GOPROXY="https://proxy.golang.org,direct" make ingress-wasmplugin-test
+      run: GOPROXY="https://proxy.golang.org,direct" make higress-wasmplugin-test
 
   publish:
     runs-on: ubuntu-latest
-    needs: [ingress-conformance-test,gateway-conformance-test,ingress-wasmplugin-test]
+    needs: [higress-conformance-test,gateway-conformance-test,higress-wasmplugin-test]
     steps:
     - uses: actions/checkout@v3

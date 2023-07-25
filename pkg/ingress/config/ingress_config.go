@@ -49,6 +49,7 @@ import (
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
@@ -126,6 +127,8 @@ type IngressConfig struct {
 
 	http2rpcs map[string]*higressv1.Http2Rpc
 
+	configmapMgr *configmap.ConfigmapMgr
+
 	XDSUpdater model.XDSUpdater
 
 	annotationHandler annotations.AnnotationHandler
@@ -169,6 +172,10 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
 	config.http2rpcController = http2rpcController
 	config.http2rpcLister = http2rpcController.Lister()
+
+	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
+	config.configmapMgr = configmap.NewConfigmapMgr(XDSUpdater, namespace, higressConfigController, higressConfigController.Lister())
+
 	return config
 }
 
@@ -241,8 +248,24 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	if typ == gvk.EnvoyFilter {
 		m.mutex.RLock()
 		defer m.mutex.RUnlock()
-		IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
-		return m.cachedEnvoyFilters, nil
+		var envoyFilters []config.Config
+		// Build configmap envoy filters
+		configmapEnvoyFilters, err := m.configmapMgr.ConstructEnvoyFilters()
+		if err != nil {
+			IngressLog.Errorf("Construct configmap EnvoyFilters error %v", err)
+		} else {
+			for _, envoyFilter := range configmapEnvoyFilters {
+				envoyFilters = append(envoyFilters, *envoyFilter)
+			}
+			IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
+		}
+		if len(envoyFilters) == 0 {
+			IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
+			return m.cachedEnvoyFilters, nil
+		}
+		envoyFilters = append(envoyFilters, m.cachedEnvoyFilters...)
+		IngressLog.Infof("resource type %s, configs number %d", typ, len(envoyFilters))
+		return envoyFilters, nil
 	}
 
 	var configs []config.Config
@@ -1200,11 +1223,7 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 						"reject_unknown_method": true,
 						"reject_unknown_query_parameters": true
 					},
-					"services_mapping": {
-						"name": "%s",
-						"version": "%s",
-						"method_mapping": %s
-					},
+					"services_mapping": %s,
 					"url_unescape_spec": "ALL_CHARACTERS_EXCEPT_RESERVED"
 				}
 			}
@@ -1214,9 +1233,6 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 	for _, serviceMethod := range dubbo.GetMethods() {
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
-		var passthrough_setting = make(map[string]interface{})
-		passthrough_setting["passthrough_all_headers"] = true
-		method["passthrough_setting"] = passthrough_setting
 		var params []interface{}
 		for _, methodParam := range serviceMethod.GetParams() {
 			var param = make(map[string]interface{})
@@ -1230,13 +1246,29 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		path_matcher["match_http_method_spec"] = Http2RpcMethodMap()[serviceMethod.HttpMethods[0]]
 		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
 		method["path_matcher"] = path_matcher
+		var passthrough_setting = make(map[string]interface{})
+		var headersAttach = serviceMethod.GetHeadersAttach()
+		if headersAttach == "" {
+			passthrough_setting["passthrough_all_headers"] = false
+		} else if headersAttach == "*" {
+			passthrough_setting["passthrough_all_headers"] = true
+		} else {
+			passthrough_setting["passthrough_headers"] = headersAttach
+		}
+		method["passthrough_setting"] = passthrough_setting
 		methods = append(methods, method)
 	}
-	name := dubbo.GetService()
-	version := dubbo.GetVersion()
+	var serviceMapping = make(map[string]interface{})
+	var dubboServiceGroup = dubbo.GetGroup()
+	if dubboServiceGroup != "" {
+		serviceMapping["group"] = dubboServiceGroup
+	}
+	serviceMapping["name"] = dubbo.GetService()
+	serviceMapping["version"] = dubbo.GetVersion()
+	serviceMapping["method_mapping"] = methods
 	strBuffer := new(bytes.Buffer)
-	methodsJsonStr, _ := json.Marshal(methods)
-	fmt.Fprintf(strBuffer, httpRouterTemplate, name, version, string(methodsJsonStr))
+	serviceMappingJsonStr, _ := json.Marshal(serviceMapping)
+	fmt.Fprintf(strBuffer, httpRouterTemplate, string(serviceMappingJsonStr))
 	IngressLog.Infof("Found http2rpc buildHttp2RpcMethods %s", strBuffer.String())
 	result := buildPatchStruct(strBuffer.String())
 	return result, nil
@@ -1359,6 +1391,7 @@ func (m *IngressConfig) Run(stop <-chan struct{}) {
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
 	go m.http2rpcController.Run(stop)
+	go m.configmapMgr.HigressConfigController.Run(stop)
 }
 
 func (m *IngressConfig) HasSynced() bool {
@@ -1376,6 +1409,9 @@ func (m *IngressConfig) HasSynced() bool {
 		return false
 	}
 	if !m.http2rpcController.HasSynced() {
+		return false
+	}
+	if !m.configmapMgr.HigressConfigController.HasSynced() {
 		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")

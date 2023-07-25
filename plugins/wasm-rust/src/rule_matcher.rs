@@ -20,7 +20,9 @@ use proxy_wasm::traits::RootContext;
 use proxy_wasm::types::LogLevel;
 use serde::de::DeserializeOwned;
 use serde_json::{from_slice, Map, Value};
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 enum Category {
     Route,
@@ -36,6 +38,8 @@ enum MatchType {
 const RULES_KEY: &str = "_rules_";
 const MATCH_ROUTE_KEY: &str = "_match_route_";
 const MATCH_DOMAIN_KEY: &str = "_match_domain_";
+
+pub type SharedRuleMatcher<PluginConfig> = Rc<RefCell<RuleMatcher<PluginConfig>>>;
 
 struct HostMatcher {
     match_type: MatchType,
@@ -137,15 +141,15 @@ where
         Ok(())
     }
 
-    pub fn get_match_config(&self) -> Option<&PluginConfig> {
+    pub fn get_match_config(&self) -> Option<(i64, &PluginConfig)> {
         let host = get_http_request_header(":authority").unwrap_or_default();
         let route_name = get_property(vec!["route_name"]).unwrap_or_default();
 
-        for rule in &self.rule_config {
+        for (i, rule) in self.rule_config.iter().enumerate() {
             match rule.category {
                 Category::Host => {
                     if self.host_match(rule, host.as_str()) {
-                        return Some(&rule.config);
+                        return Some((i as i64, &rule.config));
                     }
                 }
                 Category::Route => {
@@ -154,13 +158,23 @@ where
                             .unwrap_or_else(|_| "".to_string())
                             .as_str(),
                     ) {
-                        return Some(&rule.config);
+                        return Some((i as i64, &rule.config));
                     }
                 }
             }
         }
 
-        return self.global_config.as_ref();
+        self.global_config
+            .as_ref()
+            .map(|config| (usize::MAX as i64, config))
+    }
+
+    pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
+        self.global_config = self.global_config.as_ref().map(rewrite);
+
+        for rule_config in &mut self.rule_config {
+            rule_config.config = rewrite(&rule_config.config);
+        }
     }
 
     fn parse_route_match_config(config: &Value) -> HashSet<String> {

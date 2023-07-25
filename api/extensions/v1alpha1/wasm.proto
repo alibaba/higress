@@ -104,7 +104,7 @@ message WasmPlugin {
   google.protobuf.Struct default_config = 101;
   // Extended by Higress, matching rules take effect
   repeated MatchRule match_rules = 102;
-  // diable the default config
+  // disable the default config
   bool default_config_disable = 103;
 }
 

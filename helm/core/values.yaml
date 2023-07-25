@@ -45,7 +45,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 1.0.0
+  tag: 1.1.0
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -369,7 +369,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "1.0.0"
+  tag: "1.1.0"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -457,7 +457,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "1.0.0"
+  tag: "1.1.0"
   env: {}
 
   labels: {}
@@ -547,7 +547,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 1.0.0
+  tag: 1.1.0
 
   # Can be a full hub/image:tag
   image: pilot
@@ -560,7 +560,7 @@ pilot:
       memory: 2048Mi
 
   env:
-    PILOT_SCOPE_GATEWAY_TO_NAMESPACE: "true"
+    PILOT_SCOPE_GATEWAY_TO_NAMESPACE: "false"
     PILOT_ENABLE_METADATA_EXCHANGE: "false"
     PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: "false"
     VALIDATION_ENABLED: "false"
@@ -583,7 +583,7 @@ pilot:
   jwksResolverExtraRootCA: ""
 
   # This is used to set the source of configuration for
-  # the associated address in configSource, if nothing is specificed
+  # the associated address in configSource, if nothing is specified
   # the default MCP is assumed.
   configSource:
     subscribedResources: []

@@ -33,7 +33,7 @@ var (
 	loggingOptions = log.DefaultOptions()
 
 	serverProvider = func(args *bootstrap.ServerArgs) (bootstrap.ServerInterface, error) {
-		return bootstrap.NewServer(serverArgs)
+		return bootstrap.NewServer(args)
 	}
 
 	waitForMonitorSignal = func(stop chan struct{}) {

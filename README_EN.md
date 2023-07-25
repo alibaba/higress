@@ -32,6 +32,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 - [**Use Cases**](#use-cases)
 - [**Higress Features**](#higress-features)
 - [**Quick Start**](https://higress.io/en-us/docs/user/quickstart)
+- [**Community**](#community)
 - [**Thanks**](#thanks)
 
 ## Use Cases
@@ -73,6 +74,10 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 - **Security**
 
   Provides JWT, OIDC, custom authentication and authentication, deeply integrates open source web application firewall.
+
+## Community
+
+[Slack](https://w1689142780-euk177225.slack.com/archives/C05GEL4TGTG): to get invited go [here](https://communityinviter.com/apps/w1689142780-euk177225/higress).
 
 ### Thanks
 
