@@ -32,7 +32,7 @@ import (
 // +cue-gen:Http2Rpc:annotations:helm.sh/resource-policy=keep
 // +cue-gen:Http2Rpc:subresource:status
 // +cue-gen:Http2Rpc:scope:Namespaced
-// +cue-gen:Http2Rpc:resource:categories=higress-io,plural=Http2Rpcs
+// +cue-gen:Http2Rpc:resource:categories=higress-io,plural=http2rpcs
 // +cue-gen:Http2Rpc:preserveUnknownFields:false
 // -->
 //
