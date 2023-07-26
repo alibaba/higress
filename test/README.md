@@ -17,9 +17,11 @@ Higress e2e tests are mainly focusing on two parts for now:
 
 Higress provides make target to run ingress api conformance tests and wasmplugin tests,
 
-+  API Tests: `make ingress-conformance-test`
-+  WasmPlugin Tests: `make ingress-wasmplugin-test`
-    + Only build one WasmPlugin for testing: `PLUGIN_NAME=request-block make ingress-wasmplugin-test`
++  API Tests: `make higress-conformance-test`
++  WasmPlugin Tests: `make higress-wasmplugin-test`
+    + Build ALL GO WasmPlugins for testing: `make higress-wasmplugin-test`
+    + Only build one GO WasmPlugin for testing: `PLUGIN_NAME=request-block make higress-wasmplugin-test`
+    + Only build one CPP WasmPlugin for testing: `PLUGIN_TYPE=CPP PLUGIN_NAME=key_auth make higress-wasmplugin-test`
 
 It can be divided into below steps:
 
