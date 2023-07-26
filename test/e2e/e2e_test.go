@@ -30,8 +30,8 @@ import (
 )
 
 var isWasmPluginTest = flag.Bool("isWasmPluginTest", false, "")
-var wasmPluginType = flag.String("WasmPluginType", "GO", "")
-var wasmPluginName = flag.String("WasmPluginName", "", "")
+var wasmPluginType = flag.String("wasmPluginType", "GO", "")
+var wasmPluginName = flag.String("wasmPluginName", "", "")
 
 func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
