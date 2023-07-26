@@ -2,72 +2,38 @@
 
 ## 介绍
 
-此 SDK 用于使用 Go 语言开发 Higress 的 Wasm 插件。
+此 SDK 用于使用 CPP 语言开发 Higress 的 Wasm 插件。
 
-## 使用 Higress wasm-go builder 快速构建
+## 使用 Higress wasm-cpp builder 快速构建
 
-使用以下命令可以快速构建 wasm-go 插件:
+使用以下命令可以快速构建 wasm-cpp 插件:
 
 ```bash
-$ PLUGIN_NAME=request-block make build
+$ PLUGIN_NAME=request_block make build
 ```
 
 <details>
 <summary>输出结果</summary>
 <pre><code>
-DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request-block \
-                               -t request-block:20230223-173305-3b1a471 \
-                               --output extensions/request-block .
-[+] Building 67.7s (12/12) FINISHED
+DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request_block \
+                                    -t request_block:20230721-141120-aa17e95 \
+                                    --output extensions/request_block \
+                                    .
+[+] Building 2.3s (10/10) FINISHED 
 
-image:            request-block:20230223-173305-3b1a471
-output wasm file: extensions/request-block/plugin.wasm
+output wasm file: extensions/request_block/plugin.wasm
 </code></pre>
 </details>
 
 该命令最终构建出一个 wasm 文件和一个 Docker image。
 这个本地的 wasm 文件被输出到了指定的插件的目录下，可以直接用于调试。
-你也可以直接使用 `make build-push` 一并构建和推送 image.
 
 ### 参数说明
 
-| 参数名称          | 可选/必须 | 默认值                                       | 含义                                                                   |
+| 参数名称          | 可选/必须 | 默认值                                       | 含义                                                          |
 |---------------|-------|-------------------------------------------|----------------------------------------------------------------------|
-| `PLUGIN_NAME` | 可选的   | hello-world                               | 要构建的插件名称。                                                            |
-| `REGISTRY`    | 可选的   | 空                                         | 生成的镜像的仓库地址，如 `example.registry.io/my-name/`.  注意 REGISTRY 值应当以 / 结尾。 |
-| `IMG`         | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成。 | 生成的镜像名称。如非空，则会覆盖`REGISTRY` 参数。                                       |
-
-## 本地构建
-
-你也可以选择先在本地将 wasm 构建出来，再拷贝到 Docker 镜像中。这要求你要先在本地搭建构建环境。
-
-编译环境要求如下：
-
-- Go 版本: >= 1.18 (需要支持范型特性)
-
-- TinyGo 版本: >= 0.25.0
-
-下面是本地多步骤构建 [request-block](extensions/request-block) 的例子。
-
-### step1. 编译 wasm
-
-```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-block/main.go
-```
-
-### step2. 构建并推送插件的 docker 镜像
-
-使用这份简单的 Dockerfile
-
-```Dockerfile
-FROM scratch
-COPY main.wasm plugin.wasm
-```
-
-```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
-docker push <your_registry_hub>/request-block:1.0.0
-```
+| `PLUGIN_NAME` | 可选的   | hello-world                               | 要构建的插件名称。                                                    |
+| `IMG`         | 可选的   | 如不设置则根据仓库地址、插件名称、构建时间以及 git commit id 生成。 | 生成的镜像名称。如非空，则会覆盖`REGISTRY` 参           |
 
 ## 创建 WasmPlugin 资源使插件生效
 
@@ -83,7 +49,7 @@ spec:
   defaultConfig:
     block_urls:
     - "swagger.html"
-  url: oci://<your_registry_hub>/request-block:1.0.0  # 之前构建和推送的 image 地址
+  url: oci://<your_registry_hub>/request_block:1.0.0  # 之前构建和推送的 image 地址
 ```
 
 使用 `kubectl apply -f <your-wasm-plugin-yaml>` 使资源生效。
@@ -139,7 +105,7 @@ spec:
       block_bodies:
       - "foo"
       - "bar"
-  url: oci://<your_registry_hub>/request-block:1.0.0
+  url: oci://<your_registry_hub>/request_block:1.0.0
 ```
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
@@ -149,9 +115,9 @@ spec:
 当你完成一个GO语言的插件功能时, 可以同时创建关联的e2e test cases, 并在本地对插件功能完成测试验证。
 
 ### step1. 编写 test cases
-在目录./test/e2e/conformance/tests/下面, 分别添加xxx.yaml文件和xxx.go文件, 比如测试插件request-block
+在目录./test/e2e/conformance下面, 分别添加xxx.yaml文件和xxx.go文件, 比如测试插件request-block
 
-./test/e2e/conformance/tests/request-block.yaml
+./test/e2e/conformance/tests/cpp-request_block.yaml
 ```
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -161,11 +127,11 @@ spec:
   defaultConfig:
     block_urls:
     - "swagger.html"
-  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+  url: file:///opt/plugins/wasm-cpp/extensions/request_block/plugin.wasm
 ```
 `其中url中extensions后面的'request-block'为插件所在文件夹名称`
 
-./test/e2e/conformance/tests/request-block.go
+./test/e2e/conformance/tests/cpp-request_block.go
 
 ### step2. 添加 test cases
 将上述所写test cases添加到e2e测试列表中,
@@ -182,6 +148,7 @@ cSuite.Setup(t)
 			m := make(map[string]suite.ConformanceTest)
 			m["request_block"] = tests.CPPWasmPluginsRequestBlock
 			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
+        //这里新增你新写的case方法名称
 
 			higressTests = []suite.ConformanceTest{
 				m[*wasmPluginName],
@@ -189,7 +156,6 @@ cSuite.Setup(t)
 		} else {
 			higressTests = []suite.ConformanceTest{
 				tests.WasmPluginsRequestBlock,
-        //这里新增你新写的case方法名称
 			}
 		}
 	} else {
@@ -200,5 +166,5 @@ cSuite.Setup(t)
 考虑到本地构建wasm比较耗时, 我们支持只构建需要测试的插件(同时你也可以临时修改上面第二小步的测试cases列表, 只执行你新写的case)。
 
 ```bash
-PLUGIN_NAME=request-block make higress-wasmplugin-test
+PLUGIN_TYPE=CPP PLUGIN_NAME=request_block make higress-wasmplugin-test
 ```
