@@ -15,7 +15,11 @@
 package reconcile
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"github.com/alibaba/higress/registry/nacos"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path"
 	"reflect"
 	"sync"
@@ -24,11 +28,11 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
 	"github.com/alibaba/higress/registry/memory"
-	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
 )
@@ -38,14 +42,18 @@ type Reconciler struct {
 	registries    map[string]*apiv1.RegistryConfig
 	watchers      map[string]Watcher
 	serviceUpdate func()
+	client        kube.Client
+	namespace     string
 }
 
-func NewReconciler(serviceUpdate func()) *Reconciler {
+func NewReconciler(serviceUpdate func(), client kube.Client, nmaespace string) *Reconciler {
 	return &Reconciler{
 		Cache:         memory.NewCache(),
 		registries:    make(map[string]*apiv1.RegistryConfig),
 		watchers:      make(map[string]Watcher),
 		serviceUpdate: serviceUpdate,
+		client:        client,
+		namespace:     nmaespace,
 	}
 }
 
@@ -123,6 +131,12 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
 	var watcher Watcher
 	var err error
+	// Get auth option
+	authOption, err := r.getAuthOption(registry)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("get registry type:%s, name:%s, secret name:%s  auth option:%+v", registry.Type, registry.Name, "higress-registry-auth", authOption)
 
 	switch registry.Type {
 	case string(Nacos):
@@ -136,6 +150,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacos.WithNacosNamespace(registry.NacosNamespace),
 			nacos.WithNacosGroups(registry.NacosGroups),
 			nacos.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			nacos.WithAuthOption(authOption),
 		)
 	case string(Nacos2):
 		watcher, err = nacosv2.NewWatcher(
@@ -151,6 +166,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosNamespace(registry.NacosNamespace),
 			nacosv2.WithNacosGroups(registry.NacosGroups),
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			nacosv2.WithAuthOption(authOption),
 		)
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
@@ -168,10 +184,10 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			consul.WithName(registry.Name),
 			consul.WithDomain(registry.Domain),
 			consul.WithPort(registry.Port),
-			consul.WithAuthToken(registry.ConsulAuthToken),
 			consul.WithDatacenter(registry.ConsulDatacenter),
 			consul.WithServiceTag(registry.ConsulServiceTag),
 			consul.WithRefreshInterval(registry.ConsulRefreshInterval),
+			consul.WithAuthOption(authOption),
 		)
 	case string(Static), string(DNS):
 		watcher, err = direct.NewWatcher(
@@ -202,4 +218,36 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	watcher.AppendServiceUpdateHandler(r.serviceUpdate)
 
 	return watcher, nil
+}
+
+func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, error) {
+	authOption := AuthOption{}
+	authSecretName := "higress-registry-auth"
+	authSecret, err := r.client.CoreV1().Secrets(r.namespace).Get(context.Background(), authSecretName, metav1.GetOptions{})
+
+	if err != nil {
+		return authOption, errors.New(fmt.Sprintf("get auth secret %s in namespace %s error:%v", authSecretName, r.namespace, err))
+	}
+
+	if nacosUsername, ok := authSecret.Data[AuthNacosUsernameKey]; ok {
+		authOption.NacosUsername = string(nacosUsername)
+	}
+
+	if nacosPassword, ok := authSecret.Data[AuthNacosPasswordKey]; ok {
+		authOption.NacosPassword = string(nacosPassword)
+	}
+
+	if consulToken, ok := authSecret.Data[AuthConsulTokenKey]; ok {
+		authOption.ConsulToken = string(consulToken)
+	}
+
+	if etcdUsername, ok := authSecret.Data[AuthEtcdUsernameKey]; ok {
+		authOption.EtcdUsername = string(etcdUsername)
+	}
+
+	if etcdPassword, ok := authSecret.Data[AuthEtcdPasswordKey]; ok {
+		authOption.EtcdPassword = string(etcdPassword)
+	}
+
+	return authOption, nil
 }

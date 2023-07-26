@@ -51,6 +51,7 @@ type watcher struct {
 	stop                 chan struct{}
 	isStop               bool
 	updateCacheWhenEmpty bool
+	authOption           provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -85,9 +86,9 @@ func WithDatacenter(dataCenter string) WatcherOption {
 	}
 }
 
-func WithAuthToken(authToken string) WatcherOption {
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
 	return func(w *watcher) {
-		w.ConsulAuthToken = authToken
+		w.authOption = authOption
 	}
 }
 
@@ -129,7 +130,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	w.serverAddress = w.Domain + ":" + strconv.Itoa(int(w.Port))
 	config := consulapi.DefaultConfig()
 	config.Address = w.serverAddress
-	config.Token = w.ConsulAuthToken
+	config.Token = w.authOption.ConsulToken
 	client, err := consulapi.NewClient(config)
 	if err != nil {
 		log.Errorf("[NewWatcher] NewWatcher consul, err:%v, consul address:%s", err, w.serverAddress)
@@ -150,7 +151,7 @@ func (w *watcher) fetchAllServices() error {
 	fetchedServices := make(map[string]bool)
 	q := &consulapi.QueryOptions{}
 	q.Datacenter = w.ConsulDatacenter
-	q.Token = w.ConsulAuthToken
+	q.Token = w.authOption.ConsulToken
 	services, _, err := w.consulCatalog.Services(q)
 
 	if err != nil {
@@ -207,7 +208,6 @@ func (w *watcher) filterTags(consulTag string, tags []string) bool {
 }
 
 func (w *watcher) Run() {
-	log.Infof("consul Run()")
 	ticker := time.NewTicker(time.Duration(w.ConsulRefreshInterval))
 	defer ticker.Stop()
 	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
@@ -216,7 +216,6 @@ func (w *watcher) Run() {
 	for {
 		select {
 		case <-ticker.C:
-			log.Infof("consul ticker start")
 			w.fetchAllServices()
 		case <-w.stop:
 			return
@@ -225,7 +224,6 @@ func (w *watcher) Run() {
 }
 
 func (w *watcher) Stop() {
-	log.Infof("consul Stop()")
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
@@ -276,7 +274,7 @@ func (w *watcher) subscribe(serviceName string) error {
 		return err
 	}
 	plan.Handler = w.getSubscribeCallback(serviceName)
-	plan.Token = w.ConsulAuthToken
+	plan.Token = w.authOption.ConsulToken
 	plan.Datacenter = w.ConsulDatacenter
 	go plan.Run(w.serverAddress)
 	w.watchers[serviceName] = plan
@@ -294,7 +292,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 			defer w.UpdateService()
 			serviceEntry := w.generateServiceEntry(host, services)
 			if serviceEntry != nil {
-				log.Infof("consul host %s, update cache", host)
+				log.Infof("consul update serviceEntry %s cache", host)
 				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
@@ -302,7 +300,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 					RegistryType: w.Type,
 				})
 			} else {
-				log.Infof("consul host %s is nil", host)
+				log.Infof("consul serviceEntry %s is nil", host)
 				//w.cache.DeleteServiceEntryWrapper(host)
 			}
 		}

@@ -960,7 +960,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				IngressLog.Debug("McpBridge triggerd serviceEntry update")
 				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
 			}
-		})
+		}, m.localKubeClient, m.namespace)
 	}
 	reconciler := m.RegistryReconciler
 	go func() {
