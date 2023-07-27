@@ -1,17 +1,30 @@
-package plugin
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package build
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/fatih/structtag"
+	"github.com/pkg/errors"
 )
 
 // WasmPluginMeta is used to describe WASM plugin metadata,
@@ -22,7 +35,7 @@ type WasmPluginMeta struct {
 	Spec       WasmPluginSpec `json:"spec" yaml:"spec"`
 }
 
-func NewWasmPluginMeta(path, structName string) *WasmPluginMeta {
+func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 	fset := token.NewFileSet()
 	pkgs := make(map[string]*ast.Package)
 	err := filepath.Walk(path, func(path string, info fs.FileInfo, err error) error {
@@ -30,15 +43,18 @@ func NewWasmPluginMeta(path, structName string) *WasmPluginMeta {
 			return err
 		}
 		if info.IsDir() {
-			pkgs, err = parser.ParseDir(fset, path, nil, parser.ParseComments)
+			pds, err := parser.ParseDir(fset, path, nil, parser.ParseComments)
 			if err != nil {
 				return err
+			}
+			for k, v := range pds {
+				pkgs[k] = v
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		panic(fmt.Sprintf("failed to walk path: %s", path))
+		return nil, errors.Wrapf(err, "failed to walk path: %s", path)
 	}
 
 	structs := make(map[string]*structType)
@@ -58,16 +74,19 @@ func NewWasmPluginMeta(path, structName string) *WasmPluginMeta {
 			XDescriptionI18n: make(map[I18nType]string),
 			Version:          "0.1.0",
 		},
-		Spec: WasmPluginSpec{},
+		Spec: WasmPluginSpec{
+			Phase:    PhaseUnspecified,
+			Priority: 0,
+		},
 	}
+
 	if model, ok := structs[structName]; ok {
 		meta.genMetaFromConfigModel(structs, model)
-
 	} else {
-		panic(fmt.Sprintf("failed to find struct named %s", structName))
+		return nil, errors.Wrapf(err, "failed to find struct named: %s", structName)
 	}
 
-	return meta
+	return meta, nil
 }
 
 func (meta *WasmPluginMeta) genMetaFromConfigModel(structs map[string]*structType, model *structType) {
@@ -146,6 +165,8 @@ const (
 	CategoryFlowMonitor Category = "flow-monitor"
 	CategoryCustom      Category = "custom"
 )
+
+// TODO: Change the map associated with I18nType to an ordered map, e.g., using wrapped github.com/iancoleman/orderedmap. The aim is to keep the generated files stable.
 
 type I18nType string
 
@@ -246,12 +267,14 @@ func collectStructs(node ast.Node) map[string]*structType {
 	return structs
 }
 
+const unknownIsStruct = false
+
+// TODO: More types need to be supported, e.g., Map, Pointer ...
 func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structType, stc *structType) *JSONSchemaProps {
 	schema := NewJSONSchemaProps()
 
-	if isStruct {
+	if isStruct { // explicitly declare that it is a struct
 		schema.Type = "object"
-		// 遍历成员变量，通过字段名、类型、注解和 tag 设置相应 schema 字段和属性
 		handleFields(structs, schema, stc)
 
 	} else {
@@ -268,7 +291,12 @@ func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structTy
 			case "string":
 				schema.Type = "string"
 			default:
-				panic("unsupported type: " + reflect.TypeOf(typ).String())
+				if s, ok := structs[ft]; ok { // implicitly declare that it is a struct
+					schema.Type = "object"
+					handleFields(structs, schema, s)
+				} else {
+					panic("unsupported type: " + ft)
+				}
 			}
 
 		} else if at, ok := typ.(*ast.ArrayType); ok {
@@ -289,11 +317,13 @@ func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structTy
 	return schema
 }
 
+// iterate over the fields, setting the corresponding
+// schema fields and properties by field name, type, annotations, tags, etc.
 func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *structType) {
 	parent.Properties = make(map[string]JSONSchemaProps)
 
 	for _, field := range stc.Node.Fields.List {
-		// 1. 获取字段名称，设置为默认 title
+		// 1. get filed name as the default key name for the schema property
 		var fieldName string
 		if field.Names == nil {
 			continue
@@ -305,24 +335,17 @@ func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *
 			}
 		}
 
-		schema := &JSONSchemaProps{
-			XTitleI18n:       make(map[I18nType]string),
-			XDescriptionI18n: make(map[I18nType]string),
-		}
-		if child, ok := structs[fieldName]; ok {
-			schema = genSchemaFromType(field.Type, true, structs, child)
-		} else {
-			schema = genSchemaFromType(field.Type, false, structs, nil)
-		}
+		// 2. get the schema of the field
+		schema := genSchemaFromType(field.Type, unknownIsStruct, structs, nil)
 
-		// 3. 解析 Annotations 得到 title 和 description
+		// 3. parse the annotations of the field
 		if field.Doc != nil {
 			anns := getAnnotations(strings.Split(strings.TrimSpace(field.Doc.Text()), "\n"))
 			schema.HandleFieldAnnotations(anns)
 		}
 
-		// 4. 解析 Tags 设置相关属性字段
-		var newName string
+		// 4. parse the tags of the field
+		newName := fieldName
 		if field.Tag != nil {
 			tags, err := structtag.Parse(strings.Trim(field.Tag.Value, "`"))
 			if err != nil {
