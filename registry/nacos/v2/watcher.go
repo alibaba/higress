@@ -286,6 +286,7 @@ func (w *watcher) updateNacosClient() {
 }
 
 func (w *watcher) fetchAllServices() error {
+	log.Infof("nacos2 fetchAllServices")
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
@@ -323,6 +324,7 @@ func (w *watcher) fetchAllServices() error {
 		}
 	}
 
+	log.Infof("nacos2 fetch services num:%d", len(fetchedServices))
 	for key := range w.WatchingServices {
 		if _, exist := fetchedServices[key]; !exist {
 			s := strings.Split(key, DefaultJoiner)

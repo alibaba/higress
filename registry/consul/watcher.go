@@ -142,6 +142,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 }
 
 func (w *watcher) fetchAllServices() error {
+	log.Infof("consul fetchAllServices")
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	if w.isStop {
@@ -164,6 +165,7 @@ func (w *watcher) fetchAllServices() error {
 			fetchedServices[serviceName] = true
 		}
 	}
+	log.Infof("consul fetch services num:%d", len(fetchedServices))
 
 	for serviceName := range w.WatchingServices {
 		if _, exist := fetchedServices[serviceName]; !exist {

@@ -18,8 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/registry/nacos"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path"
 	"reflect"
 	"sync"
@@ -33,8 +31,10 @@ import (
 	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
 	"github.com/alibaba/higress/registry/memory"
+	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Reconciler struct {
@@ -46,14 +46,14 @@ type Reconciler struct {
 	namespace     string
 }
 
-func NewReconciler(serviceUpdate func(), client kube.Client, nmaespace string) *Reconciler {
+func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *Reconciler {
 	return &Reconciler{
 		Cache:         memory.NewCache(),
 		registries:    make(map[string]*apiv1.RegistryConfig),
 		watchers:      make(map[string]Watcher),
 		serviceUpdate: serviceUpdate,
 		client:        client,
-		namespace:     nmaespace,
+		namespace:     namespace,
 	}
 }
 
@@ -131,12 +131,11 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
 	var watcher Watcher
 	var err error
-	// Get auth option
+
 	authOption, err := r.getAuthOption(registry)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("get registry type:%s, name:%s, secret name:%s  auth option:%+v", registry.Type, registry.Name, "higress-registry-auth", authOption)
 
 	switch registry.Type {
 	case string(Nacos):
@@ -222,7 +221,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 
 func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, error) {
 	authOption := AuthOption{}
-	authSecretName := "higress-registry-auth"
+	authSecretName := registry.AuthSecretName
 
 	if len(authSecretName) == 0 {
 		return authOption, nil
