@@ -213,7 +213,7 @@ spec:
               registries:
                 items:
                   properties:
-                    consulAuthToken:
+                    authSecretName:
                       type: string
                     consulDatacenter:
                       type: string
