@@ -88,6 +88,21 @@ outputUsage() {
  -p, --console-password=CONSOLE-PASSWORD
                             the password to be used to visit Higress Console
                             default to "admin" if unspecified
+     --nacos-port=NACOS-PORT
+                            the HTTP port used to access the built-in Nacos
+                            default to 8848 if unspecified
+     --gateway-http-port=GATEWAY-HTTP-PORT
+                            the HTTP port to be listened by the gateway
+                            default to 80 if unspecified
+     --gateway-https-port=GATEWAY-HTTPS-PORT
+                            the HTTPS port to be listened by the gateway
+                            default to 443 if unspecified
+     --gateway-metrics-port=GATEWAY-METRICS-PORT
+                            the metrics port to be listened by the gateway
+                            default to 15012 if unspecified
+     --console-port=CONSOLE-PORT
+                            the port used to visit Higress Console
+                            default to 8080 if unspecified
  -h, --help                 give this help list'
 }
 
