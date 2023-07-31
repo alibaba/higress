@@ -54,7 +54,7 @@ func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to walk path: %s", path)
+		return nil, errors.Wrapf(err, "failed to walk path: %q", path)
 	}
 
 	structs := make(map[string]*structType)
@@ -83,7 +83,7 @@ func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 	if model, ok := structs[structName]; ok {
 		meta.genMetaFromConfigModel(structs, model)
 	} else {
-		return nil, errors.Wrapf(err, "failed to find struct named: %s", structName)
+		return nil, errors.Wrapf(err, "failed to find struct named: %q", structName)
 	}
 
 	return meta, nil

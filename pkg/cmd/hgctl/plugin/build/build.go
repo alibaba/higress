@@ -83,13 +83,13 @@ func NewCommand() *cobra.Command {
 		Use:     "build",
 		Aliases: []string{"bld", "b"},
 		Short:   "Build Golang WASM plugin",
-		Example: `1. The simplest demo, using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "BasicAuthConfig"
-> hgctl plugin build --model BasicAuthConfig
+		Example: `  # The simplest demo, using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "BasicAuthConfig"
+  hgctl plugin build --model BasicAuthConfig
 
-2. Pushing the products as an OCI image to the specified repository using "--output(-o)"
-> docker login
-> hgctl plugin build -s "BasicAuthConfig" -o type=image,dest=docker.io/<your_username>/<your_image>
-`,
+  # Pushing the products as an OCI image to the specified repository using "--output(-o)"
+  docker login
+  hgctl plugin build -s "BasicAuthConfig" -o type=image,dest=docker.io/<your_username>/<your_image>
+  `,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(bld.build(cmd.OutOrStdout()))
 		},
@@ -113,7 +113,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 	// 0. check some options
 	err = b.checkAndSetOptions()
 	if err != nil {
-		errors.Wrap(err, "failed to check and set options")
+		return errors.Wrap(err, "failed to check and set options")
 	}
 
 	// 1. generate files `spec.yaml` and `README_{lang}.md` in the temporary directory of host
@@ -163,7 +163,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 	b.UID, b.GID = u.Uid, u.Gid
 	b.DockerAuth, err = getAbsolutePath(b.DockerAuth)
 	if err != nil {
-		return errors.Wrapf(err, "failed to expand the path of docker authentication configuration")
+		return errors.Wrap(err, "failed to expand the path of docker authentication configuration")
 	}
 	b.ContainerConf = types.ContainerCreateConfig{
 		Name: "higress-wasm-go-builder",
@@ -213,7 +213,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 
 	defer func() {
 		if err != nil {
-			fmt.Fprintln(w, fmt.Sprintf("[×] %s", err.Error()))
+			fmt.Fprintf(w, "[×] %s\n", err.Error())
 		}
 
 		err = cli.ContainerRemove(ctx, resp.ID, types.ContainerRemoveOptions{Force: true})
@@ -224,7 +224,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 	}()
 
 	if err = cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		return errors.Wrapf(err, "[×] failed to start container (%s): %s\n", b.ContainerConf.Name, resp.ID)
+		return errors.Wrapf(err, "[×] failed to start container (%s): %s", b.ContainerConf.Name, resp.ID)
 	}
 	fmt.Fprintf(w, "[√] start container (%s): %s\n", b.ContainerConf.Name, resp.ID)
 
@@ -252,7 +252,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 func (b *Builder) checkAndSetOptions() error {
 	inp, err := getAbsolutePath(b.Input)
 	if err != nil {
-		return errors.Wrapf(err, "failed to parse input option: %s", b.Input)
+		return errors.Wrap(err, "failed to parse input option")
 	}
 	b.Input = inp
 	b.ProjectName = filepath.Base(b.Input)
@@ -275,11 +275,11 @@ func (b *Builder) checkAndSetOptions() error {
 	if b.OutType == "files" {
 		outDest, err = getAbsolutePath(strings.TrimSpace(outDestKV[1]))
 		if err != nil {
-			return errors.Wrapf(err, `failed to parse output destination: "%s"`, outDestKV[1])
+			return errors.Wrap(err, "failed to parse output destination")
 		}
 		err = os.MkdirAll(outDest, 0755)
 		if err != nil && !os.IsExist(err) {
-			return errors.Wrapf(err, `failed to mkdir "%s"`, outDest)
+			return errors.Wrapf(err, "failed to mkdir %q", outDest)
 		}
 	}
 
@@ -318,7 +318,7 @@ func (b *Builder) generateMetadata() error {
 		mdPath := fmt.Sprintf("%s/README.md", b.TempDir)
 		md, err := os.Create(mdPath)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create %s", mdPath)
+			return errors.Wrapf(err, "failed to create %q", mdPath)
 		}
 		md.Close()
 
@@ -354,7 +354,7 @@ func (b *Builder) generateMetadata() error {
 			}
 			md, err = os.Create(mdPath)
 			if err != nil {
-				return errors.Wrapf(err, "failed to create %s", mdPath)
+				return errors.Wrapf(err, "failed to create %q", mdPath)
 			}
 			err = t.Execute(md, u)
 			if err != nil {
@@ -437,12 +437,12 @@ func getAbsolutePath(path string) (newPath string, err error) {
 	if strings.HasPrefix(path, "~") {
 		newPath, err = homedir.Expand(path)
 		if err != nil {
-			return "", errors.Wrapf(err, `failed to expand path: "%s"`, path)
+			return "", errors.Wrapf(err, "failed to expand path: %q", path)
 		}
 	} else {
 		newPath, err = filepath.Abs(path)
 		if err != nil {
-			return "", errors.Wrapf(err, `failed to get absolute path of "%s"`, path)
+			return "", errors.Wrapf(err, "failed to get absolute path of %q", path)
 		}
 	}
 
