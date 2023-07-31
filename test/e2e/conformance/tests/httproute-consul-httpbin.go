@@ -22,13 +22,13 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteHttp2Rpc)
+	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteConsulHttpBin)
 }
 
-var HTTPRouteConsulDemo = suite.ConformanceTest{
-	ShortName:   "HTTPRouteConsulDemo",
+var HTTPRouteConsulHttpBin = suite.ConformanceTest{
+	ShortName:   "HTTPRouteConsulHttpBin",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the consul service registry.",
-	Manifests:   []string{"tests/httproute-consul-demo.yaml"},
+	Manifests:   []string{"tests/httproute-consul-httpbin.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -47,7 +47,7 @@ var HTTPRouteConsulDemo = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("HTTPRoute Consul Demo", func(t *testing.T) {
+		t.Run("HTTPRoute Consul HttpBin", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

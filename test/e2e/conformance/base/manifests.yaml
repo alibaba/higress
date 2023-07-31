@@ -402,11 +402,11 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: consuldemo
+  name: httpbin
   namespace: higress-conformance-app-backend
 spec:
   containers:
-    - name: consuldemo
+    - name: httpbin
       image: registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin:1.0.2
       command:
         - /app/httpbin
@@ -416,7 +416,7 @@ spec:
         - --service-tags=higress,httpbin
       env:
         - name: SERVICE_NAME
-          value: consuldemo
+          value: httpbin
         - name: VERSION
           value: v1
         - name: POD_NAME

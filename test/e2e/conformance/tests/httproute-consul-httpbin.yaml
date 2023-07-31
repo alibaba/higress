@@ -22,7 +22,7 @@ spec:
     - consulDatacenter: dc1
       consulServiceTag: higress
       domain: consul-service.higress-conformance-app-backend.svc.cluster.local
-      name: consuldemo
+      name: consul
       port: 8500
       type: consul
 ---
@@ -30,8 +30,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    higress.io/destination: consuldemo.dc1.consul
-  name: httproute-consul-demo-ingress
+    higress.io/destination: httpbin.dc1.consul
+  name: httproute-consul-httpbin-ingress
   namespace: higress-system
 spec:
   ingressClassName: higress
