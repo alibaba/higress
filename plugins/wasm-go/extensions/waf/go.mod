@@ -33,5 +33,5 @@ require (
 )
 
 replace (
-	replace github.com/alibaba/higress/plugins/wasm-go => ../..
+	github.com/alibaba/higress/plugins/wasm-go => ../..
 )
