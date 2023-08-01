@@ -67,6 +67,7 @@ type watcher struct {
 	addrProvider         *address.NacosAddressProvider
 	updateCacheWhenEmpty bool
 	nacosClietConfig     *constant.ClientConfig
+	authOption           provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -106,6 +107,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithNamespaceId(w.NacosNamespaceId),
 		constant.WithAccessKey(w.NacosAccessKey),
 		constant.WithSecretKey(w.NacosSecretKey),
+		constant.WithUsername(w.authOption.NacosUsername),
+		constant.WithPassword(w.authOption.NacosPassword),
 	)
 
 	initTimer := time.NewTimer(DefaultInitTimeout)
@@ -221,6 +224,12 @@ func WithPort(port uint32) WatcherOption {
 func WithUpdateCacheWhenEmpty(enable bool) WatcherOption {
 	return func(w *watcher) {
 		w.updateCacheWhenEmpty = enable
+	}
+}
+
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
+	return func(w *watcher) {
+		w.authOption = authOption
 	}
 }
 
