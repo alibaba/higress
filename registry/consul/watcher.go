@@ -314,7 +314,6 @@ func (w *watcher) generateServiceEntry(host string, services []*consulapi.Servic
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range services {
-		protocol := common.HTTP
 		// service status: maintenance > critical > warning > passing
 		if service.Checks.AggregatedStatus() != ConuslHealthPassing {
 			continue
@@ -323,6 +322,11 @@ func (w *watcher) generateServiceEntry(host string, services []*consulapi.Servic
 		metaData := make(map[string]string, 0)
 		if service.Service.Meta != nil {
 			metaData = service.Service.Meta
+		}
+
+		protocol := common.HTTP
+		if metaData["protocol"] != "" {
+			protocol = common.ParseProtocol(metaData["protocol"])
 		}
 
 		port := &v1alpha3.Port{
