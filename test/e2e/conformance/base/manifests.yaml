@@ -362,3 +362,101 @@ spec:
       value: dev
     ports:
     - containerPort: 20880
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: consul-standlone
+  namespace: higress-conformance-app-backend
+  labels:
+    name: consul-standlone
+spec:
+  containers:
+    - name: consul
+      image: docker.io/hashicorp/consul:1.16.0
+      resources:
+        requests:
+          cpu: 10m
+      ports:
+        - containerPort: 8500
+          name: http
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul-service
+  namespace: higress-conformance-app-backend
+  labels:
+    name: consul-standlone
+spec:
+  clusterIP: None
+  ports:
+    - name: http-query
+      port: 8500
+      protocol: TCP
+      targetPort: 8500
+  selector:
+    name: consul-standlone
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: httpbin
+  namespace: higress-conformance-app-backend
+spec:
+  containers:
+    - name: httpbin
+      image: registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin:1.0.2
+      command:
+        - /app/httpbin
+        - --registry-type=consul
+        - --consul-server-address=consul-service:8500
+        - --server-port=8080
+        - --service-tags=higress,httpbin
+      env:
+        - name: SERVICE_NAME
+          value: httpbin
+        - name: VERSION
+          value: v1
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+      ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+      readinessProbe:
+        failureThreshold: 5
+        httpGet:
+          path: /ping
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 20
+        successThreshold: 1
+        timeoutSeconds: 1
+      livenessProbe:
+        httpGet:
+          path: /ping
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 20
+        periodSeconds: 20
+

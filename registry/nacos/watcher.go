@@ -64,6 +64,7 @@ type watcher struct {
 	client               *versionedclient.Clientset
 	isStop               bool
 	updateCacheWhenEmpty bool
+	authOption           provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -190,6 +191,12 @@ func WithPort(port uint32) WatcherOption {
 func WithUpdateCacheWhenEmpty(enable bool) WatcherOption {
 	return func(w *watcher) {
 		w.updateCacheWhenEmpty = enable
+	}
+}
+
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
+	return func(w *watcher) {
+		w.authOption = authOption
 	}
 }
 
