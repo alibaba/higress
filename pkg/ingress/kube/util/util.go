@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"os"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/jsonpb"
@@ -80,7 +81,11 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 }
 
 func CreateServiceFQDN(namespace, name string) string {
-	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, DefaultDomainSuffix)
+    domainSuffix := os.Getenv("DOMAIN_SUFFIX")
+        if domainSuffix == "" {
+            domainSuffix = DefaultDomainSuffix
+    }
+	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, domainSuffix)
 }
 
 func BuildPatchStruct(config string) *types.Struct {
