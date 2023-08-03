@@ -31,6 +31,7 @@ import (
 )
 
 const DefaultDomainSuffix = "cluster.local"
+var domainSuffix := os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
 	model.NamespacedName
@@ -81,7 +82,6 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 }
 
 func CreateServiceFQDN(namespace, name string) string {
-        domainSuffix := os.Getenv("DOMAIN_SUFFIX")
         if domainSuffix == "" {
         	domainSuffix = DefaultDomainSuffix
         }
