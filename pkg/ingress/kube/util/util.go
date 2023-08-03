@@ -81,10 +81,10 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 }
 
 func CreateServiceFQDN(namespace, name string) string {
-    domainSuffix := os.Getenv("DOMAIN_SUFFIX")
+        domainSuffix := os.Getenv("DOMAIN_SUFFIX")
         if domainSuffix == "" {
-            domainSuffix = DefaultDomainSuffix
-    }
+        	domainSuffix = DefaultDomainSuffix
+        }
 	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, domainSuffix)
 }
 
