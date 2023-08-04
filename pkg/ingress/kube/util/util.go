@@ -31,7 +31,7 @@ import (
 )
 
 const DefaultDomainSuffix = "cluster.local"
-var domainSuffix := os.Getenv("DOMAIN_SUFFIX")
+var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
 	model.NamespacedName
