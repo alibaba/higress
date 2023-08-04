@@ -203,7 +203,7 @@ spec:
                 apiVersion: v1
                 fieldPath: spec.serviceAccountName
           - name: DOMAIN_SUFFIX
-            value: { { .Values.global.proxy.clusterDomain } }
+            value: {{ .Values.global.proxy.clusterDomain }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
