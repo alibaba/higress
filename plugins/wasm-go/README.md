@@ -45,14 +45,14 @@ output wasm file: extensions/request-block/plugin.wasm
 
 - Go 版本: >= 1.18 (需要支持范型特性)
 
-- TinyGo 版本: >= 0.25.0
+- TinyGo 版本: >= 0.28.1
 
 下面是本地多步骤构建 [request-block](extensions/request-block) 的例子。
 
 ### step1. 编译 wasm
 
 ```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-block/main.go
+tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./extensions/request-block/main.go
 ```
 
 ### step2. 构建并推送插件的 docker 镜像

@@ -22,7 +22,13 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
+	_ "github.com/wasilibs/nottinygc"
 )
+
+//export sched_yield
+func sched_yield() int32 {
+	return 0
+}
 
 type HttpContext interface {
 	Scheme() string
