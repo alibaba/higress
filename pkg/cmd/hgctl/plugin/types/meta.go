@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package build
+package types
 
 import (
 	"go/ast"
@@ -83,7 +83,7 @@ func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 	if model, ok := structs[structName]; ok {
 		meta.genMetaFromConfigModel(structs, model)
 	} else {
-		return nil, errors.Wrapf(err, "failed to find struct named: %q", structName)
+		return nil, errors.Errorf("failed to find struct named: %q", structName)
 	}
 
 	return meta, nil
@@ -248,11 +248,11 @@ func collectStructs(node ast.Node) map[string]*structType {
 					gtxt = ""
 				}
 				if s, ok := structs[typ]; ok {
-					s.Annotations = getAnnotations(strings.Split(txt, "\n"))
+					s.Annotations = GetAnnotations(strings.Split(txt, "\n"))
 				} else {
 					s := &structType{
 						Name:        typ,
-						Annotations: getAnnotations(strings.Split(txt, "\n")),
+						Annotations: GetAnnotations(strings.Split(txt, "\n")),
 						Node:        x.Type.(*ast.StructType),
 					}
 					structs[s.Name] = s
@@ -340,7 +340,7 @@ func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *
 
 		// 3. parse the annotations of the field
 		if field.Doc != nil {
-			anns := getAnnotations(strings.Split(strings.TrimSpace(field.Doc.Text()), "\n"))
+			anns := GetAnnotations(strings.Split(strings.TrimSpace(field.Doc.Text()), "\n"))
 			schema.HandleFieldAnnotations(anns)
 		}
 

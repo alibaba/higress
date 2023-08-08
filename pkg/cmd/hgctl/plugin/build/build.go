@@ -24,6 +24,8 @@ import (
 	"strings"
 	"text/template"
 
+	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -298,7 +300,7 @@ func (b *Builder) generateMetadata() error {
 	}
 	defer spec.Close()
 	ec := yaml.NewEncoder(spec)
-	meta, err := NewWasmPluginMeta(b.ModelDir, b.StructName)
+	meta, err := ptypes.NewWasmPluginMeta(b.ModelDir, b.StructName)
 	if err != nil {
 		return errors.Wrap(err, "failed to call NewWasmPluginMeta")
 	}
@@ -310,7 +312,7 @@ func (b *Builder) generateMetadata() error {
 	// TODO: More languages need to be supported
 	// README_{lang}.md
 	// README.md is required, it is zh-CN or en-US version
-	usages, err := GetUsageFromMeta(meta)
+	usages, err := ptypes.GetUsageFromMeta(meta)
 	if err != nil {
 		return errors.Wrap(err, "failed to call GetUsageFromMeta")
 	}
@@ -333,13 +335,13 @@ func (b *Builder) generateMetadata() error {
 				mdPath = fmt.Sprintf("%s/README.md", b.TempDir)
 			}
 			switch u.I18nType {
-			case I18nZH_CN:
+			case ptypes.I18nZH_CN:
 				t = template.New("MD_zh_CN")
 				t = template.Must(t.Parse(MD_zh_CN))
 				if i != 0 {
 					mdPath = fmt.Sprintf("%s/README_ZH.md", b.TempDir)
 				}
-			case I18nEN_US:
+			case ptypes.I18nEN_US:
 				t = template.New("MD_en_US")
 				t = template.Must(t.Parse(MD_en_US))
 				if i != 0 {

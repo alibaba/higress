@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package build
+package types
 
 import "fmt"
 
@@ -34,9 +34,9 @@ type ConfigEntry struct {
 func GetUsageFromMeta(meta *WasmPluginMeta) ([]*WasmUsage, error) {
 	usages := make([]*WasmUsage, 0)
 	example := ""
-	if meta.Spec.ConfigSchema.OpenAPIV3Schema.Example != nil &&
-		len(meta.Spec.ConfigSchema.OpenAPIV3Schema.Example.Raw) > 0 {
-		example = string(meta.Spec.ConfigSchema.OpenAPIV3Schema.Example.Raw)
+	schema := meta.Spec.ConfigSchema.OpenAPIV3Schema
+	if schema != nil && schema.Example != nil && len(schema.Example.Raw) > 0 {
+		example = string(schema.Example.Raw)
 	}
 	for i18n, desc := range meta.Info.XDescriptionI18n {
 		u := WasmUsage{
@@ -45,7 +45,7 @@ func GetUsageFromMeta(meta *WasmPluginMeta) ([]*WasmUsage, error) {
 			ConfigEntries: make([]ConfigEntry, 0),
 			Example:       example,
 		}
-		getConfigEntryFromSchema(meta.Spec.ConfigSchema.OpenAPIV3Schema, &u.ConfigEntries, "", "", i18n, false)
+		getConfigEntryFromSchema(schema, &u.ConfigEntries, "", "", i18n, false)
 		usages = append(usages, &u)
 	}
 

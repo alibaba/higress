@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package build
+package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/fatih/structtag"
-	"gopkg.in/yaml.v3"
 )
 
 // JSONSchemaProps is a JSON-Schema following Specification Draft 4 (http://json-schema.org/).
@@ -83,49 +81,11 @@ type JSON struct {
 	Raw []byte `json:"-" yaml:"-"`
 }
 
-func (s JSON) MarshalJSON() ([]byte, error) {
-	if len(s.Raw) > 0 {
-		var obj interface{}
-		err := json.Unmarshal(s.Raw, &obj)
-		if err != nil {
-			return []byte("null"), err
-		}
-		return json.Marshal(obj)
-	}
-	return []byte("null"), nil
-}
-
-func (s JSON) MarshalYAML() (interface{}, error) {
-	if len(s.Raw) > 0 {
-		var obj interface{}
-		err := yaml.Unmarshal(s.Raw, &obj)
-		if err != nil {
-			return "null", err
-		}
-		return obj, nil
-	}
-	return "null", nil
-}
-
 // JSONSchemaPropsOrArray represents a value that can either be a JSONSchemaProps
 // or an array of JSONSchemaProps. Mainly here for serialization purposes.
 type JSONSchemaPropsOrArray struct {
 	Schema      *JSONSchemaProps
 	JSONSchemas []JSONSchemaProps
-}
-
-func (s JSONSchemaPropsOrArray) MarshalJSON() ([]byte, error) {
-	if len(s.JSONSchemas) > 0 {
-		return json.Marshal(s.JSONSchemas)
-	}
-	return json.Marshal(s.Schema)
-}
-
-func (s JSONSchemaPropsOrArray) MarshalYAML() (interface{}, error) {
-	if len(s.JSONSchemas) > 0 {
-		return s.JSONSchemas, nil
-	}
-	return s.Schema, nil
 }
 
 // JSONSchemaPropsOrBool represents JSONSchemaProps or a boolean value.
@@ -135,28 +95,6 @@ type JSONSchemaPropsOrBool struct {
 	Schema *JSONSchemaProps
 }
 
-func (s JSONSchemaPropsOrBool) MarshalJSON() ([]byte, error) {
-	if s.Schema != nil {
-		return json.Marshal(s.Schema)
-	}
-
-	if s.Schema == nil && !s.Allows {
-		return []byte("false"), nil
-	}
-	return []byte("true"), nil
-}
-
-func (s JSONSchemaPropsOrBool) MarshalYAML() (interface{}, error) {
-	if s.Schema != nil {
-		return yaml.Marshal(s.Schema)
-	}
-
-	if s.Schema == nil && !s.Allows {
-		return false, nil
-	}
-	return true, nil
-}
-
 // JSONSchemaDependencies represent a dependencies property.
 type JSONSchemaDependencies map[string]JSONSchemaPropsOrStringArray
 
@@ -164,26 +102,6 @@ type JSONSchemaDependencies map[string]JSONSchemaPropsOrStringArray
 type JSONSchemaPropsOrStringArray struct {
 	Schema   *JSONSchemaProps
 	Property []string
-}
-
-func (s JSONSchemaPropsOrStringArray) MarshalJSON() ([]byte, error) {
-	if len(s.Property) > 0 {
-		return json.Marshal(s.Property)
-	}
-	if s.Schema != nil {
-		return json.Marshal(s.Schema)
-	}
-	return []byte("null"), nil
-}
-
-func (s JSONSchemaPropsOrStringArray) MarshalYAML() (interface{}, error) {
-	if len(s.Property) > 0 {
-		return s.Property, nil
-	}
-	if s.Schema != nil {
-		return s.Schema, nil
-	}
-	return "null", nil
 }
 
 // JSONSchemaURL represents a schema url.

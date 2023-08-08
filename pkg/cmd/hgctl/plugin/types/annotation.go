@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package build
+package types
 
 import (
 	"fmt"
@@ -89,7 +89,7 @@ func str2AnnotationType(typ string) AnnotationType {
 	}
 }
 
-func getAnnotations(cs []string) []Annotation {
+func GetAnnotations(cs []string) []Annotation {
 	as := make([]Annotation, 0)
 	for i := 0; i < len(cs); i++ {
 		a, err := getAnnotationFromComment(cs[i])
