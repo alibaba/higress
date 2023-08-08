@@ -166,6 +166,15 @@ const (
 	CategoryCustom      Category = "custom"
 )
 
+const (
+	IconAuth        = "https://img.alicdn.com/imgextra/i4/O1CN01BPFGlT1pGZ2VDLgaH_!!6000000005333-2-tps-42-42.png"
+	IconSecurity    = "https://img.alicdn.com/imgextra/i1/O1CN01jKT9vC1O059vNaq5u_!!6000000001642-2-tps-42-42.png"
+	IconProtocol    = "https://img.alicdn.com/imgextra/i2/O1CN01xIywow1mVGuRUjbhe_!!6000000004959-2-tps-42-42.png"
+	IconFlowControl = "https://img.alicdn.com/imgextra/i3/O1CN01bAFa9k1t1gdQcVTH0_!!6000000005842-2-tps-42-42.png"
+	IconFlowMonitor = "https://img.alicdn.com/imgextra/i4/O1CN01aet3s61MoLOEEhRIo_!!6000000001481-2-tps-42-42.png"
+	IconCustom      = "https://img.alicdn.com/imgextra/i1/O1CN018iKKih1iVx287RltL_!!6000000004419-2-tps-42-42.png"
+)
+
 // TODO: Change the map associated with I18nType to an ordered map, e.g., using wrapped github.com/iancoleman/orderedmap. The aim is to keep the generated files stable.
 
 type I18nType string

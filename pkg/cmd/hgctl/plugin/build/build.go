@@ -31,7 +31,6 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -163,7 +162,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 		return errors.Wrap(err, "failed to get the current user information")
 	}
 	b.UID, b.GID = u.Uid, u.Gid
-	b.DockerAuth, err = getAbsolutePath(b.DockerAuth)
+	b.DockerAuth, err = ptypes.GetAbsolutePath(b.DockerAuth)
 	if err != nil {
 		return errors.Wrap(err, "failed to expand the path of docker authentication configuration")
 	}
@@ -194,6 +193,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 				},
 			},
 		},
+		Platform: nil,
 	}
 
 	// 2.4. add additional container configuration for different output type
@@ -207,7 +207,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 	}
 
 	// 3. create and start the builder container to generate the build products
-	resp, err := cli.ContainerCreate(ctx, b.ContainerConf.Config, b.ContainerConf.HostConfig, b.ContainerConf.NetworkingConfig, b.ContainerConf.Name)
+	resp, err := cli.ContainerCreate(ctx, b.ContainerConf.Config, b.ContainerConf.HostConfig, b.ContainerConf.NetworkingConfig, b.ContainerConf.Platform, b.ContainerConf.Name)
 	if err != nil {
 		return errors.Wrap(err, "[×] failed to create the builder container")
 	}
@@ -252,7 +252,7 @@ func (b *Builder) build(w io.Writer) (err error) {
 }
 
 func (b *Builder) checkAndSetOptions() error {
-	inp, err := getAbsolutePath(b.Input)
+	inp, err := ptypes.GetAbsolutePath(b.Input)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse input option")
 	}
@@ -275,7 +275,7 @@ func (b *Builder) checkAndSetOptions() error {
 	}
 	outDest := strings.TrimSpace(outDestKV[1])
 	if b.OutType == "files" {
-		outDest, err = getAbsolutePath(strings.TrimSpace(outDestKV[1]))
+		outDest, err = ptypes.GetAbsolutePath(strings.TrimSpace(outDestKV[1]))
 		if err != nil {
 			return errors.Wrap(err, "failed to parse output destination")
 		}
@@ -433,25 +433,4 @@ func (b *Builder) imageHandler() {
 	}
 	b.Cmds = append(b.Cmds, addCmds...)
 	b.ContainerConf.Config.Cmd = []string{"bash", "-c", strings.Join(b.Cmds, " && ")}
-}
-
-func getAbsolutePath(path string) (newPath string, err error) {
-	if strings.HasPrefix(path, "~") {
-		newPath, err = homedir.Expand(path)
-		if err != nil {
-			return "", errors.Wrapf(err, "failed to expand path: %q", path)
-		}
-	} else {
-		newPath, err = filepath.Abs(path)
-		if err != nil {
-			return "", errors.Wrapf(err, "failed to get absolute path of %q", path)
-		}
-	}
-
-	l := len(newPath)
-	if l > 1 && newPath[l-1] == '/' { // if l == 1, the path might be "/"
-		newPath = newPath[:l-1]
-	}
-
-	return newPath, nil
 }
