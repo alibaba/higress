@@ -188,10 +188,11 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 		}
 
 		// Move user specified root path match to end
-		if isAllCatch(routes[i]) {
+		caught1, caught2 := isAllCatch(routes[i]), isAllCatch(routes[j])
+		if caught1 && !caught2 {
 			return false
 		}
-		if isAllCatch(routes[j]) {
+		if !caught1 && caught2 {
 			return true
 		}
 
