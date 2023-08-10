@@ -317,7 +317,7 @@ func (w *watcher) fetchAllServices() error {
 			for _, serviceName := range ss.Doms {
 				fetchedServices[groupName+DefaultJoiner+serviceName] = true
 			}
-			if ss.Count < DefaultFetchPageSize {
+			if len(ss.Doms) < DefaultFetchPageSize {
 				break
 			}
 		}
