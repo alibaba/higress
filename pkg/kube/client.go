@@ -19,6 +19,10 @@ import (
 	"reflect"
 	"time"
 
+	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
+	higressfake "github.com/alibaba/higress/client/pkg/clientset/versioned/fake"
+	higressinformer "github.com/alibaba/higress/client/pkg/informers/externalversions"
+
 	"go.uber.org/atomic"
 	istiokube "istio.io/istio/pkg/kube"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,10 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
-
-	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
-	higressfake "github.com/alibaba/higress/client/pkg/clientset/versioned/fake"
-	higressinformer "github.com/alibaba/higress/client/pkg/informers/externalversions"
+	kingressclient "knative.dev/networking/pkg/client/clientset/versioned"
+	kingressfake "knative.dev/networking/pkg/client/clientset/versioned/fake"
+	kingressinformer "knative.dev/networking/pkg/client/informers/externalversions"
 )
 
 type Client interface {
@@ -40,6 +43,11 @@ type Client interface {
 
 	// HigressInformer returns an informer for the higress client
 	HigressInformer() higressinformer.SharedInformerFactory
+
+	//KIngress return the Knative kube client
+	Kingress() kingressclient.Interface
+
+	KingressInformer() kingressinformer.SharedInformerFactory
 }
 
 type client struct {
@@ -48,6 +56,8 @@ type client struct {
 	higress         higressclient.Interface
 	higressInformer higressinformer.SharedInformerFactory
 
+	kingress         kingressclient.Interface
+	kingressInformer kingressinformer.SharedInformerFactory
 	// If enable, will wait for cache syncs with extremely short delay. This should be used only for tests
 	fastSync               bool
 	informerWatchesPending *atomic.Int32
@@ -62,7 +72,8 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	c.higress = higressfake.NewSimpleClientset()
 	c.higressInformer = higressinformer.NewSharedInformerFactoryWithOptions(c.higress, resyncInterval)
 	c.informerWatchesPending = atomic.NewInt32(0)
-
+	c.kingress = kingressfake.NewSimpleClientset()
+	c.kingressInformer = kingressinformer.NewSharedInformerFactoryWithOptions(c.kingress, resyncInterval)
 	// https://github.com/kubernetes/kubernetes/issues/95372
 	// There is a race condition in the client fakes, where events that happen between the List and Watch
 	// of an informer are dropped. To avoid this, we explicitly manage the list and watch, ensuring all lists
@@ -90,6 +101,7 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	fc := c.higress.(*higressfake.Clientset)
 	fc.PrependReactor("list", "&", listReactor)
 	fc.PrependWatchReactor("*", watchReactor(fc.Tracker()))
+
 	c.fastSync = true
 	return c
 }
@@ -107,7 +119,17 @@ func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 		return nil, err
 	}
 	c.higressInformer = higressinformer.NewSharedInformerFactory(c.higress, resyncInterval)
+
+	c.kingress, err = kingressclient.NewForConfig(istioClient.RESTConfig())
 	return &c, nil
+}
+
+func (c *client) Kingress() kingressclient.Interface {
+	return c.kingress
+}
+
+func (c *client) KingressInformer() kingressinformer.SharedInformerFactory {
+	return c.kingressInformer
 }
 
 func (c *client) Higress() higressclient.Interface {

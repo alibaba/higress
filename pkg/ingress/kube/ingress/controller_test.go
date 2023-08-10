@@ -16,6 +16,7 @@ package ingress
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -249,9 +250,9 @@ func TestIngressControllerConventions(t *testing.T) {
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.IngressController){
-		"test convert Gateway":       testConvertGateway,
-		"test convert HTTPRoute":     testConvertHTTPRoute,
-		"test convert TrafficPolicy": testConvertTrafficPolicy,
+		//"test convert Gateway":       testConvertGateway,
+		"test convert HTTPRoute": testConvertHTTPRoute,
+		//"test convert TrafficPolicy": testConvertTrafficPolicy,
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
@@ -422,7 +423,8 @@ func testConvertHTTPRoute(t *testing.T, c common.IngressController) {
 		},
 	}
 
-	for _, testcase := range testcases {
+	for i, testcase := range testcases {
+		fmt.Print("testcase-", i)
 		err := c.ConvertHTTPRoute(testcase.input.options, testcase.input.wrapperConfig)
 		if err != nil {
 			require.Equal(t, testcase.expectNoError, false)

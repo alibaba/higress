@@ -22,19 +22,11 @@ import (
 	"strings"
 	"sync"
 
-	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
-	httppb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/types"
-	"github.com/golang/protobuf/ptypes/wrappers"
-	"google.golang.org/protobuf/types/known/anypb"
 	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	istiotype "istio.io/api/type/v1beta1"
 	"istio.io/istio/pilot/pkg/model"
-	networkingutil "istio.io/istio/pilot/pkg/networking/util"
 	"istio.io/istio/pilot/pkg/util/sets"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
@@ -51,43 +43,24 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
-	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
-	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
+	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
-	_                 model.ConfigStoreCache = &IngressConfig{}
-	_                 model.IngressStore     = &IngressConfig{}
-	Http2RpcMethodMap                        = func() map[string]string {
-		return map[string]string{
-			"GET":    "ALL_GET",
-			"POST":   "ALL_POST",
-			"PUT":    "ALL_PUT",
-			"DELETE": "ALL_DELETE",
-			"PATCH":  "ALL_PATCH",
-		}
-	}
-	Http2RpcParamSourceMap = func() map[string]string {
-		return map[string]string{
-			"QUERY":  "ALL_QUERY_PARAMETER",
-			"HEADER": "ALL_HEADER",
-			"PATH":   "ALL_PATH",
-			"BODY":   "ALL_BODY",
-		}
-	}
+	_ model.ConfigStoreCache = &KIngressConfig{}
+	_ model.IngressStore     = &KIngressConfig{}
 )
 
-type IngressConfig struct {
+type KIngressConfig struct {
 	// key: cluster id
-	remoteIngressControllers map[string]common.IngressController
+	remoteIngressControllers map[string]common.KIngressController
 	mutex                    sync.RWMutex
 
 	ingressRouteCache  model.IngressRouteCollection
@@ -140,12 +113,12 @@ type IngressConfig struct {
 	clusterId string
 }
 
-func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *IngressConfig {
+func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *KIngressConfig {
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
-	config := &IngressConfig{
-		remoteIngressControllers: make(map[string]common.IngressController),
+	config := &KIngressConfig{
+		remoteIngressControllers: make(map[string]common.KIngressController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
@@ -179,7 +152,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	return config
 }
 
-func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
+func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
 	IngressLog.Infof("register resource %v", kind)
 	switch kind {
 	case gvk.VirtualService:
@@ -206,23 +179,19 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mod
 	}
 }
 
-func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressController {
+func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngressController {
 	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
-	var ingressController common.IngressController
-	v1 := common.V1Available(m.localKubeClient)
-	if !v1 {
-		ingressController = ingress.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
-	} else {
-		ingressController = ingressv1.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
-	}
+	var ingressController common.KIngressController
+
+	ingressController = kingress.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
 
 	m.remoteIngressControllers[options.ClusterId] = ingressController
 	return ingressController
 }
 
-func (m *IngressConfig) InitializeCluster(ingressController common.IngressController, stop <-chan struct{}) error {
+func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressController, stop <-chan struct{}) error {
 	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
 
 	go ingressController.Run(stop)
@@ -230,11 +199,10 @@ func (m *IngressConfig) InitializeCluster(ingressController common.IngressContro
 }
 
 // 核心函数
-func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
+func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
 	//调用与理解接口？
 	if typ != gvk.Gateway &&
 		typ != gvk.VirtualService &&
-		typ != gvk.DestinationRule &&
 		typ != gvk.EnvoyFilter &&
 		typ != gvk.ServiceEntry &&
 		typ != gvk.WasmPlugin {
@@ -298,7 +266,7 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 }
 
 // wrapper封装istio config 封入内容为 Istio Config 和Nginx Ingress注解
-func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
+func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
 	// Init global context
@@ -342,7 +310,7 @@ func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.W
 
 //大包装的Gateway变换，执行内容为：输入变换后的config 输出Istio Config
 
-func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config.Config {
+func (m *KIngressConfig) convertGateways(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
 		IngressDomainCache: common.NewIngressDomainCache(),
 		Gateways:           map[string]*common.WrapperGateway{},
@@ -360,13 +328,6 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 		if err := ingressController.ConvertGateway(&convertOptions, &cfg); err != nil {
 			IngressLog.Errorf("Convert ingress %s/%s to gateway fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
 		}
-	}
-
-	// apply annotation
-	// 应用采纳
-	for _, wrapperGateway := range convertOptions.Gateways {
-		//解TLS的过程在ApplyGateway中
-		m.annotationHandler.ApplyGateway(wrapperGateway.Gateway, wrapperGateway.WrapperConfig.AnnotationsConfig)
 	}
 
 	m.mutex.Lock()
@@ -388,12 +349,11 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 			},
 			Spec: gateway.Gateway,
 		})
-
 	}
 	return out
 }
 
-func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []config.Config {
+func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
 		IngressRouteCache: common.NewIngressRouteCache(),
 		VirtualServices:   map[string]*common.WrapperVirtualService{},
@@ -416,48 +376,26 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		}
 	}
 
-	// Apply annotation on routes
+	// Apply annotation on routes 处理Nginx和Higress Annotation
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
 			m.annotationHandler.ApplyRoute(route.HTTPRoute, route.WrapperConfig.AnnotationsConfig)
 		}
 	}
 
-	// Apply canary ingress
-	if len(configs) > len(convertOptions.CanaryIngresses) {
-		m.applyCanaryIngresses(&convertOptions)
-	}
-
 	// Normalize weighted cluster to make sure the sum of weight is 100.
 	for _, host := range convertOptions.HTTPRoutes {
 		for _, route := range host {
-			normalizeWeightedCluster(convertOptions.IngressRouteCache, route)
+			normalizeWeightedKCluster(convertOptions.IngressRouteCache, route)
 		}
 	}
 
-	// Apply spec default backend.
-	if convertOptions.HasDefaultBackend {
-		for idx := range configs {
-			cfg := configs[idx]
-			clusterId := common.GetClusterId(cfg.Config.Annotations)
-			m.mutex.RLock()
-			ingressController := m.remoteIngressControllers[clusterId]
-			m.mutex.RUnlock()
-			if ingressController == nil {
-				continue
-			}
-			if err := ingressController.ApplyDefaultBackend(&convertOptions, &cfg); err != nil {
-				IngressLog.Errorf("Apply default backend on ingress %s/%s fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
-			}
-		}
-	}
-
-	// Apply annotation on virtual services
+	// Apply annotation on virtual services Only IP-control and do nothing
 	for _, virtualService := range convertOptions.VirtualServices {
 		m.annotationHandler.ApplyVirtualServiceHandler(virtualService.VirtualService, virtualService.WrapperConfig.AnnotationsConfig)
 	}
 
-	// Apply app root for per host.
+	// Apply app root for per host. nginx注解使用
 	m.applyAppRoot(&convertOptions)
 
 	// Apply internal active redirect for error page.
@@ -513,7 +451,41 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 	return out
 }
 
-func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions) {
+// 确保split precent 总和为100
+func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.WrapperHTTPRoute) {
+	if len(route.HTTPRoute.Route) == 1 {
+		route.HTTPRoute.Route[0].Weight = 100
+		return
+	}
+
+	var weightTotal int32 = 0
+	for idx, routeDestination := range route.HTTPRoute.Route {
+		if idx == 0 {
+			continue
+		}
+
+		weightTotal += routeDestination.Weight
+	}
+	var sum int32
+	for idx, routeDestination := range route.HTTPRoute.Route {
+		if idx == 0 {
+			continue
+		}
+
+		weight := float32(routeDestination.Weight) / float32(weightTotal)
+		routeDestination.Weight = int32(weight * 100)
+
+		sum += routeDestination.Weight
+	}
+
+	route.HTTPRoute.Route[0].Weight = 100 - sum
+
+	// Update the recorded status in ingress builder
+	if cache != nil {
+		cache.Update(route)
+	}
+}
+func (m *KIngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions) {
 	var envoyFilters []config.Config
 	mappings := map[string]*common.Rule{}
 
@@ -576,7 +548,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	m.mutex.Unlock()
 }
 
-func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
+func (m *KIngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	out := make([]config.Config, 0, len(m.wasmPlugins))
@@ -593,7 +565,7 @@ func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Confi
 	return out
 }
 
-func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Config {
+func (m *KIngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Config {
 	if m.RegistryReconciler == nil {
 		return nil
 	}
@@ -614,7 +586,7 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 	return out
 }
 
-func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) []config.Config {
+func (m *KIngressConfig) convertDestinationRule(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
 		Service2TrafficPolicy: map[common.ServiceKey]*common.WrapperTrafficPolicy{},
 	}
@@ -687,7 +659,8 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 	return out
 }
 
-func (m *IngressConfig) applyAppRoot(convertOptions *common.ConvertOptions) {
+// 设置Redirect资源 nginx注解使用
+func (m *KIngressConfig) applyAppRoot(convertOptions *common.ConvertOptions) {
 	for host, wrapVS := range convertOptions.VirtualServices {
 		if wrapVS.AppRoot != "" {
 			route := &common.WrapperHTTPRoute{
@@ -715,7 +688,7 @@ func (m *IngressConfig) applyAppRoot(convertOptions *common.ConvertOptions) {
 	}
 }
 
-func (m *IngressConfig) applyInternalActiveRedirect(convertOptions *common.ConvertOptions) {
+func (m *KIngressConfig) applyInternalActiveRedirect(convertOptions *common.ConvertOptions) {
 	for host, routes := range convertOptions.HTTPRoutes {
 		var tempRoutes []*common.WrapperHTTPRoute
 		for _, route := range routes {
@@ -774,7 +747,7 @@ func (m *IngressConfig) applyInternalActiveRedirect(convertOptions *common.Conve
 	}
 }
 
-func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*extensions.WasmPlugin, error) {
+func (m *KIngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*extensions.WasmPlugin, error) {
 	result := &extensions.WasmPlugin{
 		Selector: &istiotype.WorkloadSelector{
 			MatchLabels: map[string]string{
@@ -875,7 +848,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 
 }
 
-func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -915,7 +888,7 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 	m.mutex.Unlock()
 }
 
-func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -941,7 +914,7 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 	}
 }
 
-func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
 	// TODO: get resource name from config
 	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
 		return
@@ -979,7 +952,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 	}()
 }
 
-func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
 	// TODO: get resource name from config
 	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
 		return
@@ -990,7 +963,7 @@ func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamesp
 	}
 }
 
-func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -1006,7 +979,7 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
 }
 
-func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -1022,7 +995,7 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 }
 
-func (m *IngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterNamespacedName) {
+func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterNamespacedName) {
 	var hit bool
 	m.mutex.RLock()
 	if m.watchedSecretSet.Contains(clusterNamespacedName.String()) {
@@ -1047,67 +1020,7 @@ func (m *IngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterN
 	}
 }
 
-// 这段代码好奇怪
-func normalizeWeightedCluster(cache *common.IngressRouteCache, route *common.WrapperHTTPRoute) {
-	if len(route.HTTPRoute.Route) == 1 {
-		route.HTTPRoute.Route[0].Weight = 100
-		return
-	}
-
-	var weightTotal int32 = 0
-	for idx, routeDestination := range route.HTTPRoute.Route {
-		if idx == 0 {
-			continue
-		}
-
-		weightTotal += routeDestination.Weight
-	}
-
-	if weightTotal < route.WeightTotal {
-		weightTotal = route.WeightTotal
-	}
-
-	var sum int32
-	for idx, routeDestination := range route.HTTPRoute.Route {
-		if idx == 0 {
-			continue
-		}
-
-		weight := float32(routeDestination.Weight) / float32(weightTotal)
-		routeDestination.Weight = int32(weight * 100)
-
-		sum += routeDestination.Weight
-	}
-
-	route.HTTPRoute.Route[0].Weight = 100 - sum
-
-	// Update the recorded status in ingress builder
-	if cache != nil {
-		cache.Update(route)
-	}
-}
-
-func (m *IngressConfig) applyCanaryIngresses(convertOptions *common.ConvertOptions) {
-	if len(convertOptions.CanaryIngresses) == 0 {
-		return
-	}
-
-	IngressLog.Infof("Found %d number of canary ingresses.", len(convertOptions.CanaryIngresses))
-	for _, cfg := range convertOptions.CanaryIngresses {
-		clusterId := common.GetClusterId(cfg.Config.Annotations)
-		m.mutex.RLock()
-		ingressController := m.remoteIngressControllers[clusterId]
-		m.mutex.RUnlock()
-		if ingressController == nil {
-			continue
-		}
-		if err := ingressController.ApplyCanaryIngress(convertOptions, cfg); err != nil {
-			IngressLog.Errorf("Apply canary ingress %s/%s fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
-		}
-	}
-}
-
-func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations.Http2RpcConfig, route *common.WrapperHTTPRoute, namespace string) (*config.Config, error) {
+func (m *KIngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations.Http2RpcConfig, route *common.WrapperHTTPRoute, namespace string) (*config.Config, error) {
 	mappings := m.http2rpcs
 	IngressLog.Infof("Found http2rpc mappings %v", mappings)
 	if _, exist := mappings[http2rpcConfig.Name]; !exist {
@@ -1211,7 +1124,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	}, nil
 }
 
-func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) (*types.Struct, error) {
+func (m *KIngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) (*types.Struct, error) {
 	httpRouterTemplate := `{
 		"route": {
 			"upgrade_configs": [
@@ -1283,127 +1196,14 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 	return result, nil
 }
 
-func buildPatchStruct(config string) *types.Struct {
-	val := &types.Struct{}
-	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
-	return val
-}
-
-func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace string) (*config.Config, error) {
-	rulesStr, err := json.Marshal(rules)
-	if err != nil {
-		return nil, err
-	}
-	configuration := &wrappers.StringValue{
-		Value: string(rulesStr),
-	}
-
-	wasm := &wasm.Wasm{
-		Config: &v3.PluginConfig{
-			Name:     "basic-auth",
-			FailOpen: true,
-			Vm: &v3.PluginConfig_VmConfig{
-				VmConfig: &v3.VmConfig{
-					Runtime: "envoy.wasm.runtime.null",
-					Code: &corev3.AsyncDataSource{
-						Specifier: &corev3.AsyncDataSource_Local{
-							Local: &corev3.DataSource{
-								Specifier: &corev3.DataSource_InlineString{
-									InlineString: "envoy.wasm.basic_auth",
-								},
-							},
-						},
-					},
-				},
-			},
-			Configuration: networkingutil.MessageToAny(configuration),
-		},
-	}
-
-	wasmAny, err := anypb.New(wasm)
-	if err != nil {
-		return nil, err
-	}
-
-	typedConfig := &httppb.HttpFilter{
-		Name: "basic-auth",
-		ConfigType: &httppb.HttpFilter_TypedConfig{
-			TypedConfig: wasmAny,
-		},
-	}
-
-	gogoTypedConfig, err := util.MessageToGoGoStruct(typedConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "basic-auth"),
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.cors",
-										},
-									},
-								},
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
-						Value:     gogoTypedConfig,
-					},
-				},
-			},
-		},
-	}, nil
-}
-
-func QueryByName(serviceEntries []*memory.ServiceEntryWrapper, serviceName string) (*memory.ServiceEntryWrapper, error) {
-	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
-	for _, se := range serviceEntries {
-		if se.ServiceName == serviceName {
-			return se, nil
-		}
-	}
-	return nil, fmt.Errorf("can't find ServiceEntry by serviceName:%v", serviceName)
-}
-
-func QueryRpcServiceVersion(serviceEntry *memory.ServiceEntryWrapper, serviceName string) (string, error) {
-	IngressLog.Infof("Found http2rpc serviceEntry %s", serviceEntry)
-	IngressLog.Infof("Found http2rpc ServiceEntry %s", serviceEntry.ServiceEntry)
-	IngressLog.Infof("Found http2rpc WorkloadSelector %s", serviceEntry.ServiceEntry.WorkloadSelector)
-	IngressLog.Infof("Found http2rpc Labels %s", serviceEntry.ServiceEntry.WorkloadSelector.Labels)
-	labels := (*serviceEntry).ServiceEntry.WorkloadSelector.Labels
-	for key, value := range labels {
-		if key == "version" {
-			return value, nil
-		}
-	}
-	return "", fmt.Errorf("can't get RpcServiceVersion for serviceName:%v", serviceName)
-}
-
-func (m *IngressConfig) Run(stop <-chan struct{}) {
+func (m *KIngressConfig) Run(stop <-chan struct{}) {
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
 	go m.http2rpcController.Run(stop)
 	go m.configmapMgr.HigressConfigController.Run(stop)
 }
 
-func (m *IngressConfig) HasSynced() bool {
+func (m *KIngressConfig) HasSynced() bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	for _, remoteIngressController := range m.remoteIngressControllers {
@@ -1427,47 +1227,47 @@ func (m *IngressConfig) HasSynced() bool {
 	return true
 }
 
-func (m *IngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
+func (m *KIngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
 	m.watchErrorHandler = f
 	return nil
 }
 
-func (m *IngressConfig) GetIngressRoutes() model.IngressRouteCollection {
+func (m *KIngressConfig) GetIngressRoutes() model.IngressRouteCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressRouteCache
 }
 
-func (m *IngressConfig) GetIngressDomains() model.IngressDomainCollection {
+func (m *KIngressConfig) GetIngressDomains() model.IngressDomainCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressDomainCache
 }
 
-func (m *IngressConfig) Schemas() collection.Schemas {
+func (m *KIngressConfig) Schemas() collection.Schemas {
 	return common.IngressIR
 }
 
-func (m *IngressConfig) Get(config.GroupVersionKind, string, string) *config.Config {
+func (m *KIngressConfig) Get(config.GroupVersionKind, string, string) *config.Config {
 	return nil
 }
 
-func (m *IngressConfig) Create(config.Config) (revision string, err error) {
+func (m *KIngressConfig) Create(config.Config) (revision string, err error) {
 	return "", common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) Update(config.Config) (newRevision string, err error) {
+func (m *KIngressConfig) Update(config.Config) (newRevision string, err error) {
 	return "", common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) UpdateStatus(config.Config) (newRevision string, err error) {
+func (m *KIngressConfig) UpdateStatus(config.Config) (newRevision string, err error) {
 	return "", common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) Patch(config.Config, config.PatchFunc) (string, error) {
+func (m *KIngressConfig) Patch(config.Config, config.PatchFunc) (string, error) {
 	return "", common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string) error {
+func (m *KIngressConfig) Delete(config.GroupVersionKind, string, string, *string) error {
 	return common.ErrUnsupportedOp
 }

@@ -259,7 +259,6 @@ func (i *IngressRouteCache) Add(builder *IngressRouteBuilder) {
 		i.invalid = append(i.invalid, builder.Build())
 		return
 	}
-
 	i.routes[builder.RouteName] = builder
 }
 

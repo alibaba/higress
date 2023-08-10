@@ -71,6 +71,7 @@ require (
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
 	github.com/aws/aws-sdk-go v1.41.7 // indirect
+	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -235,6 +236,6 @@ replace (
 )
 
 require (
-	knative.dev/networking v0.0.0-20220302134042-e8b2eb995165
-	knative.dev/pkg v0.0.0-20220301181942-2fdd5f232e77
+	knative.dev/networking v0.0.0-20230225001731-5e096d63b0cb
+	knative.dev/pkg v0.0.0-20230224205330-75da922ef055
 )

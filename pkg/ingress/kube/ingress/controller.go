@@ -308,7 +308,7 @@ func (c *controller) List() []config.Config {
 
 		copiedConfig := ing.DeepCopy()
 		setDefaultMSEIngressOptionalField(copiedConfig)
-
+		ing.GetAnnotations()
 		outConfig := config.Config{
 			Meta: config.Meta{
 				Name:              copiedConfig.Name,
@@ -767,6 +767,7 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			canary.OriginPathType = pathType
 			canary.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, nil)
 			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
+			fmt.Print(canary.HTTPRoute.Name)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
 			// backend service check

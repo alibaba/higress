@@ -32,6 +32,5 @@ require (
 	rsc.io/binaryregexp v0.2.0 // indirect
 )
 
-replace (
-	replace github.com/alibaba/higress/plugins/wasm-go => ../..
-)
+
+replace github.com/alibaba/higress/plugins/wasm-go => ../..
