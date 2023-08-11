@@ -45,7 +45,7 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   # Default tag for Istio images.
-  tag: 1.1.0
+  tag: 1.1.1
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -457,7 +457,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "1.1.0"
+  tag: "1.1.1"
   env: {}
 
   labels: {}
