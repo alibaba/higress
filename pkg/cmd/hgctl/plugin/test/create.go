@@ -225,7 +225,7 @@ func (pc *PluginConf) WithDefaultValue() {
 }
 
 func genTestConfFiles(fields templateFields, target string) error {
-	err := genPluginConfYAML(fields.PluginConf, target)
+	err := GenPluginConfYAML(fields.PluginConf, target)
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func genTestConfFiles(fields templateFields, target string) error {
 	return nil
 }
 
-func genPluginConfYAML(p *PluginConf, target string) error {
+func GenPluginConfYAML(p *PluginConf, target string) error {
 	path := fmt.Sprintf("%s/plugin-conf.yaml", target)
 	f, err := os.Create(path)
 	if err != nil {

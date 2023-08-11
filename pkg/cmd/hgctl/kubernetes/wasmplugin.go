@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	CustomHigressNamespace string // default "higress-system"
+	CustomHigressNamespace = "higress-system" // default
 	WasmPluginRes          = schema.GroupVersionResource{Group: HigressExtGroup, Version: HigressExtVersion, Resource: WasmPluginResource}
 )
 
@@ -48,4 +48,8 @@ func CreateWasmPlugin(c *DynamicClient, obj *unstructured.Unstructured) (*unstru
 
 func DeleteWasmPlugin(c *DynamicClient, name string) (*unstructured.Unstructured, error) {
 	return c.Delete(WasmPluginRes, CustomHigressNamespace, name)
+}
+
+func UpdateWasmPlugin(c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.Update(WasmPluginRes, CustomHigressNamespace, obj)
 }

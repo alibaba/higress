@@ -73,3 +73,7 @@ func (c DynamicClient) Delete(gvr schema.GroupVersionResource, namespace, name s
 	}
 	return result, nil
 }
+
+func (c DynamicClient) Update(gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+}
