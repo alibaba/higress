@@ -267,6 +267,90 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 					},
 					AnnotationsConfig: &annotations.Ingress{},
 				},
+				{
+					Config: &config.Config{
+						Meta: config.Meta{
+							Name:      "test-3",
+							Namespace: "wakanda",
+							Annotations: map[string]string{
+								common.ClusterIdAnnotation: "kingress",
+							},
+						},
+						Spec: ingress.IngressSpec{
+							HTTPOption: ingress.HTTPOptionRedirected,
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"foo.com"},
+									SecretName: "foo-com",
+								},
+								{
+									Hosts:      []string{"test.com"},
+									SecretName: "test-com-2",
+								},
+							},
+							Rules: []ingress.IngressRule{
+								{
+									Hosts: []string{"foo.com"},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path: "/test",
+												Splits: []ingress.IngressBackendSplit{{
+													IngressBackend: ingress.IngressBackend{
+														ServiceNamespace: "wakanda",
+														ServiceName:      "test-service",
+														ServicePort:      intstr.FromInt(80),
+													},
+													Percent: 100,
+												}},
+											},
+										},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
+								{
+									Hosts: []string{"bar.com"},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path: "/test",
+												Splits: []ingress.IngressBackendSplit{{
+													IngressBackend: ingress.IngressBackend{
+														ServiceNamespace: "wakanda",
+														ServiceName:      "test-service",
+														ServicePort:      intstr.FromInt(80),
+													},
+													Percent: 100,
+												}},
+											},
+										},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
+								{
+									Hosts: []string{"test.com"},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path: "/test",
+												Splits: []ingress.IngressBackendSplit{{
+													IngressBackend: ingress.IngressBackend{
+														ServiceNamespace: "wakanda",
+														ServiceName:      "test-service",
+														ServicePort:      intstr.FromInt(80),
+													},
+													Percent: 100,
+												}},
+											},
+										},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
+							},
+						},
+					},
+					AnnotationsConfig: &annotations.Ingress{},
+				},
 			},
 			expect: map[string]config.Config{
 				"foo.com": {
