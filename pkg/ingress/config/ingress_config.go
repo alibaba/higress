@@ -482,6 +482,9 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		vs := wrapperVS.VirtualService
 		vs.Gateways = gateways
 
+		// Sort, exact -> prefix -> regex
+		common.SortHTTPRoutes(routes)
+
 		for _, route := range routes {
 			vs.Http = append(vs.Http, route.HTTPRoute)
 		}
