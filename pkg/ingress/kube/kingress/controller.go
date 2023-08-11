@@ -341,10 +341,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		return fmt.Errorf("wrapperConfig is nil")
 	}
 
-	// Ignore canary config.
-	if wrapper.AnnotationsConfig.IsCanary() {
-		return nil
-	}
 	cfg := wrapper.Config
 	kingressv1alpha1, ok := cfg.Spec.(ingress.IngressSpec)
 
@@ -356,9 +352,8 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		common.IncrementInvalidIngress(c.options.ClusterId, common.EmptyRule)
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
-
-	//ruleHost: Kingress的rule可以对多条Host生效，此处多做一遍
-	// 当Knative开启AutoTLS时 需要校验
+	// ruleHost: Kingress的rule可以对多条Host生效，此处多做一遍
+	// 当Knative开启AutoTLS时 需要校验HTTPOption 字段，如果HTTPOption开启了Redirect，则需要搞一个Redirect的server用来传301
 	for _, rule := range kingressv1alpha1.Rules {
 		for _, ruleHost := range rule.Hosts {
 			cleanHost := common.CleanHost(ruleHost)
@@ -370,7 +365,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				Ingress:   cfg,
 				Event:     common.Normal,
 			}
-
 			// Extract the previous gateway and builder
 			wrapperGateway, exist := convertOptions.Gateways[ruleHost]
 			preDomainBuilder, _ := convertOptions.IngressDomainCache.Valid[ruleHost]
@@ -401,6 +395,14 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				// Fallback to get downstream tls from current ingress.
 				if wrapperGateway.WrapperConfig.AnnotationsConfig.DownstreamTLS == nil {
 					wrapperGateway.WrapperConfig.AnnotationsConfig.DownstreamTLS = wrapper.AnnotationsConfig.DownstreamTLS
+				}
+			}
+			//增加HTTP Option的301重定向功能
+			if isIngressPublic(&kingressv1alpha1) && (kingressv1alpha1.HTTPOption == ingress.HTTPOptionRedirected) {
+				for _, server := range wrapperGateway.Gateway.Servers {
+					server.Tls = &networking.ServerTLSSettings{
+						HttpsRedirect: true,
+					}
 				}
 			}
 
@@ -724,26 +726,6 @@ func (c *controller) shouldProcessIngressUpdate(ing *ingress.Ingress) (bool, err
 	return preProcessed, nil
 }
 
-func shouldReconcileTLS(ing *ingress.Ingress) bool {
-	return isIngressPublic(ing) && len(ing.Spec.TLS) > 0
-}
-
-func shouldReconcileHTTPServer(ing *ingress.Ingress) bool {
-	// We will create a Ingress specific HTTPServer when
-	// 1. auto TLS is enabled as in this case users want us to fully handle the TLS/HTTP behavior,
-	// 2. HTTPOption is set to Redirected as we don't have default HTTP server supporting HTTP redirection.
-	return isIngressPublic(ing) && (ing.Spec.HTTPOption == ingress.HTTPOptionRedirected || len(ing.Spec.TLS) > 0)
-}
-
-func isIngressPublic(ing *ingress.Ingress) bool {
-	for _, rule := range ing.Spec.Rules {
-		if rule.Visibility == ingress.IngressVisibilityExternalIP {
-			return true
-		}
-	}
-	return false
-}
-
 //use MakeMatch from net-istio
 /*
 func (c *controller) generateHttpMatches(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
@@ -820,4 +802,13 @@ func transformHosts(host string) kset.String {
 	out := kset.NewString()
 	out.Insert(hosts...)
 	return out
+}
+
+func isIngressPublic(ingSpec *ingress.IngressSpec) bool {
+	for _, rule := range ingSpec.Rules {
+		if rule.Visibility == ingress.IngressVisibilityExternalIP {
+			return true
+		}
+	}
+	return false
 }

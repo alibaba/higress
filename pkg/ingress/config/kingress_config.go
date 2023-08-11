@@ -451,7 +451,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 	return out
 }
 
-// 确保split precent 总和为100
+// 确保split precent 总和为100, 如果不是100则按比例划分。
 func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.WrapperHTTPRoute) {
 	if len(route.HTTPRoute.Route) == 1 {
 		route.HTTPRoute.Route[0].Weight = 100
@@ -463,7 +463,6 @@ func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.Wr
 		if idx == 0 {
 			continue
 		}
-
 		weightTotal += routeDestination.Weight
 	}
 	var sum int32
