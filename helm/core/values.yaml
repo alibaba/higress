@@ -547,7 +547,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 1.1.1
+  tag: 1.1.0
 
   # Can be a full hub/image:tag
   image: pilot
