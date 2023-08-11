@@ -17,6 +17,8 @@ GO ?= go
 
 export GOPROXY ?= https://proxy.golang.com.cn,direct
 
+TARGET_ARCH ?= amd64
+
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
 RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
@@ -130,14 +132,16 @@ export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
-external/package/envoy.tar.gz:
-	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+external/package/envoy-$(TARGET_ARCH).tar.gz:
+#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-$(TARGET_ARCH).tar.gz"
 
-build-gateway: prebuild external/package/envoy.tar.gz
-	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+build-gateway: prebuild external/package/envoy-$(TARGET_ARCH).tar.gz
+	cp -f external/package/envoy-$(TARGET_ARCH).tar.gz external/package/envoy.tar.gz
+	cd external/istio; rm -rf out/linux_$(TARGET_ARCH); GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=$(TARGET_ARCH) BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 build-istio: prebuild
-	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+	cd external/istio; rm -rf out/linux_$(TARGET_ARCH); GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=$(TARGET_ARCH) BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
 
 build-wasmplugins: 
 	./tools/hack/build-wasm-plugins.sh
@@ -234,7 +238,7 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
-	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)-$(TARGET_ARCH)
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
