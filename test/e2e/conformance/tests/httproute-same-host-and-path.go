@@ -90,6 +90,25 @@ var HTTPRouteSameHostAndPath = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/",
+						Headers: map[string]string{
+							"abc": "123",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
 		}
 
 		t.Run("Match Routes With same host and path", func(t *testing.T) {
