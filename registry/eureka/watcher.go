@@ -214,7 +214,10 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		defer w.UpdateService()
 
 		if len(service.Instances) != 0 {
-			se := generateServiceEntry(service)
+			se, err := generateServiceEntry(service)
+			if err != nil {
+				return err
+			}
 			w.cache.UpdateServiceEntryWrapper(makeHost(service.Name), &memory.ServiceEntryWrapper{
 				ServiceName:  service.Name,
 				ServiceEntry: se,
@@ -231,7 +234,10 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		return nil
 	}
 
-	callback(service)
+	if err := callback(service); err != nil {
+		log.Errorf("failed to subscribe service %v, error: %v", service.Name, err)
+		return err
+	}
 	w.WatchingServices[service.Name] = NewPlan(w.eurekaClient, service.Name, callback)
 	return nil
 }
@@ -259,14 +265,16 @@ func convertMap(m map[string]interface{}) map[string]string {
 	return result
 }
 
-func generateServiceEntry(app *fargo.Application) *v1alpha3.ServiceEntry {
+func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
 	portList := make([]*v1alpha3.Port, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, instance := range app.Instances {
 		protocol := common.HTTP
 		if val, _ := instance.Metadata.GetString("protocol"); val != "" {
-			protocol = common.ParseProtocol(val)
+			if protocol = common.ParseProtocol(val); protocol == common.Unsupported {
+				return nil, fmt.Errorf("unsupported protocol %v", val)
+			}
 		}
 		port := &v1alpha3.Port{
 			Name:     protocol.String(),
@@ -292,5 +300,5 @@ func generateServiceEntry(app *fargo.Application) *v1alpha3.ServiceEntry {
 		Endpoints:  endpoints,
 	}
 
-	return se
+	return se, nil
 }
