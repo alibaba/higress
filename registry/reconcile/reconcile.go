@@ -30,6 +30,7 @@ import (
 	. "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
+	"github.com/alibaba/higress/registry/eureka"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
@@ -195,6 +196,14 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			direct.WithName(registry.Name),
 			direct.WithDomain(registry.Domain),
 			direct.WithPort(registry.Port),
+		)
+	case string(Eureka):
+		watcher, err = eureka.NewWatcher(
+			r.Cache,
+			eureka.WithName(registry.Name),
+			eureka.WithDomain(registry.Domain),
+			eureka.WithType(registry.Type),
+			eureka.WithPort(registry.Port),
 		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)
