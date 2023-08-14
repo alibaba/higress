@@ -15,6 +15,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"testing"
@@ -134,6 +135,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 							},
 						},
 						Spec: ingress.IngressSpec{
+							HTTPOption: ingress.HTTPOptionEnabled,
 							TLS: []ingress.IngressTLS{
 								{
 									Hosts:      []string{"test.com"},
@@ -194,6 +196,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 							},
 						},
 						Spec: ingress.IngressSpec{
+							HTTPOption: ingress.HTTPOptionRedirected,
 							TLS: []ingress.IngressTLS{
 								{
 									Hosts:      []string{"foo.com"},
@@ -277,7 +280,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 							},
 						},
 						Spec: ingress.IngressSpec{
-							HTTPOption: ingress.HTTPOptionRedirected,
+							HTTPOption: ingress.HTTPOptionEnabled,
 							TLS: []ingress.IngressTLS{
 								{
 									Hosts:      []string{"foo.com"},
@@ -285,7 +288,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 								},
 								{
 									Hosts:      []string{"test.com"},
-									SecretName: "test-com-2",
+									SecretName: "test-com-3",
 								},
 							},
 							Rules: []ingress.IngressRule{
@@ -372,6 +375,9 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 									Name:     "http-80-ingress-kingress-wakanda-test-1-foo-com",
 								},
 								Hosts: []string{"foo.com"},
+								//Tls: &networking.ServerTLSSettings{
+								//	HttpsRedirect: true,
+								//},
 							},
 							{
 								Port: &networking.Port{
@@ -408,6 +414,9 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 									Name:     "http-80-ingress-kingress-wakanda-test-1-test-com",
 								},
 								Hosts: []string{"test.com"},
+								//Tls: &networking.ServerTLSSettings{
+								//	HttpsRedirect: true,
+								//},
 							},
 							{
 								Port: &networking.Port{
@@ -455,9 +464,11 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			result := m.convertGateways(testCase.inputConfig)
+
 			target := map[string]config.Config{}
 			for _, item := range result {
 				host := common.GetHost(item.Annotations)
+				fmt.Print(item)
 				target[host] = item
 			}
 			assert.Equal(t, testCase.expect, target)

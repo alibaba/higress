@@ -400,8 +400,16 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			//增加HTTP Option的301重定向功能
 			if isIngressPublic(&kingressv1alpha1) && (kingressv1alpha1.HTTPOption == ingress.HTTPOptionRedirected) {
 				for _, server := range wrapperGateway.Gateway.Servers {
-					server.Tls = &networking.ServerTLSSettings{
-						HttpsRedirect: true,
+					if protocol.Parse(server.Port.Protocol).IsHTTP() {
+						server.Tls = &networking.ServerTLSSettings{
+							HttpsRedirect: true,
+						}
+					}
+				}
+			} else if isIngressPublic(&kingressv1alpha1) && (kingressv1alpha1.HTTPOption == ingress.HTTPOptionEnabled) {
+				for _, server := range wrapperGateway.Gateway.Servers {
+					if protocol.Parse(server.Port.Protocol).IsHTTP() {
+						server.Tls = nil
 					}
 				}
 			}
