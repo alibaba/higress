@@ -97,6 +97,7 @@ func TestHigressConformanceTests(t *testing.T) {
 			tests.HTTPRouteFullPathRegex,
 			tests.HTTPRouteHttp2Rpc,
 			tests.HTTPRouteConsulHttpBin,
+			tests.HTTPRouteEurekaRegistry,
 		}
 	}
 
