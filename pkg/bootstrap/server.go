@@ -225,7 +225,7 @@ func (s *Server) initConfigController() error {
 	if options.ClusterId == "Kubernetes" {
 		options.ClusterId = ""
 	}
-	ingressConfig := ingressconfig.NewIngressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
+	ingressConfig := ingressconfig.NewKIngressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
 	ingressController := ingressConfig.AddLocalCluster(options)
 	s.configStores = append(s.configStores, ingressConfig)
 	// Wrap the config controller with a cache.

@@ -45,7 +45,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kset "k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers/networking/v1beta1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -70,13 +69,10 @@ type controller struct {
 	// key: namespace/name
 	ingresses map[string]*ingress.Ingress
 
-	ingressInformer cache.SharedInformer
-	ingressLister   networkingv1alpha1.IngressLister
-	serviceInformer cache.SharedInformer
-	serviceLister   listerv1.ServiceLister
-	// May be nil if ingress class is not supported in the cluster
-	classes v1beta1.IngressClassInformer
-
+	ingressInformer  cache.SharedInformer
+	ingressLister    networkingv1alpha1.IngressLister
+	serviceInformer  cache.SharedInformer
+	serviceLister    listerv1.ServiceLister
 	secretController secret.SecretController
 }
 
@@ -89,21 +85,12 @@ func NewController(localKubeClient, client kube.Client, options common.Options,
 	ingressInformer := client.KingressInformer().Networking().V1alpha1().Ingresses()
 	serviceInformer := client.KubeInformer().Core().V1().Services()
 
-	var classes v1beta1.IngressClassInformer
-	if common.NetworkingIngressAvailable(client) {
-		classes = client.KubeInformer().Networking().V1beta1().IngressClasses()
-		_ = classes.Informer()
-	} else {
-		IngressLog.Infof("Skipping IngressClass, resource not supported for cluster %s", options.ClusterId)
-	}
-
 	c := &controller{
 		options:          options,
 		queue:            q,
 		ingresses:        make(map[string]*ingress.Ingress),
 		ingressInformer:  ingressInformer.Informer(),
 		ingressLister:    ingressInformer.Lister(),
-		classes:          classes,
 		serviceInformer:  serviceInformer.Informer(),
 		serviceLister:    serviceInformer.Lister(),
 		secretController: secretController,
@@ -263,18 +250,11 @@ func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err e
 	if err := c.secretController.Informer().SetWatchErrorHandler(handler); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	if c.classes != nil {
-		if err := c.classes.Informer().SetWatchErrorHandler(handler); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
 	return errs
 }
 
 func (c *controller) HasSynced() bool {
-	return c.ingressInformer.HasSynced() && c.serviceInformer.HasSynced() &&
-		(c.classes == nil || c.classes.Informer().HasSynced()) &&
-		c.secretController.HasSynced()
+	return c.ingressInformer.HasSynced() && c.serviceInformer.HasSynced() && c.secretController.HasSynced()
 }
 
 func (c *controller) List() []config.Config {

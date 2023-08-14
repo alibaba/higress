@@ -121,6 +121,11 @@ func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 	c.higressInformer = higressinformer.NewSharedInformerFactory(c.higress, resyncInterval)
 
 	c.kingress, err = kingressclient.NewForConfig(istioClient.RESTConfig())
+	if err != nil {
+		return nil, err
+	}
+	c.kingressInformer = kingressinformer.NewSharedInformerFactory(c.kingress, resyncInterval)
+
 	return &c, nil
 }
 
