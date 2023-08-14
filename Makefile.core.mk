@@ -154,7 +154,7 @@ install: pre-install
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
 ENVOY_LATEST_IMAGE_TAG ?= 1.1.0
-ISTIO_LATEST_IMAGE_TAG ?= 1.1.0
+ISTIO_LATEST_IMAGE_TAG ?= 1.1.1
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -238,11 +238,15 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
+	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
+	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
 # run-higress-e2e-test starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test
 run-higress-e2e-test:
