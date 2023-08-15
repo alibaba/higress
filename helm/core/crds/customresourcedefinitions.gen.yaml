@@ -213,7 +213,16 @@ spec:
               registries:
                 items:
                   properties:
+                    authSecretName:
+                      type: string
+                    consulDatacenter:
+                      type: string
                     consulNamespace:
+                      type: string
+                    consulRefreshInterval:
+                      format: int64
+                      type: integer
+                    consulServiceTag:
                       type: string
                     domain:
                       type: string
