@@ -172,10 +172,10 @@ ENVOY_LATEST_IMAGE_TAG ?= 1.1.0
 ISTIO_LATEST_IMAGE_TAG ?= 1.1.1
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)-$(TARGET_ARCH)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
 
 install-dev-wasmplugin: build-wasmplugins pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)-$(TARGET_ARCH)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -249,7 +249,7 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
-	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)-$(TARGET_ARCH)
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
