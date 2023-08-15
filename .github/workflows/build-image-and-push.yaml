@@ -65,16 +65,13 @@ jobs:
 
       - name: Build Docker Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make docker-build
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make docker-build
+          GOPROXY="https://proxy.golang.org,direct" make docker-buildx-push
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress"
-          docker push $BUILT_IMAGE:$GITHUB_SHA-amd64
-          docker push $BUILT_IMAGE:$GITHUB_SHA-arm64
+          docker push $BUILT_IMAGE:$GITHUB_SHA
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker manifest create $image $BUILT_IMAGE:$GITHUB_SHA-amd64 $BUILT_IMAGE:$GITHUB_SHA-arm64
-            docker manifest push $image
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
           done
 
   build-pilot-image:
@@ -135,16 +132,12 @@ jobs:
 
       - name: Build Pilot-Discovery Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-istio
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-istio
+          GOPROXY="https://proxy.golang.org,direct" make build-istio
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot"
-          docker push $BUILT_IMAGE:$GITHUB_SHA-amd64
-          docker push $BUILT_IMAGE:$GITHUB_SHA-arm64
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker manifest create $image $BUILT_IMAGE:$GITHUB_SHA-amd64 $BUILT_IMAGE:$GITHUB_SHA-arm64
-            docker manifest push $image
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
           done
 
 
@@ -199,14 +192,10 @@ jobs:
           
       - name: Build Gateway Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-gateway
-          GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-gateway
+          GOPROXY="https://proxy.golang.org,direct" make build-gateway
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/proxyv2"
-          docker push $BUILT_IMAGE:$GITHUB_SHA-amd64
-          docker push $BUILT_IMAGE:$GITHUB_SHA-arm64
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker manifest create $image $BUILT_IMAGE:$GITHUB_SHA-amd64 $BUILT_IMAGE:$GITHUB_SHA-arm64
-            docker manifest push $image
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
           done

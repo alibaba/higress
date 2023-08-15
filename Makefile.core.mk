@@ -69,12 +69,13 @@ build: prebuild $(OUT)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-ifeq ($(BUILDX_PLATFORM), true)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
-else
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
-endif
+
+$(AMD64_OUT_LINUX)/higress: prebuild $(OUT)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
+
+$(ARM64_OUT_LINUX)/higress: prebuild $(OUT)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 
 .PHONY: build-hgctl
@@ -124,6 +125,8 @@ include docker/docker.mk
 
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
+docker-buildx-push: docker.higress-buildx
+
 docker-build-base:
 	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
 
@@ -132,16 +135,24 @@ export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
-external/package/envoy-$(TARGET_ARCH).tar.gz:
+external/package/envoy-amd64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-$(TARGET_ARCH).tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-amd64.tar.gz"
 
-build-gateway: prebuild external/package/envoy-$(TARGET_ARCH).tar.gz
-	cp -f external/package/envoy-$(TARGET_ARCH).tar.gz external/package/envoy.tar.gz
-	cd external/istio; rm -rf out/linux_$(TARGET_ARCH); GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=$(TARGET_ARCH) BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+external/package/envoy-arm64.tar.gz:
+#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-arm64.tar.gz"
 
-build-istio: prebuild
-	cd external/istio; rm -rf out/linux_$(TARGET_ARCH); GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=$(TARGET_ARCH) BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
+build-pilot:
+	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
+	cd external/istio; rm -rf out/linux_arm64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=arm64 BUILD_WITH_CONTAINER=1 make build-linux
+
+build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+
+build-istio: prebuild build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker	
 
 build-wasmplugins: 
 	./tools/hack/build-wasm-plugins.sh
