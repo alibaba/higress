@@ -74,7 +74,6 @@ jobs:
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker manifest rm $image
             docker manifest create $image $BUILT_IMAGE:$GITHUB_SHA-amd64 $BUILT_IMAGE:$GITHUB_SHA-arm64
             docker manifest push $image
           done
@@ -138,15 +137,14 @@ jobs:
 
       - name: Build Pilot-Discovery Image and Push
         run: |
-          sudo GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-istio
-          sudo GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-istio
+          sudo sh -c 'GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-istio'
+          sudo sh -c 'GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-istio'
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot"
           docker push $BUILT_IMAGE:$GITHUB_SHA-amd64
           docker push $BUILT_IMAGE:$GITHUB_SHA-arm64
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker manifest rm $image
             docker manifest create $image $BUILT_IMAGE:$GITHUB_SHA-amd64 $BUILT_IMAGE:$GITHUB_SHA-arm64
             docker manifest push $image
           done
@@ -204,8 +202,8 @@ jobs:
           
       - name: Build Gateway Image and Push
         run: |
-          sudo GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-gateway
-          sudo GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-gateway
+          sudo sh -c 'GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=amd64 make build-gateway'
+          sudo sh -c 'GOPROXY="https://proxy.golang.org,direct" TARGET_ARCH=arm64 make build-gateway'
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/proxyv2"
           docker push $BUILT_IMAGE:$GITHUB_SHA-amd64
           docker push $BUILT_IMAGE:$GITHUB_SHA-arm64
