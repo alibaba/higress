@@ -60,7 +60,9 @@ func (m *HigressConfig) InitializeCluster(ingressController common.IngressContro
 
 func (m *HigressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
 	m.ingressconfig.RegisterEventHandler(kind, f)
-	m.kingressconfig.RegisterEventHandler(kind, f)
+	if m.kingressconfig != nil {
+		m.kingressconfig.RegisterEventHandler(kind, f)
+	}
 }
 
 func (m *HigressConfig) HasSynced() bool {
@@ -69,8 +71,10 @@ func (m *HigressConfig) HasSynced() bool {
 	if !m.ingressconfig.HasSynced() {
 		return false
 	}
-	if !m.kingressconfig.HasSynced() {
-		return false
+	if m.kingressconfig != nil {
+		if !m.kingressconfig.HasSynced() {
+			return false
+		}
 	}
 
 	return true
@@ -78,12 +82,16 @@ func (m *HigressConfig) HasSynced() bool {
 
 func (m *HigressConfig) Run(stop <-chan struct{}) {
 	go m.ingressconfig.Run(stop)
-	go m.kingressconfig.Run(stop)
+	if m.kingressconfig != nil {
+		go m.kingressconfig.Run(stop)
+	}
 }
 
 func (m *HigressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
 	m.ingressconfig.SetWatchErrorHandler(f)
-	m.kingressconfig.SetWatchErrorHandler(f)
+	if m.kingressconfig != nil {
+		m.kingressconfig.SetWatchErrorHandler(f)
+	}
 	return nil
 }
 
@@ -91,12 +99,15 @@ func (m *HigressConfig) GetIngressRoutes() model.IngressRouteCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	ingressRouteCache := m.ingressconfig.GetIngressRoutes()
-	kingressRouteCache := m.kingressconfig.GetIngressRoutes()
 	m.higressRouteCache = model.IngressRouteCollection{}
 	m.higressRouteCache.Invalid = append(m.higressRouteCache.Invalid, ingressRouteCache.Invalid...)
-	m.higressRouteCache.Invalid = append(m.higressRouteCache.Invalid, kingressRouteCache.Invalid...)
 	m.higressRouteCache.Valid = append(m.higressRouteCache.Valid, ingressRouteCache.Valid...)
-	m.higressRouteCache.Valid = append(m.higressRouteCache.Valid, kingressRouteCache.Valid...)
+	if m.kingressconfig != nil {
+		kingressRouteCache := m.kingressconfig.GetIngressRoutes()
+		m.higressRouteCache.Invalid = append(m.higressRouteCache.Invalid, kingressRouteCache.Invalid...)
+		m.higressRouteCache.Valid = append(m.higressRouteCache.Valid, kingressRouteCache.Valid...)
+	}
+
 	return m.higressRouteCache
 
 }
@@ -105,12 +116,15 @@ func (m *HigressConfig) GetIngressDomains() model.IngressDomainCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	ingressDomainCache := m.ingressconfig.GetIngressDomains()
-	kingressDomainCache := m.kingressconfig.GetIngressDomains()
+
 	m.higressDomainCache = model.IngressDomainCollection{}
 	m.higressDomainCache.Invalid = append(m.higressDomainCache.Invalid, ingressDomainCache.Invalid...)
-	m.higressDomainCache.Invalid = append(m.higressDomainCache.Invalid, kingressDomainCache.Invalid...)
 	m.higressDomainCache.Valid = append(m.higressDomainCache.Valid, ingressDomainCache.Valid...)
-	m.higressDomainCache.Valid = append(m.higressDomainCache.Valid, kingressDomainCache.Valid...)
+	if m.kingressconfig != nil {
+		kingressDomainCache := m.kingressconfig.GetIngressDomains()
+		m.higressDomainCache.Invalid = append(m.higressDomainCache.Invalid, kingressDomainCache.Invalid...)
+		m.higressDomainCache.Valid = append(m.higressDomainCache.Valid, kingressDomainCache.Valid...)
+	}
 	return m.higressDomainCache
 }
 
@@ -142,13 +156,15 @@ func (m *HigressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	if err != nil {
 		return nil, err
 	}
-	kingressConfig, err := m.kingressconfig.List(typ, namespace)
-	if err != nil {
-		return nil, err
-	}
 	var higressConfig []config.Config
 	higressConfig = append(higressConfig, ingressConfig...)
-	higressConfig = append(higressConfig, kingressConfig...)
+	if m.kingressconfig != nil {
+		kingressConfig, err := m.kingressconfig.List(typ, namespace)
+		if err != nil {
+			return nil, err
+		}
+		higressConfig = append(higressConfig, kingressConfig...)
+	}
 	return higressConfig, nil
 }
 
