@@ -53,6 +53,7 @@ $(OUT):
 submodule:
 	git submodule update --init
 
+.PHONY: prebuild
 prebuild: submodule
 	./tools/hack/prebuild.sh
 
@@ -71,12 +72,11 @@ build: prebuild $(OUT)
 build-linux: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
 
-$(AMD64_OUT_LINUX)/higress: prebuild $(OUT)
+$(AMD64_OUT_LINUX)/higress:
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
 
-$(ARM64_OUT_LINUX)/higress: prebuild $(OUT)
+$(ARM64_OUT_LINUX)/higress:
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
-
 
 .PHONY: build-hgctl
 build-hgctl: $(OUT)
@@ -125,7 +125,7 @@ include docker/docker.mk
 
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
-docker-buildx-push: docker.higress-buildx
+docker-buildx-push: clean-env docker.higress-buildx
 
 docker-build-base:
 	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
