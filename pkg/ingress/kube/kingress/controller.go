@@ -56,6 +56,13 @@ var (
 	_ common.KIngressController = &controller{}
 )
 
+// Kingress 定义IngressClass资源类型检查在annotation里面，此处做IngressClass的校验
+const (
+	// ClassAnnotationKey points to the annotation for the class of this resource.
+	ClassAnnotationKey    = "networking.knative.dev/ingress.class"
+	IstioIngressClassName = "istio.ingress.networking.knative.dev"
+)
+
 type controller struct {
 	queue                  workqueue.RateLimitingInterface
 	virtualServiceHandlers []model.EventHandler
@@ -248,6 +255,7 @@ func (c *controller) List() []config.Config {
 	c.mutex.RLock()
 	out := make([]config.Config, 0, len(c.ingresses))
 	c.mutex.RUnlock()
+
 	for _, raw := range c.ingressInformer.GetStore().List() {
 		ing, ok := raw.(*ingress.Ingress)
 		if !ok {
@@ -592,13 +600,6 @@ func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, 
 	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
 }
 */
-
-// Kingress 定义IngressClass资源类型检查在annotation里面，此处做IngressClass的校验
-const (
-	// ClassAnnotationKey points to the annotation for the class of this resource.
-	ClassAnnotationKey    = "networking.knative.dev/ingress.class"
-	IstioIngressClassName = "istio.ingress.networking.knative.dev"
-)
 
 func (c *controller) shouldProcessIngressWithClass(ing *ingress.Ingress) bool {
 	if classValue, found := ing.GetAnnotations()[ClassAnnotationKey]; !found || classValue != IstioIngressClassName {

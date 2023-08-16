@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"github.com/alibaba/higress/pkg/config/constants"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -149,12 +148,8 @@ func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 	c.higressInformer = higressinformer.NewSharedInformerFactory(c.higress, resyncInterval)
 
 	c.kingress, err = kingressclient.NewForConfig(istioClient.RESTConfig())
-
 	if err != nil {
 		return nil, err
-	}
-	if CheckKIngressCRDExist(istioClient.RESTConfig(), c.kingress, "") {
-
 	}
 	c.kingressInformer = kingressinformer.NewSharedInformerFactory(c.kingress, resyncInterval)
 
@@ -239,15 +234,13 @@ func fastWaitForCacheSync(stop <-chan struct{}, informerFactory reflectInformerS
 	})
 }
 
-func CheckKIngressCRDExist(config *rest.Config, kClient kingressclient.Interface, crdName string) bool {
+func CheckKIngressCRDExist(istioclient Client) bool {
 	// 获取CRD资源列表
-	apiExtClientset, err := apiExtensionsV1.NewForConfig(config)
-
+	apiExtClientset, err := apiExtensionsV1.NewForConfig(istioclient.RESTConfig())
 	if err != nil {
 		fmt.Errorf("failed creating apiExtension Client: %v", err)
 		return false
 	}
-
 	crdList, err := apiExtClientset.CustomResourceDefinitions().List(context.TODO(), metaV1.ListOptions{})
 	if err != nil {
 		fmt.Errorf("failed listing Custom Resource Definition: %v", err)

@@ -225,9 +225,12 @@ func (s *Server) initConfigController() error {
 	if options.ClusterId == "Kubernetes" {
 		options.ClusterId = ""
 	}
+
 	ingressConfig := higressconfig.NewHigressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
 	ingressController, kingressController := ingressConfig.AddLocalCluster(options)
-
+	if higresskube.CheckKIngressCRDExist(s.kubeClient) {
+		kingressController = nil
+	}
 	s.configStores = append(s.configStores, ingressConfig)
 
 	// Wrap the config controller with a cache.
