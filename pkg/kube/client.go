@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/alibaba/higress/pkg/config/constants"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -151,7 +152,11 @@ func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.kingressInformer = kingressinformer.NewSharedInformerFactory(c.kingress, resyncInterval)
+	if CheckKIngressCRDExist(istioClient.RESTConfig()) {
+		c.kingressInformer = kingressinformer.NewSharedInformerFactory(c.kingress, resyncInterval)
+	} else {
+		c.kingressInformer = nil
+	}
 
 	return &c, nil
 }
@@ -175,7 +180,7 @@ func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 func (c *client) RunAndWait(stop <-chan struct{}) {
 	c.Client.RunAndWait(stop)
 	c.higressInformer.Start(stop)
-	c.kingressInformer.Start(stop)
+
 	if c.fastSync {
 		fastWaitForCacheSync(stop, c.higressInformer)
 		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
@@ -192,22 +197,27 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 	} else {
 		c.higressInformer.WaitForCacheSync(stop)
 	}
-	if c.fastSync {
-		fastWaitForCacheSync(stop, c.kingressInformer)
-		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
-			select {
-			case <-stop:
-				return false, fmt.Errorf("channel closed")
-			default:
-			}
-			if c.informerWatchesPending.Load() == 0 {
-				return true, nil
-			}
-			return false, nil
-		})
-	} else {
-		c.kingressInformer.WaitForCacheSync(stop)
+
+	if c.kingressInformer != nil {
+		c.kingressInformer.Start(stop)
+		if c.fastSync {
+			fastWaitForCacheSync(stop, c.kingressInformer)
+			_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+				select {
+				case <-stop:
+					return false, fmt.Errorf("channel closed")
+				default:
+				}
+				if c.informerWatchesPending.Load() == 0 {
+					return true, nil
+				}
+				return false, nil
+			})
+		} else {
+			c.kingressInformer.WaitForCacheSync(stop)
+		}
 	}
+
 }
 
 type reflectInformerSync interface {
@@ -234,9 +244,9 @@ func fastWaitForCacheSync(stop <-chan struct{}, informerFactory reflectInformerS
 	})
 }
 
-func CheckKIngressCRDExist(istioclient Client) bool {
+func CheckKIngressCRDExist(config *rest.Config) bool {
 	// 获取CRD资源列表
-	apiExtClientset, err := apiExtensionsV1.NewForConfig(istioclient.RESTConfig())
+	apiExtClientset, err := apiExtensionsV1.NewForConfig(config)
 	if err != nil {
 		fmt.Errorf("failed creating apiExtension Client: %v", err)
 		return false

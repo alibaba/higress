@@ -39,12 +39,18 @@ func NewHigressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 }
 
 func (m *HigressConfig) AddLocalCluster(options common.Options) (common.IngressController, common.KIngressController) {
+	if m.kingressconfig == nil {
+		return m.ingressconfig.AddLocalCluster(options), nil
+	}
 	return m.ingressconfig.AddLocalCluster(options), m.kingressconfig.AddLocalCluster(options)
 }
 
 func (m *HigressConfig) InitializeCluster(ingressController common.IngressController, kingressController common.KIngressController, stop <-chan struct{}) error {
 	if err := m.ingressconfig.InitializeCluster(ingressController, stop); err != nil {
 		return err
+	}
+	if kingressController == nil {
+		return nil
 	}
 	if err := m.kingressconfig.InitializeCluster(kingressController, stop); err != nil {
 		return err

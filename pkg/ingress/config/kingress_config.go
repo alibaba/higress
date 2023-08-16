@@ -84,6 +84,9 @@ type KIngressConfig struct {
 }
 
 func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *KIngressConfig {
+	if localKubeClient.KingressInformer() == nil {
+		return nil
+	}
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
