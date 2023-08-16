@@ -15,17 +15,19 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/types"
+	higressv1 "github.com/alibaba/higress/api/networking/v1"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
+	"github.com/alibaba/higress/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/registry/reconcile"
 	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
-	istiotype "istio.io/api/type/v1beta1"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/util/sets"
 	"istio.io/istio/pkg/config"
@@ -34,23 +36,6 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-
-	higressext "github.com/alibaba/higress/api/extensions/v1alpha1"
-	higressv1 "github.com/alibaba/higress/api/networking/v1"
-	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
-	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
-	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
-	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
@@ -68,13 +53,12 @@ type KIngressConfig struct {
 
 	localKubeClient kube.Client
 
-	virtualServiceHandlers  []model.EventHandler
-	gatewayHandlers         []model.EventHandler
-	destinationRuleHandlers []model.EventHandler
-	envoyFilterHandlers     []model.EventHandler
-	serviceEntryHandlers    []model.EventHandler
-	wasmPluginHandlers      []model.EventHandler
-	watchErrorHandler       cache.WatchErrorHandler
+	virtualServiceHandlers []model.EventHandler
+	gatewayHandlers        []model.EventHandler
+	envoyFilterHandlers    []model.EventHandler
+	serviceEntryHandlers   []model.EventHandler
+	wasmPluginHandlers     []model.EventHandler
+	WatchErrorHandler      cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
 
@@ -84,23 +68,9 @@ type KIngressConfig struct {
 
 	mcpbridgeReconciled bool
 
-	mcpbridgeController mcpbridge.McpBridgeController
-
-	mcpbridgeLister netlisterv1.McpBridgeLister
-
-	wasmPluginController wasmplugin.WasmPluginController
-
-	wasmPluginLister extlisterv1.WasmPluginLister
-
 	wasmPlugins map[string]*extensions.WasmPlugin
 
-	http2rpcController http2rpc.Http2RpcController
-
-	http2rpcLister netlisterv1.Http2RpcLister
-
 	http2rpcs map[string]*higressv1.Http2Rpc
-
-	configmapMgr *configmap.ConfigmapMgr
 
 	XDSUpdater model.XDSUpdater
 
@@ -131,23 +101,6 @@ func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater,
 		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
 		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
 	}
-	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
-	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
-	config.mcpbridgeController = mcpbridgeController
-	config.mcpbridgeLister = mcpbridgeController.Lister()
-
-	wasmPluginController := wasmplugin.NewController(localKubeClient, clusterId)
-	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
-	config.wasmPluginController = wasmPluginController
-	config.wasmPluginLister = wasmPluginController.Lister()
-
-	http2rpcController := http2rpc.NewController(localKubeClient, clusterId)
-	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
-	config.http2rpcController = http2rpcController
-	config.http2rpcLister = http2rpcController.Lister()
-
-	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
-	config.configmapMgr = configmap.NewConfigmapMgr(XDSUpdater, namespace, higressConfigController, higressConfigController.Lister())
 
 	return config
 }
@@ -160,9 +113,6 @@ func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mo
 
 	case gvk.Gateway:
 		m.gatewayHandlers = append(m.gatewayHandlers, f)
-
-	case gvk.DestinationRule:
-		m.destinationRuleHandlers = append(m.destinationRuleHandlers, f)
 
 	case gvk.EnvoyFilter:
 		m.envoyFilterHandlers = append(m.envoyFilterHandlers, f)
@@ -192,8 +142,7 @@ func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngress
 }
 
 func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
-
+	_ = ingressController.SetWatchErrorHandler(m.WatchErrorHandler)
 	go ingressController.Run(stop)
 	return nil
 }
@@ -201,9 +150,11 @@ func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressCont
 // 核心函数
 func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
 	//调用与理解接口？
+	if typ == gvk.EnvoyFilter || typ == gvk.DestinationRule {
+		return nil, nil
+	}
 	if typ != gvk.Gateway &&
 		typ != gvk.VirtualService &&
-		typ != gvk.EnvoyFilter &&
 		typ != gvk.ServiceEntry &&
 		typ != gvk.WasmPlugin {
 		return nil, common.ErrUnsupportedOp
@@ -213,29 +164,6 @@ func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]
 	if namespace != "" {
 		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
 		return nil, common.ErrUnsupportedOp
-	}
-
-	if typ == gvk.EnvoyFilter {
-		m.mutex.RLock()
-		defer m.mutex.RUnlock()
-		var envoyFilters []config.Config
-		// Build configmap envoy filters
-		configmapEnvoyFilters, err := m.configmapMgr.ConstructEnvoyFilters()
-		if err != nil {
-			IngressLog.Errorf("Construct configmap EnvoyFilters error %v", err)
-		} else {
-			for _, envoyFilter := range configmapEnvoyFilters {
-				envoyFilters = append(envoyFilters, *envoyFilter)
-			}
-			IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
-		}
-		if len(envoyFilters) == 0 {
-			IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
-			return m.cachedEnvoyFilters, nil
-		}
-		envoyFilters = append(envoyFilters, m.cachedEnvoyFilters...)
-		IngressLog.Infof("resource type %s, configs number %d", typ, len(envoyFilters))
-		return envoyFilters, nil
 	}
 
 	var configs []config.Config
@@ -254,8 +182,6 @@ func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]
 		return m.convertGateways(wrapperConfigs), nil
 	case gvk.VirtualService:
 		return m.convertVirtualService(wrapperConfigs), nil
-	case gvk.DestinationRule:
-		return m.convertDestinationRule(wrapperConfigs), nil
 	case gvk.ServiceEntry:
 		return m.convertServiceEntry(wrapperConfigs), nil
 	case gvk.WasmPlugin:
@@ -446,8 +372,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		})
 	}
 
-	// We generate some specific envoy filter here to avoid duplicated computation.
-	m.convertEnvoyFilter(&convertOptions)
+	// Kingress Anntation 不存在HTTPRPC与AUth选项 没必要搞EnvoyFIliter
 	return out
 }
 
@@ -459,10 +384,7 @@ func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.Wr
 	}
 
 	var weightTotal int32 = 0
-	for idx, routeDestination := range route.HTTPRoute.Route {
-		if idx == 0 {
-			continue
-		}
+	for _, routeDestination := range route.HTTPRoute.Route {
 		weightTotal += routeDestination.Weight
 	}
 	var sum int32
@@ -470,81 +392,15 @@ func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.Wr
 		if idx == 0 {
 			continue
 		}
-
 		weight := float32(routeDestination.Weight) / float32(weightTotal)
 		routeDestination.Weight = int32(weight * 100)
-
 		sum += routeDestination.Weight
 	}
-
 	route.HTTPRoute.Route[0].Weight = 100 - sum
-
 	// Update the recorded status in ingress builder
 	if cache != nil {
 		cache.Update(route)
 	}
-}
-func (m *KIngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions) {
-	var envoyFilters []config.Config
-	mappings := map[string]*common.Rule{}
-
-	for _, routes := range convertOptions.HTTPRoutes {
-		for _, route := range routes {
-			if strings.HasSuffix(route.HTTPRoute.Name, "app-root") {
-				continue
-			}
-
-			http2rpc := route.WrapperConfig.AnnotationsConfig.Http2Rpc
-			if http2rpc != nil {
-				IngressLog.Infof("Found http2rpc for name %s", http2rpc.Name)
-				envoyFilter, err := m.constructHttp2RpcEnvoyFilter(http2rpc, route, m.namespace)
-				if err != nil {
-					IngressLog.Errorf("Construct http2rpc EnvoyFilter error %v", err)
-				} else {
-					IngressLog.Infof("Append http2rpc EnvoyFilter for name %s", http2rpc.Name)
-					envoyFilters = append(envoyFilters, *envoyFilter)
-				}
-			}
-
-			auth := route.WrapperConfig.AnnotationsConfig.Auth
-			if auth == nil {
-				continue
-			}
-
-			key := auth.AuthSecret.String() + "/" + auth.AuthRealm
-			if rule, exist := mappings[key]; !exist {
-				mappings[key] = &common.Rule{
-					Realm:       auth.AuthRealm,
-					MatchRoute:  []string{route.HTTPRoute.Name},
-					Credentials: auth.Credentials,
-					Encrypted:   true,
-				}
-			} else {
-				rule.MatchRoute = append(rule.MatchRoute, route.HTTPRoute.Name)
-			}
-		}
-	}
-
-	IngressLog.Infof("Found %d number of basic auth", len(mappings))
-	if len(mappings) > 0 {
-		rules := &common.BasicAuthRules{}
-		for _, rule := range mappings {
-			rules.Rules = append(rules.Rules, rule)
-		}
-
-		basicAuth, err := constructBasicAuthEnvoyFilter(rules, m.namespace)
-		if err != nil {
-			IngressLog.Errorf("Construct basic auth filter error %v", err)
-		} else {
-			envoyFilters = append(envoyFilters, *basicAuth)
-		}
-	}
-
-	// TODO Support other envoy filters
-
-	m.mutex.Lock()
-	m.cachedEnvoyFilters = envoyFilters
-	m.mutex.Unlock()
 }
 
 func (m *KIngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
@@ -580,79 +436,6 @@ func (m *KIngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Co
 				CreationTimestamp: se.GetCreateTime(),
 			},
 			Spec: se.ServiceEntry,
-		})
-	}
-	return out
-}
-
-func (m *KIngressConfig) convertDestinationRule(configs []common.WrapperConfig) []config.Config {
-	convertOptions := common.ConvertOptions{
-		Service2TrafficPolicy: map[common.ServiceKey]*common.WrapperTrafficPolicy{},
-	}
-
-	// Convert destination from service within ingress rule.
-	for idx := range configs {
-		cfg := configs[idx]
-		clusterId := common.GetClusterId(cfg.Config.Annotations)
-		m.mutex.RLock()
-		ingressController := m.remoteIngressControllers[clusterId]
-		m.mutex.RUnlock()
-		if ingressController == nil {
-			continue
-		}
-		if err := ingressController.ConvertTrafficPolicy(&convertOptions, &cfg); err != nil {
-			IngressLog.Errorf("Convert ingress %s/%s to destination rule fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
-		}
-	}
-
-	IngressLog.Debugf("traffic policy number %d", len(convertOptions.Service2TrafficPolicy))
-
-	for _, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		m.annotationHandler.ApplyTrafficPolicy(wrapperTrafficPolicy.TrafficPolicy, wrapperTrafficPolicy.PortTrafficPolicy, wrapperTrafficPolicy.WrapperConfig.AnnotationsConfig)
-	}
-
-	// Merge multi-port traffic policy per service into one destination rule.
-	destinationRules := map[string]*common.WrapperDestinationRule{}
-	for key, wrapperTrafficPolicy := range convertOptions.Service2TrafficPolicy {
-		var serviceName string
-		if key.ServiceFQDN != "" {
-			serviceName = key.ServiceFQDN
-		} else {
-			serviceName = util.CreateServiceFQDN(key.Namespace, key.Name)
-		}
-		dr, exist := destinationRules[serviceName]
-		if !exist {
-			trafficPolicy := &networking.TrafficPolicy{}
-			if wrapperTrafficPolicy.PortTrafficPolicy != nil {
-				trafficPolicy.PortLevelSettings = []*networking.TrafficPolicy_PortTrafficPolicy{wrapperTrafficPolicy.PortTrafficPolicy}
-			} else if wrapperTrafficPolicy.TrafficPolicy != nil {
-				trafficPolicy = wrapperTrafficPolicy.TrafficPolicy
-			}
-			dr = &common.WrapperDestinationRule{
-				DestinationRule: &networking.DestinationRule{
-					Host:          serviceName,
-					TrafficPolicy: trafficPolicy,
-				},
-				WrapperConfig: wrapperTrafficPolicy.WrapperConfig,
-				ServiceKey:    key,
-			}
-		} else if wrapperTrafficPolicy.PortTrafficPolicy != nil {
-			dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, wrapperTrafficPolicy.PortTrafficPolicy)
-		}
-
-		destinationRules[serviceName] = dr
-	}
-
-	out := make([]config.Config, 0, len(destinationRules))
-	for _, dr := range destinationRules {
-		drName := util.CreateDestinationRuleName(m.clusterId, dr.ServiceKey.Namespace, dr.ServiceKey.Name)
-		out = append(out, config.Config{
-			Meta: config.Meta{
-				GroupVersionKind: gvk.DestinationRule,
-				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, drName),
-				Namespace:        m.namespace,
-			},
-			Spec: dr.DestinationRule,
 		})
 	}
 	return out
@@ -746,254 +529,6 @@ func (m *KIngressConfig) applyInternalActiveRedirect(convertOptions *common.Conv
 	}
 }
 
-func (m *KIngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*extensions.WasmPlugin, error) {
-	result := &extensions.WasmPlugin{
-		Selector: &istiotype.WorkloadSelector{
-			MatchLabels: map[string]string{
-				"higress": m.namespace + "-higress-gateway",
-			},
-		},
-		Url:             obj.Url,
-		Sha256:          obj.Sha256,
-		ImagePullPolicy: extensions.PullPolicy(obj.ImagePullPolicy),
-		ImagePullSecret: obj.ImagePullSecret,
-		VerificationKey: obj.VerificationKey,
-		PluginConfig:    obj.PluginConfig,
-		PluginName:      obj.PluginName,
-		Phase:           extensions.PluginPhase(obj.Phase),
-		Priority:        obj.Priority,
-	}
-	if result.PluginConfig != nil {
-		return result, nil
-	}
-	if !obj.DefaultConfigDisable {
-		result.PluginConfig = obj.DefaultConfig
-	}
-	hasValidRule := false
-	if len(obj.MatchRules) > 0 {
-		if result.PluginConfig == nil {
-			result.PluginConfig = &types.Struct{
-				Fields: map[string]*types.Value{},
-			}
-		}
-		var ruleValues []*types.Value
-		for _, rule := range obj.MatchRules {
-			if rule.ConfigDisable {
-				continue
-			}
-			if rule.Config == nil {
-				return nil, errors.New("invalid rule has no config")
-			}
-			v := &types.Value_StructValue{
-				StructValue: rule.Config,
-			}
-			var matchItems []*types.Value
-			for _, ing := range rule.Ingress {
-				matchItems = append(matchItems, &types.Value{
-					Kind: &types.Value_StringValue{
-						StringValue: ing,
-					},
-				})
-			}
-			if len(matchItems) > 0 {
-				v.StructValue.Fields["_match_route_"] = &types.Value{
-					Kind: &types.Value_ListValue{
-						ListValue: &types.ListValue{
-							Values: matchItems,
-						},
-					},
-				}
-				ruleValues = append(ruleValues, &types.Value{
-					Kind: v,
-				})
-				continue
-			}
-			for _, domain := range rule.Domain {
-				matchItems = append(matchItems, &types.Value{
-					Kind: &types.Value_StringValue{
-						StringValue: domain,
-					},
-				})
-			}
-			if len(matchItems) == 0 {
-				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
-			}
-			v.StructValue.Fields["_match_domain_"] = &types.Value{
-				Kind: &types.Value_ListValue{
-					ListValue: &types.ListValue{
-						Values: matchItems,
-					},
-				},
-			}
-			ruleValues = append(ruleValues, &types.Value{
-				Kind: v,
-			})
-		}
-		if len(ruleValues) > 0 {
-			hasValidRule = true
-			result.PluginConfig.Fields["_rules_"] = &types.Value{
-				Kind: &types.Value_ListValue{
-					ListValue: &types.ListValue{
-						Values: ruleValues,
-					},
-				},
-			}
-		}
-	}
-	if !hasValidRule && obj.DefaultConfigDisable {
-		return nil, nil
-	}
-	return result, nil
-
-}
-
-func (m *KIngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
-	if clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	wasmPlugin, err := m.wasmPluginLister.WasmPlugins(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
-	if err != nil {
-		IngressLog.Errorf("wasmPlugin is not found, namespace:%s, name:%s",
-			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
-		return
-	}
-	metadata := config.Meta{
-		Name:             clusterNamespacedName.Name + "-wasmplugin",
-		Namespace:        clusterNamespacedName.Namespace,
-		GroupVersionKind: gvk.WasmPlugin,
-		// Set this label so that we do not compare configs and just push.
-		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
-	}
-	for _, f := range m.wasmPluginHandlers {
-		IngressLog.Debug("WasmPlugin triggerd update")
-		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
-	}
-	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
-	if err != nil {
-		IngressLog.Errorf("invalid wasmPlugin:%s, err:%v", clusterNamespacedName.Name, err)
-		return
-	}
-	if istioWasmPlugin == nil {
-		IngressLog.Infof("wasmPlugin:%s will not be transferred to istio since config disabled",
-			clusterNamespacedName.Name)
-		m.mutex.Lock()
-		delete(m.wasmPlugins, clusterNamespacedName.Name)
-		m.mutex.Unlock()
-		return
-	}
-	IngressLog.Debugf("wasmPlugin:%s convert to istioWasmPlugin:%v", clusterNamespacedName.Name, istioWasmPlugin)
-	m.mutex.Lock()
-	m.wasmPlugins[clusterNamespacedName.Name] = istioWasmPlugin
-	m.mutex.Unlock()
-}
-
-func (m *KIngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
-	if clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	var hit bool
-	m.mutex.Lock()
-	if _, ok := m.wasmPlugins[clusterNamespacedName.Name]; ok {
-		delete(m.wasmPlugins, clusterNamespacedName.Name)
-		hit = true
-	}
-	m.mutex.Unlock()
-	if hit {
-		metadata := config.Meta{
-			Name:             clusterNamespacedName.Name + "-wasmplugin",
-			Namespace:        clusterNamespacedName.Namespace,
-			GroupVersionKind: gvk.WasmPlugin,
-			// Set this label so that we do not compare configs and just push.
-			Labels: map[string]string{constants.AlwaysPushLabel: "true"},
-		}
-		for _, f := range m.wasmPluginHandlers {
-			IngressLog.Debug("WasmPlugin triggerd update")
-			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventDelete)
-		}
-	}
-}
-
-func (m *KIngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
-	// TODO: get resource name from config
-	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	mcpbridge, err := m.mcpbridgeLister.McpBridges(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
-	if err != nil {
-		IngressLog.Errorf("Mcpbridge is not found, namespace:%s, name:%s",
-			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
-		return
-	}
-	m.mutex.Lock()
-	m.mcpbridgeReconciled = false
-	m.mutex.Unlock()
-	if m.RegistryReconciler == nil {
-		m.RegistryReconciler = reconcile.NewReconciler(func() {
-			metadata := config.Meta{
-				Name:             "mcpbridge-serviceentry",
-				Namespace:        m.namespace,
-				GroupVersionKind: gvk.ServiceEntry,
-				// Set this label so that we do not compare configs and just push.
-				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
-			}
-			for _, f := range m.serviceEntryHandlers {
-				IngressLog.Debug("McpBridge triggerd serviceEntry update")
-				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
-			}
-		})
-	}
-	reconciler := m.RegistryReconciler
-	go func() {
-		reconciler.Reconcile(mcpbridge)
-		m.mutex.Lock()
-		m.mcpbridgeReconciled = true
-		m.mutex.Unlock()
-	}()
-}
-
-func (m *KIngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
-	// TODO: get resource name from config
-	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	if m.RegistryReconciler != nil {
-		go m.RegistryReconciler.Reconcile(nil)
-		m.RegistryReconciler = nil
-	}
-}
-
-func (m *KIngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
-	if clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	http2rpc, err := m.http2rpcLister.Http2Rpcs(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
-	if err != nil {
-		IngressLog.Errorf("http2rpc is not found, namespace:%s, name:%s",
-			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
-		return
-	}
-	m.mutex.Lock()
-	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
-	m.mutex.Unlock()
-	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
-}
-
-func (m *KIngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
-	if clusterNamespacedName.Namespace != m.namespace {
-		return
-	}
-	var hit bool
-	m.mutex.Lock()
-	if _, ok := m.http2rpcs[clusterNamespacedName.Name]; ok {
-		delete(m.http2rpcs, clusterNamespacedName.Name)
-		hit = true
-	}
-	m.mutex.Unlock()
-	if hit {
-		IngressLog.Debugf("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
-	}
-}
-
 func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterNamespacedName) {
 	var hit bool
 	m.mutex.RLock()
@@ -1019,215 +554,25 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	}
 }
 
-func (m *KIngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations.Http2RpcConfig, route *common.WrapperHTTPRoute, namespace string) (*config.Config, error) {
-	mappings := m.http2rpcs
-	IngressLog.Infof("Found http2rpc mappings %v", mappings)
-	if _, exist := mappings[http2rpcConfig.Name]; !exist {
-		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD", http2rpcConfig.Name)
-		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
-	}
-	http2rpcCRD := mappings[http2rpcConfig.Name]
-
-	if http2rpcCRD.GetDubbo() == nil {
-		IngressLog.Errorf("Http2RpcConfig name %s, only support Http2Rpc CRD Dubbo Service type", http2rpcConfig.Name)
-		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
-	}
-
-	httpRoute := route.HTTPRoute
-	httpRouteDestination := httpRoute.Route[0]
-	typeStruct, err := m.constructHttp2RpcMethods(http2rpcCRD.GetDubbo())
-	if err != nil {
-		return nil, errors.New(err.Error())
-	}
-
-	return &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, http2rpcConfig.Name),
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.router",
-										},
-									},
-								},
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
-						Value: buildPatchStruct(`{
-							"name":"envoy.filters.http.http_dubbo_transcoder",
-							"typed_config":{
-								"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
-								"type_url":"type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder"
-							}
-						}`),
-					},
-				},
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
-							RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
-								Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
-									Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
-										Name: httpRoute.Name,
-									},
-								},
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     typeStruct,
-					},
-				},
-				{
-					ApplyTo: networking.EnvoyFilter_CLUSTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
-							Cluster: &networking.EnvoyFilter_ClusterMatch{
-								Service: httpRouteDestination.Destination.Host,
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value: buildPatchStruct(`{
-							"upstream_config": {
-								"name":"envoy.upstreams.http.dubbo_tcp",
-								"typed_config":{
-									"@type":"type.googleapis.com/udpa.type.v1.TypedStruct",
-									"type_url":"type.googleapis.com/envoy.extensions.upstreams.http.dubbo_tcp.v3.DubboTcpConnectionPoolProto"
-								}
-							}
-						}`),
-					},
-				},
-			},
-		},
-	}, nil
-}
-
-func (m *KIngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) (*types.Struct, error) {
-	httpRouterTemplate := `{
-		"route": {
-			"upgrade_configs": [
-				{
-					"connect_config": {
-						"allow_post": true
-					},
-					"upgrade_type": "CONNECT"
-				}
-			]
-		},
-		"typed_per_filter_config": {
-			"envoy.filters.http.http_dubbo_transcoder": {
-				"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-				"type_url": "type.googleapis.com/envoy.extensions.filters.http.http_dubbo_transcoder.v3.HttpDubboTranscoder",
-				"value": {
-					"request_validation_options": {
-						"reject_unknown_method": true,
-						"reject_unknown_query_parameters": true
-					},
-					"services_mapping": %s,
-					"url_unescape_spec": "ALL_CHARACTERS_EXCEPT_RESERVED"
-				}
-			}
-		}
-	}`
-	var methods []interface{}
-	for _, serviceMethod := range dubbo.GetMethods() {
-		var method = make(map[string]interface{})
-		method["name"] = serviceMethod.GetServiceMethod()
-		var params []interface{}
-		for _, methodParam := range serviceMethod.GetParams() {
-			var param = make(map[string]interface{})
-			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
-			param["mapping_type"] = methodParam.GetParamType()
-			params = append(params, param)
-		}
-		method["parameter_mapping"] = params
-		var path_matcher = make(map[string]interface{})
-		path_matcher["match_http_method_spec"] = Http2RpcMethodMap()[serviceMethod.HttpMethods[0]]
-		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
-		method["path_matcher"] = path_matcher
-		var passthrough_setting = make(map[string]interface{})
-		var headersAttach = serviceMethod.GetHeadersAttach()
-		if headersAttach == "" {
-			passthrough_setting["passthrough_all_headers"] = false
-		} else if headersAttach == "*" {
-			passthrough_setting["passthrough_all_headers"] = true
-		} else {
-			passthrough_setting["passthrough_headers"] = headersAttach
-		}
-		method["passthrough_setting"] = passthrough_setting
-		methods = append(methods, method)
-	}
-	var serviceMapping = make(map[string]interface{})
-	var dubboServiceGroup = dubbo.GetGroup()
-	if dubboServiceGroup != "" {
-		serviceMapping["group"] = dubboServiceGroup
-	}
-	serviceMapping["name"] = dubbo.GetService()
-	serviceMapping["version"] = dubbo.GetVersion()
-	serviceMapping["method_mapping"] = methods
-	strBuffer := new(bytes.Buffer)
-	serviceMappingJsonStr, _ := json.Marshal(serviceMapping)
-	fmt.Fprintf(strBuffer, httpRouterTemplate, string(serviceMappingJsonStr))
-	IngressLog.Infof("Found http2rpc buildHttp2RpcMethods %s", strBuffer.String())
-	result := buildPatchStruct(strBuffer.String())
-	return result, nil
-}
-
-func (m *KIngressConfig) Run(stop <-chan struct{}) {
-	go m.mcpbridgeController.Run(stop)
-	go m.wasmPluginController.Run(stop)
-	go m.http2rpcController.Run(stop)
-	go m.configmapMgr.HigressConfigController.Run(stop)
-}
+func (m *KIngressConfig) Run(stop <-chan struct{}) {}
 
 func (m *KIngressConfig) HasSynced() bool {
+	IngressLog.Info("In Kingress Synced.")
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
+
 	for _, remoteIngressController := range m.remoteIngressControllers {
+		IngressLog.Info("In Kingress Synced.", remoteIngressController)
 		if !remoteIngressController.HasSynced() {
 			return false
 		}
-	}
-	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled {
-		return false
-	}
-	if !m.wasmPluginController.HasSynced() {
-		return false
-	}
-	if !m.http2rpcController.HasSynced() {
-		return false
-	}
-	if !m.configmapMgr.HigressConfigController.HasSynced() {
-		return false
 	}
 	IngressLog.Info("Ingress config controller synced.")
 	return true
 }
 
 func (m *KIngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
-	m.watchErrorHandler = f
+	m.WatchErrorHandler = f
 	return nil
 }
 

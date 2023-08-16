@@ -57,11 +57,10 @@ var (
 )
 
 type controller struct {
-	queue                   workqueue.RateLimitingInterface
-	virtualServiceHandlers  []model.EventHandler
-	gatewayHandlers         []model.EventHandler
-	destinationRuleHandlers []model.EventHandler
-	envoyFilterHandlers     []model.EventHandler
+	queue                  workqueue.RateLimitingInterface
+	virtualServiceHandlers []model.EventHandler
+	gatewayHandlers        []model.EventHandler
+	envoyFilterHandlers    []model.EventHandler
 
 	options common.Options
 
@@ -168,6 +167,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.
 	if event != model.EventDelete {
+		IngressLog.Infof(ing.Generation)
 		shouldProcess, err := c.shouldProcessIngressUpdate(ing)
 		if err != nil {
 			return err
@@ -178,13 +178,6 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		}
 	}
 
-	drmetadata := config.Meta{
-		Name:             ing.Name + "-" + "destinationrule",
-		Namespace:        ing.Namespace,
-		GroupVersionKind: gvk.DestinationRule,
-		// Set this label so that we do not compare configs and just push.
-		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
-	}
 	vsmetadata := config.Meta{
 		Name:             ing.Name + "-" + "virtualservice",
 		Namespace:        ing.Namespace,
@@ -205,10 +198,6 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		GroupVersionKind: gvk.Gateway,
 		// Set this label so that we do not compare configs and just push.
 		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
-	}
-
-	for _, f := range c.destinationRuleHandlers {
-		f(config.Config{Meta: drmetadata}, config.Config{Meta: drmetadata}, event)
 	}
 
 	for _, f := range c.virtualServiceHandlers {
@@ -232,8 +221,6 @@ func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f model.
 		c.virtualServiceHandlers = append(c.virtualServiceHandlers, f)
 	case gvk.Gateway:
 		c.gatewayHandlers = append(c.gatewayHandlers, f)
-	case gvk.DestinationRule:
-		c.destinationRuleHandlers = append(c.destinationRuleHandlers, f)
 	case gvk.EnvoyFilter:
 		c.envoyFilterHandlers = append(c.envoyFilterHandlers, f)
 	}
@@ -598,38 +585,6 @@ func (c *controller) IngressRouteBuilderServicesCheck(httppath *ingress.HTTPIngr
 		builder.ServiceList = append(builder.ServiceList, new1)
 	}
 	return common.Normal
-}
-
-func (c *controller) ConvertTrafficPolicy(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
-	if convertOptions == nil {
-		return fmt.Errorf("convertOptions is nil")
-	}
-	if wrapper == nil {
-		return fmt.Errorf("wrapperConfig is nil")
-	}
-
-	if !wrapper.AnnotationsConfig.NeedTrafficPolicy() {
-		return nil
-	}
-
-	return nil
-}
-
-func resolveNamedPort(backend *ingress.IngressBackend, namespace string, serviceLister listerv1.ServiceLister) (int32, error) {
-	if backend == nil {
-		return 0, fmt.Errorf("ingressBackend is nil")
-	}
-
-	svc, err := serviceLister.Services(namespace).Get(backend.ServiceName)
-	if err != nil {
-		return 0, err
-	}
-	for _, port := range svc.Spec.Ports {
-		if port.Name == backend.ServicePort.StrVal {
-			return port.Port, nil
-		}
-	}
-	return 0, common.ErrNotFound
 }
 
 /*  这里的操作就是根据backend产生RouteDestination。 这个在MakeVirturlServiceRoute中已完成。

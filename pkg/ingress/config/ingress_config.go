@@ -101,7 +101,7 @@ type IngressConfig struct {
 	envoyFilterHandlers     []model.EventHandler
 	serviceEntryHandlers    []model.EventHandler
 	wasmPluginHandlers      []model.EventHandler
-	watchErrorHandler       cache.WatchErrorHandler
+	WatchErrorHandler       cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
 
@@ -223,7 +223,7 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressCo
 }
 
 func (m *IngressConfig) InitializeCluster(ingressController common.IngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
+	_ = ingressController.SetWatchErrorHandler(m.WatchErrorHandler)
 
 	go ingressController.Run(stop)
 	return nil
@@ -1428,7 +1428,7 @@ func (m *IngressConfig) HasSynced() bool {
 }
 
 func (m *IngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
-	m.watchErrorHandler = f
+	m.WatchErrorHandler = f
 	return nil
 }
 

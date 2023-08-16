@@ -155,8 +155,6 @@ type KIngressController interface {
 
 	ConvertHTTPRoute(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
 
-	ConvertTrafficPolicy(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
-
 	// Run until a signal is received
 	Run(stop <-chan struct{})
 

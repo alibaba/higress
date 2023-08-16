@@ -15,7 +15,11 @@
 package kube
 
 import (
+	"context"
 	"fmt"
+	"github.com/alibaba/higress/pkg/config/constants"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"reflect"
 	"time"
 
@@ -30,6 +34,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
+
+	apiExtensionsV1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	kingressclient "knative.dev/networking/pkg/client/clientset/versioned"
 	kingressfake "knative.dev/networking/pkg/client/clientset/versioned/fake"
 	kingressinformer "knative.dev/networking/pkg/client/informers/externalversions"
@@ -59,8 +65,9 @@ type client struct {
 	kingress         kingressclient.Interface
 	kingressInformer kingressinformer.SharedInformerFactory
 	// If enable, will wait for cache syncs with extremely short delay. This should be used only for tests
-	fastSync               bool
-	informerWatchesPending *atomic.Int32
+	fastSync                bool
+	informerWatchesPending  *atomic.Int32
+	kinformerWatchesPending *atomic.Int32
 }
 
 const resyncInterval = 0
@@ -74,6 +81,7 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	c.informerWatchesPending = atomic.NewInt32(0)
 	c.kingress = kingressfake.NewSimpleClientset()
 	c.kingressInformer = kingressinformer.NewSharedInformerFactoryWithOptions(c.kingress, resyncInterval)
+	c.kinformerWatchesPending = atomic.NewInt32(0)
 	// https://github.com/kubernetes/kubernetes/issues/95372
 	// There is a race condition in the client fakes, where events that happen between the List and Watch
 	// of an informer are dropped. To avoid this, we explicitly manage the list and watch, ensuring all lists
@@ -102,6 +110,26 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	fc.PrependReactor("list", "&", listReactor)
 	fc.PrependWatchReactor("*", watchReactor(fc.Tracker()))
 
+	klistReactor := func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
+		c.kinformerWatchesPending.Inc()
+		return false, nil, nil
+	}
+	kwatchReactor := func(tracker clienttesting.ObjectTracker) func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		return func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+			gvr := action.GetResource()
+			ns := action.GetNamespace()
+			watch, err := tracker.Watch(gvr, ns)
+			if err != nil {
+				return false, nil, err
+			}
+			c.kinformerWatchesPending.Dec()
+			return true, watch, nil
+		}
+	}
+	fcknative := c.kingress.(*kingressfake.Clientset)
+	fcknative.PrependReactor("list", "&", klistReactor)
+	fcknative.PrependWatchReactor("*", kwatchReactor(fcknative.Tracker()))
+
 	c.fastSync = true
 	return c
 }
@@ -121,8 +149,12 @@ func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
 	c.higressInformer = higressinformer.NewSharedInformerFactory(c.higress, resyncInterval)
 
 	c.kingress, err = kingressclient.NewForConfig(istioClient.RESTConfig())
+
 	if err != nil {
 		return nil, err
+	}
+	if CheckKIngressCRDExist(istioClient.RESTConfig(), c.kingress, "") {
+
 	}
 	c.kingressInformer = kingressinformer.NewSharedInformerFactory(c.kingress, resyncInterval)
 
@@ -148,6 +180,7 @@ func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 func (c *client) RunAndWait(stop <-chan struct{}) {
 	c.Client.RunAndWait(stop)
 	c.higressInformer.Start(stop)
+	c.kingressInformer.Start(stop)
 	if c.fastSync {
 		fastWaitForCacheSync(stop, c.higressInformer)
 		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
@@ -163,6 +196,22 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 		})
 	} else {
 		c.higressInformer.WaitForCacheSync(stop)
+	}
+	if c.fastSync {
+		fastWaitForCacheSync(stop, c.kingressInformer)
+		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+			select {
+			case <-stop:
+				return false, fmt.Errorf("channel closed")
+			default:
+			}
+			if c.informerWatchesPending.Load() == 0 {
+				return true, nil
+			}
+			return false, nil
+		})
+	} else {
+		c.kingressInformer.WaitForCacheSync(stop)
 	}
 }
 
@@ -188,4 +237,26 @@ func fastWaitForCacheSync(stop <-chan struct{}, informerFactory reflectInformerS
 		}
 		return true, nil
 	})
+}
+
+func CheckKIngressCRDExist(config *rest.Config, kClient kingressclient.Interface, crdName string) bool {
+	// 获取CRD资源列表
+	apiExtClientset, err := apiExtensionsV1.NewForConfig(config)
+
+	if err != nil {
+		fmt.Errorf("failed creating apiExtension Client: %v", err)
+		return false
+	}
+
+	crdList, err := apiExtClientset.CustomResourceDefinitions().List(context.TODO(), metaV1.ListOptions{})
+	if err != nil {
+		fmt.Errorf("failed listing Custom Resource Definition: %v", err)
+		return false
+	}
+	for _, crd := range crdList.Items {
+		if crd.Name == constants.KnativeIngressCRDName {
+			return true
+		}
+	}
+	return false
 }

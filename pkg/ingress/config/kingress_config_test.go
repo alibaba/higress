@@ -33,8 +33,11 @@ import (
 func TestNormalizeKWeightedCluster(t *testing.T) {
 	validate := func(route *common.WrapperHTTPRoute) int32 {
 		var total int32
+		fmt.Print("----------------------------")
 		for _, routeDestination := range route.HTTPRoute.Route {
 			total += routeDestination.Weight
+			fmt.Print(routeDestination.Weight)
+
 		}
 
 		return total

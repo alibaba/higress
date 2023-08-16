@@ -47,7 +47,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	ingressconfig "github.com/alibaba/higress/pkg/ingress/config"
+	higressconfig "github.com/alibaba/higress/pkg/ingress/higressconfig"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
 	higresskube "github.com/alibaba/higress/pkg/kube"
@@ -225,9 +225,11 @@ func (s *Server) initConfigController() error {
 	if options.ClusterId == "Kubernetes" {
 		options.ClusterId = ""
 	}
-	ingressConfig := ingressconfig.NewKIngressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
-	ingressController := ingressConfig.AddLocalCluster(options)
+	ingressConfig := higressconfig.NewHigressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
+	ingressController, kingressController := ingressConfig.AddLocalCluster(options)
+
 	s.configStores = append(s.configStores, ingressConfig)
+
 	// Wrap the config controller with a cache.
 	aggregateConfigController, err := configaggregate.MakeCache(s.configStores)
 	if err != nil {
@@ -242,7 +244,7 @@ func (s *Server) initConfigController() error {
 
 	// Defer starting the controller until after the service is created.
 	s.server.RunComponent(func(stop <-chan struct{}) error {
-		if err := ingressConfig.InitializeCluster(ingressController, stop); err != nil {
+		if err := ingressConfig.InitializeCluster(ingressController, kingressController, stop); err != nil {
 			return err
 		}
 		go s.configController.Run(stop)
