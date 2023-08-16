@@ -46,9 +46,6 @@ func (m *HigressConfig) InitializeCluster(ingressController common.IngressContro
 	if err := m.ingressconfig.InitializeCluster(ingressController, stop); err != nil {
 		return err
 	}
-	if kingressController == nil {
-		return nil
-	}
 	if err := m.kingressconfig.InitializeCluster(kingressController, stop); err != nil {
 		return err
 	}
