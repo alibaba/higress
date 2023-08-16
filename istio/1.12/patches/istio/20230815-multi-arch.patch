@@ -1,0 +1,124 @@
+diff -Naur istio/bin/init.sh istio-new/bin/init.sh
+--- istio/bin/init.sh	2023-08-15 21:01:53.601636573 +0800
++++ istio-new/bin/init.sh	2023-08-15 21:04:56.144783484 +0800
+@@ -151,7 +151,8 @@
+ # download_envoy_if_necessary "${ISTIO_ENVOY_LINUX_RELEASE_URL}" "$ISTIO_ENVOY_LINUX_RELEASE_PATH" "${SIDECAR}"
+ # download_envoy_if_necessary "${ISTIO_ENVOY_CENTOS_RELEASE_URL}" "$ISTIO_ENVOY_CENTOS_LINUX_RELEASE_PATH" "${SIDECAR}-centos"
+ 
+-untar_envoy_if_necessary "${ENVOY_TAR_PATH}" "$ISTIO_ENVOY_LINUX_RELEASE_PATH" "${SIDECAR}"
++untar_envoy_if_necessary "${ENVOY_TAR_DIR}/envoy-arm64.tar.gz" "$ISTIO_ENVOY_LINUX_ARM64_RELEASE_PATH" "${SIDECAR}"
++untar_envoy_if_necessary "${ENVOY_TAR_DIR}/envoy-amd64.tar.gz" "$ISTIO_ENVOY_LINUX_AMD64_RELEASE_PATH" "${SIDECAR}"
+ 
+ if [[ "$GOOS_LOCAL" == "darwin" ]]; then
+   # Download and extract the Envoy macOS release binary
+diff -Naur istio/common/scripts/run.sh istio-new/common/scripts/run.sh
+--- istio/common/scripts/run.sh	2023-08-15 21:01:53.601636573 +0800
++++ istio-new/common/scripts/run.sh	2023-08-15 17:37:57.754600731 +0800
+@@ -36,7 +36,7 @@
+ 
+ HUB="${HUB:-istio}"
+ MOUNT_SOURCE="${MOUNT_SOURCE:-${PWD}}"
+-ENVOY_TAR_PATH="${ENVOY_TAR_PATH:-/home/package/envoy.tar.gz}"
++ENVOY_TAR_DIR="${ENVOY_TAR_DIR:-/home/package}"
+ MOUNT_DEST="${MOUNT_DEST:-/work}"
+ MOUNT_ROOT_SOURCE="${MOUNT_ROOT_SOURCE:-`cd $MOUNT_SOURCE/..;pwd`}"
+ MOUNT_PACKAGE_SOURCE="${MOUNT_PACKAGE_SOURCE:-`cd $MOUNT_SOURCE/../package;pwd`}"
+@@ -61,7 +61,7 @@
+     -e TZ="${TIMEZONE:-$TZ}" \
+     -e GOPROXY="${GOPROXY}" \
+     -e HUB="${HUB}" \
+-    -e ENVOY_TAR_PATH="${ENVOY_TAR_PATH}" \
++    -e ENVOY_TAR_DIR="${ENVOY_TAR_DIR}" \
+     --mount "type=bind,source=${MOUNT_PACKAGE_SOURCE},destination=/home/package" \
+     --mount "type=bind,source=${MOUNT_SOURCE},destination=/work" \
+     --mount "type=bind,source=${MOUNT_ROOT_SOURCE}/..,destination=/parent" \
+diff -Naur istio/common/scripts/setup_env.sh istio-new/common/scripts/setup_env.sh
+--- istio/common/scripts/setup_env.sh	2023-08-15 21:01:53.601636573 +0800
++++ istio-new/common/scripts/setup_env.sh	2023-08-15 20:15:23.292391629 +0800
+@@ -81,6 +81,9 @@
+ export TARGET_OUT="${TARGET_OUT:-$(pwd)/out/${TARGET_OS}_${TARGET_ARCH}}"
+ export TARGET_OUT_LINUX="${TARGET_OUT_LINUX:-$(pwd)/out/linux_${TARGET_ARCH}}"
+ 
++export ARM64_OUT_LINUX=/work/out/linux_arm64
++export AMD64_OUT_LINUX=/work/out/linux_amd64
++
+ export CONTAINER_TARGET_OUT="${CONTAINER_TARGET_OUT:-/work/out/${TARGET_OS}_${TARGET_ARCH}}"
+ export CONTAINER_TARGET_OUT_LINUX="${CONTAINER_TARGET_OUT_LINUX:-/work/out/linux_${TARGET_ARCH}}"
+ 
+diff -Naur istio/Makefile.core.mk istio-new/Makefile.core.mk
+--- istio/Makefile.core.mk	2023-08-15 21:01:53.601636573 +0800
++++ istio-new/Makefile.core.mk	2023-08-15 20:03:25.384280274 +0800
+@@ -150,6 +150,11 @@
+ export ISTIO_ENVOY_CENTOS_LINUX_RELEASE_NAME ?= envoy-centos-${ISTIO_ENVOY_LINUX_VERSION}
+ export ISTIO_ENVOY_CENTOS_LINUX_RELEASE_PATH ?= ${ISTIO_ENVOY_LINUX_RELEASE_DIR}/${ISTIO_ENVOY_CENTOS_LINUX_RELEASE_NAME}
+ 
++export ISTIO_ENVOY_LINUX_ARM64_RELEASE_DIR ?= ${ARM64_OUT_LINUX}/release
++export ISTIO_ENVOY_LINUX_ARM64_RELEASE_PATH ?= ${ISTIO_ENVOY_LINUX_ARM64_RELEASE_DIR}/${ISTIO_ENVOY_LINUX_RELEASE_NAME}
++export ISTIO_ENVOY_LINUX_AMD64_RELEASE_DIR ?= ${AMD64_OUT_LINUX}/release
++export ISTIO_ENVOY_LINUX_AMD64_RELEASE_PATH ?= ${ISTIO_ENVOY_LINUX_AMD64_RELEASE_DIR}/${ISTIO_ENVOY_LINUX_RELEASE_NAME}
++
+ # Envoy macOS vars.
+ # TODO Change url when official envoy release for macOS is available
+ export ISTIO_ENVOY_MACOS_VERSION ?= 1.0.2
+@@ -240,6 +245,8 @@
+ ${ISTIO_ENVOY_LINUX_DEBUG_PATH}: init
+ ${ISTIO_ENVOY_LINUX_RELEASE_PATH}: init
+ ${ISTIO_ENVOY_MACOS_RELEASE_PATH}: init
++${ISTIO_ENVOY_LINUX_ARM64_RELEASE_PATH}: init
++${ISTIO_ENVOY_LINUX_AMD64_RELEASE_PATH}: init
+ 
+ # Pull dependencies, based on the checked in Gopkg.lock file.
+ # Developers must manually run `dep ensure` if adding new deps
+@@ -312,8 +319,8 @@
+ # various platform images.
+ .PHONY: build-linux
+ build-linux: depend
+-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) common/scripts/gobuild.sh $(ISTIO_OUT_LINUX)/ $(STANDARD_BINARIES)
+-	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) common/scripts/gobuild.sh $(ISTIO_OUT_LINUX)/ -tags=agent $(AGENT_BINARIES)
++	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) GOBUILDFLAGS='-buildvcs=false' common/scripts/gobuild.sh $(ISTIO_OUT_LINUX)/ $(STANDARD_BINARIES)
++	GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) GOBUILDFLAGS='-buildvcs=false' common/scripts/gobuild.sh $(ISTIO_OUT_LINUX)/ -tags=agent $(AGENT_BINARIES)
+ 
+ # Create targets for ISTIO_OUT_LINUX/binary
+ # There are two use cases here:
+diff -Naur istio/tools/istio-docker.mk istio-new/tools/istio-docker.mk
+--- istio/tools/istio-docker.mk	2023-08-15 21:01:53.621637356 +0800
++++ istio-new/tools/istio-docker.mk	2023-08-15 20:02:11.881402098 +0800
+@@ -77,6 +77,14 @@
+ ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_DIR}/envoy_bootstrap.json: ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_PATH}
+ 	cp ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_PATH} ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_DIR}/envoy_bootstrap.json
+ 
++${ISTIO_ENVOY_LINUX_ARM64_RELEASE_DIR}/${SIDECAR}: ${ISTIO_ENVOY_LINUX_ARM64_RELEASE_PATH}
++	mkdir -p $(DOCKER_BUILD_TOP)/proxyv2
++	cp ${ISTIO_ENVOY_LINUX_ARM64_RELEASE_PATH} ${ISTIO_ENVOY_LINUX_ARM64_RELEASE_DIR}/${SIDECAR}
++
++${ISTIO_ENVOY_LINUX_AMD64_RELEASE_DIR}/${SIDECAR}: ${ISTIO_ENVOY_LINUX_AMD64_RELEASE_PATH}
++	mkdir -p $(DOCKER_BUILD_TOP)/proxyv2
++	cp ${ISTIO_ENVOY_LINUX_AMD64_RELEASE_PATH} ${ISTIO_ENVOY_LINUX_AMD64_RELEASE_DIR}/${SIDECAR}
++
+ # rule for wasm extensions.
+ $(ISTIO_ENVOY_LINUX_RELEASE_DIR)/stats-filter.wasm: init
+ $(ISTIO_ENVOY_LINUX_RELEASE_DIR)/stats-filter.compiled.wasm: init
+@@ -88,7 +96,8 @@
+ docker.proxyv2: BUILD_ARGS=--build-arg proxy_version=istio-proxy:${PROXY_REPO_SHA} --build-arg istio_version=${VERSION} --build-arg BASE_VERSION=${BASE_VERSION} --build-arg SIDECAR=${SIDECAR} --build-arg HUB=${HUB}
+ docker.proxyv2: ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_DIR}/envoy_bootstrap.json
+ docker.proxyv2: ${ISTIO_ENVOY_BOOTSTRAP_CONFIG_DIR}/gcp_envoy_bootstrap.json
+-docker.proxyv2: $(ISTIO_ENVOY_LINUX_RELEASE_DIR)/${SIDECAR}
++docker.proxyv2: ${ISTIO_ENVOY_LINUX_ARM64_RELEASE_DIR}/${SIDECAR}
++docker.proxyv2: ${ISTIO_ENVOY_LINUX_AMD64_RELEASE_DIR}/${SIDECAR}
+ docker.proxyv2: $(ISTIO_OUT_LINUX)/pilot-agent
+ docker.proxyv2: pilot/docker/Dockerfile.proxyv2
+ # docker.proxyv2: $(ISTIO_ENVOY_LINUX_RELEASE_DIR)/stats-filter.wasm
+@@ -324,7 +333,13 @@
+ # This can be done with DOCKER_BUILD_VARIANTS="default debug" as well, but at the expense of building twice vs building once and tagging twice
+ INCLUDE_UNTAGGED_DEFAULT ?= false
+ DEFAULT_DISTRIBUTION=debug
++
++
++ifeq ($(BUILDX_PLATFORM), true)
++DOCKER_RULE ?= $(foreach VARIANT,$(DOCKER_BUILD_VARIANTS), time (mkdir -p $(DOCKER_BUILD_TOP)/$@ && TARGET_ARCH=$(TARGET_ARCH) ./tools/docker-copy.sh $^ $(DOCKER_BUILD_TOP)/$@ && cd $(DOCKER_BUILD_TOP)/$@ $(BUILD_PRE) && docker buildx create --use && docker buildx build --no-cache --platform linux/amd64,linux/arm64 $(BUILD_ARGS) --build-arg BASE_DISTRIBUTION=$(call normalize-tag,$(VARIANT)) -t $(HUB)/$(subst docker.,,$@):$(TAG)$(call variant-tag,$(VARIANT)) -f Dockerfile$(suffix $@) . --push  ); )
++else
+ DOCKER_RULE ?= $(foreach VARIANT,$(DOCKER_BUILD_VARIANTS), time (mkdir -p $(DOCKER_BUILD_TOP)/$@ && TARGET_ARCH=$(TARGET_ARCH) ./tools/docker-copy.sh $^ $(DOCKER_BUILD_TOP)/$@ && cd $(DOCKER_BUILD_TOP)/$@ $(BUILD_PRE) && docker build $(BUILD_ARGS) --build-arg BASE_DISTRIBUTION=$(call normalize-tag,$(VARIANT)) -t $(HUB)/$(subst docker.,,$@):$(TAG)$(call variant-tag,$(VARIANT)) -f Dockerfile$(suffix $@) . ); )
++endif
+ RENAME_TEMPLATE ?= mkdir -p $(DOCKER_BUILD_TOP)/$@ && cp $(ECHO_DOCKER)/$(VM_OS_DOCKERFILE_TEMPLATE) $(DOCKER_BUILD_TOP)/$@/Dockerfile$(suffix $@)
+ 
+ # This target will package all docker images used in test and release, without re-building

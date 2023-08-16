@@ -82,6 +82,9 @@ export TIMEZONE
 export TARGET_OUT="${TARGET_OUT:-$(pwd)/out/${TARGET_OS}_${TARGET_ARCH}}"
 export TARGET_OUT_LINUX="${TARGET_OUT_LINUX:-$(pwd)/out/linux_${TARGET_ARCH}}"
 
+export AMD64_OUT_LINUX=$(pwd)/out/linux_amd64
+export ARM64_OUT_LINUX=$(pwd)/out/linux_arm64
+
 export CONTAINER_TARGET_OUT="${CONTAINER_TARGET_OUT:-/work/out/${TARGET_OS}_${TARGET_ARCH}}"
 export CONTAINER_TARGET_OUT_LINUX="${CONTAINER_TARGET_OUT_LINUX:-/work/out/linux_${TARGET_ARCH}}"
 
@@ -173,6 +176,8 @@ export BUILD_WITH_CONTAINER=0
 
 # For non container build, we need to write env to file
 if [[ "${1}" == "envfile" ]]; then
+  echo "AMD64_OUT_LINUX=${AMD64_OUT_LINUX}"
+  echo "ARM64_OUT_LINUX=${ARM64_OUT_LINUX}"
   echo "TARGET_OUT_LINUX=${TARGET_OUT_LINUX}"
   echo "TARGET_OUT=${TARGET_OUT}"
   echo "TIMEZONE=${TIMEZONE}"
