@@ -168,7 +168,7 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 1.1.0
+ENVOY_LATEST_IMAGE_TAG ?= 1.1.1
 ISTIO_LATEST_IMAGE_TAG ?= 1.1.1
 
 install-dev: pre-install
