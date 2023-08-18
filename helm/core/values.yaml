@@ -369,7 +369,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "1.1.0"
+  tag: "1.1.1"
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -547,7 +547,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 1.1.0
+  tag: 1.1.1
 
   # Can be a full hub/image:tag
   image: pilot
