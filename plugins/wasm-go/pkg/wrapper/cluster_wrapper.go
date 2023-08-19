@@ -131,3 +131,23 @@ func (c DnsCluster) ClusterName() string {
 func (c DnsCluster) HostName() string {
 	return c.Domain
 }
+
+type ConsulCluster struct {
+	ServiceName string
+	Datacenter  string
+	Port        int64
+	Host        string
+}
+
+func (c ConsulCluster) ClusterName() string {
+	tail := "consul"
+	return fmt.Sprintf("outbound|%d||%s.%s.%s",
+		c.Port, c.ServiceName, c.Datacenter, tail)
+}
+
+func (c ConsulCluster) HostName() string {
+	if c.Host != "" {
+		return c.Host
+	}
+	return c.ServiceName
+}
