@@ -1039,7 +1039,6 @@ func (m *IngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterN
 	}
 }
 
-// 这段代码好奇怪
 func normalizeWeightedCluster(cache *common.IngressRouteCache, route *common.WrapperHTTPRoute) {
 	if len(route.HTTPRoute.Route) == 1 {
 		route.HTTPRoute.Route[0].Weight = 100
