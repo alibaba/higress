@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-readonly KIND=${KIND:-/usr/local/bin/kind}
+readonly KIND=${KIND:-tools/bin/kind}
 readonly CLUSTER_NAME=${CLUSTER_NAME:-"higress"}
 
 # Docker variables
