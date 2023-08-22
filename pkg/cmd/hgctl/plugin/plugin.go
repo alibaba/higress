@@ -17,6 +17,7 @@ package plugin
 import (
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/build"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/config"
+	plugininit "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/init"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/install"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/ls"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/test"
@@ -38,6 +39,7 @@ func NewCommand() *cobra.Command {
 	pluginCommand.AddCommand(ls.NewCommand())
 	pluginCommand.AddCommand(test.NewCommand())
 	pluginCommand.AddCommand(config.NewCommand())
+	pluginCommand.AddCommand(plugininit.NewCommand())
 
 	return pluginCommand
 }
