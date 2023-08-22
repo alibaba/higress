@@ -56,7 +56,6 @@ var (
 	_ common.KIngressController = &controller{}
 )
 
-// Kingress 定义IngressClass资源类型检查在annotation里面，此处做IngressClass的校验
 const (
 	// ClassAnnotationKey points to the annotation for the class of this resource.
 	ClassAnnotationKey    = "networking.knative.dev/ingress.class"
@@ -327,8 +326,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		common.IncrementInvalidIngress(c.options.ClusterId, common.EmptyRule)
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
-	// ruleHost: Kingress的rule可以对多条Host生效，此处多做一遍
-	// 当Knative开启AutoTLS时 需要校验HTTPOption 字段，如果HTTPOption开启了Redirect，则需要搞一个Redirect的server用来传301
+
 	for _, rule := range kingressv1alpha1.Rules {
 		for _, ruleHost := range rule.Hosts {
 			cleanHost := common.CleanHost(ruleHost)
@@ -372,7 +370,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 					wrapperGateway.WrapperConfig.AnnotationsConfig.DownstreamTLS = wrapper.AnnotationsConfig.DownstreamTLS
 				}
 			}
-			//增加HTTP Option的301重定向功能
+			//Redirect option
 			if isIngressPublic(&kingressv1alpha1) && (kingressv1alpha1.HTTPOption == ingress.HTTPOptionRedirected) {
 				for _, server := range wrapperGateway.Gateway.Servers {
 					if protocol.Parse(server.Port.Protocol).IsHTTP() {
@@ -499,7 +497,6 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 				wrapperHttpRoute.HTTPRoute = resources.MakeVirtualServiceRoute(transformHosts(rulehost), &httpPath)
 				wrapperHttpRoute.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, wrapperHttpRoute)
 				ingressRouteBuilder := convertOptions.IngressRouteCache.New(wrapperHttpRoute)
-				//fmt.Print(wrapperHttpRoute.WrapperConfig.Config.Namespace, c.options.SystemNamespace, "11111111111111")
 				hostAndPath := wrapperHttpRoute.PathFormat()
 				key := createRuleKey(cfg.Annotations, hostAndPath)
 				wrapperHttpRoute.RuleKey = key
@@ -574,13 +571,11 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 func (c *controller) IngressRouteBuilderServicesCheck(httppath *ingress.HTTPIngressPath, namespace string,
 	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) common.Event {
 
-	//builder.PortName弃用，knative ingress中每条HTTPIngressPath配置了不止一条backend。
-	//builder.PortName = backend.ServicePort.StrVal
+	//backend check
 	if httppath.Splits == nil {
 		return common.InvalidBackendService
 	}
 	for _, split := range httppath.Splits {
-		//删除此处MCPDestination的限制，不知道KnativeServing可否配到注册配置中心上。
 		if split.ServiceName == "" {
 			return common.InvalidBackendService
 		}
@@ -594,12 +589,6 @@ func (c *controller) IngressRouteBuilderServicesCheck(httppath *ingress.HTTPIngr
 	}
 	return common.Normal
 }
-
-/*  这里的操作就是根据backend产生RouteDestination。 这个在MakeVirturlServiceRoute中已完成。
-func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
-	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
-}
-*/
 
 func (c *controller) shouldProcessIngressWithClass(ing *ingress.Ingress) bool {
 	if classValue, found := ing.GetAnnotations()[ClassAnnotationKey]; !found || classValue != IstioIngressClassName {
@@ -669,17 +658,6 @@ func (c *controller) shouldProcessIngressUpdate(ing *ingress.Ingress) (bool, err
 
 	return preProcessed, nil
 }
-
-//use MakeMatch from net-istio
-/*
-func (c *controller) generateHttpMatches(pathType common.PathType, path string, wrapperVS *common.WrapperVirtualService) []*networking.HTTPMatchRequest {
-}*/
-
-// setDefaultMSEIngressOptionalField sets a default value for optional fields when is not defined.
-/*
-func setDefaultMSEIngressOptionalField(ing *ingress.Ingress) {
-
-}*/
 
 // createRuleKey according to the pathType, path, methods, headers, params of rules
 func createRuleKey(annots map[string]string, hostAndPath string) string {

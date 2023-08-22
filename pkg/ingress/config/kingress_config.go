@@ -150,9 +150,7 @@ func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressCont
 	return nil
 }
 
-// 核心函数
 func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
-	//调用与理解接口？
 	if typ == gvk.EnvoyFilter || typ == gvk.DestinationRule {
 		return nil, nil
 	}
@@ -194,7 +192,6 @@ func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]
 	return nil, nil
 }
 
-// wrapper封装istio config 封入内容为 Istio Config 和Nginx Ingress注解
 func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
@@ -237,8 +234,6 @@ func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.
 	return wrapperConfigs
 }
 
-//大包装的Gateway变换，执行内容为：输入变换后的config 输出Istio Config
-
 func (m *KIngressConfig) convertGateways(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
 		IngressDomainCache: common.NewIngressDomainCache(),
@@ -262,7 +257,6 @@ func (m *KIngressConfig) convertGateways(configs []common.WrapperConfig) []confi
 	m.mutex.Lock()
 	m.ingressDomainCache = convertOptions.IngressDomainCache.Extract()
 	m.mutex.Unlock()
-	//convertOptions为大小convert Gateway的共享资源，这里将ConvertOption转回Istio Config
 	out := make([]config.Config, 0, len(convertOptions.Gateways))
 	for _, gateway := range convertOptions.Gateways {
 		cleanHost := common.CleanHost(gateway.Host)
@@ -305,7 +299,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		}
 	}
 
-	// Apply annotation on routes 处理Nginx和Higress Annotation
+	// Apply annotation on routes
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
 			m.annotationHandler.ApplyRoute(route.HTTPRoute, route.WrapperConfig.AnnotationsConfig)
@@ -324,7 +318,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		m.annotationHandler.ApplyVirtualServiceHandler(virtualService.VirtualService, virtualService.WrapperConfig.AnnotationsConfig)
 	}
 
-	// Apply app root for per host. nginx注解使用
+	// Apply app root for per host.
 	m.applyAppRoot(&convertOptions)
 
 	// Apply internal active redirect for error page.
@@ -375,11 +369,10 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		})
 	}
 
-	// Kingress Anntation 不存在HTTPRPC与AUth选项 没必要搞EnvoyFIliter
 	return out
 }
 
-// 确保split precent 总和为100, 如果不是100则按比例划分。
+// Make sure that the sum of traffic split ratio is 100, if it is not 100, it will be normalized
 func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.WrapperHTTPRoute) {
 	if len(route.HTTPRoute.Route) == 1 {
 		route.HTTPRoute.Route[0].Weight = 100
@@ -444,7 +437,6 @@ func (m *KIngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Co
 	return out
 }
 
-// 设置Redirect资源 nginx注解使用
 func (m *KIngressConfig) applyAppRoot(convertOptions *common.ConvertOptions) {
 	for host, wrapVS := range convertOptions.VirtualServices {
 		if wrapVS.AppRoot != "" {

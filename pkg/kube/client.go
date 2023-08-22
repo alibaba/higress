@@ -244,8 +244,8 @@ func fastWaitForCacheSync(stop <-chan struct{}, informerFactory reflectInformerS
 	})
 }
 
+// Check Knative Ingress CRD
 func CheckKIngressCRDExist(config *rest.Config) bool {
-	// 获取CRD资源列表
 	apiExtClientset, err := apiExtensionsV1.NewForConfig(config)
 	if err != nil {
 		fmt.Errorf("failed creating apiExtension Client: %v", err)

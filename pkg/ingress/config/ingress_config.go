@@ -229,9 +229,7 @@ func (m *IngressConfig) InitializeCluster(ingressController common.IngressContro
 	return nil
 }
 
-// 核心函数
 func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
-	//调用与理解接口？
 	if typ != gvk.Gateway &&
 		typ != gvk.VirtualService &&
 		typ != gvk.DestinationRule &&
@@ -297,7 +295,6 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	return nil, nil
 }
 
-// wrapper封装istio config 封入内容为 Istio Config 和Nginx Ingress注解
 func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
@@ -340,8 +337,6 @@ func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.W
 	return wrapperConfigs
 }
 
-//大包装的Gateway变换，执行内容为：输入变换后的config 输出Istio Config
-
 func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config.Config {
 	convertOptions := common.ConvertOptions{
 		IngressDomainCache: common.NewIngressDomainCache(),
@@ -363,16 +358,13 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 	}
 
 	// apply annotation
-	// 应用采纳
 	for _, wrapperGateway := range convertOptions.Gateways {
-		//解TLS的过程在ApplyGateway中
 		m.annotationHandler.ApplyGateway(wrapperGateway.Gateway, wrapperGateway.WrapperConfig.AnnotationsConfig)
 	}
 
 	m.mutex.Lock()
 	m.ingressDomainCache = convertOptions.IngressDomainCache.Extract()
 	m.mutex.Unlock()
-	//convertOptions为大小convert Gateway的共享资源，这里将ConvertOption转回Istio Config
 	out := make([]config.Config, 0, len(convertOptions.Gateways))
 	for _, gateway := range convertOptions.Gateways {
 		cleanHost := common.CleanHost(gateway.Host)

@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/kingress/resources"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/kube"
 	"github.com/google/go-cmp/cmp"
@@ -572,29 +571,6 @@ func addAnnotations(ing *ingress.Ingress, annos map[string]string) *ingress.Ingr
 	return ing
 }
 
-func ingressWithStatus(name string, status v1alpha1.IngressStatus) *v1alpha1.Ingress {
-	return &v1alpha1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNS,
-			Labels: map[string]string{
-				resources.RouteLabelKey:          "test-route",
-				resources.RouteNamespaceLabelKey: testNS,
-			},
-			Annotations:     map[string]string{networking.IngressClassAnnotationKey: IstioIngressClassNametest},
-			ResourceVersion: "v1",
-		},
-		Spec: v1alpha1.IngressSpec{
-			HTTPOption: v1alpha1.HTTPOptionEnabled,
-			Rules:      ingressRules,
-		},
-		Status: status,
-	}
-}
-
-func ing(name string) *v1alpha1.Ingress {
-	return ingressWithStatus(name, v1alpha1.IngressStatus{})
-}
 func TestCreateRuleKey(t *testing.T) {
 	sep := "\n\n"
 	wrapperHttpRoute := &common.WrapperHTTPRoute{
