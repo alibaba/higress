@@ -102,7 +102,11 @@ func GetAnnotations(cs []string) []Annotation {
 				if str2AnnotationType(strings.TrimSpace(cs[j])) == AEnd {
 					break
 				}
-				a.Text = fmt.Sprintf("%s\n%s", a.Text, cs[j])
+				if j == i+1 {
+					a.Text = fmt.Sprintf("%s", cs[j])
+				} else {
+					a.Text = fmt.Sprintf("%s\n%s", a.Text, cs[j])
+				}
 			}
 		}
 		as = append(as, a)
