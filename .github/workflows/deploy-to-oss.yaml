@@ -36,6 +36,7 @@ jobs:
         with:
           helmv3: 3.7.2
           command: |
+            cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
             helmv3 repo add higress.io https://higress.io/helm-charts
             helmv3 package helm/core --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
             helmv3 dependency build helm/higress
