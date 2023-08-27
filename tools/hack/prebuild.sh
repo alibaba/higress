@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-ENVOY_VERSION="${ENVOY_VERSION:=1.20}"
-ISITO_VERSION="${ISTIO_VERSION:=1.12}"
+ENVOY_VERSION="${ENVOY_VERSION:=1.26}"
+ISITO_VERSION="${ISTIO_VERSION:=1.18}"
 WORK_DIR=`cd $(dirname "$0")/../..;pwd`
 
 cd $WORK_DIR
