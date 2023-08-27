@@ -67,6 +67,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		} else {
 			higressTests = []suite.ConformanceTest{
 				tests.WasmPluginsRequestBlock,
+				tests.WasmPluginsJwtAuth,
 			}
 		}
 	} else {

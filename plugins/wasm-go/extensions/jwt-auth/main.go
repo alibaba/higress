@@ -1,0 +1,76 @@
+package main
+
+import (
+	"encoding/json"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+)
+
+// 自定义插件配置
+
+func main() {
+	wrapper.SetCtx(
+		"jwt-auth", // 配置插件名称
+		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
+	)
+}
+
+type Config struct {
+	TokenSecretKey string // 解析Token SecretKey
+	TokenHeaders   string // 定义获取Token请求头名称
+}
+
+type Res struct {
+	Code int    `json:"code"` // 返回状态码
+	Msg  string `json:"msg"`  // 返回信息
+}
+
+func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+	// 解析出配置，更新到config中
+	config.TokenSecretKey = json.Get("token_secret_key").String()
+	config.TokenHeaders = json.Get("token_headers").String()
+	return nil
+}
+
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+	var res Res
+	if config.TokenHeaders == "" || config.TokenSecretKey == "" {
+		res.Code = 401
+		res.Msg = "参数不足"
+		data, _ := json.Marshal(res)
+		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		return types.ActionContinue
+	}
+
+	token, err := proxywasm.GetHttpRequestHeader(config.TokenHeaders)
+	if err != nil {
+		res.Code = 401
+		res.Msg = "认证失败"
+		data, _ := json.Marshal(res)
+		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		return types.ActionContinue
+	}
+	valid := ParseTokenValid(token, config.TokenSecretKey)
+	if valid {
+		_ = proxywasm.ResumeHttpRequest()
+		return types.ActionPause
+	} else {
+		res.Code = 401
+		res.Msg = "认证失败"
+		data, _ := json.Marshal(res)
+		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		return types.ActionContinue
+	}
+}
+
+func ParseTokenValid(tokenString, TokenSecretKey string) bool {
+	token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// 在这里提供用于验证签名的密钥
+		return []byte(TokenSecretKey), nil
+	})
+	return token.Valid
+}
