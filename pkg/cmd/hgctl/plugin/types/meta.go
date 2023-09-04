@@ -15,16 +15,21 @@
 package types
 
 import (
+	"bytes"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/fatih/structtag"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // WasmPluginMeta is used to describe WASM plugin metadata,
@@ -164,6 +169,7 @@ const (
 	CategoryFlowControl Category = "flow-control"
 	CategoryFlowMonitor Category = "flow-monitor"
 	CategoryCustom      Category = "custom"
+	CategoryDefault              = CategoryCustom
 )
 
 const (
@@ -175,7 +181,26 @@ const (
 	IconCustom      = "https://img.alicdn.com/imgextra/i1/O1CN018iKKih1iVx287RltL_!!6000000004419-2-tps-42-42.png"
 )
 
-// TODO: Change the map associated with I18nType to an ordered map, e.g., using wrapped github.com/iancoleman/orderedmap. The aim is to keep the generated files stable.
+func Category2IconUrl(category Category) string {
+	switch category {
+	case CategoryAuth:
+		return IconAuth
+	case CategorySecurity:
+		return IconSecurity
+	case CategoryProtocol:
+		return IconProtocol
+	case CategoryFlowControl:
+		return IconFlowControl
+	case CategoryFlowMonitor:
+		return IconFlowMonitor
+	case CategoryCustom:
+		return IconCustom
+	default:
+		return IconCustom
+	}
+}
+
+// TODO(WeixinX): Change the map associated with I18nType to an ordered map, e.g., using wrapped github.com/iancoleman/orderedmap. The aim is to keep the generated files stable.
 
 type I18nType string
 
@@ -222,6 +247,7 @@ const (
 	PhaseAuthn       Phase = "AUTHN"
 	PhaseAuthz       Phase = "AUTHZ"
 	PhaseStats       Phase = "STATS"
+	PhaseDefault           = PhaseUnspecified
 )
 
 type ConfigSchema struct {
@@ -278,7 +304,7 @@ func collectStructs(node ast.Node) map[string]*structType {
 
 const unknownIsStruct = false
 
-// TODO: More types need to be supported, e.g., Map, Pointer ...
+// TODO(WeixinX): More types need to be supported, e.g., Map, Pointer ...
 func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structType, stc *structType) *JSONSchemaProps {
 	schema := NewJSONSchemaProps()
 
@@ -365,4 +391,44 @@ func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *
 
 		parent.Properties[newName] = *schema
 	}
+}
+
+func (meta *WasmPluginMeta) GetConfigExample() (example string, err error) {
+	s := meta.Spec.ConfigSchema.OpenAPIV3Schema
+	if s != nil && s.Example != nil && len(s.Example.Raw) > 0 {
+		// string(s.Example.Raw) like:
+		// {"allow":["consumer2"],"consumers":[{"credential":"admin:123456","name":"consumer1"},{"credential":"guest:abc","name":"consumer2"}]}
+		var obj interface{}
+		err = json.Unmarshal(s.Example.Raw, &obj)
+		if err != nil {
+			return
+		}
+
+		buf := new(bytes.Buffer)
+		ec := yaml.NewEncoder(buf)
+		defer ec.Close()
+		ec.SetIndent(2)
+		if err = ec.Encode(obj); err != nil {
+			return
+		}
+		return buf.String(), nil
+	}
+
+	return
+}
+
+func ParseSpecYAML(spec string) (*WasmPluginMeta, error) {
+	f, err := os.Open(spec)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var m WasmPluginMeta
+	dc := k8syaml.NewYAMLOrJSONDecoder(f, 4096)
+	if err = dc.Decode(&m); err != nil {
+		return nil, err
+	}
+
+	return &m, nil
 }

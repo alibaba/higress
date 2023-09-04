@@ -15,11 +15,13 @@
 package test
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/docker"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/printers"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -29,7 +31,7 @@ func newLsCommand() *cobra.Command {
 	lsCmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"l"},
-		Short:   "List all test environments, similar to `docker compose ls`",
+		Short:   "List all test environments",
 		Example: `  hgctl plugin test ls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(runLs(cmd.OutOrStdout()))
@@ -42,12 +44,12 @@ func newLsCommand() *cobra.Command {
 func runLs(w io.Writer) error {
 	cli, err := docker.NewCompose(w)
 	if err != nil {
-		return fmt.Errorf("failed to build the docker compose client: %w", err)
+		return errors.Wrap(err, "failed to build the docker compose client")
 	}
 
-	list, err := cli.List()
+	list, err := cli.List(context.TODO())
 	if err != nil {
-		return fmt.Errorf("failed to list all test environments: %w", err)
+		return errors.Wrap(err, "failed to list all test environments")
 	}
 
 	printer := printers.GetNewTabWriter(w)

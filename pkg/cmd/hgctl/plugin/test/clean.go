@@ -15,55 +15,94 @@
 package test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/docker"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
+type cleaner struct {
+	optionFile string
+	option.TestOptions
+
+	w io.Writer
+}
+
 func newCleanCommand() *cobra.Command {
-	var (
-		name   string
-		source string
-	)
+	var c cleaner
+	v := viper.New()
 
 	cleanCmd := &cobra.Command{
 		Use:     "clean",
 		Aliases: []string{"c"},
 		Short:   "Clean the test environment, that is remove the source of test configuration",
 		Example: `  hgctl plugin test clean`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cmdutil.CheckErr(c.config(v, cmd))
+		},
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(clean(cmd.OutOrStdout(), name, source))
+			cmdutil.CheckErr(c.clean())
 		},
 	}
 
-	cleanCmd.PersistentFlags().StringVarP(&name, "name", "p", "wasm-test", "Test environment name, that is compose project name")
-	cleanCmd.PersistentFlags().StringVarP(&source, "source", "s", "./test", "Test configuration source")
+	flags := cleanCmd.PersistentFlags()
+	option.AddOptionFileFlag(&c.optionFile, flags)
+	v.BindPFlags(flags)
+
+	flags.StringP("name", "p", "wasm-test", "Test environment name")
+	v.BindPFlag("test.name", flags.Lookup("name"))
+	v.SetDefault("test.name", "wasm-test")
+
+	// TODO(WeixinX): Obtain the test configuration source directory based on the test environment name
+	flags.StringP("test-path", "t", "./test", "Test configuration source")
+	v.BindPFlag("test.test-path", flags.Lookup("test-path"))
+	v.SetDefault("test.test-path", "./test")
 
 	return cleanCmd
 }
 
-func clean(w io.Writer, name, source string) error {
-	cli, err := docker.NewCompose(w)
+func (c *cleaner) config(v *viper.Viper, cmd *cobra.Command) error {
+	allOpt, err := option.ParseOptions(c.optionFile, v, cmd.PersistentFlags())
 	if err != nil {
-		return fmt.Errorf("failed to build the docker compose client: %w", err)
+		return err
+	}
+	c.TestOptions = allOpt.Test
+
+	c.w = cmd.OutOrStdout()
+
+	return nil
+}
+
+func (c *cleaner) clean() error {
+	cli, err := docker.NewCompose(c.w)
+	if err != nil {
+		return errors.Wrap(err, "failed to build the docker compose client")
 	}
 
-	fmt.Fprintf(w, "Clean the test environment %q ...\n", name)
-	err = cli.Down(name)
+	err = cli.Down(context.TODO(), c.Name)
 	if err != nil {
-		return fmt.Errorf("failed to stop test environment %q: %w", name, err)
+		return errors.Wrapf(err, "failed to stop the test environment %q", c.Name)
 	}
+	fmt.Fprintf(c.w, "Stopped the test environment %q\n", c.Name)
 
+	source, err := types.GetAbsolutePath(c.TestPath)
+	if err != nil {
+		return errors.Wrapf(err, "invalid test configuration source %q", c.TestPath)
+	}
 	err = os.RemoveAll(source)
 	if err != nil {
-		return fmt.Errorf("failed to remove test configuration source %q: %w", source, err)
+		return errors.Wrapf(err, "failed to remove the test configuration source %q", source)
 	}
-	fmt.Fprintf(w, "Remove the source: %q\n", source)
+	fmt.Fprintf(c.w, "Removed the source %q\n", source)
 
 	return nil
 }

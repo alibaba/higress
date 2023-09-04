@@ -40,10 +40,11 @@ type BuildOptions struct {
 }
 
 type TestOptions struct {
-	Name     string `json:"name" yaml:"name" mapstructure:"name"`
-	FromPath string `json:"from-path" yaml:"from-path" mapstructure:"from-path"`
-	TestPath string `json:"test-path" yaml:"test-path" mapstructure:"test-path"`
-	Detach   bool   `json:"detach" yaml:"detach" mapstructure:"detach"`
+	Name        string `json:"name" yaml:"name" mapstructure:"name"`
+	FromPath    string `json:"from-path" yaml:"from-path" mapstructure:"from-path"`
+	TestPath    string `json:"test-path" yaml:"test-path" mapstructure:"test-path"`
+	ComposeFile string `json:"compose-file" yaml:"compose-file" mapstructure:"compose-file"`
+	Detach      bool   `json:"detach" yaml:"detach" mapstructure:"detach"`
 }
 
 type InstallOptions struct {
@@ -83,4 +84,9 @@ func ParseOptions(optionFile string, v *viper.Viper, flags *pflag.FlagSet) (*Opt
 	}
 
 	return &opt, nil
+}
+
+func AddOptionFileFlag(optionFile *string, flags *pflag.FlagSet) {
+	flags.StringVarP(optionFile, "option-file", "f", "./option.yaml",
+		"Option file for build, test and install")
 }

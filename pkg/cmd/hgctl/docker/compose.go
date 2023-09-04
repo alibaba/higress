@@ -29,11 +29,14 @@ import (
 
 type Compose struct {
 	client *api.ServiceProxy
+	w      io.Writer
 }
 
 func NewCompose(w io.Writer) (*Compose, error) {
+	c := &Compose{w: w}
+
 	dockerCli, err := command.NewDockerCli(
-		command.WithCombinedStreams(w),
+		command.WithCombinedStreams(c.w),
 		command.WithDefaultContextStoreConfig(),
 	)
 	if err != nil {
@@ -45,12 +48,12 @@ func NewCompose(w io.Writer) (*Compose, error) {
 	if err != nil {
 		return nil, err
 	}
-	serviceProxy := api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli))
+	c.client = api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli))
 
-	return &Compose{client: serviceProxy}, nil
+	return c, nil
 }
 
-func (c Compose) Up(w io.Writer, name string, configs []string, source string, detach bool) error {
+func (c Compose) Up(ctx context.Context, name string, configs []string, source string, detach bool) error {
 	pOpts, err := cli.NewProjectOptions(
 		configs,
 		cli.WithWorkingDirectory(source),
@@ -80,10 +83,9 @@ func (c Compose) Up(w io.Writer, name string, configs []string, source string, d
 	project.WithoutUnnecessaryResources()
 
 	// for log
-	ctx := context.TODO()
 	var consumer api.LogConsumer
 	if !detach {
-		consumer = formatter.NewLogConsumer(ctx, w, w, true, true, false)
+		consumer = formatter.NewLogConsumer(ctx, c.w, c.w, true, true, false)
 	}
 	attachTo := make([]string, 0)
 	for _, svc := range project.Services {
@@ -98,10 +100,10 @@ func (c Compose) Up(w io.Writer, name string, configs []string, source string, d
 	})
 }
 
-func (c Compose) List() ([]api.Stack, error) {
-	return c.client.List(context.TODO(), api.ListOptions{})
+func (c Compose) List(ctx context.Context) ([]api.Stack, error) {
+	return c.client.List(ctx, api.ListOptions{})
 }
 
-func (c Compose) Down(name string) error {
-	return c.client.Down(context.TODO(), name, api.DownOptions{})
+func (c Compose) Down(ctx context.Context, name string) error {
+	return c.client.Down(ctx, name, api.DownOptions{})
 }

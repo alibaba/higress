@@ -129,7 +129,7 @@ func NewCommand() *cobra.Command {
 }
 
 func (b *Builder) bindFlags(v *viper.Viper, flags *pflag.FlagSet) {
-	flags.StringVarP(&b.OptionFile, "option-file", "f", "./option.yaml", "Option file for build, test and install")
+	option.AddOptionFileFlag(&b.OptionFile, flags)
 	flags.StringVarP(&b.Username, "username", "u", "", "Username for pushing image to the docker repository")
 	flags.StringVarP(&b.Password, "password", "p", "", "Password for pushing image to the docker repository")
 	v.BindPFlags(flags)
