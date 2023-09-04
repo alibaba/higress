@@ -16,16 +16,19 @@ package build
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"os/user"
-	"path/filepath"
 	"strings"
+	"syscall"
 	"text/template"
 
 	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -33,13 +36,17 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 const (
 	DefaultBuilderRepository = "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder"
-	DefaultBuilderVersion    = "go1.19-tinygo0.25.0-oras1.0.0"
+	DefaultBuilderGo         = "1.19"
+	DefaultBuilderTinyGo     = "0.28.1"
+	DefaultBuilderOras       = "1.0.0"
 
 	MediaTypeSpec      = "application/vnd.module.wasm.spec.v1+yaml"
 	MediaTypeREADME    = "application/vnd.module.wasm.doc.v1+markdown"
@@ -48,13 +55,439 @@ const (
 	MediaTypeIcon      = "application/vnd.module.wasm.icon.v1+png"
 	MediaTypePlugin    = "application/vnd.oci.image.layer.v1.tar+gzip"
 
-	HostTempDirPattern = "higress-wasm-go-build-*"
+	HostTempDirPattern     = "higress-wasm-go-build-*"
+	HostDockerEntryPattern = "higress-wasm-go-build-docker-entrypoint-*.sh"
 
-	ContainerWorkDir    = "/workspace"
-	ContainerTempDir    = "/higress_temp"
-	ContainerOutDir     = "/output"
-	ContainerDockerAuth = "/root/.docker/config.json"
+	ContainerWorkDir       = "/workspace"
+	ContainerTempDir       = "/higress_temp" // the directory to temporarily store the build products
+	ContainerOutDir        = "/output"
+	ContainerDockerAuth    = "/root/.docker/config.json"
+	ContainerEntryFile     = "docker-entrypoint.sh"
+	ContainerEntryFilePath = "/" + ContainerEntryFile
 )
+
+type Builder struct {
+	OptionFile string
+	option.BuildOptions
+	Username, Password string
+
+	repository       string
+	tempDir          string
+	dockerEntrypoint string
+	uid, gid         string
+
+	containerID   string
+	containerConf types.ContainerCreateConfig
+	dockerCli     *client.Client
+	w             io.Writer
+	sig           chan os.Signal // watch interrupt
+	stop          chan struct{}  // stop the build process when an interruption occurs
+	done          chan struct{}  // signal that the build process is finished
+}
+
+func NewBuilder(f ConfigFunc) (*Builder, error) {
+	b := new(Builder)
+	if err := b.config(f); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func NewCommand() *cobra.Command {
+	var bld Builder
+	v := viper.New()
+
+	buildCmd := &cobra.Command{
+		Use:     "build",
+		Aliases: []string{"bld", "b"},
+		Short:   "Build Golang WASM plugin",
+		Example: `  # If the option.yaml file exists in the current path, do the following:
+  hgctl plugin build
+
+  # Using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "BasicAuthConfig"
+  hgctl plugin build --model BasicAuthConfig
+
+  # Pushing the build products as an OCI image to the specified repository using "--output-type(-t)" and "--output-dest(-d)"
+  docker login
+  hgctl plugin build -s BasicAuthConfig -t image -d docker.io/<your_username>/<your_image>
+  `,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cmdutil.CheckErr(bld.config(func(b *Builder) error {
+				return parseOptions(b, v, cmd)
+			}))
+		},
+
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdutil.CheckErr(bld.Build())
+		},
+	}
+
+	bld.bindFlags(v, buildCmd.PersistentFlags())
+
+	return buildCmd
+}
+
+func (b *Builder) bindFlags(v *viper.Viper, flags *pflag.FlagSet) {
+	flags.StringVarP(&b.OptionFile, "option-file", "f", "./option.yaml", "Option file of build, test, etc")
+	flags.StringVarP(&b.Username, "username", "u", "", "Username for pushing image to the docker repository")
+	flags.StringVarP(&b.Password, "password", "p", "", "Password for pushing image to the docker repository")
+	v.BindPFlags(flags)
+
+	// this binding ensures that flags explicitly set on the command line have the
+	// highest priority, and if they are not set, they are read from the configuration file.
+	flags.StringP("builder-go", "g", DefaultBuilderGo, "Golang version in the official builder image")
+	v.BindPFlag("build.builder.go", flags.Lookup("builder-go"))
+	v.SetDefault("build.builder.go", DefaultBuilderGo)
+
+	flags.StringP("builder-tinygo", "n", DefaultBuilderTinyGo, "TinyGo version in the official builder image")
+	v.BindPFlag("build.builder.tinygo", flags.Lookup("builder-tinygo"))
+	v.SetDefault("build.builder.tinygo", DefaultBuilderTinyGo)
+
+	flags.StringP("builder-oras", "r", DefaultBuilderOras, "ORAS version in official the builder image")
+	v.BindPFlag("build.builder.oras", flags.Lookup("builder-oras"))
+	v.SetDefault("build.builder.oras", DefaultBuilderOras)
+
+	flags.StringP("input", "i", "./", "Directory of the WASM plugin project to be built")
+	v.BindPFlag("build.input", flags.Lookup("input"))
+	v.SetDefault("build.input", "./")
+
+	flags.StringP("output-type", "t", "files", "Output type of the build products. [files, image]")
+	v.BindPFlag("build.output.type", flags.Lookup("output-type"))
+	v.SetDefault("build.output.type", "files")
+
+	flags.StringP("output-dest", "d", "./out", "Output destination of the build products")
+	v.BindPFlag("build.output.dest", flags.Lookup("output-dest"))
+	v.SetDefault("build.output.dest", "./out")
+
+	flags.StringP("docker-auth", "a", "~/.docker/config.json", "Authentication configuration for pushing image to the docker repository")
+	v.BindPFlag("build.docker-auth", flags.Lookup("docker-auth"))
+	v.SetDefault("build.docker-auth", "~/.docker/config.json")
+
+	flags.StringP("model-dir", "m", "./", "Directory of the WASM plugin configuration structure")
+	v.BindPFlag("build.model-dir", flags.Lookup("model-dir"))
+	v.SetDefault("build.model-dir", "./")
+
+	flags.StringP("model", "s", "", "Structure name of the WASM plugin configuration")
+	v.BindPFlag("build.model", flags.Lookup("model"))
+	v.SetDefault("build.model", "")
+
+	flags.BoolP("debug", "", false, "Enable debug mode")
+	v.BindPFlag("build.debug", flags.Lookup("debug"))
+	v.SetDefault("build.debug", false)
+}
+
+func (b *Builder) Build() (err error) {
+	b.Debugf("build options: \n%s\n", b.String())
+
+	go func() {
+		err = b.doBuild()
+	}()
+
+	// wait for an interruption to occur or finishing the build
+	select {
+	case <-b.sig:
+		b.interrupt()
+		fmt.Fprintf(b.w, "\nInterrupt\n")
+		// wait for the doBuild process to exit, otherwise there will be unexpected bugs
+		b.waitForFinished()
+		b.Debugln("clean up for interrupting ...")
+		b.cleanupForError()
+		os.Exit(0)
+
+	case <-b.done:
+		if err != nil {
+			b.Debugln("clean up for error ...")
+			b.cleanupForError()
+			return
+		}
+		b.Debugln("clean up for normal ...")
+		b.cleanup()
+	}
+
+	return
+}
+
+var (
+	waitIcon       = "[-]"
+	successfulIcon = "[√]"
+)
+
+func (b *Builder) doBuild() (err error) {
+	// finish here does not mean that the build was successful,
+	// but that the doBuild process is complete
+	defer b.finish()
+
+	if err = b.generateMetadata(); err != nil {
+		return errors.Wrap(err, "failed to generate wasm plugin metadata files")
+	}
+
+	fmt.Fprintf(b.w, "%s pull the builder image ...\n", waitIcon)
+	ctx := context.TODO()
+	if err = b.imagePull(ctx); err != nil {
+		return errors.Wrapf(err, "failed to pull the builder image %s", b.builderImageRef())
+	}
+	fmt.Fprintf(b.w, "%s pull the builder image: %s\n", successfulIcon, b.builderImageRef())
+
+	if err = b.addContainerConfByOutType(); err != nil {
+		return errors.Wrapf(err, "failed to add the additional container configuration for output type %q", b.Output.Type)
+	}
+
+	fmt.Fprintf(b.w, "%s create the builder container ...\n", waitIcon)
+	if err = b.containerCreate(ctx); err != nil {
+		return errors.Wrap(err, "failed to create the builder container")
+	}
+	fmt.Fprintf(b.w, "%s create the builder container: %s\n", successfulIcon, b.containerID)
+
+	fmt.Fprintf(b.w, "%s start the builder container ...\n", waitIcon)
+	if err = b.containerStart(ctx); err != nil {
+		return errors.Wrap(err, "failed to start the builder container")
+	}
+
+	if b.Output.Type == "files" {
+		fmt.Fprintf(b.w, "%s finish building!\n", successfulIcon)
+	} else if b.Output.Type == "image" {
+		fmt.Fprintf(b.w, "%s finish building and pushing!\n", successfulIcon)
+
+	}
+
+	return nil
+}
+
+var errBuildAbort = errors.New("build aborted")
+
+func (b *Builder) generateMetadata() error {
+	// spec.yaml
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	specPath := fmt.Sprintf("%s/spec.yaml", b.tempDir)
+	spec, err := os.Create(specPath)
+	if err != nil {
+		return err
+	}
+	defer spec.Close()
+	meta, err := ptypes.NewWasmPluginMeta(b.ModelDir, b.Model)
+	if err != nil {
+		return err
+	}
+	ec := yaml.NewEncoder(spec)
+	ec.SetIndent(2)
+	err = ec.Encode(meta)
+	if err != nil {
+		return err
+	}
+
+	// TODO(WeixinX): More languages need to be supported
+	// README.md is required, README_{lang}.md is optional
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	usages, err := ptypes.GetUsageFromMeta(meta)
+	if err != nil {
+		return errors.Wrap(err, "failed to get wasm usage")
+	}
+	if len(usages) == 0 { // create empty README.md. TODO(WeixinX): Add the field names of the config structure, which requires modifying the GetUsageFromMeta method
+		mdPath := fmt.Sprintf("%s/README.md", b.tempDir)
+		md, err := os.Create(mdPath)
+		if err != nil {
+			return err
+		}
+		defer md.Close()
+
+		err = template.Must(template.New("MD_en_US").Parse(MD_en_US)).Execute(md, ptypes.WasmUsage{
+			I18nType:    ptypes.I18nEN_US,
+			Description: "No description",
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	for i, u := range usages {
+		var (
+			t      *template.Template
+			md     *os.File
+			mdPath string
+		)
+		// since `usages` are ordered by `I18nType` and currently only `en-US` and
+		// `zh-CN` are available, en-US is the default README.md language when en-US is
+		// present (because after sorting it is in the first place)
+		if i == 0 {
+			mdPath = fmt.Sprintf("%s/README.md", b.tempDir)
+		}
+		switch u.I18nType {
+		case ptypes.I18nZH_CN:
+			t = template.Must(template.New("MD_zh_CN").Parse(MD_zh_CN))
+			if i != 0 {
+				mdPath = fmt.Sprintf("%s/README_ZH.md", b.tempDir)
+			}
+		case ptypes.I18nEN_US:
+			t = template.Must(template.New("MD_en_US").Parse(MD_en_US))
+			if i != 0 {
+				mdPath = fmt.Sprintf("%s/README_EN.md", b.tempDir)
+			}
+		default:
+			t = template.Must(template.New("MD_zh_CN").Parse(MD_zh_CN))
+			if i != 0 {
+				mdPath = fmt.Sprintf("%s/README_ZH.md", b.tempDir)
+			}
+		}
+		md, err = os.Create(mdPath)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create %q", mdPath)
+		}
+		err = t.Execute(md, u)
+		if err != nil {
+			md.Close()
+			return err
+		}
+		md.Close()
+	}
+
+	return nil
+}
+
+func (b *Builder) imagePull(ctx context.Context) error {
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	r, err := b.dockerCli.ImagePull(ctx, b.builderImageRef(), types.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
+
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	io.Copy(b.w, r)
+
+	return nil
+}
+
+func (b *Builder) addContainerConfByOutType() error {
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+
+	var err error
+	switch b.Output.Type {
+	case "files":
+		err = b.filesHandler()
+	case "image":
+		err = b.imageHandler()
+	default:
+		return errors.New("invalid output option, output type is unknown")
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (b *Builder) containerCreate(ctx context.Context) error {
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+
+	resp, err := b.dockerCli.ContainerCreate(ctx, b.containerConf.Config, b.containerConf.HostConfig,
+		b.containerConf.NetworkingConfig, b.containerConf.Platform, b.containerConf.Name)
+	if err != nil {
+		return err
+	}
+	b.containerID = resp.ID
+
+	return nil
+}
+
+func (b *Builder) containerStart(ctx context.Context) error {
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	if err := b.dockerCli.ContainerStart(ctx, b.containerID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	statusCh, errCh := b.dockerCli.ContainerWait(ctx, b.containerID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+	case <-statusCh:
+	}
+
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	logs, err := b.dockerCli.ContainerLogs(ctx, b.containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	if err != nil {
+		return err
+	}
+
+	if b.isInterrupted() {
+		return errBuildAbort
+	}
+	_, err = stdcopy.StdCopy(b.w, b.w, logs)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type FilesTmplFields struct {
+	BuildSrcDir  string
+	BuildDestDir string
+	Output       string
+	UID, GID     string
+	Debug        bool
+}
+
+var errWriteDockerEntrypoint = errors.New("failed to write docker entrypoint")
+
+func (b *Builder) filesHandler() error {
+	b.containerConf.HostConfig.Mounts = append(b.containerConf.HostConfig.Mounts, mount.Mount{
+		// output dir for the build products
+		Type:   mount.TypeBind,
+		Source: b.Output.Dest,
+		Target: ContainerOutDir,
+	})
+
+	ft := FilesTmplFields{
+		BuildSrcDir:  ContainerWorkDir,
+		BuildDestDir: ContainerTempDir,
+		Output:       ContainerOutDir,
+		UID:          b.uid,
+		GID:          b.uid,
+		Debug:        b.Debug,
+	}
+	f, err := os.OpenFile(b.dockerEntrypoint, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return errWriteDockerEntrypoint
+	}
+	defer f.Close()
+	if err = template.Must(template.New("FilesDockerEntrypoint").Parse(FilesDockerEntrypoint)).Execute(f, ft); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type ImageTmplFields struct {
+	BuildSrcDir        string
+	BuildDestDir       string
+	Output             string
+	Username, Password string
+	BasicCmd           string
+	Products           string
+	MediaTypePlugin    string
+	Debug              bool
+}
 
 var (
 	optionalProducts = [][2]string{
@@ -64,331 +497,7 @@ var (
 	}
 )
 
-type Builder struct {
-	Repository, Version         string
-	Input, ProjectName, TempDir string
-	Output, OutType, OutDest    string
-	Username, Password          string
-	OptionFile                  string
-	Cmds                        []string
-	ContainerConf               types.ContainerCreateConfig
-	UID, GID                    string
-	DockerAuth                  string
-	ModelDir, StructName        string
-}
-
-func NewCommand() *cobra.Command {
-	var bld Builder
-
-	buildCommand := &cobra.Command{
-		Use:     "build",
-		Aliases: []string{"bld", "b"},
-		Short:   "Build Golang WASM plugin",
-		Example: `  # The simplest demo, using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "BasicAuthConfig"
-  hgctl plugin build --model BasicAuthConfig
-
-  # Pushing the products as an OCI image to the specified repository using "--output(-o)"
-  docker login
-  hgctl plugin build -s "BasicAuthConfig" -o type=image,dest=docker.io/<your_username>/<your_image>
-  `,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(bld.build(cmd.OutOrStdout()))
-		},
-	}
-
-	bld.Repository = DefaultBuilderRepository
-	buildCommand.PersistentFlags().StringVarP(&bld.Version, "builder", "t", DefaultBuilderVersion, "The official builder image version")
-	buildCommand.PersistentFlags().StringVarP(&bld.Input, "input", "i", "./", "The WASM plugin project directory")
-	buildCommand.PersistentFlags().StringVarP(&bld.Output, "output", "o", "type=files,dest=./out", "The output type of build products, which is like `type=[files | image],dest=path`")
-	buildCommand.PersistentFlags().StringVarP(&bld.Username, "username", "u", "", "The username for pushing image to the docker repository")
-	buildCommand.PersistentFlags().StringVarP(&bld.Password, "password", "p", "", "The password for pushing image to the docker repository")
-	buildCommand.PersistentFlags().StringVarP(&bld.OptionFile, "option-file", "f", "./config.yaml", "The options file of building, testing, etc")
-	buildCommand.PersistentFlags().StringVarP(&bld.DockerAuth, "docker-auth", "a", "~/.docker/config.json", "The authentication configuration file for pushing image to the docker repository")
-	buildCommand.PersistentFlags().StringVarP(&bld.ModelDir, "model-dir", "m", "./", "The directory for the WASM plugin configuration structure")
-	buildCommand.PersistentFlags().StringVarP(&bld.StructName, "model", "s", "", "The WASM plugin configuration structure name")
-
-	return buildCommand
-}
-
-func (b *Builder) build(w io.Writer) (err error) {
-	// 0. check some options
-	err = b.checkAndSetOptions()
-	if err != nil {
-		return errors.Wrap(err, "failed to check and set options")
-	}
-
-	// 1. generate files `spec.yaml` and `README_{lang}.md` in the temporary directory of host
-	tempDir, err := os.MkdirTemp("", HostTempDirPattern)
-	if err != nil {
-		return errors.Wrap(err, "failed to create host temporary dir")
-	}
-	defer os.RemoveAll(tempDir)
-	b.TempDir = tempDir
-	err = b.generateMetadata()
-	if err != nil {
-		return errors.Wrap(err, "failed to generate metadata")
-	}
-
-	// 2. preparing the builder container
-	// 2.1. initialize the docker client
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize the docker client")
-	}
-	defer cli.Close()
-
-	// 2.2. pull the builder image
-	builderImage := fmt.Sprintf("%s:%s", b.Repository, b.Version)
-	reader, err := cli.ImagePull(ctx, builderImage, types.ImagePullOptions{})
-	if err != nil {
-		return errors.Wrapf(err, "[×] failed to pull the builder image: %s", builderImage)
-	}
-	_, err = io.Copy(w, reader)
-	if err != nil {
-		return errors.Wrap(err, "[×] failed to write the content of the builder image")
-	}
-	fmt.Fprintf(w, "[√] pull the builder image: %s\n", builderImage)
-
-	// 2.3. set the basic configuration of the builder container
-	// TODO: Entrypoint script file will be run inside container instead of executing commands
-	b.Cmds = []string{
-		"go mod tidy",
-		fmt.Sprintf("tinygo build -o %s/plugin.wasm -scheduler=none -target=wasi %s/main.go",
-			ContainerTempDir, ContainerWorkDir),
-	}
-	u, err := user.Current()
-	if err != nil {
-		return errors.Wrap(err, "failed to get the current user information")
-	}
-	b.UID, b.GID = u.Uid, u.Gid
-	b.DockerAuth, err = ptypes.GetAbsolutePath(b.DockerAuth)
-	if err != nil {
-		return errors.Wrap(err, "failed to expand the path of docker authentication configuration")
-	}
-	b.ContainerConf = types.ContainerCreateConfig{
-		Name: "higress-wasm-go-builder",
-		Config: &container.Config{
-			Image: builderImage,
-			Env: []string{
-				"GO111MODULE=on",
-				"GOPROXY=https://goproxy.cn,direct",
-				//fmt.Sprintf("ORAS_USERNAME=%s", b.Username),
-				//fmt.Sprintf("ORAS_PASSWORD=%s", b.Password),
-			},
-			WorkingDir: ContainerWorkDir,
-		},
-		HostConfig: &container.HostConfig{
-			NetworkMode: "host",
-			Mounts: []mount.Mount{
-				{ // input
-					Type:   mount.TypeBind,
-					Source: b.Input,
-					Target: ContainerWorkDir,
-				},
-				{ // temp
-					Type:   mount.TypeBind,
-					Source: b.TempDir,
-					Target: ContainerTempDir,
-				},
-			},
-		},
-		Platform: nil,
-	}
-
-	// 2.4. add additional container configuration for different output type
-	switch b.OutType {
-	case "files":
-		b.filesHandler()
-	case "image":
-		b.imageHandler()
-	default:
-		return errors.New("invalid output option, output type is unknown")
-	}
-
-	// 3. create and start the builder container to generate the build products
-	resp, err := cli.ContainerCreate(ctx, b.ContainerConf.Config, b.ContainerConf.HostConfig, b.ContainerConf.NetworkingConfig, b.ContainerConf.Platform, b.ContainerConf.Name)
-	if err != nil {
-		return errors.Wrap(err, "[×] failed to create the builder container")
-	}
-	fmt.Fprintf(w, "[√] create container (%s): %s\n", b.ContainerConf.Name, resp.ID)
-
-	defer func() {
-		if err != nil {
-			fmt.Fprintf(w, "[×] %s\n", err.Error())
-		}
-
-		err = cli.ContainerRemove(ctx, resp.ID, types.ContainerRemoveOptions{Force: true})
-		if err != nil {
-			fmt.Fprintf(w, "[×] failed to remove container (%s): %s\n", b.ContainerConf.Name, resp.ID)
-		}
-		fmt.Fprintf(w, "[√] remove container (%s): %s\n", b.ContainerConf.Name, resp.ID)
-	}()
-
-	if err = cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		return errors.Wrapf(err, "[×] failed to start container (%s): %s", b.ContainerConf.Name, resp.ID)
-	}
-	fmt.Fprintf(w, "[√] start container (%s): %s\n", b.ContainerConf.Name, resp.ID)
-
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
-	select {
-	case err = <-errCh:
-		if err != nil {
-			return err
-		}
-	case <-statusCh:
-	}
-
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
-	if err != nil {
-		return err
-	}
-	_, err = stdcopy.StdCopy(w, w, out)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (b *Builder) checkAndSetOptions() error {
-	inp, err := ptypes.GetAbsolutePath(b.Input)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse input option")
-	}
-	b.Input = inp
-	b.ProjectName = filepath.Base(b.Input)
-
-	outParams := strings.Split(b.Output, ",")
-	if len(outParams) != 2 {
-		return errors.Errorf("invalid output option: %s, must be `type=[files | image],dest=path`", b.Output)
-	}
-	outTypeKV := strings.Split(outParams[0], "=")
-	if len(outTypeKV) != 2 {
-		return errors.Errorf("invalid output option: %s, must be `type=[files | image],dest=path`", b.Output)
-
-	}
-	b.OutType = strings.TrimSpace(outTypeKV[1])
-	outDestKV := strings.Split(outParams[1], "=")
-	if len(outDestKV) != 2 {
-		return errors.Errorf("invalid output option: %s, must be `type=[files | image],dest=path`", b.Output)
-	}
-	outDest := strings.TrimSpace(outDestKV[1])
-	if b.OutType == "files" {
-		outDest, err = ptypes.GetAbsolutePath(strings.TrimSpace(outDestKV[1]))
-		if err != nil {
-			return errors.Wrap(err, "failed to parse output destination")
-		}
-		err = os.MkdirAll(outDest, 0755)
-		if err != nil && !os.IsExist(err) {
-			return errors.Wrapf(err, "failed to mkdir %q", outDest)
-		}
-	}
-
-	b.OutDest = outDest
-	b.Output = fmt.Sprintf("type=%s,dest=%s", b.OutType, b.OutDest)
-
-	return nil
-}
-
-func (b *Builder) generateMetadata() error {
-	// spec.yaml
-	specPath := fmt.Sprintf("%s/spec.yaml", b.TempDir)
-	spec, err := os.Create(specPath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create %s", specPath)
-	}
-	defer spec.Close()
-	ec := yaml.NewEncoder(spec)
-	meta, err := ptypes.NewWasmPluginMeta(b.ModelDir, b.StructName)
-	if err != nil {
-		return errors.Wrap(err, "failed to call NewWasmPluginMeta")
-	}
-	err = ec.Encode(meta)
-	if err != nil {
-		return errors.Wrap(err, "failed to encode WasmPluginMeta")
-	}
-
-	// TODO: More languages need to be supported
-	// README_{lang}.md
-	// README.md is required, it is zh-CN or en-US version
-	usages, err := ptypes.GetUsageFromMeta(meta)
-	if err != nil {
-		return errors.Wrap(err, "failed to call GetUsageFromMeta")
-	}
-	if len(usages) == 0 { // create empty README.md
-		mdPath := fmt.Sprintf("%s/README.md", b.TempDir)
-		md, err := os.Create(mdPath)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create %q", mdPath)
-		}
-		md.Close()
-
-	} else {
-		for i, u := range usages {
-			var (
-				t      *template.Template
-				md     *os.File
-				mdPath string
-			)
-			if i == 0 { // default README.md
-				mdPath = fmt.Sprintf("%s/README.md", b.TempDir)
-			}
-			switch u.I18nType {
-			case ptypes.I18nZH_CN:
-				t = template.New("MD_zh_CN")
-				t = template.Must(t.Parse(MD_zh_CN))
-				if i != 0 {
-					mdPath = fmt.Sprintf("%s/README_ZH.md", b.TempDir)
-				}
-			case ptypes.I18nEN_US:
-				t = template.New("MD_en_US")
-				t = template.Must(t.Parse(MD_en_US))
-				if i != 0 {
-					mdPath = fmt.Sprintf("%s/README_EN.md", b.TempDir)
-				}
-			default:
-				t = template.New("MD_zh_CN")
-				t = template.Must(t.Parse(MD_zh_CN))
-				if i != 0 {
-					mdPath = fmt.Sprintf("%s/README_ZH.md", b.TempDir)
-				}
-			}
-			md, err = os.Create(mdPath)
-			if err != nil {
-				return errors.Wrapf(err, "failed to create %q", mdPath)
-			}
-			err = t.Execute(md, u)
-			if err != nil {
-				md.Close()
-				return errors.Wrap(err, "failed to execute README.md or README_{lang}.md template")
-			}
-			md.Close()
-		}
-	}
-
-	return nil
-}
-
-func (b *Builder) filesHandler() {
-	b.ContainerConf.HostConfig.Mounts = append(b.ContainerConf.HostConfig.Mounts, mount.Mount{
-		// output
-		Type:   mount.TypeBind,
-		Source: b.OutDest,
-		Target: ContainerOutDir,
-	})
-
-	// TODO: Entrypoint script file will be run inside container instead of executing commands
-	addCmds := []string{
-		fmt.Sprintf("mv %s/* %s/", ContainerTempDir, ContainerOutDir),
-		fmt.Sprintf("chown -R %s:%s %s/*", b.UID, b.GID, ContainerOutDir),
-		"echo '[√] finished building!'",
-	}
-	b.Cmds = append(b.Cmds, addCmds...)
-	b.ContainerConf.Config.Cmd = []string{"bash", "-c", strings.Join(b.Cmds, " && ")}
-}
-
-func (b *Builder) imageHandler() {
+func (b *Builder) imageHandler() error {
 	products := ""
 	for i, p := range optionalProducts {
 		fileName := p[0]
@@ -400,16 +509,15 @@ func (b *Builder) imageHandler() {
 		}
 	}
 
-	// TODO: Entrypoint script file will be run inside container instead of executing commands
 	// spec.yaml, README.md and plugin.tar.gz are required
-	basicCmd := fmt.Sprintf(`cmd="oras push %s -u %s -p %s ./spec.yaml:%s ./README.md:%s"`,
-		b.OutDest, b.Username, b.Password, MediaTypeSpec, MediaTypeREADME)
+	basicCmd := fmt.Sprintf("oras push %s -u %s -p %s ./spec.yaml:%s ./README.md:%s",
+		b.Output.Dest, b.Username, b.Password, MediaTypeSpec, MediaTypeREADME)
 
 	if b.Username == "" || b.Password == "" {
-		basicCmd = fmt.Sprintf(`cmd="oras push %s ./spec.yaml:%s ./README.md:%s"`,
-			b.OutDest, MediaTypeSpec, MediaTypeREADME)
+		basicCmd = fmt.Sprintf("oras push %s ./spec.yaml:%s ./README.md:%s",
+			b.Output.Dest, MediaTypeSpec, MediaTypeREADME)
 
-		b.ContainerConf.HostConfig.Mounts = append(b.ContainerConf.HostConfig.Mounts, mount.Mount{
+		b.containerConf.HostConfig.Mounts = append(b.containerConf.HostConfig.Mounts, mount.Mount{
 			// docker auth
 			Type:   mount.TypeBind,
 			Source: b.DockerAuth,
@@ -417,20 +525,310 @@ func (b *Builder) imageHandler() {
 		})
 	}
 
-	// append optional files
-	ifState := `if [ -e ${f} ]; then cmd="${cmd} ./${f}:${typ}"; fi`
-	forCmd := fmt.Sprintf(`products=(%s); for ((i=0; i<${#products[*]}; i=i+2)); do f=${products[i]}; typ=${products[i+1]}; %s; done`, products, ifState)
-
-	addCmds := []string{
-		fmt.Sprintf("cd %s", ContainerTempDir),
-		"tar czf plugin.tar.gz plugin.wasm",
-		basicCmd, // define `cmd`
-		forCmd,   // define `products` and append `cmd`
-		fmt.Sprintf(`cmd="${cmd} ./plugin.tar.gz:%s"`, MediaTypePlugin), // add plugin type
-		"eval ${cmd}", // execute `cmd`
-		"echo ${cmd}", // test `cmd`
-		"echo '[√] finished building and pushing!'",
+	it := ImageTmplFields{
+		BuildSrcDir:     ContainerWorkDir,
+		BuildDestDir:    ContainerTempDir,
+		Output:          ContainerOutDir,
+		Username:        b.Username,
+		Password:        b.Password,
+		BasicCmd:        basicCmd,
+		Products:        products,
+		MediaTypePlugin: MediaTypePlugin,
+		Debug:           b.Debug,
 	}
-	b.Cmds = append(b.Cmds, addCmds...)
-	b.ContainerConf.Config.Cmd = []string{"bash", "-c", strings.Join(b.Cmds, " && ")}
+	f, err := os.OpenFile(b.dockerEntrypoint, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return errWriteDockerEntrypoint
+	}
+	defer f.Close()
+	if err = template.Must(template.New("ImageDockerEntrypoint").Parse(ImageDockerEntrypoint)).Execute(f, it); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ConfigFunc is customized to set the fields of Builder
+type ConfigFunc func(b *Builder) error
+
+func (b *Builder) config(f ConfigFunc) (err error) {
+	if err := f(b); err != nil {
+		return err
+	}
+
+	// builder-go
+	b.Builder.Go = strings.TrimSpace(b.Builder.Go)
+	if b.Builder.Go == "" {
+		b.Builder.Go = DefaultBuilderGo
+	}
+
+	// builder-tinygo
+	b.Builder.TinyGo = strings.TrimSpace(b.Builder.TinyGo)
+	if b.Builder.TinyGo == "" {
+		b.Builder.TinyGo = DefaultBuilderTinyGo
+	}
+
+	// builder-oras
+	b.Builder.Oras = strings.TrimSpace(b.Builder.Oras)
+	if b.Builder.Oras == "" {
+		b.Builder.Oras = DefaultBuilderOras
+	}
+
+	// input
+	b.Input = strings.TrimSpace(b.Input)
+	if b.Input == "" {
+		b.Input = "./"
+	}
+	b.Input, err = ptypes.GetAbsolutePath(b.Input)
+	if err != nil {
+		return errors.Wrapf(err, "failed to parse input option %q", b.Input)
+	}
+
+	// output-type
+	b.Output.Type = strings.ToLower(strings.TrimSpace(b.Output.Type))
+	if b.Output.Type == "" {
+		b.Output.Type = "files"
+	}
+	if b.Output.Type != "files" && b.Output.Type != "image" {
+		return errors.Errorf("invalid output type: %q, must be `files` or `image`", b.Output.Type)
+	}
+
+	// output-dest
+	b.Output.Dest = strings.TrimSpace(b.Output.Dest)
+	if b.Output.Dest == "" {
+		b.Output.Dest = "./out"
+	}
+	if b.Output.Type == "files" {
+		b.Output.Dest, err = ptypes.GetAbsolutePath(b.Output.Dest)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse output destination %q", b.Output.Dest)
+		}
+		err = os.MkdirAll(b.Output.Dest, 0755)
+		if err != nil && !os.IsExist(err) {
+			return errors.Wrapf(err, "failed to create output destination %q", b.Output.Dest)
+		}
+	}
+
+	// docker-auth
+	b.DockerAuth = strings.TrimSpace(b.DockerAuth)
+	if b.DockerAuth == "" {
+		b.DockerAuth = "~/.docker/config.json"
+	}
+	b.DockerAuth, err = ptypes.GetAbsolutePath(b.DockerAuth)
+	if err != nil {
+		return errors.Wrapf(err, "failed to parse docker authentication %q", b.DockerAuth)
+	}
+
+	// model-dir
+	b.ModelDir = strings.TrimSpace(b.ModelDir)
+	if b.ModelDir == "" {
+		b.ModelDir = "./"
+	}
+
+	// option-file/username/password/model/debug: nothing to deal with
+
+	// the unexported fields that users do not need to care about are as follows:
+	b.repository = DefaultBuilderRepository
+
+	b.tempDir, err = os.MkdirTemp("", HostTempDirPattern)
+	if err != nil && !os.IsExist(err) {
+		return errors.Wrap(err, "failed to create the host temporary dir")
+	}
+
+	dockerEp, err := os.CreateTemp("", HostDockerEntryPattern)
+	if err != nil && !os.IsExist(err) {
+		return errors.Wrap(err, "failed to create the docker entrypoint file")
+	}
+	err = dockerEp.Chmod(0777)
+	if err != nil {
+		return err
+	}
+	b.dockerEntrypoint = dockerEp.Name()
+	dockerEp.Close()
+
+	u, err := user.Current()
+	if err != nil {
+		return errors.Wrap(err, "failed to get the current user information")
+	}
+	b.uid, b.gid = u.Uid, u.Gid
+
+	b.containerConf = types.ContainerCreateConfig{
+		Name: "higress-wasm-go-builder",
+		Config: &container.Config{
+			Image: b.builderImageRef(),
+			Env: []string{
+				"GO111MODULE=on",
+				"GOPROXY=https://goproxy.cn,direct",
+			},
+			WorkingDir: ContainerWorkDir,
+			Entrypoint: []string{ContainerEntryFilePath},
+		},
+		HostConfig: &container.HostConfig{
+			NetworkMode: "host",
+			Mounts: []mount.Mount{
+				{ // input dir that includes the wasm plugin source: main.go ...
+					Type:   mount.TypeBind,
+					Source: b.Input,
+					Target: ContainerWorkDir,
+				},
+				{ // temp dir that includes the wasm plugin metadata: spec.yaml and README.md ...
+					Type:   mount.TypeBind,
+					Source: b.tempDir,
+					Target: ContainerTempDir,
+				},
+				{ // entrypoint
+					Type:   mount.TypeBind,
+					Source: b.dockerEntrypoint,
+					Target: ContainerEntryFilePath,
+				},
+			},
+		},
+	}
+
+	if b.dockerCli == nil {
+		b.dockerCli, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize the docker client")
+		}
+	}
+
+	if b.w == nil {
+		b.w = os.Stdout
+	}
+
+	b.sig = make(chan os.Signal, 1)
+	b.stop = make(chan struct{}, 1)
+	b.done = make(chan struct{}, 1)
+	signal.Notify(b.sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM,
+		syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGQUIT, syscall.SIGTSTP)
+
+	return nil
+}
+
+func parseOptions(b *Builder, v *viper.Viper, cmd *cobra.Command) error {
+	_, err := os.Stat(b.OptionFile)
+	if err != nil {
+		// if FlagSet.Changed("option-file") is true, then `option-file` is explicitly specified
+		if errors.Is(err, os.ErrNotExist) && cmd.PersistentFlags().Changed("option-file") {
+			return errors.Errorf("option file does not exist: %q", b.OptionFile)
+		}
+	} else {
+		v.SetConfigFile(b.OptionFile)
+		if err = v.ReadInConfig(); err != nil {
+			return errors.Wrapf(err, "failed to read option file %q", b.OptionFile)
+		}
+	}
+
+	var allOpt option.Option
+	if err = v.Unmarshal(&allOpt); err != nil {
+		return errors.Wrapf(err, "failed to unmarshal option file %q", b.OptionFile)
+	}
+	b.BuildOptions = allOpt.Build
+
+	b.w = cmd.OutOrStdout()
+
+	return nil
+}
+
+func (b *Builder) finish() {
+	select {
+	case <-b.done:
+	default:
+		close(b.done)
+	}
+}
+
+func (b *Builder) waitForFinished() {
+	<-b.done
+}
+
+func (b *Builder) interrupt() {
+	select {
+	case <-b.stop:
+	default:
+		close(b.stop)
+	}
+}
+
+func (b *Builder) isInterrupted() bool {
+	if b.stop == nil {
+		return true
+	}
+	select {
+	case <-b.stop:
+		return true
+	default:
+		return false
+	}
+}
+
+func (b *Builder) cleanupForError() {
+	b.cleanup()
+	if b.BuildOptions.Output.Type == "files" {
+		b.Debugf("remove output destination %q\n", b.BuildOptions.Output.Dest)
+		os.RemoveAll(b.BuildOptions.Output.Dest)
+	}
+}
+
+// bottom line for safety
+func (b *Builder) cleanup() {
+	if b.tempDir != "" {
+		b.Debugf("remove temporary directory %q\n", b.tempDir)
+		os.RemoveAll(b.tempDir)
+	}
+
+	if b.dockerEntrypoint != "" {
+		b.Debugf("delete docker entrypoint %q\n", b.dockerEntrypoint)
+		os.Remove(b.dockerEntrypoint)
+	}
+
+	if b.containerID != "" {
+		err := b.dockerCli.ContainerRemove(context.TODO(), b.containerID, types.ContainerRemoveOptions{Force: true})
+		if err != nil {
+			b.Debugf("failed to remove container (%s): %s\n", b.containerConf.Name, b.containerID)
+		} else {
+			b.Debugf("remove container (%s): %s\n", b.containerConf.Name, b.containerID)
+		}
+	}
+
+	if b.dockerCli != nil {
+		b.Debugln("close the docker client")
+		b.dockerCli.Close()
+	}
+}
+
+func (b *Builder) builderImageRef() string {
+	return fmt.Sprintf("%s:go%s-tinygo%s-oras%s", b.repository, b.Builder.Go, b.Builder.TinyGo, b.Builder.Oras)
+}
+
+func (b *Builder) String() string {
+	by, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(by)
+}
+
+func (b *Builder) Debugf(format string, a ...any) (int, error) {
+	l := len(format)
+	if l > 0 && format[l-1] != '\n' {
+		format += "\n"
+	}
+	if b.Debug {
+		format = "[debug] " + format
+		return fmt.Fprintf(b.w, format, a...)
+	}
+	return 0, nil
+}
+
+func (b *Builder) Debugln(a ...any) (int, error) {
+	if b.Debug {
+		n1, err1 := fmt.Fprintf(b.w, "[debug] ")
+		if err1 != nil {
+			return n1, err1
+		}
+		n2, err2 := fmt.Fprintln(b.w, a...)
+		return n1 + n2, err2
+	}
+	return 0, nil
 }

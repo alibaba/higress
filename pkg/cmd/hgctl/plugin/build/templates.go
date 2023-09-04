@@ -15,6 +15,42 @@
 package build
 
 var (
+	FilesDockerEntrypoint = `#!/bin/bash
+set -e
+{{- if eq .Debug true }}
+set -x
+{{- end }}
+
+go mod tidy
+tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}/main.go
+
+mv {{ .BuildDestDir }}/* {{ .Output }}/
+chown -R {{ .UID }}:{{ .GID }} {{ .Output }}
+`
+	ImageDockerEntrypoint = `#!/bin/bash
+set -e
+{{- if eq .Debug true }}
+set -x
+{{- end }}
+
+go mod tidy
+tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}/main.go
+
+cd {{ .BuildDestDir }}
+tar czf plugin.tar.gz plugin.wasm
+cmd="{{ .BasicCmd }}"
+products=({{ .Products }})
+for ((i=0; i<${#products[*]}; i=i+2)); do 
+  f=${products[i]}
+  typ=${products[i+1]}
+  if [ -e ${f} ]; then 
+    cmd="${cmd} ./${f}:${typ}" 
+  fi
+done
+cmd="${cmd} ./plugin.tar.gz:{{ .MediaTypePlugin }}"
+eval ${cmd}
+`
+
 	MD_zh_CN = `> 该插件用法文件根据源代码自动生成，请根据需求自行修改！
 
 # 功能说明
