@@ -14,6 +14,14 @@
 
 package option
 
+import (
+	"os"
+
+	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+)
+
 type Option struct {
 	Version string         `json:"version" yaml:"version" mapstructure:"version"`
 	Build   BuildOptions   `json:"build" yaml:"build" mapstructure:"build"`
@@ -53,4 +61,26 @@ type BuilderVersion struct {
 type Output struct {
 	Type string `json:"type" yaml:"type" mapstructure:"type"`
 	Dest string `json:"dest" yaml:"dest" mapstructure:"dest"`
+}
+
+func ParseOptions(optionFile string, v *viper.Viper, flags *pflag.FlagSet) (*Option, error) {
+	_, err := os.Stat(optionFile)
+	if err != nil {
+		// if FlagSet.Changed("option-file") is true, then `option-file` is explicitly specified
+		if errors.Is(err, os.ErrNotExist) && flags.Changed("option-file") {
+			return nil, errors.Errorf("option file does not exist: %q", optionFile)
+		}
+	} else {
+		v.SetConfigFile(optionFile)
+		if err = v.ReadInConfig(); err != nil {
+			return nil, errors.Wrapf(err, "failed to read option file %q", optionFile)
+		}
+	}
+
+	var opt Option
+	if err = v.Unmarshal(&opt); err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal option file %q", optionFile)
+	}
+
+	return &opt, nil
 }

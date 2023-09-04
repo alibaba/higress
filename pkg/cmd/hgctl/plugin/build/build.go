@@ -26,9 +26,9 @@ import (
 	"syscall"
 	"text/template"
 
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -114,7 +114,7 @@ func NewCommand() *cobra.Command {
   `,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(bld.config(func(b *Builder) error {
-				return parseOptions(b, v, cmd)
+				return b.parseOptions(v, cmd)
 			}))
 		},
 
@@ -129,7 +129,7 @@ func NewCommand() *cobra.Command {
 }
 
 func (b *Builder) bindFlags(v *viper.Viper, flags *pflag.FlagSet) {
-	flags.StringVarP(&b.OptionFile, "option-file", "f", "./option.yaml", "Option file of build, test, etc")
+	flags.StringVarP(&b.OptionFile, "option-file", "f", "./option.yaml", "Option file for build, test and install")
 	flags.StringVarP(&b.Username, "username", "u", "", "Username for pushing image to the docker repository")
 	flags.StringVarP(&b.Password, "password", "p", "", "Password for pushing image to the docker repository")
 	v.BindPFlags(flags)
@@ -552,7 +552,7 @@ func (b *Builder) imageHandler() error {
 type ConfigFunc func(b *Builder) error
 
 func (b *Builder) config(f ConfigFunc) (err error) {
-	if err := f(b); err != nil {
+	if err = f(b); err != nil {
 		return err
 	}
 
@@ -579,10 +579,11 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	if b.Input == "" {
 		b.Input = "./"
 	}
-	b.Input, err = ptypes.GetAbsolutePath(b.Input)
+	inp, err := ptypes.GetAbsolutePath(b.Input)
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse input option %q", b.Input)
 	}
+	b.Input = inp
 
 	// output-type
 	b.Output.Type = strings.ToLower(strings.TrimSpace(b.Output.Type))
@@ -598,8 +599,9 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	if b.Output.Dest == "" {
 		b.Output.Dest = "./out"
 	}
+	out := b.Output.Dest
 	if b.Output.Type == "files" {
-		b.Output.Dest, err = ptypes.GetAbsolutePath(b.Output.Dest)
+		out, err = ptypes.GetAbsolutePath(b.Output.Dest)
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse output destination %q", b.Output.Dest)
 		}
@@ -608,16 +610,18 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 			return errors.Wrapf(err, "failed to create output destination %q", b.Output.Dest)
 		}
 	}
+	b.Output.Dest = out
 
 	// docker-auth
 	b.DockerAuth = strings.TrimSpace(b.DockerAuth)
 	if b.DockerAuth == "" {
 		b.DockerAuth = "~/.docker/config.json"
 	}
-	b.DockerAuth, err = ptypes.GetAbsolutePath(b.DockerAuth)
+	auth, err := ptypes.GetAbsolutePath(b.DockerAuth)
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse docker authentication %q", b.DockerAuth)
 	}
+	b.DockerAuth = auth
 
 	// model-dir
 	b.ModelDir = strings.TrimSpace(b.ModelDir)
@@ -705,23 +709,10 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	return nil
 }
 
-func parseOptions(b *Builder, v *viper.Viper, cmd *cobra.Command) error {
-	_, err := os.Stat(b.OptionFile)
+func (b *Builder) parseOptions(v *viper.Viper, cmd *cobra.Command) error {
+	allOpt, err := option.ParseOptions(b.OptionFile, v, cmd.PersistentFlags())
 	if err != nil {
-		// if FlagSet.Changed("option-file") is true, then `option-file` is explicitly specified
-		if errors.Is(err, os.ErrNotExist) && cmd.PersistentFlags().Changed("option-file") {
-			return errors.Errorf("option file does not exist: %q", b.OptionFile)
-		}
-	} else {
-		v.SetConfigFile(b.OptionFile)
-		if err = v.ReadInConfig(); err != nil {
-			return errors.Wrapf(err, "failed to read option file %q", b.OptionFile)
-		}
-	}
-
-	var allOpt option.Option
-	if err = v.Unmarshal(&allOpt); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal option file %q", b.OptionFile)
+		return err
 	}
 	b.BuildOptions = allOpt.Build
 

@@ -14,6 +14,7 @@ replace github.com/docker/distribution => github.com/docker/distribution v0.0.0-
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/agiledragon/gomonkey/v2 v2.9.0
 	github.com/compose-spec/compose-go v1.8.2
 	github.com/docker/cli v20.10.20+incompatible
@@ -28,6 +29,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/iancoleman/orderedmap v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nacos-group/nacos-sdk-go v1.0.8
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
@@ -58,7 +60,6 @@ require (
 	cloud.google.com/go v0.97.0 // indirect
 	cloud.google.com/go/logging v1.4.2 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0 // indirect
-	github.com/AlecAivazis/survey/v2 v2.3.6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.27 // indirect
@@ -269,11 +270,11 @@ replace istio.io/istio => ./external/istio
 
 replace (
 	github.com/compose-spec/compose-go => github.com/compose-spec/compose-go v1.8.2
-	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.15.1
 	github.com/cucumber/godog => github.com/laurazard/godog v0.0.0-20220922095256-4c4b17abdae7
 
 	github.com/docker/buildx => github.com/docker/buildx v0.9.1
 	github.com/docker/cli => github.com/docker/cli v20.10.3-0.20221013132413-1d6c6e2367e2+incompatible
+	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.15.1
 	github.com/docker/docker => github.com/moby/moby v20.10.3-0.20221021173910-5aac513617f0+incompatible
 	github.com/moby/buildkit => github.com/moby/buildkit v0.10.1-0.20220816171719-55ba9d14360a
 
