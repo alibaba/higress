@@ -24,6 +24,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -92,13 +93,13 @@ func (c *creator) config(v *viper.Viper, cmd *cobra.Command) error {
 }
 
 func (c *creator) create() (err error) {
-	source, err := types.GetAbsolutePath(c.FromPath)
+	source, err := utils.GetAbsolutePath(c.FromPath)
 	if err != nil {
 		return errors.Wrapf(err, "invalid build products path %q", c.FromPath)
 	}
 	c.FromPath = source
 
-	target, err := types.GetAbsolutePath(c.TestPath)
+	target, err := utils.GetAbsolutePath(c.TestPath)
 	if err != nil {
 		return errors.Wrapf(err, "invalid test path %q", c.TestPath)
 	}
@@ -107,9 +108,14 @@ func (c *creator) create() (err error) {
 	fields := testTmplFields{}
 
 	// 1. extract the parameters from spec.yaml and convert them to PluginConf
-	fields.PluginConf, err = c.extractPluginConfFromSpec()
+	path := fmt.Sprintf("%s/spec.yaml", c.FromPath)
+	spec, err := types.ParseSpecYAML(path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s/spec.yaml", c.FromPath)
+		return errors.Wrapf(err, "failed to parse %s", path)
+	}
+	fields.PluginConf, err = ExtractPluginConfFromSpec(spec, "", "")
+	if err != nil {
+		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s", path)
 	}
 
 	// 2. get DockerCompose instance
@@ -120,7 +126,7 @@ func (c *creator) create() (err error) {
 
 	// 3. get Envoy instance
 	var obj interface{}
-	err = yaml.Unmarshal([]byte(fields.PluginConf.Example), &obj)
+	err = yaml.Unmarshal([]byte(fields.PluginConf.Config), &obj)
 	if err != nil {
 		return errors.Wrap(err, "failed to get the example of wasm plugin")
 	}
@@ -128,7 +134,7 @@ func (c *creator) create() (err error) {
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal example to json")
 	}
-	jsExample := addIndent(string(b), strings.Repeat(" ", 30))
+	jsExample := utils.AddIndent(string(b), strings.Repeat(" ", 30))
 	fields.Envoy = &Envoy{JSONExample: jsExample}
 
 	// 4. generate corresponding test files
@@ -152,6 +158,7 @@ type testTmplFields struct {
 	Envoy         *Envoy         // for envoy.yaml
 }
 
+// TODO(WeixinX): PluginConf should move to `config` module
 type PluginConf struct {
 	Name        string
 	Namespace   string
@@ -162,7 +169,8 @@ type PluginConf struct {
 	Category    string
 	Phase       string
 	Priority    int64
-	Example     string
+	Config      string
+	Url         string
 }
 
 type DockerCompose struct {
@@ -174,16 +182,38 @@ type Envoy struct {
 	JSONExample string
 }
 
-func (c *creator) extractPluginConfFromSpec() (*PluginConf, error) {
-	path := fmt.Sprintf("%s/spec.yaml", c.FromPath)
-	spec, err := types.ParseSpecYAML(path)
+func (pc *PluginConf) String() string {
+	b, err := json.MarshalIndent(pc, "", "  ")
 	if err != nil {
-		return nil, err
+		return ""
 	}
+	return string(b)
+}
 
-	example, err := spec.GetConfigExample()
-	if err != nil {
-		return nil, err
+// ExtractPluginConfFromSpec extracts the parameters of plugin-conf.yaml from spec.yaml
+// config, url are only used to implement the command `hgctl plugin install -g <go-project>`
+func ExtractPluginConfFromSpec(spec *types.WasmPluginMeta, config, url string) (*PluginConf, error) {
+	if config == "" {
+		// by default, Example from spec.yaml is used as the defaultConfig for the wasm plugin
+		example, err := spec.GetConfigExample()
+		if err != nil {
+			return nil, err
+		}
+
+		var obj map[string]interface{}
+		if err = yaml.Unmarshal([]byte(example), &obj); err != nil {
+			return nil, err
+		}
+
+		conf := struct {
+			DefaultConfig map[string]interface{} `yaml:"defaultConfig,omitempty"`
+		}{DefaultConfig: obj}
+		b, err := utils.MarshalYamlWithIndent(conf, 2)
+		if err != nil {
+			return nil, err
+		}
+
+		config = string(b)
 	}
 
 	pc := &PluginConf{
@@ -196,7 +226,8 @@ func (c *creator) extractPluginConfFromSpec() (*PluginConf, error) {
 		Category:    string(spec.Info.Category),
 		Phase:       string(spec.Spec.Phase),
 		Priority:    spec.Spec.Priority,
-		Example:     example,
+		Config:      utils.AddIndent(config, strings.Repeat(" ", 2)),
+		Url:         url,
 	}
 	pc.withDefaultValue()
 
@@ -293,18 +324,4 @@ func genEnvoyYAML(e *Envoy, target string) error {
 	}
 
 	return nil
-}
-
-func addIndent(str, indent string) string {
-	ret := ""
-	ss := strings.Split(str, "\n")
-	for i, s := range ss {
-		if i == 0 {
-			ret = fmt.Sprintf("%s%s", indent, s)
-		} else {
-			ret = fmt.Sprintf("%s\n%s%s", ret, indent, s)
-		}
-	}
-
-	return ret
 }

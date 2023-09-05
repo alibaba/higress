@@ -49,20 +49,19 @@ func NewDynamicClient(clientConfig clientcmd.ClientConfig) (*DynamicClient, erro
 	return &c, nil
 }
 
-func (c DynamicClient) Get(gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
-	return c.client.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+func (c DynamicClient) Get(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 }
 
-func (c DynamicClient) List(gvr schema.GroupVersionResource, namespace string) (*unstructured.UnstructuredList, error) {
-	return c.client.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+func (c DynamicClient) List(ctx context.Context, gvr schema.GroupVersionResource, namespace string) (*unstructured.UnstructuredList, error) {
+	return c.client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 }
 
-func (c DynamicClient) Create(gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.client.Resource(gvr).Namespace(namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
+func (c DynamicClient) Create(ctx context.Context, gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
 }
 
-func (c DynamicClient) Delete(gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
-	ctx := context.TODO()
+func (c DynamicClient) Delete(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
 	result, err := c.client.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -74,6 +73,6 @@ func (c DynamicClient) Delete(gvr schema.GroupVersionResource, namespace, name s
 	return result, nil
 }
 
-func (c DynamicClient) Update(gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.client.Resource(gvr).Namespace(namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+func (c DynamicClient) Update(ctx context.Context, gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Update(ctx, obj, metav1.UpdateOptions{})
 }

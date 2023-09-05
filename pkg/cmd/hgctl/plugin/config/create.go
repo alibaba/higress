@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/test"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -36,7 +36,8 @@ var configHelpTmpl = &test.PluginConf{
 	Category:    "auth | security | protocol | flow-control | flow-monitor | custom",
 	Phase:       "UNSPECIFIED_PHASE | AUTHN | AUTHZ | STATS",
 	Priority:    0,
-	Example:     "    Plugin Configuration",
+	Config:      "  Plugin Configuration",
+	Url:         "Plugin Image URL",
 }
 
 func newCreateCommand() *cobra.Command {
@@ -58,7 +59,7 @@ func newCreateCommand() *cobra.Command {
 }
 
 func create(w io.Writer, target string) error {
-	target, err := types.GetAbsolutePath(target)
+	target, err := utils.GetAbsolutePath(target)
 	if err != nil {
 		return fmt.Errorf("invalid target path: %w", err)
 	}

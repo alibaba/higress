@@ -22,7 +22,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/docker"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -94,7 +94,7 @@ func (c *cleaner) clean() error {
 	}
 	fmt.Fprintf(c.w, "Stopped the test environment %q\n", c.Name)
 
-	source, err := types.GetAbsolutePath(c.TestPath)
+	source, err := utils.GetAbsolutePath(c.TestPath)
 	if err != nil {
 		return errors.Wrapf(err, "invalid test configuration source %q", c.TestPath)
 	}

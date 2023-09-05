@@ -12,16 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package utils
 
 import (
+	"bytes"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 )
 
+// GetAbsolutePath returns the absolute path, e.g.:
+// - ~/foo -> /home/user/foo
+// - ./foo -> /current/dir/foo
+// - /foo/ -> /foo
 func GetAbsolutePath(path string) (newPath string, err error) {
 	if strings.HasPrefix(path, "~") {
 		newPath, err = homedir.Expand(path)
@@ -41,4 +48,32 @@ func GetAbsolutePath(path string) (newPath string, err error) {
 	}
 
 	return newPath, nil
+}
+
+// AddIndent for each line of str
+func AddIndent(str, indent string) string {
+	ret := ""
+	ss := strings.Split(str, "\n")
+	for i, s := range ss {
+		if i == 0 {
+			ret = fmt.Sprintf("%s%s", indent, s)
+		} else {
+			ret = fmt.Sprintf("%s\n%s%s", ret, indent, s)
+		}
+	}
+
+	return ret
+}
+
+// MarshalYamlWithIndent marshals v to yaml with indent, specify space width with spaces
+func MarshalYamlWithIndent(v interface{}, spaces int) ([]byte, error) {
+	w := new(bytes.Buffer)
+	ec := yaml.NewEncoder(w)
+	defer ec.Close()
+	ec.SetIndent(spaces)
+	if err := ec.Encode(v); err != nil {
+		return w.Bytes(), err
+	}
+
+	return w.Bytes(), nil
 }

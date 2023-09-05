@@ -15,7 +15,6 @@
 package types
 
 import (
-	"bytes"
 	"encoding/json"
 	"go/ast"
 	"go/parser"
@@ -26,9 +25,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
+
 	"github.com/fatih/structtag"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -404,17 +404,15 @@ func (meta *WasmPluginMeta) GetConfigExample() (example string, err error) {
 			return
 		}
 
-		buf := new(bytes.Buffer)
-		ec := yaml.NewEncoder(buf)
-		defer ec.Close()
-		ec.SetIndent(2)
-		if err = ec.Encode(obj); err != nil {
-			return
+		b, err := utils.MarshalYamlWithIndent(obj, 2)
+		if err != nil {
+			return "", err
 		}
-		return buf.String(), nil
+
+		return string(b), nil
 	}
 
-	return
+	return "", nil
 }
 
 func ParseSpecYAML(spec string) (*WasmPluginMeta, error) {

@@ -15,6 +15,8 @@
 package kubernetes
 
 import (
+	"context"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -34,22 +36,22 @@ var (
 	WasmPluginRes          = schema.GroupVersionResource{Group: HigressExtGroup, Version: HigressExtVersion, Resource: WasmPluginResource}
 )
 
-func GetWasmPlugin(c *DynamicClient, name string) (*unstructured.Unstructured, error) {
-	return c.Get(WasmPluginRes, CustomHigressNamespace, name)
+func GetWasmPlugin(ctx context.Context, c *DynamicClient, name string) (*unstructured.Unstructured, error) {
+	return c.Get(ctx, WasmPluginRes, CustomHigressNamespace, name)
 }
 
-func ListWasmPlugins(c *DynamicClient) (*unstructured.UnstructuredList, error) {
-	return c.List(WasmPluginRes, CustomHigressNamespace)
+func ListWasmPlugins(ctx context.Context, c *DynamicClient) (*unstructured.UnstructuredList, error) {
+	return c.List(ctx, WasmPluginRes, CustomHigressNamespace)
 }
 
-func CreateWasmPlugin(c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.Create(WasmPluginRes, CustomHigressNamespace, obj)
+func CreateWasmPlugin(ctx context.Context, c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.Create(ctx, WasmPluginRes, CustomHigressNamespace, obj)
 }
 
-func DeleteWasmPlugin(c *DynamicClient, name string) (*unstructured.Unstructured, error) {
-	return c.Delete(WasmPluginRes, CustomHigressNamespace, name)
+func DeleteWasmPlugin(ctx context.Context, c *DynamicClient, name string) (*unstructured.Unstructured, error) {
+	return c.Delete(ctx, WasmPluginRes, CustomHigressNamespace, name)
 }
 
-func UpdateWasmPlugin(c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.Update(WasmPluginRes, CustomHigressNamespace, obj)
+func UpdateWasmPlugin(ctx context.Context, c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.Update(ctx, WasmPluginRes, CustomHigressNamespace, obj)
 }

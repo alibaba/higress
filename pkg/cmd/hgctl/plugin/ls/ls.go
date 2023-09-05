@@ -15,6 +15,7 @@
 package ls
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -53,7 +54,7 @@ func runLs(w io.Writer) error {
 		return fmt.Errorf("failed to build kubernetes client: %w\n", err)
 	}
 
-	list, err := k8s.ListWasmPlugins(cli)
+	list, err := k8s.ListWasmPlugins(context.TODO(), cli)
 	if err != nil {
 		return fmt.Errorf("failed to list all wasm plugins: %w\n", err)
 	}

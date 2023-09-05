@@ -28,6 +28,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -75,6 +76,7 @@ type Builder struct {
 	tempDir          string
 	dockerEntrypoint string
 	uid, gid         string
+	manualClean      bool
 
 	containerID   string
 	containerConf types.ContainerCreateConfig
@@ -83,6 +85,7 @@ type Builder struct {
 	sig           chan os.Signal // watch interrupt
 	stop          chan struct{}  // stop the build process when an interruption occurs
 	done          chan struct{}  // signal that the build process is finished
+	utils.Debugger
 }
 
 func NewBuilder(f ConfigFunc) (*Builder, error) {
@@ -191,18 +194,24 @@ func (b *Builder) Build() (err error) {
 		fmt.Fprintf(b.w, "\nInterrupt\n")
 		// wait for the doBuild process to exit, otherwise there will be unexpected bugs
 		b.waitForFinished()
+		// if the build process is interrupted, then we ignore the flag `manualClean` and clean up
+		// TODO(WeixinX): How do we clean up uploaded image when an interruption occurs?
 		b.Debugln("clean up for interrupting ...")
-		b.cleanupForError()
+		b.CleanupForError()
 		os.Exit(0)
 
 	case <-b.done:
 		if err != nil {
-			b.Debugln("clean up for error ...")
-			b.cleanupForError()
+			if !b.manualClean {
+				b.Debugln("clean up for error ...")
+				b.CleanupForError()
+			}
 			return
 		}
-		b.Debugln("clean up for normal ...")
-		b.cleanup()
+		if !b.manualClean {
+			b.Debugln("clean up for normal ...")
+			b.Cleanup()
+		}
 	}
 
 	return
@@ -261,8 +270,7 @@ func (b *Builder) generateMetadata() error {
 	if b.isInterrupted() {
 		return errBuildAbort
 	}
-	specPath := fmt.Sprintf("%s/spec.yaml", b.tempDir)
-	spec, err := os.Create(specPath)
+	spec, err := os.Create(b.SpecYAMLPath())
 	if err != nil {
 		return err
 	}
@@ -497,6 +505,7 @@ var (
 	}
 )
 
+// TODO(WeixinX): If the image exists, no push is performed
 func (b *Builder) imageHandler() error {
 	products := ""
 	for i, p := range optionalProducts {
@@ -579,7 +588,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	if b.Input == "" {
 		b.Input = "./"
 	}
-	inp, err := ptypes.GetAbsolutePath(b.Input)
+	inp, err := utils.GetAbsolutePath(b.Input)
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse input option %q", b.Input)
 	}
@@ -601,7 +610,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	}
 	out := b.Output.Dest
 	if b.Output.Type == "files" {
-		out, err = ptypes.GetAbsolutePath(b.Output.Dest)
+		out, err = utils.GetAbsolutePath(b.Output.Dest)
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse output destination %q", b.Output.Dest)
 		}
@@ -617,7 +626,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	if b.DockerAuth == "" {
 		b.DockerAuth = "~/.docker/config.json"
 	}
-	auth, err := ptypes.GetAbsolutePath(b.DockerAuth)
+	auth, err := utils.GetAbsolutePath(b.DockerAuth)
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse docker authentication %q", b.DockerAuth)
 	}
@@ -706,6 +715,10 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	signal.Notify(b.sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM,
 		syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGQUIT, syscall.SIGTSTP)
 
+	if b.Debugger == nil {
+		b.Debugger = utils.NewDefaultDebugger(b.Debug, b.w)
+	}
+
 	return nil
 }
 
@@ -753,16 +766,27 @@ func (b *Builder) isInterrupted() bool {
 	}
 }
 
-func (b *Builder) cleanupForError() {
-	b.cleanup()
+// WithManualClean if set this option, then the temporary files and the container
+// will not be cleaned up automatically, and you need to clean up manually
+func (b *Builder) WithManualClean() {
+	b.manualClean = true
+}
+
+func (b *Builder) WithWriter(w io.Writer) {
+	b.w = w
+}
+
+// CleanupForError cleans up the temporary files and the container when an error occurs
+func (b *Builder) CleanupForError() {
+	b.Cleanup()
 	if b.BuildOptions.Output.Type == "files" {
 		b.Debugf("remove output destination %q\n", b.BuildOptions.Output.Dest)
 		os.RemoveAll(b.BuildOptions.Output.Dest)
 	}
 }
 
-// bottom line for safety
-func (b *Builder) cleanup() {
+// Cleanup cleans up the temporary files and the container
+func (b *Builder) Cleanup() {
 	if b.tempDir != "" {
 		b.Debugf("remove temporary directory %q\n", b.tempDir)
 		os.RemoveAll(b.tempDir)
@@ -792,34 +816,18 @@ func (b *Builder) builderImageRef() string {
 	return fmt.Sprintf("%s:go%s-tinygo%s-oras%s", b.repository, b.Builder.Go, b.Builder.TinyGo, b.Builder.Oras)
 }
 
+func (b *Builder) SpecYAMLPath() string {
+	return fmt.Sprintf("%s/spec.yaml", b.tempDir)
+}
+
+func (b *Builder) TempDir() string {
+	return b.tempDir
+}
+
 func (b *Builder) String() string {
 	by, err := json.MarshalIndent(b, "", "  ")
 	if err != nil {
-		panic(err)
+		return ""
 	}
 	return string(by)
-}
-
-func (b *Builder) Debugf(format string, a ...any) (int, error) {
-	l := len(format)
-	if l > 0 && format[l-1] != '\n' {
-		format += "\n"
-	}
-	if b.Debug {
-		format = "[debug] " + format
-		return fmt.Fprintf(b.w, format, a...)
-	}
-	return 0, nil
-}
-
-func (b *Builder) Debugln(a ...any) (int, error) {
-	if b.Debug {
-		n1, err1 := fmt.Fprintf(b.w, "[debug] ")
-		if err1 != nil {
-			return n1, err1
-		}
-		n2, err2 := fmt.Fprintln(b.w, a...)
-		return n1 + n2, err2
-	}
-	return 0, nil
 }

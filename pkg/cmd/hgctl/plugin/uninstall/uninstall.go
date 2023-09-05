@@ -15,14 +15,16 @@
 package uninstall
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	k8s "github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/pkg/errors"
 
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -34,10 +36,10 @@ func NewCommand() *cobra.Command {
 
 	uninstallCmd := &cobra.Command{
 		Use:     "uninstall",
-		Aliases: []string{"u", "unins"},
+		Aliases: []string{"u", "uins"},
 		Short:   "Uninstall WASM plugin",
 		Example: `  # Uninstall WASM plugin using the WasmPlugin name
-  hgctl plugin uninstall -p example-plugin
+  hgctl plugin uninstall -p example-plugin-name
 
   # Uninstall all WASM plugins
   hgctl plugin uninstall -A
@@ -50,9 +52,9 @@ func NewCommand() *cobra.Command {
 	flags := uninstallCmd.PersistentFlags()
 	options.AddKubeConfigFlags(flags)
 
-	uninstallCmd.PersistentFlags().StringVarP(&name, "name", "p", "", "Specify the WasmPlugin name to uninstall")
-	uninstallCmd.PersistentFlags().BoolVarP(&all, "all", "A", false, "Delete all installed wasm plugin")
-	uninstallCmd.PersistentFlags().StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "The namespace where Higress was installed")
+	flags.StringVarP(&name, "name", "p", "", "Name of the WASM plugin you want to uninstall")
+	flags.BoolVarP(&all, "all", "A", false, "Delete all installed WASM plugin")
+	flags.StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "Namespace where Higress was installed")
 
 	return uninstallCmd
 }
@@ -60,25 +62,27 @@ func NewCommand() *cobra.Command {
 func uninstall(w io.Writer, name string, all bool) error {
 	cli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
-		return fmt.Errorf("failed to build kubernetes dynamic client: %w", err)
+		return errors.Wrap(err, "failed to build kubernetes dynamic client")
 	}
 
+	ctx := context.TODO()
+	plugins := make([]string, 0)
 	if all {
-		list, err := k8s.ListWasmPlugins(cli)
+		list, err := k8s.ListWasmPlugins(ctx, cli)
 		if err != nil {
-			return fmt.Errorf("failed to get informations of all wasm plugins: %w", err)
+			return errors.Wrap(err, "failed to get information of all wasm plugins")
 		}
 
 		for _, item := range list.Items {
-			err = deleteOne(w, cli, item.GetName())
-			if err != nil {
-				fmt.Fprintln(w, err.Error())
-				continue
-			}
+			plugins = append(plugins, item.GetName())
 		}
 
 	} else {
-		err := deleteOne(w, cli, name)
+		plugins = append(plugins, name)
+	}
+
+	for _, p := range plugins {
+		err = deleteOne(ctx, w, cli, p)
 		if err != nil {
 			fmt.Fprintln(w, err.Error())
 		}
@@ -87,14 +91,14 @@ func uninstall(w io.Writer, name string, all bool) error {
 	return nil
 }
 
-func deleteOne(w io.Writer, cli *k8s.DynamicClient, name string) error {
-	result, err := k8s.DeleteWasmPlugin(cli, name)
-	if err != nil && errors.IsNotFound(err) {
-		return fmt.Errorf("wasm plugin %q is not found", name)
+func deleteOne(ctx context.Context, w io.Writer, cli *k8s.DynamicClient, name string) error {
+	result, err := k8s.DeleteWasmPlugin(ctx, cli, name)
+	if err != nil && k8serr.IsNotFound(err) {
+		return errors.Errorf("wasm plugin %q is not found", name)
 	} else if err != nil {
-		return fmt.Errorf("failed to uninstall wasm plugin %q: %w", name, err)
+		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", name)
 	}
 
-	fmt.Fprintf(w, "wasm plugin %q uninstalled\n", result.GetName())
+	fmt.Fprintf(w, "Uninstalled wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetName(), result.GetName()))
 	return nil
 }

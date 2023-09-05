@@ -49,8 +49,10 @@ type TestOptions struct {
 
 type InstallOptions struct {
 	Namespace     string `json:"namespace" yaml:"namespace" mapstructure:"namespace"`
+	SpecYaml      string `json:"spec-yaml" yaml:"spec-yaml" mapstructure:"spec-yaml"`
 	FromYaml      string `json:"from-yaml" yaml:"from-yaml" mapstructure:"from-yaml"`
 	FromGoProject string `json:"from-go-project" yaml:"from-go-project" mapstructure:"from-go-project"`
+	Debug         bool   `json:"debug" yaml:"debug" mapstructure:"debug"`
 }
 
 type BuilderVersion struct {

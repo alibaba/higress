@@ -16,6 +16,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -63,7 +64,7 @@ func edit(w io.Writer, name string) error {
 		return fmt.Errorf("failed to build kubernetes dynamic client: %w", err)
 	}
 
-	originalObj, err := k8s.GetWasmPlugin(cli, name)
+	originalObj, err := k8s.GetWasmPlugin(context.TODO(), cli, name)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return fmt.Errorf("wasm plugin %q is not found", name)
@@ -113,7 +114,7 @@ func edit(w io.Writer, name string) error {
 		fmt.Fprintln(w, err)
 	}
 
-	_, err = k8s.UpdateWasmPlugin(cli, &editedObj)
+	_, err = k8s.UpdateWasmPlugin(context.TODO(), cli, &editedObj)
 	if err != nil {
 		return fmt.Errorf("failed to update wasm plugin %q: %w", name, err)
 	}
