@@ -155,7 +155,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 			common.CreateConvertedName(clusterId, "global"),
 		watchedSecretSet:    sets.NewSet(),
 		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(false),
+		mcpbridgeReconciled: atomic.NewBool(true),
 		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
 		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
 	}
