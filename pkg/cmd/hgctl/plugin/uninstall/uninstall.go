@@ -94,9 +94,9 @@ func uninstall(w io.Writer, name string, all bool) error {
 func deleteOne(ctx context.Context, w io.Writer, cli *k8s.DynamicClient, name string) error {
 	result, err := k8s.DeleteWasmPlugin(ctx, cli, name)
 	if err != nil && k8serr.IsNotFound(err) {
-		return errors.Errorf("wasm plugin %q is not found", name)
+		return errors.Errorf("wasm plugin %q is not found", fmt.Sprintf("%s/%s", k8s.CustomHigressNamespace, name))
 	} else if err != nil {
-		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", name)
+		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", fmt.Sprintf("%s/%s", k8s.CustomHigressNamespace, name))
 	}
 
 	fmt.Fprintf(w, "Uninstalled wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))

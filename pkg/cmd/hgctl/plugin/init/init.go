@@ -16,10 +16,11 @@ package plugininit
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 	"io"
 	"os"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/pkg/errors"

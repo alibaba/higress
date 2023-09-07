@@ -549,8 +549,9 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 	case "object":
 		printer.Println(iconIdent + msg)
 		obj := make(map[string]interface{})
-		for _, name := range schema.Properties.Keys() {
-			propI, _ := schema.Properties.Get(name)
+		m := types.Properties2Order(schema.Properties)
+		for _, name := range m.Keys() {
+			propI, _ := m.Get(name)
 			prop := propI.(types.JSONSchemaProps)
 
 			if parent == nil { // keep topmost scope

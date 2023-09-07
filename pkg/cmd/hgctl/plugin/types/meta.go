@@ -144,6 +144,8 @@ func (meta *WasmPluginMeta) handleModelAnnotations(model *structType) {
 		// Schema
 		case AExample:
 			meta.Spec.ConfigSchema.OpenAPIV3Schema.Example = &JSON{Raw: []byte(a.Text)}
+		case AScope:
+			meta.Spec.ConfigSchema.OpenAPIV3Schema.Scope = Scope(a.Text)
 		}
 	}
 }
@@ -353,7 +355,7 @@ func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structTy
 // iterate over the fields, setting the corresponding
 // schema fields and properties by field name, type, annotations, tags, etc.
 func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *structType) {
-	parent.Properties = utils.NewOrderedMap()
+	parent.Properties = make(map[string]JSONSchemaProps)
 
 	for _, field := range stc.Node.Fields.List {
 		// 1. get filed name as the default key name for the schema property
@@ -387,7 +389,7 @@ func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *
 			newName = schema.HandleFieldTags(tags, parent, fieldName)
 		}
 
-		parent.Properties.Set(newName, *schema)
+		parent.Properties[newName] = *schema
 	}
 }
 

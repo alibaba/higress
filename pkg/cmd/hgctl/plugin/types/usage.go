@@ -16,7 +16,9 @@ package types
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
+	"sort"
+
+	"github.com/iancoleman/orderedmap"
 )
 
 type WasmUsage struct {
@@ -42,7 +44,7 @@ func GetUsageFromMeta(meta *WasmPluginMeta) ([]*WasmUsage, error) {
 		example = string(schema.Example.Raw)
 	}
 
-	m := utils.NewOrderedMap()
+	m := orderedmap.New()
 	for i18n, desc := range meta.Info.XDescriptionI18n {
 		m.Set(string(i18n), desc)
 	}
@@ -54,6 +56,7 @@ func GetUsageFromMeta(meta *WasmPluginMeta) ([]*WasmUsage, error) {
 	if len(m.Keys()) == 0 {
 		m.Set(string(I18nEN_US), "No description")
 	}
+	m.SortKeys(sort.Strings)
 	for _, i18n := range m.Keys() {
 		desc, ok := m.Get(i18n)
 		if !ok {
@@ -79,8 +82,9 @@ func getConfigEntryFromSchema(schema *JSONSchemaProps, entries *[]ConfigEntry, p
 
 	switch schema.Type {
 	case "object":
-		for _, name := range schema.Properties.Keys() {
-			val, ok := schema.Properties.Get(name)
+		m := Properties2Order(schema.Properties)
+		for _, name := range m.Keys() {
+			val, ok := m.Get(name)
 			if !ok {
 				continue
 			}

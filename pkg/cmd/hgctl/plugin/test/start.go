@@ -28,6 +28,7 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
+// TODO(WeixinX): If no test environment exists, create one first and then start
 type starter struct {
 	optionFile string
 	option.TestOptions

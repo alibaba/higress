@@ -16,10 +16,11 @@ package plugininit
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 	"os"
 	"text/template"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 )
 
 var (

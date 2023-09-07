@@ -67,7 +67,7 @@ install:
   spec-yaml: ./out/spec.yaml
   # Installation source. Choose between 'from-yaml' and 'from-go-project'
   from-yaml: ./test/plugin-conf.yaml
-  # If 'from-go-project' is non-empty, the output type of the build option must be 'image'.
+  # If 'from-go-project' is non-empty, the output type of the build option must be 'image'
   from-go-project:
   # Enable debug mode
   debug: false

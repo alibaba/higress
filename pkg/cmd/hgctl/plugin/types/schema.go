@@ -16,11 +16,12 @@ package types
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/fatih/structtag"
+	"github.com/iancoleman/orderedmap"
 )
 
 // JSONSchemaProps is a JSON-Schema following Specification Draft 4 (http://json-schema.org/).
@@ -57,7 +58,7 @@ type JSONSchemaProps struct {
 	OneOf                []JSONSchemaProps          `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
 	AnyOf                []JSONSchemaProps          `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
 	Not                  *JSONSchemaProps           `json:"not,omitempty" yaml:"not,omitempty"`
-	Properties           *utils.OrderedMap          `json:"properties,omitempty" yaml:"properties,omitempty"`
+	Properties           map[string]JSONSchemaProps `json:"properties,omitempty" yaml:"properties,omitempty"`
 	AdditionalProperties *JSONSchemaPropsOrBool     `json:"additionalProperties,omitempty" yaml:"additionalProperties,omitempty"`
 	PatternProperties    map[string]JSONSchemaProps `json:"patternProperties,omitempty" yaml:"patternProperties,omitempty"`
 	Dependencies         JSONSchemaDependencies     `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
@@ -386,4 +387,13 @@ func (s *JSONSchemaProps) GetDefaultValue() string {
 	}
 
 	return d
+}
+
+func Properties2Order(props map[string]JSONSchemaProps) *orderedmap.OrderedMap {
+	m := orderedmap.New()
+	for name, prop := range props {
+		m.Set(name, prop)
+	}
+	m.SortKeys(sort.Strings)
+	return m
 }

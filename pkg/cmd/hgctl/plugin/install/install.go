@@ -18,13 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/config"
 	"io"
 	"os"
 	"strings"
 
 	k8s "github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/build"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/config"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
@@ -271,7 +271,7 @@ func (ins *installer) doInstall(isValidateConf bool) error {
 	if err != nil {
 		if k8serr.IsAlreadyExists(err) {
 			fmt.Fprintf(ins.w, "wasm plugin %q already exists\n",
-				fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))
+				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 			return nil
 		} else {
 			return errors.Wrapf(err, "failed to install wasm plugin %q",
