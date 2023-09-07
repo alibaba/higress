@@ -19,14 +19,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/test"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-var configHelpTmpl = &test.PluginConf{
+var configHelpTmpl = &PluginConf{
 	Name:        "Plugin Name",
 	Namespace:   "higress-system",
 	Title:       "Display Name",
@@ -46,14 +46,14 @@ func newCreateCommand() *cobra.Command {
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Aliases: []string{"c"},
-		Short:   "Create the WasmPlugin configuration template file",
+		Short:   "Create the WASM plugin configuration template file",
 		Example: `  hgctl plugin config create`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(create(cmd.OutOrStdout(), target))
 		},
 	}
 
-	createCmd.PersistentFlags().StringVarP(&target, "to-path", "t", "./", "The directory where the configuration is generated")
+	createCmd.PersistentFlags().StringVarP(&target, "target", "t", "./", "Directory where the configuration is generated")
 
 	return createCmd
 }
@@ -61,16 +61,16 @@ func newCreateCommand() *cobra.Command {
 func create(w io.Writer, target string) error {
 	target, err := utils.GetAbsolutePath(target)
 	if err != nil {
-		return fmt.Errorf("invalid target path: %w", err)
+		return errors.Wrap(err, "invalid target path")
+	}
+	if err = os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
+	if err = GenPluginConfYAML(configHelpTmpl, target); err != nil {
+		return errors.Wrap(err, "failed to create configuration template")
 	}
 
-	err = os.MkdirAll(target, 0755)
-	err = test.GenPluginConfYAML(configHelpTmpl, target)
-	if err != nil {
-		fmt.Errorf("failed to create: %w", err)
-	}
-
-	fmt.Fprintf(w, "Create configuration template %q\n", "plugin-conf.yaml")
+	fmt.Fprintf(w, "Created configuration template %q\n", fmt.Sprintf("%s/%s", target, "plugin-conf.yaml"))
 
 	return nil
 }

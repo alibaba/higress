@@ -62,7 +62,7 @@ func newCleanCommand() *cobra.Command {
 	v.BindPFlag("test.name", flags.Lookup("name"))
 	v.SetDefault("test.name", "wasm-test")
 
-	// TODO(WeixinX): Obtain the test configuration source directory based on the test environment name
+	// TODO(WeixinX): Obtain the test configuration source directory based on the test environment name (hgctl plugin test ls)
 	flags.StringP("test-path", "t", "./test", "Test configuration source")
 	v.BindPFlag("test.test-path", flags.Lookup("test-path"))
 	v.SetDefault("test.test-path", "./test")

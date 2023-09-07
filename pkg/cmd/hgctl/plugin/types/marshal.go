@@ -16,7 +16,6 @@ package types
 
 import (
 	"bytes"
-
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/json"

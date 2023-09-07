@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/config"
 	"io"
 	"os"
 	"strings"
@@ -25,7 +26,6 @@ import (
 	k8s "github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/build"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/test"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 	"github.com/alibaba/higress/pkg/cmd/options"
@@ -180,7 +180,7 @@ func (ins *installer) goHandler() error {
 	}
 
 	schema := spec.Spec.ConfigSchema.OpenAPIV3Schema
-	printer := DefaultPrinter()
+	printer := utils.DefaultPrinter()
 	asker := NewWasmPluginSpecConfAsker(
 		NewIngressAsker(bld.Model, schema, vld, printer),
 		NewDomainAsker(bld.Model, schema, vld, printer),
@@ -203,18 +203,16 @@ func (ins *installer) goHandler() error {
 
 	// 3. generate the WasmPlugin manifest
 	wpc := asker.resp
-	config, err := utils.MarshalYamlWithIndent(wpc, 2)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal wasm plugin config")
 	}
 	// get the parameters of plugin-conf.yaml from spec.yaml
-	pc, err := test.ExtractPluginConfFromSpec(spec, string(config), bld.Output.Dest)
+	pc, err := config.ExtractPluginConfFromSpec(spec, wpc.String(), bld.Output.Dest)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s", specPath)
 	}
 	ins.Debugf("plugin-conf.yaml params:\n%s\n", pc.String())
-	err = test.GenPluginConfYAML(pc, bld.TempDir())
-	if err != nil {
+	if err = config.GenPluginConfYAML(pc, bld.TempDir()); err != nil {
 		return errors.Wrap(err, "failed to generate plugin-conf.yaml")
 	}
 
@@ -233,10 +231,10 @@ func (ins *installer) doInstall(isValidateConf bool) error {
 	}
 	defer f.Close()
 
-	dc := k8syaml.NewYAMLOrJSONDecoder(f, 4096)
 	// multiple WASM plugins are separated by '---' in yaml, but we only handle first one
 	// TODO(WeixinX): Use WasmPlugin Object type instead of Unstructured
 	obj := &unstructured.Unstructured{}
+	dc := k8syaml.NewYAMLOrJSONDecoder(f, 4096)
 	if err = dc.Decode(obj); err != nil {
 		return errors.Wrapf(err, "failed to parse wasm plugin from manifest %q", ins.insOpts.FromYaml)
 	}
@@ -272,10 +270,12 @@ func (ins *installer) doInstall(isValidateConf bool) error {
 	result, err := k8s.CreateWasmPlugin(context.TODO(), ins.k8sCli, obj)
 	if err != nil {
 		if k8serr.IsAlreadyExists(err) {
-			fmt.Fprintf(ins.w, "wasm plugin %q already exists\n", obj.GetName())
+			fmt.Fprintf(ins.w, "wasm plugin %q already exists\n",
+				fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))
 			return nil
 		} else {
-			return errors.Wrapf(err, "failed to install wasm plugin %q", obj.GetName())
+			return errors.Wrapf(err, "failed to install wasm plugin %q",
+				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 		}
 	}
 

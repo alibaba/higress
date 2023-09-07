@@ -17,6 +17,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -76,4 +77,16 @@ func MarshalYamlWithIndent(v interface{}, spaces int) ([]byte, error) {
 	}
 
 	return w.Bytes(), nil
+}
+
+// MarshalYamlWithIndentTo marshals v to yaml with indent, specify space width with spaces, and output to w
+func MarshalYamlWithIndentTo(w io.Writer, v interface{}, spaces int) error {
+	ec := yaml.NewEncoder(w)
+	defer ec.Close()
+	ec.SetIndent(spaces)
+	if err := ec.Encode(v); err != nil {
+		return err
+	}
+
+	return nil
 }

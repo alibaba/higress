@@ -74,7 +74,7 @@ func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 		APIVersion: "1.0.0",
 		Info: WasmPluginInfo{
 			Category:         CategoryCustom,
-			Name:             "unnamed",
+			Name:             "Unnamed",
 			XTitleI18n:       make(map[I18nType]string),
 			XDescriptionI18n: make(map[I18nType]string),
 			Version:          "0.1.0",
@@ -199,8 +199,6 @@ func Category2IconUrl(category Category) string {
 		return IconCustom
 	}
 }
-
-// TODO(WeixinX): Change the map associated with I18nType to an ordered map, e.g., using wrapped github.com/iancoleman/orderedmap. The aim is to keep the generated files stable.
 
 type I18nType string
 
@@ -355,7 +353,7 @@ func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structTy
 // iterate over the fields, setting the corresponding
 // schema fields and properties by field name, type, annotations, tags, etc.
 func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *structType) {
-	parent.Properties = make(map[string]JSONSchemaProps)
+	parent.Properties = utils.NewOrderedMap()
 
 	for _, field := range stc.Node.Fields.List {
 		// 1. get filed name as the default key name for the schema property
@@ -389,7 +387,7 @@ func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *
 			newName = schema.HandleFieldTags(tags, parent, fieldName)
 		}
 
-		parent.Properties[newName] = *schema
+		parent.Properties.Set(newName, *schema)
 	}
 }
 

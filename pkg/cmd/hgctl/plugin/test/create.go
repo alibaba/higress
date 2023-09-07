@@ -20,8 +20,8 @@ import (
 	"io"
 	"os"
 	"strings"
-	"text/template"
 
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/config"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
@@ -113,7 +113,7 @@ func (c *creator) create() (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse %s", path)
 	}
-	fields.PluginConf, err = ExtractPluginConfFromSpec(spec, "", "")
+	fields.PluginConf, err = config.ExtractPluginConfFromSpec(spec, "", "")
 	if err != nil {
 		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s", path)
 	}
@@ -126,7 +126,11 @@ func (c *creator) create() (err error) {
 
 	// 3. get Envoy instance
 	var obj interface{}
-	err = yaml.Unmarshal([]byte(fields.PluginConf.Config), &obj)
+	conf, err := spec.GetConfigExample()
+	if err != nil {
+		return errors.Wrap(err, "failed to get the example of wasm plugin")
+	}
+	err = yaml.Unmarshal([]byte(conf), &obj)
 	if err != nil {
 		return errors.Wrap(err, "failed to get the example of wasm plugin")
 	}
@@ -138,12 +142,11 @@ func (c *creator) create() (err error) {
 	fields.Envoy = &Envoy{JSONExample: jsExample}
 
 	// 4. generate corresponding test files
-	err = os.MkdirAll(target, 0755)
-	if err != nil {
+	if err = os.MkdirAll(target, 0755); err != nil {
 		return errors.Wrap(err, "failed to create the test environment")
+
 	}
-	err = c.genTestConfFiles(fields)
-	if err != nil {
+	if err = c.genTestConfFiles(fields); err != nil {
 		return errors.Wrap(err, "failed to create the test environment")
 	}
 
@@ -153,173 +156,21 @@ func (c *creator) create() (err error) {
 }
 
 type testTmplFields struct {
-	PluginConf    *PluginConf    // for plugin-conf.yaml
-	DockerCompose *DockerCompose // for docker-compose.yaml
-	Envoy         *Envoy         // for envoy.yaml
+	PluginConf    *config.PluginConf // for plugin-conf.yaml
+	DockerCompose *DockerCompose     // for docker-compose.yaml
+	Envoy         *Envoy             // for envoy.yaml
 }
 
-// TODO(WeixinX): PluginConf should move to `config` module
-type PluginConf struct {
-	Name        string
-	Namespace   string
-	Title       string
-	Description string
-	IconUrl     string
-	Version     string
-	Category    string
-	Phase       string
-	Priority    int64
-	Config      string
-	Url         string
-}
-
-type DockerCompose struct {
-	TestPath    string
-	ProductPath string
-}
-
-type Envoy struct {
-	JSONExample string
-}
-
-func (pc *PluginConf) String() string {
-	b, err := json.MarshalIndent(pc, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return string(b)
-}
-
-// ExtractPluginConfFromSpec extracts the parameters of plugin-conf.yaml from spec.yaml
-// config, url are only used to implement the command `hgctl plugin install -g <go-project>`
-func ExtractPluginConfFromSpec(spec *types.WasmPluginMeta, config, url string) (*PluginConf, error) {
-	if config == "" {
-		// by default, Example from spec.yaml is used as the defaultConfig for the wasm plugin
-		example, err := spec.GetConfigExample()
-		if err != nil {
-			return nil, err
-		}
-
-		var obj map[string]interface{}
-		if err = yaml.Unmarshal([]byte(example), &obj); err != nil {
-			return nil, err
-		}
-
-		conf := struct {
-			DefaultConfig map[string]interface{} `yaml:"defaultConfig,omitempty"`
-		}{DefaultConfig: obj}
-		b, err := utils.MarshalYamlWithIndent(conf, 2)
-		if err != nil {
-			return nil, err
-		}
-
-		config = string(b)
-	}
-
-	pc := &PluginConf{
-		Name:        spec.Info.Name,
-		Namespace:   "higress-system",
-		Title:       spec.Info.Title,
-		Description: spec.Info.Description,
-		IconUrl:     spec.Info.IconUrl,
-		Version:     spec.Info.Version,
-		Category:    string(spec.Info.Category),
-		Phase:       string(spec.Spec.Phase),
-		Priority:    spec.Spec.Priority,
-		Config:      utils.AddIndent(config, strings.Repeat(" ", 2)),
-		Url:         url,
-	}
-	pc.withDefaultValue()
-
-	return pc, nil
-}
-
-func (pc *PluginConf) withDefaultValue() {
-	if pc.Name == "" {
-		pc.Name = "unnamed"
-	}
-	if pc.Namespace == "" {
-		pc.Namespace = "higress-system"
-	}
-	if pc.Title == "" {
-		pc.Title = "untitled"
-	}
-	if pc.Description == "" {
-		pc.Description = "no description"
-	}
-	if pc.IconUrl == "" {
-		pc.IconUrl = types.Category2IconUrl(types.Category(pc.Category))
-	}
-	if pc.Version == "" {
-		pc.Version = "0.1.0"
-	}
-	if pc.Category == "" {
-		pc.Category = string(types.CategoryDefault)
-	}
-	if pc.Phase == "" {
-		pc.Phase = string(types.PhaseDefault)
-	}
-
-}
-
-func (c *creator) genTestConfFiles(fields testTmplFields) error {
-	err := GenPluginConfYAML(fields.PluginConf, c.TestPath)
-	if err != nil {
+func (c *creator) genTestConfFiles(fields testTmplFields) (err error) {
+	if err = config.GenPluginConfYAML(fields.PluginConf, c.TestPath); err != nil {
 		return err
 	}
 
-	err = genDockerComposeYAML(fields.DockerCompose, c.TestPath)
-	if err != nil {
+	if err = genDockerComposeYAML(fields.DockerCompose, c.TestPath); err != nil {
 		return err
 	}
 
-	err = genEnvoyYAML(fields.Envoy, c.TestPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func GenPluginConfYAML(p *PluginConf, target string) error {
-	path := fmt.Sprintf("%s/plugin-conf.yaml", target)
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err = template.Must(template.New("PluginConfYAML").Parse(PluginConfYAML)).Execute(f, p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func genDockerComposeYAML(d *DockerCompose, target string) error {
-	path := fmt.Sprintf("%s/docker-compose.yaml", target)
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err = template.Must(template.New("DockerComposeYAML").Parse(DockerComposeYAML)).Execute(f, d); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func genEnvoyYAML(e *Envoy, target string) error {
-	path := fmt.Sprintf("%s/envoy.yaml", target)
-	f, err := os.Create(path)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create %q: %v\n", path, err))
-	}
-	defer f.Close()
-
-	if err = template.Must(template.New("EnvoyYAML").Parse(EnvoyYAML)).Execute(f, e); err != nil {
+	if err = genEnvoyYAML(fields.Envoy, c.TestPath); err != nil {
 		return err
 	}
 

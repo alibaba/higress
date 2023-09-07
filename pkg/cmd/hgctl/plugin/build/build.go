@@ -24,7 +24,6 @@ import (
 	"os/user"
 	"strings"
 	"syscall"
-	"text/template"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
@@ -39,7 +38,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -85,7 +83,9 @@ type Builder struct {
 	sig           chan os.Signal // watch interrupt
 	stop          chan struct{}  // stop the build process when an interruption occurs
 	done          chan struct{}  // signal that the build process is finished
+
 	utils.Debugger
+	*utils.YesOrNoPrinter
 }
 
 func NewBuilder(f ConfigFunc) (*Builder, error) {
@@ -191,7 +191,7 @@ func (b *Builder) Build() (err error) {
 	select {
 	case <-b.sig:
 		b.interrupt()
-		fmt.Fprintf(b.w, "\nInterrupt\n")
+		b.Nof("\nInterrupt ...\n")
 		// wait for the doBuild process to exit, otherwise there will be unexpected bugs
 		b.waitForFinished()
 		// if the build process is interrupted, then we ignore the flag `manualClean` and clean up
@@ -231,33 +231,32 @@ func (b *Builder) doBuild() (err error) {
 		return errors.Wrap(err, "failed to generate wasm plugin metadata files")
 	}
 
-	fmt.Fprintf(b.w, "%s pull the builder image ...\n", waitIcon)
+	b.Printf("%s pull the builder image ...\n", waitIcon)
 	ctx := context.TODO()
 	if err = b.imagePull(ctx); err != nil {
 		return errors.Wrapf(err, "failed to pull the builder image %s", b.builderImageRef())
 	}
-	fmt.Fprintf(b.w, "%s pull the builder image: %s\n", successfulIcon, b.builderImageRef())
+	b.Yesf("%s pull the builder image: %s\n", successfulIcon, b.builderImageRef())
 
 	if err = b.addContainerConfByOutType(); err != nil {
 		return errors.Wrapf(err, "failed to add the additional container configuration for output type %q", b.Output.Type)
 	}
 
-	fmt.Fprintf(b.w, "%s create the builder container ...\n", waitIcon)
+	b.Printf("%s create the builder container ...\n", waitIcon)
 	if err = b.containerCreate(ctx); err != nil {
 		return errors.Wrap(err, "failed to create the builder container")
 	}
-	fmt.Fprintf(b.w, "%s create the builder container: %s\n", successfulIcon, b.containerID)
+	b.Yesf("%s create the builder container: %s\n", successfulIcon, b.containerID)
 
-	fmt.Fprintf(b.w, "%s start the builder container ...\n", waitIcon)
+	b.Printf("%s start the builder container ...\n", waitIcon)
 	if err = b.containerStart(ctx); err != nil {
 		return errors.Wrap(err, "failed to start the builder container")
 	}
 
 	if b.Output.Type == "files" {
-		fmt.Fprintf(b.w, "%s finish building!\n", successfulIcon)
+		b.Yesf("%s finish building!\n", successfulIcon)
 	} else if b.Output.Type == "image" {
-		fmt.Fprintf(b.w, "%s finish building and pushing!\n", successfulIcon)
-
+		b.Yesf("%s finish building and pushing!\n", successfulIcon)
 	}
 
 	return nil
@@ -279,10 +278,7 @@ func (b *Builder) generateMetadata() error {
 	if err != nil {
 		return err
 	}
-	ec := yaml.NewEncoder(spec)
-	ec.SetIndent(2)
-	err = ec.Encode(meta)
-	if err != nil {
+	if err = utils.MarshalYamlWithIndentTo(spec, meta, 2); err != nil {
 		return err
 	}
 
@@ -295,62 +291,17 @@ func (b *Builder) generateMetadata() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get wasm usage")
 	}
-	if len(usages) == 0 { // create empty README.md. TODO(WeixinX): Add the field names of the config structure, which requires modifying the GetUsageFromMeta method
-		mdPath := fmt.Sprintf("%s/README.md", b.tempDir)
-		md, err := os.Create(mdPath)
-		if err != nil {
-			return err
-		}
-		defer md.Close()
-
-		err = template.Must(template.New("MD_en_US").Parse(MD_en_US)).Execute(md, ptypes.WasmUsage{
-			I18nType:    ptypes.I18nEN_US,
-			Description: "No description",
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 	for i, u := range usages {
-		var (
-			t      *template.Template
-			md     *os.File
-			mdPath string
-		)
 		// since `usages` are ordered by `I18nType` and currently only `en-US` and
 		// `zh-CN` are available, en-US is the default README.md language when en-US is
 		// present (because after sorting it is in the first place)
+		suffix := true
 		if i == 0 {
-			mdPath = fmt.Sprintf("%s/README.md", b.tempDir)
+			suffix = false
 		}
-		switch u.I18nType {
-		case ptypes.I18nZH_CN:
-			t = template.Must(template.New("MD_zh_CN").Parse(MD_zh_CN))
-			if i != 0 {
-				mdPath = fmt.Sprintf("%s/README_ZH.md", b.tempDir)
-			}
-		case ptypes.I18nEN_US:
-			t = template.Must(template.New("MD_en_US").Parse(MD_en_US))
-			if i != 0 {
-				mdPath = fmt.Sprintf("%s/README_EN.md", b.tempDir)
-			}
-		default:
-			t = template.Must(template.New("MD_zh_CN").Parse(MD_zh_CN))
-			if i != 0 {
-				mdPath = fmt.Sprintf("%s/README_ZH.md", b.tempDir)
-			}
-		}
-		md, err = os.Create(mdPath)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create %q", mdPath)
-		}
-		err = t.Execute(md, u)
-		if err != nil {
-			md.Close()
+		if err = genMarkdownUsage(u, b.tempDir, suffix); err != nil {
 			return err
 		}
-		md.Close()
 	}
 
 	return nil
@@ -448,14 +399,6 @@ func (b *Builder) containerStart(ctx context.Context) error {
 	return nil
 }
 
-type FilesTmplFields struct {
-	BuildSrcDir  string
-	BuildDestDir string
-	Output       string
-	UID, GID     string
-	Debug        bool
-}
-
 var errWriteDockerEntrypoint = errors.New("failed to write docker entrypoint")
 
 func (b *Builder) filesHandler() error {
@@ -466,7 +409,7 @@ func (b *Builder) filesHandler() error {
 		Target: ContainerOutDir,
 	})
 
-	ft := FilesTmplFields{
+	ft := &FilesTmplFields{
 		BuildSrcDir:  ContainerWorkDir,
 		BuildDestDir: ContainerTempDir,
 		Output:       ContainerOutDir,
@@ -474,27 +417,12 @@ func (b *Builder) filesHandler() error {
 		GID:          b.uid,
 		Debug:        b.Debug,
 	}
-	f, err := os.OpenFile(b.dockerEntrypoint, os.O_CREATE|os.O_WRONLY, 0777)
-	if err != nil {
-		return errWriteDockerEntrypoint
-	}
-	defer f.Close()
-	if err = template.Must(template.New("FilesDockerEntrypoint").Parse(FilesDockerEntrypoint)).Execute(f, ft); err != nil {
-		return err
+
+	if err := genFilesDockerEntrypoint(ft, b.dockerEntrypoint); err != nil {
+		return errors.Wrap(err, errWriteDockerEntrypoint.Error())
 	}
 
 	return nil
-}
-
-type ImageTmplFields struct {
-	BuildSrcDir        string
-	BuildDestDir       string
-	Output             string
-	Username, Password string
-	BasicCmd           string
-	Products           string
-	MediaTypePlugin    string
-	Debug              bool
 }
 
 var (
@@ -534,7 +462,7 @@ func (b *Builder) imageHandler() error {
 		})
 	}
 
-	it := ImageTmplFields{
+	it := &ImageTmplFields{
 		BuildSrcDir:     ContainerWorkDir,
 		BuildDestDir:    ContainerTempDir,
 		Output:          ContainerOutDir,
@@ -545,13 +473,9 @@ func (b *Builder) imageHandler() error {
 		MediaTypePlugin: MediaTypePlugin,
 		Debug:           b.Debug,
 	}
-	f, err := os.OpenFile(b.dockerEntrypoint, os.O_CREATE|os.O_WRONLY, 0777)
-	if err != nil {
-		return errWriteDockerEntrypoint
-	}
-	defer f.Close()
-	if err = template.Must(template.New("ImageDockerEntrypoint").Parse(ImageDockerEntrypoint)).Execute(f, it); err != nil {
-		return err
+
+	if err := genImageDockerEntrypoint(it, b.dockerEntrypoint); err != nil {
+		return errors.Wrap(err, errWriteDockerEntrypoint.Error())
 	}
 
 	return nil
@@ -717,6 +641,10 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 
 	if b.Debugger == nil {
 		b.Debugger = utils.NewDefaultDebugger(b.Debug, b.w)
+	}
+
+	if b.YesOrNoPrinter == nil {
+		b.YesOrNoPrinter = utils.NewPrinter(b.w, utils.DefaultIdent, utils.DefaultYes, utils.DefaultNo)
 	}
 
 	return nil

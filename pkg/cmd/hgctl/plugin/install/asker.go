@@ -16,7 +16,6 @@ package install
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/iancoleman/orderedmap"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -51,10 +49,10 @@ type WasmPluginSpecConfAsker struct {
 	domask *DomainAsker
 	glcask *GlobalConfAsker
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func NewWasmPluginSpecConfAsker(ingask *IngressAsker, domask *DomainAsker, glcask *GlobalConfAsker, printer *Printer) *WasmPluginSpecConfAsker {
+func NewWasmPluginSpecConfAsker(ingask *IngressAsker, domask *DomainAsker, glcask *GlobalConfAsker, printer *utils.YesOrNoPrinter) *WasmPluginSpecConfAsker {
 	return &WasmPluginSpecConfAsker{
 		ingask:  ingask,
 		domask:  domask,
@@ -71,10 +69,11 @@ func (p *WasmPluginSpecConfAsker) Ask() error {
 		ingressRule *IngressMatchRule
 		domainRule  *DomainMatchRule
 
-		scopea    = newScopeAsker(p.printer)
-		continuea = newContinueAsker(p.printer)
-		rewritea  = newRewriteAsker(p.printer)
-		rulea     = newRuleAsker(p.printer)
+		scopea   = newScopeAsker(p.printer)
+		rewritea = newRewriteAsker(p.printer)
+		rulea    = newRuleAsker(p.printer)
+
+		complete = false
 	)
 
 	for {
@@ -151,13 +150,13 @@ func (p *WasmPluginSpecConfAsker) Ask() error {
 				return err
 			}
 			globalConf = p.glcask.resp
+
+		case "Complete":
+			complete = true
+			break
 		}
 
-		err = continuea.Ask()
-		if err != nil {
-			return err
-		}
-		if !continuea.resp {
+		if complete {
 			break
 		}
 	}
@@ -187,10 +186,10 @@ type IngressAsker struct {
 
 	vld *jsonschema.Schema // for validation
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func NewIngressAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *Printer) *IngressAsker {
+func NewIngressAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *utils.YesOrNoPrinter) *IngressAsker {
 	return &IngressAsker{
 		structName: structName,
 		schema:     schema,
@@ -204,7 +203,7 @@ func (i *IngressAsker) Ask() error {
 	ings := make([]string, 0)
 	for {
 		var ing string
-		err := survey.AskOne(&survey.Input{
+		err := utils.AskOne(&survey.Input{
 			Message: "Enter the matched ingress:",
 			Help:    "Matching ingress resource object, the matching format is: namespace/ingress name",
 		}, &ing)
@@ -255,10 +254,10 @@ type DomainAsker struct {
 
 	vld *jsonschema.Schema // for validation
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func NewDomainAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *Printer) *DomainAsker {
+func NewDomainAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *utils.YesOrNoPrinter) *DomainAsker {
 	return &DomainAsker{
 		structName: structName,
 		schema:     schema,
@@ -272,7 +271,7 @@ func (d *DomainAsker) Ask() error {
 	doms := make([]string, 0)
 	for {
 		var dom string
-		err := survey.AskOne(&survey.Input{
+		err := utils.AskOne(&survey.Input{
 			Message: "Enter the matched domain:",
 			Help:    "match domain name, support generic domain name",
 		}, &dom)
@@ -323,10 +322,10 @@ type GlobalConfAsker struct {
 
 	vld *jsonschema.Schema // for validation
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func NewGlobalConfAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *Printer) *GlobalConfAsker {
+func NewGlobalConfAsker(structName string, schema *types.JSONSchemaProps, vld *jsonschema.Schema, printer *utils.YesOrNoPrinter) *GlobalConfAsker {
 	return &GlobalConfAsker{
 		structName: structName,
 		schema:     schema,
@@ -356,16 +355,16 @@ func (g *GlobalConfAsker) Ask() error {
 type continueAsker struct {
 	resp bool
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func newContinueAsker(printer *Printer) *continueAsker {
+func newContinueAsker(printer *utils.YesOrNoPrinter) *continueAsker {
 	return &continueAsker{printer: printer}
 }
 
 func (c *continueAsker) Ask() error {
 	resp := true
-	err := survey.AskOne(&survey.Confirm{
+	err := utils.AskOne(&survey.Confirm{
 		Message: fmt.Sprintf("%scontinue?", c.printer.Ident()),
 		Default: true,
 	}, &resp)
@@ -380,16 +379,16 @@ func (c *continueAsker) Ask() error {
 type rewriteAsker struct {
 	resp bool
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func newRewriteAsker(printer *Printer) *rewriteAsker {
+func newRewriteAsker(printer *utils.YesOrNoPrinter) *rewriteAsker {
 	return &rewriteAsker{printer: printer}
 }
 
 func (r *rewriteAsker) Ask() error {
 	resp := false
-	err := survey.AskOne(&survey.Confirm{
+	err := utils.AskOne(&survey.Confirm{
 		Message: fmt.Sprintf("%sThe configuration already exists as shown above. Do you want to rewrite it?", r.printer.Ident()),
 		Default: false,
 	}, &resp)
@@ -404,20 +403,21 @@ func (r *rewriteAsker) Ask() error {
 type scopeAsker struct {
 	resp types.Scope
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func newScopeAsker(printer *Printer) *scopeAsker {
+func newScopeAsker(printer *utils.YesOrNoPrinter) *scopeAsker {
 	return &scopeAsker{printer: printer}
 }
 
 func (s *scopeAsker) Ask() error {
 	var resp string
-	err := survey.AskOne(&survey.Select{
-		Message: fmt.Sprintf("%sChoose a configuration effective scope:", s.printer.Ident()),
+	err := utils.AskOne(&survey.Select{
+		Message: fmt.Sprintf("%sChoose a configuration effective scope or complete:", s.printer.Ident()),
 		Options: []string{
 			string(types.ScopeInstance),
 			string(types.ScopeGlobal),
+			"Complete",
 		},
 		Default: string(types.ScopeInstance),
 	}, &resp)
@@ -432,16 +432,16 @@ func (s *scopeAsker) Ask() error {
 type ruleAsker struct {
 	resp Rule
 
-	printer *Printer
+	printer *utils.YesOrNoPrinter
 }
 
-func newRuleAsker(printer *Printer) *ruleAsker {
+func newRuleAsker(printer *utils.YesOrNoPrinter) *ruleAsker {
 	return &ruleAsker{printer: printer}
 }
 
 func (r *ruleAsker) Ask() error {
 	var resp string
-	err := survey.AskOne(&survey.Select{
+	err := utils.AskOne(&survey.Select{
 		Message: fmt.Sprintf("%sChoose Ingress or Domain:", r.printer.Ident()),
 		Options: []string{
 			string(RuleIngress),
@@ -469,6 +469,10 @@ func NewPluginSpecConf() *WasmPluginSpecConf {
 }
 
 func (p *WasmPluginSpecConf) String() string {
+	if len(p.MatchRules) == 0 && len(p.MatchRules) == 0 {
+		return " "
+	}
+
 	b, _ := utils.MarshalYamlWithIndent(p, 2)
 	return string(b)
 }
@@ -522,13 +526,13 @@ const (
 	RuleDomain  Rule = "Domain"
 )
 
-func recursivePrompt(structName string, schema *types.JSONSchemaProps, selScope types.Scope, printer *Printer) (interface{}, error) {
+func recursivePrompt(structName string, schema *types.JSONSchemaProps, selScope types.Scope, printer *utils.YesOrNoPrinter) (interface{}, error) {
 	printer.IncIdentRepeat()
 	defer printer.DecIndentRepeat()
 	return doPrompt(structName, nil, schema, types.ScopeAll, selScope, printer)
 }
 
-func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope, selScope types.Scope, printer *Printer) (interface{}, error) {
+func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope, selScope types.Scope, printer *utils.YesOrNoPrinter) (interface{}, error) {
 	if schema.Title == "" {
 		schema.Title = fieldName
 	}
@@ -545,16 +549,8 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 	case "object":
 		printer.Println(iconIdent + msg)
 		obj := make(map[string]interface{})
-		odProps := orderedmap.New()
-		for name, prop := range schema.Properties {
-			if name == "" {
-				continue
-			}
-			odProps.Set(name, prop)
-		}
-		odProps.SortKeys(sort.Strings)
-		for _, name := range odProps.Keys() {
-			propI, _ := odProps.Get(name)
+		for _, name := range schema.Properties.Keys() {
+			propI, _ := schema.Properties.Get(name)
 			prop := propI.(types.JSONSchemaProps)
 
 			if parent == nil { // keep topmost scope
@@ -613,7 +609,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 	case "integer", "number", "boolean", "string":
 		for {
 			var inp string
-			if err := survey.AskOne(&survey.Input{
+			if err := utils.AskOne(&survey.Input{
 				Message: msg,
 				Help:    help,
 			}, &inp); err != nil {
@@ -672,7 +668,7 @@ func matchesScope(oriScope, selScope, scope types.Scope) bool {
 		(selScope == types.ScopeGlobal && (scope == selScope || scope == types.ScopeAll))
 }
 
-func fieldTips(fieldName string, parent, schema *types.JSONSchemaProps, required bool, printer *Printer) (string, string) {
+func fieldTips(fieldName string, parent, schema *types.JSONSchemaProps, required bool, printer *utils.YesOrNoPrinter) (string, string) {
 	var msg, help string
 	if fieldName == "item" {
 		msg = fmt.Sprintf("%s%s(%s)", printer.Ident(), fieldName, schema.Type)

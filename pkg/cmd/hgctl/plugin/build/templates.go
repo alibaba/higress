@@ -14,6 +14,13 @@
 
 package build
 
+import (
+	"os"
+	"text/template"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
+)
+
 var (
 	FilesDockerEntrypoint = `#!/bin/bash
 set -e
@@ -50,7 +57,56 @@ done
 cmd="${cmd} ./plugin.tar.gz:{{ .MediaTypePlugin }}"
 eval ${cmd}
 `
+)
 
+type FilesTmplFields struct {
+	BuildSrcDir  string
+	BuildDestDir string
+	Output       string
+	UID, GID     string
+	Debug        bool
+}
+
+type ImageTmplFields struct {
+	BuildSrcDir        string
+	BuildDestDir       string
+	Output             string
+	Username, Password string
+	BasicCmd           string
+	Products           string
+	MediaTypePlugin    string
+	Debug              bool
+}
+
+func genFilesDockerEntrypoint(ft *FilesTmplFields, target string) error {
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err = template.Must(template.New("FilesDockerEntrypoint").Parse(FilesDockerEntrypoint)).Execute(f, ft); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func genImageDockerEntrypoint(it *ImageTmplFields, target string) error {
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err = template.Must(template.New("ImageDockerEntrypoint").Parse(ImageDockerEntrypoint)).Execute(f, it); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var (
 	MD_zh_CN = `> 该插件用法文件根据源代码自动生成，请根据需求自行修改！
 
 # 功能说明
@@ -93,3 +149,46 @@ eval ${cmd}
 ` + "```" + `
 `
 )
+
+func genMarkdownUsage(u *types.WasmUsage, dir string, suffix bool) error {
+	md, err := os.Create(i18n2MDTitle(u.I18nType, dir, suffix))
+	if err != nil {
+		return err
+	}
+	defer md.Close()
+
+	if err = template.Must(template.New("MD_Usage").Parse(i18n2MD(u.I18nType))).Execute(md, u); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func i18n2MD(i18n types.I18nType) string {
+	switch i18n {
+	case types.I18nEN_US:
+		return MD_en_US
+	case types.I18nZH_CN:
+		return MD_zh_CN
+	default:
+		return MD_zh_CN
+	}
+}
+
+func i18n2MDTitle(i18n types.I18nType, dir string, suffix bool) string {
+	var file string
+	if !suffix {
+		file = "README.md"
+	} else {
+		switch i18n {
+		case types.I18nEN_US:
+			file = "README_EN.md"
+		case types.I18nZH_CN:
+			file = "README_ZH.md"
+		default:
+			file = "README_ZH.md"
+		}
+	}
+
+	return dir + "/" + file
+}

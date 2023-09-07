@@ -99,6 +99,6 @@ func deleteOne(ctx context.Context, w io.Writer, cli *k8s.DynamicClient, name st
 		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", name)
 	}
 
-	fmt.Fprintf(w, "Uninstalled wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetName(), result.GetName()))
+	fmt.Fprintf(w, "Uninstalled wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))
 	return nil
 }

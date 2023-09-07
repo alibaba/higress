@@ -43,7 +43,7 @@ func NewCommand() *cobra.Command {
 	flags := lsCmd.PersistentFlags()
 	options.AddKubeConfigFlags(flags)
 
-	lsCmd.PersistentFlags().StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "The namespace where Higress was installed")
+	flags.StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "Namespace where Higress was installed")
 
 	return lsCmd
 }
@@ -60,15 +60,16 @@ func runLs(w io.Writer) error {
 	}
 
 	printer := printers.GetNewTabWriter(w)
+	now := time.Now()
 	fmt.Fprintf(printer, "NAME\tAGE\n")
 	for _, item := range list.Items {
-		fmt.Fprintf(printer, "%s\t%s\n", item.GetName(), getAge(item.GetCreationTimestamp().Time))
+		fmt.Fprintf(printer, "%s\t%s\n", item.GetName(), getAge(now, item.GetCreationTimestamp().Time))
 	}
 	printer.Flush()
 
 	return nil
 }
 
-func getAge(create time.Time) string {
-	return duration.ShortHumanDuration(time.Now().Sub(create))
+func getAge(now time.Time, create time.Time) string {
+	return duration.ShortHumanDuration(now.Sub(create))
 }

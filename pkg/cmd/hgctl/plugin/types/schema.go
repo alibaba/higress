@@ -16,6 +16,7 @@ package types
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 	"strconv"
 	"strings"
 
@@ -56,7 +57,7 @@ type JSONSchemaProps struct {
 	OneOf                []JSONSchemaProps          `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
 	AnyOf                []JSONSchemaProps          `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
 	Not                  *JSONSchemaProps           `json:"not,omitempty" yaml:"not,omitempty"`
-	Properties           map[string]JSONSchemaProps `json:"properties,omitempty" yaml:"properties,omitempty"`
+	Properties           *utils.OrderedMap          `json:"properties,omitempty" yaml:"properties,omitempty"`
 	AdditionalProperties *JSONSchemaPropsOrBool     `json:"additionalProperties,omitempty" yaml:"additionalProperties,omitempty"`
 	PatternProperties    map[string]JSONSchemaProps `json:"patternProperties,omitempty" yaml:"patternProperties,omitempty"`
 	Dependencies         JSONSchemaDependencies     `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`

@@ -16,9 +16,7 @@ package types
 
 import (
 	"fmt"
-	"sort"
-
-	"github.com/iancoleman/orderedmap"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 )
 
 type WasmUsage struct {
@@ -43,14 +41,21 @@ func GetUsageFromMeta(meta *WasmPluginMeta) ([]*WasmUsage, error) {
 	if schema != nil && schema.Example != nil && len(schema.Example.Raw) > 0 {
 		example = string(schema.Example.Raw)
 	}
-	// TODO(WeixinX): Use ordered map for the XDescriptionI18n, XTitleI18n
-	omap := orderedmap.New()
+
+	m := utils.NewOrderedMap()
 	for i18n, desc := range meta.Info.XDescriptionI18n {
-		omap.Set(string(i18n), desc)
+		m.Set(string(i18n), desc)
 	}
-	omap.SortKeys(sort.Strings)
-	for _, i18n := range omap.Keys() {
-		desc, ok := omap.Get(i18n)
+	for i18n := range meta.Info.XTitleI18n {
+		if _, ok := m.Get(string(i18n)); !ok {
+			m.Set(string(i18n), "No description")
+		}
+	}
+	if len(m.Keys()) == 0 {
+		m.Set(string(I18nEN_US), "No description")
+	}
+	for _, i18n := range m.Keys() {
+		desc, ok := m.Get(i18n)
 		if !ok {
 			continue
 		}
@@ -74,14 +79,8 @@ func getConfigEntryFromSchema(schema *JSONSchemaProps, entries *[]ConfigEntry, p
 
 	switch schema.Type {
 	case "object":
-		// TODO(WeixinX): Use ordered map for the schema properties
-		odmap := orderedmap.New()
-		for name, props := range schema.Properties {
-			odmap.Set(name, props)
-		}
-		odmap.SortKeys(sort.Strings)
-		for _, name := range odmap.Keys() {
-			val, ok := odmap.Get(name)
+		for _, name := range schema.Properties.Keys() {
+			val, ok := schema.Properties.Get(name)
 			if !ok {
 				continue
 			}
