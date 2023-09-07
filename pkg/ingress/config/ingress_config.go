@@ -29,6 +29,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/anypb"
 	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
@@ -109,7 +110,7 @@ type IngressConfig struct {
 
 	RegistryReconciler *reconcile.Reconciler
 
-	mcpbridgeReconciled bool
+	mcpbridgeReconciled *atomic.Bool
 
 	mcpbridgeController mcpbridge.McpBridgeController
 
@@ -154,7 +155,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 			common.CreateConvertedName(clusterId, "global"),
 		watchedSecretSet:    sets.NewSet(),
 		namespace:           namespace,
-		mcpbridgeReconciled: true,
+		mcpbridgeReconciled: atomic.NewBool(false),
 		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
 		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
 	}
@@ -947,9 +948,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
 		return
 	}
-	m.mutex.Lock()
-	m.mcpbridgeReconciled = false
-	m.mutex.Unlock()
+	m.mcpbridgeReconciled.Store(false)
 	if m.RegistryReconciler == nil {
 		m.RegistryReconciler = reconcile.NewReconciler(func() {
 			metadata := config.Meta{
@@ -966,12 +965,12 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 		}, m.localKubeClient, m.namespace)
 	}
 	reconciler := m.RegistryReconciler
-	go func() {
-		reconciler.Reconcile(mcpbridge)
-		m.mutex.Lock()
-		m.mcpbridgeReconciled = true
-		m.mutex.Unlock()
-	}()
+	err = reconciler.Reconcile(mcpbridge)
+	if err != nil {
+		IngressLog.Errorf("Mcpbridge reconcile failed, err:%v", err)
+		return
+	}
+	m.mcpbridgeReconciled.Store(true)
 }
 
 func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
@@ -1405,7 +1404,7 @@ func (m *IngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled {
+	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled.Load() {
 		return false
 	}
 	if !m.wasmPluginController.HasSynced() {

@@ -58,7 +58,7 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *
 	}
 }
 
-func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
+func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
 	newRegistries := make(map[string]*apiv1.RegistryConfig)
 	if mcpbridge != nil {
 		for _, registry := range mcpbridge.Spec.Registries {
@@ -121,12 +121,12 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 		r.registries[k] = v
 	}
 	if errHappened {
-		log.Error("ReconcileRegistries failed, Init Watchers failed")
-		return
+		return errors.New("ReconcileRegistries failed, Init Watchers failed")
 	}
 	wg.Wait()
 	r.Cache.PurgeStaleService()
 	log.Infof("Registries is reconciled")
+	return nil
 }
 
 func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
