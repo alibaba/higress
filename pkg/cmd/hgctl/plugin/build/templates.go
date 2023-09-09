@@ -29,7 +29,7 @@ set -x
 {{- end }}
 
 go mod tidy
-tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}/main.go
+tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}
 
 mv {{ .BuildDestDir }}/* {{ .Output }}/
 chown -R {{ .UID }}:{{ .GID }} {{ .Output }}
@@ -41,7 +41,7 @@ set -x
 {{- end }}
 
 go mod tidy
-tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}/main.go
+tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi {{ .BuildSrcDir }}
 
 cd {{ .BuildDestDir }}
 tar czf plugin.tar.gz plugin.wasm
