@@ -42,4 +42,6 @@ spec:
   defaultConfig:
     block_urls:
     - "swagger.html"
+    block_regexp_urls:
+    - "/env.*"
   url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm

@@ -17,6 +17,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
@@ -36,12 +37,13 @@ func main() {
 }
 
 type RequestBlockConfig struct {
-	blockedCode    uint32
-	blockedMessage string
-	caseSensitive  bool
-	blockUrls      []string
-	blockHeaders   []string
-	blockBodies     []string
+	blockedCode      uint32
+	blockedMessage   string
+	caseSensitive    bool
+	blockUrls        []string
+	blockRegExpArray []*regexp.Regexp
+	blockHeaders     []string
+	blockBodies      []string
 }
 
 func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log) error {
@@ -62,6 +64,19 @@ func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log)
 			config.blockUrls = append(config.blockUrls, url)
 		} else {
 			config.blockUrls = append(config.blockUrls, strings.ToLower(url))
+		}
+	}
+	for _, item := range json.Get("block_regexp_urls").Array() {
+		regexpUrl := item.String()
+		if regexpUrl == "" {
+			continue
+		}
+		if config.caseSensitive {
+			reg := regexp.MustCompile(regexpUrl)
+			config.blockRegExpArray = append(config.blockRegExpArray, reg)
+		} else {
+			reg := regexp.MustCompile(strings.ToLower(regexpUrl))
+			config.blockRegExpArray = append(config.blockRegExpArray, reg)
 		}
 	}
 	for _, item := range json.Get("block_headers").Array() {
@@ -104,7 +119,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, lo
 			requestUrl = strings.ToLower(requestUrl)
 		}
 		for _, blockUrl := range config.blockUrls {
-			if strings.Contains(requestUrl, blockUrl) {
+			if requestUrl == blockUrl {
+				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+				return types.ActionContinue
+			}
+		}
+		for _, regExpObj := range config.blockRegExpArray {
+			if regExpObj.MatchString(requestUrl) {
 				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
 				return types.ActionContinue
 			}
