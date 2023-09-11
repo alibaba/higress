@@ -44,6 +44,7 @@ type HttpContext interface {
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
+type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log Log) error
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
@@ -54,6 +55,7 @@ type CommonVmCtx[PluginConfig any] struct {
 	log                   Log
 	hasCustomConfig       bool
 	parseConfig           ParseConfigFunc[PluginConfig]
+	parseRuleConfig       ParseRuleConfigFunc[PluginConfig]
 	onHttpRequestHeaders  onHttpHeadersFunc[PluginConfig]
 	onHttpRequestBody     onHttpBodyFunc[PluginConfig]
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
@@ -70,6 +72,13 @@ type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
 func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
 	return func(ctx *CommonVmCtx[PluginConfig]) {
 		ctx.parseConfig = f
+	}
+}
+
+func ParseOverrideConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig], g ParseRuleConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
+	return func(ctx *CommonVmCtx[PluginConfig]) {
+		ctx.parseConfig = f
+		ctx.parseRuleConfig = g
 	}
 }
 
@@ -161,9 +170,14 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		}
 		jsonData = gjson.ParseBytes(data)
 	}
-	err = ctx.ParseRuleConfig(jsonData, func(js gjson.Result, cfg *PluginConfig) error {
-		return ctx.vm.parseConfig(js, cfg, ctx.vm.log)
-	})
+	err = ctx.ParseRuleConfig(jsonData,
+		func(js gjson.Result, cfg *PluginConfig) error {
+			return ctx.vm.parseConfig(js, cfg, ctx.vm.log)
+		},
+		func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
+			return ctx.vm.parseRuleConfig(js, global, cfg, ctx.vm.log)
+		},
+	)
 	if err != nil {
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		return types.OnPluginStartStatusFailed
