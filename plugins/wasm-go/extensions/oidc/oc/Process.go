@@ -1,7 +1,6 @@
 package oc
 
 import (
-	"errors"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	jose "github.com/go-jose/go-jose/v3"
@@ -17,7 +16,7 @@ func ProcessHTTPCall(cfg *Oatuh2Config, log *wrapper.Log, callback func(response
 	wellKnownPath := strings.TrimSuffix(cfg.Path, "/") + "/.well-known/openid-configuration"
 
 	if err := cfg.Client.Get(wellKnownPath, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		if err := validateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
+		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			SendError(log, fmt.Sprintf("HTTP response validation failed : %v %v ", statusCode, err), statusCode)
 			return
 		}
@@ -25,22 +24,6 @@ func ProcessHTTPCall(cfg *Oatuh2Config, log *wrapper.Log, callback func(response
 		callback(responseBody)
 	}, 2000); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// validateHTTPResponse
-func validateHTTPResponse(statusCode int, headers http.Header, body []byte) error {
-	contentType := headers.Get("Content-Type")
-	if statusCode != http.StatusOK {
-		return errors.New("call failed with status code")
-	}
-	if !strings.Contains(contentType, "application/json") {
-		return fmt.Errorf("expected Content-Type = application/json or application/json;charset=UTF-8, but got %s", contentType)
-	}
-	if !gjson.ValidBytes(body) {
-		return errors.New("invalid JSON format in response body")
 	}
 
 	return nil
@@ -98,7 +81,7 @@ func ProcessVerify(rawToken string, cfg *Oatuh2Config, log *wrapper.Log, mod Acc
 
 		var algs []string
 		for _, a := range PvRJson.Get("id_token_signing_alg_values_supported").Array() {
-			if supportedAlgorithms[a.String()] {
+			if SupportedAlgorithms[a.String()] {
 				algs = append(algs, a.String())
 			}
 		}
@@ -122,21 +105,21 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 	v := ReturnURL(cfg.RedirectURL, code)
 	needsAuthStyleProbe := authStyle == AuthStyleUnknown
 	if needsAuthStyleProbe {
-		if style, ok := lookupAuthStyle(cfg.Endpoint.TokenURL); ok {
+		if style, ok := LookupAuthStyle(cfg.Endpoint.TokenURL); ok {
 			authStyle = style
 		} else {
 			authStyle = AuthStyleInHeader
 		}
 	}
 
-	headers, body, err := newTokenRequest(cfg.Endpoint.TokenURL, cfg.ClientID, cfg.ClientSecret, v, authStyle)
+	headers, body, err := NewTokenRequest(cfg.Endpoint.TokenURL, cfg.ClientID, cfg.ClientSecret, v, authStyle)
 
 	if err != nil {
 		return fmt.Errorf("failed to create token request: %v", err)
 	}
 
 	cb := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		err = validateHTTPResponse(statusCode, responseHeaders, responseBody)
+		err = ValidateHTTPResponse(statusCode, responseHeaders, responseBody)
 		if err != nil {
 			log.Errorf("validateHTTPResponse err: %v", err)
 		}
@@ -154,14 +137,14 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 		}
 
 		if needsAuthStyleProbe && err == nil {
-			setAuthStyle(cfg.Endpoint.TokenURL, authStyle)
+			SetAuthStyle(cfg.Endpoint.TokenURL, authStyle)
 		}
 
 		if tk != nil && token.RefreshToken == "" {
 			token.RefreshToken = v.Get("refresh_token")
 		}
 
-		betoken := tokenFromInternal(tk)
+		betoken := TokenFromInternal(tk)
 
 		rawIDToken, ok := betoken.Extra("id_token").(string)
 		if !ok {
@@ -200,7 +183,7 @@ func ProcesTokenVerify(rawIdToken string, cfg *Oatuh2Config, log *wrapper.Log, m
 		return err
 	}
 	cb := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		if err := validateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
+		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			errMsg := fmt.Sprintf("HTTP response validation failed: %v", err)
 			log.Errorf(errMsg)
 			proxywasm.SendHttpResponse(uint32(statusCode), nil, []byte(errMsg), -1)
@@ -232,7 +215,7 @@ func ProcesTokenVerify(rawIdToken string, cfg *Oatuh2Config, log *wrapper.Log, m
 			return
 		} else if mod == SenBack {
 			proxywasm.SendHttpResponse(http.StatusOK, nil, []byte(rawIdToken), -1)
-			proxywasm.ResumeHttpRequest()
+		
 			return
 		}
 
@@ -243,9 +226,4 @@ func ProcesTokenVerify(rawIdToken string, cfg *Oatuh2Config, log *wrapper.Log, m
 		return err
 	}
 	return nil
-}
-
-func SendError(log *wrapper.Log, errMsg string, status int) {
-	log.Errorf(errMsg)
-	proxywasm.SendHttpResponse(uint32(status), nil, []byte(errMsg), -1)
 }

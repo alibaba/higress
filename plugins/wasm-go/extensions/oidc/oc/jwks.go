@@ -35,7 +35,7 @@ const (
 	EdDSA = "EdDSA" // Ed25519 using SHA-512
 )
 
-var supportedAlgorithms = map[string]bool{
+var SupportedAlgorithms = map[string]bool{
 	RS256: true,
 	RS384: true,
 	RS512: true,

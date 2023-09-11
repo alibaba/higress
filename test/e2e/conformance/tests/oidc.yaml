@@ -1,0 +1,57 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+    - domain: oauth.aliyun.com
+      name: ali
+      port: 443
+      type: dns
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: ali.dns
+    higress.io/backend-protocol: "HTTPS"
+  name: oidc-ingress
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: foo.bar.com
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: default
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: oidc
+  namespace: higress-system
+spec:
+  matchRules:
+##      - domain:
+##         - "test.bar.com"
+     - ingress:
+         - higress-conformance-infra/oidc-ingress
+       config :
+         Issuer: "https://oauth.aliyun.com"
+         clientID: "4312977293205600181"
+         clientSecret: "SO8LC4b6JDMlVV5t0CdEqBn3mLYlsvN2rUFDIvXRLluK13uACT2dUTMtZDw9dOOP"
+         RedirectURL: "http://foo.bar.com/foo/oidc/callback"
+         Scopes:
+           - "openid"
+         serviceSource: "dns"
+         serviceName: "ali"
+         servicePort: 443
+         domain: "oauth.aliyun.com"
+  url: oci://registry.cn-hangzhou.aliyuncs.com/234f/test:oidc1.17

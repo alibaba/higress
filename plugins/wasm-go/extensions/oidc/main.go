@@ -138,9 +138,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 		if code == "" && state == "" {
 			// Redirect if user is not authorized
 
-			if err := oc.ProcessRedirect(StatStr, Nonce, oauth2Config, &log); err != nil {
-				oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
+			if oauth2Config.Issuer == oc.IssuerGithubAccounts {
+				githubProvider := oc.NewGithubProvider(oauth2Config)
+				githubProvider.ProcessRedirect(StatStr, Nonce, oauth2Config, &log)
+
+			} else {
+				if err := oc.ProcessRedirect(StatStr, Nonce, oauth2Config, &log); err != nil {
+					oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
+				}
 			}
+
 		} else if strings.Contains(ctx.Path(), "oidc/callback") {
 			// Handle callback
 			parts := strings.Split(state, ".")
@@ -153,19 +160,42 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 			if !oc.VerifyState(stateval, signature) {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
 			}
-			if err := oc.ProcessExchangeToken(code, oauth2Config, &log, oc.SenBack); err != nil {
-				oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
+
+			if oauth2Config.Issuer == oc.IssuerGithubAccounts {
+				githubProvider := oc.NewGithubProvider(oauth2Config)
+				err := githubProvider.ProcessExchangeToken(code, oauth2Config, &log)
+				if err != nil {
+
+				}
+
+			} else {
+				if err := oc.ProcessExchangeToken(code, oauth2Config, &log, oc.SenBack); err != nil {
+					oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
+				}
 			}
+
 		}
 	} else {
 		parts := strings.Split(rawToken, " ")
 		if len(parts) != 2 && parts[0] != "Bearer" {
 			oc.SendError(&log, "Invalid Authorization header format", http.StatusUnauthorized)
 		}
+		if oauth2Config.Issuer == oc.IssuerGithubAccounts {
+			githubProvider := oc.NewGithubProvider(oauth2Config)
+			if ok, err := githubProvider.ProcessVerify(parts[1]); !ok {
+				if err != nil {
+					oc.SendError(&log, fmt.Sprintf("Verify error : %v", err), http.StatusUnauthorized)
+				}
+			} else {
+				return types.ActionContinue
+			}
 
-		if err := oc.ProcessVerify(parts[1], oauth2Config, &log, oc.Access); err != nil {
-			oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
+		} else {
 
+			if err := oc.ProcessVerify(parts[1], oauth2Config, &log, oc.Access); err != nil {
+				oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
+
+			}
 		}
 	}
 	return types.ActionPause

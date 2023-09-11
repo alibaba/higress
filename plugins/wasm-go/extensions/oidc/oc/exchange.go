@@ -53,7 +53,7 @@ func ReturnURL(RedirectURL, code string, opts ...AuthCodeOption) url.Values {
 	return v
 }
 
-func tokenFromInternal(t *Token) *Token {
+func TokenFromInternal(t *Token) *Token {
 	if t == nil {
 		return nil
 	}
@@ -107,13 +107,13 @@ var authStyleCache struct {
 	m map[string]AuthStyle // keyed by tokenURL
 }
 
-func lookupAuthStyle(tokenURL string) (style AuthStyle, ok bool) {
+func LookupAuthStyle(tokenURL string) (style AuthStyle, ok bool) {
 	style, ok = authStyleCache.m[tokenURL]
 	return
 }
 
-// setAuthStyle adds an entry to authStyleCache, documented above.
-func setAuthStyle(tokenURL string, v AuthStyle) {
+// SetAuthStyle adds an entry to authStyleCache, documented above.
+func SetAuthStyle(tokenURL string, v AuthStyle) {
 	if authStyleCache.m == nil {
 		authStyleCache.m = make(map[string]AuthStyle)
 	}
@@ -192,7 +192,7 @@ func UnmarshalToken(token *Token, Headers http.Header, body []byte) (*Token, err
 	return token, nil
 }
 
-func newTokenRequest(tokenURL, clientID, clientSecret string, v url.Values, authStyle AuthStyle) ([][2]string, []byte, error) {
+func NewTokenRequest(tokenURL, clientID, clientSecret string, v url.Values, authStyle AuthStyle) ([][2]string, []byte, error) {
 	if authStyle == AuthStyleInParams {
 		v = cloneURLValues(v)
 		if clientID != "" {
@@ -205,6 +205,9 @@ func newTokenRequest(tokenURL, clientID, clientSecret string, v url.Values, auth
 	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, nil, err
+	}
+	if tokenURL == "https://github.com/login/oauth/access_token" {
+		req.Header.Set("Accept", "application/json")
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if authStyle == AuthStyleInHeader {
