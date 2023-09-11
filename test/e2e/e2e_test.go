@@ -60,6 +60,7 @@ func TestHigressConformanceTests(t *testing.T) {
 			m := make(map[string]suite.ConformanceTest)
 			m["request_block"] = tests.CPPWasmPluginsRequestBlock
 			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
+			m["basic_auth"] = tests.CPPWasmPluginsBasicAuth
 
 			higressTests = []suite.ConformanceTest{
 				m[*wasmPluginName],

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
@@ -31,7 +32,7 @@ import (
 func main() {
 	wrapper.SetCtx(
 		"basic-auth",
-		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 	)
 }
@@ -65,7 +66,7 @@ type BasicAuthConfig struct {
 	// @Description 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
 	// @Description en-US If set to false, only consumer info will be accepted from the global config. Auth feature shall only be enabled if the corresponding domain or route is configured.
 	// @Scope GLOBAL
-	globalAuth bool `yaml:"global_auth"`
+	globalAuth *bool `yaml:"global_auth"`
 
 	// @Title 调用方列表
 	// @Title en-US Consumer List
@@ -79,9 +80,10 @@ type BasicAuthConfig struct {
 	// @Description 对于匹配上述条件的请求，允许访问的调用方列表。
 	// @Description en-US Consumers to be allowed for matched requests.
 	allow []string `yaml:"allow"`
-}
 
-// BasicAuthConfig.globalAuth 和 .consumers 实际上没什么用，仅用于生成 spec.yaml
+	credential2Name map[string]string `yaml:"-"`
+	username2Passwd map[string]string `yaml:"-"`
+}
 
 type Consumer struct {
 	// @Title 名称
@@ -98,90 +100,77 @@ type Consumer struct {
 	credential string `yaml:"credential"`
 }
 
-// 保存全局配置
-type globalConfig struct {
-	user2Passwd      map[string]string // credential username -> credential password
-	credential2Name  map[string]string // username:password -> consumer name
-	globalAuth       bool
-	globalAuthSet    bool // 是否配置了 global_auth 字段
-	domainOrRouteSet bool // 插件是否至少在一个 domain 或 route 上生效
-}
-
-func newGlobalConfig() *globalConfig {
-	return &globalConfig{
-		user2Passwd:     make(map[string]string),
-		credential2Name: make(map[string]string),
-	}
-}
-
 var (
-	gc              *globalConfig
-	protectionSpace = "MSE Gateway"
+	ruleSet         bool            // 插件是否至少在一个 domain 或 route 上生效
+	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Basic realm=MSE Gateway
 )
 
-// 非常依赖 pkg/matcher ParseRuleConfig 中先解析 global config，
-// 再解析 domain/route config 的逻辑， 否则 gc 保存的全局变量就会出错
-func parseConfig(json gjson.Result, config *BasicAuthConfig, log wrapper.Log) error {
-	// global config
+func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log wrapper.Log) error {
+	// log.Debug("global config")
+	ruleSet = false
+	global.credential2Name = make(map[string]string)
+	global.username2Passwd = make(map[string]string)
+
 	consumers := json.Get("consumers")
-	if consumers.Exists() {
-		log.Debug("global config")
-		gc = newGlobalConfig()
-		for _, item := range consumers.Array() {
-			name := item.Get("name")
-			if !name.Exists() || name.String() == "" {
-				return errors.New("consumer name is required")
-			}
-			credential := item.Get("credential")
-			if !credential.Exists() || credential.String() == "" {
-				return errors.New("consumer credential is required")
-			}
-			if _, ok := gc.credential2Name[credential.String()]; ok {
-				return errors.Errorf("duplicate consumer credential: %s", credential.String())
-			}
-
-			consumer := Consumer{
-				name:       name.String(),
-				credential: credential.String(),
-			}
-			config.consumers = append(config.consumers, consumer)
-
-			userAndPasswd := strings.Split(consumer.credential, ":")
-			if len(userAndPasswd) != 2 {
-				return errors.Errorf("invalid credential format: %s", consumer.credential)
-			}
-			gc.user2Passwd[userAndPasswd[0]] = userAndPasswd[1]
-			gc.credential2Name[consumer.credential] = consumer.name
-		}
-
-		globalAuth := json.Get("global_auth")
-		if globalAuth.Exists() {
-			gc.globalAuthSet = true
-			gc.globalAuth = globalAuth.Bool()
-			config.globalAuth = globalAuth.Bool()
-		}
+	if !consumers.Exists() {
+		return errors.New("consumers is required")
+	}
+	if len(consumers.Array()) == 0 {
+		return errors.New("consumers cannot be empty")
 	}
 
-	if gc.globalAuth && len(gc.credential2Name) == 0 {
-		return errors.New("global_auth is true, but no consumer is configured")
+	for _, item := range consumers.Array() {
+		name := item.Get("name")
+		if !name.Exists() || name.String() == "" {
+			return errors.New("consumer name is required")
+		}
+		credential := item.Get("credential")
+		if !credential.Exists() || credential.String() == "" {
+			return errors.New("consumer credential is required")
+		}
+		if _, ok := global.credential2Name[credential.String()]; ok {
+			return errors.Errorf("duplicate consumer credential: %s", credential.String())
+		}
+		userAndPasswd := strings.Split(credential.String(), ":")
+		if len(userAndPasswd) != 2 {
+			return errors.Errorf("invalid credential format: %s", credential.String())
+		}
+
+		consumer := Consumer{
+			name:       name.String(),
+			credential: credential.String(),
+		}
+		global.consumers = append(global.consumers, consumer)
+		global.credential2Name[consumer.credential] = consumer.name
+		global.username2Passwd[userAndPasswd[0]] = userAndPasswd[1]
 	}
 
-	// domain/route config
+	globalAuth := json.Get("global_auth")
+	if globalAuth.Exists() {
+		ga := globalAuth.Bool()
+		global.globalAuth = &ga
+	}
+
+	return nil
+}
+
+func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *BasicAuthConfig, log wrapper.Log) error {
+	log.Debug("domain/route config")
+	// override config via global
+	*config = global
+
 	allow := json.Get("allow")
-	if consumers.Exists() && allow.Exists() {
-		return errors.New("'allow' (domain/route) and 'consumers' (global) cannot be configured at the same level")
+	if !allow.Exists() {
+		return errors.New("allow is required")
 	}
-	if allow.Exists() {
-		log.Debug("domain/route config")
-		if len(allow.Array()) == 0 {
-			return errors.New("allow list is empty")
-		}
+	if len(allow.Array()) == 0 {
+		return errors.New("allow cannot be empty")
+	}
 
-		gc.domainOrRouteSet = true
-		for _, item := range allow.Array() {
-			config.allow = append(config.allow, item.String())
-		}
+	for _, item := range allow.Array() {
+		config.allow = append(config.allow, item.String())
 	}
+	ruleSet = true
 
 	return nil
 }
@@ -199,17 +188,20 @@ func parseConfig(json gjson.Result, config *BasicAuthConfig, log wrapper.Log) er
 //   - 若没有一个 domain/route 配置该插件：则遵循 (1*)
 //   - 若有至少一个 domain/route 配置该插件：则遵循 (2*)
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log wrapper.Log) types.Action {
-	// log.Debugf("global config: %+v", gc)
-	// log.Debugf("allow: %v", config.allow)
-
-	// 未配置 allow 列表，表示插件在该 domain/route 未生效
-	noAllow := len(config.allow) == 0
+	var (
+		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
+		globalAuthNoSet    = config.globalAuth == nil
+		globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
+		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
+	)
+	// log.Debugf("global auth set: %t", !globalAuthNoSet)
+	// log.Debugf("rule set: %t", ruleSet)
+	// log.Debugf("config: %+v", config)
 
 	// 不需要认证而直接放行的情况：
 	// - global_auth == false 且 当前 domain/route 未配置该插件
 	// - global_auth 未设置 且 有至少一个 domain/route 配置该插件 且 当前 domain/route 未配置该插件
-	if (gc.globalAuthSet && !gc.globalAuth) ||
-		(!gc.globalAuthSet && gc.domainOrRouteSet) {
+	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
 		if noAllow {
 			log.Info("authorization is not required")
 			return types.ActionContinue
@@ -246,18 +238,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log w
 	}
 
 	user, passwd := userAndPasswd[0], userAndPasswd[1]
-	if correctPasswd, ok := gc.user2Passwd[user]; !ok {
+	if correctPasswd, ok := config.username2Passwd[user]; !ok {
 		log.Warnf("credential username %q is not configured", user)
 		return deniedInvalidCredentials()
 	} else {
 		if passwd != correctPasswd {
-			log.Warnf("credential password %q is not correct", passwd)
+			log.Warnf("credential password is not correct for username %q", user)
 			return deniedInvalidCredentials()
 		}
 	}
 
 	// 以下为 username 和 password 正确的情况：
-	name, ok := gc.credential2Name[credential]
+	name, ok := config.credential2Name[credential]
 	if !ok { // 理论上该分支永远不可达，因为 username 和 password 都是从 credential 中获取的
 		log.Warnf("credential %q is not configured", credential)
 		return deniedUnauthorizedConsumer()
@@ -266,33 +258,31 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log w
 	// 全局生效：
 	// - global_auth == true 且 当前 domain/route 未配置该插件
 	// - global_auth 未设置 且 没有任何一个 domain/route 配置该插件
-	if (gc.globalAuth && noAllow) ||
-		(!gc.globalAuthSet && !gc.domainOrRouteSet) {
-		// log.Debug("case 1")
+	if (globalAuthSetTrue && noAllow) || (globalAuthNoSet && !ruleSet) {
+		// log.Debug("authenticated case 1")
 		log.Infof("consumer %q authenticated", name)
 		return authenticated(name)
 	}
 
 	// 全局生效，但当前 domain/route 配置了 allow 列表
-	if gc.globalAuth && !noAllow {
+	if globalAuthSetTrue && !noAllow {
 		if !contains(config.allow, name) {
 			log.Warnf("consumer %q is not allowed", name)
 			return deniedUnauthorizedConsumer()
 		}
-		// log.Debug("case 2")
+		// log.Debug("authenticated case 2")
 		log.Infof("consumer %q authenticated", name)
 		return authenticated(name)
 	}
 
 	// 非全局生效
-	if (gc.globalAuthSet && !gc.globalAuth) ||
-		(!gc.globalAuthSet && gc.domainOrRouteSet) {
+	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
 		if !noAllow { // 配置了 allow 列表
 			if !contains(config.allow, name) {
 				log.Warnf("consumer %q is not allowed", name)
 				return deniedUnauthorizedConsumer()
 			}
-			// log.Debug("case 3")
+			// log.Debug("authenticated case 3")
 			log.Infof("consumer %q authenticated", name)
 			return authenticated(name)
 		}
