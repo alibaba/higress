@@ -170,13 +170,18 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		}
 		jsonData = gjson.ParseBytes(data)
 	}
+
+	var parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error
+	if ctx.vm.parseRuleConfig != nil {
+		parseOverrideConfig = func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
+			return ctx.vm.parseRuleConfig(js, global, cfg, ctx.vm.log)
+		}
+	}
 	err = ctx.ParseRuleConfig(jsonData,
 		func(js gjson.Result, cfg *PluginConfig) error {
 			return ctx.vm.parseConfig(js, cfg, ctx.vm.log)
 		},
-		func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
-			return ctx.vm.parseRuleConfig(js, global, cfg, ctx.vm.log)
-		},
+		parseOverrideConfig,
 	)
 	if err != nil {
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
