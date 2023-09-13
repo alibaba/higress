@@ -67,6 +67,24 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/web/info",
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugins request-block", func(t *testing.T) {
 			for _, testcase := range testcases {
