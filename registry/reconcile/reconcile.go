@@ -30,6 +30,7 @@ import (
 	. "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
+	"github.com/alibaba/higress/registry/eureka"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
@@ -57,7 +58,7 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *
 	}
 }
 
-func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
+func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
 	newRegistries := make(map[string]*apiv1.RegistryConfig)
 	if mcpbridge != nil {
 		for _, registry := range mcpbridge.Spec.Registries {
@@ -120,12 +121,12 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) {
 		r.registries[k] = v
 	}
 	if errHappened {
-		log.Error("ReconcileRegistries failed, Init Watchers failed")
-		return
+		return errors.New("ReconcileRegistries failed, Init Watchers failed")
 	}
 	wg.Wait()
 	r.Cache.PurgeStaleService()
 	log.Infof("Registries is reconciled")
+	return nil
 }
 
 func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
@@ -195,6 +196,14 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			direct.WithName(registry.Name),
 			direct.WithDomain(registry.Domain),
 			direct.WithPort(registry.Port),
+		)
+	case string(Eureka):
+		watcher, err = eureka.NewWatcher(
+			r.Cache,
+			eureka.WithName(registry.Name),
+			eureka.WithDomain(registry.Domain),
+			eureka.WithType(registry.Type),
+			eureka.WithPort(registry.Port),
 		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)

@@ -67,6 +67,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		} else {
 			higressTests = []suite.ConformanceTest{
 				tests.WasmPluginsRequestBlock,
+				tests.WasmPluginsJwtAuth,
 			}
 		}
 	} else {
@@ -97,6 +98,7 @@ func TestHigressConformanceTests(t *testing.T) {
 			tests.HTTPRouteFullPathRegex,
 			tests.HTTPRouteHttp2Rpc,
 			tests.HTTPRouteConsulHttpBin,
+			tests.HTTPRouteEurekaRegistry,
 		}
 	}
 

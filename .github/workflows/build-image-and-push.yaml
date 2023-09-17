@@ -40,10 +40,9 @@ jobs:
           path: |-
             envoy
             istio
-            external
             .git/modules
           key: ${{ runner.os }}-submodules-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules
+          restore-keys: ${{ runner.os }}-submodules-new
 
       - name: Calculate Docker metadata
         id: docker-meta
@@ -66,13 +65,12 @@ jobs:
 
       - name: Build Docker Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" make docker-build
+          GOPROXY="https://proxy.golang.org,direct" make docker-buildx-push
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress"
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker tag $BUILT_IMAGE:$GITHUB_SHA $image
-            docker push $image
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
           done
 
   build-pilot-image:
@@ -108,10 +106,9 @@ jobs:
           path: |-
             envoy
             istio
-            external
             .git/modules
           key: ${{ runner.os }}-submodules-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules
+          restore-keys: ${{ runner.os }}-submodules-new
 
       - name: Calculate Docker metadata
         id: docker-meta
@@ -132,13 +129,79 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build Docker Image and Push
+      - name: Build Pilot-Discovery Image and Push
         run: |
-          sudo GOPROXY="https://proxy.golang.org,direct" make build-istio
+          GOPROXY="https://proxy.golang.org,direct" make build-istio
           BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot"
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker tag $BUILT_IMAGE:$GITHUB_SHA $image
-            docker push $image
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
+          done
+
+
+  build-gateway-image:
+    runs-on: ubuntu-latest
+    environment:
+      name: image-registry-pilot
+    env:
+      GATEWAY_IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
+      GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME || 'higress/gateway' }}
+    steps:
+      - name: "Checkout ${{ github.ref }}"
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: "Setup Go"
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Setup Golang Caches
+        uses: actions/cache@v3
+        with:
+          path: |-
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-go
+
+      - name: Setup Submodule Caches
+        uses: actions/cache@v3
+        with:
+          path: |-
+            envoy
+            istio
+            .git/modules
+          key: ${{ runner.os }}-submodules-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-submodules-new
+
+      - name: Calculate Docker metadata
+        id: docker-meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.GATEWAY_IMAGE_REGISTRY }}/${{ env.GATEWAY_IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.GATEWAY_IMAGE_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}            
+          
+      - name: Build Gateway Image and Push
+        run: |
+          GOPROXY="https://proxy.golang.org,direct" make build-gateway
+          BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/proxyv2"
+          readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
+          for image in ${IMAGES[@]}; do
+            echo "Image: $image"
+            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
           done

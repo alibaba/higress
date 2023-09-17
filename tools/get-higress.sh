@@ -69,8 +69,9 @@ outputUsage() {
   echo "Usage: $(basename -- "$0") [DIR] [OPTIONS...]"
   echo 'Install Higress (standalone version) into the DIR (the current directory by default).'
   echo '
- -c, --config-url=URL       URL of the Nacos service 
-                            format: nacos://192.168.0.1:8848
+ -c, --config-url=URL       URL of the config storage
+                            Use Nacos with format: nacos://192.168.0.1:8848
+                            Use local files with format: file:///opt/higress/conf
      --use-builtin-nacos    use the built-in Nacos service instead of
                             an external one
      --nacos-ns=NACOS-NAMESPACE
@@ -142,7 +143,7 @@ runAsRoot() {
 # verifySupported checks that the os/arch combination is supported for
 # binary builds, as well whether or not necessary tools are present.
 verifySupported() {
-  local supported="darwin-amd64\nlinux-amd64\nwindows-amd64\n"
+  local supported="darwin-amd64\nlinux-amd64\nwindows-amd64\ndarwin-arm64\nlinux-arm64\nwindows-arm64\n"
   if ! echo "${supported}" | grep -q "${OS}-${ARCH}"; then
     echo "${OS}-${ARCH} platform isn't supported at the moment."
     echo "Stay tuned for updates on https://github.com/alibaba/higress."
@@ -190,7 +191,7 @@ download() {
 
 # install installs the product.
 install() {
-  tar -zx --exclude="docs" --exclude="src" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  tar -zx --exclude="docs" --exclude="src" --exclude="test" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
   bash "$DESTINATION/bin/configure.sh" --auto-start ${CONFIG_ARGS[@]}
 }
 
