@@ -226,7 +226,9 @@ func (s *Server) initConfigController() error {
 		options.ClusterId = ""
 	}
 	ingressConfig := ingressconfig.NewIngressConfig(s.kubeClient, s.xdsServer, ns, options.ClusterId)
-	ingressController := ingressConfig.AddLocalCluster(options)
+	if err := ingressConfig.AddLocalCluster(options); err != nil {
+		return err
+	}
 	s.configStores = append(s.configStores, ingressConfig)
 	// Wrap the config controller with a cache.
 	aggregateConfigController, err := configaggregate.MakeCache(s.configStores)
@@ -242,9 +244,6 @@ func (s *Server) initConfigController() error {
 
 	// Defer starting the controller until after the service is created.
 	s.server.RunComponent(func(stop <-chan struct{}) error {
-		if err := ingressConfig.InitializeCluster(ingressController, stop); err != nil {
-			return err
-		}
 		go s.configController.Run(stop)
 		return nil
 	})

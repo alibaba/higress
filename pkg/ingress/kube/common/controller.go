@@ -139,3 +139,7 @@ type IngressController interface {
 	// HasSynced returns true after initial cache synchronization is complete
 	HasSynced() bool
 }
+
+type GatewayController interface {
+	model.ConfigStoreCache
+}

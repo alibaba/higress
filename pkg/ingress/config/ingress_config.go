@@ -51,6 +51,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/pkg/ingress/kube/gateway"
 	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
@@ -89,6 +90,7 @@ var (
 type IngressConfig struct {
 	// key: cluster id
 	remoteIngressControllers map[string]common.IngressController
+	remoteGatewayControllers map[string]common.GatewayController
 	mutex                    sync.RWMutex
 
 	ingressRouteCache  model.IngressRouteCollection
@@ -147,6 +149,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 	}
 	config := &IngressConfig{
 		remoteIngressControllers: make(map[string]common.IngressController),
+		remoteGatewayControllers: make(map[string]common.GatewayController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
@@ -205,9 +208,14 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mod
 	for _, remoteIngressController := range m.remoteIngressControllers {
 		remoteIngressController.RegisterEventHandler(kind, f)
 	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		remoteGatewayController.RegisterEventHandler(kind, f)
+	}
 }
 
-func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressController {
+func (m *IngressConfig) AddLocalCluster(options common.Options) (err error) {
+	err = nil
+
 	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
@@ -218,16 +226,15 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressCo
 	} else {
 		ingressController = ingressv1.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
 	}
-
 	m.remoteIngressControllers[options.ClusterId] = ingressController
-	return ingressController
-}
 
-func (m *IngressConfig) InitializeCluster(ingressController common.IngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
+	var gatewayController common.GatewayController
+	if gatewayController, err = gateway.NewController(m.localKubeClient); err != nil {
+		return
+	}
+	m.remoteGatewayControllers[options.ClusterId] = gatewayController
 
-	go ingressController.Run(stop)
-	return nil
+	return
 }
 
 func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
@@ -240,6 +247,24 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 		return nil, common.ErrUnsupportedOp
 	}
 
+	var configs = make([]config.Config, 0)
+
+	if configsFromIngress, err := m.listFromIngressControllers(typ, namespace); err == nil {
+		configs = append(configs, configsFromIngress...)
+	} else if !errors.Is(err, common.ErrUnsupportedOp) {
+		IngressLog.Errorf("unexpected error occurs when listing %s resources from ingress controllers: %v", typ, err)
+	}
+
+	if configsFromGateway, err := m.listFromGatewayControllers(typ, namespace); err == nil {
+		configs = append(configs, configsFromGateway...)
+	} else if !errors.Is(err, common.ErrUnsupportedOp) {
+		IngressLog.Errorf("unexpected error occurs when listing %s resources from gateway controllers: %v", typ, err)
+	}
+
+	return configs, nil
+}
+
+func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
 	// Currently, only support list all namespaces gateways or virtualservices.
 	if namespace != "" {
 		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
@@ -294,6 +319,18 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) ([]c
 	}
 
 	return nil, nil
+}
+
+func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
+	var configs []config.Config
+	for cluster, gatewayController := range m.remoteGatewayControllers {
+		if clusterConfigs, err := gatewayController.List(typ, namespace); err == nil {
+			configs = append(configs, clusterConfigs...)
+		} else if !errors.Is(err, common.ErrUnsupportedOp) {
+			IngressLog.Errorf("unexpected error occurs when listing %s resources from gateway controllers of cluster: %v", typ, cluster, err)
+		}
+	}
+	return configs, nil
 }
 
 func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
@@ -1390,6 +1427,14 @@ func QueryRpcServiceVersion(serviceEntry *memory.ServiceEntryWrapper, serviceNam
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
+	for _, remoteIngressController := range m.remoteIngressControllers {
+		_ = remoteIngressController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteIngressController.Run(stop)
+	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		_ = remoteGatewayController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteGatewayController.Run(stop)
+	}
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
 	go m.http2rpcController.Run(stop)
@@ -1401,6 +1446,11 @@ func (m *IngressConfig) HasSynced() bool {
 	defer m.mutex.RUnlock()
 	for _, remoteIngressController := range m.remoteIngressControllers {
 		if !remoteIngressController.HasSynced() {
+			return false
+		}
+	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		if !remoteGatewayController.HasSynced() {
 			return false
 		}
 	}
