@@ -17,7 +17,6 @@ package config
 import (
 	"sync"
 
-	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/util/sets"
@@ -28,7 +27,6 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	higressv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
@@ -53,12 +51,9 @@ type KIngressConfig struct {
 	ingressDomainCache model.IngressDomainCollection
 
 	localKubeClient kube.Client
-
 	virtualServiceHandlers []model.EventHandler
 	gatewayHandlers        []model.EventHandler
 	envoyFilterHandlers    []model.EventHandler
-	serviceEntryHandlers   []model.EventHandler
-	wasmPluginHandlers     []model.EventHandler
 	WatchErrorHandler      cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
@@ -66,12 +61,6 @@ type KIngressConfig struct {
 	watchedSecretSet sets.Set
 
 	RegistryReconciler *reconcile.Reconciler
-
-	mcpbridgeReconciled bool
-
-	wasmPlugins map[string]*extensions.WasmPlugin
-
-	http2rpcs map[string]*higressv1.Http2Rpc
 
 	XDSUpdater model.XDSUpdater
 
@@ -99,11 +88,8 @@ func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater,
 		clusterId:                clusterId,
 		globalGatewayName: namespace + "/" +
 			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet:    sets.NewSet(),
-		namespace:           namespace,
-		mcpbridgeReconciled: true,
-		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
-		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
+		watchedSecretSet: sets.NewSet(),
+		namespace:        namespace,
 	}
 
 	return config
@@ -120,12 +106,6 @@ func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f mo
 
 	case gvk.EnvoyFilter:
 		m.envoyFilterHandlers = append(m.envoyFilterHandlers, f)
-
-	case gvk.ServiceEntry:
-		m.serviceEntryHandlers = append(m.serviceEntryHandlers, f)
-
-	case gvk.WasmPlugin:
-		m.wasmPluginHandlers = append(m.wasmPluginHandlers, f)
 	}
 
 	for _, remoteIngressController := range m.remoteIngressControllers {
@@ -152,13 +132,10 @@ func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressCont
 }
 
 func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
-	if typ == gvk.EnvoyFilter || typ == gvk.DestinationRule {
+	if typ == gvk.EnvoyFilter || typ == gvk.DestinationRule || typ == gvk.WasmPlugin || typ == gvk.ServiceEntry {
 		return nil, nil
 	}
-	if typ != gvk.Gateway &&
-		typ != gvk.VirtualService &&
-		typ != gvk.ServiceEntry &&
-		typ != gvk.WasmPlugin {
+	if typ != gvk.Gateway && typ != gvk.VirtualService {
 		return nil, common.ErrUnsupportedOp
 	}
 
@@ -184,10 +161,6 @@ func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]
 		return m.convertGateways(wrapperConfigs), nil
 	case gvk.VirtualService:
 		return m.convertVirtualService(wrapperConfigs), nil
-	case gvk.ServiceEntry:
-		return m.convertServiceEntry(wrapperConfigs), nil
-	case gvk.WasmPlugin:
-		return m.convertWasmPlugin(wrapperConfigs), nil
 	}
 	return nil, nil
 }
@@ -402,44 +375,6 @@ func normalizeWeightedKCluster(cache *common.IngressRouteCache, route *common.Wr
 	if cache != nil {
 		cache.Update(route)
 	}
-}
-
-func (m *KIngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	out := make([]config.Config, 0, len(m.wasmPlugins))
-	for name, wasmPlugin := range m.wasmPlugins {
-		out = append(out, config.Config{
-			Meta: config.Meta{
-				GroupVersionKind: gvk.WasmPlugin,
-				Name:             name,
-				Namespace:        m.namespace,
-			},
-			Spec: wasmPlugin,
-		})
-	}
-	return out
-}
-
-func (m *KIngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Config {
-	if m.RegistryReconciler == nil {
-		return nil
-	}
-	serviceEntries := m.RegistryReconciler.GetAllServiceEntryWrapper()
-	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
-	out := make([]config.Config, 0, len(serviceEntries))
-	for _, se := range serviceEntries {
-		out = append(out, config.Config{
-			Meta: config.Meta{
-				GroupVersionKind:  gvk.ServiceEntry,
-				Name:              se.ServiceEntry.Hosts[0],
-				Namespace:         "mcp",
-				CreationTimestamp: se.GetCreateTime(),
-			},
-			Spec: se.ServiceEntry,
-		})
-	}
-	return out
 }
 
 func (m *KIngressConfig) applyAppRoot(convertOptions *common.ConvertOptions) {
