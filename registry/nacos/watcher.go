@@ -15,6 +15,7 @@
 package nacos
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -359,6 +360,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.SubscribeSe
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
 			Labels:  service.Metadata,
+			Weight:  uint32(math.Ceil(service.Weight)),
 		}
 		endpoints = append(endpoints, &endpoint)
 	}
