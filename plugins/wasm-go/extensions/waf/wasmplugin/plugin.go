@@ -133,7 +133,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 
 	interruption := tx.ProcessRequestHeaders()
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_headers", interruption, log)
+		return handleInterruption(ctx, "http_request_headers", interruption, tx, log)
 	}
 
 	return types.ActionContinue
@@ -143,7 +143,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 	// log.Info("[rinfx log] OnHttpRequestBody")
 
 	if ctx.GetContext("interruptionHandled").(bool) {
-		log.Error("OnHttpRequestBody, interruption already handled")
+		// log.Error("OnHttpRequestBody, interruption already handled")
 		return types.ActionContinue
 	}
 
@@ -165,7 +165,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 		}
 
 		if interruption != nil {
-			return handleInterruption(ctx, "http_request_body", interruption, log)
+			return handleInterruption(ctx, "http_request_body", interruption, tx, log)
 		}
 
 		return types.ActionContinue
@@ -178,7 +178,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 	}
 
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_body", interruption, log)
+		return handleInterruption(ctx, "http_request_body", interruption, tx, log)
 	}
 
 	ctx.SetContext("processedRequestBody", true)
@@ -188,7 +188,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_body", interruption, log)
+		return handleInterruption(ctx, "http_request_body", interruption, tx, log)
 	}
 
 	return types.ActionContinue
@@ -198,7 +198,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 	// log.Info("[rinfx log] OnHttpResponseHeaders")
 
 	if ctx.GetContext("interruptionHandled").(bool) {
-		log.Error("OnHttpResponseHeaders, interruption already handled")
+		// log.Error("OnHttpResponseHeaders, interruption already handled")
 		return types.ActionContinue
 	}
 
@@ -218,7 +218,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 			return types.ActionContinue
 		}
 		if interruption != nil {
-			return handleInterruption(ctx, "http_response_headers", interruption, log)
+			return handleInterruption(ctx, "http_response_headers", interruption, tx, log)
 		}
 	}
 
@@ -245,7 +245,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 
 	interruption := tx.ProcessResponseHeaders(code, ctx.GetContext("httpProtocol").(string))
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_headers", interruption, log)
+		return handleInterruption(ctx, "http_response_headers", interruption, tx, log)
 	}
 
 	return types.ActionContinue
@@ -260,7 +260,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		// If OnHttpResponseBody is called again and an interruption has already been raised, it means that
 		// we have to keep going with the sanitization of the response, emptying it.
 		// Sending the crafted HttpResponse with empty body, we don't expect to trigger OnHttpResponseBody
-		log.Warn("Response body interruption already handled, keeping replacing the body")
+		// log.Warn("Response body interruption already handled, keeping replacing the body")
 		// Interruption happened, we don't want to send response body data
 		return replaceResponseBodyWhenInterrupted(log, replaceResponseBody)
 	}
@@ -285,7 +285,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		if interruption != nil {
 			// Proxy-wasm can not anymore deny the response. The best interruption is emptying the body
 			// Coraza Multiphase evaluation will help here avoiding late interruptions
-			return handleInterruption(ctx, "http_response_body", interruption, log)
+			return handleInterruption(ctx, "http_response_body", interruption, tx, log)
 		}
 		return types.ActionContinue
 	}
@@ -297,7 +297,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_body", interruption, log)
+		return handleInterruption(ctx, "http_response_body", interruption, tx, log)
 	}
 
 	// We have already sent response headers, an unauthorized response can not be sent anymore,
@@ -310,7 +310,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_body", interruption, log)
+		return handleInterruption(ctx, "http_response_body", interruption, tx, log)
 	}
 	return types.ActionContinue
 }
@@ -335,5 +335,4 @@ func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log
 	tx.ProcessLogging()
 
 	_ = tx.Close()
-	log.Info("Finished")
 }

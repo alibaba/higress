@@ -77,13 +77,19 @@ func parseServerName(logger wrapper.Log, authority string) string {
 	return host
 }
 
-func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, log wrapper.Log) types.Action {
+func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, tx ctypes.Transaction, log wrapper.Log) types.Action {
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// handleInterruption should never be called more than once
 		panic("Interruption already handled")
 	}
 
-	log.Infof("Transaction interrupted at %s", phase)
+	// log.Infof("Transaction interrupted at %s, ruleid: %d, action: %s", phase, interruption.RuleID, interruption.Action)
+	for _, rule := range tx.MatchedRules() {
+		if interruption.RuleID == rule.Rule().ID() {
+			log.Infof("Transaction interrupted at Phase %s, File: %s, Rule ID: %d, Raw Rule: %s",
+				phase, rule.Rule().File(), rule.Rule().ID(), rule.Rule().Raw())
+		}
+	}
 
 	ctx.SetContext("interruptionHandled", true)
 	if phase == "http_response_body" {
