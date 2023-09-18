@@ -49,7 +49,6 @@ func newStatusSyncer(localKubeClient, client kube.Client, controller *controller
 		controller:       controller,
 		watchedNamespace: namespace,
 		ingressLister:    client.KIngressInformer().Networking().V1alpha1().Ingresses().Lister(),
-		// search service in the mse vpc
 		serviceLister: localKubeClient.KubeInformer().Core().V1().Services().Lister(),
 	}
 }
