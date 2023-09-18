@@ -16,6 +16,7 @@ package v2
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -455,6 +456,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
 			Labels:  service.Metadata,
+			Weight:  uint32(math.Ceil(service.Weight)),
 		}
 		endpoints = append(endpoints, endpoint)
 	}
@@ -491,6 +493,7 @@ func (w *watcher) Stop() {
 	}
 
 	w.isStop = true
+	w.namingClient.CloseClient()
 	close(w.stop)
 	w.Ready(false)
 }
