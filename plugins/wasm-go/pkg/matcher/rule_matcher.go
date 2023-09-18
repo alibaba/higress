@@ -90,7 +90,8 @@ func (m RuleMatcher[PluginConfig]) GetMatchConfig() (*PluginConfig, error) {
 }
 
 func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
-	parsePluginConfig func(gjson.Result, *PluginConfig) error) error {
+	parsePluginConfig func(gjson.Result, *PluginConfig) error,
+	parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error) error {
 	var rules []gjson.Result
 	obj := config.Map()
 	keyCount := len(obj)
@@ -122,8 +123,15 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 		return fmt.Errorf("parse config failed, no valid rules; global config parse error:%v", globalConfigError)
 	}
 	for _, ruleJson := range rules {
-		var rule RuleConfig[PluginConfig]
-		err := parsePluginConfig(ruleJson, &rule.config)
+		var (
+			rule RuleConfig[PluginConfig]
+			err  error
+		)
+		if parseOverrideConfig != nil {
+			err = parseOverrideConfig(ruleJson, m.globalConfig, &rule.config)
+		} else {
+			err = parsePluginConfig(ruleJson, &rule.config)
+		}
 		if err != nil {
 			return err
 		}

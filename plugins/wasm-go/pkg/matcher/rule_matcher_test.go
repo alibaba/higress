@@ -15,6 +15,7 @@
 package matcher
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,7 +222,7 @@ func TestParseRuleConfig(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var actual RuleMatcher[customConfig]
-			err := actual.ParseRuleConfig(gjson.Parse(c.config), parseConfig)
+			err := actual.ParseRuleConfig(gjson.Parse(c.config), parseConfig, nil)
 			if err != nil {
 				if c.errMsg == "" {
 					t.Errorf("parse failed: %v", err)
@@ -229,6 +230,99 @@ func TestParseRuleConfig(t *testing.T) {
 				if err.Error() != c.errMsg {
 					t.Errorf("expect err: %s, actual err: %s", c.errMsg,
 						err.Error())
+				}
+				return
+			}
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
+
+type completeConfig struct {
+	// global config
+	consumers []string
+	// rule config
+	allow []string
+}
+
+func parseGlobalConfig(json gjson.Result, global *completeConfig) error {
+	if json.Get("consumers").Exists() && json.Get("allow").Exists() {
+		return errors.New("consumers and allow should not be configured at the same level")
+	}
+
+	for _, item := range json.Get("consumers").Array() {
+		global.consumers = append(global.consumers, item.String())
+	}
+
+	return nil
+}
+
+func parseOverrideRuleConfig(json gjson.Result, global completeConfig, config *completeConfig) error {
+	if json.Get("consumers").Exists() && json.Get("allow").Exists() {
+		return errors.New("consumers and allow should not be configured at the same level")
+	}
+
+	// override config via global
+	*config = global
+
+	for _, item := range json.Get("allow").Array() {
+		config.allow = append(config.allow, item.String())
+	}
+
+	return nil
+}
+
+func TestParseOverrideConfig(t *testing.T) {
+	cases := []struct {
+		name     string
+		config   string
+		errMsg   string
+		expected RuleMatcher[completeConfig]
+	}{
+		{
+			name:   "override rule config",
+			config: `{"consumers":["c1","c2","c3"],"_rules_":[{"_match_route_":["r1","r2"],"allow":["c1","c3"]}]}`,
+			expected: RuleMatcher[completeConfig]{
+				ruleConfig: []RuleConfig[completeConfig]{
+					{
+						category: Route,
+						routes: map[string]struct{}{
+							"r1": {},
+							"r2": {},
+						},
+						config: completeConfig{
+							consumers: []string{"c1", "c2", "c3"},
+							allow:     []string{"c1", "c3"},
+						},
+					},
+				},
+				globalConfig: completeConfig{
+					consumers: []string{"c1", "c2", "c3"},
+				},
+				hasGlobalConfig: true,
+			},
+		},
+		{
+			name:   "invalid config",
+			config: `{"consumers":["c1","c2","c3"],"allow":["c1"]}`,
+			errMsg: "parse config failed, no valid rules; global config parse error:consumers and allow should not be configured at the same level",
+		},
+		{
+			name:   "invalid config",
+			config: `{"_rules_":[{"_match_route_":["r1","r2"],"consumers":["c1","c2"],"allow":["c1"]}]}`,
+			errMsg: "consumers and allow should not be configured at the same level",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var actual RuleMatcher[completeConfig]
+			err := actual.ParseRuleConfig(gjson.Parse(c.config), parseGlobalConfig, parseOverrideRuleConfig)
+			if err != nil {
+				if c.errMsg == "" {
+					t.Errorf("parse failed: %v", err)
+				}
+				if err.Error() != c.errMsg {
+					t.Errorf("expect err: %s, actual err: %s", c.errMsg, err.Error())
 				}
 				return
 			}
