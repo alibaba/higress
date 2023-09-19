@@ -20,17 +20,18 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"strings"
-	"os"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	"istio.io/istio/pilot/pkg/model"
 )
 
 const DefaultDomainSuffix = "cluster.local"
+
 var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
@@ -63,7 +64,7 @@ func CreateDestinationRuleName(istioCluster, namespace, name string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
+func MessageToStruct(msg proto.Message) (*_struct.Struct, error) {
 	if msg == nil {
 		return nil, errors.New("nil message")
 	}
@@ -73,7 +74,7 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 		return nil, err
 	}
 
-	pbs := &types.Struct{}
+	pbs := &_struct.Struct{}
 	if err := jsonpb.Unmarshal(buf, pbs); err != nil {
 		return nil, err
 	}
@@ -82,14 +83,14 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 }
 
 func CreateServiceFQDN(namespace, name string) string {
-        if domainSuffix == "" {
-        	domainSuffix = DefaultDomainSuffix
-        }
+	if domainSuffix == "" {
+		domainSuffix = DefaultDomainSuffix
+	}
 	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, domainSuffix)
 }
 
-func BuildPatchStruct(config string) *types.Struct {
-	val := &types.Struct{}
+func BuildPatchStruct(config string) *_struct.Struct {
+	val := &_struct.Struct{}
 	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
 	return val
 }

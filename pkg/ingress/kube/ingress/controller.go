@@ -22,37 +22,34 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/model/credentials"
+	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/serviceregistry/kube"
-	"istio.io/istio/pilot/pkg/util/sets"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/gvk"
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
+	"istio.io/istio/pkg/util/sets"
 	ingress "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers/networking/v1beta1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/model"
+	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
 var (
@@ -63,11 +60,11 @@ var (
 )
 
 type controller struct {
-	queue                   workqueue.RateLimitingInterface
-	virtualServiceHandlers  []model.EventHandler
-	gatewayHandlers         []model.EventHandler
-	destinationRuleHandlers []model.EventHandler
-	envoyFilterHandlers     []model.EventHandler
+	queue                   controllers.Queue
+	virtualServiceHandlers  []istiomodel.EventHandler
+	gatewayHandlers         []istiomodel.EventHandler
+	destinationRuleHandlers []istiomodel.EventHandler
+	envoyFilterHandlers     []istiomodel.EventHandler
 
 	options common.Options
 
@@ -90,7 +87,6 @@ type controller struct {
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kubeclient.Client, options common.Options,
 	secretController secret.SecretController) common.IngressController {
-	q := workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 
 	ingressInformer := client.KubeInformer().Networking().V1beta1().Ingresses()
 	serviceInformer := client.KubeInformer().Core().V1().Services()
@@ -105,7 +101,6 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 
 	c := &controller{
 		options:          options,
-		queue:            q,
 		ingresses:        make(map[string]*ingress.Ingress),
 		ingressInformer:  ingressInformer.Informer(),
 		ingressLister:    ingressInformer.Lister(),
@@ -115,8 +110,10 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 		secretController: secretController,
 	}
 
-	handler := controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q))
-	c.ingressInformer.AddEventHandler(handler)
+	c.queue = controllers.NewQueue("ingress",
+		controllers.WithReconciler(c.onEvent),
+		controllers.WithMaxAttempts(5))
+	_, _ = c.ingressInformer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 
 	if options.EnableStatus {
 		c.statusSyncer = newStatusSyncer(localKubeClient, client, c, options.SystemNamespace)
@@ -141,44 +138,15 @@ func (c *controller) Run(stop <-chan struct{}) {
 	}
 	go c.secretController.Run(stop)
 
-	defer utilruntime.HandleCrash()
-	defer c.queue.ShutDown()
-
-	if !cache.WaitForCacheSync(stop, c.HasSynced) {
-		IngressLog.Errorf("Failed to sync ingress controller cache for cluster %s", c.options.ClusterId)
-		return
-	}
-	go wait.Until(c.worker, time.Second, stop)
-	<-stop
-}
-
-func (c *controller) worker() {
-	for c.processNextWorkItem() {
-	}
-}
-
-func (c *controller) processNextWorkItem() bool {
-	key, quit := c.queue.Get()
-	if quit {
-		return false
-	}
-	defer c.queue.Done(key)
-	ingressNamespacedName := key.(types.NamespacedName)
-	if err := c.onEvent(ingressNamespacedName); err != nil {
-		IngressLog.Errorf("error processing ingress item (%v) (retrying): %v, cluster: %s", key, err, c.options.ClusterId)
-		c.queue.AddRateLimited(key)
-	} else {
-		c.queue.Forget(key)
-	}
-	return true
+	c.queue.Run(stop)
 }
 
 func (c *controller) onEvent(namespacedName types.NamespacedName) error {
-	event := model.EventUpdate
+	event := istiomodel.EventUpdate
 	ing, err := c.ingressLister.Ingresses(namespacedName.Namespace).Get(namespacedName.Name)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			event = model.EventDelete
+			event = istiomodel.EventDelete
 			c.mutex.Lock()
 			ing = c.ingresses[namespacedName.String()]
 			delete(c.ingresses, namespacedName.String())
@@ -195,7 +163,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.
-	if event != model.EventDelete {
+	if event != istiomodel.EventDelete {
 		shouldProcess, err := c.shouldProcessIngressUpdate(ing)
 		if err != nil {
 			return err
@@ -254,7 +222,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 	return nil
 }
 
-func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
+func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
 	switch kind {
 	case gvk.VirtualService:
 		c.virtualServiceHandlers = append(c.virtualServiceHandlers, f)
@@ -493,7 +461,7 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 	// In one ingress, we will limit the rule conflict.
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
-	definedRules := sets.NewSet()
+	definedRules := sets.New[string]()
 
 	var (
 		// But in across ingresses case, we will restrict this limit.

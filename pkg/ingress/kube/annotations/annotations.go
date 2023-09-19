@@ -16,13 +16,13 @@ package annotations
 
 import (
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 )
 
 type GlobalContext struct {
 	// secret key is cluster/namespace/name
-	WatchedSecrets sets.Set
+	WatchedSecrets sets.Set[string]
 
 	ClusterSecretLister map[string]listersv1.SecretLister
 

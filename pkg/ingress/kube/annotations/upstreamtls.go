@@ -18,11 +18,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model/credentials"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
 const (
@@ -150,7 +150,7 @@ func processMTLS(config *Ingress) *networking.ClientTLSSettings {
 	if !config.UpstreamTLS.SSLVerify {
 		// This api InsecureSkipVerify hasn't been support yet.
 		// Until this pr https://github.com/istio/istio/pull/35357.
-		tls.InsecureSkipVerify = &types.BoolValue{
+		tls.InsecureSkipVerify = &wrappers.BoolValue{
 			Value: false,
 		}
 	}

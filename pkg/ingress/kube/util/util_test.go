@@ -237,13 +237,13 @@ func TestMessageToGoGoStruct(t *testing.T) {
 				t.Fatalf("getMsg() error = %v", err)
 			}
 
-			got, err := MessageToGoGoStruct(msg)
+			got, err := MessageToStruct(msg)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("MessageToGoGoStruct() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("MessageToStruct() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !proto.Equal(got, tt.expect) {
-				t.Errorf("MessageToGoGoStruct() got = %v, want %v", got, tt.expect)
+				t.Errorf("MessageToStruct() got = %v, want %v", got, tt.expect)
 			}
 		})
 	}

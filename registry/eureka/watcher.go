@@ -266,7 +266,7 @@ func convertMap(m map[string]interface{}) map[string]string {
 }
 
 func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, instance := range app.Instances {
@@ -276,7 +276,7 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 				return nil, fmt.Errorf("unsupported protocol %v", val)
 			}
 		}
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(instance.Port),
 			Protocol: protocol.String(),

@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -29,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/model"
 )
 
 type PathType string
@@ -78,10 +78,10 @@ var (
 	ErrNotFound = errors.New("item not found")
 
 	Schemas = collection.SchemasFor(
-		collections.IstioNetworkingV1Alpha3Virtualservices,
-		collections.IstioNetworkingV1Alpha3Gateways,
-		collections.IstioNetworkingV1Alpha3Destinationrules,
-		collections.IstioNetworkingV1Alpha3Envoyfilters,
+		collections.VirtualService,
+		collections.Gateway,
+		collections.DestinationRule,
+		collections.EnvoyFilter,
 	)
 
 	clusterPrefix    string

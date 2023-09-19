@@ -17,7 +17,7 @@ package translation
 import (
 	"sync"
 
-	"istio.io/istio/pilot/pkg/model"
+	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -27,11 +27,12 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/pkg/model"
 )
 
 var (
-	_ model.ConfigStoreCache = &IngressTranslation{}
-	_ model.IngressStore     = &IngressTranslation{}
+	_ istiomodel.ConfigStoreController = &IngressTranslation{}
+	_ model.IngressStore               = &IngressTranslation{}
 )
 
 type IngressTranslation struct {
@@ -42,13 +43,13 @@ type IngressTranslation struct {
 	higressDomainCache model.IngressDomainCollection
 }
 
-func NewIngressTranslation(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *IngressTranslation {
+func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace, clusterId string) *IngressTranslation {
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
 	Config := &IngressTranslation{
-		ingressConfig:  ingressconfig.NewIngressConfig(localKubeClient, XDSUpdater, namespace, clusterId),
-		kingressConfig: ingressconfig.NewKIngressConfig(localKubeClient, XDSUpdater, namespace, clusterId),
+		ingressConfig:  ingressconfig.NewIngressConfig(localKubeClient, xdsUpdater, namespace, clusterId),
+		kingressConfig: ingressconfig.NewKIngressConfig(localKubeClient, xdsUpdater, namespace, clusterId),
 	}
 	return Config
 }
@@ -73,7 +74,7 @@ func (m *IngressTranslation) InitializeCluster(ingressController common.IngressC
 	return nil
 }
 
-func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
+func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
 	m.ingressConfig.RegisterEventHandler(kind, f)
 	if m.kingressConfig != nil {
 		m.kingressConfig.RegisterEventHandler(kind, f)
@@ -151,36 +152,36 @@ func (m *IngressTranslation) Get(typ config.GroupVersionKind, name, namespace st
 	return nil
 }
 
-func (m *IngressTranslation) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
+func (m *IngressTranslation) List(typ config.GroupVersionKind, namespace string) []config.Config {
 	if typ != gvk.Gateway &&
 		typ != gvk.VirtualService &&
 		typ != gvk.DestinationRule &&
 		typ != gvk.EnvoyFilter &&
 		typ != gvk.ServiceEntry &&
 		typ != gvk.WasmPlugin {
-		return nil, common.ErrUnsupportedOp
+		return nil
 	}
 
 	// Currently, only support list all namespaces gateways or virtualservices.
 	if namespace != "" {
 		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
-		return nil, common.ErrUnsupportedOp
+		return nil
 	}
 
-	ingressConfig, err := m.ingressConfig.List(typ, namespace)
-	if err != nil {
-		return nil, err
+	ingressConfig := m.ingressConfig.List(typ, namespace)
+	if ingressConfig == nil {
+		return nil
 	}
 	var higressConfig []config.Config
 	higressConfig = append(higressConfig, ingressConfig...)
 	if m.kingressConfig != nil {
-		kingressConfig, err := m.kingressConfig.List(typ, namespace)
-		if err != nil {
-			return nil, err
+		kingressConfig := m.kingressConfig.List(typ, namespace)
+		if kingressConfig == nil {
+			return nil
 		}
 		higressConfig = append(higressConfig, kingressConfig...)
 	}
-	return higressConfig, nil
+	return higressConfig
 }
 
 func (m *IngressTranslation) Create(config config.Config) (revision string, err error) {

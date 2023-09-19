@@ -435,7 +435,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 }
 
 func (w *watcher) generateServiceEntry(host string, services []model.Instance) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range services {
@@ -443,7 +443,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		if service.Metadata != nil && service.Metadata["protocol"] != "" {
 			protocol = common.ParseProtocol(service.Metadata["protocol"])
 		}
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(service.Port),
 			Protocol: protocol.String(),

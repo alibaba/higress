@@ -18,17 +18,18 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/controller"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/config/schema/kind"
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/controller"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 type HigressConfigController controller.Controller[listersv1.ConfigMapNamespaceLister]
@@ -186,7 +187,7 @@ func (c *ConfigmapMgr) initEventHandlers() error {
 		c.XDSUpdater.ConfigUpdate(&model.PushRequest{
 			Full: true,
 			ConfigsUpdated: map[model.ConfigKey]struct{}{{
-				Kind:      gvk.EnvoyFilter,
+				Kind:      kind.EnvoyFilter,
 				Name:      name,
 				Namespace: c.Namespace,
 			}: {}},

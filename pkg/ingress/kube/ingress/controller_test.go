@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
+	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/kube/controllers"
@@ -31,12 +31,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/pkg/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1135,14 +1135,12 @@ func TestIngressControllerProcessing(t *testing.T) {
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
 	secretController := secret.NewController(localKubeClient, options.ClusterId)
-	q := workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 
 	ingressInformer := fakeClient.KubeInformer().Networking().V1beta1().Ingresses()
 	serviceInformer := fakeClient.KubeInformer().Core().V1().Services()
 
 	ingressController := &controller{
 		options:          options,
-		queue:            q,
 		ingresses:        make(map[string]*ingress.Ingress),
 		ingressInformer:  ingressInformer.Informer(),
 		ingressLister:    ingressInformer.Lister(),
@@ -1151,8 +1149,10 @@ func TestIngressControllerProcessing(t *testing.T) {
 		secretController: secretController,
 	}
 
-	handler := controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q))
-	ingressController.ingressInformer.AddEventHandler(handler)
+	ingressController.queue = controllers.NewQueue("ingress",
+		controllers.WithReconciler(ingressController.onEvent),
+		controllers.WithMaxAttempts(5))
+	_, _ = ingressController.ingressInformer.AddEventHandler(controllers.ObjectHandler(ingressController.queue.AddObject))
 
 	stopChan := make(chan struct{})
 	t.Cleanup(func() {
@@ -1167,13 +1167,13 @@ func TestIngressControllerProcessing(t *testing.T) {
 	go ingressController.Run(stopChan)
 	go secretController.Run(stopChan)
 
-	ingressController.RegisterEventHandler(gvk.VirtualService, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.DestinationRule, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.EnvoyFilter, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.Gateway, func(c1, c2 config.Config, e model.Event) {})
+	ingressController.RegisterEventHandler(gvk.VirtualService, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.DestinationRule, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.EnvoyFilter, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.Gateway, func(c1, c2 config.Config, e istiomodel.Event) {})
 
 	serviceLister := ingressController.ServiceLister()
-	svcObj, err := fakeClient.CoreV1().Services("default").Create(context.Background(), &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "test"}}, metav1.CreateOptions{})
+	svcObj, err := fakeClient.Kube().CoreV1().Services("default").Create(context.Background(), &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "test"}}, metav1.CreateOptions{})
 	require.NoError(t, err)
 	err = serviceInformer.Informer().GetStore().Add(svcObj)
 	require.NoError(t, err)
@@ -1203,7 +1203,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 			},
 		},
 	}
-	ingressObj, err := fakeClient.NetworkingV1beta1().Ingresses("default").Create(context.Background(), ingress1, metav1.CreateOptions{})
+	ingressObj, err := fakeClient.Kube().NetworkingV1beta1().Ingresses("default").Create(context.Background(), ingress1, metav1.CreateOptions{})
 	require.NoError(t, err)
 	err = ingressController.ingressInformer.GetStore().Add(ingressObj)
 	require.NoError(t, err)

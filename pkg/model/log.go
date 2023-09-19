@@ -12,18 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package model
 
 import (
-	"istio.io/istio/pkg/config/schema/collection"
-	"istio.io/istio/pkg/config/schema/collections"
+	istiolog "istio.io/pkg/log"
 )
 
-var IngressIR = collection.NewSchemasBuilder().
-	MustAdd(collections.DestinationRule).
-	MustAdd(collections.EnvoyFilter).
-	MustAdd(collections.Gateway).
-	MustAdd(collections.ServiceEntry).
-	MustAdd(collections.VirtualService).
-	MustAdd(collections.WasmPlugin).
-	Build()
+var log = istiolog.RegisterScope("model", "model", 0)

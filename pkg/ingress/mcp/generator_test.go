@@ -98,7 +98,7 @@ func TestGenerate(t *testing.T) {
 				ctx.AllWasmplugins = []config.Config{cfg}
 				return ctx, cfg.Spec
 			},
-			generator: WasmpluginGenerator{},
+			generator: WasmPluginGenerator{},
 			isErr:     false,
 		},
 		{
@@ -124,7 +124,7 @@ func TestGenerate(t *testing.T) {
 				ctx.AllWasmplugins = []config.Config{cfg}
 				return ctx, cfg.Spec
 			},
-			generator: WasmpluginGenerator{},
+			generator: WasmPluginGenerator{},
 			isErr:     true,
 		},
 	}

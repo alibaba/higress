@@ -18,8 +18,9 @@ import (
 	"strings"
 
 	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/model/credentials"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
+
+	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
 func extraSecret(name string) model.NamespacedName {
@@ -49,6 +50,6 @@ func splitBySeparator(content, separator string) []string {
 	return result
 }
 
-func toSet(slice []string) sets.Set {
-	return sets.NewSet(slice...)
+func toSet(slice []string) sets.Set[string] {
+	return sets.New[string](slice...)
 }

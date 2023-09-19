@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -188,7 +188,7 @@ func initGlobalContext(secret *v1.Secret) (*GlobalContext, context.CancelFunc) {
 	cache.WaitForCacheSync(ctx.Done(), secretInformer.Informer().HasSynced)
 
 	return &GlobalContext{
-		WatchedSecrets: sets.NewSet(),
+		WatchedSecrets: sets.New[string](),
 		ClusterSecretLister: map[string]listerv1.SecretLister{
 			"cluster": secretInformer.Lister(),
 		},

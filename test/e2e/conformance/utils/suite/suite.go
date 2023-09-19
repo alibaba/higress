@@ -20,7 +20,7 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -35,15 +35,15 @@ type ConformanceTestSuite struct {
 	Cleanup           bool
 	BaseManifests     []string
 	Applier           kubernetes.Applier
-	SkipTests         sets.Set
+	SkipTests         sets.Set[string]
 	TimeoutConfig     config.TimeoutConfig
-	SupportedFeatures sets.Set
+	SupportedFeatures sets.Set[string]
 }
 
 // Options can be used to initialize a ConformanceTestSuite.
 type Options struct {
-	SupportedFeatures sets.Set
-	ExemptFeatures    sets.Set
+	SupportedFeatures sets.Set[string]
+	ExemptFeatures    sets.Set[string]
 
 	EnableAllSupportedFeatures bool
 	Client                     client.Client
@@ -78,7 +78,7 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	if s.SupportedFeatures == nil {
-		s.SupportedFeatures = sets.Set{}
+		s.SupportedFeatures = sets.Set[string]{}
 	}
 
 	if s.IsWasmPluginTest {
