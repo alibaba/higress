@@ -2,6 +2,7 @@ package wasmplugin
 
 import (
 	"errors"
+	"github.com/corazawaf/coraza/v3/debuglog"
 	"strconv"
 	"strings"
 
@@ -51,7 +52,10 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 	}
 
 	// log.Debugf("[rinfx log] %s", strings.Join(secRules, "\n"))
-	conf := coraza.NewWAFConfig().WithRootFS(root)
+	conf := coraza.NewWAFConfig().
+		WithErrorCallback(logError).
+		WithDebugLogger(debuglog.DefaultWithPrinterFactory(logPrinterFactory)).
+		WithRootFS(root)
 	// error: Failed to load Wasm module due to a missing import: wasi_snapshot_preview1.fd_filestat_get
 	// because without fs.go
 	waf, err := coraza.NewWAF(conf.WithDirectives(strings.Join(secRules, "\n")))
@@ -133,7 +137,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 
 	interruption := tx.ProcessRequestHeaders()
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_headers", interruption, tx, log)
+		return handleInterruption(ctx, "http_request_headers", interruption, log)
 	}
 
 	return types.ActionContinue
@@ -165,7 +169,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 		}
 
 		if interruption != nil {
-			return handleInterruption(ctx, "http_request_body", interruption, tx, log)
+			return handleInterruption(ctx, "http_request_body", interruption, log)
 		}
 
 		return types.ActionContinue
@@ -178,7 +182,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 	}
 
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_body", interruption, tx, log)
+		return handleInterruption(ctx, "http_request_body", interruption, log)
 	}
 
 	ctx.SetContext("processedRequestBody", true)
@@ -188,7 +192,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_request_body", interruption, tx, log)
+		return handleInterruption(ctx, "http_request_body", interruption, log)
 	}
 
 	return types.ActionContinue
@@ -218,7 +222,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 			return types.ActionContinue
 		}
 		if interruption != nil {
-			return handleInterruption(ctx, "http_response_headers", interruption, tx, log)
+			return handleInterruption(ctx, "http_response_headers", interruption, log)
 		}
 	}
 
@@ -245,7 +249,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 
 	interruption := tx.ProcessResponseHeaders(code, ctx.GetContext("httpProtocol").(string))
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_headers", interruption, tx, log)
+		return handleInterruption(ctx, "http_response_headers", interruption, log)
 	}
 
 	return types.ActionContinue
@@ -285,7 +289,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		if interruption != nil {
 			// Proxy-wasm can not anymore deny the response. The best interruption is emptying the body
 			// Coraza Multiphase evaluation will help here avoiding late interruptions
-			return handleInterruption(ctx, "http_response_body", interruption, tx, log)
+			return handleInterruption(ctx, "http_response_body", interruption, log)
 		}
 		return types.ActionContinue
 	}
@@ -297,7 +301,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_body", interruption, tx, log)
+		return handleInterruption(ctx, "http_response_body", interruption, log)
 	}
 
 	// We have already sent response headers, an unauthorized response can not be sent anymore,
@@ -310,7 +314,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 		return types.ActionContinue
 	}
 	if interruption != nil {
-		return handleInterruption(ctx, "http_response_body", interruption, tx, log)
+		return handleInterruption(ctx, "http_response_body", interruption, log)
 	}
 	return types.ActionContinue
 }

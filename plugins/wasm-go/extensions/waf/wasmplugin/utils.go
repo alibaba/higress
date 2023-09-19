@@ -77,18 +77,10 @@ func parseServerName(logger wrapper.Log, authority string) string {
 	return host
 }
 
-func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, tx ctypes.Transaction, log wrapper.Log) types.Action {
+func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, log wrapper.Log) types.Action {
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// handleInterruption should never be called more than once
 		panic("Interruption already handled")
-	}
-
-	// log.Infof("Transaction interrupted at %s, ruleid: %d, action: %s", phase, interruption.RuleID, interruption.Action)
-	for _, rule := range tx.MatchedRules() {
-		if interruption.RuleID == rule.Rule().ID() {
-			log.Infof("Transaction interrupted at Phase %s, File: %s, Rule ID: %d, Raw Rule: %s",
-				phase, rule.Rule().File(), rule.Rule().ID(), rule.Rule().Raw())
-		}
 	}
 
 	ctx.SetContext("interruptionHandled", true)
@@ -122,4 +114,26 @@ func replaceResponseBodyWhenInterrupted(logger wrapper.Log, bodySize int) types.
 	}
 	logger.Warn("Response body intervention occurred: body replaced")
 	return types.ActionContinue
+}
+
+func logError(error ctypes.MatchedRule) {
+	msg := error.ErrorLog(0)
+	switch error.Rule().Severity() {
+	case ctypes.RuleSeverityEmergency:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityAlert:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityCritical:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityError:
+		proxywasm.LogError(msg)
+	case ctypes.RuleSeverityWarning:
+		proxywasm.LogWarn(msg)
+	case ctypes.RuleSeverityNotice:
+		proxywasm.LogInfo(msg)
+	case ctypes.RuleSeverityInfo:
+		proxywasm.LogInfo(msg)
+	case ctypes.RuleSeverityDebug:
+		proxywasm.LogDebug(msg)
+	}
 }
