@@ -97,7 +97,7 @@ func (a Applier) MustApplyObjectsWithCleanup(t *testing.T, c client.Client, time
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutConfig.CreateTimeout)
 		defer cancel()
 
-		t.Logf("Creating %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
+		t.Logf("🏗 Creating %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
 
 		err := c.Create(ctx, resource)
 		if err != nil {
@@ -110,7 +110,7 @@ func (a Applier) MustApplyObjectsWithCleanup(t *testing.T, c client.Client, time
 			t.Cleanup(func() {
 				ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 				defer cancel()
-				t.Logf("Deleting %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
+				t.Logf("🚮 Deleting %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
 				err = c.Delete(ctx, resource)
 				require.NoErrorf(t, err, "error deleting resource")
 			})
@@ -129,7 +129,7 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 
 	resources, err := a.prepareResources(t, decoder)
 	if err != nil {
-		t.Logf("manifest: %s", data.String())
+		t.Logf("🧳 Manifest: %s", data.String())
 		require.NoErrorf(t, err, "error parsing manifest")
 	}
 
@@ -146,7 +146,7 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 			if !apierrors.IsNotFound(err) {
 				require.NoErrorf(t, err, "error getting resource")
 			}
-			t.Logf("Creating %s %s", uObj.GetName(), uObj.GetKind())
+			t.Logf("🏗 Creating %s %s", uObj.GetName(), uObj.GetKind())
 			err = c.Create(ctx, uObj)
 			require.NoErrorf(t, err, "error creating resource")
 
@@ -154,7 +154,7 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 				t.Cleanup(func() {
 					ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 					defer cancel()
-					t.Logf("Deleting %s %s", uObj.GetName(), uObj.GetKind())
+					t.Logf("🚮 Deleting %s %s", uObj.GetName(), uObj.GetKind())
 					err = c.Delete(ctx, uObj)
 					require.NoErrorf(t, err, "error deleting resource")
 				})
@@ -163,14 +163,14 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 		}
 
 		uObj.SetResourceVersion(fetchedObj.GetResourceVersion())
-		t.Logf("Updating %s %s", uObj.GetName(), uObj.GetKind())
+		t.Logf("🏗 Updating %s %s", uObj.GetName(), uObj.GetKind())
 		err = c.Update(ctx, uObj)
 
 		if cleanup {
 			t.Cleanup(func() {
 				ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 				defer cancel()
-				t.Logf("Deleting %s %s", uObj.GetName(), uObj.GetKind())
+				t.Logf("🚮 Deleting %s %s", uObj.GetName(), uObj.GetKind())
 				err = c.Delete(ctx, uObj)
 				require.NoErrorf(t, err, "error deleting resource")
 			})

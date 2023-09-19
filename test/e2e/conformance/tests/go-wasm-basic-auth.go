@@ -22,104 +22,112 @@ import (
 )
 
 func init() {
-	Register(HTTPRouteEnableCors)
+	Register(WasmPluginsBasicAuth)
 }
 
-var HTTPRouteEnableCors = suite.ConformanceTest{
-	ShortName:   "HTTPRouteEnableCors",
-	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates enable cors ability.",
-	Manifests:   []string{"tests/httproute-enable-cors.yaml"},
-	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
+var WasmPluginsBasicAuth = suite.ConformanceTest{
+	ShortName:   "WasmPluginsBasicAuth",
+	Description: "The Ingress in the higress-conformance-infra namespace test the basic-auth WASM plugin.",
+	Manifests:   []string{"tests/go-wasm-basic-auth.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case1: unable cors",
+					TestCaseName:    "case 1: Successful authentication",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
+						Host:    "foo.com",
 						Path:    "/foo",
-						Host:    "foo1.com",
-						Method:  "OPTIONS",
-						Headers: map[string]string{"Origin": "http://bar.com"},
+						Headers: map[string]string{"Authorization": "Basic YWRtaW46MTIzNDU2"}, // base64("admin:123456")
 					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode:    200,
-						AbsentHeaders: []string{"Access-Control-Allow-Credentials", "Access-Control-Allow-Origin"},
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case2: enable cors",
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path:    "/foo",
-						Host:    "foo2.com",
-						Method:  "OPTIONS",
-						Headers: map[string]string{"Origin": "http://bar.com"},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo.com",
+							Path:    "/foo",
+							Headers: map[string]string{"X-Mse-Consumer": "consumer1"},
+						},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
-						Headers:    map[string]string{"Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Origin": "http://bar.com"},
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case3: enable cors and allow origin headers",
-					TargetBackend:   "infra-backend-v3",
+					TestCaseName:    "case 2: No Basic Authentication information found",
+					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path:    "/foo",
-						Host:    "foo3.com",
-						Method:  "OPTIONS",
-						Headers: map[string]string{"Origin": "http://bar.com"},
+						Host: "foo.com",
+						Path: "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers:    map[string]string{"Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Origin": "http://bar.com", "Access-Control-Expose-Headers": "*"},
+						StatusCode: 401,
+					},
+					AdditionalResponseHeaders: map[string]string{
+						"WWW-Authenticate": "Basic realm=MSE Gateway",
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case4: enable cors and use forbidden Origin",
-					TargetBackend:   "infra-backend-v3",
+					TestCaseName:    "case 3: Invalid username and/or password",
+					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
+						Host:    "foo.com",
 						Path:    "/foo",
-						Host:    "foo3.com",
-						Method:  "OPTIONS",
-						Headers: map[string]string{"Origin": "http://foo.com"},
+						Headers: map[string]string{"Authorization": "Basic YWRtaW46cXdlcg=="}, // base64("admin:qwer")
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode:    200,
-						AbsentHeaders: []string{"Access-Control-Allow-Credentials", "Access-Control-Allow-Origin", "Access-Control-Expose-Headers"},
+						StatusCode: 401,
+					},
+					AdditionalResponseHeaders: map[string]string{
+						"WWW-Authenticate": "Basic realm=MSE Gateway",
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: Unauthorized consumer",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"Authorization": "Basic Z3Vlc3Q6YWJj"}, // base64("guest:abc")
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					AdditionalResponseHeaders: map[string]string{
+						"WWW-Authenticate": "Basic realm=MSE Gateway",
 					},
 				},
 			},
 		}
-
-		t.Run("Enable Cors Cases Split", func(t *testing.T) {
+		t.Run("WasmPlugins basic-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
 		})
-
 	},
 }

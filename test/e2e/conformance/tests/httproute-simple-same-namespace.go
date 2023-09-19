@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteSimpleSameNamespace)
+	Register(HTTPRouteSimpleSameNamespace)
 }
 
 var HTTPRouteSimpleSameNamespace = suite.ConformanceTest{
 	ShortName:   "HTTPRouteSimpleSameNamespace",
 	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates basic routing ability.",
 	Manifests:   []string{"tests/httproute-simple-same-namespace.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("Simple HTTP request should reach infra-backend", func(t *testing.T) {
 			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, http.Assertion{
