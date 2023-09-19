@@ -15,7 +15,6 @@
 package nacos
 
 import (
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -340,8 +339,6 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 func (w *watcher) generateServiceEntry(host string, services []model.SubscribeService) *v1alpha3.ServiceEntry {
 	portList := make([]*v1alpha3.Port, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-	allEndpoints := make([]*v1alpha3.WorkloadEntry, 0)
-	allWeightZero := true
 
 	for _, service := range services {
 		protocol := common.HTTP
@@ -358,18 +355,12 @@ func (w *watcher) generateServiceEntry(host string, services []model.SubscribeSe
 		if len(portList) == 0 {
 			portList = append(portList, port)
 		}
-		weight := uint32(math.Ceil(service.Weight))
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
 			Labels:  service.Metadata,
-			Weight:  weight,
 		}
-		if weight != 0 {
-			allWeightZero = false
-			endpoints = append(endpoints, endpoint)
-		}
-		allEndpoints = append(allEndpoints, endpoint)
+		endpoints = append(endpoints, &endpoint)
 	}
 
 	se := &v1alpha3.ServiceEntry{
@@ -377,13 +368,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.SubscribeSe
 		Ports:      portList,
 		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
 		Resolution: v1alpha3.ServiceEntry_STATIC,
-	}
-	// If the weight of all endpoints is set to 0, then all endpoints will be pushed down
-	// Otherwise, only push endpoints with weights greater than 0
-	if allWeightZero {
-		se.Endpoints = allEndpoints
-	} else {
-		se.Endpoints = endpoints
+		Endpoints:  endpoints,
 	}
 
 	return se
