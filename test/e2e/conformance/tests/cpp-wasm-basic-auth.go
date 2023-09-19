@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, CPPWasmPluginsBasicAuth)
+	Register(CPPWasmPluginsBasicAuth)
 }
 
 var CPPWasmPluginsBasicAuth = suite.ConformanceTest{
 	ShortName:   "CPPWasmPluginsBasicAuth",
 	Description: "The Ingress in the higress-conformance-infra namespace test the CPP basic-auth WASM plugin.",
-	Manifests:   []string{"tests/cpp-basic-auth.yaml"},
+	Manifests:   []string{"tests/cpp-wasm-basic-auth.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMCPPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

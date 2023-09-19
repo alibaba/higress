@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteCanaryWeight)
+	Register(HTTPRouteCanaryWeight)
 }
 
 var HTTPRouteCanaryWeight = suite.ConformanceTest{
 	ShortName:   "HTTPRouteCanaryWeight",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the canary weight traffic split.",
 	Manifests:   []string{"tests/httproute-canary-weight.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			// test if the weight is 0
