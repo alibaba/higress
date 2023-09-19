@@ -23,13 +23,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteAppRoot)
+	Register(HTTPRouteAppRoot)
 }
 
 var HTTPRouteAppRoot = suite.ConformanceTest{
 	ShortName:   "HTTPRouteAppRoot",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the app root.",
 	Manifests:   []string{"tests/httproute-app-root.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

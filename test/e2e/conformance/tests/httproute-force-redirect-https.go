@@ -23,13 +23,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HttpForceRedirectHttps)
+	Register(HttpForceRedirectHttps)
 }
 
 var HttpForceRedirectHttps = suite.ConformanceTest{
 	ShortName:   "HttpForceRedirectHttps",
 	Description: " The ingress in the higress-conformance-infra namespace enforces server-side HTTPS with forced redirection.",
 	Manifests:   []string{"tests/httproute-force-redirect-https.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

@@ -23,13 +23,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRoutePermanentRedirect)
+	Register(HTTPRoutePermanentRedirect)
 }
 
 var HTTPRoutePermanentRedirect = suite.ConformanceTest{
 	ShortName:   "HTTPRoutePermanentRedirect",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the permanent redirect header.",
 	Manifests:   []string{"tests/httproute-permanent-redirect.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

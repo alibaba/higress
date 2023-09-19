@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, CPPWasmPluginsKeyAuth)
+	Register(WasmPluginsRequestBlock)
 }
 
-var CPPWasmPluginsKeyAuth = suite.ConformanceTest{
-	ShortName:   "CPPWasmPluginsKeyAuth",
-	Description: "The Ingress in the higress-conformance-infra namespace test the CPP key_auth wasmplugins.",
-	Manifests:   []string{"tests/cpp-key_auth.yaml"},
+var WasmPluginsRequestBlock = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestBlock",
+	Description: "The Ingress in the higress-conformance-infra namespace test the request-block wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-request-block.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -39,36 +40,18 @@ var CPPWasmPluginsKeyAuth = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/test.html",
+						Path:             "/swagger.html",
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/test.html?apikey=2bda943c-ba2b-11ec-ba07-00163e1250b5",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 403,
 					},
 				},
 			},
 		}
-		t.Run("WasmPlugins key-auth.yaml", func(t *testing.T) {
+		t.Run("WasmPlugins request-block", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
