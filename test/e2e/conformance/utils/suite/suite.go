@@ -33,7 +33,7 @@ type ConformanceTestSuite struct {
 	IngressClassName  string
 	Debug             bool
 	Cleanup           bool
-	BaseManifests     string
+	BaseManifests     []string
 	Applier           kubernetes.Applier
 	SkipTests         sets.Set
 	TimeoutConfig     config.TimeoutConfig
@@ -51,7 +51,7 @@ type Options struct {
 	IngressClassName           string
 	Debug                      bool
 	RoundTripper               roundtripper.RoundTripper
-	BaseManifests              string
+	BaseManifests              []string
 	NamespaceLabels            map[string]string
 	// Options for wasm extended features
 	WASMOptions
@@ -111,8 +111,14 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	// apply defaults
-	if suite.BaseManifests == "" {
-		suite.BaseManifests = "base/manifests.yaml"
+	if suite.BaseManifests == nil {
+		suite.BaseManifests = []string{
+			"base/manifests.yaml",
+			"base/consul.yaml",
+			"base/dubbo.yaml",
+			"base/eureka.yaml",
+			"base/nacos.yaml",
+		}
 	}
 
 	return suite
@@ -126,7 +132,10 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	suite.Applier.IngressClass = suite.IngressClassName
 
 	t.Logf("📦 Test Setup: Applying base manifests")
-	suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, suite.BaseManifests, suite.Cleanup)
+
+	for _, baseManifest := range suite.BaseManifests {
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
+	}
 
 	t.Logf("📦 Test Setup: Applying programmatic resources")
 	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
@@ -139,8 +148,6 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 		"higress-conformance-infra",
 		"higress-conformance-app-backend",
 		"higress-conformance-web-backend",
-		"nacos-standlone-rc3",
-		"dubbo-demo-provider",
 	}
 	kubernetes.NamespacesMustBeAccepted(t, suite.Client, suite.TimeoutConfig, namespaces)
 
