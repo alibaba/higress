@@ -506,7 +506,6 @@ func (w *watcher) Stop() {
 	}
 
 	w.isStop = true
-	w.namingClient.CloseClient()
 	close(w.stop)
 	w.Ready(false)
 }
