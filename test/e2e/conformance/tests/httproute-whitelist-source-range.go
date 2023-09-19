@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteWhitelistSourceRange)
+	Register(HTTPRouteWhitelistSourceRange)
 }
 
 var HTTPRouteWhitelistSourceRange = suite.ConformanceTest{
 	ShortName:   "HTTPRouteWhitelistSourceRange",
 	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates ip access control",
 	Manifests:   []string{"tests/httproute-whitelist-source-range.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

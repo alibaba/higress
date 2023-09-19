@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteConsulHttpBin)
+	Register(HTTPRouteConsulHttpBin)
 }
 
 var HTTPRouteConsulHttpBin = suite.ConformanceTest{
 	ShortName:   "HTTPRouteConsulHttpBin",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the consul service registry.",
 	Manifests:   []string{"tests/httproute-consul-httpbin.yaml"},
+	Features:    []suite.SupportedFeature{suite.ConsulConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

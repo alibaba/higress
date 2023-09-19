@@ -16,7 +16,6 @@ package test
 
 import (
 	"flag"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,10 +27,6 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
-
-var isWasmPluginTest = flag.Bool("isWasmPluginTest", false, "")
-var wasmPluginType = flag.String("wasmPluginType", "GO", "")
-var wasmPluginName = flag.String("wasmPluginName", "", "")
 
 func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
@@ -49,60 +44,15 @@ func TestHigressConformanceTests(t *testing.T) {
 		IngressClassName:     *flags.IngressClassName,
 		Debug:                *flags.ShowDebug,
 		CleanupBaseResources: *flags.CleanupBaseResources,
-		GatewayAddress:       "localhost",
+		WASMOptions: suite.WASMOptions{
+			IsWasmPluginTest: *flags.IsWasmPluginTest,
+			WasmPluginName:   *flags.WasmPluginName,
+			WasmPluginType:   *flags.WasmPluginType,
+		},
+		GatewayAddress:             "localhost",
+		EnableAllSupportedFeatures: true,
 	})
 
 	cSuite.Setup(t)
-	var higressTests []suite.ConformanceTest
-
-	if *isWasmPluginTest {
-		if strings.Compare(*wasmPluginType, "CPP") == 0 {
-			m := make(map[string]suite.ConformanceTest)
-			m["request_block"] = tests.CPPWasmPluginsRequestBlock
-			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
-			m["basic_auth"] = tests.CPPWasmPluginsBasicAuth
-
-			higressTests = []suite.ConformanceTest{
-				m[*wasmPluginName],
-			}
-		} else {
-			higressTests = []suite.ConformanceTest{
-				tests.WasmPluginsRequestBlock,
-				tests.WasmPluginsJwtAuth,
-				tests.WasmPluginsBasicAuth,
-			}
-		}
-	} else {
-		higressTests = []suite.ConformanceTest{
-			tests.HTTPRouteSimpleSameNamespace,
-			tests.HTTPRouteHostNameSameNamespace,
-			tests.HTTPRouteRewritePath,
-			tests.HTTPRouteRewriteHost,
-			tests.HTTPRouteCanaryHeader,
-			tests.HTTPRouteEnableCors,
-			tests.HTTPRouteEnableIgnoreCase,
-			tests.HTTPRouteMatchMethods,
-			tests.HTTPRouteMatchQueryParams,
-			tests.HTTPRouteMatchHeaders,
-			tests.HTTPRouteAppRoot,
-			tests.HTTPRoutePermanentRedirect,
-			tests.HTTPRoutePermanentRedirectCode,
-			tests.HTTPRouteTemporalRedirect,
-			tests.HTTPRouteSameHostAndPath,
-			tests.HTTPRouteCanaryHeaderWithCustomizedHeader,
-			tests.HTTPRouteWhitelistSourceRange,
-			tests.HTTPRouteCanaryWeight,
-			tests.HTTPRouteMatchPath,
-			tests.HttpForceRedirectHttps,
-			tests.HttpRedirectAsHttps,
-			tests.HTTPRouteRequestHeaderControl,
-			tests.HTTPRouteDownstreamEncryption,
-			tests.HTTPRouteFullPathRegex,
-			tests.HTTPRouteHttp2Rpc,
-			tests.HTTPRouteConsulHttpBin,
-			tests.HTTPRouteEurekaRegistry,
-		}
-	}
-
-	cSuite.Run(t, higressTests)
+	cSuite.Run(t, tests.ConformanceTests)
 }
