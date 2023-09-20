@@ -1,0 +1,138 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-request
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo1.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-response
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo2.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: transformer
+  namespace: higress-system
+spec:
+  matchRules:
+    # request transformer
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request
+      configDisable: false
+      config:
+          type: request
+          dots_in_keys: false
+          rules:
+            - operate: remove
+              headers:
+                - kv: "X-remove"
+              querys:
+                - kv: "k1"
+            - operate: rename
+              headers:
+                - kv: "X-not-renamed:X-renamed"
+              querys:
+                - kv: "k2:k2-new"
+            - operate: replace
+              headers:
+                - kv: "X-replace:replaced"
+              querys:
+                - kv: "k2-new:v2-new"
+            - operate: add
+              headers:
+                - kv: "X-add-append:add"
+              querys:
+                - kv: "k3:v31"
+            - operate: append
+              headers:
+                - kv: "X-add-append:append"
+              querys:
+                - kv: "k3:v32"
+            - operate: map
+              headers:
+                - kv: "X-add-append:X-map"
+              querys:
+                - kv: "k3:k4"
+            - operate: dedupe
+              headers:
+                - kv: "X-dedupe-first:RETAIN_FIRST"
+                - kv: "X-dedupe-last:RETAIN_LAST"
+                - kv: "X-dedupe-unique:RETAIN_UNIQUE"
+              querys:
+                - kv: "k4:RETAIN_FIRST"
+
+    # response transformer
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-response
+      configDisable: false
+      config:
+        type: response
+        dots_in_keys: false
+        rules:
+          - operate: remove
+            headers:
+              - kv: "X-remove"
+          - operate: rename
+            headers:
+              - kv: "X-not-renamed:X-renamed"
+          - operate: replace
+            headers:
+              - kv: "X-replace:replace-$1"
+                path_pattern: "^.*?\\/(\\w+)[\\?]{0,1}.*$"
+          - operate: add
+            headers:
+              - kv: "X-add-append:add-$1"
+                host_pattern: "^(.*)\\.com$"
+          - operate: append
+            headers:
+              - kv: "X-add-append:append-$1"
+                path_pattern: "^\\/get\\/(.*)\\.html$"
+          - operate: map
+            headers:
+              - kv: "X-add-append:X-map"
+
+  url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
