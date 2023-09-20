@@ -17,6 +17,7 @@ global:
   local: false # When deploying to a local cluster (e.g.: kind cluster), set this to true.
   kind: false # Deprecated. Please use "global.local" instead. Will be removed later.
   enableIstioAPI: false
+  enableGatewayAPI: false
   # Deprecated
   enableHigressIstio: false
   # Used to locate istiod.
