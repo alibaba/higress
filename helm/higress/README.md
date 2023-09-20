@@ -40,6 +40,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.disableAlpnH2 | Whether to disable HTTP/2 in ALPN | true |
 | global.enableStatus | If `true`, Higress Controller will update the `status` field of Ingress resources.<br />When migrating from Nginx Ingress, in order to avoid `status` field of Ingress objects being overwritten, this parameter needs to be set to false, so Higress won't write the entry IP to the `status` field of the corresponding Ingress object. | true |
 | global.enableIstioAPI | If `true`, Higress Controller will monitor istio resources as well | false |
+| global.enableGatewayAPI | If `true`, Higress Controller will monitor Gateway API resources as well | false |
 | global.istioNamespace | The namespace istio is installed to | istio-system |
 | **Core Paramters** |  |  |
 | higress-core.gateway.replicas | Number of Higress Gateway pods | 2 |

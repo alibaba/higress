@@ -126,9 +126,18 @@ spec:
             value: "{{ .Values.global.istiod.enableAnalysis }}"
           - name: CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
+          # HIGRESS_ENABLE_ISTIO_API is only used to restart the controller pod after the config change
           {{- if .Values.global.enableIstioAPI }}
           - name: HIGRESS_ENABLE_ISTIO_API
             value: "true"
+          {{- end }}
+          {{- if .Values.global.enableGatewayAPI }}
+          - name: PILOT_ENABLE_GATEWAY_API
+            value: "true"
+          - name: PILOT_ENABLE_GATEWAY_API_STATUS
+            value: "true"
+          - name: PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER
+            value: "false"
           {{- end }}
           {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
