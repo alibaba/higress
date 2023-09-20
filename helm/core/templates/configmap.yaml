@@ -24,7 +24,7 @@
 
     configSources:
       - address: "xds://127.0.0.1:15051"
-    {{- if .Values.global.enableIstioAPI }}
+    {{- if or .Values.global.enableIstioAPI .Values.global.enableGatewayAPI }}
       - address: "k8s://"
     {{- end }}
 
