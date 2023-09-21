@@ -120,14 +120,16 @@ func Install(writer io.Writer, iArgs *InstallArgs) error {
 		setFlags = append(setFlags, fmt.Sprintf("profile=%s", psf))
 	}
 
+	if !promptInstall(writer, psf) {
+		return nil
+	}
+
 	_, profile, profileName, err := helm.GenerateConfig(iArgs.InFilenames, setFlags)
 	if err != nil {
 		return fmt.Errorf("generate config: %v", err)
 	}
-	fmt.Fprintf(writer, "start to install higress on profile:%s ......\n", profileName)
 
-	fmt.Fprintf(writer, "start to validate profile:%s ......\n", profileName)
-
+	fmt.Fprintf(writer, "🧐 Validating Profile: \"%s\" \n", profileName)
 	err = profile.Validate()
 	if err != nil {
 		return err
@@ -138,6 +140,22 @@ func Install(writer io.Writer, iArgs *InstallArgs) error {
 		return fmt.Errorf("failed to install manifests: %v", err)
 	}
 	return nil
+}
+
+func promptInstall(writer io.Writer, profileName string) bool {
+	answer := ""
+	for {
+		fmt.Fprintf(writer, "\nThis will install Higress \"%s\" profile into the cluster. \nProceed? (y/N)", profileName)
+		fmt.Scanln(&answer)
+		if strings.TrimSpace(answer) == "y" {
+			fmt.Fprintf(writer, "\n")
+			return true
+		}
+		if strings.TrimSpace(answer) == "N" {
+			fmt.Fprintf(writer, "Cancelled.\n")
+			return false
+		}
+	}
 }
 
 func promptProfileName(writer io.Writer) string {
@@ -156,39 +174,31 @@ func promptProfileName(writer io.Writer) string {
 		}
 	}
 
-	return profileNameLocalK8s
 }
 
 func InstallManifests(profile *helm.Profile, writer io.Writer) error {
-	fmt.Fprintf(writer, "start to check kubernetes cluster enviroment ......\n")
 	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
-	fmt.Fprintf(writer, "start to init higress installer ......\n")
+
 	op, err := installer.NewInstaller(profile, cliClient, writer)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to run higress installer ......\n")
 	if err := op.Run(); err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to render manifests ......\n")
+
 	manifestMap, err := op.RenderManifests()
-
-	//for name, yaml := range manifestMap {
-	//	fileName := "~/Downloads/higress/manifests/" + string(name) + ".yaml"
-	//	os.WriteFile(fileName, []byte(yaml), 0640)
-	//}
-
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to apply manifests ......\n")
+
+	fmt.Fprintf(writer, "\n⌛️ Processing installation... \n\n")
 	if err := op.ApplyManifests(manifestMap); err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "install higress complete!\n")
+	fmt.Fprintf(writer, "\n🎊 Install All Resources Complete!\n")
 	return nil
 }

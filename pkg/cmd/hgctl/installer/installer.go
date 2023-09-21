@@ -94,9 +94,9 @@ func (o *Installer) applyManifest(manifest string, ns string) error {
 			obj.UnstructuredObject().SetNamespace(ns)
 		}
 		if o.isNamespacedObject(obj) {
-			fmt.Fprintf(o.writer, "start to apply object kind: %s, object name: %s on namespace: %s ......\n", obj.Kind, obj.Name, obj.Namespace)
+			fmt.Fprintf(o.writer, "✔️ Installed %s:%s:%s.\n", obj.Kind, obj.Name, obj.Namespace)
 		} else {
-			fmt.Fprintf(o.writer, "start to apply object kind: %s, object name: %s  ......\n", obj.Kind, obj.Name)
+			fmt.Fprintf(o.writer, "✔️ Installed %s::%s.\n", obj.Kind, obj.Name)
 		}
 		if err := o.kubeCli.ApplyObject(obj.UnstructuredObject()); err != nil {
 			return err
@@ -132,9 +132,9 @@ func (o *Installer) deleteManifest(manifest string, ns string) error {
 			obj.UnstructuredObject().SetNamespace(ns)
 		}
 		if o.isNamespacedObject(obj) {
-			fmt.Fprintf(o.writer, "start to delete object kind: %s, object name: %s on namespace: %s ......\n", obj.Kind, obj.Name, obj.Namespace)
+			fmt.Fprintf(o.writer, "✔️ Removed %s:%s:%s.\n", obj.Kind, obj.Name, obj.Namespace)
 		} else {
-			fmt.Fprintf(o.writer, "start to delete object kind: %s, object name: %s  ......\n", obj.Kind, obj.Name)
+			fmt.Fprintf(o.writer, "✔️ Removed %s::%s.\n", obj.Kind, obj.Name)
 		}
 		if err := o.kubeCli.DeleteObject(obj.UnstructuredObject()); err != nil {
 			return err
@@ -154,7 +154,7 @@ func (o *Installer) isNamespacedObject(obj *object.K8sObject) bool {
 
 func NewInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer) (*Installer, error) {
 	if profile == nil {
-		return nil, errors.New("Install profile is empty")
+		return nil, errors.New("install profile is empty")
 	}
 	// initialize components
 	components := make(map[ComponentName]Component)
