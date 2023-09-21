@@ -73,18 +73,17 @@ func newUninstallCmd() *cobra.Command {
 
 // uninstall uninstalls control plane by either pruning by target revision or deleting specified manifests.
 func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
-	if !promptUninstall(writer) {
-		return nil
-	}
-
-	fmt.Fprintf(writer, "start to uninstall higress\n")
 	setFlags := make([]string, 0)
 	profileName := helm.GetUninstallProfileName()
-	fmt.Fprintf(writer, "start to uninstall higress profile:%s\n", profileName)
 	_, profile, err := helm.GenProfile(profileName, "", setFlags)
 	if err != nil {
 		return err
 	}
+
+	if !promptUninstall(writer) {
+		return nil
+	}
+
 	profile.Global.EnableIstioAPI = uiArgs.purgeIstioCRD
 	profile.Global.Namespace = uiArgs.namespace
 	profile.Global.IstioNamespace = uiArgs.istioNamespace
@@ -97,45 +96,43 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 
 func promptUninstall(writer io.Writer) bool {
 	answer := ""
-	fmt.Fprintf(writer, "Are you sure to uninstall higress?\n")
 	for {
-		fmt.Fprintf(writer, "Please input yes or no to select, input your selection:")
+		fmt.Fprintf(writer, "All Higress resources will be uninstalled from the cluster. \nProceed? (y/N)")
 		fmt.Scanln(&answer)
-		if strings.TrimSpace(answer) == "yes" {
+		if strings.TrimSpace(answer) == "y" {
+			fmt.Fprintf(writer, "\n")
 			return true
 		}
-		if strings.TrimSpace(answer) == "no" {
+		if strings.TrimSpace(answer) == "N" {
+			fmt.Fprintf(writer, "Cancelled.\n")
 			return false
 		}
 	}
-
-	return false
 }
 
 func UnInstallManifests(profile *helm.Profile, writer io.Writer) error {
-	fmt.Fprintf(writer, "start to check kubernetes cluster enviroment ......\n")
 	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
-	fmt.Fprintf(writer, "start to init higress installer ......\n")
+
 	op, err := installer.NewInstaller(profile, cliClient, writer)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to run higress installer ......\n")
 	if err := op.Run(); err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to render manifests ......\n")
+
 	manifestMap, err := op.RenderManifests()
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "start to delete manifests ......\n")
+
+	fmt.Fprintf(writer, "\n⌛️ Processing uninstallation... \n\n")
 	if err := op.DeleteManifests(manifestMap); err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "uninstall higress complete!\n")
+	fmt.Fprintf(writer, "\n🎊 Uninstall All Resources Complete!\n")
 	return nil
 }

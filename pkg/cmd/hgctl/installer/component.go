@@ -114,18 +114,19 @@ func (h *HigressComponent) Enabled() bool {
 func (h *HigressComponent) Run() error {
 	// Parse latest version
 	if h.opts.Version == helm.RepoLatestVersion {
-		fmt.Fprintf(h.writer, "start to get higress helm chart latest version ......")
-	}
-	latestVersion, err := helm.ParseLatestVersion(h.opts.RepoURL, h.opts.Version)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(h.writer, "latest version is %s\n", latestVersion)
 
-	// Reset helm chart version
-	h.opts.Version = latestVersion
-	h.renderer.SetVersion(latestVersion)
-	fmt.Fprintf(h.writer, "start to download higress helm chart version: %s, url: %s\n", h.opts.Version, h.opts.RepoURL)
+		latestVersion, err := helm.ParseLatestVersion(h.opts.RepoURL, h.opts.Version)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(h.writer, "⚡️ Fetching Higress Helm Chart latest version \"%s\" \n", latestVersion)
+
+		// Reset Helm Chart version
+		h.opts.Version = latestVersion
+		h.renderer.SetVersion(latestVersion)
+	}
+
+	fmt.Fprintf(h.writer, "🏄 Downloading Higress Helm Chart version: %s, url: %s\n", h.opts.Version, h.opts.RepoURL)
 
 	if err := h.renderer.Init(); err != nil {
 		return err
@@ -138,7 +139,7 @@ func (h *HigressComponent) RenderManifest() (string, error) {
 	if !h.started {
 		return "", nil
 	}
-	fmt.Fprintf(h.writer, "start to render higress helm chart......\n")
+	fmt.Fprintf(h.writer, "📦 Rendering Higress Helm Chart\n")
 	valsYaml, err := h.profile.ValuesYaml()
 	if err != nil {
 		return "", err
@@ -251,7 +252,7 @@ func (i *IstioCRDComponent) Enabled() bool {
 }
 
 func (i *IstioCRDComponent) Run() error {
-	fmt.Fprintf(i.writer, "start to download istio helm chart version: %s, url: %s\n", i.opts.Version, i.opts.RepoURL)
+	fmt.Fprintf(i.writer, "🏄 Downloading Istio Helm Chart version: %s, url: %s\n", i.opts.Version, i.opts.RepoURL)
 	if err := i.renderer.Init(); err != nil {
 		return err
 	}
@@ -263,7 +264,7 @@ func (i *IstioCRDComponent) RenderManifest() (string, error) {
 	if !i.started {
 		return "", nil
 	}
-	fmt.Fprintf(i.writer, "start to render istio helm chart......\n")
+	fmt.Fprintf(i.writer, "📦 Rendering Istio Helm Chart\n")
 	values := make(map[string]any)
 	manifest, err := renderComponentManifest(values, i.renderer, false, i.ComponentName(), i.opts.Namespace)
 	if err != nil {
