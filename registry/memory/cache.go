@@ -122,8 +122,8 @@ func (s *store) DeleteServiceEntryWrapper(service string) {
 
 	if data, exist := s.sew[service]; exist {
 		s.toBeDeleted = append(s.toBeDeleted, data)
+		s.deferedDelete[service] = struct{}{}
 	}
-	s.deferedDelete[service] = struct{}{}
 }
 
 // should only be called when reconcile is done
