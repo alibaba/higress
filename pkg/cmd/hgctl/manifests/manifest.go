@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hgctl
+package manifests
 
-import "github.com/spf13/cobra"
+import (
+	"embed"
+	"io/fs"
+	"os"
+)
 
-// GetRootCommand returns the root cobra command to be executed
-// by hgctl main.
-func GetRootCommand() *cobra.Command {
-	rootCmd := &cobra.Command{
-		Use:               "hgctl",
-		Long:              "A command line utility for operating Higress",
-		SilenceUsage:      true,
-		DisableAutoGenTag: true,
+// FS embeds the manifests
+//
+//go:embed profiles/*
+var FS embed.FS
+
+// BuiltinOrDir returns a FS for the provided directory. If no directory is passed, the compiled in
+// FS will be used
+func BuiltinOrDir(dir string) fs.FS {
+	if dir == "" {
+		return FS
 	}
-
-	rootCmd.AddCommand(newVersionCommand())
-	rootCmd.AddCommand(newConfigCommand())
-	rootCmd.AddCommand(newInstallCmd())
-	rootCmd.AddCommand(newUninstallCmd())
-	rootCmd.AddCommand(newUpgradeCmd())
-	rootCmd.AddCommand(newProfileCmd())
-
-	return rootCmd
+	return os.DirFS(dir)
 }

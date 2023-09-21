@@ -14,24 +14,8 @@
 
 package hgctl
 
-import "github.com/spf13/cobra"
-
-// GetRootCommand returns the root cobra command to be executed
-// by hgctl main.
-func GetRootCommand() *cobra.Command {
-	rootCmd := &cobra.Command{
-		Use:               "hgctl",
-		Long:              "A command line utility for operating Higress",
-		SilenceUsage:      true,
-		DisableAutoGenTag: true,
-	}
-
-	rootCmd.AddCommand(newVersionCommand())
-	rootCmd.AddCommand(newConfigCommand())
-	rootCmd.AddCommand(newInstallCmd())
-	rootCmd.AddCommand(newUninstallCmd())
-	rootCmd.AddCommand(newUpgradeCmd())
-	rootCmd.AddCommand(newProfileCmd())
-
-	return rootCmd
-}
+const (
+	yamlOutput  = "yaml"
+	jsonOutput  = "json"
+	flagsOutput = "flags"
+)
