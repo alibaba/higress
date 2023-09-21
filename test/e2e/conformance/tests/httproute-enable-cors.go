@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteEnableCors)
+	Register(HTTPRouteEnableCors)
 }
 
 var HTTPRouteEnableCors = suite.ConformanceTest{
 	ShortName:   "HTTPRouteEnableCors",
 	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates enable cors ability.",
 	Manifests:   []string{"tests/httproute-enable-cors.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

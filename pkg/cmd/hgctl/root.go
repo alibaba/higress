@@ -28,6 +28,10 @@ func GetRootCommand() *cobra.Command {
 
 	rootCmd.AddCommand(newVersionCommand())
 	rootCmd.AddCommand(newConfigCommand())
+	rootCmd.AddCommand(newInstallCmd())
+	rootCmd.AddCommand(newUninstallCmd())
+	rootCmd.AddCommand(newUpgradeCmd())
+	rootCmd.AddCommand(newProfileCmd())
 
 	return rootCmd
 }
