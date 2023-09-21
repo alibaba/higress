@@ -2,6 +2,7 @@ package wasmplugin
 
 import (
 	"errors"
+	"github.com/corazawaf/coraza/v3/debuglog"
 	"strconv"
 	"strings"
 
@@ -50,8 +51,10 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 		}
 	}
 
-	// log.Debugf("[rinfx log] %s", strings.Join(secRules, "\n"))
-	conf := coraza.NewWAFConfig().WithRootFS(root)
+	conf := coraza.NewWAFConfig().
+		WithErrorCallback(logError).
+		WithDebugLogger(debuglog.DefaultWithPrinterFactory(logPrinterFactory)).
+		WithRootFS(root)
 	// error: Failed to load Wasm module due to a missing import: wasi_snapshot_preview1.fd_filestat_get
 	// because without fs.go
 	waf, err := coraza.NewWAF(conf.WithDirectives(strings.Join(secRules, "\n")))
@@ -86,7 +89,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 	// proxy-wasm.
 
 	if tx.IsRuleEngineOff() {
-		// log.Infof("[rinfx log] OnHttpRequestHeaders, RuleEngine Off, url = %s", uri)
 		return types.ActionContinue
 	}
 	// OnHttpRequestHeaders does not terminate if IP/Port retrieve goes wrong
@@ -94,8 +96,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 	dstIP, dstPort := retrieveAddressInfo(log, "destination")
 
 	tx.ProcessConnection(srcIP, srcPort, dstIP, dstPort)
-
-	// proxywasm.LogInfof("[rinfx log] OnHttpRequestHeaders, RuleEngine On, url = %s", uri)
 
 	method, err := proxywasm.GetHttpRequestHeader(":method")
 	if err != nil {
@@ -140,10 +140,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
-	// log.Info("[rinfx log] OnHttpRequestBody")
-
 	if ctx.GetContext("interruptionHandled").(bool) {
-		log.Error("OnHttpRequestBody, interruption already handled")
 		return types.ActionContinue
 	}
 
@@ -195,10 +192,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
-	// log.Info("[rinfx log] OnHttpResponseHeaders")
-
 	if ctx.GetContext("interruptionHandled").(bool) {
-		log.Error("OnHttpResponseHeaders, interruption already handled")
 		return types.ActionContinue
 	}
 
@@ -240,7 +234,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 
 	for _, h := range hs {
 		tx.AddResponseHeader(h[0], h[1])
-		// log.Infof("[rinfx debug] ResponseHeaders %s: %s", h[0], h[1])
 	}
 
 	interruption := tx.ProcessResponseHeaders(code, ctx.GetContext("httpProtocol").(string))
@@ -252,15 +245,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
-	// log.Info("[rinfx log] OnHttpResponseBody")
-
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// At response body phase, proxy-wasm currently relies on emptying the response body as a way of
 		// interruption the response. See https://github.com/corazawaf/coraza-proxy-wasm/issues/26.
 		// If OnHttpResponseBody is called again and an interruption has already been raised, it means that
 		// we have to keep going with the sanitization of the response, emptying it.
 		// Sending the crafted HttpResponse with empty body, we don't expect to trigger OnHttpResponseBody
-		log.Warn("Response body interruption already handled, keeping replacing the body")
+		// log.Warn("Response body interruption already handled, keeping replacing the body")
 		// Interruption happened, we don't want to send response body data
 		return replaceResponseBodyWhenInterrupted(log, replaceResponseBody)
 	}
@@ -291,7 +282,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 	}
 
 	interruption, _, err := tx.WriteResponseBody(body)
-	// log.Infof("[rinfx debug] ResponseBody %s", string(body))
 	if err != nil {
 		log.Error("Failed to write response body")
 		return types.ActionContinue
@@ -316,8 +306,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 }
 
 func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) {
-	// log.Info("[rinfx log] OnHttpStreamDone")
-
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 
 	if !tx.IsRuleEngineOff() {
@@ -335,5 +323,4 @@ func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log
 	tx.ProcessLogging()
 
 	_ = tx.Close()
-	log.Info("Finished")
 }
