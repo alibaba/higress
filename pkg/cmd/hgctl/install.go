@@ -49,8 +49,6 @@ type InstallArgs struct {
 	Set []string
 	// ManifestsPath is a path to a ManifestsPath and profiles directory in the local filesystem with a release tgz.
 	ManifestsPath string
-	// verbose generates verbose output.
-	verbose bool
 }
 
 func (a *InstallArgs) String() string {
