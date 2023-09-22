@@ -34,6 +34,7 @@ type fakePortForwarder struct {
 	localPort    int
 	l            net.Listener
 	mux          *http.ServeMux
+	stopCh       chan struct{}
 }
 
 func newFakePortForwarder(b []byte) (kubernetes.PortForwarder, error) {
@@ -46,12 +47,17 @@ func newFakePortForwarder(b []byte) (kubernetes.PortForwarder, error) {
 		responseBody: b,
 		localPort:    p,
 		mux:          http.NewServeMux(),
+		stopCh:       make(chan struct{}),
 	}
 	fw.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(fw.responseBody)
 	})
 
 	return fw, nil
+}
+
+func (fw *fakePortForwarder) WaitForStop() {
+	<-fw.stopCh
 }
 
 func (fw *fakePortForwarder) Start() error {

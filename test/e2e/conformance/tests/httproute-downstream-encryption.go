@@ -27,13 +27,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteDownstreamEncryption)
+	Register(HTTPRouteDownstreamEncryption)
 }
 
 var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 	ShortName:   "HTTPRouteDownstreamEncryption",
 	Description: "A single Ingress in the higress-conformance-infra namespace for downstream encryption.",
 	Manifests:   []string{"tests/httproute-downstream-encryption.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		// Prepare certificates and secrets for testcases
 		caCertOut, _, caCert, caKey := cert.MustGenerateCaCert(t)

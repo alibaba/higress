@@ -34,8 +34,6 @@ import (
 )
 
 const (
-	yamlOutput                  = "yaml"
-	jsonOutput                  = "json"
 	higressCoreContainerName    = "higress-core"
 	higressGatewayContainerName = "higress-gateway"
 )

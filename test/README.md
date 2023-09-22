@@ -9,11 +9,11 @@ Higress e2e tests are mainly focusing on two parts for now:
 
 ### Architecture
 
-![ingress-arch](./ingress/arch.png)
+![ingress-arch](./e2e/arch.png)
 
 ### Workflow
 
-![ingress-workflow](./ingress/pipeline.png)
+![ingress-workflow](./e2e/pipeline.png)
 
 Higress provides make target to run ingress api conformance tests and wasmplugin tests,
 

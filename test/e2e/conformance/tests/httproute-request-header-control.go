@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRequestHeaderControl)
+	Register(HTTPRouteRequestHeaderControl)
 }
 
 var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 	ShortName:   "HTTPRouteRequestHeaderControl",
 	Description: "A single Ingress in the higress-conformance-infra namespace controls the request header.",
 	Manifests:   []string{"tests/httproute-request-header-control.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
