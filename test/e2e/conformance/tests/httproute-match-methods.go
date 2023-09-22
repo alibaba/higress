@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteMatchMethods)
+	Register(HTTPRouteMatchMethods)
 }
 
 var HTTPRouteMatchMethods = suite.ConformanceTest{
 	ShortName:   "HTTPRouteMatchMethods",
 	Description: "A single Ingress in the higress-conformance-infra namespace uses the match methods.",
 	Manifests:   []string{"tests/httproute-match-methods.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

@@ -13,6 +13,7 @@ $ PLUGIN_NAME=request_block make build
 <details>
 <summary>Output</summary>
 <pre><code>
+
 DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=request_block \
                                     -t request_block:20230721-141120-aa17e95 \
                                     --output extensions/request_block \
@@ -106,16 +107,17 @@ spec:
 
 The rules will be matched in the order of configuration. If one match is found, it will stop, and the matching configuration will take effect.
 
-
 ## E2E test
 
 When you complete a GO plug-in function, you can create associated e2e test cases at the same time, and complete the test verification of the plug-in function locally.
 
 ### step1. write test cases
+
 In the directory of `./ test/e2e/conformance/tests/`, add the xxx.yaml file and xxx.go file. Such as test for `request-block` wasm-plugin,
 
 ./test/e2e/conformance/tests/request-block.yaml
-```
+
+``` yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 ...
@@ -126,16 +128,18 @@ spec:
     - "swagger.html"
   url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
 ```
+
 `Above of the url, the name of after extensions indicates the name of the folder where the plug-in resides.`
 
 ./test/e2e/conformance/tests/request-block.go
 
 ### step2. add test cases
+
 Add the test cases written above to the e2e test list,
 
 ./test/e2e/e2e_test.go
 
-```
+```go
 ...
 cSuite.Setup(t)
 	var higressTests []suite.ConformanceTest
@@ -160,6 +164,7 @@ cSuite.Setup(t)
 ```
 
 ### step3. compile and run test cases
+
 Considering that building wasm locally is time-consuming, we support building only the plug-ins that need to be tested (at the same time, you can also temporarily modify the list of test cases in the second small step above, and only execute your newly written cases).
 
 ```bash

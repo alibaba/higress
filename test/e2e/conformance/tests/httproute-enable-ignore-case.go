@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteEnableIgnoreCase)
+	Register(HTTPRouteEnableIgnoreCase)
 }
 
 var HTTPRouteEnableIgnoreCase = suite.ConformanceTest{
 	ShortName:   "HTTPRouteEnableIgnoreCase",
 	Description: "A Ingress in the higress-conformance-infra namespace that ignores URI case in HTTP match.",
 	Manifests:   []string{"tests/httproute-enable-ignore-case.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

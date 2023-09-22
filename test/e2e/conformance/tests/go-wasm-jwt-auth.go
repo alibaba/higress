@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, CPPWasmPluginsRequestBlock)
+	Register(WasmPluginsJwtAuth)
 }
 
-var CPPWasmPluginsRequestBlock = suite.ConformanceTest{
-	ShortName:   "CPPWasmPluginsRequestBlock",
-	Description: "The Ingress in the higress-conformance-infra namespace test the cpp request-block wasmplugins.",
-	Manifests:   []string{"tests/cpp-request_block.yaml"},
+var WasmPluginsJwtAuth = suite.ConformanceTest{
+	ShortName:   "WasmPluginsJwtAuth",
+	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-jwt-auth.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -39,18 +40,18 @@ var CPPWasmPluginsRequestBlock = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/swagger.html",
+						Path:             "/info",
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 403,
+						StatusCode: 401,
 					},
 				},
 			},
 		}
-		t.Run("WasmPlugins request-block", func(t *testing.T) {
+		t.Run("WasmPlugins jwt-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

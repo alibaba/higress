@@ -54,7 +54,7 @@ func NamespacesMustBeAccepted(t *testing.T, c client.Client, timeoutConfig confi
 			podList := &v1.PodList{}
 			err := c.List(ctx, podList, client.InNamespace(ns))
 			if err != nil {
-				t.Errorf("Error listing Pods: %v", err)
+				t.Errorf("❌ Error listing Pods: %v", err)
 			}
 			for _, pod := range podList.Items {
 				if !FindPodConditionInList(t, pod.Status.Conditions, "Ready", "True") &&
@@ -64,7 +64,7 @@ func NamespacesMustBeAccepted(t *testing.T, c client.Client, timeoutConfig confi
 				}
 			}
 		}
-		t.Logf("Gateways and Pods in %s namespaces ready", strings.Join(namespaces, ", "))
+		t.Logf("✅ Gateways and Pods in %s namespaces ready", strings.Join(namespaces, ", "))
 		return true, nil
 	})
 	require.NoErrorf(t, waitErr, "error waiting for %s namespaces to be ready", strings.Join(namespaces, ", "))
@@ -72,7 +72,7 @@ func NamespacesMustBeAccepted(t *testing.T, c client.Client, timeoutConfig confi
 
 func ConditionsMatch(t *testing.T, expected, actual []metav1.Condition) bool {
 	if len(actual) < len(expected) {
-		t.Logf("Expected more conditions to be present")
+		t.Logf("⌛️ Expected more conditions to be present")
 		return false
 	}
 	for _, condition := range expected {
@@ -81,7 +81,7 @@ func ConditionsMatch(t *testing.T, expected, actual []metav1.Condition) bool {
 		}
 	}
 
-	t.Logf("Conditions matched expectations")
+	t.Logf("✅ Conditions matched expectations")
 	return true
 }
 
@@ -95,14 +95,14 @@ func FindConditionInList(t *testing.T, conditions []metav1.Condition, condName, 
 				if expectedReason == "" || cond.Reason == expectedReason {
 					return true
 				}
-				t.Logf("%s condition Reason set to %s, expected %s", condName, cond.Reason, expectedReason)
+				t.Logf("⌛️ %s condition Reason set to %s, expected %s", condName, cond.Reason, expectedReason)
 			}
 
-			t.Logf("%s condition set to Status %s with Reason %v, expected Status %s", condName, cond.Status, cond.Reason, expectedStatus)
+			t.Logf("⌛️ %s condition set to Status %s with Reason %v, expected Status %s", condName, cond.Status, cond.Reason, expectedStatus)
 		}
 	}
 
-	t.Logf("%s was not in conditions list", condName)
+	t.Logf("⌛️ %s was not in conditions list", condName)
 	return false
 }
 
@@ -112,10 +112,10 @@ func FindPodConditionInList(t *testing.T, conditions []v1.PodCondition, condName
 			if cond.Status == v1.ConditionStatus(condValue) {
 				return true
 			}
-			t.Logf("%s condition set to %s, expected %s", condName, cond.Status, condValue)
+			t.Logf("⌛️ %s condition set to %s, expected %s", condName, cond.Status, condValue)
 		}
 	}
 
-	t.Logf("%s was not in conditions list", condName)
+	t.Logf("⌛️ %s was not in conditions list", condName)
 	return false
 }

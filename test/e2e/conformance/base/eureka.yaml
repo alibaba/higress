@@ -1,0 +1,125 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This file contains the base resources that most conformance tests will rely
+# on. This includes 3 namespaces along with Gateways, Services and Deployments
+# that can be used as backends for routing traffic. The most important
+# resources included are the Gateways (all in the higress-conformance-infra
+# namespace):
+# - same-namespace (only supports route in same ns)
+# - all-namespaces (supports routes in all ns)
+# - backend-namespaces (supports routes in ns with backend label)
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eureka-cm
+  namespace: higress-conformance-app-backend
+data:
+  # if you want to deploy n instances of eureka cluster,
+  # you should set eureka_service_address: http://eureka-0.eureka:8761/eureka,...,http://eureka-(n-1).eureka:8761/eureka
+  eureka_service_address: "http://eureka-0.eureka.higress-conformance-app-backend.svc:8761/eureka"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+  namespace: higress-conformance-app-backend
+  labels:
+    app: eureka
+spec:
+  clusterIP: None
+  ports:
+    - port: 8761
+      name: eureka
+  selector:
+    app: eureka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eureka
+  namespace: higress-conformance-app-backend
+spec:
+  serviceName: eureka
+  # n instances
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eureka
+  template:
+    metadata:
+      labels:
+        app: eureka
+    spec:
+      containers:
+        - name: eureka
+          image: bitinit/eureka
+          ports:
+            - containerPort: 8761
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "500Mi"
+              cpu: "500m"
+          env:
+            - name: EUREKA_SERVER_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: eureka-cm
+                  key: eureka_service_address
+            - name: ENVIRONMENT
+              value: "prod"
+            - name: JVM_OPTS
+              value: "-Xms1g -Xmx1g"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: eureka-registry-provider
+  namespace: higress-conformance-app-backend
+spec:
+  containers:
+    - name: eureka-registry-provider
+      image: charlie1380/eureka-registry-provider:v0.3.0
+      env:
+        - name: EUREKA_SERVER_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: eureka-cm
+              key: eureka_service_address
+      ports:
+        - containerPort: 8888
+          name: http
+          protocol: TCP
+      readinessProbe:
+        failureThreshold: 5
+        httpGet:
+          path: /healthz
+          port: 8888
+          scheme: HTTP
+        periodSeconds: 1

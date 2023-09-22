@@ -16,6 +16,8 @@
 
 export VERSION
 
+MODE="install"
+
 HAS_CURL="$(type "curl" &> /dev/null && echo true || echo false)"
 HAS_WGET="$(type "wget" &> /dev/null && echo true || echo false)"
 HAS_DOCKER="$(type "docker" &> /dev/null && echo true || echo false)"
@@ -24,6 +26,7 @@ parseArgs() {
   CONFIG_ARGS=()
 
   DESTINATION=""
+  MODE="install"
 
   if [[ $1 != "-"* ]]; then
     DESTINATION="$1"
@@ -35,6 +38,10 @@ parseArgs() {
       -h|--help)
         outputUsage
         exit 0
+        ;;
+      -u|--update)
+        MODE="update"
+        shift
         ;;
       *)
         CONFIG_ARGS+=("$1")
@@ -48,15 +55,19 @@ parseArgs() {
 
 validateArgs() {
   if [ -d "$DESTINATION" ]; then
-    [ "$(ls -A "$DESTINATION")" ] && echo "The target folder \"$DESTINATION\" is not empty." && exit 1
+    if [ "$(ls -A "$DESTINATION")" -a "$MODE" != "update" ]; then
+      echo "The target folder \"$DESTINATION\" is not empty. Add \"-u\" to update an existed Higress instance." && exit 1
+    fi
     if [ ! -w "$DESTINATION" ]; then
-      echo "The target folder \"$DESTINATION\" is not writeable."
-      exit 1
+      echo "The target folder \"$DESTINATION\" is not writeable." && exit 1
     fi
   else
+    if [ "$MODE" == "update" ]; then
+      echo "The target folder \"$DESTINATION\" for update doesn't exist." && exit 1
+    fi
     mkdir -p "$DESTINATION"
     if [ $? -ne 0 ]; then
-      exit -1
+      exit 1
     fi
   fi
 
@@ -67,7 +78,7 @@ validateArgs() {
 
 outputUsage() {
   echo "Usage: $(basename -- "$0") [DIR] [OPTIONS...]"
-  echo 'Install Higress (standalone version) into the DIR (the current directory by default).'
+  echo 'Install Higress (standalone version) into the DIR ("./higress" by default).'
   echo '
  -c, --config-url=URL       URL of the config storage
                             Use Nacos with format: nacos://192.168.0.1:8848
@@ -104,6 +115,8 @@ outputUsage() {
      --console-port=CONSOLE-PORT
                             the port used to visit Higress Console
                             default to 8080 if unspecified
+ -u, --update               update an existed Higress instance.
+                            no user configuration will be changed during update.
  -h, --help                 give this help list'
 }
 
@@ -192,7 +205,35 @@ download() {
 # install installs the product.
 install() {
   tar -zx --exclude="docs" --exclude="src" --exclude="test" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  echo -n "$VERSION" > "$DESTINATION/VERSION"
   bash "$DESTINATION/bin/configure.sh" --auto-start ${CONFIG_ARGS[@]}
+}
+
+# update updates the product.
+update() {
+  CURRENT_VERSION="0.0.0"
+  if [ -f "$DESTINATION/VERSION" ]; then
+    CURRENT_VERSION="$(cat "$DESTINATION/VERSION")"
+  fi
+  if [ "$CURRENT_VERSION" == "$VERSION" ]; then
+    echo "Higress is already up-to-date."
+    exit 0
+  fi
+
+  BACKUP_FOLDER="$(cd ${DESTINATION}/.. ; pwd)"
+  BACKUP_FILE="${BACKUP_FOLDER}/higress_backup_$(date '+%Y%m%d%H%M%S').tar.gz" 
+  tar -zc -f "$BACKUP_FILE" -C "$DESTINATION" .
+  echo "The current version is packed here: $BACKUP_FILE"
+  echo ""
+
+  download
+  echo ""
+
+  tar -zx --exclude="docs" --exclude="src" --exclude="test" --exclude="compose/.env" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  tar -zx -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --transform='s/env/env_new/g' --strip-components=1 "higress-standalone-${VERSION#v}/compose/.env"
+  bash "$DESTINATION/bin/update.sh"
+  echo -n "$VERSION" > "$DESTINATION/VERSION"
+  return
 }
 
 # fail_trap is executed if an error occurs.
@@ -200,9 +241,9 @@ fail_trap() {
   result=$?
   if [ "$result" != "0" ]; then
     if [ -n "$INPUT_ARGUMENTS" ]; then
-      echo "Failed to install Higress with the arguments provided: $INPUT_ARGUMENTS"
+      echo "Failed to ${MODE} Higress with the arguments provided: $INPUT_ARGUMENTS"
     else
-      echo "Failed to install Higress"
+      echo "Failed to ${MODE} Higress"
     fi
     echo -e "\tFor support, go to https://github.com/alibaba/higress."
   fi
@@ -228,6 +269,13 @@ initOS
 verifySupported
 
 checkDesiredVersion
-download
-install
+case "$MODE" in
+  update)
+    update
+    ;;
+  *)
+    download
+    install
+    ;;
+esac
 cleanup

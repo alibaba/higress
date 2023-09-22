@@ -139,3 +139,27 @@ type IngressController interface {
 	// HasSynced returns true after initial cache synchronization is complete
 	HasSynced() bool
 }
+
+type KIngressController interface {
+	// RegisterEventHandler adds a handler to receive config update events for a
+	// configuration type
+	RegisterEventHandler(kind config.GroupVersionKind, handler model.EventHandler)
+
+	List() []config.Config
+
+	ServiceLister() listerv1.ServiceLister
+
+	SecretLister() listerv1.SecretLister
+
+	ConvertGateway(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
+
+	ConvertHTTPRoute(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
+
+	// Run until a signal is received
+	Run(stop <-chan struct{})
+
+	SetWatchErrorHandler(func(r *cache.Reflector, err error)) error
+
+	// HasSynced returns true after initial cache synchronization is complete
+	HasSynced() bool
+}
