@@ -32,6 +32,7 @@ func GetRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newUninstallCmd())
 	rootCmd.AddCommand(newUpgradeCmd())
 	rootCmd.AddCommand(newProfileCmd())
+	rootCmd.AddCommand(newDashboardCmd())
 
 	return rootCmd
 }
