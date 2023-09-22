@@ -6,6 +6,8 @@
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
 | -------- | -------- | -------- | -------- | -------- |
 |  block_urls     |  array of string     | 选填，`block_urls`,`block_headers`,`block_bodies` 中至少必填一项     |   -  |  配置用于匹配需要屏蔽 URL 的字符串   |
+|  block_exact_urls     |  array of string     | 选填，`block_urls`,`block_headers`,`block_bodies` 中至少必填一项     |   -  |  配置用于匹配需要精确屏蔽 URL 的字符串   |
+|  block_regexp_urls     |  array of string     | 选填，`block_urls`,`block_headers`,`block_bodies` 中至少必填一项     |   -  |  配置用于匹配需要屏蔽 URL 的正则表达式  |
 |  block_headers     |  array of string     | 选填，`block_urls`,`block_headers`,`block_bodies` 中至少必填一项     |   -  |  配置用于匹配需要屏蔽请求 Header 的字符串   |
 |  block_bodies     |  array of string     | 选填，`block_urls`,`block_headers`,`block_bodies` 中至少必填一项     |   -  |  配置用于匹配需要屏蔽请求 Body 的字符串   |
 |  blocked_code     |  number     | 选填     |   403  |  配置请求被屏蔽时返回的 HTTP 状态码   |
