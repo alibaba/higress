@@ -151,10 +151,16 @@ build-pilot:
 build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
 	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
-build-istio: prebuild build-pilot
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker	
+build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
-build-wasmplugins: 
+build-istio: prebuild build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
+build-istio-local: prebuild build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
+build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh
 
 pre-install:
