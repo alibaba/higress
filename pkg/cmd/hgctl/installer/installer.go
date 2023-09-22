@@ -65,6 +65,17 @@ func (o *Installer) RenderManifests() (map[ComponentName]string, error) {
 	return res, nil
 }
 
+// GenerateManifests generates component manifests to k8s cluster
+func (o *Installer) GenerateManifests(manifestMap map[ComponentName]string) error {
+	if o.kubeCli == nil {
+		return errors.New("no injected k8s cli into Installer")
+	}
+	for _, manifest := range manifestMap {
+		fmt.Fprint(o.writer, manifest)
+	}
+	return nil
+}
+
 // ApplyManifests apply component manifests to k8s cluster
 func (o *Installer) ApplyManifests(manifestMap map[ComponentName]string) error {
 	if o.kubeCli == nil {
@@ -152,32 +163,41 @@ func (o *Installer) isNamespacedObject(obj *object.K8sObject) bool {
 	return false
 }
 
-func NewInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer) (*Installer, error) {
+func NewInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer, quiet bool) (*Installer, error) {
 	if profile == nil {
 		return nil, errors.New("install profile is empty")
 	}
 	// initialize components
 	components := make(map[ComponentName]Component)
-	higressComponent, err := NewHigressComponent(profile, writer,
+	opts := []ComponentOption{
 		WithComponentNamespace(profile.Global.Namespace),
 		WithComponentChartPath(profile.InstallPackagePath),
 		WithComponentVersion(profile.Charts.Higress.Version),
 		WithComponentRepoURL(profile.Charts.Higress.Url),
 		WithComponentChartName(profile.Charts.Higress.Name),
-	)
+	}
+	if quiet {
+		opts = append(opts, WithQuiet())
+	}
+	higressComponent, err := NewHigressComponent(profile, writer, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("NewHigressComponent failed, err: %s", err)
 	}
 	components[Higress] = higressComponent
 
 	if profile.IstioEnabled() {
-		istioCRDComponent, err := NewIstioCRDComponent(profile, writer,
+		opts := []ComponentOption{
 			WithComponentNamespace(profile.Global.IstioNamespace),
 			WithComponentChartPath(profile.InstallPackagePath),
 			WithComponentVersion(profile.Charts.Istio.Version),
 			WithComponentRepoURL(profile.Charts.Istio.Url),
 			WithComponentChartName(profile.Charts.Istio.Name),
-		)
+		}
+		if quiet {
+			opts = append(opts, WithQuiet())
+		}
+
+		istioCRDComponent, err := NewIstioCRDComponent(profile, writer, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("NewIstioCRDComponent failed, err: %s", err)
 		}

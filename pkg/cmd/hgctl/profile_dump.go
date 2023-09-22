@@ -16,9 +16,10 @@ package hgctl
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type profileDumpArgs struct {
