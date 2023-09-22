@@ -33,8 +33,6 @@ type uninstallArgs struct {
 	istioNamespace string
 	// namespace is the namespace of higress installed .
 	namespace string
-	// verbose generates verbose output.
-	verbose bool
 }
 
 func addUninstallFlags(cmd *cobra.Command, args *uninstallArgs) {

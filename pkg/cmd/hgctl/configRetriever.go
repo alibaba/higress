@@ -33,8 +33,8 @@ var (
 )
 
 const (
-	adminPort     = 15000
-	containerName = "envoy"
+	defaultProxyAdminPort = 15000
+	containerName         = "envoy"
 )
 
 func retrieveConfigDump(args []string, includeEds bool) ([]byte, error) {
@@ -96,7 +96,7 @@ func portForwarder(nn types.NamespacedName) (kubernetes.PortForwarder, error) {
 		return nil, fmt.Errorf("pod %s is not running", nn)
 	}
 
-	fw, err := kubernetes.NewLocalPortForwarder(c, nn, 0, adminPort)
+	fw, err := kubernetes.NewLocalPortForwarder(c, nn, 0, defaultProxyAdminPort)
 	if err != nil {
 		return nil, err
 	}
