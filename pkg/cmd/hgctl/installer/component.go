@@ -15,10 +15,6 @@
 package installer
 
 import (
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
 	"sigs.k8s.io/yaml"
@@ -26,14 +22,9 @@ import (
 
 type ComponentName string
 
-const (
-	Higress ComponentName = "higress"
-	Istio   ComponentName = "istio"
-)
-
-var ComponentMap = map[string]ComponentName{
-	"higress": Higress,
-	"istio":   Istio,
+var ComponentMap = map[ComponentName]struct{}{
+	Higress: {},
+	Istio:   {},
 }
 
 type Component interface {
@@ -57,6 +48,7 @@ type ComponentOptions struct {
 	RepoURL   string
 	ChartName string
 	Version   string
+	Quiet     bool
 }
 
 type ComponentOption func(*ComponentOptions)
@@ -91,186 +83,10 @@ func WithComponentVersion(version string) ComponentOption {
 	}
 }
 
-type HigressComponent struct {
-	profile  *helm.Profile
-	started  bool
-	opts     *ComponentOptions
-	renderer helm.Renderer
-	writer   io.Writer
-}
-
-func (h *HigressComponent) ComponentName() ComponentName {
-	return Higress
-}
-
-func (h *HigressComponent) Namespace() string {
-	return h.opts.Namespace
-}
-
-func (h *HigressComponent) Enabled() bool {
-	return true
-}
-
-func (h *HigressComponent) Run() error {
-	// Parse latest version
-	if h.opts.Version == helm.RepoLatestVersion {
-
-		latestVersion, err := helm.ParseLatestVersion(h.opts.RepoURL, h.opts.Version)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(h.writer, "⚡️ Fetching Higress Helm Chart latest version \"%s\" \n", latestVersion)
-
-		// Reset Helm Chart version
-		h.opts.Version = latestVersion
-		h.renderer.SetVersion(latestVersion)
+func WithQuiet() ComponentOption {
+	return func(opts *ComponentOptions) {
+		opts.Quiet = true
 	}
-
-	fmt.Fprintf(h.writer, "🏄 Downloading Higress Helm Chart version: %s, url: %s\n", h.opts.Version, h.opts.RepoURL)
-
-	if err := h.renderer.Init(); err != nil {
-		return err
-	}
-	h.started = true
-	return nil
-}
-
-func (h *HigressComponent) RenderManifest() (string, error) {
-	if !h.started {
-		return "", nil
-	}
-	fmt.Fprintf(h.writer, "📦 Rendering Higress Helm Chart\n")
-	valsYaml, err := h.profile.ValuesYaml()
-	if err != nil {
-		return "", err
-	}
-	manifest, err2 := renderComponentManifest(valsYaml, h.renderer, true, h.ComponentName(), h.opts.Namespace)
-	if err2 != nil {
-		return "", err
-	}
-	return manifest, nil
-}
-
-func NewHigressComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
-	newOpts := &ComponentOptions{}
-	for _, opt := range opts {
-		opt(newOpts)
-	}
-
-	var renderer helm.Renderer
-	var err error
-	if newOpts.RepoURL != "" {
-		renderer, err = helm.NewRemoteRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithRepoURL(newOpts.RepoURL),
-			helm.WithVersion(newOpts.Version),
-		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		renderer, err = helm.NewLocalRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithVersion(newOpts.Version),
-			helm.WithFS(os.DirFS(newOpts.ChartPath)),
-			helm.WithDir(string(Higress)),
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	higressComponent := &HigressComponent{
-		profile:  profile,
-		renderer: renderer,
-		opts:     newOpts,
-		writer:   writer,
-	}
-	return higressComponent, nil
-}
-
-type IstioCRDComponent struct {
-	profile  *helm.Profile
-	started  bool
-	opts     *ComponentOptions
-	renderer helm.Renderer
-	writer   io.Writer
-}
-
-func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
-	newOpts := &ComponentOptions{}
-	for _, opt := range opts {
-		opt(newOpts)
-	}
-
-	var renderer helm.Renderer
-	var err error
-	if newOpts.RepoURL != "" {
-		renderer, err = helm.NewRemoteRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithRepoURL(newOpts.RepoURL),
-			helm.WithVersion(newOpts.Version),
-		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		renderer, err = helm.NewLocalRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithVersion(newOpts.Version),
-			helm.WithFS(os.DirFS(newOpts.ChartPath)),
-			helm.WithDir(string(Istio)),
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	istioComponent := &IstioCRDComponent{
-		profile:  profile,
-		renderer: renderer,
-		opts:     newOpts,
-		writer:   writer,
-	}
-	return istioComponent, nil
-}
-
-func (i *IstioCRDComponent) ComponentName() ComponentName {
-	return Istio
-}
-
-func (i *IstioCRDComponent) Namespace() string {
-	return i.opts.Namespace
-}
-
-func (i *IstioCRDComponent) Enabled() bool {
-	return true
-}
-
-func (i *IstioCRDComponent) Run() error {
-	fmt.Fprintf(i.writer, "🏄 Downloading Istio Helm Chart version: %s, url: %s\n", i.opts.Version, i.opts.RepoURL)
-	if err := i.renderer.Init(); err != nil {
-		return err
-	}
-	i.started = true
-	return nil
-}
-
-func (i *IstioCRDComponent) RenderManifest() (string, error) {
-	if !i.started {
-		return "", nil
-	}
-	fmt.Fprintf(i.writer, "📦 Rendering Istio Helm Chart\n")
-	values := make(map[string]any)
-	manifest, err := renderComponentManifest(values, i.renderer, false, i.ComponentName(), i.opts.Namespace)
-	if err != nil {
-		return "", err
-	}
-	return manifest, nil
 }
 
 func renderComponentManifest(spec any, renderer helm.Renderer, addOn bool, name ComponentName, namespace string) (string, error) {

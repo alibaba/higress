@@ -114,7 +114,7 @@ func UnInstallManifests(profile *helm.Profile, writer io.Writer) error {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
 
-	op, err := installer.NewInstaller(profile, cliClient, writer)
+	op, err := installer.NewInstaller(profile, cliClient, writer, false)
 	if err != nil {
 		return err
 	}
