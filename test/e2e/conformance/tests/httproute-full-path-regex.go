@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteFullPathRegex)
+	Register(HTTPRouteFullPathRegex)
 }
 
 var HTTPRouteFullPathRegex = suite.ConformanceTest{
 	ShortName:   "HTTPRouteFullPathRegex",
 	Description: "test for 'higress.io/full-path-regex' annotation",
 	Manifests:   []string{"tests/httproute-full-path-regex.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testCases := []http.Assertion{
 			{

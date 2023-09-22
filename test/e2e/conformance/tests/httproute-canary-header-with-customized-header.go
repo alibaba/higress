@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteCanaryHeaderWithCustomizedHeader)
+	Register(HTTPRouteCanaryHeaderWithCustomizedHeader)
 }
 
 var HTTPRouteCanaryHeaderWithCustomizedHeader = suite.ConformanceTest{
 	ShortName:   "HTTPRouteCanaryHeaderWithCustomizedHeader",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the canary header traffic split when same host and path but different header",
 	Manifests:   []string{"tests/httproute-canary-header-with-customized-header.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

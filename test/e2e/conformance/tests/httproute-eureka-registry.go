@@ -23,13 +23,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteEurekaRegistry)
+	Register(HTTPRouteEurekaRegistry)
 }
 
 var HTTPRouteEurekaRegistry = suite.ConformanceTest{
 	ShortName:   "HTTPRouteEurekaRegistry",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the eureka service registry.",
 	Manifests:   []string{"tests/httproute-eureka-registry.yaml"},
+	Features:    []suite.SupportedFeature{suite.EurekaConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

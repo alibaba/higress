@@ -15,3 +15,7 @@
 package constants
 
 const DefaultIngressClass = "higress"
+
+const KnativeIngressCRDName = "ingresses.networking.internal.knative.dev"
+
+const KnativeServicesCRDName = "services.serving.knative.dev"
