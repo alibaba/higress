@@ -340,6 +340,6 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 	}
 
 	if err != nil {
-		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\n", url)
+		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", url, err.Error())
 	}
 }
