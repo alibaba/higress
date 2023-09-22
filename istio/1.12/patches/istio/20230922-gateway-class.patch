@@ -1,0 +1,14 @@
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion.go istio_new/pilot/pkg/config/kube/gateway/conversion.go
+--- istio/pilot/pkg/config/kube/gateway/conversion.go	2023-09-22 11:06:50.400535200 +0800
++++ istio_new/pilot/pkg/config/kube/gateway/conversion.go	2023-09-22 11:07:52.954982700 +0800
+@@ -37,8 +37,8 @@
+ )
+ 
+ const (
+-	DefaultClassName = "istio"
+-	ControllerName   = "istio.io/gateway-controller"
++	DefaultClassName = "higress"
++	ControllerName   = "higress.io/gateway-controller"
+ )
+ 
+ // KubernetesResources stores all inputs to our conversion
