@@ -259,23 +259,6 @@ replace istio.io/client-go => ./external/client-go
 
 replace istio.io/istio => ./external/istio
 
-replace (
-	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
-	k8s.io/api => k8s.io/api v0.22.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.22.2
-	k8s.io/apimachinery => k8s.io/apimachinery v0.22.2
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.22.2
-	k8s.io/client-go => k8s.io/client-go v0.22.2
-	k8s.io/component-base => k8s.io/component-base v0.22.2
-	k8s.io/klog/v2 => k8s.io/klog/v2 v2.10.0
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211020163157-7327e2aaee2b // indirect
-	k8s.io/kubectl => k8s.io/kubectl v0.22.2
-	k8s.io/utils => k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
-	sigs.k8s.io/gateway-api => sigs.k8s.io/gateway-api v0.4.0 // indirect
-	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.8.11 // indirect
-	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
-)
-
 require (
 	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/google/yamlfmt v0.10.0
