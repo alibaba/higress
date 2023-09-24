@@ -152,12 +152,28 @@ func (c WasmPluginGenerator) GenerateDeltas(proxy *model.Proxy, push *model.Push
 	return nil, nil, model.DefaultXdsLogDetails, false, nil
 }
 
+type FallbackGenerator struct {
+	Environment *model.Environment
+	Server      *xds.DiscoveryServer
+}
+
+func (c FallbackGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
+	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
+	return make(model.Resources, 0), model.DefaultXdsLogDetails, nil
+}
+
+func (c FallbackGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushContext, updates *model.PushRequest,
+	w *model.WatchedResource) (model.Resources, []string, model.XdsLogDetails, bool, error) {
+	// TODO: delta implement
+	return nil, nil, model.DefaultXdsLogDetails, false, nil
+}
+
 func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
-	if configs == nil {
-		return nil, model.DefaultXdsLogDetails, nil
-	}
 	resources := make(model.Resources, 0)
+	if configs == nil {
+		return resources, model.DefaultXdsLogDetails, nil
+	}
 	for _, config := range configs {
 		body, err := cfg.ToProto(config.Spec)
 		if err != nil {
