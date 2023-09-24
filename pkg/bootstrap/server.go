@@ -142,12 +142,10 @@ var (
 )
 
 func NewServer(args *ServerArgs) (*Server, error) {
-	e := &model.Environment{
-		PushContext:  model.NewPushContext(),
-		DomainSuffix: constants.DefaultClusterLocalDomain,
-		// TODO: Upgrade fix
-		//MCPMode:      true,
-	}
+	e := model.NewEnvironment()
+	e.DomainSuffix = constants.DefaultClusterLocalDomain
+	// TODO: Upgrade fix
+	//e.MCPMode = true
 	e.SetLedger(buildLedger(args.RegistryOptions))
 
 	ac := aggregate.NewController(aggregate.Options{

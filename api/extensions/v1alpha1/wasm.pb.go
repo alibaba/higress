@@ -26,11 +26,11 @@
 package v1alpha1
 
 import (
+	//"github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
-	reflect "reflect"
 	sync "sync"
 )
 
@@ -539,54 +539,10 @@ var file_extensions_v1alpha1_wasm_proto_depIdxs = []int32{
 	0, // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_extensions_v1alpha1_wasm_proto_init() }
-func file_extensions_v1alpha1_wasm_proto_init() {
-	if File_extensions_v1alpha1_wasm_proto != nil {
-		return
-	}
-	if !protoimpl.UnsafeEnabled {
-		file_extensions_v1alpha1_wasm_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WasmPlugin); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_extensions_v1alpha1_wasm_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MatchRule); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-	}
-	type x struct{}
-	out := protoimpl.TypeBuilder{
-		File: protoimpl.DescBuilder{
-			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_extensions_v1alpha1_wasm_proto_rawDesc,
-			NumEnums:      2,
-			NumMessages:   2,
-			NumExtensions: 0,
-			NumServices:   0,
-		},
-		GoTypes:           file_extensions_v1alpha1_wasm_proto_goTypes,
-		DependencyIndexes: file_extensions_v1alpha1_wasm_proto_depIdxs,
-		EnumInfos:         file_extensions_v1alpha1_wasm_proto_enumTypes,
-		MessageInfos:      file_extensions_v1alpha1_wasm_proto_msgTypes,
-	}.Build()
-	File_extensions_v1alpha1_wasm_proto = out.File
-	file_extensions_v1alpha1_wasm_proto_rawDesc = nil
-	file_extensions_v1alpha1_wasm_proto_goTypes = nil
-	file_extensions_v1alpha1_wasm_proto_depIdxs = nil
-}
+// TODO: Upgrade fix
+//func init() {
+//	proto.RegisterEnum("higress.extensions.v1alpha1.PluginPhase", PluginPhase_name, PluginPhase_value)
+//	proto.RegisterEnum("higress.extensions.v1alpha1.PullPolicy", PullPolicy_name, PullPolicy_value)
+//	proto.RegisterType((*WasmPlugin)(nil), "higress.extensions.v1alpha1.WasmPlugin")
+//	proto.RegisterType((*MatchRule)(nil), "higress.extensions.v1alpha1.MatchRule")
+//}
