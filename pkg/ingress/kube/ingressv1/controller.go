@@ -1064,7 +1064,7 @@ func (c *controller) shouldProcessIngressWithClass(ingress *ingress.Ingress, ing
 
 func (c *controller) shouldProcessIngress(i *ingress.Ingress) (bool, error) {
 	var class *ingress.IngressClass
-	if i.Spec.IngressClassName != nil {
+	if c.classLister != nil && i.Spec.IngressClassName != nil {
 		classCache, err := c.classLister.Get(*i.Spec.IngressClassName)
 		if err != nil && !kerrors.IsNotFound(err) {
 			return false, fmt.Errorf("failed to get ingress class %v from cluster %s: %v", i.Spec.IngressClassName, c.options.ClusterId, err)

@@ -18,9 +18,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/stretchr/testify/assert"
-
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -37,7 +36,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      1,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx",
 			},
 		},
@@ -47,7 +46,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount: 3,
-				perRetryTimeout: &types.Duration{
+				perRetryTimeout: &duration.Duration{
 					Seconds: 10,
 				},
 				retryOn: "5xx",
@@ -60,7 +59,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      0,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx",
 			},
 		},
@@ -71,7 +70,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      2,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx",
 			},
 		},
@@ -81,7 +80,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx,non_idempotent",
 			},
 		},
@@ -91,7 +90,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx,retriable-status-codes,503,502,404",
 			},
 		},
@@ -101,7 +100,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				perRetryTimeout: &types.Duration{},
+				perRetryTimeout: &duration.Duration{},
 				retryOn:         "5xx,retriable-status-codes,505,503,502,404,403",
 			},
 		},

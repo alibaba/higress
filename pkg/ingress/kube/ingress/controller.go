@@ -15,6 +15,7 @@
 package ingress
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -39,9 +40,12 @@ import (
 	"istio.io/istio/pkg/util/sets"
 	ingress "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/watch"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
@@ -95,7 +99,13 @@ type controller struct {
 func NewController(localKubeClient, client kubeclient.Client, options common.Options,
 	secretController secret.SecretController) common.IngressController {
 	opts := ktypes.InformerOptions{}
-	ingressInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvrIngressV1Beta1)
+	ingressInformer := util.GetInformerFiltered(client, opts, gvrIngressV1Beta1, &ingress.Ingress{},
+		func(options metav1.ListOptions) (runtime.Object, error) {
+			return client.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).List(context.Background(), options)
+		},
+		func(options metav1.ListOptions) (watch.Interface, error) {
+			return client.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).Watch(context.Background(), options)
+		})
 	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
 	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Service)
 	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
@@ -103,7 +113,13 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 	var pClassesInformer *informerfactory.StartableInformer
 	var classLister networkinglister.IngressClassLister
 	if common.NetworkingIngressAvailable(client) {
-		classInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvrIngressClassV1Beta1)
+		classInformer := util.GetInformerFiltered(client, opts, gvrIngressClassV1Beta1, &ingress.IngressClass{},
+			func(options metav1.ListOptions) (runtime.Object, error) {
+				return client.Kube().NetworkingV1beta1().IngressClasses().List(context.Background(), options)
+			},
+			func(options metav1.ListOptions) (watch.Interface, error) {
+				return client.Kube().NetworkingV1beta1().IngressClasses().Watch(context.Background(), options)
+			})
 		pClassesInformer = &classInformer
 		classLister = networkinglister.NewIngressClassLister(classInformer.Informer.GetIndexer())
 	} else {
@@ -1081,7 +1097,7 @@ func (c *controller) shouldProcessIngressWithClass(ingress *ingress.Ingress, ing
 
 func (c *controller) shouldProcessIngress(i *ingress.Ingress) (bool, error) {
 	var class *ingress.IngressClass
-	if c.classInformer != nil && i.Spec.IngressClassName != nil {
+	if c.classLister != nil && i.Spec.IngressClassName != nil {
 		classCache, err := c.classLister.Get(*i.Spec.IngressClassName)
 		if err != nil && !kerrors.IsNotFound(err) {
 			return false, fmt.Errorf("failed to get ingress class %v from cluster %s: %v", i.Spec.IngressClassName, c.options.ClusterId, err)

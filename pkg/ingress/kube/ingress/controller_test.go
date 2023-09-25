@@ -33,13 +33,16 @@ import (
 	ingress "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/watch"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/alibaba/higress/pkg/kube"
 	"github.com/alibaba/higress/pkg/model"
 	"github.com/stretchr/testify/require"
@@ -1142,7 +1145,13 @@ func TestIngressControllerProcessing(t *testing.T) {
 	secretController := secret.NewController(localKubeClient, options.ClusterId)
 
 	opts := ktypes.InformerOptions{}
-	ingressInformer := schemakubeclient.GetInformerFilteredFromGVR(fakeClient, opts, gvrIngressV1Beta1)
+	ingressInformer := util.GetInformerFiltered(fakeClient, opts, gvrIngressV1Beta1, &ingress.Ingress{},
+		func(options metav1.ListOptions) (runtime.Object, error) {
+			return fakeClient.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).List(context.Background(), options)
+		},
+		func(options metav1.ListOptions) (watch.Interface, error) {
+			return fakeClient.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).Watch(context.Background(), options)
+		})
 	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
 	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(fakeClient, opts, gvr.Service)
 	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
