@@ -46,7 +46,7 @@ charts:
   higress:
     url: https://higress.io/helm-charts
     name: higress
-    version: 1.1.2
+    version: latest
   istio:
     url: https://istio-release.storage.googleapis.com/charts
     name: base
