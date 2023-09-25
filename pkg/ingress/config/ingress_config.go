@@ -41,6 +41,8 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -84,6 +86,10 @@ var (
 			"BODY":   "ALL_BODY",
 		}
 	}
+)
+
+const (
+	DefaultMcpbridgeName = "default"
 )
 
 type IngressConfig struct {
@@ -155,7 +161,7 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 			common.CreateConvertedName(clusterId, "global"),
 		watchedSecretSet:    sets.NewSet(),
 		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(true),
+		mcpbridgeReconciled: atomic.NewBool(false),
 		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
 		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
 	}
@@ -939,7 +945,7 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 
 func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
 	// TODO: get resource name from config
-	if clusterNamespacedName.Name != "default" || clusterNamespacedName.Namespace != m.namespace {
+	if clusterNamespacedName.Name != DefaultMcpbridgeName || clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
 	mcpbridge, err := m.mcpbridgeLister.McpBridges(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
@@ -948,7 +954,6 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
 		return
 	}
-	m.mcpbridgeReconciled.Store(false)
 	if m.RegistryReconciler == nil {
 		m.RegistryReconciler = reconcile.NewReconciler(func() {
 			metadata := config.Meta{
@@ -1404,8 +1409,21 @@ func (m *IngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	if !m.mcpbridgeController.HasSynced() || !m.mcpbridgeReconciled.Load() {
+	if !m.mcpbridgeController.HasSynced() {
 		return false
+	} else {
+		_, err := m.mcpbridgeController.Get(ktypes.NamespacedName{
+			Namespace: m.namespace,
+			Name:      DefaultMcpbridgeName,
+		})
+		if err != nil {
+			if !kerrors.IsNotFound(err) {
+				return false
+			}
+			// mcpbridge exist
+		} else if !m.mcpbridgeReconciled.Load() {
+			return false
+		}
 	}
 	if !m.wasmPluginController.HasSynced() {
 		return false
