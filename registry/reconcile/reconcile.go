@@ -21,6 +21,7 @@ import (
 	"path"
 	"reflect"
 	"sync"
+	"time"
 
 	"istio.io/pkg/log"
 
@@ -36,6 +37,10 @@ import (
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	DefaultReadyTimeout = time.Second * 60
 )
 
 type Reconciler struct {
@@ -123,7 +128,17 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
 	if errHappened {
 		return errors.New("ReconcileRegistries failed, Init Watchers failed")
 	}
-	wg.Wait()
+	var ready = make(chan struct{})
+	readyTimer := time.NewTimer(DefaultReadyTimeout)
+	go func() {
+		wg.Wait()
+		ready <- struct{}{}
+	}()
+	select {
+	case <-ready:
+	case <-readyTimer.C:
+		return errors.New("ReoncileRegistries failed, waiting for ready timeout")
+	}
 	r.Cache.PurgeStaleService()
 	log.Infof("Registries is reconciled")
 	return nil
