@@ -44,7 +44,7 @@ else
                 if [ -d $EXTENSIONS_DIR$file ]; then 
                     name=${file##*/}
                     echo "🚀 Build Go WasmPlugin: $name"
-                    PLUGIN_NAME=${name} make build
+                    PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
                 fi
             done
     else
