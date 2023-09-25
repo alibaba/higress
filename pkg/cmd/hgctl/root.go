@@ -25,7 +25,7 @@ func GetRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		DisableAutoGenTag: true,
 	}
-
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.AddCommand(newVersionCommand())
 	rootCmd.AddCommand(newConfigCommand())
 	rootCmd.AddCommand(newInstallCmd())
