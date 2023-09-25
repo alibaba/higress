@@ -50,7 +50,7 @@ type KIngressConfig struct {
 	ingressRouteCache  model.IngressRouteCollection
 	ingressDomainCache model.IngressDomainCollection
 
-	localKubeClient kube.Client
+	localKubeClient        kube.Client
 	virtualServiceHandlers []model.EventHandler
 	gatewayHandlers        []model.EventHandler
 	envoyFilterHandlers    []model.EventHandler
@@ -502,7 +502,7 @@ func (m *KIngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	IngressLog.Info("Ingress config controller synced.")
+	IngressLog.Info("KIngress config controller synced.")
 	return true
 }
 
