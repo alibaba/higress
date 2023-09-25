@@ -17,21 +17,21 @@ package annotations
 import (
 	"strings"
 
-	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
-func extraSecret(name string) model.NamespacedName {
-	result := model.NamespacedName{}
+func extraSecret(name string) types.NamespacedName {
+	result := types.NamespacedName{}
 	res := strings.TrimPrefix(name, credentials.KubernetesIngressSecretTypeURI)
 	split := strings.Split(res, "/")
 	if len(split) != 3 {
 		return result
 	}
 
-	return model.NamespacedName{
+	return types.NamespacedName{
 		Namespace: split[1],
 		Name:      split[2],
 	}

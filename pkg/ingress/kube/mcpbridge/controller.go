@@ -15,18 +15,31 @@
 package mcpbridge
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
+	ktypes "istio.io/istio/pkg/kube/kubetypes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
 	kubeclient "github.com/alibaba/higress/pkg/kube"
 )
 
+var mcpbridgesResource = schema.GroupVersionResource{Group: "networking.higress.io", Version: "v1", Resource: "mcpbridges"}
+
 type McpBridgeController controller.Controller[listersv1.McpBridgeLister]
 
 func NewController(client kubeclient.Client, clusterId string) McpBridgeController {
-	informer := client.HigressInformer().Networking().V1().McpBridges().Informer()
+	opts := ktypes.InformerOptions{
+		Namespace: metav1.NamespaceAll,
+		Cluster:   cluster.ID(clusterId),
+	}
+	informer := client.Informers().InformerFor(mcpbridgesResource, opts, func() cache.SharedIndexInformer {
+		return client.HigressInformer().Networking().V1().McpBridges().Informer()
+	})
 	return controller.NewCommonController("mcpbridge", client.HigressInformer().Networking().V1().McpBridges().Lister(),
 		informer, GetMcpBridge, clusterId)
 }

@@ -177,7 +177,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		}
 	}
 
-	s.server.RunComponent(func(stop <-chan struct{}) error {
+	s.server.RunComponent("kube-client", func(stop <-chan struct{}) error {
 		s.kubeClient.RunAndWait(stop)
 		return nil
 	})
@@ -201,7 +201,7 @@ func (s *Server) initRegistryEventHandlers() error {
 				Name:      curr.Name,
 				Namespace: curr.Namespace,
 			}: {}},
-			Reason: []model.TriggerReason{model.ConfigUpdate},
+			Reason: model.NewReasonStats(model.ConfigUpdate),
 		}
 		s.xdsServer.ConfigUpdate(pushReq)
 	}
@@ -247,7 +247,7 @@ func (s *Server) initConfigController() error {
 	//s.environment.IngressStore = ingressConfig
 
 	// Defer starting the controller until after the service is created.
-	s.server.RunComponent(func(stop <-chan struct{}) error {
+	s.server.RunComponent("config-controller", func(stop <-chan struct{}) error {
 		if err := ingressConfig.InitializeCluster(ingressController, kingressController, stop); err != nil {
 			return err
 		}
@@ -344,7 +344,7 @@ func (s *Server) initXdsServer() error {
 	s.xdsServer.ProxyNeedsPush = func(proxy *model.Proxy, req *model.PushRequest) bool {
 		return true
 	}
-	s.server.RunComponent(func(stop <-chan struct{}) error {
+	s.server.RunComponent("xds-server", func(stop <-chan struct{}) error {
 		log.Infof("Starting ADS server")
 		s.xdsServer.Start(stop)
 		return nil

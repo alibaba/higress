@@ -484,7 +484,7 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
-				Reason: []istiomodel.TriggerReason{"auth-secret-change"},
+				Reason: istiomodel.NewReasonStats("auth-secret-change"),
 			})
 		}
 		push(gvk.VirtualService)

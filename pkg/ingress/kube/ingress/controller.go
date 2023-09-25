@@ -26,19 +26,22 @@ import (
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	istiomodel "istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/config/schema/gvr"
+	schemakubeclient "istio.io/istio/pkg/config/schema/kubeclient"
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
+	"istio.io/istio/pkg/kube/informerfactory"
+	ktypes "istio.io/istio/pkg/kube/kubetypes"
 	"istio.io/istio/pkg/util/sets"
 	ingress "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/informers/networking/v1beta1"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
@@ -57,6 +60,9 @@ var (
 
 	// follow specification of ingress-nginx
 	defaultPathType = ingress.PathTypePrefix
+
+	gvrIngressClassV1Beta1 = schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1beta1", Resource: "ingressclasses"}
+	gvrIngressV1Beta1      = schema.GroupVersionResource{Group: "networking.k8s.io", Version: "v1beta1", Resource: "ingresses"}
 )
 
 type controller struct {
@@ -72,12 +78,13 @@ type controller struct {
 	// key: namespace/name
 	ingresses map[string]*ingress.Ingress
 
-	ingressInformer cache.SharedInformer
+	ingressInformer informerfactory.StartableInformer
 	ingressLister   networkinglister.IngressLister
-	serviceInformer cache.SharedInformer
+	serviceInformer informerfactory.StartableInformer
 	serviceLister   listerv1.ServiceLister
 	// May be nil if ingress class is not supported in the cluster
-	classes v1beta1.IngressClassInformer
+	classInformer *informerfactory.StartableInformer
+	classLister   networkinglister.IngressClassLister
 
 	secretController secret.SecretController
 
@@ -87,14 +94,18 @@ type controller struct {
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kubeclient.Client, options common.Options,
 	secretController secret.SecretController) common.IngressController {
+	opts := ktypes.InformerOptions{}
+	ingressInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvrIngressV1Beta1)
+	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
+	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Service)
+	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
-	ingressInformer := client.KubeInformer().Networking().V1beta1().Ingresses()
-	serviceInformer := client.KubeInformer().Core().V1().Services()
-
-	var classes v1beta1.IngressClassInformer
+	var pClassesInformer *informerfactory.StartableInformer
+	var classLister networkinglister.IngressClassLister
 	if common.NetworkingIngressAvailable(client) {
-		classes = client.KubeInformer().Networking().V1beta1().IngressClasses()
-		_ = classes.Informer()
+		classInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvrIngressClassV1Beta1)
+		pClassesInformer = &classInformer
+		classLister = networkinglister.NewIngressClassLister(classInformer.Informer.GetIndexer())
 	} else {
 		IngressLog.Infof("Skipping IngressClass, resource not supported for cluster %s", options.ClusterId)
 	}
@@ -102,21 +113,22 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 	c := &controller{
 		options:          options,
 		ingresses:        make(map[string]*ingress.Ingress),
-		ingressInformer:  ingressInformer.Informer(),
-		ingressLister:    ingressInformer.Lister(),
-		classes:          classes,
-		serviceInformer:  serviceInformer.Informer(),
-		serviceLister:    serviceInformer.Lister(),
+		ingressInformer:  ingressInformer,
+		ingressLister:    ingressLister,
+		classInformer:    pClassesInformer,
+		classLister:      classLister,
+		serviceInformer:  serviceInformer,
+		serviceLister:    serviceLister,
 		secretController: secretController,
 	}
 
 	c.queue = controllers.NewQueue("ingress",
 		controllers.WithReconciler(c.onEvent),
 		controllers.WithMaxAttempts(5))
-	_, _ = c.ingressInformer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
+	_, _ = c.ingressInformer.Informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 
 	if options.EnableStatus {
-		c.statusSyncer = newStatusSyncer(localKubeClient, client, c, options.SystemNamespace)
+		c.statusSyncer = newStatusSyncer(localKubeClient, client, c, options.SystemNamespace, c.ingressLister, c.serviceLister)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", options.ClusterId)
 	}
@@ -237,17 +249,17 @@ func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f istiom
 
 func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err error)) error {
 	var errs error
-	if err := c.serviceInformer.SetWatchErrorHandler(handler); err != nil {
+	if err := c.serviceInformer.Informer.SetWatchErrorHandler(handler); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	if err := c.ingressInformer.SetWatchErrorHandler(handler); err != nil {
+	if err := c.ingressInformer.Informer.SetWatchErrorHandler(handler); err != nil {
 		errs = multierror.Append(errs, err)
 	}
 	if err := c.secretController.Informer().SetWatchErrorHandler(handler); err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	if c.classes != nil {
-		if err := c.classes.Informer().SetWatchErrorHandler(handler); err != nil {
+	if c.classInformer != nil {
+		if err := c.classInformer.Informer.SetWatchErrorHandler(handler); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
@@ -255,8 +267,8 @@ func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err e
 }
 
 func (c *controller) HasSynced() bool {
-	return c.ingressInformer.HasSynced() && c.serviceInformer.HasSynced() &&
-		(c.classes == nil || c.classes.Informer().HasSynced()) &&
+	return c.ingressInformer.Informer.HasSynced() && c.serviceInformer.Informer.HasSynced() &&
+		(c.classInformer == nil || c.classInformer.Informer.HasSynced()) &&
 		c.secretController.HasSynced()
 }
 
@@ -264,7 +276,7 @@ func (c *controller) List() []config.Config {
 	c.mutex.RLock()
 	out := make([]config.Config, 0, len(c.ingresses))
 	c.mutex.RUnlock()
-	for _, raw := range c.ingressInformer.GetStore().List() {
+	for _, raw := range c.ingressInformer.Informer.GetStore().List() {
 		ing, ok := raw.(*ingress.Ingress)
 		if !ok {
 			continue
@@ -1037,7 +1049,7 @@ func resolveNamedPort(backend *ingress.IngressBackend, namespace string, service
 }
 
 func (c *controller) shouldProcessIngressWithClass(ingress *ingress.Ingress, ingressClass *ingress.IngressClass) bool {
-	if class, exists := ingress.Annotations[kube.IngressClassAnnotation]; exists {
+	if class, exists := ingress.Annotations[util.IngressClassAnnotation]; exists {
 		switch c.options.IngressClass {
 		case "":
 			return true
@@ -1069,8 +1081,8 @@ func (c *controller) shouldProcessIngressWithClass(ingress *ingress.Ingress, ing
 
 func (c *controller) shouldProcessIngress(i *ingress.Ingress) (bool, error) {
 	var class *ingress.IngressClass
-	if c.classes != nil && i.Spec.IngressClassName != nil {
-		classCache, err := c.classes.Lister().Get(*i.Spec.IngressClassName)
+	if c.classInformer != nil && i.Spec.IngressClassName != nil {
+		classCache, err := c.classLister.Get(*i.Spec.IngressClassName)
 		if err != nil && !kerrors.IsNotFound(err) {
 			return false, fmt.Errorf("failed to get ingress class %v from cluster %s: %v", i.Spec.IngressClassName, c.options.ClusterId, err)
 		}

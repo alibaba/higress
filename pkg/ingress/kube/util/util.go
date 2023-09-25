@@ -27,15 +27,21 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	_struct "github.com/golang/protobuf/ptypes/struct"
-	"istio.io/istio/pilot/pkg/model"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-const DefaultDomainSuffix = "cluster.local"
+const (
+	DefaultDomainSuffix = "cluster.local"
+
+	// IngressClassAnnotation is the annotation on ingress resources for the class of controllers
+	// responsible for it
+	IngressClassAnnotation = "kubernetes.io/ingress.class"
+)
 
 var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
-	model.NamespacedName
+	types.NamespacedName
 	ClusterId string
 }
 
@@ -43,16 +49,16 @@ func (c ClusterNamespacedName) String() string {
 	return c.ClusterId + "/" + c.NamespacedName.String()
 }
 
-func SplitNamespacedName(name string) model.NamespacedName {
+func SplitNamespacedName(name string) types.NamespacedName {
 	nsName := strings.Split(name, "/")
 	if len(nsName) == 2 {
-		return model.NamespacedName{
+		return types.NamespacedName{
 			Namespace: nsName[0],
 			Name:      nsName[1],
 		}
 	}
 
-	return model.NamespacedName{
+	return types.NamespacedName{
 		Name: nsName[0],
 	}
 }

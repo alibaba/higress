@@ -16,8 +16,8 @@ package controller
 
 import (
 	"errors"
+	"istio.io/istio/pkg/kube/informerfactory"
 
-	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/kube/controllers"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,7 +43,7 @@ type GetObjectFunc[lister any] func(lister, types.NamespacedName) (controllers.O
 type CommonController[lister any] struct {
 	typeName      string
 	queue         controllers.Queue
-	informer      cache.SharedIndexInformer
+	informer      informerfactory.StartableInformer
 	lister        lister
 	updateHandler func(util.ClusterNamespacedName)
 	removeHandler func(util.ClusterNamespacedName)
@@ -51,7 +51,7 @@ type CommonController[lister any] struct {
 	clusterId     string
 }
 
-func NewCommonController[lister any](typeName string, listerObj lister, informer cache.SharedIndexInformer,
+func NewCommonController[lister any](typeName string, listerObj lister, informer informerfactory.StartableInformer,
 	getFunc GetObjectFunc[lister], clusterId string) Controller[lister] {
 	c := &CommonController[lister]{
 		typeName:  typeName,
@@ -63,7 +63,7 @@ func NewCommonController[lister any](typeName string, listerObj lister, informer
 	c.queue = controllers.NewQueue(typeName,
 		controllers.WithReconciler(c.onEvent),
 		controllers.WithMaxAttempts(5))
-	_, _ = c.informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
+	_, _ = c.informer.Informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 	return c
 }
 
@@ -72,7 +72,7 @@ func (c *CommonController[lister]) Lister() lister {
 }
 
 func (c *CommonController[lister]) Informer() cache.SharedIndexInformer {
-	return c.informer
+	return c.informer.Informer
 }
 
 func (c *CommonController[lister]) AddEventHandler(addOrUpdate func(util.ClusterNamespacedName), delete ...func(util.ClusterNamespacedName)) {
@@ -91,7 +91,7 @@ func (c *CommonController[lister]) onEvent(namespacedName types.NamespacedName) 
 		return errors.New("getFunc is nil")
 	}
 	obj := util.ClusterNamespacedName{
-		NamespacedName: model.NamespacedName{
+		NamespacedName: types.NamespacedName{
 			Namespace: namespacedName.Namespace,
 			Name:      namespacedName.Name,
 		},
@@ -114,5 +114,5 @@ func (c *CommonController[lister]) onEvent(namespacedName types.NamespacedName) 
 }
 
 func (c *CommonController[lister]) HasSynced() bool {
-	return c.informer.HasSynced()
+	return c.informer.Informer.HasSynced()
 }

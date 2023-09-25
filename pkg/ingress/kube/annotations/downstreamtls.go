@@ -18,9 +18,9 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
 	gatewaytool "istio.io/istio/pkg/config/gateway"
 	"istio.io/istio/pkg/config/security"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
@@ -40,7 +40,7 @@ var (
 type DownstreamTLSConfig struct {
 	CipherSuites []string
 	Mode         networking.ServerTLSSettings_TLSmode
-	CASecretName model.NamespacedName
+	CASecretName types.NamespacedName
 }
 
 type downstreamTLS struct{}

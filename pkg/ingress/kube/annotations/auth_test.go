@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	listerv1 "k8s.io/client-go/listers/core/v1"
@@ -83,7 +83,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar",
 					},
@@ -112,7 +112,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar",
 					},
@@ -140,7 +140,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "default",
 						Name:      "bar",
 					},

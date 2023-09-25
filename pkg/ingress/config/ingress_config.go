@@ -1036,7 +1036,7 @@ func (m *IngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterN
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
-				Reason: []istiomodel.TriggerReason{"auth-secret-change"},
+				Reason: istiomodel.NewReasonStats("auth-secret-change"),
 			})
 		}
 		push(gvk.VirtualService)

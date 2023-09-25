@@ -15,18 +15,31 @@
 package http2rpc
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
+	ktypes "istio.io/istio/pkg/kube/kubetypes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
 	kubeclient "github.com/alibaba/higress/pkg/kube"
 )
 
+var http2rpcsResource = schema.GroupVersionResource{Group: "networking.higress.io", Version: "v1", Resource: "http2rpcs"}
+
 type Http2RpcController controller.Controller[listersv1.Http2RpcLister]
 
 func NewController(client kubeclient.Client, clusterId string) Http2RpcController {
-	informer := client.HigressInformer().Networking().V1().Http2Rpcs().Informer()
+	opts := ktypes.InformerOptions{
+		Namespace: metav1.NamespaceAll,
+		Cluster:   cluster.ID(clusterId),
+	}
+	informer := client.Informers().InformerFor(http2rpcsResource, opts, func() cache.SharedIndexInformer {
+		return client.HigressInformer().Networking().V1().Http2Rpcs().Informer()
+	})
 	return controller.NewCommonController("http2rpc", client.HigressInformer().Networking().V1().Http2Rpcs().Lister(),
 		informer, GetHttp2Rpc, clusterId)
 }

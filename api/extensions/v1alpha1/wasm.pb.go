@@ -26,7 +26,6 @@
 package v1alpha1
 
 import (
-	//"github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -230,7 +229,7 @@ type WasmPlugin struct {
 	// If `priority` is not set, or two `WasmPlugins` exist with the same
 	// value, the ordering will be deterministically derived from name and
 	// namespace of the `WasmPlugins`. Defaults to `0`.
-	Priority *wrapperspb.Int64Value `protobuf:"bytes,10,opt,name=priority,proto3" json:"priority,omitempty"`
+	Priority *wrapperspb.Int32Value `protobuf:"bytes,10,opt,name=priority,proto3" json:"priority,omitempty"`
 	// Extended by Higress, the default configuration takes effect globally
 	DefaultConfig *structpb.Struct `protobuf:"bytes,101,opt,name=default_config,json=defaultConfig,proto3" json:"default_config,omitempty"`
 	// Extended by Higress, matching rules take effect
@@ -327,7 +326,7 @@ func (x *WasmPlugin) GetPhase() PluginPhase {
 	return PluginPhase_UNSPECIFIED_PHASE
 }
 
-func (x *WasmPlugin) GetPriority() *wrapperspb.Int64Value {
+func (x *WasmPlugin) GetPriority() *wrapperspb.Int32Value {
 	if x != nil {
 		return x.Priority
 	}
@@ -464,7 +463,7 @@ var file_extensions_v1alpha1_wasm_proto_rawDesc = []byte{
 	0x67, 0x69, 0x6e, 0x50, 0x68, 0x61, 0x73, 0x65, 0x52, 0x05, 0x70, 0x68, 0x61, 0x73, 0x65, 0x12,
 	0x37, 0x0a, 0x08, 0x70, 0x72, 0x69, 0x6f, 0x72, 0x69, 0x74, 0x79, 0x18, 0x0a, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x1b, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x62, 0x75, 0x66, 0x2e, 0x49, 0x6e, 0x74, 0x36, 0x34, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x08,
+	0x62, 0x75, 0x66, 0x2e, 0x49, 0x6e, 0x74, 0x33, 0x32, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x08,
 	0x70, 0x72, 0x69, 0x6f, 0x72, 0x69, 0x74, 0x79, 0x12, 0x3e, 0x0a, 0x0e, 0x64, 0x65, 0x66, 0x61,
 	0x75, 0x6c, 0x74, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x65, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x17, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
@@ -522,13 +521,13 @@ var file_extensions_v1alpha1_wasm_proto_goTypes = []interface{}{
 	(*WasmPlugin)(nil),            // 2: higress.extensions.v1alpha1.WasmPlugin
 	(*MatchRule)(nil),             // 3: higress.extensions.v1alpha1.MatchRule
 	(*structpb.Struct)(nil),       // 4: google.protobuf.Struct
-	(*wrapperspb.Int64Value)(nil), // 5: google.protobuf.Int64Value
+	(*wrapperspb.Int32Value)(nil), // 5: google.protobuf.Int32Value
 }
 var file_extensions_v1alpha1_wasm_proto_depIdxs = []int32{
 	1, // 0: higress.extensions.v1alpha1.WasmPlugin.image_pull_policy:type_name -> higress.extensions.v1alpha1.PullPolicy
 	4, // 1: higress.extensions.v1alpha1.WasmPlugin.plugin_config:type_name -> google.protobuf.Struct
 	0, // 2: higress.extensions.v1alpha1.WasmPlugin.phase:type_name -> higress.extensions.v1alpha1.PluginPhase
-	5, // 3: higress.extensions.v1alpha1.WasmPlugin.priority:type_name -> google.protobuf.Int64Value
+	5, // 3: higress.extensions.v1alpha1.WasmPlugin.priority:type_name -> google.protobuf.Int32Value
 	4, // 4: higress.extensions.v1alpha1.WasmPlugin.default_config:type_name -> google.protobuf.Struct
 	3, // 5: higress.extensions.v1alpha1.WasmPlugin.match_rules:type_name -> higress.extensions.v1alpha1.MatchRule
 	4, // 6: higress.extensions.v1alpha1.MatchRule.config:type_name -> google.protobuf.Struct
@@ -540,9 +539,54 @@ var file_extensions_v1alpha1_wasm_proto_depIdxs = []int32{
 }
 
 // TODO: Upgrade fix
-//func init() {
-//	proto.RegisterEnum("higress.extensions.v1alpha1.PluginPhase", PluginPhase_name, PluginPhase_value)
-//	proto.RegisterEnum("higress.extensions.v1alpha1.PullPolicy", PullPolicy_name, PullPolicy_value)
-//	proto.RegisterType((*WasmPlugin)(nil), "higress.extensions.v1alpha1.WasmPlugin")
-//	proto.RegisterType((*MatchRule)(nil), "higress.extensions.v1alpha1.MatchRule")
+//func init() { file_extensions_v1alpha1_wasm_proto_init() }
+//func file_extensions_v1alpha1_wasm_proto_init() {
+//	if File_extensions_v1alpha1_wasm_proto != nil {
+//		return
+//	}
+//	if !protoimpl.UnsafeEnabled {
+//		file_extensions_v1alpha1_wasm_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+//			switch v := v.(*WasmPlugin); i {
+//			case 0:
+//				return &v.state
+//			case 1:
+//				return &v.sizeCache
+//			case 2:
+//				return &v.unknownFields
+//			default:
+//				return nil
+//			}
+//		}
+//		file_extensions_v1alpha1_wasm_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+//			switch v := v.(*MatchRule); i {
+//			case 0:
+//				return &v.state
+//			case 1:
+//				return &v.sizeCache
+//			case 2:
+//				return &v.unknownFields
+//			default:
+//				return nil
+//			}
+//		}
+//	}
+//	type x struct{}
+//	out := protoimpl.TypeBuilder{
+//		File: protoimpl.DescBuilder{
+//			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+//			RawDescriptor: file_extensions_v1alpha1_wasm_proto_rawDesc,
+//			NumEnums:      2,
+//			NumMessages:   2,
+//			NumExtensions: 0,
+//			NumServices:   0,
+//		},
+//		GoTypes:           file_extensions_v1alpha1_wasm_proto_goTypes,
+//		DependencyIndexes: file_extensions_v1alpha1_wasm_proto_depIdxs,
+//		EnumInfos:         file_extensions_v1alpha1_wasm_proto_enumTypes,
+//		MessageInfos:      file_extensions_v1alpha1_wasm_proto_msgTypes,
+//	}.Build()
+//	File_extensions_v1alpha1_wasm_proto = out.File
+//	file_extensions_v1alpha1_wasm_proto_rawDesc = nil
+//	file_extensions_v1alpha1_wasm_proto_goTypes = nil
+//	file_extensions_v1alpha1_wasm_proto_depIdxs = nil
 //}

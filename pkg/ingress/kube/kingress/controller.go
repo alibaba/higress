@@ -16,7 +16,12 @@ package kingress
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/pkg/kube"
+	"path"
+	"reflect"
+	"sort"
+	"strings"
+	"sync"
+
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	istiomodel "istio.io/istio/pilot/pkg/model"
@@ -24,7 +29,11 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/config/schema/gvr"
+	schemakubeclient "istio.io/istio/pkg/config/schema/kubeclient"
 	"istio.io/istio/pkg/kube/controllers"
+	"istio.io/istio/pkg/kube/informerfactory"
+	ktypes "istio.io/istio/pkg/kube/kubetypes"
 	"istio.io/istio/pkg/util/sets"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,17 +42,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
 	networkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
-	"path"
-	"reflect"
-	"sort"
-	"strings"
-	"sync"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/kingress/resources"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/kube"
 	"github.com/alibaba/higress/pkg/model"
 	"github.com/alibaba/higress/pkg/model/credentials"
 )
@@ -72,7 +77,7 @@ type controller struct {
 
 	ingressInformer  cache.SharedInformer
 	ingressLister    networkingv1alpha1.IngressLister
-	serviceInformer  cache.SharedInformer
+	serviceInformer  informerfactory.StartableInformer
 	serviceLister    listerv1.ServiceLister
 	secretController secret.SecretController
 	statusSyncer     *statusSyncer
@@ -83,15 +88,16 @@ func NewController(localKubeClient, client kube.Client, options common.Options,
 	secretController secret.SecretController) common.KIngressController {
 	//var namespace string = "default"
 	ingressInformer := client.KIngressInformer().Networking().V1alpha1().Ingresses()
-	serviceInformer := client.KubeInformer().Core().V1().Services()
+	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{}, gvr.Service)
+	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
 	c := &controller{
 		options:          options,
 		ingresses:        make(map[string]*ingress.Ingress),
 		ingressInformer:  ingressInformer.Informer(),
 		ingressLister:    ingressInformer.Lister(),
-		serviceInformer:  serviceInformer.Informer(),
-		serviceLister:    serviceInformer.Lister(),
+		serviceInformer:  serviceInformer,
+		serviceLister:    serviceLister,
 		secretController: secretController,
 	}
 
@@ -101,7 +107,7 @@ func NewController(localKubeClient, client kube.Client, options common.Options,
 	_, _ = c.ingressInformer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 
 	if options.EnableStatus {
-		c.statusSyncer = newStatusSyncer(localKubeClient, client, c, options.SystemNamespace)
+		c.statusSyncer = newStatusSyncer(localKubeClient, client, c, options.SystemNamespace, c.serviceLister)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", options.ClusterId)
 	}
@@ -210,7 +216,7 @@ func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f istiom
 
 func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err error)) error {
 	var errs error
-	if err := c.serviceInformer.SetWatchErrorHandler(handler); err != nil {
+	if err := c.serviceInformer.Informer.SetWatchErrorHandler(handler); err != nil {
 		errs = multierror.Append(errs, err)
 	}
 	if err := c.ingressInformer.SetWatchErrorHandler(handler); err != nil {
@@ -223,7 +229,7 @@ func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err e
 }
 
 func (c *controller) HasSynced() bool {
-	return c.ingressInformer.HasSynced() && c.serviceInformer.HasSynced() && c.secretController.HasSynced()
+	return c.ingressInformer.HasSynced() && c.serviceInformer.Informer.HasSynced() && c.secretController.HasSynced()
 }
 
 func (c *controller) List() []config.Config {

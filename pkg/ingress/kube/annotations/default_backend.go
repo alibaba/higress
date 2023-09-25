@@ -17,11 +17,10 @@ package annotations
 import (
 	"strconv"
 
-	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
-
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	networking "istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -40,7 +39,7 @@ var (
 )
 
 type FallbackConfig struct {
-	DefaultBackend   model.NamespacedName
+	DefaultBackend   types.NamespacedName
 	Port             uint32
 	customHTTPErrors []uint32
 }
