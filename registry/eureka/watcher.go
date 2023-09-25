@@ -147,7 +147,7 @@ func (w *watcher) Run() {
 		case <-ticker.C:
 			w.doFullRefresh()
 		case <-w.stop:
-			log.Info("eureka watcher(%v) is stopping ...", w.Name)
+			log.Infof("eureka watcher(%v) is stopping ...", w.Name)
 			return
 		}
 	}
