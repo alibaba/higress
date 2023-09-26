@@ -19,17 +19,21 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/retry"
+	ctrClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type CLIClient interface {
@@ -44,6 +48,15 @@ type CLIClient interface {
 
 	// PodExec takes a command and the pod data to run the command in the specified pod.
 	PodExec(namespacedName types.NamespacedName, container string, command string) (stdout string, stderr string, err error)
+
+	// ApplyObject creates or updates unstructured object
+	ApplyObject(obj *unstructured.Unstructured) error
+
+	// DeleteObject delete unstructured object
+	DeleteObject(obj *unstructured.Unstructured) error
+
+	// CreateNamespace create namespace
+	CreateNamespace(namespace string) error
 }
 
 var _ CLIClient = &client{}
@@ -52,6 +65,7 @@ type client struct {
 	config     *rest.Config
 	restClient *rest.RESTClient
 	kube       kubernetes.Interface
+	ctrClient  ctrClient.Client
 }
 
 func NewCLIClient(clientConfig clientcmd.ClientConfig) (CLIClient, error) {
@@ -80,31 +94,11 @@ func newClientInternal(clientConfig clientcmd.ClientConfig) (*client, error) {
 		return nil, err
 	}
 
+	c.ctrClient, err = ctrClient.New(c.config, ctrClient.Options{})
+	if err != nil {
+		return nil, err
+	}
 	return &c, err
-}
-
-func setRestDefaults(config *rest.Config) *rest.Config {
-	if config.GroupVersion == nil || config.GroupVersion.Empty() {
-		config.GroupVersion = &corev1.SchemeGroupVersion
-	}
-	if len(config.APIPath) == 0 {
-		if len(config.GroupVersion.Group) == 0 {
-			config.APIPath = "/api"
-		} else {
-			config.APIPath = "/apis"
-		}
-	}
-	if len(config.ContentType) == 0 {
-		config.ContentType = runtime.ContentTypeJSON
-	}
-	if config.NegotiatedSerializer == nil {
-		// This codec factory ensures the resources are not converted. Therefore, resources
-		// will not be round-tripped through internal versions. Defaulting does not happen
-		// on the client.
-		config.NegotiatedSerializer = serializer.NewCodecFactory(kubescheme.Scheme).WithoutConversion()
-	}
-
-	return config
 }
 
 func (c *client) RESTConfig() *rest.Config {
@@ -169,4 +163,86 @@ func (c *client) PodExec(namespacedName types.NamespacedName, container string, 
 	stdout = stdoutBuf.String()
 	stderr = stderrBuf.String()
 	return
+}
+
+// DeleteObject delete unstructured object
+func (c *client) DeleteObject(obj *unstructured.Unstructured) error {
+	err := c.ctrClient.Delete(context.TODO(), obj, ctrClient.PropagationPolicy(metav1.DeletePropagationBackground))
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyObject creates or updates unstructured object
+func (c *client) ApplyObject(obj *unstructured.Unstructured) error {
+	if obj.GetKind() == "List" {
+		objList, err := obj.ToList()
+		if err != nil {
+			return err
+		}
+		for _, item := range objList.Items {
+			if err := c.ApplyObject(&item); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	key := ctrClient.ObjectKeyFromObject(obj)
+	receiver := &unstructured.Unstructured{}
+	receiver.SetGroupVersionKind(obj.GroupVersionKind())
+
+	if err := retry.RetryOnConflict(wait.Backoff{
+		Duration: time.Millisecond * 10,
+		Factor:   2,
+		Steps:    3,
+	}, func() error {
+		if err := c.ctrClient.Get(context.Background(), key, receiver); err != nil {
+			if errors.IsNotFound(err) {
+				if err := c.ctrClient.Create(context.Background(), obj); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if err := applyOverlay(receiver, obj); err != nil {
+			return err
+		}
+		if err := c.ctrClient.Update(context.Background(), receiver); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CreateNamespace create namespace
+func (c *client) CreateNamespace(namespace string) error {
+	key := ctrClient.ObjectKey{
+		Namespace: metav1.NamespaceSystem,
+		Name:      namespace,
+	}
+	if err := c.ctrClient.Get(context.Background(), key, &corev1.Namespace{}); err != nil {
+		if errors.IsNotFound(err) {
+			nsObj := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: metav1.NamespaceSystem,
+					Name:      namespace,
+				},
+			}
+			if err := c.ctrClient.Create(context.Background(), nsObj); err != nil {
+				return err
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to check if namespace %v exists: %v", namespace, err)
+	}
+
+	return nil
 }

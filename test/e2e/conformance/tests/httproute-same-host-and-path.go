@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteSameHostAndPath)
+	Register(HTTPRouteSameHostAndPath)
 }
 
 var HTTPRouteSameHostAndPath = suite.ConformanceTest{
 	ShortName:   "HTTPRouteSameHostAndPath",
 	Description: "A single Ingress in the higress-conformance-infra namespace demonstrates the situation with same path and host",
 	Manifests:   []string{"tests/httproute-same-host-and-path.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -79,6 +80,25 @@ var HTTPRouteSameHostAndPath = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Path: "/hello-world",
+						Headers: map[string]string{
+							"abc": "123",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/",
 						Headers: map[string]string{
 							"abc": "123",
 						},

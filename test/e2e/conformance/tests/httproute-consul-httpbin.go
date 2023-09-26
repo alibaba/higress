@@ -22,35 +22,33 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, CPPWasmPluginsRequestBlock)
+	Register(HTTPRouteConsulHttpBin)
 }
 
-var CPPWasmPluginsRequestBlock = suite.ConformanceTest{
-	ShortName:   "CPPWasmPluginsRequestBlock",
-	Description: "The Ingress in the higress-conformance-infra namespace test the cpp request-block wasmplugins.",
-	Manifests:   []string{"tests/cpp-request_block.yaml"},
+var HTTPRouteConsulHttpBin = suite.ConformanceTest{
+	ShortName:   "HTTPRouteConsulHttpBin",
+	Description: "The Ingress in the higress-conformance-infra namespace uses the consul service registry.",
+	Manifests:   []string{"tests/httproute-consul-httpbin.yaml"},
+	Features:    []suite.SupportedFeature{suite.ConsulConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/swagger.html",
-						UnfollowRedirect: true,
+						Host:   "foo.com",
+						Path:   "/ping",
+						Method: "GET",
 					},
 				},
 				Response: http.AssertionResponse{
+					ExpectedResponseNoRequest: true,
 					ExpectedResponse: http.Response{
-						StatusCode: 403,
+						StatusCode: 200,
 					},
 				},
 			},
 		}
-		t.Run("WasmPlugins request-block", func(t *testing.T) {
+		t.Run("HTTPRoute Consul HttpBin", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

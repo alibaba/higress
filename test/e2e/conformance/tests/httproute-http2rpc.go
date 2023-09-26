@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteHttp2Rpc)
+	Register(HTTPRouteHttp2Rpc)
 }
 
 var HTTPRouteHttp2Rpc = suite.ConformanceTest{
 	ShortName:   "HTTPRouteHttp2Rpc",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the http2rpc.",
 	Manifests:   []string{"tests/httproute-http2rpc.yaml"},
+	Features:    []suite.SupportedFeature{suite.DubboConformanceFeature, suite.NacosConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
@@ -47,7 +48,7 @@ var HTTPRouteHttp2Rpc = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("HTTPRoute app root", func(t *testing.T) {
+		t.Run("HTTPRoute uses HTTP to RPC", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

@@ -20,37 +20,35 @@ set -euo pipefail
 TYPE=${PLUGIN_TYPE-""}
 INNER_PLUGIN_NAME=${PLUGIN_NAME-""}
 
-if [ $TYPE == "CPP" ]
+if [ "$TYPE" == "CPP" ]
 then
     cd ./plugins/wasm-cpp/
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
-        echo "you must specify which cpp plugin you want to compile"
+        echo "You must specify which cpp plugin you want to compile"
     else
-        echo "build wasmplugin-cpp name of $INNER_PLUGIN_NAME"
+        echo "🚀 Build CPP WasmPlugin: $INNER_PLUGIN_NAME"
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
     fi
 else
-    echo "not specify plugin language, so just compile wasm-go as default"
+    echo "Not specify plugin language, so just compile wasm-go as default"
     cd ./plugins/wasm-go/
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
         EXTENSIONS_DIR=$(pwd)"/extensions/"
-        echo "build all wasmplugins-go under folder of $EXTENSIONS_DIR"
+        echo "🚀 Build all Go WasmPlugins under folder of $EXTENSIONS_DIR"
         for file in `ls $EXTENSIONS_DIR`                                   
             do
                 # TODO: adjust waf build
-                if [ $file == "waf" ]; then 
+                if [ "$file" == "waf" ]; then 
                     continue
                 fi
                 if [ -d $EXTENSIONS_DIR$file ]; then 
                     name=${file##*/}
-                    echo "build wasmplugin name of $name"
+                    echo "🚀 Build Go WasmPlugin: $name"
                     PLUGIN_NAME=${name} make build
                 fi
             done
     else
-        echo "build wasmplugin-go name of $INNER_PLUGIN_NAME"
+        echo "🚀 Build Go WasmPlugin: $INNER_PLUGIN_NAME"
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
     fi
 fi
-
-

@@ -599,11 +599,6 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 		} else {
 			convertOptions.HTTPRoutes[rule.Host] = wrapperHttpRoutes
 		}
-
-		// Sort, exact -> prefix -> regex
-		routes := convertOptions.HTTPRoutes[rule.Host]
-		IngressLog.Debugf("routes of host %s is %v", rule.Host, routes)
-		common.SortHTTPRoutes(routes)
 	}
 
 	return nil

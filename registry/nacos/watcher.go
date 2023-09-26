@@ -64,6 +64,7 @@ type watcher struct {
 	client               *versionedclient.Clientset
 	isStop               bool
 	updateCacheWhenEmpty bool
+	authOption           provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -193,6 +194,12 @@ func WithUpdateCacheWhenEmpty(enable bool) WatcherOption {
 	}
 }
 
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
+	return func(w *watcher) {
+		w.authOption = authOption
+	}
+}
+
 func (w *watcher) Run() {
 	ticker := time.NewTicker(time.Duration(w.NacosRefreshInterval))
 	defer ticker.Stop()
@@ -231,7 +238,7 @@ func (w *watcher) fetchAllServices() error {
 			for _, serviceName := range ss.Doms {
 				fetchedServices[groupName+DefaultJoiner+serviceName] = true
 			}
-			if ss.Count < DefaultFetchPageSize {
+			if len(ss.Doms) < DefaultFetchPageSize {
 				break
 			}
 		}

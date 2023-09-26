@@ -67,6 +67,7 @@ type watcher struct {
 	addrProvider         *address.NacosAddressProvider
 	updateCacheWhenEmpty bool
 	nacosClietConfig     *constant.ClientConfig
+	authOption           provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -106,6 +107,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithNamespaceId(w.NacosNamespaceId),
 		constant.WithAccessKey(w.NacosAccessKey),
 		constant.WithSecretKey(w.NacosSecretKey),
+		constant.WithUsername(w.authOption.NacosUsername),
+		constant.WithPassword(w.authOption.NacosPassword),
 	)
 
 	initTimer := time.NewTimer(DefaultInitTimeout)
@@ -224,6 +227,12 @@ func WithUpdateCacheWhenEmpty(enable bool) WatcherOption {
 	}
 }
 
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
+	return func(w *watcher) {
+		w.authOption = authOption
+	}
+}
+
 func (w *watcher) Run() {
 	ticker := time.NewTicker(time.Duration(w.NacosRefreshInterval))
 	defer ticker.Stop()
@@ -308,7 +317,7 @@ func (w *watcher) fetchAllServices() error {
 			for _, serviceName := range ss.Doms {
 				fetchedServices[groupName+DefaultJoiner+serviceName] = true
 			}
-			if ss.Count < DefaultFetchPageSize {
+			if len(ss.Doms) < DefaultFetchPageSize {
 				break
 			}
 		}
@@ -482,6 +491,7 @@ func (w *watcher) Stop() {
 	}
 
 	w.isStop = true
+	w.namingClient.CloseClient()
 	close(w.stop)
 	w.Ready(false)
 }

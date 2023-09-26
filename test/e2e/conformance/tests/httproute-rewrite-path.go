@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteRewritePath)
+	Register(HTTPRouteRewritePath)
 }
 
 var HTTPRouteRewritePath = suite.ConformanceTest{
 	ShortName:   "HTTPRouteRewritePath",
 	Description: "A single Ingress in the higress-conformance-infra namespace uses the rewrite path.",
 	Manifests:   []string{"tests/httproute-rewrite-path.yaml"},
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testCases := []http.Assertion{
 			{
