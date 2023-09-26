@@ -53,9 +53,10 @@ func runLs(w io.Writer) error {
 	}
 
 	printer := printers.GetNewTabWriter(w)
-	fmt.Fprintf(printer, "NAME\tSTATUS\tCONFIG FILES\n")
+	// fmt.Fprintf(printer, "NAME\tSTATUS\tCONFIG FILES\n") // compose v2.3.0+
+	fmt.Fprintf(printer, "NAME\tSTATUS\n")
 	for _, stack := range list {
-		fmt.Fprintf(printer, "%s\t%s\t%s\n", stack.Name, stack.Status, stack.ConfigFiles)
+		fmt.Fprintf(printer, "%s\t%s\n", stack.Name, stack.Status)
 	}
 	printer.Flush()
 

@@ -37,7 +37,7 @@ func NewCompose(w io.Writer) (*Compose, error) {
 
 	dockerCli, err := command.NewDockerCli(
 		command.WithCombinedStreams(c.w),
-		command.WithDefaultContextStoreConfig(),
+		// command.WithDefaultContextStoreConfig(), Deprecated, set during NewDockerCli
 	)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func NewCompose(w io.Writer) (*Compose, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.client = api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli))
+	c.client = api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli.Client(), dockerCli.ConfigFile()))
 
 	return c, nil
 }
@@ -70,7 +70,8 @@ func (c Compose) Up(ctx context.Context, name string, configs []string, source s
 	}
 
 	for i, s := range project.Services {
-		s.CustomLabels = map[string]string{
+		// TODO(WeixinX): Change from `Label` to `CustomLabels` after upgrading the dependency library github.com/compose-spec/compose-go
+		s.Labels = map[string]string{
 			api.ProjectLabel:     project.Name,
 			api.ServiceLabel:     s.Name,
 			api.VersionLabel:     api.ComposeVersion,
@@ -85,7 +86,8 @@ func (c Compose) Up(ctx context.Context, name string, configs []string, source s
 	// for log
 	var consumer api.LogConsumer
 	if !detach {
-		consumer = formatter.NewLogConsumer(ctx, c.w, c.w, true, true, false)
+		// TODO(WeixinX): Change to `formatter.NewLogConsumer(ctx, c.w, c.w, true, true, false)` after upgrading the dependency library github.com/compose-spec/compose-go
+		consumer = formatter.NewLogConsumer(ctx, c.w, true, true)
 	}
 	attachTo := make([]string, 0)
 	for _, svc := range project.Services {
