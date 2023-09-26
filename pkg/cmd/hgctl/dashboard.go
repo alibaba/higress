@@ -30,10 +30,11 @@ import (
 )
 
 var (
-	listenPort  = 0
-	promPort    = 0
-	grafanaPort = 0
-	consolePort = 0
+	listenPort     = 0
+	promPort       = 0
+	grafanaPort    = 0
+	consolePort    = 0
+	controllerPort = 0
 
 	bindAddress = "localhost"
 
@@ -54,6 +55,7 @@ const (
 	defaultPrometheusPort = 9090
 	defaultGrafanaPort    = 3000
 	defaultConsolePort    = 8080
+	defaultControllerPort = 8888
 )
 
 func newDashboardCmd() *cobra.Command {
@@ -98,6 +100,10 @@ func newDashboardCmd() *cobra.Command {
 	consoleCmd := consoleDashCmd()
 	consoleCmd.PersistentFlags().IntVar(&consolePort, "ui-port", defaultConsolePort, "The component dashboard UI port.")
 	dashboardCmd.AddCommand(consoleCmd)
+
+	controllerDebugCmd := controllerDebugCmd()
+	controllerDebugCmd.PersistentFlags().IntVar(&controllerPort, "ui-port", defaultControllerPort, "The component dashboard UI port.")
+	dashboardCmd.AddCommand(controllerDebugCmd)
 
 	return dashboardCmd
 }
@@ -259,6 +265,41 @@ func envoyDashCmd() *cobra.Command {
 
 			return portForward(podName, ns, fmt.Sprintf("Envoy sidecar %s", podName),
 				"http://%s", bindAddress, proxyAdminPort, kubeClient, c.OutOrStdout(), browser)
+		},
+	}
+
+	return cmd
+}
+
+// port-forward to Higress System Console; open browser
+func controllerDebugCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "controller",
+		Short: "Open Controller debug web UI",
+		Long:  `Open Higress Controller`,
+		Example: `  hgctl dashboard controller
+
+  # with short syntax
+  hgctl dash controller
+  hgctl d controller`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+			if err != nil {
+				return fmt.Errorf("build CLI client fail: %w", err)
+			}
+
+			pl, err := client.PodsForSelector(addonNamespace, "app=higress-controller")
+			if err != nil {
+				return fmt.Errorf("not able to locate controller pod: %v", err)
+			}
+
+			if len(pl.Items) < 1 {
+				return errors.New("no higress controller pods found")
+			}
+
+			// only use the first pod in the list
+			return portForward(pl.Items[0].Name, addonNamespace, "Controller",
+				"http://%s/debug", bindAddress, controllerPort, client, cmd.OutOrStdout(), browser)
 		},
 	}
 
