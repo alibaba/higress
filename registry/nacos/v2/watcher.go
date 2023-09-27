@@ -484,7 +484,7 @@ func (w *watcher) Stop() {
 		}
 
 		// clean the cache
-		suffix := strings.Join([]string{s[0], w.NacosNamespace, w.Type}, common.DotSeparator)
+		suffix := strings.Join([]string{s[0], w.NacosNamespace, "nacos"}, common.DotSeparator)
 		suffix = strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
 		host := strings.Join([]string{s[1], suffix}, common.DotSeparator)
 		w.cache.DeleteServiceEntryWrapper(host)
