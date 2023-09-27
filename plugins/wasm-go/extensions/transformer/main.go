@@ -53,7 +53,40 @@ func main() {
 // @Contact.email admin@higress.io
 //
 // @Example
-//
+// type: request
+// dots_in_keys: false
+// rules:
+// - operate: remove
+//   headers:
+//   - kv: "X-remove"
+//   querys:
+//   - kv: "k1"
+//   body:
+//   - kv: "a1"
+// - operate: rename
+//   headers:
+//   - kv: "X-not-renamed:X-renamed"
+// - operate: replace
+//   headers:
+//   - kv: "X-replace:replaced"
+// - operate: add
+//   headers:
+//   - kv: "X-add-append:host-$1"
+//     host_pattern: "^(.*)\\.com$"
+// - operate: append
+//   headers:
+//   - kv: "X-add-append:path-$1"
+//     path_pattern: "^.*?\\/(\\w+)[\\?]{0,1}.*$"
+//   body:
+//   - kv: "a1-new:t1-$1-append"
+//     value_type: string
+//     host_pattern: "^(.*)\\.com$"
+// - operate: map
+//   headers:
+//   - kv: "X-add-append:X-map"
+// - operate: dedupe
+//   headers:
+//   - kv: "X-dedupe-first:RETAIN_FIRST"
 // @End
 type TransformerConfig struct {
 	// @Title 转换器类型
@@ -180,7 +213,7 @@ func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) 
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log wrapper.Log) types.Action {
-	// for response transformer
+	// because it may be a response transformer, so the setting of host and path have to advance
 	host, path := ctx.Host(), ctx.Path()
 	ctx.SetContext("host", host)
 	ctx.SetContext("path", path)
@@ -205,15 +238,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 		log.Warn("failed to get request path")
 		return types.ActionContinue
 	}
-	contentType := ""
-	if hs["content-type"] != nil {
-		contentType = hs["content-type"][0]
-	}
-	if contentType != "" {
-		ctx.SetContext("content-type", contentType) // for request body
-	}
 	if config.trans.IsBodyChange() {
+		// for request body
 		delete(hs, "content-length")
+		contentType := ""
+		if hs["content-type"] != nil {
+			contentType = hs["content-type"][0]
+		}
+		if contentType != "" {
+			ctx.SetContext("content-type", contentType)
+		}
 	}
 	qs, err := parseQueryByPath(path)
 	if err != nil {
@@ -303,15 +337,16 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
-	contentType := ""
-	if hs["content-type"] != nil {
-		contentType = hs["content-type"][0]
-	}
-	if contentType != "" {
-		ctx.SetContext("content-type", contentType) // for response body
-	}
 	if config.trans.IsBodyChange() {
+		// for response body
 		delete(hs, "content-length")
+		contentType := ""
+		if hs["content-type"] != nil {
+			contentType = hs["content-type"][0]
+		}
+		if contentType != "" {
+			ctx.SetContext("content-type", contentType)
+		}
 	}
 
 	if err = config.trans.TransformHeaderAndQuerys(host, path, hs, nil); err != nil {

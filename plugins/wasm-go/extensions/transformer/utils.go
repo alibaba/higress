@@ -34,7 +34,7 @@ var (
 	errEmptyBody                 = errors.New("body is empty")
 	errInvalidKeyFmt             = "key %q is invalid"
 	errInvalidValueFmt           = "value %q is invalid"
-	errInvalidValueCorrespKeyFmt = "value value corresponding to key %q is invalid"
+	errInvalidValueCorrespKeyFmt = "value corresponding to key %q is invalid"
 	errInvalidIdxFmt             = "idx %d must be less than max %d"
 	errInvalidFieldTypeFmt       = "invalid field type: %v"
 	errSetKeyValueFmt            = "failed to set key-value %v:%v"
@@ -110,7 +110,7 @@ func set(data map[string]interface{}, dotsInKeys bool, key string, value interfa
 		parV = reflect.ValueOf(par)
 	} else {
 		for i := range keys {
-			// TODO(WeixinX): 重复访问前缀字段，可考虑优化
+			// TODO(WeixinX): 重复访问前缀字段，可考虑优化，但字段嵌套深度不大？
 			curPath := strings.Join(keys[:i+1], ".")
 			cur, par, err = lookup(data, dotsInKeys, curPath)
 			if err != nil && !errors.Is(err, errKeyNotFound) {
@@ -121,7 +121,7 @@ func set(data map[string]interface{}, dotsInKeys bool, key string, value interfa
 			}
 
 			parV = reflect.ValueOf(par)
-			if parV.Kind() != reflect.Map { // 理论上不可达
+			if parV.Kind() != reflect.Map {
 				return errors.Errorf(errInvalidFieldTypeFmt, parV.Kind())
 			}
 			for j, k := range keys[i:] {
