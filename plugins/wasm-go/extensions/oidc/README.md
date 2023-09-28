@@ -11,10 +11,10 @@
 | Client-ID       | string | 必填   | -        | 输入服务注册的应用ID。                                              |
 | Client-Secret   | string | 必填   | -        | 输入服务注册的应用Secret。                                          |
 | Scopes          | Array  | 必填   | -        | 输入授权作用域.。                                                 |
-| clientDomain    |    string       |      必填     | -        | 输入Cookie的域名，认证通过后会将Cookie发送到指定的域名，保持登录状态。                 |
+| clientDomain    |    string  |     必填  | -        | -        | 输入Cookie的域名，认证通过后会将Cookie发送到指定的域名，保持登录状态。                 |
 | SkipExpiryCheck | bool   | 选填   | -        | 是否检测IDToken过期。                                            |
-| Timeout         | int | 选填 | 500 （毫秒） | 控制请求的超时时长，若是一直得到超时错误，可以选择增大时长                             |
-| securecookie    | bool | 选填| false    | cookie是否设置secure参数                                        |
+| Timeout         | int | 选填   | 500 （毫秒） | 控制请求的超时时长，若是一直得到超时错误，可以选择增大时长                             |
+| securecookie    | bool | 选填   | false    | cookie是否设置secure参数                                        |
 | serviceSource   | string | 必填   | -        | 输入服务注册来源。                                                 |
 | serviceName     | string | 必填   | -        | 输入服务注册的名称。                                                |
 | servicePort     | int    | 必填   | -        | 输入服务注册的服务端口。                                              |
