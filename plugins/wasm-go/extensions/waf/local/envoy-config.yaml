@@ -67,7 +67,7 @@ static_resources:
                               "useCRS": true,
                               "secRules": [
                                 "SecDebugLogLevel 3",
-                                "SecRuleEngine On",
+                                "SecRuleEngine DetectionOnly",
                                 "SecRule REQUEST_URI \"@streq /admin\" \"id:101,phase:1,t:lowercase,deny\"",
                                 "SecRule REQUEST_BODY \"@rx maliciouspayload\" \"id:102,phase:2,t:lowercase,deny\"",
                                 "SecRule RESPONSE_HEADERS::status \"@rx 406\" \"id:103,phase:3,t:lowercase,deny\"",

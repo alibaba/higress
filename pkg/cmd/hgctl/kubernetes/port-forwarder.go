@@ -48,6 +48,9 @@ type PortForwarder interface {
 
 	// Address returns the address of the local forwarded address.
 	Address() string
+
+	// WaitForStop blocks until connection closed (e.g. control-C interrupt)
+	WaitForStop()
 }
 
 var _ PortForwarder = &localForwarder{}
@@ -152,4 +155,8 @@ func (f *localForwarder) Stop() {
 
 func (f *localForwarder) Address() string {
 	return fmt.Sprintf("%s:%d", DefaultLocalAddress, f.localPort)
+}
+
+func (f *localForwarder) WaitForStop() {
+	<-f.stopCh
 }

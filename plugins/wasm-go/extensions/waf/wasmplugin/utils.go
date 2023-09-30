@@ -83,8 +83,6 @@ func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *cty
 		panic("Interruption already handled")
 	}
 
-	log.Infof("Transaction interrupted at %s", phase)
-
 	ctx.SetContext("interruptionHandled", true)
 	if phase == "http_response_body" {
 		return replaceResponseBodyWhenInterrupted(log, replaceResponseBody)
@@ -116,4 +114,26 @@ func replaceResponseBodyWhenInterrupted(logger wrapper.Log, bodySize int) types.
 	}
 	logger.Warn("Response body intervention occurred: body replaced")
 	return types.ActionContinue
+}
+
+func logError(error ctypes.MatchedRule) {
+	msg := error.ErrorLog(0)
+	switch error.Rule().Severity() {
+	case ctypes.RuleSeverityEmergency:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityAlert:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityCritical:
+		proxywasm.LogCritical(msg)
+	case ctypes.RuleSeverityError:
+		proxywasm.LogError(msg)
+	case ctypes.RuleSeverityWarning:
+		proxywasm.LogWarn(msg)
+	case ctypes.RuleSeverityNotice:
+		proxywasm.LogInfo(msg)
+	case ctypes.RuleSeverityInfo:
+		proxywasm.LogInfo(msg)
+	case ctypes.RuleSeverityDebug:
+		proxywasm.LogDebug(msg)
+	}
 }
