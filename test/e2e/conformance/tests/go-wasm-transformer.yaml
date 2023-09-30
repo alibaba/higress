@@ -65,45 +65,58 @@ spec:
       configDisable: false
       config:
           type: request
-          dots_in_keys: false
           rules:
             - operate: remove
               headers:
-                - kv: "X-remove"
+                - key: X-remove
               querys:
-                - kv: "k1"
+                - key: k1
             - operate: rename
               headers:
-                - kv: "X-not-renamed:X-renamed"
+                - key: X-not-renamed
+                  value: X-renamed
               querys:
-                - kv: "k2:k2-new"
+                - key: k2
+                  value: k2-new
             - operate: replace
               headers:
-                - kv: "X-replace:replaced"
+                - key: X-replace
+                  value: replaced
               querys:
-                - kv: "k2-new:v2-new"
+                - key: k2-new
+                  value: v2-new
             - operate: add
               headers:
-                - kv: "X-add-append:add"
+                - key: X-add-append
+                  value: add
               querys:
-                - kv: "k3:v31"
+                - key: k3
+                  value: v31
             - operate: append
               headers:
-                - kv: "X-add-append:append"
+                - key: X-add-append
+                  value: append
               querys:
-                - kv: "k3:v32"
+                - key: k3
+                  value: v32
             - operate: map
               headers:
-                - kv: "X-add-append:X-map"
+                - key: X-add-append
+                  value: X-map
               querys:
-                - kv: "k3:k4"
+                - key: k3
+                  value: k4
             - operate: dedupe
               headers:
-                - kv: "X-dedupe-first:RETAIN_FIRST"
-                - kv: "X-dedupe-last:RETAIN_LAST"
-                - kv: "X-dedupe-unique:RETAIN_UNIQUE"
+                - key: X-dedupe-first
+                  value: RETAIN_FIRST
+                - key: X-dedupe-last
+                  value: RETAIN_LAST
+                - key: X-dedupe-unique
+                  value: RETAIN_UNIQUE
               querys:
-                - kv: "k4:RETAIN_FIRST"
+                - key: k4
+                  value: RETAIN_FIRST
 
     # response transformer
     - ingress:
@@ -111,28 +124,32 @@ spec:
       configDisable: false
       config:
         type: response
-        dots_in_keys: false
         rules:
           - operate: remove
             headers:
-              - kv: "X-remove"
+              - key: X-remove
           - operate: rename
             headers:
-              - kv: "X-not-renamed:X-renamed"
+              - key: X-not-renamed
+                value: X-renamed
           - operate: replace
             headers:
-              - kv: "X-replace:replace-$1"
-                path_pattern: "^.*?\\/(\\w+)[\\?]{0,1}.*$"
+              - key: X-replace
+                value: replace-$1
+                path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
           - operate: add
             headers:
-              - kv: "X-add-append:add-$1"
-                host_pattern: "^(.*)\\.com$"
+              - key: X-add-append
+                value: add-$1
+                host_pattern: ^(.*)\.com$
           - operate: append
             headers:
-              - kv: "X-add-append:append-$1"
-                path_pattern: "^\\/get\\/(.*)\\.html$"
+              - key: X-add-append
+                value: append-$1
+                path_pattern: ^\/get\/(.*)\.html$
           - operate: map
             headers:
-              - kv: "X-add-append:X-map"
+              - key: X-add-append
+                value: X-map
 
   url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
