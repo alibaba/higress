@@ -47,8 +47,8 @@ type installer struct {
 	bldOpts    option.BuildOptions
 	insOpts    option.InstallOptions
 
-	k8sCli *k8s.DynamicClient
-	w      io.Writer
+	cli *k8s.WasmPluginClient
+	w   io.Writer
 	utils.Debugger
 }
 
@@ -58,12 +58,12 @@ func NewCommand() *cobra.Command {
 
 	installCmd := &cobra.Command{
 		Use:     "install",
-		Aliases: []string{"i", "ins"},
+		Aliases: []string{"ins", "i"},
 		Short:   "Install WASM plugin",
 		Example: `  # Install WASM plugin using a WasmPlugin manifest
   hgctl plugin install -y plugin-conf.yaml
 
-  # Install WASM plugin through the Golang WASM plugin project
+  # Install WASM plugin through the Golang WASM plugin project (do it by relying on option.yaml now)
   docker login
   hgctl plugin install -g ./
   `,
@@ -84,7 +84,7 @@ func NewCommand() *cobra.Command {
 
 	flags.StringP("namespace", "n", k8s.HigressNamespace, "Namespace where Higress was installed")
 	v.BindPFlag("install.namespace", flags.Lookup("namespace"))
-	v.SetDefault("install.namespace", k8s.HigressNamespace)
+	v.SetDefault("install.namespace", k8s.DefaultHigressNamespace)
 
 	flags.StringP("spec-yaml", "s", "./out/spec.yaml", "Use to validate WASM plugin configuration")
 	v.BindPFlag("install.spec-yaml", flags.Lookup("spec-yaml"))
@@ -113,10 +113,11 @@ func (ins *installer) config(v *viper.Viper, cmd *cobra.Command) error {
 	ins.bldOpts = allOpt.Build
 	ins.insOpts = allOpt.Install
 
-	ins.k8sCli, err = k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+	dynCli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
-		return fmt.Errorf("failed to build kubernetes dynamic client: %w", err)
+		return errors.Wrap(err, "failed to build kubernetes dynamic client")
 	}
+	ins.cli = k8s.NewWasmPluginClient(dynCli)
 	ins.w = cmd.OutOrStdout()
 	ins.Debugger = utils.NewDefaultDebugger(ins.insOpts.Debug, ins.w)
 
@@ -167,18 +168,14 @@ func (ins *installer) goHandler() error {
 	specPath := bld.SpecYAMLPath()
 	spec, err := types.ParseSpecYAML(specPath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to parse %s", specPath)
+		return errors.Wrapf(err, "failed to parse spec.yaml: %s", specPath)
 	}
-	vld, err := buildSchemaValidatorFromSpec(spec)
+	vld, err := buildSchemaValidator(spec)
 	if err != nil {
 		return err
 	}
 
-	example, err := spec.GetConfigExample()
-	if err != nil {
-		errors.Wrap(err, "failed to get the example of wasm plugin")
-	}
-
+	example := spec.GetConfigExample()
 	schema := spec.Spec.ConfigSchema.OpenAPIV3Schema
 	printer := utils.DefaultPrinter()
 	asker := NewWasmPluginSpecConfAsker(
@@ -207,7 +204,7 @@ func (ins *installer) goHandler() error {
 		return errors.Wrap(err, "failed to marshal wasm plugin config")
 	}
 	// get the parameters of plugin-conf.yaml from spec.yaml
-	pc, err := config.ExtractPluginConfFromSpec(spec, wpc.String(), bld.Output.Dest)
+	pc, err := config.ExtractPluginConfFrom(spec, wpc.String(), bld.Output.Dest)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s", specPath)
 	}
@@ -224,7 +221,7 @@ func (ins *installer) goHandler() error {
 	return nil
 }
 
-func (ins *installer) doInstall(isValidateConf bool) error {
+func (ins *installer) doInstall(validate bool) error {
 	f, err := os.Open(ins.insOpts.FromYaml)
 	if err != nil {
 		return err
@@ -251,12 +248,12 @@ func (ins *installer) doInstall(isValidateConf bool) error {
 	}
 	if !isValidNamespace(obj) {
 		fmt.Fprintf(ins.w, "Warning: wasm plugin %q has invalid namespace, automatically modified: %q -> %q\n",
-			obj.GetName(), obj.GetNamespace(), k8s.CustomHigressNamespace)
-		obj.SetNamespace(k8s.CustomHigressNamespace)
+			obj.GetName(), obj.GetNamespace(), k8s.HigressNamespace)
+		obj.SetNamespace(k8s.HigressNamespace)
 	}
 
 	// validate wasm plugin config
-	if isValidateConf {
+	if validate {
 		if wps, ok := obj.Object["spec"].(map[string]interface{}); ok {
 			if err = ins.validateWasmPluginConfig(wps); err != nil {
 				return err
@@ -267,16 +264,15 @@ func (ins *installer) doInstall(isValidateConf bool) error {
 		ins.Debugln("successfully validated wasm plugin config")
 	}
 
-	result, err := k8s.CreateWasmPlugin(context.TODO(), ins.k8sCli, obj)
+	result, err := ins.cli.Create(context.TODO(), obj)
 	if err != nil {
 		if k8serr.IsAlreadyExists(err) {
 			fmt.Fprintf(ins.w, "wasm plugin %q already exists\n",
 				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 			return nil
-		} else {
-			return errors.Wrapf(err, "failed to install wasm plugin %q",
-				fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 		}
+		return errors.Wrapf(err, "failed to install wasm plugin %q",
+			fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName()))
 	}
 
 	fmt.Fprintf(ins.w, "Installed wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))
@@ -293,7 +289,7 @@ func isValidKind(obj *unstructured.Unstructured) bool {
 }
 
 func isValidNamespace(obj *unstructured.Unstructured) bool {
-	return obj.GetNamespace() == k8s.CustomHigressNamespace
+	return obj.GetNamespace() == k8s.HigressNamespace
 }
 
 func (ins *installer) validateWasmPluginConfig(wps map[string]interface{}) error {
@@ -301,7 +297,7 @@ func (ins *installer) validateWasmPluginConfig(wps map[string]interface{}) error
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse %s", ins.insOpts.SpecYaml)
 	}
-	vld, err := buildSchemaValidatorFromSpec(spec)
+	vld, err := buildSchemaValidator(spec)
 	if err != nil {
 		return errors.Wrapf(err, "failed to build schema validator")
 	}
@@ -348,7 +344,7 @@ func (ins *installer) validateWasmPluginConfig(wps map[string]interface{}) error
 	return nil
 }
 
-func buildSchemaValidatorFromSpec(spec *types.WasmPluginMeta) (*jsonschema.Schema, error) {
+func buildSchemaValidator(spec *types.WasmPluginMeta) (*jsonschema.Schema, error) {
 	if spec == nil {
 		return nil, errors.New("spec is nil")
 	}

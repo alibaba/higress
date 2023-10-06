@@ -12,22 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package nested
 
-import "github.com/AlecAivazis/survey/v2"
-
-// survey wrapper
-
-func Ask(qs []*survey.Question, response interface{}, opts ...survey.AskOpt) error {
-	opts = append(opts, survey.WithIcons(func(set *survey.IconSet) {
-		set.Error.Format = "red+hb"
-	}))
-	return survey.Ask(qs, response, opts...)
+type TestNestedStruct struct {
+	Simple  string
+	Complex **[]*int
 }
 
-func AskOne(p survey.Prompt, response interface{}, opts ...survey.AskOpt) error {
-	opts = append(opts, survey.WithIcons(func(set *survey.IconSet) {
-		set.Error.Format = "red+hb"
-	}))
-	return survey.AskOne(p, response, opts...)
-}
+type NestedInt ***int
+type NestedString string

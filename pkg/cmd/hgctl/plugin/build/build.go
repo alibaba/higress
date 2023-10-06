@@ -108,10 +108,10 @@ func NewCommand() *cobra.Command {
 		Example: `  # If the option.yaml file exists in the current path, do the following:
   hgctl plugin build
 
-  # Using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "BasicAuthConfig"
-  hgctl plugin build --model BasicAuthConfig
+  # Using "--model(-s)" to specify the WASM plugin configuration structure name, e.g. "HelloWorldConfig"
+  hgctl plugin build --model HelloWorldConfig
 
-  # Pushing the build products as an OCI image to the specified repository using "--output-type(-t)" and "--output-dest(-d)"
+  # Using "--output-type(-t)" and "--output-dest(-d)" to push the build products as an OCI image to the specified repository
   docker login
   hgctl plugin build -s BasicAuthConfig -t image -d docker.io/<your_username>/<your_image>
   `,
@@ -274,7 +274,7 @@ func (b *Builder) generateMetadata() error {
 		return err
 	}
 	defer spec.Close()
-	meta, err := ptypes.NewWasmPluginMeta(b.ModelDir, b.Model)
+	meta, err := ptypes.ParseGoSrc(b.ModelDir, b.Model)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func (b *Builder) generateMetadata() error {
 	if b.isInterrupted() {
 		return errBuildAbort
 	}
-	usages, err := ptypes.GetUsageFromMeta(meta)
+	usages, err := meta.GetUsages()
 	if err != nil {
 		return errors.Wrap(err, "failed to get wasm usage")
 	}
@@ -299,7 +299,7 @@ func (b *Builder) generateMetadata() error {
 		if i == 0 {
 			suffix = false
 		}
-		if err = genMarkdownUsage(u, b.tempDir, suffix); err != nil {
+		if err = genMarkdownUsage(&u, b.tempDir, suffix); err != nil {
 			return err
 		}
 	}

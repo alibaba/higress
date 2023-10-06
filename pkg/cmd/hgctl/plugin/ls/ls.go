@@ -23,6 +23,7 @@ import (
 	k8s "github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"k8s.io/cli-runtime/pkg/printers"
@@ -34,7 +35,7 @@ func NewCommand() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"l"},
 		Short:   "List all installed WASM plugins",
-		Example: `hgctl plugin ls`,
+		Example: `  hgctl plugin ls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(runLs(cmd.OutOrStdout()))
 		},
@@ -42,21 +43,21 @@ func NewCommand() *cobra.Command {
 
 	flags := lsCmd.PersistentFlags()
 	options.AddKubeConfigFlags(flags)
-
-	flags.StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "Namespace where Higress was installed")
+	k8s.AddHigressNamespaceFlags(flags)
 
 	return lsCmd
 }
 
 func runLs(w io.Writer) error {
-	cli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+	dynCli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
-		return fmt.Errorf("failed to build kubernetes client: %w\n", err)
+		return errors.Wrap(err, "failed to build kubernetes client")
 	}
+	cli := k8s.NewWasmPluginClient(dynCli)
 
-	list, err := k8s.ListWasmPlugins(context.TODO(), cli)
+	list, err := cli.List(context.TODO())
 	if err != nil {
-		return fmt.Errorf("failed to list all wasm plugins: %w\n", err)
+		return errors.Wrap(err, "failed to list all wasm plugins")
 	}
 
 	printer := printers.GetNewTabWriter(w)
@@ -65,7 +66,9 @@ func runLs(w io.Writer) error {
 	for _, item := range list.Items {
 		fmt.Fprintf(printer, "%s\t%s\n", item.GetName(), getAge(now, item.GetCreationTimestamp().Time))
 	}
-	printer.Flush()
+	if err = printer.Flush(); err != nil {
+		return errors.Wrap(err, "failed to flush output")
+	}
 
 	return nil
 }

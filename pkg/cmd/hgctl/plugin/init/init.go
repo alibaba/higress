@@ -33,7 +33,7 @@ func NewCommand() *cobra.Command {
 
 	initCmd := &cobra.Command{
 		Use:     "init",
-		Aliases: []string{"i", "ini"},
+		Aliases: []string{"ini", "i"},
 		Short:   "Initialize a Golang WASM plugin project",
 		Example: `  hgctl plugin init`,
 		Run: func(cmd *cobra.Command, args []string) {

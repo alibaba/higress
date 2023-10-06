@@ -54,8 +54,7 @@ const (
 )
 
 func str2AnnotationType(typ string) AnnotationType {
-	typ = strings.ToLower(typ)
-	switch typ {
+	switch strings.ToLower(typ) {
 	case "@category":
 		return ACategory
 	case "@name":
@@ -89,10 +88,12 @@ func str2AnnotationType(typ string) AnnotationType {
 	}
 }
 
-func GetAnnotations(cs []string) []Annotation {
+// GetAnnotations returns all annotations in the comment
+func GetAnnotations(comment string) []Annotation {
 	as := make([]Annotation, 0)
+	cs := strings.Split(comment, "\n")
 	for i := 0; i < len(cs); i++ {
-		a, err := getAnnotationFromComment(cs[i])
+		a, err := getAnnotationFrom(cs[i])
 		if err != nil {
 			continue
 		}
@@ -114,7 +115,7 @@ func GetAnnotations(cs []string) []Annotation {
 	return as
 }
 
-func getAnnotationFromComment(c string) (Annotation, error) {
+func getAnnotationFrom(c string) (Annotation, error) {
 	// the annotation is like `@AnnotationType [I18nType] Text`
 
 	c = strings.TrimSpace(c)
@@ -122,42 +123,41 @@ func getAnnotationFromComment(c string) (Annotation, error) {
 		return Annotation{}, errors.New("invalid annotation")
 	}
 
-	// first param
+	// first param: AnnotationType
 	idx := strings.Index(c, " ")
-	if idx == -1 && str2AnnotationType(c) == AUnknown {
+	if idx == -1 && str2AnnotationType(c) == AUnknown { // only an invalid annotation type
 		return Annotation{}, errors.New("invalid annotation")
 	}
-
+	// idx != -1 or type != unknown
 	var typ AnnotationType
 	if idx == -1 {
 		typ = str2AnnotationType(c)
 	} else {
 		typ = str2AnnotationType(strings.TrimSpace(c[0:idx]))
 	}
-
-	// second or/and third param
 	c = strings.TrimSpace(c[idx+1:])
-	ann := Annotation{
+	a := Annotation{
 		Type:     typ,
 		I18nType: I18nDefault,
 		Text:     c,
 	}
-	if idx == -1 && typ != AUnknown { // only annotation type
-		ann.Text = ""
+	if a.Type != ATitle && a.Type != ADescription { // other annotation types do not define i18n
+		a.I18nType = I18nUndefined
 	}
-	if ann.Type != ATitle && ann.Type != ADescription { // other types do not define i18n
-		ann.I18nType = I18nUndefined
-	}
-	idx = strings.Index(c, " ")
-	if idx == -1 {
-		return ann, nil
+	if idx == -1 && typ != AUnknown { // only a valid annotation type
+		a.Text = ""
 	}
 
+	// second or/and third param: I18nType and Text
+	idx = strings.Index(c, " ")
+	if idx == -1 {
+		return a, nil
+	}
 	i18n := str2I18nType(strings.TrimSpace(c[0:idx]))
 	if i18n == I18nUnknown {
-		return ann, nil
+		return a, nil
 	}
-	ann.I18nType = i18n
-	ann.Text = strings.TrimSpace(c[idx+1:])
-	return ann, nil
+	a.I18nType = i18n
+	a.Text = strings.TrimSpace(c[idx+1:])
+	return a, nil
 }

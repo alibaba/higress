@@ -51,32 +51,30 @@ func NewCommand() *cobra.Command {
 
 	flags := uninstallCmd.PersistentFlags()
 	options.AddKubeConfigFlags(flags)
-
+	k8s.AddHigressNamespaceFlags(flags)
 	flags.StringVarP(&name, "name", "p", "", "Name of the WASM plugin you want to uninstall")
 	flags.BoolVarP(&all, "all", "A", false, "Delete all installed WASM plugin")
-	flags.StringVarP(&k8s.CustomHigressNamespace, "namespace", "n", k8s.HigressNamespace, "Namespace where Higress was installed")
 
 	return uninstallCmd
 }
 
 func uninstall(w io.Writer, name string, all bool) error {
-	cli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+	dynCli, err := k8s.NewDynamicClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
 		return errors.Wrap(err, "failed to build kubernetes dynamic client")
 	}
+	cli := k8s.NewWasmPluginClient(dynCli)
 
 	ctx := context.TODO()
 	plugins := make([]string, 0)
 	if all {
-		list, err := k8s.ListWasmPlugins(ctx, cli)
+		list, err := cli.List(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to get information of all wasm plugins")
 		}
-
 		for _, item := range list.Items {
 			plugins = append(plugins, item.GetName())
 		}
-
 	} else {
 		plugins = append(plugins, name)
 	}
@@ -91,12 +89,12 @@ func uninstall(w io.Writer, name string, all bool) error {
 	return nil
 }
 
-func deleteOne(ctx context.Context, w io.Writer, cli *k8s.DynamicClient, name string) error {
-	result, err := k8s.DeleteWasmPlugin(ctx, cli, name)
+func deleteOne(ctx context.Context, w io.Writer, cli *k8s.WasmPluginClient, name string) error {
+	result, err := cli.Delete(ctx, name)
 	if err != nil && k8serr.IsNotFound(err) {
-		return errors.Errorf("wasm plugin %q is not found", fmt.Sprintf("%s/%s", k8s.CustomHigressNamespace, name))
+		return errors.Errorf("wasm plugin %q is not found", fmt.Sprintf("%s/%s", k8s.HigressNamespace, name))
 	} else if err != nil {
-		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", fmt.Sprintf("%s/%s", k8s.CustomHigressNamespace, name))
+		return errors.Wrapf(err, "failed to uninstall wasm plugin %q", fmt.Sprintf("%s/%s", k8s.HigressNamespace, name))
 	}
 
 	fmt.Fprintf(w, "Uninstalled wasm plugin %q\n", fmt.Sprintf("%s/%s", result.GetNamespace(), result.GetName()))

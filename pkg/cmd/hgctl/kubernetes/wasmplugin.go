@@ -17,41 +17,114 @@ package kubernetes
 import (
 	"context"
 
+	"github.com/spf13/pflag"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
-	HigressExtGroup      = "extensions.higress.io"
-	HigressExtVersion    = "v1alpha1"
-	HigressExtAPIVersion = HigressExtGroup + "/" + HigressExtVersion
-	HigressNamespace     = "higress-system"
+	DefaultHigressNamespace = "higress-system"
+	HigressExtGroup         = "extensions.higress.io"
+	HigressExtVersion       = "v1alpha1"
+	HigressExtAPIVersion    = HigressExtGroup + "/" + HigressExtVersion
 
 	WasmPluginKind     = "WasmPlugin"
 	WasmPluginResource = "wasmplugins"
 )
 
 var (
-	CustomHigressNamespace = "higress-system" // default
-	WasmPluginRes          = schema.GroupVersionResource{Group: HigressExtGroup, Version: HigressExtVersion, Resource: WasmPluginResource}
+	HigressNamespace = DefaultHigressNamespace
+	WasmPluginGVK    = schema.GroupVersionKind{Group: HigressExtGroup, Version: HigressExtVersion, Kind: WasmPluginKind}
+	WasmPluginGVR    = schema.GroupVersionResource{Group: HigressExtGroup, Version: HigressExtVersion, Resource: WasmPluginResource}
 )
 
-func GetWasmPlugin(ctx context.Context, c *DynamicClient, name string) (*unstructured.Unstructured, error) {
-	return c.Get(ctx, WasmPluginRes, CustomHigressNamespace, name)
+func AddHigressNamespaceFlags(flags *pflag.FlagSet) {
+	flags.StringVarP(&HigressNamespace, "namespace", "n",
+		DefaultHigressNamespace, "Namespace where Higress was installed")
 }
 
-func ListWasmPlugins(ctx context.Context, c *DynamicClient) (*unstructured.UnstructuredList, error) {
-	return c.List(ctx, WasmPluginRes, CustomHigressNamespace)
+type WasmPluginClient struct {
+	dyn *DynamicClient
 }
 
-func CreateWasmPlugin(ctx context.Context, c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.Create(ctx, WasmPluginRes, CustomHigressNamespace, obj)
+func NewWasmPluginClient(dynClient *DynamicClient) *WasmPluginClient {
+	return &WasmPluginClient{dynClient}
 }
 
-func DeleteWasmPlugin(ctx context.Context, c *DynamicClient, name string) (*unstructured.Unstructured, error) {
-	return c.Delete(ctx, WasmPluginRes, CustomHigressNamespace, name)
+func (c WasmPluginClient) Get(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	return c.dyn.Get(ctx, WasmPluginGVR, HigressNamespace, name)
 }
 
-func UpdateWasmPlugin(ctx context.Context, c *DynamicClient, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	return c.Update(ctx, WasmPluginRes, CustomHigressNamespace, obj)
+func (c WasmPluginClient) List(ctx context.Context) (*unstructured.UnstructuredList, error) {
+	return c.dyn.List(ctx, WasmPluginGVR, HigressNamespace)
+}
+
+func (c WasmPluginClient) Create(ctx context.Context, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.dyn.Create(ctx, WasmPluginGVR, HigressNamespace, obj)
+}
+
+func (c WasmPluginClient) Delete(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	return c.dyn.Delete(ctx, WasmPluginGVR, HigressNamespace, name)
+}
+
+func (c WasmPluginClient) Update(ctx context.Context, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.dyn.Update(ctx, WasmPluginGVR, HigressNamespace, obj)
+}
+
+// TODO(WeixinX): Will be changed to WasmPlugin specific Client instead of Unstructured
+type DynamicClient struct {
+	config *rest.Config
+	client dynamic.Interface
+}
+
+func NewDynamicClient(clientConfig clientcmd.ClientConfig) (*DynamicClient, error) {
+	var (
+		c   DynamicClient
+		err error
+	)
+
+	c.config, err = clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	c.client, err = dynamic.NewForConfig(c.config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+func (c DynamicClient) Get(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
+func (c DynamicClient) List(ctx context.Context, gvr schema.GroupVersionResource, namespace string) (*unstructured.UnstructuredList, error) {
+	return c.client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
+}
+
+func (c DynamicClient) Create(ctx context.Context, gvr schema.GroupVersionResource, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
+}
+
+func (c DynamicClient) Delete(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error) {
+	result, err := c.client.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	err = c.client.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c DynamicClient) Update(ctx context.Context, gvr schema.GroupVersionResource, namespace string,
+	obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	return c.client.Resource(gvr).Namespace(namespace).Update(ctx, obj, metav1.UpdateOptions{})
 }

@@ -66,10 +66,11 @@ type Output struct {
 	Dest string `json:"dest" yaml:"dest" mapstructure:"dest"`
 }
 
+// ParseOptions reads `option.yaml` and parses it into Option struct
 func ParseOptions(optionFile string, v *viper.Viper, flags *pflag.FlagSet) (*Option, error) {
 	_, err := os.Stat(optionFile)
 	if err != nil {
-		// if FlagSet.Changed("option-file") is true, then `option-file` is explicitly specified
+		// `option-file` is explicitly specified, but the given file does not exist
 		if errors.Is(err, os.ErrNotExist) && flags.Changed("option-file") {
 			return nil, errors.Errorf("option file does not exist: %q", optionFile)
 		}
@@ -88,6 +89,7 @@ func ParseOptions(optionFile string, v *viper.Viper, flags *pflag.FlagSet) (*Opt
 	return &opt, nil
 }
 
+// AddOptionFileFlag adds `option-file` flag
 func AddOptionFileFlag(optionFile *string, flags *pflag.FlagSet) {
 	flags.StringVarP(optionFile, "option-file", "f", "./option.yaml",
 		"Option file for build, test and install")

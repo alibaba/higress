@@ -12,19 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package ext
 
-import "github.com/spf13/cobra"
+import "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types/testdata/types/ext/nested"
 
-func NewCommand() *cobra.Command {
-	configCmd := &cobra.Command{
-		Use:     "config",
-		Aliases: []string{"conf", "cnf"},
-		Short:   "Configure the WasmPlugin manifest",
-	}
+type TestExStruct struct {
+	one   string
+	two   *int
+	three []bool
+}
 
-	configCmd.AddCommand(newCreateCommand())
-	configCmd.AddCommand(newEditCommand())
+type ExPointerInt **int
+type ExBool bool
+type ExSlice []*string
+type ExAlias nested.TestNestedStruct
 
-	return configCmd
+type TestNestedStruct struct {
+	NestedStruct *nested.TestNestedStruct
+	NestedInt    *nested.NestedInt
+	NestedString nested.NestedString
 }

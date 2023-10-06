@@ -29,7 +29,7 @@ import (
 func NewCommand() *cobra.Command {
 	pluginCommand := &cobra.Command{
 		Use:     "plugin",
-		Aliases: []string{"p"},
+		Aliases: []string{"plg", "p"},
 		Short:   "For the Golang WASM plugin",
 	}
 

@@ -15,10 +15,13 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
 
 	"github.com/fatih/structtag"
 	"github.com/iancoleman/orderedmap"
@@ -75,6 +78,7 @@ const (
 	ScopeGlobal   Scope = "GLOBAL"
 	ScopeInstance Scope = "INSTANCE"
 	ScopeAll      Scope = "ALL"
+	ScopeDefault        = ScopeInstance
 )
 
 // JSON represents any valid JSON value.
@@ -122,11 +126,73 @@ func NewJSONSchemaProps() *JSONSchemaProps {
 	return &JSONSchemaProps{
 		XTitleI18n:       make(map[I18nType]string),
 		XDescriptionI18n: make(map[I18nType]string),
+		Properties:       make(map[string]JSONSchemaProps),
 	}
 }
 
-func (s *JSONSchemaProps) HandleFieldAnnotations(anns []Annotation) {
-	for _, a := range anns {
+// IsRequired determines whether the given `name` field is required
+func (s *JSONSchemaProps) IsRequired(name string) bool {
+	req := false
+	for _, n := range s.Required {
+		if name == n {
+			req = true
+			break
+		}
+	}
+	return req
+}
+
+// GetDefaultValue returns the default value of the schema
+func (s *JSONSchemaProps) GetDefaultValue() string {
+	d := "-"
+	if s.Default == nil {
+		return d
+	}
+	if len(s.Default.Raw) > 0 {
+		d = string(s.Default.Raw)
+	}
+	return d
+}
+
+// GetExample returns the pretty example of the schema
+func (s *JSONSchemaProps) GetExample() string {
+	ret := ""
+	if s.Example != nil && len(s.Example.Raw) > 0 {
+		ret = string(s.Example.Raw)
+		if ret[0] == '{' {
+			// string(s.Example.Raw) might look like (when the schema is generated through go src):
+			// {"allow":["consumer1"],"consumers":[{"credential":"admin:123456","name":"consumer1"}]}
+			var obj interface{}
+			err := json.Unmarshal(s.Example.Raw, &obj)
+			if err != nil {
+				return ""
+			}
+			b, err := utils.MarshalYamlWithIndent(obj, 2)
+			if err != nil {
+				return ""
+			}
+			ret = string(b)
+		}
+	}
+	return ret
+}
+
+// GetPropertiesOrderMap converts the schema Properties map to
+// an ordered map (dictionary order) and returns it
+func (s *JSONSchemaProps) GetPropertiesOrderMap() *orderedmap.OrderedMap {
+	m := orderedmap.New()
+	for name, prop := range s.Properties {
+		m.Set(name, prop)
+	}
+	m.SortKeys(sort.Strings)
+	return m
+}
+
+// HandleFieldAnnotations parses the comment (annotations look like `// @<KEY> [LANGUAGE] <VALUE>`)
+// and sets the schema properties
+func (s *JSONSchemaProps) HandleFieldAnnotations(comment string) {
+	as := GetAnnotations(comment)
+	for _, a := range as {
 		switch a.Type {
 		case ATitle:
 			if s.Title == "" {
@@ -146,16 +212,19 @@ func (s *JSONSchemaProps) HandleFieldAnnotations(anns []Annotation) {
 	}
 }
 
-// TODO: Add more properties
-// now supported are:
-// - maximum, minimum
-// - maxLength, minLength
-// - pattern
-// - maxItems, minItems
-// - required
-func (s *JSONSchemaProps) HandleFieldTags(tags *structtag.Tags, parent *JSONSchemaProps, fieldName string) string {
+// HandleFieldTags parses the struct field tags and sets the schema properties
+// TODO: Add more tags (now supported yaml, minimum, maximum, ...)
+func (s *JSONSchemaProps) HandleFieldTags(tags string, parent *JSONSchemaProps, fieldName string) string {
+	if tags == "" {
+		return fieldName
+	}
+	st, err := structtag.Parse(tags)
+	if err != nil {
+		return fieldName
+	}
+
 	newName := fieldName
-	for _, tag := range tags.Tags() {
+	for _, tag := range st.Tags() {
 		switch tag.Key {
 		case "yaml":
 			newName = tag.Name
@@ -163,6 +232,12 @@ func (s *JSONSchemaProps) HandleFieldTags(tags *structtag.Tags, parent *JSONSche
 				s.Title = newName
 				s.XTitleI18n[I18nDefault] = newName
 			}
+		case "required":
+			required, _ := strconv.ParseBool(tag.Name)
+			if !required {
+				continue
+			}
+			parent.Required = append(parent.Required, newName)
 		case "minimum":
 			min, err := strconv.ParseFloat(tag.Name, 64)
 			if err != nil {
@@ -201,77 +276,62 @@ func (s *JSONSchemaProps) HandleFieldTags(tags *structtag.Tags, parent *JSONSche
 			s.MaxItems = &maxI
 		case "pattern":
 			s.Pattern = tag.Name
-		case "required":
-			required, err := strconv.ParseBool(tag.Name)
-			if err != nil {
-				continue
-			}
-			if required {
-				parent.Required = append(parent.Required, newName)
-			}
 		}
 	}
 
 	return newName
 }
 
-func (s *JSONSchemaProps) HandleRequirements(required bool) map[I18nType][]string {
-	reqs := make(map[I18nType][]string, 0)
-	reqs[I18nZH_CN] = make([]string, 0)
-	reqs[I18nEN_US] = make([]string, 0)
+// JoinRequirementsBy joins the requirements by the given i18n type. Return value looks like:
+// required, minLength 10, regular expression "^.*$"
+func (s *JSONSchemaProps) JoinRequirementsBy(i18n I18nType, required bool) string {
+	reqs := s.getRequirements(required)
+	switch i18n {
+	case I18nZH_CN:
+		return strings.Join(reqs[I18nZH_CN], "，")
+	case I18nEN_US:
+		fallthrough
+	default:
+		return strings.Join(reqs[I18nDefault], ", ")
+	}
+}
 
-	m := s.GetRequired(required)
-	for i18n, str := range m {
+func (s *JSONSchemaProps) getRequirements(required bool) map[I18nType][]string {
+	reqs := make(map[I18nType][]string)
+
+	for i18n, str := range s.GetRequired(required) {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMinimum()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMinimum() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMaximum()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMaximum() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMinLength()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMinLength() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMaxLength()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMaxLength() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMinItems()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMinItems() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetMaxItems()
-	for i18n, str := range m {
+	for i18n, str := range s.GetMaxItems() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
-	m = s.GetPattern()
-	for i18n, str := range m {
+	for i18n, str := range s.GetPattern() {
 		reqs[i18n] = append(reqs[i18n], str)
 	}
 
 	return reqs
-}
-
-func RequirementsJoinByI18n(reqs map[I18nType][]string, i18n I18nType) string {
-	switch i18n {
-	case I18nZH_CN:
-		return strings.Join(reqs[i18n], "，")
-	case I18nEN_US:
-		return strings.Join(reqs[i18n], ", ")
-	default:
-		return strings.Join(reqs[i18n], "，")
-	}
 }
 
 func (s *JSONSchemaProps) GetMinimum() map[I18nType]string {
@@ -324,8 +384,8 @@ func (s *JSONSchemaProps) GetPattern() map[I18nType]string {
 	}
 
 	return map[I18nType]string{
-		I18nZH_CN: fmt.Sprintf("正则表达式 \"%s\"", s.Pattern),
-		I18nEN_US: fmt.Sprintf("regular expression \"%s\"", s.Pattern),
+		I18nZH_CN: fmt.Sprintf("正则表达式 %q", s.Pattern),
+		I18nEN_US: fmt.Sprintf("regular expression %q", s.Pattern),
 	}
 }
 
@@ -363,37 +423,4 @@ func (s *JSONSchemaProps) GetRequired(req bool) map[I18nType]string {
 		I18nZH_CN: "选填",
 		I18nEN_US: "optional",
 	}
-}
-
-func (s *JSONSchemaProps) IsRequired(name string) bool {
-	req := false
-	for _, n := range s.Required {
-		if name == n {
-			req = true
-			break
-		}
-	}
-	return req
-}
-
-func (s *JSONSchemaProps) GetDefaultValue() string {
-	d := "-"
-	if s.Default == nil {
-		return d
-	}
-
-	if len(s.Default.Raw) > 0 {
-		d = string(s.Default.Raw)
-	}
-
-	return d
-}
-
-func Properties2Order(props map[string]JSONSchemaProps) *orderedmap.OrderedMap {
-	m := orderedmap.New()
-	for name, prop := range props {
-		m.Set(name, prop)
-	}
-	m.SortKeys(sort.Strings)
-	return m
 }

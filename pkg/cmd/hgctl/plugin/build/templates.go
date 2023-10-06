@@ -21,7 +21,7 @@ import (
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
 )
 
-var (
+const (
 	FilesDockerEntrypoint = `#!/bin/bash
 set -e
 {{- if eq .Debug true }}
@@ -106,7 +106,7 @@ func genImageDockerEntrypoint(it *ImageTmplFields, target string) error {
 	return nil
 }
 
-var (
+const (
 	MD_zh_CN = `> 该插件用法文件根据源代码自动生成，请根据需求自行修改！
 
 # 功能说明

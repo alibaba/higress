@@ -29,10 +29,9 @@ import (
 )
 
 var (
-	askInterrupted   = "X Interrupted."
-	invalidSyntax    = "X Invalid syntax."
-	failedToValidate = "X Failed to validate: not satisfied with schema."
-
+	askInterrupted    = "X Interrupted."
+	invalidSyntax     = "X Invalid syntax."
+	failedToValidate  = "X Failed to validate: not satisfied with schema."
 	addConfSuccessful = "√ Successful to add configuration."
 
 	iconIdent = strings.Repeat(" ", 2)
@@ -469,7 +468,7 @@ func NewPluginSpecConf() *WasmPluginSpecConf {
 }
 
 func (p *WasmPluginSpecConf) String() string {
-	if len(p.MatchRules) == 0 && len(p.MatchRules) == 0 {
+	if len(p.DefaultConfig) == 0 && len(p.MatchRules) == 0 {
 		return " "
 	}
 
@@ -549,7 +548,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 	case "object":
 		printer.Println(iconIdent + msg)
 		obj := make(map[string]interface{})
-		m := types.Properties2Order(schema.Properties)
+		m := schema.GetPropertiesOrderMap()
 		for _, name := range m.Keys() {
 			propI, _ := m.Get(name)
 			prop := propI.(types.JSONSchemaProps)
@@ -577,6 +576,9 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 			}
 		}
 
+		if len(obj) == 0 {
+			return nil, nil
+		}
 		return obj, nil
 
 	case "array":
@@ -605,6 +607,9 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 			}
 		}
 
+		if len(arr) == 0 {
+			return nil, nil
+		}
 		return arr, nil
 
 	case "integer", "number", "boolean", "string":
@@ -675,8 +680,7 @@ func fieldTips(fieldName string, parent, schema *types.JSONSchemaProps, required
 		msg = fmt.Sprintf("%s%s(%s)", printer.Ident(), fieldName, schema.Type)
 		help = fmt.Sprintf("%s%s: %s", printer.Ident(), parent.Title, parent.Description)
 	} else {
-		reqs := schema.HandleRequirements(required)
-		req := types.RequirementsJoinByI18n(reqs, types.I18nEN_US)
+		req := schema.JoinRequirementsBy(types.I18nEN_US, required)
 		msg = fmt.Sprintf("%s%s(%s, %s)", printer.Ident(), fieldName, schema.Type, req)
 		help = fmt.Sprintf("%s%s: %s", printer.Ident(), schema.Title, schema.Description)
 	}

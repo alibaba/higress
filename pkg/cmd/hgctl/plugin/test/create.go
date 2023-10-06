@@ -113,7 +113,7 @@ func (c *creator) create() (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse %s", path)
 	}
-	fields.PluginConf, err = config.ExtractPluginConfFromSpec(spec, "", "")
+	fields.PluginConf, err = config.ExtractPluginConfFrom(spec, "", "")
 	if err != nil {
 		return errors.Wrapf(err, "failed to get the parameters of plugin-conf.yaml from %s", path)
 	}
@@ -126,10 +126,7 @@ func (c *creator) create() (err error) {
 
 	// 3. get Envoy instance
 	var obj interface{}
-	conf, err := spec.GetConfigExample()
-	if err != nil {
-		return errors.Wrap(err, "failed to get the example of wasm plugin")
-	}
+	conf := spec.GetConfigExample()
 	err = yaml.Unmarshal([]byte(conf), &obj)
 	if err != nil {
 		return errors.Wrap(err, "failed to get the example of wasm plugin")

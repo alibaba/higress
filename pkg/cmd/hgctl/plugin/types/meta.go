@@ -15,62 +15,26 @@
 package types
 
 import (
-	"encoding/json"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
+	"fmt"
 	"os"
-	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
-
-	"github.com/fatih/structtag"
-	"github.com/pkg/errors"
+	"github.com/iancoleman/orderedmap"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // WasmPluginMeta is used to describe WASM plugin metadata,
-// See https://higress.io/en-us/docs/user/wasm-image-spec/
+// see https://higress.io/en-us/docs/user/wasm-image-spec/
 type WasmPluginMeta struct {
 	APIVersion string         `json:"apiVersion" yaml:"apiVersion"`
 	Info       WasmPluginInfo `json:"info" yaml:"info"`
 	Spec       WasmPluginSpec `json:"spec" yaml:"spec"`
 }
 
-func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
-	fset := token.NewFileSet()
-	pkgs := make(map[string]*ast.Package)
-	err := filepath.Walk(path, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			pds, err := parser.ParseDir(fset, path, nil, parser.ParseComments)
-			if err != nil {
-				return err
-			}
-			for k, v := range pds {
-				pkgs[k] = v
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to walk path: %q", path)
-	}
-
-	structs := make(map[string]*structType)
-	for _, p := range pkgs {
-		ss := collectStructs(p)
-		for k, v := range ss {
-			structs[k] = v
-		}
-	}
-
-	meta := &WasmPluginMeta{
+func defaultWsamPluginMeta() *WasmPluginMeta {
+	return &WasmPluginMeta{
 		APIVersion: "1.0.0",
 		Info: WasmPluginInfo{
 			Category:         CategoryCustom,
@@ -84,26 +48,77 @@ func NewWasmPluginMeta(path, structName string) (*WasmPluginMeta, error) {
 			Priority: 0,
 		},
 	}
+}
 
-	if model, ok := structs[structName]; ok {
-		meta.genMetaFromConfigModel(structs, model)
-	} else {
-		return nil, errors.Errorf("failed to find struct named: %q", structName)
+// ParseSpecYAML parses the `spec.yaml` to WasmPluginMeta
+func ParseSpecYAML(spec string) (*WasmPluginMeta, error) {
+	f, err := os.Open(spec)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var m WasmPluginMeta
+	dc := k8syaml.NewYAMLOrJSONDecoder(f, 4096)
+	if err = dc.Decode(&m); err != nil {
+		return nil, err
 	}
 
+	return &m, nil
+}
+
+// ParseGoSrc parses the config model of the golang WASM plugin project to WasmPluginMeta
+func ParseGoSrc(dir, model string) (*WasmPluginMeta, error) {
+	mp, err := NewModelParser(dir)
+	if err != nil {
+		return nil, err
+	}
+	m, err := mp.GetModel(model)
+	if err != nil {
+		return nil, err
+	}
+	meta := defaultWsamPluginMeta()
+	meta.setByConfigModel(m)
 	return meta, nil
 }
 
-func (meta *WasmPluginMeta) genMetaFromConfigModel(structs map[string]*structType, model *structType) {
-	schema := genSchemaFromType(ast.NewIdent("object"), true, structs, model)
-	meta.Spec.ConfigSchema = ConfigSchema{schema}
-
-	// fill meta.Info, meta.Spec and Schema using annotations
-	meta.handleModelAnnotations(model)
+func (meta *WasmPluginMeta) setByConfigModel(model *Model) {
+	_, schema := recursiveSetSchema(model, nil)
+	meta.Spec.ConfigSchema.OpenAPIV3Schema = schema
+	meta.setModelAnnotations(model.Doc)
 }
 
-func (meta *WasmPluginMeta) handleModelAnnotations(model *structType) {
-	for _, a := range model.Annotations {
+func recursiveSetSchema(model *Model, parent *JSONSchemaProps) (string, *JSONSchemaProps) {
+	cur := NewJSONSchemaProps()
+	cur.Type = model.Type
+	if parent != nil {
+		cur.HandleFieldAnnotations(model.Doc)
+	}
+	newName := cur.HandleFieldTags(model.Tag, parent, model.Name)
+	if IsArray(model.Type) {
+		item := NewJSONSchemaProps()
+		item.Type = GetItemType(cur.Type)
+		cur.Type = "array"
+		if IsObject(item.Type) {
+			item.Properties = make(map[string]JSONSchemaProps)
+			for _, field := range model.Fields {
+				name, child := recursiveSetSchema(&field, cur)
+				item.Properties[name] = *child
+			}
+		}
+		cur.Items = &JSONSchemaPropsOrArray{Schema: item}
+	} else if IsObject(model.Type) { // type may be `array of object`, and it is handled in the first branch
+		for _, field := range model.Fields {
+			name, child := recursiveSetSchema(&field, cur)
+			cur.Properties[name] = *child
+		}
+	}
+	return newName, cur
+}
+
+func (meta *WasmPluginMeta) setModelAnnotations(comment string) {
+	as := GetAnnotations(comment)
+	for _, a := range as {
 		switch a.Type {
 		// Info
 		case ACategory:
@@ -181,6 +196,7 @@ const (
 	IconFlowControl = "https://img.alicdn.com/imgextra/i3/O1CN01bAFa9k1t1gdQcVTH0_!!6000000005842-2-tps-42-42.png"
 	IconFlowMonitor = "https://img.alicdn.com/imgextra/i4/O1CN01aet3s61MoLOEEhRIo_!!6000000001481-2-tps-42-42.png"
 	IconCustom      = "https://img.alicdn.com/imgextra/i1/O1CN018iKKih1iVx287RltL_!!6000000004419-2-tps-42-42.png"
+	IconDefault     = IconCustom
 )
 
 func Category2IconUrl(category Category) string {
@@ -198,7 +214,7 @@ func Category2IconUrl(category Category) string {
 	case CategoryCustom:
 		return IconCustom
 	default:
-		return IconCustom
+		return IconDefault
 	}
 }
 
@@ -207,16 +223,15 @@ type I18nType string
 const (
 	I18nZH_CN     I18nType = "zh-CN" // default
 	I18nEN_US     I18nType = "en-US"
-	I18nUndefined I18nType = "undefined"
+	I18nUndefined I18nType = "undefined" // i18n type is empty in the annotation
 	I18nUnknown   I18nType = "unknown"
-	I18nDefault            = I18nZH_CN
+	I18nDefault            = I18nEN_US
 )
 
 func str2I18nType(typ string) I18nType {
-	typ = strings.ToLower(typ)
-	switch typ {
+	switch strings.ToLower(typ) {
 	case "zh-cn":
-		return I18nDefault
+		return I18nZH_CN
 	case "en-us":
 		return I18nEN_US
 	default:
@@ -254,179 +269,125 @@ type ConfigSchema struct {
 	OpenAPIV3Schema *JSONSchemaProps `json:"openAPIV3Schema" yaml:"openAPIV3Schema"`
 }
 
-type structType struct {
+// GetConfigExample returns a pretty WASM plugin config example
+func (meta *WasmPluginMeta) GetConfigExample() string {
+	s := meta.Spec.ConfigSchema.OpenAPIV3Schema
+	if s != nil {
+		return s.GetExample()
+	}
+	return ""
+}
+
+// getLanguageUnionOrderMap returns a ordered map of language union of title and description.
+// If there is a language type in title that description does not have, the value is "No description"
+func (meta *WasmPluginMeta) getLanguageUnionOrderMap() *orderedmap.OrderedMap {
+	m := orderedmap.New()
+	for i18n, desc := range meta.Info.XDescriptionI18n {
+		m.Set(string(i18n), desc)
+	}
+	for i18n := range meta.Info.XTitleI18n {
+		if _, ok := m.Get(string(i18n)); !ok {
+			m.Set(string(i18n), "No description")
+		}
+	}
+	if len(m.Keys()) == 0 {
+		m.Set(string(I18nEN_US), "No description")
+	}
+	m.SortKeys(sort.Strings)
+	return m
+}
+
+// WasmUsage is used to describe WASM plugin usage in the Markdown document
+type WasmUsage struct {
+	I18nType      I18nType
+	Description   string
+	ConfigEntries []ConfigEntry
+	Example       string
+}
+
+type ConfigEntry struct {
 	Name        string
-	Annotations []Annotation
-	Node        *ast.StructType
+	Type        string
+	Requirement string
+	Default     string
+	Description string
 }
 
-func collectStructs(node ast.Node) map[string]*structType {
-	structs := make(map[string]*structType, 0)
-	gtxt := ""
-	typ := ""
-	collect := func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.GenDecl:
-			if x.Tok == token.TYPE {
-				gtxt = x.Doc.Text()
-			}
-		case *ast.TypeSpec:
-			if st, ok := x.Type.(*ast.StructType); ok {
-				if !st.Struct.IsValid() {
-					return true
-				}
-
-				typ = x.Name.String()
-				txt := x.Doc.Text()
-				if txt == "" && gtxt != "" {
-					txt = gtxt
-					gtxt = ""
-				}
-				if s, ok := structs[typ]; ok {
-					s.Annotations = GetAnnotations(strings.Split(txt, "\n"))
-				} else {
-					s := &structType{
-						Name:        typ,
-						Annotations: GetAnnotations(strings.Split(txt, "\n")),
-						Node:        x.Type.(*ast.StructType),
-					}
-					structs[s.Name] = s
-				}
-			}
-		}
-
-		return true
-	}
-
-	ast.Inspect(node, collect)
-	return structs
-}
-
-const unknownIsStruct = false
-
-// TODO(WeixinX): More types need to be supported, e.g., Map, Pointer ...
-func genSchemaFromType(typ ast.Expr, isStruct bool, structs map[string]*structType, stc *structType) *JSONSchemaProps {
-	schema := NewJSONSchemaProps()
-
-	if isStruct { // explicitly declare that it is a struct
-		schema.Type = "object"
-		handleFields(structs, schema, stc)
-
-	} else {
-		if id, ok := typ.(*ast.Ident); ok {
-			ft := id.Name
-			switch ft {
-			case "int", "int8", "int16", "int32", "int64",
-				"uint", "uint8", "uint16", "uint32", "uint64":
-				schema.Type = "integer"
-			case "float32", "float64":
-				schema.Type = "number"
-			case "bool":
-				schema.Type = "boolean"
-			case "string":
-				schema.Type = "string"
-			default:
-				if s, ok := structs[ft]; ok { // implicitly declare that it is a struct
-					schema.Type = "object"
-					handleFields(structs, schema, s)
-				} else {
-					panic("unsupported type: " + ft)
-				}
-			}
-
-		} else if at, ok := typ.(*ast.ArrayType); ok {
-			schema.Type = "array"
-			typeName := at.Elt.(*ast.Ident).Name
-			var item *JSONSchemaProps
-			if s, ok := structs[typeName]; ok {
-				item = genSchemaFromType(at.Elt, true, structs, s)
-			} else {
-				item = genSchemaFromType(at.Elt, false, structs, nil)
-			}
-			schema.Items = &JSONSchemaPropsOrArray{
-				Schema: item,
-			}
-		}
-	}
-
-	return schema
-}
-
-// iterate over the fields, setting the corresponding
-// schema fields and properties by field name, type, annotations, tags, etc.
-func handleFields(structs map[string]*structType, parent *JSONSchemaProps, stc *structType) {
-	parent.Properties = make(map[string]JSONSchemaProps)
-
-	for _, field := range stc.Node.Fields.List {
-		// 1. get filed name as the default key name for the schema property
-		var fieldName string
-		if field.Names == nil {
+// GetUsages returns WASM plugin usages in different languages
+func (meta *WasmPluginMeta) GetUsages() ([]WasmUsage, error) {
+	usages := make([]WasmUsage, 0)
+	example := meta.GetConfigExample()
+	m := meta.getLanguageUnionOrderMap()
+	for _, i18n := range m.Keys() {
+		desc, ok := m.Get(i18n)
+		if !ok {
 			continue
 		}
-		for _, name := range field.Names {
-			if name.String() != "" {
-				fieldName = name.String()
-				break
-			}
+
+		u := WasmUsage{
+			I18nType:      I18nType(i18n),
+			Description:   desc.(string),
+			ConfigEntries: make([]ConfigEntry, 0),
+			Example:       example,
 		}
+		getConfigEntries(meta.Spec.ConfigSchema.OpenAPIV3Schema, &u.ConfigEntries, I18nType(i18n))
+		usages = append(usages, u)
+	}
 
-		// 2. get the schema of the field
-		schema := genSchemaFromType(field.Type, unknownIsStruct, structs, nil)
+	return usages, nil
+}
 
-		// 3. parse the annotations of the field
-		if field.Doc != nil {
-			anns := GetAnnotations(strings.Split(strings.TrimSpace(field.Doc.Text()), "\n"))
-			schema.HandleFieldAnnotations(anns)
-		}
+func getConfigEntries(schema *JSONSchemaProps, entries *[]ConfigEntry, i18n I18nType) {
+	doGetConfigEntries(schema, entries, "", "", i18n, false)
+}
 
-		// 4. parse the tags of the field
-		newName := fieldName
-		if field.Tag != nil {
-			tags, err := structtag.Parse(strings.Trim(field.Tag.Value, "`"))
-			if err != nil {
+func doGetConfigEntries(schema *JSONSchemaProps, entries *[]ConfigEntry, parentName, name string, i18n I18nType, required bool) {
+	newName := constructName(parentName, name)
+	switch schema.Type {
+	case "object":
+		m := schema.GetPropertiesOrderMap()
+		for _, fieldName := range m.Keys() {
+			val, ok := m.Get(fieldName)
+			if !ok {
 				continue
 			}
-			newName = schema.HandleFieldTags(tags, parent, fieldName)
+			props := val.(JSONSchemaProps)
+			required = schema.IsRequired(fieldName)
+			doGetConfigEntries(&props, entries, newName, fieldName, i18n, required)
 		}
-
-		parent.Properties[newName] = *schema
+	case "array":
+		itemType := schema.Items.Schema.Type
+		e := ConfigEntry{
+			Name:        newName,
+			Type:        ArrayPrefix + itemType,
+			Requirement: schema.JoinRequirementsBy(i18n, required),
+			Default:     schema.GetDefaultValue(),
+			Description: schema.XDescriptionI18n[i18n],
+		}
+		*entries = append(*entries, e)
+		if itemType == "object" {
+			doGetConfigEntries(schema.Items.Schema, entries, newName+"[*]", "", i18n, false)
+		}
+	default:
+		e := ConfigEntry{
+			Name:        newName,
+			Type:        schema.Type,
+			Requirement: schema.JoinRequirementsBy(i18n, required),
+			Default:     schema.GetDefaultValue(),
+			Description: schema.XDescriptionI18n[i18n],
+		}
+		*entries = append(*entries, e)
 	}
 }
 
-func (meta *WasmPluginMeta) GetConfigExample() (example string, err error) {
-	s := meta.Spec.ConfigSchema.OpenAPIV3Schema
-	if s != nil && s.Example != nil && len(s.Example.Raw) > 0 {
-		// string(s.Example.Raw) like:
-		// {"allow":["consumer2"],"consumers":[{"credential":"admin:123456","name":"consumer1"},{"credential":"guest:abc","name":"consumer2"}]}
-		var obj interface{}
-		err = json.Unmarshal(s.Example.Raw, &obj)
-		if err != nil {
-			return
+func constructName(parent, name string) string {
+	newName := name
+	if parent != "" {
+		if name != "" {
+			newName = fmt.Sprintf("%s.%s", parent, name)
+		} else {
+			newName = parent
 		}
-
-		b, err := utils.MarshalYamlWithIndent(obj, 2)
-		if err != nil {
-			return "", err
-		}
-
-		return string(b), nil
 	}
-
-	return "", nil
-}
-
-func ParseSpecYAML(spec string) (*WasmPluginMeta, error) {
-	f, err := os.Open(spec)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var m WasmPluginMeta
-	dc := k8syaml.NewYAMLOrJSONDecoder(f, 4096)
-	if err = dc.Decode(&m); err != nil {
-		return nil, err
-	}
-
-	return &m, nil
+	return newName
 }

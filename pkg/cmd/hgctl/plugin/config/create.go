@@ -26,20 +26,6 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-var configHelpTmpl = &PluginConf{
-	Name:        "Plugin Name",
-	Namespace:   "higress-system",
-	Title:       "Display Name",
-	Description: "Plugin Description",
-	IconUrl:     "Plugin Icon",
-	Version:     "0.1.0",
-	Category:    "auth | security | protocol | flow-control | flow-monitor | custom",
-	Phase:       "UNSPECIFIED_PHASE | AUTHN | AUTHZ | STATS",
-	Priority:    0,
-	Config:      "  Plugin Configuration",
-	Url:         "Plugin Image URL",
-}
-
 func newCreateCommand() *cobra.Command {
 	var target string
 
@@ -73,4 +59,18 @@ func create(w io.Writer, target string) error {
 	fmt.Fprintf(w, "Created configuration template %q\n", fmt.Sprintf("%s/%s", target, "plugin-conf.yaml"))
 
 	return nil
+}
+
+var configHelpTmpl = &PluginConf{
+	Name:        "Plugin Name",
+	Namespace:   "higress-system",
+	Title:       "Display Name",
+	Description: "Plugin Description",
+	IconUrl:     "Plugin Icon",
+	Version:     "0.1.0",
+	Category:    "auth | security | protocol | flow-control | flow-monitor | custom",
+	Phase:       "UNSPECIFIED_PHASE | AUTHN | AUTHZ | STATS",
+	Priority:    0,
+	Config:      "  Plugin Configuration",
+	Url:         "Plugin Image URL",
 }

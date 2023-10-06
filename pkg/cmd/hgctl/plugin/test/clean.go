@@ -43,7 +43,7 @@ func newCleanCommand() *cobra.Command {
 
 	cleanCmd := &cobra.Command{
 		Use:     "clean",
-		Aliases: []string{"c"},
+		Aliases: []string{"cl"},
 		Short:   "Clean the test environment, that is remove the source of test configuration",
 		Example: `  hgctl plugin test clean`,
 		PreRun: func(cmd *cobra.Command, args []string) {
