@@ -151,7 +151,7 @@ build-pilot:
 build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
 	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
-build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
+build-gateway-local: prebuild
 	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 build-istio: prebuild build-pilot
