@@ -11,12 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/app-root: "/foo"
   name: httproute-app-root
   namespace: higress-conformance-infra
 spec:
@@ -36,10 +34,10 @@ spec:
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: request-block
+  name: jwt-auth
   namespace: higress-system
 spec:
   defaultConfig:
-    block_urls:
-    - "swagger.html"
-  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+    token_headers: token
+    token_secret_key: Dav7kfq3iA8S!JUj8&CUkdnQe72E@Cw6
+  url: file:///opt/plugins/wasm-go/extensions/jwt-auth/plugin.wasm

@@ -17,6 +17,7 @@ global:
   local: false # When deploying to a local cluster (e.g.: kind cluster), set this to true.
   kind: false # Deprecated. Please use "global.local" instead. Will be removed later.
   enableIstioAPI: false
+  enableGatewayAPI: false
   # Deprecated
   enableHigressIstio: false
   # Used to locate istiod.
@@ -44,8 +45,6 @@ global:
   # Releases are published to docker hub under 'istio' project.
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  # Default tag for Istio images.
-  tag: 1.1.0
 
   # Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
@@ -369,7 +368,7 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
-  tag: "1.1.0"
+  tag: ""
   # revision declares which revision this gateway is a part of
   revision: ""
 
@@ -457,7 +456,7 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
-  tag: "1.1.0"
+  tag: ""
   env: {}
 
   labels: {}
@@ -547,7 +546,7 @@ pilot:
   rollingMaxUnavailable: 25%
 
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
-  tag: 1.1.0
+  tag: ""
 
   # Can be a full hub/image:tag
   image: pilot

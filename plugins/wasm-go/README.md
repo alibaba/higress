@@ -45,14 +45,14 @@ output wasm file: extensions/request-block/plugin.wasm
 
 - Go 版本: >= 1.18 (需要支持范型特性)
 
-- TinyGo 版本: >= 0.25.0
+- TinyGo 版本: >= 0.28.1
 
 下面是本地多步骤构建 [request-block](extensions/request-block) 的例子。
 
 ### step1. 编译 wasm
 
 ```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi ./extensions/request-block/main.go
+tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./extensions/request-block/main.go
 ```
 
 ### step2. 构建并推送插件的 docker 镜像
@@ -149,9 +149,9 @@ spec:
 当你完成一个GO语言的插件功能时, 可以同时创建关联的e2e test cases, 并在本地对插件功能完成测试验证。
 
 ### step1. 编写 test cases
-在目录./test/ingress/conformance下面, 分别添加xxx.yaml文件和xxx.go文件, 比如测试插件request-block
+在目录./test/e2e/conformance/tests/下面, 分别添加xxx.yaml文件和xxx.go文件, 比如测试插件request-block
 
-./test/ingress/conformance/request-block.yaml
+./test/e2e/conformance/tests/request-block.yaml
 ```
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -165,12 +165,12 @@ spec:
 ```
 `其中url中extensions后面的'request-block'为插件所在文件夹名称`
 
-./test/ingress/conformance/request-block.go
+./test/e2e/conformance/tests/request-block.go
 
 ### step2. 添加 test cases
 将上述所写test cases添加到e2e测试列表中,
 
-./test/ingress/conformance/request-block.yaml
+./test/e2e/e2e_test.go
 
 ```
 ...
@@ -178,14 +178,21 @@ cSuite.Setup(t)
 	var higressTests []suite.ConformanceTest
 
 	if *isWasmPluginTest {
-		higressTests = []suite.ConformanceTest{
-			tests.WasmPluginsRequestBlock,
-      //这里新增你新写的case方法名称
+		if strings.Compare(*wasmPluginType, "CPP") == 0 {
+			m := make(map[string]suite.ConformanceTest)
+			m["request_block"] = tests.CPPWasmPluginsRequestBlock
+			m["key_auth"] = tests.CPPWasmPluginsKeyAuth
+
+			higressTests = []suite.ConformanceTest{
+				m[*wasmPluginName],
+			}
+		} else {
+			higressTests = []suite.ConformanceTest{
+				tests.WasmPluginsRequestBlock,
+        //这里新增你新写的case方法名称
+			}
 		}
 	} else {
-		higressTests = []suite.ConformanceTest{
-			tests.HTTPRouteSimpleSameNamespace,
-			tests.HTTPRouteHostNameSameNamespace,
 ...
 ```
 
@@ -193,5 +200,5 @@ cSuite.Setup(t)
 考虑到本地构建wasm比较耗时, 我们支持只构建需要测试的插件(同时你也可以临时修改上面第二小步的测试cases列表, 只执行你新写的case)。
 
 ```bash
-PLUGIN_NAME=request-block make ingress-wasmplugin-test
+PLUGIN_NAME=request-block make higress-wasmplugin-test
 ```

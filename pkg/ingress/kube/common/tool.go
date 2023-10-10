@@ -170,7 +170,14 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 
 	isAllCatch := func(route *WrapperHTTPRoute) bool {
 		if route.OriginPathType == Prefix && route.OriginPath == "/" {
-			return true
+			if route.HTTPRoute.Match == nil {
+				return true
+			}
+
+			match := route.HTTPRoute.Match[0]
+			if len(match.Headers) == 0 && len(match.QueryParams) == 0 && match.Method == nil {
+				return true
+			}
 		}
 		return false
 	}

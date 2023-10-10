@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "controller.name" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "controller.labels" . | nindent 4 }}
 spec:
@@ -33,7 +34,7 @@ spec:
 {{- if contains "/" .Values.pilot.image }}
           image: "{{ .Values.pilot.image }}"
 {{- else }}
-          image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Values.global.tag }}"
+          image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Chart.AppVersion }}"
 {{- end }}
 {{- if .Values.global.imagePullPolicy }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
@@ -126,9 +127,18 @@ spec:
             value: "{{ .Values.global.istiod.enableAnalysis }}"
           - name: CLUSTER_ID
             value: "{{ $.Values.global.multiCluster.clusterName | default `Kubernetes` }}"
+          # HIGRESS_ENABLE_ISTIO_API is only used to restart the controller pod after the config change
           {{- if .Values.global.enableIstioAPI }}
           - name: HIGRESS_ENABLE_ISTIO_API
             value: "true"
+          {{- end }}
+          {{- if .Values.global.enableGatewayAPI }}
+          - name: PILOT_ENABLE_GATEWAY_API
+            value: "true"
+          - name: PILOT_ENABLE_GATEWAY_API_STATUS
+            value: "true"
+          - name: PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER
+            value: "false"
           {{- end }}
           {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
@@ -202,6 +212,8 @@ spec:
               fieldRef:
                 apiVersion: v1
                 fieldPath: spec.serviceAccountName
+          - name: DOMAIN_SUFFIX
+            value: {{ .Values.global.proxy.clusterDomain }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}

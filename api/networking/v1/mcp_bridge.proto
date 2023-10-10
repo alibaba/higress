@@ -60,4 +60,8 @@ message RegistryConfig {
   int64 nacosRefreshInterval = 11;
   string consulNamespace = 12;
   repeated string zkServicesPath = 13;
+  string consulDatacenter  = 14;
+  string consulServiceTag = 15;
+  int64  consulRefreshInterval = 16;
+  string authSecretName = 17;
 }

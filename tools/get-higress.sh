@@ -16,6 +16,8 @@
 
 export VERSION
 
+MODE="install"
+
 HAS_CURL="$(type "curl" &> /dev/null && echo true || echo false)"
 HAS_WGET="$(type "wget" &> /dev/null && echo true || echo false)"
 HAS_DOCKER="$(type "docker" &> /dev/null && echo true || echo false)"
@@ -24,6 +26,7 @@ parseArgs() {
   CONFIG_ARGS=()
 
   DESTINATION=""
+  MODE="install"
 
   if [[ $1 != "-"* ]]; then
     DESTINATION="$1"
@@ -35,6 +38,10 @@ parseArgs() {
       -h|--help)
         outputUsage
         exit 0
+        ;;
+      -u|--update)
+        MODE="update"
+        shift
         ;;
       *)
         CONFIG_ARGS+=("$1")
@@ -48,15 +55,19 @@ parseArgs() {
 
 validateArgs() {
   if [ -d "$DESTINATION" ]; then
-    [ "$(ls -A "$DESTINATION")" ] && echo "The target folder \"$DESTINATION\" is not empty." && exit 1
+    if [ "$(ls -A "$DESTINATION")" -a "$MODE" != "update" ]; then
+      echo "The target folder \"$DESTINATION\" is not empty. Add \"-u\" to update an existed Higress instance." && exit 1
+    fi
     if [ ! -w "$DESTINATION" ]; then
-      echo "The target folder \"$DESTINATION\" is not writeable."
-      exit 1
+      echo "The target folder \"$DESTINATION\" is not writeable." && exit 1
     fi
   else
+    if [ "$MODE" == "update" ]; then
+      echo "The target folder \"$DESTINATION\" for update doesn't exist." && exit 1
+    fi
     mkdir -p "$DESTINATION"
     if [ $? -ne 0 ]; then
-      exit -1
+      exit 1
     fi
   fi
 
@@ -67,10 +78,11 @@ validateArgs() {
 
 outputUsage() {
   echo "Usage: $(basename -- "$0") [DIR] [OPTIONS...]"
-  echo 'Install Higress (standalone version) into the DIR (the current directory by default).'
+  echo 'Install Higress (standalone version) into the DIR ("./higress" by default).'
   echo '
- -c, --config-url=URL       URL of the Nacos service 
-                            format: nacos://192.168.0.1:8848
+ -c, --config-url=URL       URL of the config storage
+                            Use Nacos with format: nacos://192.168.0.1:8848
+                            Use local files with format: file:///opt/higress/conf
      --use-builtin-nacos    use the built-in Nacos service instead of
                             an external one
      --nacos-ns=NACOS-NAMESPACE
@@ -88,6 +100,23 @@ outputUsage() {
  -p, --console-password=CONSOLE-PASSWORD
                             the password to be used to visit Higress Console
                             default to "admin" if unspecified
+     --nacos-port=NACOS-PORT
+                            the HTTP port used to access the built-in Nacos
+                            default to 8848 if unspecified
+     --gateway-http-port=GATEWAY-HTTP-PORT
+                            the HTTP port to be listened by the gateway
+                            default to 80 if unspecified
+     --gateway-https-port=GATEWAY-HTTPS-PORT
+                            the HTTPS port to be listened by the gateway
+                            default to 443 if unspecified
+     --gateway-metrics-port=GATEWAY-METRICS-PORT
+                            the metrics port to be listened by the gateway
+                            default to 15020 if unspecified
+     --console-port=CONSOLE-PORT
+                            the port used to visit Higress Console
+                            default to 8080 if unspecified
+ -u, --update               update an existed Higress instance.
+                            no user configuration will be changed during update.
  -h, --help                 give this help list'
 }
 
@@ -127,7 +156,7 @@ runAsRoot() {
 # verifySupported checks that the os/arch combination is supported for
 # binary builds, as well whether or not necessary tools are present.
 verifySupported() {
-  local supported="darwin-amd64\nlinux-amd64\nwindows-amd64\n"
+  local supported="darwin-amd64\nlinux-amd64\nwindows-amd64\ndarwin-arm64\nlinux-arm64\nwindows-arm64\n"
   if ! echo "${supported}" | grep -q "${OS}-${ARCH}"; then
     echo "${OS}-${ARCH} platform isn't supported at the moment."
     echo "Stay tuned for updates on https://github.com/alibaba/higress."
@@ -175,8 +204,36 @@ download() {
 
 # install installs the product.
 install() {
-  tar -zx --exclude="docs" --exclude="src" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  tar -zx --exclude="docs" --exclude="src" --exclude="test" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  echo -n "$VERSION" > "$DESTINATION/VERSION"
   bash "$DESTINATION/bin/configure.sh" --auto-start ${CONFIG_ARGS[@]}
+}
+
+# update updates the product.
+update() {
+  CURRENT_VERSION="0.0.0"
+  if [ -f "$DESTINATION/VERSION" ]; then
+    CURRENT_VERSION="$(cat "$DESTINATION/VERSION")"
+  fi
+  if [ "$CURRENT_VERSION" == "$VERSION" ]; then
+    echo "Higress is already up-to-date."
+    exit 0
+  fi
+
+  BACKUP_FOLDER="$(cd ${DESTINATION}/.. ; pwd)"
+  BACKUP_FILE="${BACKUP_FOLDER}/higress_backup_$(date '+%Y%m%d%H%M%S').tar.gz" 
+  tar -zc -f "$BACKUP_FILE" -C "$DESTINATION" .
+  echo "The current version is packed here: $BACKUP_FILE"
+  echo ""
+
+  download
+  echo ""
+
+  tar -zx --exclude="docs" --exclude="src" --exclude="test" --exclude="compose/.env" -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --strip-components=1
+  tar -zx -f "$HIGRESS_TMP_FILE" -C "$DESTINATION" --transform='s/env/env_new/g' --strip-components=1 "higress-standalone-${VERSION#v}/compose/.env"
+  bash "$DESTINATION/bin/update.sh"
+  echo -n "$VERSION" > "$DESTINATION/VERSION"
+  return
 }
 
 # fail_trap is executed if an error occurs.
@@ -184,9 +241,9 @@ fail_trap() {
   result=$?
   if [ "$result" != "0" ]; then
     if [ -n "$INPUT_ARGUMENTS" ]; then
-      echo "Failed to install Higress with the arguments provided: $INPUT_ARGUMENTS"
+      echo "Failed to ${MODE} Higress with the arguments provided: $INPUT_ARGUMENTS"
     else
-      echo "Failed to install Higress"
+      echo "Failed to ${MODE} Higress"
     fi
     echo -e "\tFor support, go to https://github.com/alibaba/higress."
   fi
@@ -212,6 +269,13 @@ initOS
 verifySupported
 
 checkDesiredVersion
-download
-install
+case "$MODE" in
+  update)
+    update
+    ;;
+  *)
+    download
+    install
+    ;;
+esac
 cleanup

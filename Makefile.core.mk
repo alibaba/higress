@@ -17,12 +17,16 @@ GO ?= go
 
 export GOPROXY ?= https://proxy.golang.com.cn,direct
 
+TARGET_ARCH ?= amd64
+
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
 RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)
+
+BUILDX_PLATFORM ?=
 
 # If tag not explicitly set in users' .istiorc.mk or command line, default to the git sha.
 TAG ?= $(shell git rev-parse --verify HEAD)
@@ -49,6 +53,7 @@ $(OUT):
 submodule:
 	git submodule update --init
 
+.PHONY: prebuild
 prebuild: submodule
 	./tools/hack/prebuild.sh
 
@@ -66,6 +71,12 @@ build: prebuild $(OUT)
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
+
+$(AMD64_OUT_LINUX)/higress:
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
+
+$(ARM64_OUT_LINUX)/higress:
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
 build-hgctl: $(OUT)
@@ -114,21 +125,42 @@ include docker/docker.mk
 
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
+docker-buildx-push: clean-env docker.higress-buildx
+
+docker-build-base:
+	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
+
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
-external/package/envoy.tar.gz:
-	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+external/package/envoy-amd64.tar.gz:
+#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-amd64.tar.gz"
 
-build-gateway: prebuild external/package/envoy.tar.gz
-	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+external/package/envoy-arm64.tar.gz:
+#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-arm64.tar.gz"
 
-build-istio: prebuild
-	cd external/istio; rm -rf out; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
 
-build-wasmplugins: 
+build-pilot:
+	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
+	cd external/istio; rm -rf out/linux_arm64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=arm64 BUILD_WITH_CONTAINER=1 make build-linux
+
+build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+
+build-gateway-local: prebuild
+	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+
+build-istio: prebuild build-pilot
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
+build-istio-local: prebuild
+	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+
+build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh
 
 pre-install:
@@ -142,14 +174,13 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 1.1.0
-ISTIO_LATEST_IMAGE_TAG ?= 1.1.0
+ENVOY_LATEST_IMAGE_TAG ?= sha-e135789
+ISTIO_LATEST_IMAGE_TAG ?= sha-e135789
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
-
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
 install-dev-wasmplugin: build-wasmplugins pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -224,11 +255,18 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
-	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
-	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
-	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo 0.0.1
-	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
-
+	tools/hack/docker-pull-image.sh docker.io/alihigress/dubbo-provider-demo 0.0.1
+	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
+	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
+	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/kind-load-image.sh docker.io/alihigress/dubbo-provider-demo 0.0.1
+	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
+	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
 # run-higress-e2e-test starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test
 run-higress-e2e-test:
@@ -247,4 +285,4 @@ run-higress-e2e-test-wasmplugin:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true --ingress-class=higress --debug=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true

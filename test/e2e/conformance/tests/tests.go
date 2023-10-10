@@ -16,4 +16,11 @@ package tests
 
 import "github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 
-var HigressConformanceTests []suite.ConformanceTest
+func Register(testcase suite.ConformanceTest) {
+	if len(testcase.Features) == 0 {
+		panic("must set at least one feature of the test case")
+	}
+	ConformanceTests = append(ConformanceTests, testcase)
+}
+
+var ConformanceTests []suite.ConformanceTest

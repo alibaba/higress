@@ -2,6 +2,8 @@ module chatgpt-proxy
 
 go 1.19
 
+replace github.com/alibaba/higress/plugins/wasm-go => ../..
+
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230629030002-81e467b6242d
 	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0

@@ -28,8 +28,6 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
-var isWasmPluginTest = flag.Bool("isWasmPluginTest", false, "")
-
 func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
 
@@ -46,46 +44,15 @@ func TestHigressConformanceTests(t *testing.T) {
 		IngressClassName:     *flags.IngressClassName,
 		Debug:                *flags.ShowDebug,
 		CleanupBaseResources: *flags.CleanupBaseResources,
-		GatewayAddress:       "localhost",
+		WASMOptions: suite.WASMOptions{
+			IsWasmPluginTest: *flags.IsWasmPluginTest,
+			WasmPluginName:   *flags.WasmPluginName,
+			WasmPluginType:   *flags.WasmPluginType,
+		},
+		GatewayAddress:             "localhost",
+		EnableAllSupportedFeatures: true,
 	})
 
 	cSuite.Setup(t)
-	var higressTests []suite.ConformanceTest
-
-	if *isWasmPluginTest {
-		higressTests = []suite.ConformanceTest{
-			tests.WasmPluginsRequestBlock,
-		}
-	} else {
-		higressTests = []suite.ConformanceTest{
-			tests.HTTPRouteSimpleSameNamespace,
-			tests.HTTPRouteHostNameSameNamespace,
-			tests.HTTPRouteRewritePath,
-			tests.HTTPRouteRewriteHost,
-			tests.HTTPRouteCanaryHeader,
-			tests.HTTPRouteEnableCors,
-			tests.HTTPRouteEnableIgnoreCase,
-			tests.HTTPRouteMatchMethods,
-			tests.HTTPRouteMatchQueryParams,
-			tests.HTTPRouteMatchHeaders,
-			tests.HTTPRouteAppRoot,
-			tests.HTTPRoutePermanentRedirect,
-			tests.HTTPRoutePermanentRedirectCode,
-			tests.HTTPRouteTemporalRedirect,
-			tests.HTTPRouteSameHostAndPath,
-			tests.HTTPRouteCanaryHeaderWithCustomizedHeader,
-			tests.HTTPRouteWhitelistSourceRange,
-			tests.HTTPRouteCanaryWeight,
-			tests.HTTPRouteMatchPath,
-			tests.HttpForceRedirectHttps,
-			tests.HttpRedirectAsHttps,
-			tests.HTTPRouteRequestHeaderControl,
-			tests.HTTPRouteDownstreamEncryption,
-			tests.HTTPRouteFullPathRegex,
-			tests.HTTPRouteHttp2Rpc,
-			tests.HTTPRouteDefaultBackend,
-		}
-	}
-
-	cSuite.Run(t, higressTests)
+	cSuite.Run(t, tests.ConformanceTests)
 }
