@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	HigressConformanceTests = append(HigressConformanceTests, HTTPRouteDefaultBackend)
+	Register(HTTPRouteDefaultBackend)
 }
 
 var HTTPRouteDefaultBackend = suite.ConformanceTest{
