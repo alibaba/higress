@@ -28,6 +28,7 @@ func init() {
 var HTTPRouteDefaultBackend = suite.ConformanceTest{
 	ShortName:   "HTTPRouteDefaultBackend",
 	Description: "The Ingress in the higress-conformance-infra namespace uses the default backend for fallback",
+	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Manifests:   []string{"tests/httproute-default-backend.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
