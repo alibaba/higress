@@ -35,6 +35,8 @@ type Controller[lister any] interface {
 
 	Lister() lister
 
+	Get(types.NamespacedName) (controllers.Object, error)
+
 	Informer() cache.SharedIndexInformer
 }
 
@@ -111,6 +113,10 @@ func (c *CommonController[lister]) onEvent(namespacedName types.NamespacedName) 
 
 	c.updateHandler(obj)
 	return nil
+}
+
+func (c *CommonController[lister]) Get(namespacedName types.NamespacedName) (controllers.Object, error) {
+	return c.getFunc(c.lister, namespacedName)
 }
 
 func (c *CommonController[lister]) HasSynced() bool {

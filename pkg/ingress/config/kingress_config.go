@@ -505,7 +505,7 @@ func (m *KIngressConfig) HasSynced() bool {
 			return false
 		}
 	}
-	IngressLog.Info("Ingress config controller synced.")
+	IngressLog.Info("KIngress config controller synced.")
 	return true
 }
 
