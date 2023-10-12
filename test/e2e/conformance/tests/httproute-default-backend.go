@@ -39,7 +39,6 @@ var HTTPRouteDefaultBackend = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
 						Path: "/foo",
 					},
 				},
