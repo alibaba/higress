@@ -164,42 +164,41 @@ func TestRewriteApplyRoute(t *testing.T) {
 			input:  &networking.HTTPRoute{},
 			expect: &networking.HTTPRoute{},
 		},
-		// TODO: Upgrade fix
-		//{
-		//	config: &Ingress{
-		//		Rewrite: &RewriteConfig{
-		//			RewriteTarget: "/test",
-		//		},
-		//	},
-		//	input: &networking.HTTPRoute{
-		//		Match: []*networking.HTTPMatchRequest{
-		//			{
-		//				Uri: &networking.StringMatch{
-		//					MatchType: &networking.StringMatch_Regex{
-		//						Regex: "/hello",
-		//					},
-		//				},
-		//			},
-		//		},
-		//	},
-		//	expect: &networking.HTTPRoute{
-		//		Match: []*networking.HTTPMatchRequest{
-		//			{
-		//				Uri: &networking.StringMatch{
-		//					MatchType: &networking.StringMatch_Regex{
-		//						Regex: "/hello",
-		//					},
-		//				},
-		//			},
-		//		},
-		//		Rewrite: &networking.HTTPRewrite{
-		//			UriRegex: &networking.RegexMatchAndSubstitute{
-		//				Pattern:      "/hello",
-		//				Substitution: "/test",
-		//			},
-		//		},
-		//	},
-		//},
+		{
+			config: &Ingress{
+				Rewrite: &RewriteConfig{
+					RewriteTarget: "/test",
+				},
+			},
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+				Rewrite: &networking.HTTPRewrite{
+					UriRegexRewrite: &networking.RegexRewrite{
+						Match:   "/hello",
+						Rewrite: "/test",
+					},
+				},
+			},
+		},
 		{
 			config: &Ingress{
 				Rewrite: &RewriteConfig{
@@ -213,44 +212,43 @@ func TestRewriteApplyRoute(t *testing.T) {
 				},
 			},
 		},
-		// TODO: Upgrade fix
-		//{
-		//	config: &Ingress{
-		//		Rewrite: &RewriteConfig{
-		//			RewriteTarget: "/test",
-		//			RewriteHost:   "test.com",
-		//		},
-		//	},
-		//	input: &networking.HTTPRoute{
-		//		Match: []*networking.HTTPMatchRequest{
-		//			{
-		//				Uri: &networking.StringMatch{
-		//					MatchType: &networking.StringMatch_Regex{
-		//						Regex: "/hello",
-		//					},
-		//				},
-		//			},
-		//		},
-		//	},
-		//	expect: &networking.HTTPRoute{
-		//		Match: []*networking.HTTPMatchRequest{
-		//			{
-		//				Uri: &networking.StringMatch{
-		//					MatchType: &networking.StringMatch_Regex{
-		//						Regex: "/hello",
-		//					},
-		//				},
-		//			},
-		//		},
-		//		Rewrite: &networking.HTTPRewrite{
-		//			UriRegex: &networking.RegexMatchAndSubstitute{
-		//				Pattern:      "/hello",
-		//				Substitution: "/test",
-		//			},
-		//			Authority: "test.com",
-		//		},
-		//	},
-		//},
+		{
+			config: &Ingress{
+				Rewrite: &RewriteConfig{
+					RewriteTarget: "/test",
+					RewriteHost:   "test.com",
+				},
+			},
+			input: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Match: []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Regex{
+								Regex: "/hello",
+							},
+						},
+					},
+				},
+				Rewrite: &networking.HTTPRewrite{
+					UriRegexRewrite: &networking.RegexRewrite{
+						Match:   "/hello",
+						Rewrite: "/test",
+					},
+					Authority: "test.com",
+				},
+			},
+		},
 		{
 			config: &Ingress{
 				Rewrite: &RewriteConfig{

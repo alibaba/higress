@@ -92,11 +92,10 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 			}
 		}
 	} else if rewriteConfig.RewriteTarget != "" {
-		// TODO: Upgrade fix
-		//route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-		//	Pattern:      route.Match[0].Uri.GetRegex(),
-		//	Substitution: rewriteConfig.RewriteTarget,
-		//}
+		route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+			Match:   route.Match[0].Uri.GetRegex(),
+			Rewrite: rewriteConfig.RewriteTarget,
+		}
 	}
 
 	if rewriteConfig.RewriteHost != "" {
