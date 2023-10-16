@@ -137,11 +137,11 @@ export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
 external/package/envoy-amd64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-amd64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-amd64.tar.gz"
 
 external/package/envoy-arm64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.0.0/envoy-arm64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-arm64.tar.gz"
 
 
 build-pilot:
@@ -151,7 +151,7 @@ build-pilot:
 build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
 	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
-build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
+build-gateway-local: prebuild
 	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 build-istio: prebuild build-pilot
@@ -174,8 +174,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 1.2.0
-ISTIO_LATEST_IMAGE_TAG ?= 1.2.0
+ENVOY_LATEST_IMAGE_TAG ?= sha-e135789
+ISTIO_LATEST_IMAGE_TAG ?= sha-e135789
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
