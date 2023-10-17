@@ -17,7 +17,9 @@ package helm
 import (
 	"errors"
 	"fmt"
+	"strings"
 
+	"istio.io/istio/operator/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 
@@ -55,32 +57,36 @@ type ProfileGlobal struct {
 
 func (p ProfileGlobal) SetFlags(install InstallMode) ([]string, error) {
 	sets := make([]string, 0)
-	sets = append(sets, fmt.Sprintf("global.ingressClass=%s", p.IngressClass))
-	sets = append(sets, fmt.Sprintf("global.watchNamespace=%s", p.WatchNamespace))
-	sets = append(sets, fmt.Sprintf("global.disableAlpnH2=%t", p.DisableAlpnH2))
-	sets = append(sets, fmt.Sprintf("global.enableStatus=%t", p.EnableStatus))
-	sets = append(sets, fmt.Sprintf("global.enableIstioAPI=%t", p.EnableIstioAPI))
-	sets = append(sets, fmt.Sprintf("global.istioNamespace=%s", p.IstioNamespace))
-	if install == InstallLocalK8s {
-		sets = append(sets, fmt.Sprintf("global.local=%t", true))
+	if install == InstallK8s || install == InstallLocalK8s {
+		sets = append(sets, fmt.Sprintf("global.ingressClass=%s", p.IngressClass))
+		sets = append(sets, fmt.Sprintf("global.watchNamespace=%s", p.WatchNamespace))
+		sets = append(sets, fmt.Sprintf("global.disableAlpnH2=%t", p.DisableAlpnH2))
+		sets = append(sets, fmt.Sprintf("global.enableStatus=%t", p.EnableStatus))
+		sets = append(sets, fmt.Sprintf("global.enableIstioAPI=%t", p.EnableIstioAPI))
+		sets = append(sets, fmt.Sprintf("global.istioNamespace=%s", p.IstioNamespace))
+		if install == InstallLocalK8s {
+			sets = append(sets, fmt.Sprintf("global.local=%t", true))
+		}
 	}
 	return sets, nil
 }
 
 func (p ProfileGlobal) Validate(install InstallMode) []error {
 	errs := make([]error, 0)
-	// now only support k8s and local-k8s installation mode
-	if p.Install != InstallK8s && p.Install != InstallLocalK8s {
-		errs = append(errs, errors.New("global.install only can be set to k8s or local-k8s"))
+	// now only support k8s, local-k8s, local-docker installation mode
+	if install != InstallK8s && install != InstallLocalK8s && install != InstallLocalDocker {
+		errs = append(errs, errors.New("global.install only can be set to k8s, local-k8s or local-docker"))
 	}
-	if len(p.IngressClass) == 0 {
-		errs = append(errs, errors.New("global.ingressClass can't be empty"))
-	}
-	if len(p.Namespace) == 0 {
-		errs = append(errs, errors.New("global.namespace can't be empty"))
-	}
-	if len(p.IstioNamespace) == 0 {
-		errs = append(errs, errors.New("global.istioNamespace can't be empty"))
+	if install == InstallK8s || install == InstallLocalK8s {
+		if len(p.IngressClass) == 0 {
+			errs = append(errs, errors.New("global.ingressClass can't be empty"))
+		}
+		if len(p.Namespace) == 0 {
+			errs = append(errs, errors.New("global.namespace can't be empty"))
+		}
+		if len(p.IstioNamespace) == 0 {
+			errs = append(errs, errors.New("global.istioNamespace can't be empty"))
+		}
 	}
 	return errs
 }
@@ -100,26 +106,36 @@ type ProfileConsole struct {
 
 func (p ProfileConsole) SetFlags(install InstallMode) ([]string, error) {
 	sets := make([]string, 0)
-	sets = append(sets, fmt.Sprintf("higress-console.replicaCount=%d", p.Replicas))
-	sets = append(sets, fmt.Sprintf("higress-console.service.type=%s", p.ServiceType))
-	sets = append(sets, fmt.Sprintf("higress-console.domain=%s", p.Domain))
-	sets = append(sets, fmt.Sprintf("higress-console.tlsSecretName=%s", p.TlsSecretName))
-	sets = append(sets, fmt.Sprintf("higress-console.web.login.prompt=%s", p.WebLoginPrompt))
-	sets = append(sets, fmt.Sprintf("higress-console.admin.password.value=%s", p.AdminPasswordValue))
-	sets = append(sets, fmt.Sprintf("higress-console.admin.password.length=%d", p.AdminPasswordLength))
-	sets = append(sets, fmt.Sprintf("higress-console.o11y.enabled=%t", p.O11yEnabled))
-	sets = append(sets, fmt.Sprintf("higress-console.pvc.rwxSupported=%t", p.PvcRwxSupported))
+	if install == InstallK8s || install == InstallLocalK8s {
+		sets = append(sets, fmt.Sprintf("higress-console.replicaCount=%d", p.Replicas))
+		sets = append(sets, fmt.Sprintf("higress-console.service.type=%s", p.ServiceType))
+		sets = append(sets, fmt.Sprintf("higress-console.domain=%s", p.Domain))
+		sets = append(sets, fmt.Sprintf("higress-console.tlsSecretName=%s", p.TlsSecretName))
+		sets = append(sets, fmt.Sprintf("higress-console.web.login.prompt=%s", p.WebLoginPrompt))
+		sets = append(sets, fmt.Sprintf("higress-console.admin.password.value=%s", p.AdminPasswordValue))
+		sets = append(sets, fmt.Sprintf("higress-console.admin.password.length=%d", p.AdminPasswordLength))
+		sets = append(sets, fmt.Sprintf("higress-console.o11y.enabled=%t", p.O11yEnabled))
+		sets = append(sets, fmt.Sprintf("higress-console.pvc.rwxSupported=%t", p.PvcRwxSupported))
+	}
 	return sets, nil
 }
 
 func (p ProfileConsole) Validate(install InstallMode) []error {
 	errs := make([]error, 0)
-	if p.Replicas <= 0 {
-		errs = append(errs, errors.New("console.replica need be large than zero"))
+	if install == InstallK8s || install == InstallLocalK8s {
+		if p.Replicas <= 0 {
+			errs = append(errs, errors.New("console.replica need be large than zero"))
+		}
+
+		if p.ServiceType != "ClusterIP" && p.ServiceType != "NodePort" && p.ServiceType != "LoadBalancer" {
+			errs = append(errs, errors.New("console.serviceType can only be set to ClusterIP, NodePort or LoadBalancer"))
+		}
 	}
 
-	if p.ServiceType != "ClusterIP" && p.ServiceType != "NodePort" && p.ServiceType != "LoadBalancer" {
-		errs = append(errs, errors.New("console.serviceType can only be set to ClusterIP, NodePort or LoadBalancer"))
+	if install == InstallLocalDocker {
+		if p.Port <= 0 {
+			errs = append(errs, errors.New("console.port need be large than zero"))
+		}
 	}
 
 	return errs
@@ -134,16 +150,31 @@ type ProfileGateway struct {
 
 func (p ProfileGateway) SetFlags(install InstallMode) ([]string, error) {
 	sets := make([]string, 0)
-	sets = append(sets, fmt.Sprintf("higress-core.gateway.replicas=%d", p.Replicas))
+	if install == InstallK8s || install == InstallLocalK8s {
+		sets = append(sets, fmt.Sprintf("higress-core.gateway.replicas=%d", p.Replicas))
+	}
 	return sets, nil
 }
 
 func (p ProfileGateway) Validate(install InstallMode) []error {
 	errs := make([]error, 0)
-	if p.Replicas <= 0 {
-		errs = append(errs, errors.New("gateway.replica need be large than zero"))
+	if install == InstallK8s || install == InstallLocalK8s {
+		if p.Replicas <= 0 {
+			errs = append(errs, errors.New("gateway.replica need be large than zero"))
+		}
 	}
 
+	if install == InstallLocalDocker {
+		if p.HttpPort <= 0 {
+			errs = append(errs, errors.New("gateway.httpPort need be large than zero"))
+		}
+		if p.HttpsPort <= 0 {
+			errs = append(errs, errors.New("gateway.httpsPort need be large than zero"))
+		}
+		if p.MetricsPort <= 0 {
+			errs = append(errs, errors.New("gateway.MetricsPort need be large than zero"))
+		}
+	}
 	return errs
 }
 
@@ -153,16 +184,19 @@ type ProfileController struct {
 
 func (p ProfileController) SetFlags(install InstallMode) ([]string, error) {
 	sets := make([]string, 0)
-	sets = append(sets, fmt.Sprintf("higress-core.controller.replicas=%d", p.Replicas))
+	if install == InstallK8s || install == InstallLocalK8s {
+		sets = append(sets, fmt.Sprintf("higress-core.controller.replicas=%d", p.Replicas))
+	}
 	return sets, nil
 }
 
 func (p ProfileController) Validate(install InstallMode) []error {
 	errs := make([]error, 0)
-	if p.Replicas <= 0 {
-		errs = append(errs, errors.New("controller.replica need be large than zero"))
+	if install == InstallK8s || install == InstallLocalK8s {
+		if p.Replicas <= 0 {
+			errs = append(errs, errors.New("controller.replica need be large than zero"))
+		}
 	}
-
 	return errs
 }
 
@@ -176,6 +210,31 @@ type ProfileStorage struct {
 
 func (p ProfileStorage) Validate(install InstallMode) []error {
 	errs := make([]error, 0)
+	if install == InstallLocalDocker {
+		if len(p.Url) == 0 {
+			errs = append(errs, errors.New("storage.url can't be empty"))
+		}
+		if len(p.Ns) == 0 {
+			errs = append(errs, errors.New("storage.ns can't be empty"))
+		}
+
+		if !strings.HasPrefix(p.Url, "nacos://") && !strings.HasPrefix(p.Url, "file://") {
+			errs = append(errs, fmt.Errorf("invalid storage url: %s", p.Url))
+		} else {
+			// check localhost or 127.0.0.0
+			if strings.Contains(p.Url, "localhost") || strings.Contains(p.Url, "/127.") {
+				errs = append(errs, errors.New("localhost or loopback addresses in nacos url won't work"))
+			}
+		}
+
+		if len(p.DataEncKey) > 0 && len(p.DataEncKey) != 32 {
+			errs = append(errs, fmt.Errorf("expecting 32 characters for dataEncKey, but got %d length", len(p.DataEncKey)))
+		}
+
+		if len(p.Username) > 0 && len(p.Password) == 0 || len(p.Username) == 0 && len(p.Password) > 0 {
+			errs = append(errs, errors.New("both nacos username and password shall be provided"))
+		}
+	}
 	return errs
 }
 
@@ -186,8 +245,9 @@ type Chart struct {
 }
 
 type ProfileCharts struct {
-	Higress Chart `json:"higress,omitempty"`
-	Istio   Chart `json:"istio,omitempty"`
+	Higress    Chart `json:"higress,omitempty"`
+	Istio      Chart `json:"istio,omitempty"`
+	Standalone Chart `json:"standalone,omitempty"`
 }
 
 func (p ProfileCharts) Validate(install InstallMode) []error {
@@ -222,8 +282,13 @@ func (p *Profile) ValuesYaml() (string, error) {
 		}
 		valueOverlayYAML = string(out)
 	}
+
+	flagsYAML, err := overlaySetFlagValues("", setFlags)
+	if err != nil {
+		return "", err
+	}
 	// merge values and setFlags
-	overlayYAML, err := overlaySetFlagValues(valueOverlayYAML, setFlags)
+	overlayYAML, err := util.OverlayYAML(flagsYAML, valueOverlayYAML)
 	if err != nil {
 		return "", err
 	}
@@ -256,7 +321,7 @@ func (p *Profile) Validate() error {
 		errs = append(errs, errsController...)
 	}
 	errsStorage := p.Storage.Validate(p.Global.Install)
-	if len(errsController) > 0 {
+	if len(errsStorage) > 0 {
 		errs = append(errs, errsStorage...)
 	}
 	errsCharts := p.Charts.Validate(p.Global.Install)

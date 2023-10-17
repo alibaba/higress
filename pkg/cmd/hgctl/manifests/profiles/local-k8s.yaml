@@ -51,3 +51,7 @@ charts:
     url: https://istio-release.storage.googleapis.com/charts
     name: base
     version: 1.18.2
+  standalone:
+    url: https://higress.io/standalone/get-higress.sh
+    name: standalone
+    version: latest

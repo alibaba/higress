@@ -15,8 +15,10 @@
 package util
 
 import (
+	"bufio"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -75,4 +77,19 @@ func ParseValue(valueStr string) any {
 		value = strings.ReplaceAll(valueStr, "\\,", ",")
 	}
 	return value
+}
+
+// WriteFileString write string content to file
+func WriteFileString(fileName string, content string, perm os.FileMode) error {
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	if _, err := writer.WriteString(content); err != nil {
+		return err
+	}
+	writer.Flush()
+	return nil
 }
