@@ -62,7 +62,7 @@ query ($owner : String!, $name : String!) {
 ```shell
 
 curl https://api.github.com/graphql -X POST \
--H "Authorization: bearer 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" \
+-H "Authorization: bearer <PAT>" \
 -d "{\"query\": \"query { viewer { login }}\"}" 
 
 {
@@ -76,7 +76,7 @@ curl https://api.github.com/graphql -X POST \
 
 ```shell
 curl 'https://api.github.com/graphql' -X POST \
--H 'Authorization: bearer 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' \
+-H 'Authorization: bearer <PAT>' \
 -d '{"query":"query ($owner: String!, $name: String!) {\n  repository(owner: $owner, name: $name) {\n    name\n    forkCount\n    description\n  }\n}\n","variables":{"owner":"2456868764","name":"higress"}}'
 
 {
