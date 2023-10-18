@@ -93,7 +93,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		return types.ActionContinue
 	}
 	valid := ParseTokenValid(token, config.KeyAuthTokens)
-	if valid {
+	if !valid {
 		_ = proxywasm.ResumeHttpRequest()
 		return types.ActionPause
 	} else {
