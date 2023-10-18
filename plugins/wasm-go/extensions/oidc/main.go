@@ -3,15 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"oidc/oc"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
-	"net/http"
-	"net/url"
-	"oidc/oc"
-	"strings"
 )
 
 const (
@@ -41,12 +42,12 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
-	config.Issuer = json.Get("Issuer").String()
+	config.Issuer = json.Get("issuer").String()
 	if config.Issuer == "" {
 		return errors.New("missing Issuer in config")
 	}
 
-	config.ClientID = json.Get("clientID").String()
+	config.ClientID = json.Get("clientId").String()
 	if config.ClientID == "" {
 		return errors.New("missing clientID in config")
 	}
@@ -56,12 +57,12 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 		return errors.New("missing clientSecret in config")
 	}
 
-	config.RedirectURL = json.Get("RedirectURL").String()
+	config.RedirectURL = json.Get("redirectUrl").String()
 	if config.RedirectURL == "" {
 		return errors.New("missing RedirectURL in config")
 	}
 	config.SkipExpiryCheck = json.Get("SkipExpiryCheck").Bool()
-	for _, item := range json.Get("Scopes").Array() {
+	for _, item := range json.Get("scopes").Array() {
 		scopes := item.String()
 		config.Scopes = append(config.Scopes, scopes)
 	}
@@ -71,7 +72,7 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	}
 	config.Path = parsedURL.Path
 
-	code := json.Get("Timeout").Int()
+	code := json.Get("timeOut").Int()
 	if code != 0 {
 		config.Timeout = uint32(code)
 	} else {
@@ -82,11 +83,8 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	if config.ClientDomain == "" {
 		return errors.New("missing ClientDomain in config")
 	}
-	config.ClientDomain = json.Get("clientDomain").String()
-	if config.ClientDomain == "" {
-		return errors.New("missing ClientDomain in config")
-	}
-	config.SkipExpiryCheck = json.Get("securecookie").Bool()
+
+	config.SkipExpiryCheck = json.Get("secureCookie").Bool()
 	serviceSource := json.Get("serviceSource").String()
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
@@ -113,7 +111,6 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 			Port:        servicePort,
 			Domain:      domain,
 		})
-
 		return nil
 	default:
 		return errors.New("unknown service source: " + serviceSource)
@@ -125,22 +122,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 	if ctx.Host() == console {
 		return types.ActionContinue
 	}
-	cookieString, _ := proxywasm.GetHttpRequestHeader("cookie")
-	// 使用分号分割Cookie字符串
-	cookiePairs := strings.Split(cookieString, "; ")
 
-	// 遍历分割后的键值对，找到名为 "oidc_oauth2_wasm_plugin" 的 Cookie 并提取其值
-	var oidcCookieValue string
-	for _, pair := range cookiePairs {
-		keyValue := strings.Split(pair, "=")
-		if keyValue[0] == "oidc_oauth2_wasm_plugin" {
-			oidcCookieValue = keyValue[1]
-			break
-		}
-	}
-	oidcCookieValue, _ = url.QueryUnescape(oidcCookieValue)
-	oidcCookieValue, _ = oc.Decrypt(oidcCookieValue)
-	oauth2Config := &oc.Oatuh2Config{
+	DefaultHandler := oc.NewDefaultOAuthHandler()
+	cookieString, _ := proxywasm.GetHttpRequestHeader("cookie")
+	oidcCookieValue, code, state := oc.GetParams(cookieString, ctx.Path())
+
+	cfg := &oc.Oatuh2Config{
 		Config: oauth2.Config{
 			ClientID:     config.ClientID,
 			ClientSecret: config.ClientSecret,
@@ -149,86 +136,48 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 		},
 		Issuer:          config.Issuer,
 		Path:            config.Path,
-		SkipIssuerCheck: config.SkipExpiryCheck,
-		Client:          config.Client,
 		Clientdomain:    config.ClientDomain,
+		SkipIssuerCheck: config.SkipExpiryCheck,
 		SecureCookie:    config.SecuceCookie,
 		Timeout:         config.Timeout,
+		Client:          config.Client,
+		Option:          &oc.OidcOption{},
 	}
-
-	u, err := url.Parse(ctx.Path())
-	if err != nil {
-		oc.SendError(&log, fmt.Sprintf("Error parsing query string : %v", err), http.StatusBadRequest)
-	}
-
-	query := u.Query()
-	state, code := query.Get("state"), query.Get("code")
-
-	log.Debugf("path : %v host:%v cookie:%v state:%v code:%v ", ctx.Path(), ctx.Host(), oidcCookieValue, state, code)
-
-	StatStr := oc.GenState()
-	Nonce := oc.GenState()
+	log.Debugf("path :%v host :%v state :%v code :%v cookie :%v", ctx.Path(), ctx.Host(), state, code, oidcCookieValue)
 
 	if oidcCookieValue == "" {
-		if code == "" && state == "" {
-			// Redirect if user is not authorized
 
-			if oauth2Config.Issuer == oc.IssuerGithubAccounts {
-				githubProvider := oc.NewGithubProvider(oauth2Config)
-				githubProvider.ProcessRedirect(StatStr, Nonce, oauth2Config, &log)
-
-			} else {
-				if err := oc.ProcessRedirect(StatStr, Nonce, oauth2Config, &log); err != nil {
-					oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
-				}
+		if code == "" {
+			if err := DefaultHandler.ProcessRedirect(&log, cfg); err != nil {
+				oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
 			}
+		}
 
-		} else if strings.Contains(ctx.Path(), "oidc/callback") {
-			// Handle callback
+		if strings.Contains(ctx.Path(), "oidc/callback") {
 			parts := strings.Split(state, ".")
 			if len(parts) != 2 {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
 			}
-			stateval, signature := parts[0], parts[1]
 
-			// Verify state signature
+			stateval, signature := parts[0], parts[1]
 			if !oc.VerifyState(stateval, signature) {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
 			}
 
-			if oauth2Config.Issuer == oc.IssuerGithubAccounts {
-				githubProvider := oc.NewGithubProvider(oauth2Config)
-				err := githubProvider.ProcessExchangeToken(code, oauth2Config, &log)
-				if err != nil {
-					oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusUnauthorized)
-				}
-
-			} else {
-				if err := oc.ProcessExchangeToken(code, oauth2Config, &log, oc.SenBack); err != nil {
-					oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
-				}
+			cfg.Option.Code = code
+			cfg.Option.Mod = oc.SenBack
+			if err := DefaultHandler.ProcessExchangeToken(&log, cfg); err != nil {
+				oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
 			}
-
 		}
 	} else {
-
-		if oauth2Config.Issuer == oc.IssuerGithubAccounts {
-			githubProvider := oc.NewGithubProvider(oauth2Config)
-			if ok, err := githubProvider.ProcessVerify(oidcCookieValue); !ok {
-				if err != nil {
-					githubProvider.ProcessRedirect(StatStr, Nonce, oauth2Config, &log)
-				}
-			} else {
-				return types.ActionContinue
-			}
-
-		} else {
-
-			if err := oc.ProcessVerify(oidcCookieValue, oauth2Config, &log, oc.Access); err != nil {
-				oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
-			}
-
+		log.Debugf("verify token")
+		cfg.Option.Mod = oc.Access
+		cfg.Option.RawIdToken = oidcCookieValue
+		if err := DefaultHandler.ProcessVerify(&log, cfg); err != nil {
+			oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
 		}
 	}
+
 	return types.ActionPause
 }

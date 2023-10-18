@@ -13,13 +13,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/tidwall/gjson"
 	"math/big"
 	"net/url"
 	"reflect"
 	"strings"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/tidwall/gjson"
 )
 
 const (

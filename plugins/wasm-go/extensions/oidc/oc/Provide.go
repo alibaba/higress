@@ -3,41 +3,57 @@ package oc
 import (
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+
+	"github.com/go-jose/go-jose/v3"
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/tidwall/gjson"
 )
 
-// ProcessHTTPCall
-func ProcessHTTPCall(cfg *Oatuh2Config, log *wrapper.Log, callback func(responseBody []byte)) error {
-	wellKnownPath := strings.TrimSuffix(cfg.Path, "/") + "/.well-known/openid-configuration"
+type OidcHandler interface {
+	ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Config) error
+	ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error
+	ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error
+	ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) error
+	ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error
+}
 
+type DefaultOAuthHandler struct {
+}
+
+func NewDefaultOAuthHandler() OidcHandler {
+	return &DefaultOAuthHandler{}
+}
+
+func ProcessHTTPCall(log *wrapper.Log, cfg *Oatuh2Config, callback func(responseBody []byte)) error {
+	wellKnownPath := strings.TrimSuffix(cfg.Path, "/") + "/.well-known/openid-configuration"
 	if err := cfg.Client.Get(wellKnownPath, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
-			SendError(log, fmt.Sprintf("HTTP response validation failed : %v %v ", statusCode, err), statusCode)
+			re := regexp.MustCompile("<[^>]*>")
+			cleanedBody := re.ReplaceAllString(string(responseBody), "")
+			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v \n err_info: %v ", statusCode, err, string(cleanedBody)), statusCode)
 			return
 		}
-
 		callback(responseBody)
-	}, cfg.Timeout); err != nil {
+	}, 2000); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ProcessRedirect
-func ProcessRedirect(stateStr, nonce string, cfg *Oatuh2Config, log *wrapper.Log) error {
-	return ProcessHTTPCall(cfg, log, func(responseBody []byte) {
+func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Config) error {
+	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
+		StatStr, nonce := GenState(), GenState()
 
 		cfg.Endpoint.AuthURL = gjson.ParseBytes(responseBody).Get("authorization_endpoint").String()
 		if cfg.Endpoint.AuthURL == "" {
 			SendError(log, " Miss authorization_endpoint ", http.StatusInternalServerError)
 		}
-		codeURL := cfg.AuthCodeURL(stateStr, SetNonce(nonce))
+		codeURL := cfg.AuthCodeURL(StatStr, SetNonce(nonce))
 		err := proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
 			{"Location", codeURL},
 		}, nil, -1)
@@ -46,12 +62,10 @@ func ProcessRedirect(stateStr, nonce string, cfg *Oatuh2Config, log *wrapper.Log
 			return
 		}
 	})
-
 }
 
-// ProcessExchangeToken
-func ProcessExchangeToken(code string, cfg *Oatuh2Config, log *wrapper.Log, mod Accessmod) error {
-	return ProcessHTTPCall(cfg, log, func(responseBody []byte) {
+func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error {
+	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
 		PvRJson := gjson.ParseBytes(responseBody)
 
 		cfg.Endpoint.TokenURL = PvRJson.Get("token_endpoint").String()
@@ -60,26 +74,23 @@ func ProcessExchangeToken(code string, cfg *Oatuh2Config, log *wrapper.Log, mod 
 		}
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
-			SendError(log, " Miss jwks_uri ", http.StatusInternalServerError)
+			SendError(log, " Miss jwks uri ", http.StatusInternalServerError)
 		}
-		authStyle := AuthStyle(cfg.Endpoint.AuthStyle)
-		if err := ProcessToken(code, cfg, log, authStyle, mod); err != nil {
+		cfg.Option.AuthStyle = AuthStyle(cfg.Endpoint.AuthStyle)
+		if err := d.ProcessToken(log, cfg); err != nil {
 			log.Errorf("failed to process token: %v", err)
 		}
 	})
-
 }
 
-// ProcessVerify
-func ProcessVerify(rawToken string, cfg *Oatuh2Config, log *wrapper.Log, mod Accessmod) error {
-	return ProcessHTTPCall(cfg, log, func(responseBody []byte) {
+func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
+	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
 		PvRJson := gjson.ParseBytes(responseBody)
 
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
-			SendError(log, " Miss jwks_uri ", http.StatusInternalServerError)
+			SendError(log, " Miss jwks uri ", http.StatusInternalServerError)
 		}
-
 		var algs []string
 		for _, a := range PvRJson.Get("id_token_signing_alg_values_supported").Array() {
 			if SupportedAlgorithms[a.String()] {
@@ -87,32 +98,31 @@ func ProcessVerify(rawToken string, cfg *Oatuh2Config, log *wrapper.Log, mod Acc
 			}
 		}
 		cfg.SupportedSigningAlgs = algs
-		err := ProcesTokenVerify(rawToken, cfg, log, mod)
+		err := d.ProcesTokenVerify(log, cfg)
 		if err != nil {
 			log.Errorf("failed to verify token: %v", err)
 		}
 	})
-
 }
 
-func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle AuthStyle, mod Accessmod) error {
+func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 	parsedURL, err := url.Parse(cfg.Endpoint.TokenURL)
 	if err != nil {
 		return fmt.Errorf("invalid TokenURL: %v", err)
 	}
 
 	var token Token
-	v := ReturnURL(cfg.RedirectURL, code)
-	needsAuthStyleProbe := authStyle == AuthStyleUnknown
+	v := ReturnURL(cfg.RedirectURL, cfg.Option.Code)
+	needsAuthStyleProbe := cfg.Option.AuthStyle == AuthStyleUnknown
 	if needsAuthStyleProbe {
 		if style, ok := LookupAuthStyle(cfg.Endpoint.TokenURL); ok {
-			authStyle = style
+			cfg.Option.AuthStyle = style
 		} else {
-			authStyle = AuthStyleInHeader
+			cfg.Option.AuthStyle = AuthStyleInHeader
 		}
 	}
 
-	headers, body, err := NewTokenRequest(cfg.Endpoint.TokenURL, cfg.ClientID, cfg.ClientSecret, v, authStyle)
+	headers, body, err := NewTokenRequest(cfg.Endpoint.TokenURL, cfg.ClientID, cfg.ClientSecret, v, cfg.Option.AuthStyle)
 
 	if err != nil {
 		return fmt.Errorf("failed to create token request: %v", err)
@@ -126,7 +136,7 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 		log.Debugf("body %v", string(responseBody))
 		if err != nil && needsAuthStyleProbe {
 			log.Errorf("Incorrect invocation, retrying with different auth style")
-			ProcessToken(code, cfg, log, AuthStyleInParams, mod)
+			d.ProcessToken(log, cfg)
 			return
 		}
 
@@ -137,7 +147,7 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 		}
 
 		if needsAuthStyleProbe && err == nil {
-			SetAuthStyle(cfg.Endpoint.TokenURL, authStyle)
+			SetAuthStyle(cfg.Endpoint.TokenURL, cfg.Option.AuthStyle)
 		}
 
 		if tk != nil && token.RefreshToken == "" {
@@ -152,14 +162,15 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 
 			return
 		}
-		err = ProcesTokenVerify(rawIDToken, cfg, log, mod)
+		cfg.Option.RawIdToken = rawIDToken
+		err = d.ProcesTokenVerify(log, cfg)
 		if err != nil {
 			log.Errorf("failed to verify token: %v", err)
 		}
 
 	}
 
-	err = cfg.Client.Post(parsedURL.Path, headers, body, cb, cfg.Timeout)
+	err = cfg.Client.Post(parsedURL.Path, headers, body, cb, 2000)
 	if err != nil {
 		return fmt.Errorf("HTTP POST error: %v", err)
 	}
@@ -167,8 +178,7 @@ func ProcessToken(code string, cfg *Oatuh2Config, log *wrapper.Log, authStyle Au
 	return nil
 }
 
-// ProcesTokenVerify
-func ProcesTokenVerify(rawIdToken string, cfg *Oatuh2Config, log *wrapper.Log, mod Accessmod) error {
+func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 	keySet := jose.JSONWebKeySet{}
 
 	idTokenVerify := cfg.Verifier(&IDConfig{
@@ -200,38 +210,36 @@ func ProcesTokenVerify(rawIdToken string, cfg *Oatuh2Config, log *wrapper.Log, m
 			keySet.Keys = append(keySet.Keys, *jws)
 		}
 
-		idtoken, err := idTokenVerify.VerifyToken(rawIdToken, keySet, log)
+		idtoken, err := idTokenVerify.VerifyToken(cfg.Option.RawIdToken, keySet)
 
 		if err != nil {
 			log.Errorf("VerifyToken err : %v", err)
-			state := GenState()
-			Nonce := GenState()
-			ProcessRedirect(state, Nonce, cfg, log)
+			d.ProcessRedirect(log, cfg)
 			return
 		}
 
 		//回发和放行
-		if mod == Access {
-			proxywasm.AddHttpRequestHeader("X-Authorization-IDToken", rawIdToken)
+		if cfg.Option.Mod == Access {
+			proxywasm.AddHttpRequestHeader("X-MSE-IDToken", cfg.Option.RawIdToken)
 			proxywasm.ResumeHttpRequest()
-			return
-		} else if mod == SenBack {
-			cookieHeader, _ := buildSecureCookieHeader(rawIdToken, cfg.Clientdomain, idtoken.Expiry, cfg.SecureCookie)
-			scheme := "http://"
-			if cfg.SecureCookie == true {
-				scheme = "https://"
-			}
-			proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
-				{"Set-Cookie", cookieHeader},
-				{"Location", scheme + cfg.Clientdomain},
-			}, nil, -1)
-
 			return
 		}
 
+		cookieHeader, _ := buildSecureCookieHeader(cfg.Option.RawIdToken, cfg.Clientdomain, idtoken.Expiry, cfg.SecureCookie)
+		scheme := "http://"
+		if cfg.SecureCookie == true {
+			scheme = "https://"
+		}
+		log.Debugf("set cookie")
+		proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
+			{"Set-Cookie", cookieHeader},
+			{"Location", scheme + cfg.Clientdomain},
+		}, nil, -1)
+
+		return
 	}
 
-	if err := cfg.Client.Get(parsedURL.Path, nil, cb, cfg.Timeout); err != nil {
+	if err := cfg.Client.Get(parsedURL.Path, nil, cb, 2000); err != nil {
 		log.Errorf("client.Get error: %v", err)
 		return err
 	}

@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/go-jose/go-jose/v3"
 	"strings"
 	"time"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/go-jose/go-jose/v3"
 )
 
 // IDTokenVerifierConfig
@@ -49,7 +50,8 @@ func (i *IDToken) Claims(v interface{}) error {
 	return json.Unmarshal(i.claims, v)
 }
 
-func (v *IDTokenVerifier) VerifyToken(rawIDToken string, keySet jose.JSONWebKeySet, log *wrapper.Log) (*IDToken, error) {
+func (v *IDTokenVerifier) VerifyToken(rawIDToken string, keySet jose.JSONWebKeySet) (*IDToken, error) {
+	var log wrapper.Log
 	payload, err := parseJWT(rawIDToken)
 	if err != nil {
 		return nil, fmt.Errorf(" malformed jwt: %v", err)

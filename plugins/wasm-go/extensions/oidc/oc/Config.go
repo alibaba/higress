@@ -1,10 +1,10 @@
 package oc
 
 import (
-	"encoding/json"
+	"time"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"golang.org/x/oauth2"
-	"time"
 )
 
 type Accessmod int
@@ -15,42 +15,10 @@ const (
 )
 
 type IDConfig struct {
-	ClientID string
-
+	ClientID             string
 	SupportedSigningAlgs []string
-
-	SkipExpiryCheck bool
-
-	// Time function to check Token expiry. Defaults to time.Now
-	Now func() time.Time
-}
-
-type Oatuh2Config struct {
-	oauth2.Config
-	Issuer               string
-	JwksURL              string
-	Path                 string
-	Clientdomain         string
-	SupportedSigningAlgs []string
-	SkipIssuerCheck      bool
-	SecureCookie         bool
-	Timeout              uint32
-	Client               wrapper.HttpClient
-}
-type audience []string
-
-func (a *audience) UnmarshalJSON(b []byte) error {
-	var s string
-	if json.Unmarshal(b, &s) == nil {
-		*a = audience{s}
-		return nil
-	}
-	var auds []string
-	if err := json.Unmarshal(b, &auds); err != nil {
-		return err
-	}
-	*a = auds
-	return nil
+	SkipExpiryCheck      bool
+	Now                  func() time.Time
 }
 
 type idToken struct {
@@ -71,24 +39,26 @@ type claimSource struct {
 	AccessToken string `json:"access_token"`
 }
 
-type jsonTime time.Time
+type Oatuh2Config struct {
+	oauth2.Config
+	Issuer               string
+	JwksURL              string
+	Path                 string
+	Clientdomain         string
+	SupportedSigningAlgs []string
+	SkipIssuerCheck      bool
+	SecureCookie         bool
+	Timeout              uint32
+	Client               wrapper.HttpClient
 
-func (j *jsonTime) UnmarshalJSON(b []byte) error {
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	var unix int64
+	Option *OidcOption
+}
 
-	if t, err := n.Int64(); err == nil {
-		unix = t
-	} else {
-		f, err := n.Float64()
-		if err != nil {
-			return err
-		}
-		unix = int64(f)
-	}
-	*j = jsonTime(time.Unix(unix, 0))
-	return nil
+type OidcOption struct {
+	StateStr   string
+	Nonce      string
+	Code       string
+	Mod        Accessmod
+	RawIdToken string
+	AuthStyle  AuthStyle
 }

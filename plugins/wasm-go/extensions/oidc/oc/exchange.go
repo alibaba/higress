@@ -23,7 +23,6 @@ type Token struct {
 	Raw          interface{}
 }
 
-// tokenJSON是表示OAuth2提供者返回的JSON格式令牌的HTTP响应的结构体。
 type tokenJSON struct {
 	AccessToken  string         `json:"access_token"`
 	TokenType    string         `json:"token_type"`
@@ -147,7 +146,7 @@ func (t *Token) Extra(key string) interface{} {
 
 func UnmarshalToken(token *Token, Headers http.Header, body []byte) (*Token, error) {
 	if !gjson.ValidBytes(body) {
-		return nil, errors.New("invalid JSON format in response body")
+		return nil, fmt.Errorf("invalid JSON format in response body , get %v", string(body))
 	}
 	content, _, _ := mime.ParseMediaType(Headers.Get("Content-Type"))
 
