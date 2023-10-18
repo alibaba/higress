@@ -57,15 +57,15 @@ spec:
     - ingress:
          - higress-conformance-infra/oidc-ingress
       config :
-         Issuer: "https://oauth.aliyun.com"
-         clientID: "4312977293205600181"
-         clientSecret: "xxxx"
-         RedirectURL: "http://foo.bar.com/foo/oidc/callback"
-         clientDomain: "foo.bar.com"
-         Scopes:
-           - "openid"
-         serviceSource: "dns"
-         serviceName: "ali"
-         servicePort: 443
-         domain: "oauth.aliyun.com"
-  url: oci://registry.cn-hangzhou.aliyuncs.com/234f/test:oidc1.17
+        issuer: "https://oauth.aliyun.com"
+        clientId: "4312977293205600181"
+        clientSecret: "SO8LC4b6JDMlVV5t0CdEqBn3mLYlsvN2rUFDIvXRLluK13uACT2dUTMtZDw9dOOP"
+        redirectUrl: "http://foo.bar.com/foo/oidc/callback"
+        clientDomain: "foo.bar.com"
+        scopes:
+          - "openid"
+        serviceSource: "dns"
+        serviceName: "ali"
+        servicePort: 443
+        domain: "oauth.aliyun.com"
+  url: oci://registry.cn-hangzhou.aliyuncs.com/234f/test:oidc2.3
