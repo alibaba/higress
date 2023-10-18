@@ -59,7 +59,7 @@ spec:
       config :
          Issuer: "https://oauth.aliyun.com"
          clientID: "4312977293205600181"
-         clientSecret: "SO8LC4b6JDMlVV5t0CdEqBn3mLYlsvN2rUFDIvXRLluK13uACT2dUTMtZDw9dOOP"
+         clientSecret: "xxxx"
          RedirectURL: "http://foo.bar.com/foo/oidc/callback"
          clientDomain: "foo.bar.com"
          Scopes:
