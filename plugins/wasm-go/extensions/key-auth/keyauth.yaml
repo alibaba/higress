@@ -1,0 +1,53 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: mcp-keyauth-httpbin
+  namespace: higress-system
+spec:
+  registries:
+    - domain: httpbin.org
+      name: httpbin
+      port: 80
+      type: dns
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: httpbin.dns
+    higress.io/upstream-vhost: "httpbin.org"
+    higress.io/backend-protocol: HTTP
+  name: ingress-keyauth-httpbin
+  namespace: higress-system
+spec:
+  ingressClassName: higress
+  rules:
+    - host: httpbin.example.com
+      http:
+        paths:
+          - backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: mcp-keyauth-httpbin
+            path: /
+            pathType: Prefix
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: wasm-keyauth-httpbin
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+    - config:
+        key_auth_name: X-API-KEY
+        key_auth_tokens:
+          - 9a1150e86674dcdd4ea664143563428e
+          - b49b8ed4cecb2f68eee0354d8c915bfc
+      configDisable: false
+      ingress:
+        - ingress-keyauth-httpbin
+  url: oci://docker.io/dongjiang1989/keyauth:1.0.0
+  imagePullPolicy: Always
