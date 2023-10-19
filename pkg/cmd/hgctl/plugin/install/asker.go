@@ -414,6 +414,7 @@ func (s *scopeAsker) Ask() error {
 	err := utils.AskOne(&survey.Select{
 		Message: fmt.Sprintf("%sChoose a configuration effective scope or complete:", s.printer.Ident()),
 		Options: []string{
+			// TODO(WeixinX): Not visible to the user, instead Global, Ingress, and Domain are asked in ruleAsker
 			string(types.ScopeInstance),
 			string(types.ScopeGlobal),
 			"Complete",

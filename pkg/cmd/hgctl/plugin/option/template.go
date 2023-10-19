@@ -43,7 +43,7 @@ build:
   # The directory for the WASM plugin configuration structure
   model-dir: ./
   # The WASM plugin configuration structure name
-  model: HelloWorldConfig
+  model: PluginConfig
   # Enable debug mode
   debug: false
 
@@ -67,8 +67,8 @@ install:
   spec-yaml: ./out/spec.yaml
   # Installation source. Choose between 'from-yaml' and 'from-go-project'
   from-yaml: ./test/plugin-conf.yaml
-  # If 'from-go-project' is non-empty, the output type of the build option must be 'image'
-  from-go-project:
+  # If 'from-go-src' is non-empty, the output type of the build option must be 'image'
+  from-go-src:
   # Enable debug mode
   debug: false
 `

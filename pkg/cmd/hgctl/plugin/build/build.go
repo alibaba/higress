@@ -173,7 +173,7 @@ func (b *Builder) bindFlags(v *viper.Viper, flags *pflag.FlagSet) {
 
 	flags.StringP("model", "s", "", "Structure name of the WASM plugin configuration")
 	v.BindPFlag("build.model", flags.Lookup("model"))
-	v.SetDefault("build.model", "")
+	v.SetDefault("build.model", "PluginConfig")
 
 	flags.BoolP("debug", "", false, "Enable debug mode")
 	v.BindPFlag("build.debug", flags.Lookup("debug"))
@@ -707,24 +707,39 @@ func (b *Builder) WithWriter(w io.Writer) {
 // CleanupForError cleans up the temporary files and the container when an error occurs
 func (b *Builder) CleanupForError() {
 	b.Cleanup()
+	b.removeOutputDest()
+}
+
+// Cleanup cleans up the temporary files and the container
+func (b *Builder) Cleanup() {
+	b.removeTempDir()
+	b.removeDockerEntrypoint()
+	b.removeBuilderContainer()
+	b.closeDockerCli()
+}
+
+func (b *Builder) removeOutputDest() {
 	if b.BuildOptions.Output.Type == "files" {
 		b.Debugf("remove output destination %q\n", b.BuildOptions.Output.Dest)
 		os.RemoveAll(b.BuildOptions.Output.Dest)
 	}
 }
 
-// Cleanup cleans up the temporary files and the container
-func (b *Builder) Cleanup() {
+func (b *Builder) removeTempDir() {
 	if b.tempDir != "" {
 		b.Debugf("remove temporary directory %q\n", b.tempDir)
 		os.RemoveAll(b.tempDir)
 	}
+}
 
+func (b *Builder) removeDockerEntrypoint() {
 	if b.dockerEntrypoint != "" {
 		b.Debugf("delete docker entrypoint %q\n", b.dockerEntrypoint)
 		os.Remove(b.dockerEntrypoint)
 	}
+}
 
+func (b *Builder) removeBuilderContainer() {
 	if b.containerID != "" {
 		err := b.dockerCli.ContainerRemove(context.TODO(), b.containerID, types.ContainerRemoveOptions{Force: true})
 		if err != nil {
@@ -733,7 +748,9 @@ func (b *Builder) Cleanup() {
 			b.Debugf("remove container (%s): %s\n", b.containerConf.Name, b.containerID)
 		}
 	}
+}
 
+func (b *Builder) closeDockerCli() {
 	if b.dockerCli != nil {
 		b.Debugln("close the docker client")
 		b.dockerCli.Close()

@@ -90,13 +90,16 @@ func NewCommand() *cobra.Command {
 	v.BindPFlag("install.spec-yaml", flags.Lookup("spec-yaml"))
 	v.SetDefault("install.spec-yaml", "./test/plugin-spec-yaml")
 
+	// TODO(WeixinX):
+	// - Change "--from-yaml (-y)" to "--from-oci (-o)" and implement command line interaction like "--from-go-src"
+	// - Add "--from-jar (-j)"
 	flags.StringP("from-yaml", "y", "./test/plugin-conf.yaml", "Install WASM plugin using a WasmPlugin manifest")
 	v.BindPFlag("install.from-yaml", flags.Lookup("from-yaml"))
 	v.SetDefault("install.from-yaml", "./test/plugin-conf.yaml")
 
-	flags.StringP("from-go-project", "g", "", "Install WASM plugin through the Golang WASM plugin project")
-	v.BindPFlag("install.from-go-project", flags.Lookup("from-go-project"))
-	v.SetDefault("install.from-go-project", "")
+	flags.StringP("from-go-src", "g", "", "Install WASM plugin through the Golang WASM plugin project")
+	v.BindPFlag("install.from-go-src", flags.Lookup("from-go-src"))
+	v.SetDefault("install.from-go-src", "")
 
 	flags.BoolP("debug", "", false, "Enable debug mode")
 	v.BindPFlag("install.debug", flags.Lookup("debug"))
@@ -110,6 +113,7 @@ func (ins *installer) config(v *viper.Viper, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	// TODO(WeixinX): Avoid relying on build options, add a new option "--push/--image" for installing from go src
 	ins.bldOpts = allOpt.Build
 	ins.insOpts = allOpt.Install
 
@@ -127,7 +131,7 @@ func (ins *installer) config(v *viper.Viper, cmd *cobra.Command) error {
 func (ins *installer) install(flags *pflag.FlagSet) (err error) {
 	ins.Debugf("install option:\n%s\n", ins.String())
 
-	if ins.insOpts.FromGoProject == "" || flags.Changed("from-yaml") {
+	if ins.insOpts.FromGoSrc == "" || flags.Changed("from-yaml") {
 		err = ins.yamlHandler()
 	} else {
 		err = ins.goHandler()

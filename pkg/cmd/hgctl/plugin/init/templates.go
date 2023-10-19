@@ -62,7 +62,7 @@ func main() {
 // secondField: world
 // @End
 //
-type HelloWorldConfig struct {
+type PluginConfig struct {
 	// @Title 第一个字段，注解格式为 @Title [语言] [标题]，语言缺省值为 en-US
 	// @Description 字符串的前半部分，注解格式为 @Description [语言] [描述]，语言缺省值为 en-US
 	firstField string ` + "`required:\"true\"`" + `
@@ -72,13 +72,13 @@ type HelloWorldConfig struct {
 	secondField string ` + "`required:\"true\"`" + `
 }
 
-func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
 	config.firstField = json.Get("firstField").String()
 	config.secondField = json.Get("secondField").String()
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	err := proxywasm.AddHttpRequestHeader(config.firstField, config.secondField)
 	if err != nil {
 		log.Critical("failed to set request header")
@@ -93,7 +93,7 @@ module {{ .Name }}
 go 1.19
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230927013738-be8563765e10
+	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20231019123123-86b223bc75f1
 	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0
 	github.com/tidwall/gjson v1.14.3
 )
@@ -235,8 +235,8 @@ var questions = []*survey.Question{
 		Prompt: &survey.Select{
 			Message: "Choose a language:",
 			Options: []string{
-				string(types.I18nZH_CN),
 				string(types.I18nEN_US),
+				string(types.I18nZH_CN),
 			},
 			Default: string(types.I18nDefault),
 		},
