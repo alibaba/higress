@@ -31,8 +31,9 @@ func onHttpRequestHeaders(ctx HttpContext, config MyConfig, log Log) types.Actio
 	b := make([]byte, int(config.bytes))
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	log.Infof("MemStats Sys:%d, HeapSys:%d, HeapIdle:%d, HeapInuse:%d, HeapReleased:%d", m.Sys, m.HeapSys, m.HeapIdle, m.HeapInuse, m.HeapReleased)
-	info := fmt.Sprintf("alloc success, point address: %p", b)
-	proxywasm.SendHttpResponse(200, nil, []byte(info), -1)
+	log.Infof("alloc success, point address: %p", b)
+	memstats := fmt.Sprintf(`{"Sys": %d,"HeapSys": %d,"HeapIdle": %d,"HeapInuse": %d,"HeapReleased": %d}`, m.Sys, m.HeapSys, m.HeapIdle, m.HeapInuse, m.HeapReleased)
+	log.Info(memstats)
+	proxywasm.SendHttpResponse(200, [][2]string{{"Content-Type", "application/json"}}, []byte(memstats), -1)
 	return types.ActionContinue
 }

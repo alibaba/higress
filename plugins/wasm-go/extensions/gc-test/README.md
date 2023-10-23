@@ -19,10 +19,10 @@ This plugin should not be used in production.
 
 ## How to
 
-The plugin will log memstats after allocating memory per-request as follows:
+The plugin will response the stats of memory as follows:
 
 ```bash
-[gc-test] MemStats Sys:67633152, HeapSys:63176704, HeapIdle:10653696, HeapInuse:0, HeapReleased:0
+{"Sys": 15073280,"HeapSys": 10682368,"HeapIdle": 139264,"HeapInuse": 0,"HeapReleased": 0}
 ```
 
 We can use bench tools to test whether the `HeapSys` field keeps growing, and then we can determine whether a memory leak has occurred.
