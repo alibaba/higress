@@ -34,7 +34,7 @@ func ProcessHTTPCall(log *wrapper.Log, cfg *Oatuh2Config, callback func(response
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			re := regexp.MustCompile("<[^>]*>")
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v \n err_info: %v ", statusCode, err, string(cleanedBody)), statusCode)
+			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
 			return
 		}
 		callback(responseBody)
@@ -184,7 +184,8 @@ func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Con
 	idTokenVerify := cfg.Verifier(&IDConfig{
 		ClientID:             cfg.ClientID,
 		SupportedSigningAlgs: cfg.SupportedSigningAlgs,
-		SkipExpiryCheck:      cfg.SkipIssuerCheck,
+		SkipExpiryCheck:      cfg.SkipExpiryCheck,
+		SkipIssuerCheck:      cfg.SkipIssuerCheck,
 	})
 
 	parsedURL, err := url.Parse(cfg.JwksURL)

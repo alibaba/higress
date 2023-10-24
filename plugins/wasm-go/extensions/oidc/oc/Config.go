@@ -18,7 +18,13 @@ type IDConfig struct {
 	ClientID             string
 	SupportedSigningAlgs []string
 	SkipExpiryCheck      bool
-	Now                  func() time.Time
+	//SkipIssuerCheck 用于特殊情况，其中调用者希望推迟对签发者的验证。
+	//当启用时，调用者必须独立验证令牌的签发者是否为已知的有效值。
+	//
+	//
+	//不匹配的签发者通常指示客户端配置错误。如果不希望发生不匹配，请检查所提供的签发者URL是否正确，而不是启用这个选项。
+	SkipIssuerCheck bool
+	Now             func() time.Time
 }
 
 type idToken struct {
@@ -46,6 +52,7 @@ type Oatuh2Config struct {
 	Path                 string
 	Clientdomain         string
 	SupportedSigningAlgs []string
+	SkipExpiryCheck      bool
 	SkipIssuerCheck      bool
 	SecureCookie         bool
 	Timeout              uint32

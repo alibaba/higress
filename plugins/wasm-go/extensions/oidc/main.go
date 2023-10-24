@@ -29,6 +29,7 @@ type OidcConfig struct {
 	Timeout         uint32
 	Scopes          []string
 	SkipExpiryCheck bool
+	SkipIssuerCheck bool
 	SecuceCookie    bool
 	Client          wrapper.HttpClient
 }
@@ -61,7 +62,8 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	if config.RedirectURL == "" {
 		return errors.New("missing RedirectURL in config")
 	}
-	config.SkipExpiryCheck = json.Get("SkipExpiryCheck").Bool()
+	config.SkipExpiryCheck = json.Get("skipExpiryCheck ").Bool()
+	config.SkipExpiryCheck = json.Get("skipIssuerCheck").Bool()
 	for _, item := range json.Get("scopes").Array() {
 		scopes := item.String()
 		config.Scopes = append(config.Scopes, scopes)
@@ -137,7 +139,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 		Issuer:          config.Issuer,
 		Path:            config.Path,
 		Clientdomain:    config.ClientDomain,
-		SkipIssuerCheck: config.SkipExpiryCheck,
+		SkipExpiryCheck: config.SkipExpiryCheck,
+		SkipIssuerCheck: config.SkipIssuerCheck,
 		SecureCookie:    config.SecuceCookie,
 		Timeout:         config.Timeout,
 		Client:          config.Client,

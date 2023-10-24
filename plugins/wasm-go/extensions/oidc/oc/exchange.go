@@ -205,9 +205,6 @@ func NewTokenRequest(tokenURL, clientID, clientSecret string, v url.Values, auth
 	if err != nil {
 		return nil, nil, err
 	}
-	if tokenURL == "https://github.com/login/oauth/access_token" {
-		req.Header.Set("Accept", "application/json")
-	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if authStyle == AuthStyleInHeader {
 		req.SetBasicAuth(url.QueryEscape(clientID), url.QueryEscape(clientSecret))

@@ -89,7 +89,7 @@ func (v *IDTokenVerifier) VerifyToken(rawIDToken string, keySet jose.JSONWebKeyS
 	}
 
 	// Check issuer.
-	if t.Issuer != v.issuer {
+	if !v.config.SkipIssuerCheck && t.Issuer != v.issuer {
 		// Google sometimes returns "accounts.google.com" as the issuer claim instead of
 		// the required "https://accounts.google.com". Detect this case and allow it only
 		// for Google.
