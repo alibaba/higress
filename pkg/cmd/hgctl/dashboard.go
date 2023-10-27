@@ -84,14 +84,10 @@ func newDashboardCmd() *cobra.Command {
 
 	prom := promDashCmd()
 	prom.PersistentFlags().IntVar(&promPort, "ui-port", defaultPrometheusPort, "The component dashboard UI port.")
-	flags1 := prom.Flags()
-	options.AddKubeConfigFlags(flags1)
 	dashboardCmd.AddCommand(prom)
 
 	graf := grafanaDashCmd()
 	graf.PersistentFlags().IntVar(&grafanaPort, "ui-port", defaultGrafanaPort, "The component dashboard UI port.")
-	flags2 := graf.Flags()
-	options.AddKubeConfigFlags(flags2)
 	dashboardCmd.AddCommand(graf)
 
 	envoy := envoyDashCmd()
@@ -99,22 +95,17 @@ func newDashboardCmd() *cobra.Command {
 	envoy.PersistentFlags().StringVarP(&envoyDashNs, "namespace", "n", "",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
 	envoy.PersistentFlags().IntVar(&proxyAdminPort, "ui-port", defaultProxyAdminPort, "The component dashboard UI port.")
-	flags3 := envoy.Flags()
-	options.AddKubeConfigFlags(flags3)
 	dashboardCmd.AddCommand(envoy)
 
 	consoleCmd := consoleDashCmd()
 	consoleCmd.PersistentFlags().IntVar(&consolePort, "ui-port", defaultConsolePort, "The component dashboard UI port.")
-	flags4 := consoleCmd.Flags()
-	options.AddKubeConfigFlags(flags4)
 	dashboardCmd.AddCommand(consoleCmd)
 
 	controllerDebugCmd := controllerDebugCmd()
 	controllerDebugCmd.PersistentFlags().IntVar(&controllerPort, "ui-port", defaultControllerPort, "The component dashboard UI port.")
-	flags5 := controllerDebugCmd.Flags()
-	options.AddKubeConfigFlags(flags5)
 	dashboardCmd.AddCommand(controllerDebugCmd)
-
+	flags := dashboardCmd.PersistentFlags()
+	options.AddKubeConfigFlags(flags)
 	return dashboardCmd
 }
 
