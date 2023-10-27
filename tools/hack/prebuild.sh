@@ -7,12 +7,17 @@ WORK_DIR=`cd $(dirname "$0")/../..;pwd`
 
 cd $WORK_DIR
 
-mkdir -p external/package
+mkdir -p external
 
 envoy_repos=("go-control-plane" "envoy")
 
 for repo in ${envoy_repos[@]}; do
+    if [ -e external/$repo ];then
+        continue
+    fi
+    cp -r envoy/$repo  external/$repo
     cd external/$repo
+    echo "gitdir: /parent/.git/modules/envoy/$repo" > .git
     if [ -f "go.mod" ]; then
         go mod tidy -go=${GO_VERSION}
     fi
@@ -22,7 +27,12 @@ done
 istio_repos=("api" "client-go" "pkg" "istio" "proxy")
 
 for repo in ${istio_repos[@]}; do
+    if [ -e external/$repo ];then
+        continue
+    fi
+    cp -r istio/$repo external/$repo
     cd external/$repo
+    echo "gitdir: /parent/.git/modules/istio/$repo" > .git
     if [ -f "go.mod" ]; then
         go mod tidy -go=${GO_VERSION}
     fi

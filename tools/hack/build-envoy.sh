@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright (c) 2023 Alibaba Group Holding Ltd.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,24 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env bash
-
 set -euo pipefail
 
-TARGET_ARCH=${TARGET_ARCH-"amd64"}
+source "$(dirname -- "$0")/setup-istio-env.sh"
 
-cd external/istio
-rm -rf out/linux_${TARGET_ARCH}; 
+cd ${ROOT}/external/proxy
 
-BUILDINFO=$(mktemp)
-"${PWD}/common/scripts/report_build_info.sh" > "${BUILDINFO}"
-
-TAG=$(git rev-parse --verify HEAD)
-
-GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${TARGET_ARCH} \
-    ISTIO_ENVOY_LINUX_RELEASE_URL="${ENVOY_PACKAGE_URL}" \
-    BUILDINFO="${BUILDINFO}" \
-    TAG="${TAG}" \
-    BUILD_WITH_CONTAINER=1 \
-    CONDITIONAL_HOST_MOUNTS="--mount type=bind,source=${BUILDINFO},destination=${BUILDINFO},readonly " \
-    make build-linux
+BUILD_WITH_CONTAINER=1 \
+    CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
+    make test_release
