@@ -197,6 +197,36 @@ TEST_F(HmacAuthTest, Sign) {
             FilterHeadersStatus::Continue);
 }
 
+TEST_F(HmacAuthTest, SignWithoutDynamicHeader) {
+  headers_ = {
+      {":path", "/Third/Tools/checkSign"},
+      {":method", "GET"},
+      {"accept", "application/json"},
+      {"x-ca-key", "appKey"},
+      {"x-ca-signature", "ZpJhkHdtjLTJiR6CJWHL8ikLtPB2z6CoztG21wG3PT4="},
+  };
+  HmacAuthConfigRule rule;
+  rule.credentials = {{"appKey", "appSecret"}};
+  //  EXPECT_EQ(root_context_->checkPlugin(rule, std::nullopt), true);
+
+  std::string configuration = R"(
+{
+  "_rules_": [
+    {
+      "_match_route_":["test"],
+      "credentials":[
+        {"key": "appKey", "secret": "appSecret"}
+      ]
+    }
+  ]
+})";
+  route_name_ = "test";
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
 TEST_F(HmacAuthTest, SignWithConsumer) {
   headers_ = {
       {":path", "/Third/Tools/checkSign"},
