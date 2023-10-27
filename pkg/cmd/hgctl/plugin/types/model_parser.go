@@ -312,22 +312,14 @@ func (p *ModelParser) doGetModelName(pkgName string, typ ast.Expr) (string, erro
 	case *ast.StarExpr: // *int -> int
 		return p.doGetModelName(pkgName, t.X)
 	case *ast.ArrayType: // slice or array
-		ret, err := p.doGetModelName(pkgName, t.Elt)
-		if err != nil {
-			return "", err
-		}
-		return ret, nil
+		return p.doGetModelName(pkgName, t.Elt)
 	case *ast.SelectorExpr: // <pkg_name>.<field_name>
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
 			return "", ErrInvalidFiledType
 		}
 		pName := pkg.Name + "."
-		field, err := p.doGetModelName(pName, t.Sel)
-		if err != nil {
-			return "", err
-		}
-		return field, nil
+		return p.doGetModelName(pName, t.Sel)
 	case *ast.Ident:
 		return pkgName + t.Name, nil
 	default:
@@ -338,7 +330,7 @@ func (p *ModelParser) doGetModelName(pkgName string, typ ast.Expr) (string, erro
 func (p *ModelParser) parseFiledType(pkgName string, typ ast.Expr) (string, error) {
 	switch t := typ.(type) {
 	case *ast.StructType: // nested struct
-		return "object", nil
+		return string(JsonTypeObject), nil
 	case *ast.StarExpr: // *int -> int
 		return p.parseFiledType(pkgName, t.X)
 	case *ast.ArrayType: // slice or array
@@ -353,39 +345,47 @@ func (p *ModelParser) parseFiledType(pkgName string, typ ast.Expr) (string, erro
 			return "", ErrInvalidFiledType
 		}
 		pName := pkg.Name + "."
-		ret, err := p.parseFiledType(pName, t.Sel)
-		if err != nil {
-			return "", err
-		}
-		return ret, nil
+		return p.parseFiledType(pName, t.Sel)
 	case *ast.Ident:
 		fName := pkgName + t.Name
 		if _, ok := p.structs[fName]; ok {
-			return "object", nil
+			return string(JsonTypeObject), nil
 		}
 		if alias, ok := p.alias[fName]; ok {
 			return p.parseFiledType(pkgName, alias.expr)
 		}
-		return convert2JsonType(t.Name)
+		jsonType, err := convert2JsonType(t.Name)
+		return string(jsonType), err
 	default:
 		return "", ErrInvalidFiledType
 	}
 }
 
-func convert2JsonType(typ string) (string, error) {
+func convert2JsonType(typ string) (JsonType, error) {
 	switch typ {
 	case "int", "int8", "int16", "int32", "int64",
 		"uint", "uint8", "uint16", "uint32", "uint64":
-		return "integer", nil
+		return JsonTypeInteger, nil
 	case "float32", "float64":
-		return "number", nil
+		return JsonTypeNumber, nil
 	case "bool":
-		return "boolean", nil
+		return JsonTypeBoolean, nil
 	case "string":
-		return "string", nil
+		return JsonTypeString, nil
 	case "struct":
-		return "object", nil
+		return JsonTypeObject, nil
 	default:
 		return "", ErrInvalidFiledType
 	}
 }
+
+type JsonType string
+
+const (
+	JsonTypeInteger JsonType = "integer"
+	JsonTypeNumber  JsonType = "number"
+	JsonTypeBoolean JsonType = "boolean"
+	JsonTypeString  JsonType = "string"
+	JsonTypeObject  JsonType = "object"
+	JsonTypeArray   JsonType = "array"
+)

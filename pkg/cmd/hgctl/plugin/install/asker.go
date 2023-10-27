@@ -28,14 +28,14 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
-var (
+const (
 	askInterrupted    = "X Interrupted."
 	invalidSyntax     = "X Invalid syntax."
 	failedToValidate  = "X Failed to validate: not satisfied with schema."
 	addConfSuccessful = "√ Successful to add configuration."
-
-	iconIdent = strings.Repeat(" ", 2)
 )
+
+var iconIdent = strings.Repeat(" ", 2)
 
 type Asker interface {
 	Ask() error
@@ -44,18 +44,18 @@ type Asker interface {
 type WasmPluginSpecConfAsker struct {
 	resp *WasmPluginSpecConf
 
-	ingask *IngressAsker
-	domask *DomainAsker
-	glcask *GlobalConfAsker
+	ingAsk *IngressAsker
+	domAsk *DomainAsker
+	glcAsk *GlobalConfAsker
 
 	printer *utils.YesOrNoPrinter
 }
 
-func NewWasmPluginSpecConfAsker(ingask *IngressAsker, domask *DomainAsker, glcask *GlobalConfAsker, printer *utils.YesOrNoPrinter) *WasmPluginSpecConfAsker {
+func NewWasmPluginSpecConfAsker(ingAsk *IngressAsker, domAsk *DomainAsker, glcAsk *GlobalConfAsker, printer *utils.YesOrNoPrinter) *WasmPluginSpecConfAsker {
 	return &WasmPluginSpecConfAsker{
-		ingask:  ingask,
-		domask:  domask,
-		glcask:  glcask,
+		ingAsk:  ingAsk,
+		domAsk:  domAsk,
+		glcAsk:  glcAsk,
 		printer: printer,
 	}
 }
@@ -68,87 +68,87 @@ func (p *WasmPluginSpecConfAsker) Ask() error {
 		ingressRule *IngressMatchRule
 		domainRule  *DomainMatchRule
 
-		scopea   = newScopeAsker(p.printer)
-		rewritea = newRewriteAsker(p.printer)
-		rulea    = newRuleAsker(p.printer)
+		scopeA   = newScopeAsker(p.printer)
+		rewriteA = newRewriteAsker(p.printer)
+		ruleA    = newRuleAsker(p.printer)
 
 		complete = false
 	)
 
 	for {
-		err := scopea.Ask()
+		err := scopeA.Ask()
 		if err != nil {
 			return err
 		}
-		scope := scopea.resp
+		scope := scopeA.resp
 
 		switch scope {
 		case types.ScopeInstance:
-			err = rulea.Ask()
+			err = ruleA.Ask()
 			if err != nil {
 				return err
 			}
-			rule := rulea.resp
+			rule := ruleA.resp
 
 			switch rule {
-			case RuleIngress:
+			case ruleIngress:
 				if ingressRule != nil {
 					p.printer.Yesf("\n%s\n", ingressRule)
-					err = rewritea.Ask()
+					err = rewriteA.Ask()
 					if err != nil {
 						return err
 					}
-					if !rewritea.resp {
+					if !rewriteA.resp {
 						continue
 					}
 				}
 
-				p.ingask.scope = scope
-				err = p.ingask.Ask()
+				p.ingAsk.scope = scope
+				err = p.ingAsk.Ask()
 				if err != nil {
 					return err
 				}
-				ingressRule = p.ingask.resp
+				ingressRule = p.ingAsk.resp
 
-			case RuleDomain:
+			case ruleDomain:
 				if domainRule != nil {
 					p.printer.Yesf("\n%s\n", domainRule)
-					err = rewritea.Ask()
+					err = rewriteA.Ask()
 					if err != nil {
 						return err
 					}
-					if !rewritea.resp {
+					if !rewriteA.resp {
 						continue
 					}
 				}
 
-				p.domask.scope = scope
-				err = p.domask.Ask()
+				p.domAsk.scope = scope
+				err = p.domAsk.Ask()
 				if err != nil {
 					return err
 				}
-				domainRule = p.domask.resp
+				domainRule = p.domAsk.resp
 			}
 
 		case types.ScopeGlobal:
 			if globalConf != nil {
 				b, _ := utils.MarshalYamlWithIndent(globalConf, 2)
 				p.printer.Yesf("\n%s\n", string(b))
-				err = rewritea.Ask()
+				err = rewriteA.Ask()
 				if err != nil {
 					return err
 				}
-				if !rewritea.resp {
+				if !rewriteA.resp {
 					continue
 				}
 			}
 
-			p.glcask.scope = scope
-			err = p.glcask.Ask()
+			p.glcAsk.scope = scope
+			err = p.glcAsk.Ask()
 			if err != nil {
 				return err
 			}
-			globalConf = p.glcask.resp
+			globalConf = p.glcAsk.resp
 
 		case "Complete":
 			complete = true
@@ -183,8 +183,7 @@ type IngressAsker struct {
 	schema     *types.JSONSchemaProps
 	scope      types.Scope
 
-	vld *jsonschema.Schema // for validation
-
+	vld     *jsonschema.Schema // for validation
 	printer *utils.YesOrNoPrinter
 }
 
@@ -198,7 +197,7 @@ func NewIngressAsker(structName string, schema *types.JSONSchemaProps, vld *json
 }
 
 func (i *IngressAsker) Ask() error {
-	continuea := newContinueAsker(i.printer)
+	continueA := newContinueAsker(i.printer)
 	ings := make([]string, 0)
 	for {
 		var ing string
@@ -215,11 +214,11 @@ func (i *IngressAsker) Ask() error {
 			ings = append(ings, ing)
 		}
 
-		err = continuea.Ask()
+		err = continueA.Ask()
 		if err != nil {
 			return err
 		}
-		if !continuea.resp {
+		if !continueA.resp {
 			break
 		}
 	}
@@ -251,8 +250,7 @@ type DomainAsker struct {
 	schema     *types.JSONSchemaProps
 	scope      types.Scope
 
-	vld *jsonschema.Schema // for validation
-
+	vld     *jsonschema.Schema // for validation
 	printer *utils.YesOrNoPrinter
 }
 
@@ -266,7 +264,7 @@ func NewDomainAsker(structName string, schema *types.JSONSchemaProps, vld *jsons
 }
 
 func (d *DomainAsker) Ask() error {
-	continuea := newContinueAsker(d.printer)
+	continueA := newContinueAsker(d.printer)
 	doms := make([]string, 0)
 	for {
 		var dom string
@@ -283,11 +281,11 @@ func (d *DomainAsker) Ask() error {
 			doms = append(doms, dom)
 		}
 
-		err = continuea.Ask()
+		err = continueA.Ask()
 		if err != nil {
 			return err
 		}
-		if !continuea.resp {
+		if !continueA.resp {
 			break
 		}
 	}
@@ -319,8 +317,7 @@ type GlobalConfAsker struct {
 	schema     *types.JSONSchemaProps
 	scope      types.Scope
 
-	vld *jsonschema.Schema // for validation
-
+	vld     *jsonschema.Schema // for validation
 	printer *utils.YesOrNoPrinter
 }
 
@@ -444,10 +441,10 @@ func (r *ruleAsker) Ask() error {
 	err := utils.AskOne(&survey.Select{
 		Message: fmt.Sprintf("%sChoose Ingress or Domain:", r.printer.Ident()),
 		Options: []string{
-			string(RuleIngress),
-			string(RuleDomain),
+			string(ruleIngress),
+			string(ruleDomain),
 		},
-		Default: string(RuleIngress),
+		Default: string(ruleIngress),
 	}, &resp)
 	if err != nil {
 		return err
@@ -522,8 +519,8 @@ func decodeDomainMatchRule(obj map[string]interface{}) (*DomainMatchRule, error)
 type Rule string
 
 const (
-	RuleIngress Rule = "Ingress"
-	RuleDomain  Rule = "Domain"
+	ruleIngress Rule = "Ingress"
+	ruleDomain  Rule = "Domain"
 )
 
 func recursivePrompt(structName string, schema *types.JSONSchemaProps, selScope types.Scope, printer *utils.YesOrNoPrinter) (interface{}, error) {
@@ -545,8 +542,8 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 	}
 	msg, help := fieldTips(fieldName, parent, schema, required, printer)
 
-	switch schema.Type {
-	case "object":
+	switch types.JsonType(schema.Type) {
+	case types.JsonTypeObject:
 		printer.Println(iconIdent + msg)
 		obj := make(map[string]interface{})
 		m := schema.GetPropertiesOrderMap()
@@ -582,9 +579,9 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 		}
 		return obj, nil
 
-	case "array":
+	case types.JsonTypeArray:
 		printer.Println(iconIdent + msg)
-		continuea := newContinueAsker(printer)
+		continueA := newContinueAsker(printer)
 		arr := make([]interface{}, 0)
 		for {
 			printer.IncIdentRepeat()
@@ -597,13 +594,13 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 				arr = append(arr, v)
 			}
 
-			err = continuea.Ask()
+			err = continueA.Ask()
 			printer.DecIndentRepeat()
 			if err != nil {
 				return nil, err
 			}
 
-			if !continuea.resp {
+			if !continueA.resp {
 				break
 			}
 		}
@@ -613,7 +610,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 		}
 		return arr, nil
 
-	case "integer", "number", "boolean", "string":
+	case types.JsonTypeInteger, types.JsonTypeNumber, types.JsonTypeBoolean, types.JsonTypeString:
 		for {
 			var inp string
 			if err := utils.AskOne(&survey.Input{
@@ -626,8 +623,8 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 				return nil, nil
 			}
 
-			switch schema.Type {
-			case "integer":
+			switch types.JsonType(schema.Type) {
+			case types.JsonTypeInteger:
 				v, err := strconv.ParseInt(inp, 10, 64)
 				if err != nil {
 					if errors.Is(err, strconv.ErrSyntax) {
@@ -637,7 +634,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 					return nil, err
 				}
 				return v, nil
-			case "number":
+			case types.JsonTypeNumber:
 				v, err := strconv.ParseFloat(inp, 64)
 				if err != nil {
 					if errors.Is(err, strconv.ErrSyntax) {
@@ -647,7 +644,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 					return nil, err
 				}
 				return v, nil
-			case "boolean":
+			case types.JsonTypeBoolean:
 				v, err := strconv.ParseBool(inp)
 				if err != nil {
 					if errors.Is(err, strconv.ErrSyntax) {
@@ -657,7 +654,7 @@ func doPrompt(fieldName string, parent, schema *types.JSONSchemaProps, oriScope,
 					return nil, err
 				}
 				return v, nil
-			case "string":
+			case types.JsonTypeString:
 				return inp, nil
 			default:
 				return inp, nil

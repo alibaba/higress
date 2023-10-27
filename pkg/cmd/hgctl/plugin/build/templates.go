@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	FilesDockerEntrypoint = `#!/bin/bash
+	filesDockerEntrypoint = `#!/bin/bash
 set -e
 {{- if eq .Debug true }}
 set -x
@@ -34,7 +34,7 @@ tinygo build -o {{ .BuildDestDir }}/plugin.wasm -scheduler=none -gc=custom -tags
 mv {{ .BuildDestDir }}/* {{ .Output }}/
 chown -R {{ .UID }}:{{ .GID }} {{ .Output }}
 `
-	ImageDockerEntrypoint = `#!/bin/bash
+	imageDockerEntrypoint = `#!/bin/bash
 set -e
 {{- if eq .Debug true }}
 set -x
@@ -85,7 +85,7 @@ func genFilesDockerEntrypoint(ft *FilesTmplFields, target string) error {
 	}
 	defer f.Close()
 
-	if err = template.Must(template.New("FilesDockerEntrypoint").Parse(FilesDockerEntrypoint)).Execute(f, ft); err != nil {
+	if err = template.Must(template.New("FilesDockerEntrypoint").Parse(filesDockerEntrypoint)).Execute(f, ft); err != nil {
 		return err
 	}
 
@@ -99,7 +99,7 @@ func genImageDockerEntrypoint(it *ImageTmplFields, target string) error {
 	}
 	defer f.Close()
 
-	if err = template.Must(template.New("ImageDockerEntrypoint").Parse(ImageDockerEntrypoint)).Execute(f, it); err != nil {
+	if err = template.Must(template.New("ImageDockerEntrypoint").Parse(imageDockerEntrypoint)).Execute(f, it); err != nil {
 		return err
 	}
 
@@ -107,7 +107,7 @@ func genImageDockerEntrypoint(it *ImageTmplFields, target string) error {
 }
 
 const (
-	MD_zh_CN = `> 该插件用法文件根据源代码自动生成，请根据需求自行修改！
+	readme_zh_CN = `> 该插件用法文件根据源代码自动生成，请根据需求自行修改！
 
 # 功能说明
 
@@ -128,7 +128,7 @@ const (
 ` + "```" + `
 `
 
-	MD_en_US = `> THIS PLUGIN USAGE FILE IS AUTOMATICALLY GENERATED BASED ON THE SOURCE CODE. MODIFY IT AS REQUIRED!
+	readme_en_US = `> THIS PLUGIN USAGE FILE IS AUTOMATICALLY GENERATED BASED ON THE SOURCE CODE. MODIFY IT AS REQUIRED!
 
 # Description
 
@@ -167,11 +167,11 @@ func genMarkdownUsage(u *types.WasmUsage, dir string, suffix bool) error {
 func i18n2MD(i18n types.I18nType) string {
 	switch i18n {
 	case types.I18nEN_US:
-		return MD_en_US
+		return readme_en_US
 	case types.I18nZH_CN:
-		return MD_zh_CN
+		return readme_zh_CN
 	default:
-		return MD_zh_CN
+		return readme_zh_CN
 	}
 }
 
