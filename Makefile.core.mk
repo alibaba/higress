@@ -1,6 +1,6 @@
 SHELL := /bin/bash -o pipefail
 
-export BASE_VERSION ?= 2022-10-27T19-02-22
+export HIGRESS_BASE_VERSION ?= 2022-10-27T19-02-22
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
@@ -128,33 +128,35 @@ docker-build: docker.higress ## Build and push docker images to registry defined
 docker-buildx-push: clean-env docker.higress-buildx
 
 docker-build-base:
-	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
+	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${HIGRESS_BASE_VERSION} -f docker/Dockerfile.base . --push
 
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
+ENVOY_PACKAGE_URL_PATTERN:=https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-ARCH.tar.gz
+
 external/package/envoy-amd64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-amd64.tar.gz"
+#	cd external/proxy; BUILD_WITH_CONTAINER=1 make test_release
+	cd external/package; wget $(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})
 
 external/package/envoy-arm64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-arm64.tar.gz"
+#	cd external/proxy; BUILD_WITH_CONTAINER=1 make test_release
+	cd external/package; wget $(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})
 
 build-pilot:
-	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
-	cd external/istio; rm -rf out/linux_arm64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=arm64 BUILD_WITH_CONTAINER=1 make build-linux
+	TARGET_ARCH=amd64 ENVOY_PACKAGE_URL="$(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})" ./tools/hack/build-pilot.sh
+	TARGET_ARCH=arm64 ENVOY_PACKAGE_URL="$(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})" ./tools/hack/build-pilot.sh
 
 build-pilot-local:
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${GOARCH_LOCAL} BUILD_WITH_CONTAINER=1 make build-linux
+	TARGET_ARCH=${TARGET_ARCH} ENVOY_PACKAGE_URL="$(subst ARCH,${TARGET_ARCH},${ENVOY_PACKAGE_URL_PATTERN})" ./tools/hack/build-pilot.sh
 
 build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
 	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" ISTIO_ENVOY_LINUX_RELEASE_URL=${ENVOY_PACKAGE_URL_PATTERN/\$\{ARCH\}/${GOARCH_LOCAL}} make docker
 
 build-istio: prebuild build-pilot
 	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
