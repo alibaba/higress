@@ -1,21 +1,21 @@
 [submodule "istio/api"]
-	path = external/api
+	path = istio/api
 	url = https://github.com/higress-group/api
 [submodule "istio/istio"]
-	path = external/istio
+	path = istio/istio
 	url = https://github.com/higress-group/istio
 [submodule "istio/client-go"]
-	path = external/client-go
+	path = istio/client-go
 	url = https://github.com/higress-group/client-go
 [submodule "istio/pkg"]
-	path = external/pkg
+	path = istio/pkg
 	url = https://github.com/higress-group/pkg
 [submodule "istio/proxy"]
-	path = external/proxy
+	path = istio/proxy
 	url = https://github.com/higress-group/proxy
 [submodule "envoy/go-control-plane"]
-	path = external/go-control-plane
+	path = envoy/go-control-plane
 	url = https://github.com/higress-group/go-control-plane
 [submodule "envoy/envoy"]
-	path = external/envoy
+	path = envoy/envoy
 	url = https://github.com/higress-group/envoy
