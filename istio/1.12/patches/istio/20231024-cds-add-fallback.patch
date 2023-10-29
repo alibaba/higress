@@ -1,0 +1,13 @@
+diff -Naur istio/pilot/pkg/model/push_context.go istio-new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2023-10-24 10:55:51.000000000 +0800
++++ istio-new/pilot/pkg/model/push_context.go	2023-10-20 17:00:06.000000000 +0800
+@@ -704,6 +704,9 @@
+ 			if r.Destination != nil {
+ 				out = append(out, r.Destination.Host)
+ 			}
++			for _, d := range r.FallbackClusters {
++				out = append(out, d.Host)
++			}
+ 		}
+ 		if h.Mirror != nil {
+ 			out = append(out, h.Mirror.Host)

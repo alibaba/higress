@@ -14,7 +14,7 @@ COPY . .
 WORKDIR /workspace/extensions/$PLUGIN_NAME
 
 RUN go mod tidy
-RUN tinygo build -o /main.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi ./main.go
+RUN tinygo build -o /main.wasm -scheduler=none -gc=custom -tags='custommalloc nottinygc_finalizer' -target=wasi ./
 
 FROM scratch as output
 

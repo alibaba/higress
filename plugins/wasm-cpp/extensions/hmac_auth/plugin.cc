@@ -116,6 +116,9 @@ std::string getStringToSign() {
       getRequestHeader(CA_SIGNATURE_HEADERS)->toString();
   std::vector<std::string> header_arr;
   for (const auto& header : absl::StrSplit(dynamic_check_headers, ",")) {
+    if (header.empty()) {
+      continue;
+    }
     auto lower_header = absl::AsciiStrToLower(header);
     if (lower_header == CA_SIGNATURE || lower_header == CA_SIGNATURE_HEADERS) {
       continue;

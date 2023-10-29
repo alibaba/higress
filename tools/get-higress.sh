@@ -55,8 +55,8 @@ parseArgs() {
 
 validateArgs() {
   if [ -d "$DESTINATION" ]; then
-    if [ "$(ls -A "$DESTINATION")" -a "$MODE" != "update" ]; then
-      echo "The target folder \"$DESTINATION\" is not empty. Add \"-u\" to update an existed Higress instance." && exit 1
+    if [ -e "${DESTINATION}/compose/.configured" -a "$MODE" != "update" ]; then
+      echo "Higress is already installed in the target folder \"$DESTINATION\". Add \"-u\" to update an existed Higress instance." && exit 1
     fi
     if [ ! -w "$DESTINATION" ]; then
       echo "The target folder \"$DESTINATION\" is not writeable." && exit 1
