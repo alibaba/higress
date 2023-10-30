@@ -34,7 +34,7 @@ func ValidateHTTPResponse(statusCode int, headers http.Header, body []byte) erro
 		return errors.New("call failed with status code")
 	}
 	if !strings.Contains(contentType, "application/json") {
-		return fmt.Errorf("expected Content-Type = application/json or application/json;charset=UTF-8, but got %s", contentType)
+		return fmt.Errorf("expected Content-Type = application/json , but got %s", contentType)
 	}
 	if !gjson.ValidBytes(body) {
 		return errors.New("invalid JSON format in response body")

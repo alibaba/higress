@@ -15,6 +15,7 @@
 package oc
 
 import (
+	"errors"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/go-jose/go-jose/v3"
@@ -29,14 +30,23 @@ import (
 
 var re = regexp.MustCompile("<[^>]*>")
 
+// OidcHandler 定义了处理 OpenID Connect（OIDC）认证流程的方法集合。
+// OIDC 是一个基于 OAuth 2.0 协议的身份验证和授权协议。
 type OidcHandler interface {
+	// ProcessRedirect 负责处理来自 OIDC 身份提供者的重定向响应。
+	// 该方法会从openid-configuration中获取 authorization_endpoint，
+	// 并确保其中的状态以及任何可能的错误代码都得到正确处理。
 	ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Config) error
-	ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error
-	ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error
-	ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) error
-	ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error
-}
 
+	// ProcessExchangeToken 负责执行令牌交换过程。
+	// 该方法会从 openid-configuration 中获取 token_endpoint 和 jwks_uri，
+	// 然后使用授权码来交换 access token 和 ID token。
+	ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error
+
+	// ProcessVerify 负责验证 ID 令牌的有效性。
+	// 通过使用 openid-configuration 中的获取的 jwks_uri 配置信息来验证 ID 令牌的签名和有效性。
+	ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error
+}
 type DefaultOAuthHandler struct {
 }
 
@@ -77,6 +87,7 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 			opts = SetNonce(string(cfg.CookieData.Nonce))
 		}
 		codeURL := cfg.AuthCodeURL(statStr, opts)
+
 		proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
 			{"Location", codeURL},
 		}, nil, -1)
@@ -86,6 +97,8 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 
 func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
+		log.Info("ProcessExchangeToken")
+
 		PvRJson := gjson.ParseBytes(responseBody)
 		cfg.Endpoint.TokenURL = PvRJson.Get("token_endpoint").String()
 		if cfg.Endpoint.TokenURL == "" {
@@ -99,7 +112,7 @@ func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2
 		}
 		cfg.Option.AuthStyle = AuthStyle(cfg.Endpoint.AuthStyle)
 
-		if err := d.ProcessToken(log, cfg); err != nil {
+		if err := processToken(log, cfg); err != nil {
 			SendError(log, fmt.Sprintf("ProcessToken failed : err %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -109,6 +122,7 @@ func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2
 func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
 		PvRJson := gjson.ParseBytes(responseBody)
+		log.Info("ProcessVerify")
 
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
@@ -122,14 +136,14 @@ func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config)
 			}
 		}
 		cfg.SupportedSigningAlgs = algs
-		if err := d.ProcesTokenVerify(log, cfg); err != nil {
+		if err := processTokenVerify(log, cfg); err != nil {
 			log.Errorf("failed to verify token: %v", err)
 			return
 		}
 	})
 }
 
-func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) error {
+func processToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 	parsedURL, err := url.Parse(cfg.Endpoint.TokenURL)
 	if err != nil {
 		return fmt.Errorf("invalid TokenURL: %v", err)
@@ -154,12 +168,6 @@ func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) 
 			return
 		}
 
-		if err != nil && needsAuthStyleProbe {
-			log.Error("Incorrect invocation, retrying with different auth style")
-			d.ProcessToken(log, cfg)
-			return
-		}
-
 		tk, err := UnmarshalToken(&token, responseHeaders, responseBody)
 		if err != nil {
 			SendError(log, fmt.Sprintf("UnmarshalToken error: %v", err), http.StatusInternalServerError)
@@ -178,8 +186,9 @@ func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) 
 			return
 		}
 		cfg.Option.RawIdToken = rawIDToken
-		//todo
-		err = d.ProcesTokenVerify(log, cfg)
+
+		log.Infof("cfg.Option.RawIdToken :%v", cfg.Option.RawIdToken)
+		err = processTokenVerify(log, cfg)
 		if err != nil {
 			log.Errorf("failed to verify token: %v", err)
 			return
@@ -195,7 +204,7 @@ func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) 
 	return nil
 }
 
-func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
+func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 	keySet := jose.JSONWebKeySet{}
 	idTokenVerify := cfg.Verifier(&IDConfig{
 		ClientID:             cfg.ClientID,
@@ -203,6 +212,7 @@ func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Con
 		SkipExpiryCheck:      cfg.SkipExpiryCheck,
 		SkipNonceCheck:       cfg.SkipNonceCheck,
 	})
+	defautl := NewDefaultOAuthHandler()
 	parsedURL, err := url.Parse(cfg.JwksURL)
 	if err != nil {
 		log.Errorf("JwksURL is invalid  err : %v", err)
@@ -229,21 +239,15 @@ func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Con
 		idtoken, err := idTokenVerify.VerifyToken(cfg.Option.RawIdToken, keySet)
 
 		if err != nil {
-			log.Errorf("VerifyToken err : %v", err)
-			d.ProcessRedirect(log, cfg)
+			log.Errorf("VerifyToken err : %v ", err)
+			defautl.ProcessRedirect(log, cfg)
 			return
 		}
 		if !cfg.SkipNonceCheck && Access == cfg.Option.Mod {
-			parts := strings.Split(idtoken.Nonce, ".")
-			if len(parts) != 2 {
-				SendError(log, "Nonce format err expect 2 parts", http.StatusUnauthorized)
-				return
-			}
-			stateval, signature := parts[0], parts[1]
-			err := VerifyState(stateval, signature, cfg.ClientSecret, cfg.RedirectURL)
+			err := verifyNonce(idtoken, cfg)
 			if err != nil {
-				log.Errorf(" VerifyNonce failed : %v", err)
-				d.ProcessRedirect(log, cfg)
+				log.Error("VerifyNonce failed")
+				defautl.ProcessRedirect(log, cfg)
 				return
 			}
 		}
@@ -278,4 +282,13 @@ func (d *DefaultOAuthHandler) ProcesTokenVerify(log *wrapper.Log, cfg *Oatuh2Con
 		return err
 	}
 	return nil
+}
+
+func verifyNonce(idtoken *IDToken, cfg *Oatuh2Config) error {
+	parts := strings.Split(idtoken.Nonce, ".")
+	if len(parts) != 2 {
+		return errors.New("Nonce format err expect 2 parts")
+	}
+	stateval, signature := parts[0], parts[1]
+	return VerifyState(stateval, signature, cfg.ClientSecret, cfg.RedirectURL)
 }

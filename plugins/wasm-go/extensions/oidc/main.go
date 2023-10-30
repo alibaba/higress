@@ -30,6 +30,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const OAUTH2CALLBACK = "oauth2/callback"
+
 type OidcConfig struct {
 	Issuer          string
 	Path            string
@@ -64,32 +66,32 @@ func main() {
 func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	config.Issuer = json.Get("issuer").String()
 	if config.Issuer == "" {
-		return errors.New("missing Issuer in config")
+		return errors.New("missing issuer in config")
 	}
 
-	config.ClientID = json.Get("clientId").String()
+	config.ClientID = json.Get("client_id").String()
 	if config.ClientID == "" {
-		return errors.New("missing clientID in config")
+		return errors.New("missing client_id in config")
 	}
 
-	config.ClientSecret = json.Get("clientSecret").String()
+	config.ClientSecret = json.Get("client_secret").String()
 	if config.ClientSecret == "" {
-		return errors.New("missing clientSecret in config")
+		return errors.New("missing client_secret in config")
 	}
-	config.ClientUrl = json.Get("clientUrl").String()
+	config.ClientUrl = json.Get("client_url").String()
 	_, err := url.ParseRequestURI(config.ClientUrl)
 	if err != nil {
-		return errors.New("missing clientUrl in config or err format")
+		return errors.New("missing client_url in config or err format")
 	}
 
-	oc.IsValidRedirect(json.Get("redirectUrl").String())
+	oc.IsValidRedirect(json.Get("redirect_url").String())
 	if err != nil {
 		return err
 	}
-	config.RedirectURL = json.Get("redirectUrl").String()
+	config.RedirectURL = json.Get("redirect_url").String()
 
-	config.SkipExpiryCheck = json.Get("skipExpiryCheck ").Bool()
-	config.SkipNonceCheck = json.Get("skipNonceCheck").Bool()
+	config.SkipExpiryCheck = json.Get("skip_expiry_check").Bool()
+	config.SkipNonceCheck = json.Get("skip_nonce_check").Bool()
 	for _, item := range json.Get("scopes").Array() {
 		scopes := item.String()
 		config.Scopes = append(config.Scopes, scopes)
@@ -100,7 +102,7 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	}
 	config.Path = parsedURL.Path
 
-	timeout := json.Get("timeOut").Int()
+	timeout := json.Get("timeout_millis").Int()
 	if timeout <= 0 {
 		config.Timeout = 500
 	} else {
@@ -110,30 +112,30 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	//cookie
 
 	config.CookieSecret = oc.Set32Bytes(config.ClientSecret)
-	config.CookieName = json.Get("CookieName").String()
+	config.CookieName = json.Get("cookie_name").String()
 	if config.CookieName == "" {
 		config.CookieName = "_oauth2_wasm"
 	}
-	config.CookieDomain = json.Get("cookieDomain").String()
+	config.CookieDomain = json.Get("cookie_domain").String()
 	if config.CookieDomain == "" {
-		return errors.New("missing CookieDomain in config or err format")
+		return errors.New("missing cookie_domain in config or err format")
 	}
-	config.CookiePath = json.Get("cookiePath").String()
+	config.CookiePath = json.Get("cookie_path").String()
 	if config.CookiePath == "" {
 		config.CookiePath = "/"
 	}
-	config.CookieSecure = json.Get("cookieSecure").Bool()
-	config.CookieSecure = json.Get("cookieHttponly").Bool()
+	config.CookieSecure = json.Get("cookie_secure").Bool()
+	config.CookieSecure = json.Get("cookie_httponly").Bool()
 
-	config.CookieSameSite = json.Get("cookieSamesite").String()
+	config.CookieSameSite = json.Get("cookie_samesite").String()
 	if config.CookieSameSite == "" {
 		config.CookieSameSite = "Lax"
 	}
 
-	serviceSource := json.Get("serviceSource").String()
-	serviceName := json.Get("serviceName").String()
-	servicePort := json.Get("servicePort").Int()
-	serviceHost := json.Get("serviceHost").String()
+	serviceSource := json.Get("service_source").String()
+	serviceName := json.Get("service_name").String()
+	servicePort := json.Get("service_port").Int()
+	serviceHost := json.Get("service_host").String()
 	if serviceName == "" || servicePort == 0 {
 		return errors.New("invalid service config")
 	}
@@ -147,9 +149,9 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 		log.Debugf("%v %v %v", serviceName, serviceHost, servicePort)
 		return nil
 	case "dns":
-		domain := json.Get("domain").String()
+		domain := json.Get("service_domain").String()
 		if domain == "" {
-			return errors.New("missing domain in config")
+			return errors.New("missing service_domain in config")
 		}
 		config.Client = wrapper.NewClusterClient(&wrapper.DnsCluster{
 			ServiceName: serviceName,
@@ -164,7 +166,7 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrapper.Log) types.Action {
 
-	DefaultHandler := oc.NewDefaultOAuthHandler()
+	defaultHandler := oc.NewDefaultOAuthHandler()
 	cookieString, _ := proxywasm.GetHttpRequestHeader("cookie")
 	oidcCookieValue, code, state, err := oc.GetParams(config.CookieName, cookieString, ctx.Path(), config.CookieSecret)
 	if err != nil {
@@ -173,7 +175,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 	}
 	nonce, _ := oc.Nonce(32)
 	nonceStr := oc.GenState(nonce, config.ClientSecret, config.RedirectURL)
-	tm := time.Now()
+	createdAtTime := time.Now()
 	cfg := &oc.Oatuh2Config{
 		Config: oauth2.Config{
 			ClientID:     config.ClientID,
@@ -200,21 +202,21 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 		},
 		CookieData: &oc.CookieData{
 			Nonce:     []byte(nonceStr),
-			CreatedAt: tm,
+			CreatedAt: createdAtTime,
 		},
 	}
-	log.Debugf("path :%v host :%v state :%v code :%v cookie :%v", ctx.Path(), ctx.Host(), state, code, oidcCookieValue)
+	log.Infof("path :%v host :%v state :%v code :%v cookie :%v", ctx.Path(), ctx.Host(), state, code, oidcCookieValue)
 
 	if oidcCookieValue == "" {
 
 		if code == "" {
-			if err := DefaultHandler.ProcessRedirect(&log, cfg); err != nil {
+			if err := defaultHandler.ProcessRedirect(&log, cfg); err != nil {
 				oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
 				return types.ActionPause
 			}
 		}
 
-		if strings.Contains(ctx.Path(), "oauth2/callback") {
+		if strings.Contains(ctx.Path(), OAUTH2CALLBACK) {
 			parts := strings.Split(state, ".")
 			if len(parts) != 2 {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
@@ -231,35 +233,33 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 
 			cfg.Option.Code = code
 			cfg.Option.Mod = oc.SenBack
-			if err := DefaultHandler.ProcessExchangeToken(&log, cfg); err != nil {
+			if err := defaultHandler.ProcessExchangeToken(&log, cfg); err != nil {
 				oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
 				return types.ActionPause
 			}
 		}
-	} else {
 
-		cookiedata, err := oc.DeserializedeCookieData(oidcCookieValue)
-		if err != nil {
-			log.Errorf("DeserializedeCookieData err : %v", err)
-			if err := DefaultHandler.ProcessRedirect(&log, cfg); err != nil {
-				oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
-				return types.ActionPause
-			}
-		}
+		return types.ActionPause
+	}
 
-		cfg.CookieData = &oc.CookieData{
-			IDToken:   cookiedata.IDToken,
-			Secret:    cfg.CookieOption.Secret,
-			Nonce:     cookiedata.Nonce,
-			CreatedAt: cookiedata.CreatedAt,
-			ExpiresOn: cookiedata.ExpiresOn,
-		}
-		cfg.Option.RawIdToken = cfg.CookieData.IDToken
-		cfg.Option.Mod = oc.Access
-		if err := DefaultHandler.ProcessVerify(&log, cfg); err != nil {
-			oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
-			return types.ActionPause
-		}
+	cookiedata, err := oc.DeserializedeCookieData(oidcCookieValue)
+	if err != nil {
+		oc.SendError(&log, fmt.Sprintf("DeserializedeCookieData err : %v", err), http.StatusInternalServerError)
+		return types.ActionPause
+	}
+
+	cfg.CookieData = &oc.CookieData{
+		IDToken:   cookiedata.IDToken,
+		Secret:    cfg.CookieOption.Secret,
+		Nonce:     cookiedata.Nonce,
+		CreatedAt: cookiedata.CreatedAt,
+		ExpiresOn: cookiedata.ExpiresOn,
+	}
+	cfg.Option.RawIdToken = cfg.CookieData.IDToken
+	cfg.Option.Mod = oc.Access
+	if err := defaultHandler.ProcessVerify(&log, cfg); err != nil {
+		oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
+		return types.ActionPause
 	}
 
 	return types.ActionPause
