@@ -155,7 +155,7 @@ func (d *DefaultOAuthHandler) ProcessToken(log *wrapper.Log, cfg *Oatuh2Config) 
 		}
 
 		if err != nil && needsAuthStyleProbe {
-			log.Errorf("Incorrect invocation, retrying with different auth style")
+			log.Error("Incorrect invocation, retrying with different auth style")
 			d.ProcessToken(log, cfg)
 			return
 		}
