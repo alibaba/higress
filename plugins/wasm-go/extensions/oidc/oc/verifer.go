@@ -1,3 +1,19 @@
+/*
+	Copyright 2023 go-oidc
+
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+
+* http://www.apache.org/licenses/LICENSE-2.0
+
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 package oc
 
 import (
@@ -22,6 +38,8 @@ type IDTokenVerifier struct {
 const (
 	issuerGoogleAccounts         = "https://accounts.google.com"
 	issuerGoogleAccountsNoScheme = "accounts.google.com"
+
+	LEEWAY = 5 * time.Minute
 )
 
 type IDToken struct {
@@ -123,9 +141,8 @@ func (v *IDTokenVerifier) VerifyToken(rawIDToken string, keySet jose.JSONWebKeyS
 			nbfTime := time.Time(*token.NotBefore)
 			// Set to 5 minutes since this is what other OpenID Connect providers do to deal with clock skew.
 			// https://github.com/AzureAD/azure-activedirectory-identitymodel-extensions-for-dotnet/blob/6.12.2/src/Microsoft.IdentityModel.Tokens/TokenValidationParameters.cs#L149-L153
-			leeway := 5 * time.Minute
 
-			if nowTime.Add(leeway).Before(nbfTime) {
+			if nowTime.Add(LEEWAY).Before(nbfTime) {
 				return nil, fmt.Errorf("oidc: current time %v before the nbf (not before) time: %v", nowTime, nbfTime)
 			}
 		}
@@ -173,15 +190,6 @@ func (v *IDTokenVerifier) VerifyToken(rawIDToken string, keySet jose.JSONWebKeyS
 		}
 	}
 
-	//Verify Nonce
-	parts := strings.Split(t.Nonce, ".")
-	if len(parts) != 2 {
-		return nil, errors.New("Invalid Nonce format")
-	}
-	stateval, signature := parts[0], parts[1]
-	if !VerifyState(stateval, signature) {
-		return nil, errors.New("State signature verification failed")
-	}
 	return t, nil
 }
 func contains(sli []string, ele string) bool {

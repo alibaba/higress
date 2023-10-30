@@ -1,3 +1,17 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package oc
 
 import (
@@ -7,60 +21,54 @@ import (
 	"encoding/base64"
 	"fmt"
 	"golang.org/x/oauth2"
-	"strconv"
 	"strings"
-	"time"
 )
-
-const (
-	// StateSigningKey is used to sign the state parameter. This should be kept secret.
-	StateSigningKey = "your-secret-key"
-	ExpiryDuration  = time.Hour
-)
-
-func GenState() string {
-	nonce, _ := Nonce(16)
-	expiry := time.Now().Add(ExpiryDuration).Unix()
-	state := fmt.Sprintf("%s:%d:%d", base64.RawURLEncoding.EncodeToString(nonce), time.Now().Unix(), expiry)
-	signature := SignState(state)
-	return fmt.Sprintf("%s.%s", state, signature)
-}
-
-// SignState signs the state using HMAC.
-func SignState(state string) string {
-	mac := hmac.New(sha256.New, []byte(StateSigningKey))
-	mac.Write([]byte(state))
-	signature := mac.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(signature)
-}
-
-func VerifyState(state, signature string) bool {
-	expectedSignature := SignState(state)
-	if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
-		return false
-	}
-	parts := strings.Split(state, ":")
-	if len(parts) != 3 {
-		return false
-	}
-
-	expiry, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		return false
-	}
-	if time.Now().Unix() > expiry {
-		return false
-	}
-	return true
-}
 
 func Nonce(length int) ([]byte, error) {
 	b := make([]byte, length)
 	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
+	return b, err
+}
+
+func HashNonce(nonce []byte) string {
+	hasher := sha256.New()
+	hasher.Write(nonce)
+	return base64.RawURLEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+func GenState(nonce []byte, key string, redirectUrl string) string {
+	hashedNonce := HashNonce(nonce)
+	encodedRedirectUrl := base64.RawURLEncoding.EncodeToString([]byte(redirectUrl))
+	state := fmt.Sprintf("%s:%s", hashedNonce, encodedRedirectUrl)
+	signature := SignState(state, key)
+	return fmt.Sprintf("%s.%s", state, signature)
+}
+
+func SignState(state string, key string) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(state))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func VerifyState(state, signature, key, redirect string) error {
+	if !hmac.Equal([]byte(signature), []byte(SignState(state, key))) {
+		return fmt.Errorf("signature mismatch")
 	}
-	return b, nil
+
+	parts := strings.Split(state, ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid state format")
+	}
+
+	redirectUrl, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fmt.Errorf("failed to decode redirect URL: %v", err)
+	}
+	if string(redirectUrl) != redirect {
+		return fmt.Errorf("redirect URL mismatch")
+	}
+
+	return nil
 }
 
 func SetNonce(nonce string) oauth2.AuthCodeOption {

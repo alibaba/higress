@@ -1,3 +1,17 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package oc
 
 import (
@@ -29,27 +43,29 @@ func ValidateHTTPResponse(statusCode int, headers http.Header, body []byte) erro
 }
 
 // GetParams 返回顺序 cookie code state
-func GetParams(cookie string, path string) (string, string, string) {
+func GetParams(name, cookie string, path string, key string) (oidcCookieValue, code, state string, err error) {
 	u, err := url.Parse(path)
 	if err != nil {
-		return "", "", ""
+		return "", "", "", err
 	}
 	query := u.Query()
-	code, state := query.Get("code"), query.Get("state")
+	code, state = query.Get("code"), query.Get("state")
 
 	cookiePairs := strings.Split(cookie, "; ")
-	var oidcCookieValue string
 	for _, pair := range cookiePairs {
 		keyValue := strings.Split(pair, "=")
-		if keyValue[0] == "oidc_oauth2_wasm_plugin" {
+		if keyValue[0] == name {
 			oidcCookieValue = keyValue[1]
 			break
 		}
 	}
-	oidcCookieValue, _ = url.QueryUnescape(oidcCookieValue)
-	oidcCookieValue, err = Decrypt(oidcCookieValue)
 
-	return oidcCookieValue, code, state
+	oidcCookieValue, err = url.QueryUnescape(oidcCookieValue)
+	if err != nil {
+		return "", "", "", err
+	}
+	oidcCookieValue, err = Decrypt(oidcCookieValue, key)
+	return oidcCookieValue, code, state, nil
 }
 
 func SendError(log *wrapper.Log, errMsg string, status int) {

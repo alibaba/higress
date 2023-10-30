@@ -45,17 +45,19 @@ spec:
 * 配置 oidc 插件
 ```yaml
 issuer: "https://dev-65874123.okta.com"
-redirectUrl: "http://foo.bar.com/a/oidc/callback"
+redirectUrl: "http://foo.bar.com/a/oauth2/callback"
 scopes:
-- "openid"
-- "email"
-clientDomain: "foo.bar.com"
-clientId: "xxxxxx"
-clientSecret: "xxxxx"
+  - "openid"
+  - "email"
+clientUrl: "http://foo.bar.com/a"
+cookieDomain: "foo.bar.com"
+clientId: "xxxxx"
+clientSecret: "xxxx"
 domain: "dev-65874123.okta.com"
 serviceName: "okta"
 servicePort: 443
 serviceSource: "dns"
+timeOut: 2000
 ```
 ### 访问服务页面，未登陆的话进行跳转
 ![okta_3.png](okta_3.png)
@@ -67,17 +69,17 @@ serviceSource: "dns"
 
 ---
 
-##  OpenID Connect with Oauth0
-###  配置 Oauth0 账户
+##  OpenID Connect with auth0
+###  配置 auth0 账户
 * 登录到开发人员 Okta 网站 [Developer Auth0 site](https://auth0.com/)
 * 注册测试 web 应用程序
 
-### 将测试 Oauth0  应用程序与 Higress 关联
+### 将测试 auth0  应用程序与 Higress 关联
 * 创建服务来源
 ![auth0_0.png](auth0_0.png)
 
-### 将测试 Oauth0   应用程序与您的 Oidc-Wasm 插件关联
-* 创建访问 okta 的 ingress
+### 将测试 auth0   应用程序与您的 Oidc-Wasm 插件关联
+* 创建访问 auth0 的 ingress
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -104,61 +106,26 @@ spec:
 ```
 * 配置 oidc 插件
 ```yaml
+CookieName: "_oauth2_wasm_b"
+clientId: "xxxxxxxxxxxxxxx"
+clientSecret: "xxxxxxxxxxx"
+cookieDomain: "foo.bar.com"
+cookiePath: "/b"
+clientUrl: "http://foo.bar.com/b"
+domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
 issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
-clientId: "xxxxxx"
-clientSecret: "xxxx"
-redirectUrl: "http://foo.bar.com/a/oidc/callback"
-clientDomain : "foo.bar.com"
-scopes :
+redirectUrl: "http://foo.bar.com/b/oauth2/callback"
+scopes:
   - "openid"
   - "email"
-serviceSource: "dns"
 serviceName: "auth"
 servicePort: 443
-domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
-```
-
-### 将测试 Oauth0   应用程序与您的 Oidc-Wasm 插件关联
-* 创建访问 okta 的 ingress
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: example-ingress
-  annotations:
-     higress.io/destination: okta.dns    
-     higress.io/backend-protocol: "HTTPS"
-     higress.io/ignore-path-case: "false"
-spec:
-  ingressClassName: higress
-  rules:
-    - host: foo.bar.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              resource:
-                apiGroup: networking.higress.io
-                kind: McpBridge
-                name: default
-
-```
-* 配置 oidc 插件
-```yaml
-issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
-clientId: "xxxxxx"
-clientSecret: "xxxx"
-redirectUrl: "http://foo.bar.com/a/oidc/callback"
-clientDomain : "foo.bar.com"
-scopes :
-  - "openid"
-  - "email"
 serviceSource: "dns"
-serviceName: "auth"
-servicePort: 443
-domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
+timeOut: 2000
 ```
+
+
+
 ### 访问服务页面，未登陆的话进行跳转
 ![auth0_1.png](auth0_1.png)
 
@@ -187,12 +154,14 @@ domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
 ```yaml
 issuer: "http://127.0.0.1:9090/realms/myrealm"
 redirectUrl: "http://foo.bar.com/bar/oidc/callback"
+clientUrl: "http://foo.bar.com/"
 scopes:
   - "openid"
   - "email"
-clientDomain: "foo.bar.com"
-clientId: "xxx"
-clientSecret: "xxxx"
+CookieName: "_oauth2_wasm_keyclocak"
+cookieDomain: "foo.bar.com"
+clientId: "myclinet"
+clientSecret: "EdKdKBX4N0jtYuPD4aGxZWiI7EVh4pr9"
 serviceHost: "127.0.0.1:9090"
 serviceName: "keyclocak"
 servicePort: 80
@@ -207,9 +176,9 @@ kind: Ingress
 metadata:
   name: example-ingress
   annotations:
-     higress.io/destination: okta.dns    
-     higress.io/backend-protocol: "HTTPS"
-     higress.io/ignore-path-case: "false"
+    higress.io/destination: keyclocak.static
+    higress.io/backend-protocol: "HTTPS"
+    higress.io/ignore-path-case: "false"
 spec:
   ingressClassName: higress
   rules:
@@ -224,21 +193,24 @@ spec:
                 kind: McpBridge
                 name: default
 
+
 ```
 * 配置 oidc 插件
 ```yaml
-issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
-clientId: "xxxxxx"
-clientSecret: "xxxx"
-redirectUrl: "http://foo.bar.com/a/oidc/callback"
-clientDomain : "foo.bar.com"
-scopes :
+issuer: "http://127.0.0.1:9090/realms/myrealm"
+redirectUrl: "http://foo.bar.com/bar/oidc/callback"
+clientUrl: "http://foo.bar.com/"
+scopes:
   - "openid"
   - "email"
-serviceSource: "dns"
-serviceName: "auth"
-servicePort: 443
-domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
+CookieName: "_oauth2_wasm_keyclocak"
+cookieDomain: "foo.bar.com"
+clientId: "xxxxxx"
+clientSecret: "xxxxxxxxxx"
+serviceHost: "127.0.0.1:9090"
+serviceName: "keyclocak"
+servicePort: 80
+serviceSource: "ip"
 ```
 ### 访问服务页面，未登陆的话进行跳转
 ![keyclocak_2.png](keyclocak_2.png)
@@ -272,4 +244,3 @@ domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
 | 把服务放到 oauth2-proxy 后面                     |      ✓             |   不具备直接验证的能力                                                                                                                      |    |                                                        |
 | 在当前层可以展示具体信息比如email等                      |         ✓            | 作为网关的插件，校验token的正确性后只是进行了转发 ，在实现的过程中已经捕捉到了idtoken信息，可以实现提取出具体的信息用于优化日志展示等                                                          |
 | 在校验一些不标准的issuer,启动skipIssuerCheck比如github | ✓  | 已经抽象出 oidcHandler,开启skipissuerchecker，只要实现oidchandler的能力，可以ProcessRedirect中指定出authurl的校验，ProcessExchangeToken中指定给出jwksurl,  TokenURL |
-| 退出重定向| ✓  | 不具备全局登出的能力 |

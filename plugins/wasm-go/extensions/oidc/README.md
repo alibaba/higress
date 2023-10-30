@@ -2,23 +2,29 @@
 `Oidc`本插件实现了 OIDC 认证插件
 
 # 配置字段
+| 字段              | 数据类型    | 填写要求 | 默认值            | 描述                                                            |
+|-----------------|---------|----|----------------|---------------------------------------------------------------|
+| issuer          | string  | 必填 | -              | 设置认证服务的 issuer ，即签发人。                                         |
+| redirectUrl     | string  | 必填 | -              | 输入授权成功后的重定向地址，需要与 OIDC 中配置的重定向地址保持一致。该地址的后缀需为oauth2/callback。 |
+| clientId        | string  | 必填 | -              | 输入服务注册的应用 ID 。                                                |
+| clientSecret    | string  | 必填 | -              | 输入服务注册的应用 Secret 。                                            |
+| clientUrl       | string  | 必填 | -              | 登陆成功跳转后的地址。                                                   |
+| scopes          | Array   | 必填 | -              | 输入授权作用域的数组。                                                   |
+| skipExpiryCheck | bool    | 选填 | false          | 控制是否检测 IDToken 的过期状态。                                         |
+| skipNonceCheck  | bool    | 选填 | true           | 控制是否检测 Nonce 值。                                               |
+| timeOut         | int     | 选填 | 500 （毫秒）       | 设置请求与认证服务连接的超时时长。如果频繁遇到超时错误，建议增加该时长。                          |
+| cookieName      | string  | 选填 | "_oauth2_wasm" | 设置cookie的名称, 如果一个域名下多个路由设置不同的认证服务，建议设置不同名称。                   |
+| cookieDomain    | string  | 必填 | -              | 设置cookie的域名。                                                  |
+| cookiePath      | string  | 选填 | "/"            | 设置cookie的存储路径。                                                |
+| cookieSecure    | bool    | 选填 | false          | 控制cookie是否只在HTTPS下传输。                                         |
+| cookieHttponly  | bool    | 选填 | true           | 控制cookie是否仅限于HTTP传输，禁止JavaScript访问。                           |
+| cookieSamesite  | string  | 选填 | "Lax"          | 设置cookie的SameSite属性，如："Lax", "none"。第三方跳转一般建议默认设置为Lax         |
+| serviceSource   | string  | 必填 | -              | 输入认证 oidc 服务的注册来源。                                            |
+| serviceName     | string  | 必填 | -              | 输入认证 oidc 服务的注册名称。                                            |
+| servicePort     | int     | 必填 | -              | 输入认证 oidc 服务的服务端口。                                            |
+| serviceHost     | string  | 必填 | -              | 输入认证 oidc 服务的主机名。                                             |
 
-| 字段                | 数据类型   | 填写要求 | 默认值      | 描述                                                          |
-|-------------------|--------|------|----------|-------------------------------------------------------------|
-| issuer            | string | 必填   | -        | 设置认证服务的 issuer ，即签发人。                                       |
-| redirectUrl       | string | 必填   | -        | 输入授权成功后的重定向地址，需要与 OIDC 中配置的重定向地址保持一致。   (后缀需为oidc/callback) |
-| clientId          | string | 必填   | -        | 输入服务注册的应用 ID 。                                              |
-| clientSecret      | string | 必填   | -        | 输入服务注册的应用 Secret 。                                          |
-| scopes            | Array  | 必填   | -        | 输入授权作用域.。                                                   |
-| clientDomain      |    string  |     必填  | -        | -                                                           | 输入 Cookie 的域名，认证通过后会将 Cookie 发送到指定的域名 ，保持登录状态。                 |
-| skipExpiryCheck   | bool   | 选填   | -        | 是否检测 IDToken 过期。                                            |
-| skipIssuerCheck   | bool   | 选填   | -        | SkipIssuerCheck 用于特殊情况，其中调用者希望推迟对签发者的验证。当启用时，调用者必须独立验证令牌的签发者是否为已知的有效值。不匹配的签发者通常指示客户端配置错误。如果不希望发生不匹配，请检查所提供的签发者URL是否正确，而不是启用这个选项。                                           |
-| timeOut           | int | 选填   | 500 （毫秒） | 控制请求的超时时长，若是一直得到超时错误，可以选择增大时长                               |
-| secureCookie      | bool | 选填   | false    | cookie 是否设置 secure 参数                                       |
-| serviceSource     | string | 必填   | -        | 输入认证 oidc 服务注册来源。                                           |
-| serviceName       | string | 必填   | -        | 输入认证 oidc 服务注册的名称。                                          |
-| servicePort       | int    | 必填   | -        | 输入认证 oidc 服务注册的服务端口。                                        |
-| serviceHost       | string | 必填   | -        | 输入认证 oidc 服务注册的主机名。                                         |                                          |
+这是一个用于OIDC认证配置的表格，确保在提供所有必要的信息时遵循上述指导。
 # 配置示例
 - 固定ip
 ```yaml
@@ -43,9 +49,9 @@ kind: Ingress
 metadata:
   name: example-ingress
   annotations:
-     higress.io/destination: okta.dns    
-     higress.io/backend-protocol: "HTTPS"
-     higress.io/ignore-path-case: "false"
+    higress.io/destination: okta.dns
+    higress.io/backend-protocol: "HTTPS"
+    higress.io/ignore-path-case: "false"
 spec:
   ingressClassName: higress
   rules:
@@ -63,20 +69,22 @@ spec:
 ```
 - 创建wasm插件
 ```yaml
-Issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
-clientID: "xxxx"
-clientSecret: "xxxxxxx"
-RedirectURL: "http://foo.bar.com/a/oidc/callback"
-clientDomain : "foo.bar.com"
-Scopes:
+issuer: "https://dev-65874123.okta.com"
+redirectUrl: "http://foo.bar.com/a/oauth2/callback"
+scopes:
   - "openid"
   - "email"
-serviceSource: "dns"
+clientUrl: "http://foo.bar.com/a"
+cookieDomain: "foo.bar.com"
+clientId: "xxxx"
+clientSecret: "xxxxxxxxxxxxxxxxxxx"
+domain: "dev-65874123.okta.com"
 serviceName: "okta"
 servicePort: 443
-domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
+serviceSource: "dns"
+timeOut: 2000
 ```
-在通过插件验证后会携带 `X-Authorization-ID`的标头携带令牌
+在通过插件验证后会携带 `Authorization`的标头携带令牌
 
 
 

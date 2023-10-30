@@ -1,3 +1,17 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package oc
 
 import (
@@ -5,17 +19,71 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 )
 
-var encryptionKey = []byte("avery strongkey!")
+type CookieData struct {
+	IDToken   string
+	Secret    string
+	Nonce     []byte
+	CreatedAt time.Time
+	ExpiresOn time.Time
+}
+
+type CookieOption struct {
+	Name     string
+	Domain   string
+	Secret   string
+	value    string
+	Path     string
+	SameSite string
+	Expire   time.Time
+	Secure   bool
+	HTTPOnly bool
+}
+
+// SerializeAndEncrypt 将 CookieData 对象序列化并加密为一个安全的cookie header
+func SerializeAndEncryptCookieData(data *CookieData, keySecret string, cookieSettings *CookieOption) (string, error) {
+	return buildSecureCookieHeader(data, keySecret, cookieSettings)
+}
+
+// DeserializedeCookieData 将一个安全的cookie header解密并反序列化为 CookieData 对象
+func DeserializedeCookieData(cookievalue string) (*CookieData, error) {
+
+	data, err := retrieveCookieData(cookievalue)
+	if err != nil {
+		return nil, err
+	}
+	// 在这里调用 checkCookieExpiry 来检查 cookie 是否过期
+	if checkCookieExpiry(data) {
+		return nil, fmt.Errorf("cookie is expired")
+	}
+	return data, nil
+}
+func Set32Bytes(key string) string {
+	const desiredLength = 32
+	keyLength := len(key)
+
+	var adjustedKey string
+	if keyLength > desiredLength {
+		adjustedKey = key[:desiredLength]
+	} else if keyLength < desiredLength {
+		padding := strings.Repeat("0", desiredLength-keyLength)
+		adjustedKey = key + padding
+	} else {
+		adjustedKey = key
+	}
+	return adjustedKey
+}
 
 // 必须是16/24/32字节长
-func Decrypt(ciphertext string) (string, error) {
-	block, err := aes.NewCipher(encryptionKey)
+func Decrypt(ciphertext string, key string) (string, error) {
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return "", err
 	}
@@ -34,14 +102,13 @@ func Decrypt(ciphertext string) (string, error) {
 
 	stream := cipher.NewCFBDecrypter(block, iv)
 
-	// XORKeyStream can work in-place if the two arguments are the same.
 	stream.XORKeyStream(decodedCiphertext, decodedCiphertext)
 
 	return string(decodedCiphertext), nil
 }
 
-func encrypt(plainText string) (string, error) {
-	block, err := aes.NewCipher(encryptionKey)
+func encrypt(plainText string, key string) (string, error) {
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return "", err
 	}
@@ -59,36 +126,58 @@ func encrypt(plainText string) (string, error) {
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 
-func buildSecureCookieHeader(value, domain string, expires time.Time, onSecure bool) (string, error) {
-	// 加密cookie值
-	encryptedValue, err := encrypt(value)
+func buildSecureCookieHeader(data *CookieData, keySecret string, cookieSettings *CookieOption) (string, error) {
+	// 使用 JSON 序列化数据
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	// 加密序列化后的数据
+	encryptedValue, err := encrypt(string(jsonData), keySecret)
 	if err != nil {
 		return "", err
 	}
 
 	encodedValue := url.QueryEscape(encryptedValue)
+	cookieSettings.value = encodedValue
 
-	cookie := generateCookie("oidc_oauth2_wasm_plugin", encodedValue, domain, expires, onSecure)
-	return cookie, nil
+	return generateCookie(cookieSettings), nil
 }
 
-func generateCookie(name, value, domain string, expires time.Time, onSecure bool) string {
+func retrieveCookieData(cookieValue string) (*CookieData, error) {
+	// 使用 JSON 进行反序列化
+	var data CookieData
+	err := json.Unmarshal([]byte(cookieValue), &data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data, nil
+}
+
+func generateCookie(settings *CookieOption) string {
 	var secureFlag, httpOnlyFlag, sameSiteFlag string
-	if onSecure {
+	if settings.Secure {
 		secureFlag = "Secure;"
 	}
 
-	expiresStr := expires.Format(time.RFC1123)
+	if settings.HTTPOnly {
+		httpOnlyFlag = "HttpOnly;"
+	}
 
-	maxAge := int(expires.Sub(time.Now()).Seconds())
+	if settings.SameSite != "" {
+		sameSiteFlag = fmt.Sprintf("SameSite=%s;", settings.SameSite)
+	}
 
-	httpOnlyFlag = "HttpOnly;"
-	sameSiteFlag = "SameSite=Lax;"
+	expiresStr := settings.Expire.Format(time.RFC1123)
+	maxAge := int(settings.Expire.Sub(time.Now()).Seconds())
 
-	cookie := fmt.Sprintf("%s=%s; Path=/; Domain=%s; Expires=%s; Max-Age=%d; %s %s %s",
-		name,
-		value,
-		domain,
+	cookie := fmt.Sprintf("%s=%s; Path=%s; Domain=%s; Expires=%s; Max-Age=%d; %s %s %s",
+		settings.Name,
+		settings.value,
+		settings.Path,
+		settings.Domain,
 		expiresStr,
 		maxAge,
 		secureFlag,
@@ -96,4 +185,8 @@ func generateCookie(name, value, domain string, expires time.Time, onSecure bool
 		sameSiteFlag,
 	)
 	return cookie
+}
+
+func checkCookieExpiry(data *CookieData) bool {
+	return data.ExpiresOn.Before(time.Now())
 }
