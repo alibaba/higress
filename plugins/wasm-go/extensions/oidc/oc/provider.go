@@ -97,7 +97,6 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 
 func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
-		log.Info("ProcessExchangeToken")
 
 		PvRJson := gjson.ParseBytes(responseBody)
 		cfg.Endpoint.TokenURL = PvRJson.Get("token_endpoint").String()
@@ -122,7 +121,6 @@ func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2
 func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 	return ProcessHTTPCall(log, cfg, func(responseBody []byte) {
 		PvRJson := gjson.ParseBytes(responseBody)
-		log.Info("ProcessVerify")
 
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
@@ -187,7 +185,6 @@ func processToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 		}
 		cfg.Option.RawIdToken = rawIDToken
 
-		log.Infof("cfg.Option.RawIdToken :%v", cfg.Option.RawIdToken)
 		err = processTokenVerify(log, cfg)
 		if err != nil {
 			log.Errorf("failed to verify token: %v", err)
