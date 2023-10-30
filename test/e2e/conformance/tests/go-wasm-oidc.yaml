@@ -59,7 +59,7 @@ spec:
       config :
         issuer: "https://oauth.aliyun.com"
         client_id: "4312977293205600181"
-        client_secret: "xxxxxxxxxxxxxxxxxxxxxxx"
+        client_secret: "hsvkkm0Rry2GfHwuSzhABWOTS3f2IVsJYfGNhMJwVdrxVCQToTDFcbKOGd1apTKO"
         redirect_url: "http://foo.bar.com/foo/oauth2/callback"
         cookie_domain : "foo.bar.com"
         client_url: "http://foo.bar.com/a"
