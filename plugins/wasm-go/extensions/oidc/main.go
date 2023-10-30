@@ -164,10 +164,6 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrapper.Log) types.Action {
 
-	if ctx.Host() == "console.higress.io" {
-		return types.ActionContinue
-	}
-
 	DefaultHandler := oc.NewDefaultOAuthHandler()
 	cookieString, _ := proxywasm.GetHttpRequestHeader("cookie")
 	oidcCookieValue, code, state, err := oc.GetParams(config.CookieName, cookieString, ctx.Path(), config.CookieSecret)

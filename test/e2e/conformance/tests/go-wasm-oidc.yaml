@@ -58,9 +58,9 @@ spec:
          - higress-conformance-infra/oidc-ingress
       config :
         issuer: "https://oauth.aliyun.com"
-        clientId: "xxxxxxxx"
-        clientSecret: "xxxxxxxx"
-        redirectUrl: "http://foo.bar.com/foo/oidc/callback"
+        clientId: "4312977293205600181"
+        clientSecret: "xxxxxxxxxxxxxxxxxxxxxxx"
+        redirectUrl: "http://foo.bar.com/foo/oauth2/callback"
         cookieDomain: "foo.bar.com"
         clientUrl: "http://foo.bar.com/a"
         scopes:
