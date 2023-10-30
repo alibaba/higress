@@ -62,11 +62,12 @@ spec:
         client_secret: "hsvkkm0Rry2GfHwuSzhABWOTS3f2IVsJYfGNhMJwVdrxVCQToTDFcbKOGd1apTKO"
         redirect_url: "http://foo.bar.com/foo/oauth2/callback"
         cookie_domain : "foo.bar.com"
-        client_url: "http://foo.bar.com/a"
+        client_url: "http://foo.bar.com/"
         scopes:
           - "openid"
         service_source: "dns"
         service_name: "ali"
         service_port: 443
         service_domain: "oauth.aliyun.com"
+        timeout_millis: 2000
   url: oci://registry.cn-hangzhou.aliyuncs.com/234f/test:oidc3.1
