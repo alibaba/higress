@@ -20,7 +20,10 @@ source "$(dirname -- "$0")/setup-istio-env.sh"
 
 cd ${ROOT}/external/proxy
 
+CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${PWD}/out,destination=/home "
+
 BUILD_WITH_CONTAINER=1 \
     CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
+    BUILD_ENVOY_BINARY_ONLY=1 \
     IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools-proxy:release-1.19-04ab00931b61c082300832a7dd51634e5e3634ad \
     make test_release
