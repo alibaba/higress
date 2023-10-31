@@ -114,7 +114,7 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	config.CookieSecret = oc.Set32Bytes(config.ClientSecret)
 	config.CookieName = json.Get("cookie_name").String()
 	if config.CookieName == "" {
-		config.CookieName = "_oauth2_wasm"
+		config.CookieName = "_oidc_wasm"
 	}
 	config.CookieDomain = json.Get("cookie_domain").String()
 	if config.CookieDomain == "" {
@@ -171,7 +171,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 	oidcCookieValue, code, state, err := oc.GetParams(config.CookieName, cookieString, ctx.Path(), config.CookieSecret)
 	if err != nil {
 		oc.SendError(&log, fmt.Sprintf("GetParams err : %v", err), http.StatusBadRequest)
-		return types.ActionPause
+		return types.ActionContinue
 	}
 	nonce, _ := oc.Nonce(32)
 	nonceStr := oc.GenState(nonce, config.ClientSecret, config.RedirectURL)
@@ -196,9 +196,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 			Domain:   config.CookieDomain,
 			Secret:   config.CookieSecret,
 			Path:     config.CookiePath,
+			SameSite: config.CookieSameSite,
 			Secure:   config.CookieSecure,
 			HTTPOnly: config.CookieHTTPOnly,
-			SameSite: config.CookieSameSite,
 		},
 		CookieData: &oc.CookieData{
 			Nonce:     []byte(nonceStr),
@@ -211,8 +211,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 
 		if code == "" {
 			if err := defaultHandler.ProcessRedirect(&log, cfg); err != nil {
-				oc.SendError(&log, fmt.Sprintf("Redirect error : %v", err), http.StatusInternalServerError)
-				return types.ActionPause
+				oc.SendError(&log, fmt.Sprintf("ProcessRedirect error : %v", err), http.StatusInternalServerError)
+				return types.ActionContinue
 			}
 		}
 
@@ -220,14 +220,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 			parts := strings.Split(state, ".")
 			if len(parts) != 2 {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
-				return types.ActionPause
+				return types.ActionContinue
 
 			}
 
 			stateval, signature := parts[0], parts[1]
 			if err := oc.VerifyState(stateval, signature, cfg.ClientSecret, cfg.RedirectURL); err != nil {
 				oc.SendError(&log, fmt.Sprintf("State signature verification failed : %v", err), http.StatusUnauthorized)
-				return types.ActionPause
+				return types.ActionContinue
 
 			}
 
@@ -235,17 +235,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 			cfg.Option.Mod = oc.SenBack
 			if err := defaultHandler.ProcessExchangeToken(&log, cfg); err != nil {
 				oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
-				return types.ActionPause
+				return types.ActionContinue
 			}
 		}
-
 		return types.ActionPause
 	}
 
 	cookiedata, err := oc.DeserializedeCookieData(oidcCookieValue)
 	if err != nil {
 		oc.SendError(&log, fmt.Sprintf("DeserializedeCookieData err : %v", err), http.StatusInternalServerError)
-		return types.ActionPause
+		return types.ActionContinue
 	}
 
 	cfg.CookieData = &oc.CookieData{
@@ -259,7 +258,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 	cfg.Option.Mod = oc.Access
 	if err := defaultHandler.ProcessVerify(&log, cfg); err != nil {
 		oc.SendError(&log, fmt.Sprintf("ProcessVerify error : %v", err), http.StatusUnauthorized)
-		return types.ActionPause
+		return types.ActionContinue
 	}
 
 	return types.ActionPause

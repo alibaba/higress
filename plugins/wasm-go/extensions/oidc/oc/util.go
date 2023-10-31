@@ -43,7 +43,7 @@ func ValidateHTTPResponse(statusCode int, headers http.Header, body []byte) erro
 }
 
 // GetParams 返回顺序 cookie code state
-func GetParams(name, cookie string, path string, key string) (oidcCookieValue, code, state string, err error) {
+func GetParams(name, cookie, path, key string) (oidcCookieValue, code, state string, err error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return "", "", "", err

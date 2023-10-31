@@ -59,10 +59,9 @@ func ProcessHTTPCall(log *wrapper.Log, cfg *Oatuh2Config, callback func(response
 	if err := cfg.Client.Get(wellKnownPath, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
+			SendError(log, fmt.Sprintf("ValidateHTTPResponse failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
 			return
 		}
-
 		callback(responseBody)
 
 	}, uint32(cfg.Timeout)); err != nil {
@@ -87,7 +86,6 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 			opts = SetNonce(string(cfg.CookieData.Nonce))
 		}
 		codeURL := cfg.AuthCodeURL(statStr, opts)
-
 		proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
 			{"Location", codeURL},
 		}, nil, -1)
@@ -135,7 +133,7 @@ func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config)
 		}
 		cfg.SupportedSigningAlgs = algs
 		if err := processTokenVerify(log, cfg); err != nil {
-			log.Errorf("failed to verify token: %v", err)
+			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError)
 			return
 		}
 	})
@@ -187,7 +185,7 @@ func processToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 
 		err = processTokenVerify(log, cfg)
 		if err != nil {
-			log.Errorf("failed to verify token: %v", err)
+			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -209,7 +207,7 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 		SkipExpiryCheck:      cfg.SkipExpiryCheck,
 		SkipNonceCheck:       cfg.SkipNonceCheck,
 	})
-	defautl := NewDefaultOAuthHandler()
+	defaultHandlerForRedirect := NewDefaultOAuthHandler()
 	parsedURL, err := url.Parse(cfg.JwksURL)
 	if err != nil {
 		log.Errorf("JwksURL is invalid  err : %v", err)
@@ -225,26 +223,26 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 
 		res := gjson.ParseBytes(responseBody)
 		for _, val := range res.Get("keys").Array() {
-			jws, err := GenJswkey(val)
+			jsw, err := GenJswkey(val)
 			if err != nil {
 				log.Errorf("err: %v", err)
 				SendError(log, fmt.Sprintf("GenJswkey error:%v", err), http.StatusInternalServerError)
 				return
 			}
-			keySet.Keys = append(keySet.Keys, *jws)
+			keySet.Keys = append(keySet.Keys, *jsw)
 		}
 		idtoken, err := idTokenVerify.VerifyToken(cfg.Option.RawIdToken, keySet)
 
 		if err != nil {
 			log.Errorf("VerifyToken err : %v ", err)
-			defautl.ProcessRedirect(log, cfg)
+			defaultHandlerForRedirect.ProcessRedirect(log, cfg)
 			return
 		}
 		if !cfg.SkipNonceCheck && Access == cfg.Option.Mod {
 			err := verifyNonce(idtoken, cfg)
 			if err != nil {
 				log.Error("VerifyNonce failed")
-				defautl.ProcessRedirect(log, cfg)
+				defaultHandlerForRedirect.ProcessRedirect(log, cfg)
 				return
 			}
 		}

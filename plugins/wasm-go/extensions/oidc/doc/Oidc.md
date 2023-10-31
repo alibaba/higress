@@ -22,7 +22,7 @@ kind: Ingress
 metadata:
   name: example-ingress
   annotations:
-    higress.io/destination: auth.dns
+    higress.io/destination: okta.dns
     higress.io/backend-protocol: "HTTPS"
     higress.io/ignore-path-case: "false"
 spec:
@@ -39,25 +39,23 @@ spec:
                 kind: McpBridge
                 name: default
 
-
-
 ```
 * 配置 oidc 插件
 ```yaml
 issuer: "https://dev-65874123.okta.com"
-redirectUrl: "http://foo.bar.com/a/oauth2/callback"
+redirect_url: "http://foo.bar.com/a/oauth2/callback"
 scopes:
   - "openid"
   - "email"
-clientUrl: "http://foo.bar.com/a"
-cookieDomain: "foo.bar.com"
-clientId: "xxxxx"
-clientSecret: "xxxx"
-domain: "dev-65874123.okta.com"
-serviceName: "okta"
-servicePort: 443
-serviceSource: "dns"
-timeOut: 2000
+client_url: "http://foo.bar.com/a"
+cookie_domain: "foo.bar.com"
+client_id: "xxxx"
+client_secret: "xxxxx"
+service_domain: "dev-65874123.okta.com"
+service_name: "okta"
+service_port: 443
+service_source: "dns"
+timeout_millis: 2000
 ```
 ### 访问服务页面，未登陆的话进行跳转
 ![okta_3.png](okta_3.png)
@@ -86,97 +84,7 @@ kind: Ingress
 metadata:
   name: example-ingress
   annotations:
-     higress.io/destination: okta.dns    
-     higress.io/backend-protocol: "HTTPS"
-     higress.io/ignore-path-case: "false"
-spec:
-  ingressClassName: higress
-  rules:
-    - host: foo.bar.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              resource:
-                apiGroup: networking.higress.io
-                kind: McpBridge
-                name: default
-
-```
-* 配置 oidc 插件
-```yaml
-CookieName: "_oauth2_wasm_b"
-clientId: "xxxxxxxxxxxxxxx"
-clientSecret: "xxxxxxxxxxx"
-cookieDomain: "foo.bar.com"
-cookiePath: "/b"
-clientUrl: "http://foo.bar.com/b"
-domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
-issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
-redirectUrl: "http://foo.bar.com/b/oauth2/callback"
-scopes:
-  - "openid"
-  - "email"
-serviceName: "auth"
-servicePort: 443
-serviceSource: "dns"
-timeOut: 2000
-```
-
-
-
-### 访问服务页面，未登陆的话进行跳转
-![auth0_1.png](auth0_1.png)
-
-### 登陆成功跳转到服务页面
-![oath_2.png](oath_2.png)
-
----
-
-
-
-##  OpenID Connect with keyclocak
-###  配置 keyclocak 账户
-* 本文档采用 docker 本机进行部署，所以注册的 ip 应该采用 ifconfig 获取网卡 ip
-
-![keyclocak_0.png](keyclocak_0.png)
-
-* 注册测试 web 应用程序
-
-### 将测试 keyclocak  应用程序与 Higress 关联
-* 创建服务来源
-
-![keyclocak_1.png](keyclocak_1.png)
-
-### 将测试 keyclocak 应用程序与您的 Oidc-Wasm 插件关联
-* 配置 oidc 插件
-```yaml
-issuer: "http://127.0.0.1:9090/realms/myrealm"
-redirectUrl: "http://foo.bar.com/bar/oidc/callback"
-clientUrl: "http://foo.bar.com/"
-scopes:
-  - "openid"
-  - "email"
-CookieName: "_oauth2_wasm_keyclocak"
-cookieDomain: "foo.bar.com"
-clientId: "myclinet"
-clientSecret: "EdKdKBX4N0jtYuPD4aGxZWiI7EVh4pr9"
-serviceHost: "127.0.0.1:9090"
-serviceName: "keyclocak"
-servicePort: 80
-serviceSource: "ip"
-```
-
-### 将测试 keyclocak   应用程序与您的 Oidc-Wasm 插件关联
-* 创建访问 okta 的 ingress
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: example-ingress
-  annotations:
-    higress.io/destination: keyclocak.static
+    higress.io/destination: auth.dns
     higress.io/backend-protocol: "HTTPS"
     higress.io/ignore-path-case: "false"
 spec:
@@ -197,26 +105,71 @@ spec:
 ```
 * 配置 oidc 插件
 ```yaml
-issuer: "http://127.0.0.1:9090/realms/myrealm"
-redirectUrl: "http://foo.bar.com/bar/oidc/callback"
-clientUrl: "http://foo.bar.com/"
+CookieName: "_oauth2_wasm_c"
+client_id: "xxxxx"
+client_secret: "xxxxxx"
+cookie_domain: "foo.bar.com"
+cookie_path: "/b"
+client_url: "http://foo.bar.com/b"
+service_domain: "dev-650jsqsvuyrk4ahg.us.auth0.com"
+issuer: "https://dev-650jsqsvuyrk4ahg.us.auth0.com/"
+redirect_url: "http://foo.bar.com/b/oauth2/callback"
 scopes:
   - "openid"
   - "email"
-CookieName: "_oauth2_wasm_keyclocak"
-cookieDomain: "foo.bar.com"
-clientId: "xxxxxx"
-clientSecret: "xxxxxxxxxx"
-serviceHost: "127.0.0.1:9090"
-serviceName: "keyclocak"
-servicePort: 80
-serviceSource: "ip"
+service_name: "auth"
+service_port: 443
+service_source: "dns"
+timeout_millis: 2000
 ```
-### 访问服务页面，未登陆的话进行跳转
-![keyclocak_2.png](keyclocak_2.png)
-### 登陆成功跳转到服务页面
-![keyclocak_3.png](keyclocak_3.png)
 
+
+
+### 访问服务页面，未登陆的话进行跳转
+![auth0_1.png](auth0_1.png)
+
+### 登陆成功跳转到服务页面
+![oath_2.png](oath_2.png)
+
+---
+
+
+
+##  OpenID Connect with keyclocak
+###  配置 keyclocak 账户
+* 本文档采用 docker 本机进行部署，所以注册的 ip 应该采用 ifconfig 获取网卡 ip
+![keycloak_0.png](keycloak_0.png)
+
+* 注册测试 web 应用程序
+
+### 将测试 keyclocak  应用程序与 Higress 关联
+* 创建服务来源
+
+![keycloak_1.png](keycloak_1.png)
+### 将测试 keyclocak 应用程序与您的 Oidc-Wasm 插件关联
+* 配置 oidc 插件
+```yaml
+issuer: "http://127.0.0.1:9090/realms/myrealm"
+redirect_url: "http://foo.bar.com/bar/oauth2/callback"
+client_url: "http://foo.bar.com/"
+scopes:
+  - "openid"
+  - "email"
+cookie_name: "_oauth2_wasm_keyclocak"
+cookie_domain: "foo.bar.com"
+client_id: "myclinet"
+client_secret: "EdKdKBX4N0jtYuPD4aGxZWiI7EVh4pr9"
+service_host: "127.0.0.1:9090"
+service_name: "keyclocak"
+service_port: 80
+service_source: "ip"
+```
+
+
+### 访问服务页面，未登陆的话进行跳转
+![keycloak_2.png](keycloak_2.png)
+### 登陆成功跳转到服务页面
+![keycloak_3.png](keycloak_3.png)
 
 
 ## 与oauth2-proxy支持的服务对比

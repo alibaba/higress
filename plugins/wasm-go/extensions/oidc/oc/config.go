@@ -96,7 +96,6 @@ func IsValidRedirect(redirect string) error {
 	if !strings.HasSuffix(redirect, "oauth2/callback") {
 		return errors.New("redirect URL must end with oauth2/callback")
 	}
-
 	switch {
 	case redirect == "":
 		return errors.New("redirect URL is empty")
