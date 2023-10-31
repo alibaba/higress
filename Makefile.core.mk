@@ -6,7 +6,7 @@ export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/version
+VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 
