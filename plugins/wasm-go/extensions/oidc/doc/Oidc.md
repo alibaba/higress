@@ -192,8 +192,8 @@ service_source: "ip"
 
 
 ## 主要的差异
-|  主要功能差异                                   |       oauth2-proxy                       | oidc-wasm                                                                                                                          | 
- |-------------------------------------------| ----------------- |------------------------------------------------------------------------------------------------------------------------------------|
-| 把服务放到 oauth2-proxy 后面                     |      ✓             |   不具备直接验证的能力                                                                                                                      |    |                                                        |
-| 在当前层可以展示具体信息比如email等                      |         ✓            | 作为网关的插件，校验token的正确性后只是进行了转发 ，在实现的过程中已经捕捉到了idtoken信息，可以实现提取出具体的信息用于优化日志展示等                                                          |
-| 在校验一些不标准的issuer,启动skipIssuerCheck比如github | ✓  | 已经抽象出 oidcHandler,开启skipissuerchecker，只要实现oidchandler的能力，可以ProcessRedirect中指定出authurl的校验，ProcessExchangeToken中指定给出jwksurl,  TokenURL |
+| 主要功能差异                                         | OAuth2-Proxy | OIDC-Wasm                                                                                                                                                  |
+|----------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 将服务放置在 OAuth2-Proxy 后                        | ✓            | 不具备直接验证的能力                                                                                                                                              |
+| 在当前层可以展示具体信息，如 email 等                   | ✓            | 作为网关的插件，校验 token 的正确性后只是进行了转发。在实现的过程中已经捕捉到了 ID Token 信息，可以实现提取出具体的信息用于优化日志展示等。                                        |
+| 校验一些非标准的 issuer，如启动 skipIssuerCheck 的 Github | ✓            | 已经抽象出 OIDCHandler，开启 skipIssuerChecker。只要实现 OIDCHandler 的能力，可以在 ProcessRedirect 中指定 authURL 的校验，在 ProcessExchangeToken 中指定 TokenURL 获取 token，在 ProcessVerify 中校验 token |

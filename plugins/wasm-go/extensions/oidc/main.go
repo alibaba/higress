@@ -38,10 +38,9 @@ type OidcConfig struct {
 	ClientID        string
 	ClientSecret    string
 	RedirectURL     string
-	ClientUrl       string
+	ClientURL       string
 	Timeout         int
 	CookieName      string
-	clientDomain    string
 	CookieSecret    string
 	CookieDomain    string
 	CookiePath      string
@@ -51,7 +50,6 @@ type OidcConfig struct {
 	Scopes          []string
 	SkipExpiryCheck bool
 	SkipNonceCheck  bool
-	SecuceCookie    bool
 	Client          wrapper.HttpClient
 }
 
@@ -78,13 +76,13 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 	if config.ClientSecret == "" {
 		return errors.New("missing client_secret in config")
 	}
-	config.ClientUrl = json.Get("client_url").String()
-	_, err := url.ParseRequestURI(config.ClientUrl)
+	config.ClientURL = json.Get("client_url").String()
+	_, err := url.ParseRequestURI(config.ClientURL)
 	if err != nil {
 		return errors.New("missing client_url in config or err format")
 	}
 
-	oc.IsValidRedirect(json.Get("redirect_url").String())
+	err = oc.IsValidRedirect(json.Get("redirect_url").String())
 	if err != nil {
 		return err
 	}
@@ -184,7 +182,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 			Scopes:       config.Scopes,
 		},
 		Issuer:          config.Issuer,
-		ClientUrl:       config.ClientUrl,
+		ClientUrl:       config.ClientURL,
 		Path:            config.Path,
 		SkipExpiryCheck: config.SkipExpiryCheck,
 		Timeout:         config.Timeout,
@@ -208,27 +206,23 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 	log.Debugf("path :%v host :%v state :%v code :%v cookie :%v", ctx.Path(), ctx.Host(), state, code, oidcCookieValue)
 
 	if oidcCookieValue == "" {
-
 		if code == "" {
 			if err := defaultHandler.ProcessRedirect(&log, cfg); err != nil {
 				oc.SendError(&log, fmt.Sprintf("ProcessRedirect error : %v", err), http.StatusInternalServerError)
 				return types.ActionContinue
 			}
+			return types.ActionPause
 		}
-
 		if strings.Contains(ctx.Path(), OAUTH2CALLBACK) {
 			parts := strings.Split(state, ".")
 			if len(parts) != 2 {
 				oc.SendError(&log, "State signature verification failed", http.StatusUnauthorized)
 				return types.ActionContinue
-
 			}
-
-			stateval, signature := parts[0], parts[1]
-			if err := oc.VerifyState(stateval, signature, cfg.ClientSecret, cfg.RedirectURL); err != nil {
+			stateVal, signature := parts[0], parts[1]
+			if err := oc.VerifyState(stateVal, signature, cfg.ClientSecret, cfg.RedirectURL); err != nil {
 				oc.SendError(&log, fmt.Sprintf("State signature verification failed : %v", err), http.StatusUnauthorized)
 				return types.ActionContinue
-
 			}
 
 			cfg.Option.Code = code
@@ -237,8 +231,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrappe
 				oc.SendError(&log, fmt.Sprintf("ProcessExchangeToken error : %v", err), http.StatusInternalServerError)
 				return types.ActionContinue
 			}
+			return types.ActionPause
 		}
-		return types.ActionPause
+		oc.SendError(&log, fmt.Sprintf("redirect URL must end with oauth2/callback"), http.StatusBadRequest)
+		return types.ActionContinue
 	}
 
 	cookiedata, err := oc.DeserializedeCookieData(oidcCookieValue)

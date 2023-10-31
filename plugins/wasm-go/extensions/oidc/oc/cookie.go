@@ -59,7 +59,6 @@ func DeserializedeCookieData(cookievalue string) (*CookieData, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 在这里调用 checkCookieExpiry 来检查 cookie 是否过期
 	if checkCookieExpiry(data) {
 		return nil, fmt.Errorf("cookie is expired")
 	}
@@ -127,13 +126,11 @@ func encrypt(plainText string, key string) (string, error) {
 }
 
 func buildSecureCookieHeader(data *CookieData, keySecret string, cookieSettings *CookieOption) (string, error) {
-	// 使用 JSON 序列化数据
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return "", err
 	}
 
-	// 加密序列化后的数据
 	encryptedValue, err := encrypt(string(jsonData), keySecret)
 	if err != nil {
 		return "", err
@@ -146,7 +143,6 @@ func buildSecureCookieHeader(data *CookieData, keySecret string, cookieSettings 
 }
 
 func retrieveCookieData(cookieValue string) (*CookieData, error) {
-	// 使用 JSON 进行反序列化
 	var data CookieData
 	err := json.Unmarshal([]byte(cookieValue), &data)
 	if err != nil {

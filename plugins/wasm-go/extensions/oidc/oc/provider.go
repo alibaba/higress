@@ -207,13 +207,13 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 		SkipExpiryCheck:      cfg.SkipExpiryCheck,
 		SkipNonceCheck:       cfg.SkipNonceCheck,
 	})
+
 	defaultHandlerForRedirect := NewDefaultOAuthHandler()
 	parsedURL, err := url.Parse(cfg.JwksURL)
 	if err != nil {
 		log.Errorf("JwksURL is invalid  err : %v", err)
 		return err
 	}
-
 	cb := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
@@ -282,7 +282,7 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 func verifyNonce(idtoken *IDToken, cfg *Oatuh2Config) error {
 	parts := strings.Split(idtoken.Nonce, ".")
 	if len(parts) != 2 {
-		return errors.New("Nonce format err expect 2 parts")
+		return errors.New("nonce format err expect 2 parts")
 	}
 	stateval, signature := parts[0], parts[1]
 	return VerifyState(stateval, signature, cfg.ClientSecret, cfg.RedirectURL)

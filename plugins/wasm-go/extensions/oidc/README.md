@@ -1,5 +1,5 @@
 # 功能说明
-`Oidc`本插件实现了 OIDC 认证插件
+`oidc` 本插件实现了 OIDC 认证能力, 插件目前存在的 CSRF 攻击问题，不建议用于生产环境  
 
 # 配置字段
 | 字段                | 数据类型   | 填写要求 | 默认值        | 描述                                                               |
@@ -29,18 +29,20 @@
 # 配置示例
 - 固定ip
 ```yaml
-Issuer: "http://127.0.0.1:9090/realms/myrealm"
-RedirectURL: "http://test.com/bar/oidc/callback"
-Scopes:
+issuer: "http://127.0.0.1:9090/realms/myrealm"
+redirect_url: "http://foo.bar.com/bar/oauth2/callback"
+client_url: "http://foo.bar.com/"
+scopes:
   - "openid"
   - "email"
-clientDomain: "test.com"
-clientID: "myclinet"
-clientSecret: "xxxxxx"
-serviceHost: "127.0.0.1:9090"
-serviceName: "keyclocak"
-servicePort: 80
-serviceSource: "ip"
+cookie_name: "_oauth2_wasm_keyclocak"
+cookie_domain: "foo.bar.com"
+client_id: "xxxxxxxxxxxx"
+client_secret: "xxxxxxxxxxxxxx"
+service_host: "127.0.0.1:9090"
+service_name: "keyclocak"
+service_port: 80
+service_source: "ip"
 ```
 - DNS域名
 - 在服务来源中注册好服务后，创建对应的ingress
@@ -71,20 +73,21 @@ spec:
 - 创建wasm插件
 ```yaml
 issuer: "https://dev-65874123.okta.com"
-redirectUrl: "http://foo.bar.com/a/oauth2/callback"
+redirect_url: "http://foo.bar.com/a/oauth2/callback"
 scopes:
   - "openid"
   - "email"
-clientUrl: "http://foo.bar.com/a"
-cookieDomain: "foo.bar.com"
-clientId: "xxxx"
-clientSecret: "xxxxxxxxxxxxxxxxxxx"
-domain: "dev-65874123.okta.com"
-serviceName: "okta"
-servicePort: 443
-serviceSource: "dns"
-timeOut: 2000
+client_url: "http://foo.bar.com/a"
+cookie_domain: "foo.bar.com"
+client_id: "xxxxxxxxxxxxxxx"
+client_secret: "xxxxxxx"
+service_domain: "dev-65874123.okta.com"
+service_name: "okta"
+service_port: 443
+service_source: "dns"
+timeout_millis: 2000
 ```
+
 在通过插件验证后会携带 `Authorization`的标头携带令牌
 
 
