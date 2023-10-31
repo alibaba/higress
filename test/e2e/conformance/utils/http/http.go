@@ -189,7 +189,10 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 
 	if expected.Request.ActualRequest.Headers != nil {
 		for name, value := range expected.Request.ActualRequest.Headers {
-			req.Headers[name] = []string{value}
+			vals := strings.Split(value, ",")
+			for _, val := range vals {
+				req.Headers[name] = append(req.Headers[name], strings.TrimSpace(val))
+			}
 		}
 	}
 

@@ -1,0 +1,111 @@
+diff -Naur envoy/contrib/custom_cluster_plugins/cluster_fallback/source/filter.cc envoy-new/contrib/custom_cluster_plugins/cluster_fallback/source/filter.cc
+--- envoy/contrib/custom_cluster_plugins/cluster_fallback/source/filter.cc	2023-10-08 15:01:21.960871500 +0800
++++ envoy-new/contrib/custom_cluster_plugins/cluster_fallback/source/filter.cc	2023-09-27 17:03:41.613256338 +0800
+@@ -60,7 +60,7 @@
+ 
+   for (const auto& cluster_name : first_item->second) {
+     if (hasHealthHost(cluster_name)) {
+-      return base.clone(cluster_name);
++      return base.clone(cluster_name, first_item->first);
+     }
+   }
+ 
+@@ -75,7 +75,8 @@
+ 
+   auto search = clusters_config_.find(route_entry.clusterName());
+   if (search == clusters_config_.end()) {
+-    ENVOY_LOG(warn, "there is no fallback cluster config, the original routing cluster is returned");
++    ENVOY_LOG(warn,
++              "there is no fallback cluster config, the original routing cluster is returned");
+     return cluster_entry.getRouteConstSharedPtr();
+   }
+ 
+@@ -87,7 +88,7 @@
+ 
+   for (const auto& cluster_name : search->second) {
+     if (hasHealthHost(cluster_name)) {
+-      return cluster_entry.clone(cluster_name);
++      return cluster_entry.clone(cluster_name, search->first);
+     }
+   }
+ 
+diff -Naur envoy/source/common/http/headers.h envoy-new/source/common/http/headers.h
+--- envoy/source/common/http/headers.h	2023-10-08 15:01:21.968871828 +0800
++++ envoy-new/source/common/http/headers.h	2023-09-27 18:48:50.059419606 +0800
+@@ -124,6 +124,7 @@
+     const LowerCaseString TriStartTime{"req-start-time"};
+     const LowerCaseString TriRespStartTime{"resp-start-time"};
+     const LowerCaseString EnvoyOriginalHost{"original-host"};
++    const LowerCaseString HigressOriginalService{"x-higress-original-service"};
+   } AliExtendedValues;
+ #endif
+ };
+diff -Naur envoy/source/common/router/config_impl.cc envoy-new/source/common/router/config_impl.cc
+--- envoy/source/common/router/config_impl.cc	2023-10-08 15:01:21.968871828 +0800
++++ envoy-new/source/common/router/config_impl.cc	2023-09-27 18:49:18.656592237 +0800
+@@ -563,7 +563,6 @@
+         route.name());
+   }
+   // End Added
+-
+ }
+ 
+ bool RouteEntryImplBase::evaluateRuntimeMatch(const uint64_t random_value) const {
+@@ -662,6 +661,10 @@
+   }
+ 
+ #if defined(ALIMESH)
++  if (!origin_cluster_name_.empty()) {
++    headers.addCopy(Http::CustomHeaders::get().AliExtendedValues.HigressOriginalService,
++                    origin_cluster_name_);
++  }
+   headers.setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.EnvoyOriginalHost,
+                           headers.getHostValue());
+ #endif
+diff -Naur envoy/source/common/router/config_impl.h envoy-new/source/common/router/config_impl.h
+--- envoy/source/common/router/config_impl.h	2023-10-08 15:01:21.968871828 +0800
++++ envoy-new/source/common/router/config_impl.h	2023-09-27 18:59:11.196893507 +0800
+@@ -584,9 +584,13 @@
+     return internal_active_redirect_policy_;
+   }
+ 
+-  RouteConstSharedPtr clone(const std::string& name) const {
+-    return std::make_shared<DynamicRouteEntry>(this, name);
++  RouteConstSharedPtr clone(const std::string& name, const std::string& origin_cluster = "") const {
++    auto entry = std::make_shared<DynamicRouteEntry>(this, name);
++    entry->setOriginClusterName(origin_cluster);
++    return entry;
+   }
++
++  void setOriginClusterName(const std::string& name) const { origin_cluster_name_ = name; }
+ #endif
+   uint32_t retryShadowBufferLimit() const override { return retry_shadow_buffer_limit_; }
+   const std::vector<ShadowPolicyPtr>& shadowPolicies() const override { return shadow_policies_; }
+@@ -787,11 +791,17 @@
+       return parent_->internalActiveRedirectPolicy();
+     }
+ 
+-    RouteConstSharedPtr clone(const std::string& name) const {
+-      return std::make_shared<Envoy::Router::RouteEntryImplBase::DynamicRouteEntry>(parent_, name);
++    RouteConstSharedPtr clone(const std::string& name,
++                              const std::string& origin_cluster = "") const {
++      auto entry =
++          std::make_shared<Envoy::Router::RouteEntryImplBase::DynamicRouteEntry>(parent_, name);
++      entry->setOriginClusterName(origin_cluster);
++      return entry;
+     }
+ 
+     virtual RouteConstSharedPtr getRouteConstSharedPtr() const { return shared_from_this(); }
++
++    void setOriginClusterName(const std::string& name) { parent_->setOriginClusterName(name); }
+ #endif
+ 
+   private:
+@@ -1039,6 +1049,7 @@
+ 
+ #if defined(ALIMESH)
+   const InternalActiveRedirectPoliciesImpl internal_active_redirect_policy_;
++  mutable std::string origin_cluster_name_;
+ #endif
+ };
+ 

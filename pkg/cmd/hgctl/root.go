@@ -14,7 +14,10 @@
 
 package hgctl
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin"
+	"github.com/spf13/cobra"
+)
 
 // GetRootCommand returns the root cobra command to be executed
 // by hgctl main.
@@ -34,6 +37,7 @@ func GetRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newProfileCmd())
 	rootCmd.AddCommand(newDashboardCmd())
 	rootCmd.AddCommand(newManifestCmd())
+	rootCmd.AddCommand(plugin.NewCommand())
 
 	return rootCmd
 }

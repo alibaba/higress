@@ -1,0 +1,90 @@
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion.go istio-new/pilot/pkg/config/kube/gateway/conversion.go
+--- istio/pilot/pkg/config/kube/gateway/conversion.go	2023-10-08 19:54:47.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conversion.go	2023-09-27 16:10:42.000000000 +0800
+@@ -18,6 +18,7 @@
+ 	"fmt"
+ 	"regexp"
+ 	"sort"
++	"strconv"
+ 	"strings"
+ 
+ 	corev1 "k8s.io/api/core/v1"
+@@ -176,7 +177,9 @@
+ 	hosts := hostnameToStringList(route.Hostnames)
+ 	for _, r := range route.Rules {
+ 		// TODO: implement rewrite, timeout, mirror, corspolicy, retries
+-		vs := &istio.HTTPRoute{}
++		vs := &istio.HTTPRoute{
++			Name: obj.Name,
++		}
+ 		for _, match := range r.Matches {
+ 			uri, err := createURIMatch(match)
+ 			if err != nil {
+@@ -246,7 +249,9 @@
+ 			}}
+ 		}
+ 
+-		route, err := buildHTTPDestination(r.BackendRefs, obj.Namespace, domain, zero)
++		fallbackCluster := obj.Annotations["higress.io/fallback-service"]
++
++		route, err := buildHTTPDestination(r.BackendRefs, obj.Namespace, domain, zero, fallbackCluster)
+ 		if err != nil {
+ 			reportError(err)
+ 			return nil
+@@ -581,11 +586,33 @@
+ 	return r
+ }
+ 
+-func buildHTTPDestination(forwardTo []k8s.HTTPBackendRef, ns string, domain string, totalZero bool) ([]*istio.HTTPRouteDestination, *ConfigError) {
++func buildHTTPDestination(forwardTo []k8s.HTTPBackendRef, ns string, domain string, totalZero bool, fallbackCluster string) ([]*istio.HTTPRouteDestination, *ConfigError) {
+ 	if forwardTo == nil {
+ 		return nil, nil
+ 	}
+ 
++	var fallbackDest *istio.Destination
++	if fallbackCluster != "" {
++		var port uint64
++		host := fallbackCluster
++		colon := strings.LastIndex(fallbackCluster, ":")
++		if colon != -1 {
++			var err error
++			port, err = strconv.ParseUint(fallbackCluster[colon+1:], 10, 32)
++			if err == nil && port > 0 && port < 65536 {
++				host = fallbackCluster[:colon]
++			}
++		}
++		fallbackDest = &istio.Destination{
++			Host: host,
++		}
++		if port > 0 {
++			fallbackDest.Port = &istio.PortSelector{
++				Number: uint32(port),
++			}
++		}
++	}
++
+ 	weights := []int{}
+ 	action := []k8s.HTTPBackendRef{}
+ 	for i, w := range forwardTo {
+@@ -612,6 +639,9 @@
+ 			Destination: dst,
+ 			Weight:      int32(weights[i]),
+ 		}
++		if fallbackDest != nil {
++			rd.FallbackClusters = append(rd.FallbackClusters, fallbackDest)
++		}
+ 		for _, filter := range fwd.Filters {
+ 			switch filter.Type {
+ 			case k8s.HTTPRouteFilterRequestHeaderModifier:
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/route/route.go istio-new/pilot/pkg/networking/core/v1alpha3/route/route.go
+--- istio/pilot/pkg/networking/core/v1alpha3/route/route.go	2023-10-08 19:54:46.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/route/route.go	2023-09-27 16:18:16.000000000 +0800
+@@ -669,7 +669,7 @@
+ 		}
+ 		var singleClusterConfig *fallback.ClusterFallbackConfig
+ 		var weightedClusterConfig *fallback.ClusterFallbackConfig
+-		isSupportFallback := supportFallback(node)
++		isSupportFallback := true
+ 		// Added by ingress
+ 		if len(in.Route) == 1 {
+ 			route := in.Route[0]

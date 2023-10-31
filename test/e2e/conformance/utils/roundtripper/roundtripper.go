@@ -164,8 +164,10 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 	}
 
 	if request.Headers != nil {
-		for name, value := range request.Headers {
-			req.Header.Set(name, value[0])
+		for name, values := range request.Headers {
+			for _, value := range values {
+				req.Header.Add(name, value)
+			}
 		}
 	}
 
