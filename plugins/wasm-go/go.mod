@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	github.com/google/uuid v1.3.0
+	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520
 	github.com/stretchr/testify v1.8.0
 	github.com/tetratelabs/proxy-wasm-go-sdk v0.19.1-0.20220822060051-f9d179a57f8c
 	github.com/tidwall/gjson v1.14.3
-	github.com/wasilibs/nottinygc v0.5.1
 )
 
 require (
@@ -18,5 +18,3 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/wasilibs/nottinygc v0.5.1 => github.com/higress-group/nottinygc v0.0.0-20231019105920-c4d985d443e1
