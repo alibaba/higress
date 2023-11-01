@@ -1,0 +1,2202 @@
+diff -Naur istio/go.mod istio-new/go.mod
+--- istio/go.mod	2023-10-31 20:37:58.000000000 +0800
++++ istio-new/go.mod	2023-10-31 16:27:51.000000000 +0800
+@@ -120,3 +120,5 @@
+ replace istio.io/pkg => ../pkg
+ 
+ replace istio.io/client-go => ../client-go
++
++replace sigs.k8s.io/gateway-api => github.com/johnlanni/gateway-api v0.0.0-20231031082632-72137664e7c7
+diff -Naur istio/go.sum istio-new/go.sum
+--- istio/go.sum	2023-10-31 20:37:58.000000000 +0800
++++ istio-new/go.sum	2023-10-31 16:27:51.000000000 +0800
+@@ -728,6 +728,8 @@
+ github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
+ github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
+ github.com/jmoiron/sqlx v1.3.1/go.mod h1:2BljVx/86SuTyjE+aPYlHCTNvZrnJXghYGpNiXLBMCQ=
++github.com/johnlanni/gateway-api v0.0.0-20231031082632-72137664e7c7 h1:LNmZyALwctdNWJ7ac3pQ/J5IiFiV/PqU+NOfGX80294=
++github.com/johnlanni/gateway-api v0.0.0-20231031082632-72137664e7c7/go.mod h1:dxxYLL82Z42s+fMbZtcRemlbqswyetq7qqgreN5mXQE=
+ github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
+ github.com/jonboulle/clockwork v0.2.2 h1:UOGuzwb1PwsrDAObMuhUnj0p5ULPj8V/xJ7Kx9qUBdQ=
+ github.com/jonboulle/clockwork v0.2.2/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
+@@ -1418,6 +1420,7 @@
+ golang.org/x/oauth2 v0.0.0-20210218202405-ba52d332ba99/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+ golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+ golang.org/x/oauth2 v0.0.0-20210313182246-cd4f82c27b84/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
++golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+ golang.org/x/oauth2 v0.0.0-20210427180440-81ed05c6b58c/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+ golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+ golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
+@@ -2024,8 +2027,6 @@
+ sigs.k8s.io/controller-runtime v0.10.2/go.mod h1:CQp8eyUQZ/Q7PJvnIrB6/hgfTC1kBkGylwsLgOQi1WY=
+ sigs.k8s.io/controller-tools v0.3.0/go.mod h1:enhtKGfxZD1GFEoMgP8Fdbu+uKQ/cq1/WGJhdVChfvI=
+ sigs.k8s.io/controller-tools v0.6.2/go.mod h1:oaeGpjXn6+ZSEIQkUe/+3I40PNiDYp9aeawbt3xTgJ8=
+-sigs.k8s.io/gateway-api v0.4.0 h1:07IJkTt21NetZTHtPKJk2I4XIgDN4BAlTIq1wK7V11o=
+-sigs.k8s.io/gateway-api v0.4.0/go.mod h1:r3eiNP+0el+NTLwaTfOrCNXy8TukC+dIM3ggc+fbNWk=
+ sigs.k8s.io/kind v0.8.1/go.mod h1:oNKTxUVPYkV9lWzY6CVMNluVq8cBsyq+UgPJdvA3uu4=
+ sigs.k8s.io/kustomize/api v0.8.11 h1:LzQzlq6Z023b+mBtc6v72N2mSHYmN8x7ssgbf/hv0H8=
+ sigs.k8s.io/kustomize/api v0.8.11/go.mod h1:a77Ls36JdfCWojpUqR6m60pdGY1AYFix4AH83nJtY1g=
+diff -Naur istio/pilot/pkg/config/aggregate/config_test.go istio-new/pilot/pkg/config/aggregate/config_test.go
+--- istio/pilot/pkg/config/aggregate/config_test.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/aggregate/config_test.go	2023-10-31 19:48:58.000000000 +0800
+@@ -36,8 +36,8 @@
+ func TestAggregateStoreBasicMake(t *testing.T) {
+ 	g := gomega.NewWithT(t)
+ 
+-	schema1 := collections.K8SGatewayApiV1Alpha2Httproutes
+-	schema2 := collections.K8SGatewayApiV1Alpha2Gatewayclasses
++	schema1 := collections.K8SGatewayApiV1Beta1Httproutes
++	schema2 := collections.K8SGatewayApiV1Beta1Gatewayclasses
+ 	store1 := memory.Make(collection.SchemasFor(schema1))
+ 	store2 := memory.Make(collection.SchemasFor(schema2))
+ 
+@@ -66,8 +66,8 @@
+ func TestAggregateStoreGet(t *testing.T) {
+ 	g := gomega.NewWithT(t)
+ 
+-	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Gatewayclasses))
+-	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Gatewayclasses))
++	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Gatewayclasses))
++	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Gatewayclasses))
+ 
+ 	configReturn := &config.Config{
+ 		Meta: config.Meta{
+@@ -91,8 +91,8 @@
+ func TestAggregateStoreList(t *testing.T) {
+ 	g := gomega.NewWithT(t)
+ 
+-	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
+-	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
++	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
++	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
+ 
+ 	if _, err := store1.Create(config.Config{
+ 		Meta: config.Meta{
+@@ -124,8 +124,8 @@
+ func TestAggregateStoreWrite(t *testing.T) {
+ 	g := gomega.NewWithT(t)
+ 
+-	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
+-	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
++	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
++	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
+ 
+ 	stores := []model.ConfigStore{store1, store2}
+ 
+@@ -162,8 +162,8 @@
+ func TestAggregateStoreWriteWithoutWriter(t *testing.T) {
+ 	g := gomega.NewWithT(t)
+ 
+-	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
+-	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
++	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
++	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
+ 
+ 	stores := []model.ConfigStore{store1, store2}
+ 
+@@ -218,11 +218,11 @@
+ 	stop := make(chan struct{})
+ 	defer func() { close(stop) }()
+ 
+-	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Httproutes))
++	store1 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Httproutes))
+ 	controller1 := memory.NewController(store1)
+ 	go controller1.Run(stop)
+ 
+-	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Alpha2Gatewayclasses))
++	store2 := memory.Make(collection.SchemasFor(collections.K8SGatewayApiV1Beta1Gatewayclasses))
+ 	controller2 := memory.NewController(store2)
+ 	go controller2.Run(stop)
+ 
+diff -Naur istio/pilot/pkg/config/kube/crdclient/gen/main.go istio-new/pilot/pkg/config/kube/crdclient/gen/main.go
+--- istio/pilot/pkg/config/kube/crdclient/gen/main.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/crdclient/gen/main.go	2023-10-31 16:39:34.000000000 +0800
+@@ -79,6 +79,7 @@
+ 		"istio.io/api/security/v1beta1":         "securityv1beta1",
+ 		"istio.io/api/telemetry/v1alpha1":       "telemetryv1alpha1",
+ 		"sigs.k8s.io/gateway-api/apis/v1alpha2": "gatewayv1alpha2",
++		"sigs.k8s.io/gateway-api/apis/v1beta1":  "gatewayv1beta1",
+ 		"istio.io/api/meta/v1alpha1":            "metav1alpha1",
+ 		"istio.io/api/extensions/v1alpha1":      "extensionsv1alpha1",
+ 	}
+@@ -88,6 +89,7 @@
+ 		"istio.io/api/security/v1beta1":         "clientsecurityv1beta1",
+ 		"istio.io/api/telemetry/v1alpha1":       "clienttelemetryv1alpha1",
+ 		"sigs.k8s.io/gateway-api/apis/v1alpha2": "gatewayv1alpha2",
++		"sigs.k8s.io/gateway-api/apis/v1beta1":  "gatewayv1beta1",
+ 		"istio.io/api/extensions/v1alpha1":      "clientextensionsv1alpha1",
+ 	}
+ 	// Translates an api import path to the top level path in client-go
+@@ -96,6 +98,7 @@
+ 		"istio.io/api/security/v1beta1":         "SecurityV1beta1",
+ 		"istio.io/api/telemetry/v1alpha1":       "TelemetryV1alpha1",
+ 		"sigs.k8s.io/gateway-api/apis/v1alpha2": "GatewayV1alpha2",
++		"sigs.k8s.io/gateway-api/apis/v1beta1":  "GatewayV1beta1",
+ 		"istio.io/api/extensions/v1alpha1":      "ExtensionsV1alpha1",
+ 	}
+ 	// Translates a plural type name to the type path in client-go
+@@ -116,7 +119,7 @@
+ 		"httproutes":               "HTTPRoutes",
+ 		"tcproutes":                "TCPRoutes",
+ 		"tlsroutes":                "TLSRoutes",
+-		"referencepolicies":        "ReferencePolicies",
++		"referencegrants":          "ReferenceGrants",
+ 		"telemetries":              "Telemetries",
+ 		"wasmplugins":              "WasmPlugins",
+ 		"servicesubscriptionlists": "ServiceSubscriptionLists",
+diff -Naur istio/pilot/pkg/config/kube/crdclient/gen/types.go.tmpl istio-new/pilot/pkg/config/kube/crdclient/gen/types.go.tmpl
+--- istio/pilot/pkg/config/kube/crdclient/gen/types.go.tmpl	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/crdclient/gen/types.go.tmpl	2023-10-31 16:37:33.000000000 +0800
+@@ -45,6 +45,7 @@
+ 	clienttelemetryv1alpha1 "istio.io/client-go/pkg/apis/telemetry/v1alpha1"
+ 
+ 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ )
+ 
+ func create(ic versionedclient.Interface, sc gatewayapiclient.Interface, cfg config.Config, objMeta metav1.ObjectMeta) (metav1.Object, error) {
+diff -Naur istio/pilot/pkg/config/kube/crdclient/types.gen.go istio-new/pilot/pkg/config/kube/crdclient/types.gen.go
+--- istio/pilot/pkg/config/kube/crdclient/types.gen.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/crdclient/types.gen.go	2023-10-31 16:48:55.000000000 +0800
+@@ -45,6 +45,7 @@
+ 	clienttelemetryv1alpha1 "istio.io/client-go/pkg/apis/telemetry/v1alpha1"
+ 
+ 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ )
+ 
+ func create(ic versionedclient.Interface, sc gatewayapiclient.Interface, cfg config.Config, objMeta metav1.ObjectMeta) (metav1.Object, error) {
+@@ -119,35 +120,35 @@
+ 			ObjectMeta: objMeta,
+ 			Spec:       *(cfg.Spec.(*telemetryv1alpha1.Telemetry)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().GatewayClasses().Create(context.TODO(), &gatewayv1alpha2.GatewayClass{
++	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.TCPRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.GatewayClassSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().Gateways(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.Gateway{
++	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.TLSRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.GatewaySpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().HTTPRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.HTTPRoute{
++	case collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().GatewayClasses().Create(context.TODO(), &gatewayv1beta1.GatewayClass{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.HTTPRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.GatewayClassSpec)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().ReferencePolicies(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.ReferencePolicy{
++	case collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().Gateways(cfg.Namespace).Create(context.TODO(), &gatewayv1beta1.Gateway{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.ReferencePolicySpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.GatewaySpec)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.TCPRoute{
++	case collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().HTTPRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1beta1.HTTPRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.HTTPRouteSpec)),
+ 		}, metav1.CreateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).Create(context.TODO(), &gatewayv1alpha2.TLSRoute{
++	case collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().ReferenceGrants(cfg.Namespace).Create(context.TODO(), &gatewayv1beta1.ReferenceGrant{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.ReferenceGrantSpec)),
+ 		}, metav1.CreateOptions{})
+ 	default:
+ 		return nil, fmt.Errorf("unsupported type: %v", cfg.GroupVersionKind)
+@@ -226,35 +227,35 @@
+ 			ObjectMeta: objMeta,
+ 			Spec:       *(cfg.Spec.(*telemetryv1alpha1.Telemetry)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().GatewayClasses().Update(context.TODO(), &gatewayv1alpha2.GatewayClass{
++	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.TCPRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.GatewayClassSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().Gateways(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.Gateway{
++	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.TLSRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.GatewaySpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().HTTPRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.HTTPRoute{
++	case collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().GatewayClasses().Update(context.TODO(), &gatewayv1beta1.GatewayClass{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.HTTPRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.GatewayClassSpec)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().ReferencePolicies(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.ReferencePolicy{
++	case collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().Gateways(cfg.Namespace).Update(context.TODO(), &gatewayv1beta1.Gateway{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.ReferencePolicySpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.GatewaySpec)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.TCPRoute{
++	case collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().HTTPRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1beta1.HTTPRoute{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.HTTPRouteSpec)),
+ 		}, metav1.UpdateOptions{})
+-	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).Update(context.TODO(), &gatewayv1alpha2.TLSRoute{
++	case collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().ReferenceGrants(cfg.Namespace).Update(context.TODO(), &gatewayv1beta1.ReferenceGrant{
+ 			ObjectMeta: objMeta,
+-			Spec:       *(cfg.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
++			Spec:       *(cfg.Spec.(*gatewayv1beta1.ReferenceGrantSpec)),
+ 		}, metav1.UpdateOptions{})
+ 	default:
+ 		return nil, fmt.Errorf("unsupported type: %v", cfg.GroupVersionKind)
+@@ -348,35 +349,36 @@
+ 			Status:     *(cfg.Status.(*metav1alpha1.IstioStatus)),
+ 		}, metav1.UpdateOptions{})
+ 
+-	case collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().GatewayClasses().UpdateStatus(context.TODO(), &gatewayv1alpha2.GatewayClass{
++	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.TCPRoute{
+ 			ObjectMeta: objMeta,
+-			Status:     *(cfg.Status.(*gatewayv1alpha2.GatewayClassStatus)),
++			Status:     *(cfg.Status.(*gatewayv1alpha2.TCPRouteStatus)),
+ 		}, metav1.UpdateOptions{})
+ 
+-	case collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().Gateways(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.Gateway{
++	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
++		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.TLSRoute{
+ 			ObjectMeta: objMeta,
+-			Status:     *(cfg.Status.(*gatewayv1alpha2.GatewayStatus)),
++			Status:     *(cfg.Status.(*gatewayv1alpha2.TLSRouteStatus)),
+ 		}, metav1.UpdateOptions{})
+ 
+-	case collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().HTTPRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.HTTPRoute{
++	case collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().GatewayClasses().UpdateStatus(context.TODO(), &gatewayv1beta1.GatewayClass{
+ 			ObjectMeta: objMeta,
+-			Status:     *(cfg.Status.(*gatewayv1alpha2.HTTPRouteStatus)),
++			Status:     *(cfg.Status.(*gatewayv1beta1.GatewayClassStatus)),
+ 		}, metav1.UpdateOptions{})
+ 
+-	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TCPRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.TCPRoute{
++	case collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().Gateways(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1beta1.Gateway{
+ 			ObjectMeta: objMeta,
+-			Status:     *(cfg.Status.(*gatewayv1alpha2.TCPRouteStatus)),
++			Status:     *(cfg.Status.(*gatewayv1beta1.GatewayStatus)),
+ 		}, metav1.UpdateOptions{})
+ 
+-	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().TLSRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1alpha2.TLSRoute{
++	case collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().HTTPRoutes(cfg.Namespace).UpdateStatus(context.TODO(), &gatewayv1beta1.HTTPRoute{
+ 			ObjectMeta: objMeta,
+-			Status:     *(cfg.Status.(*gatewayv1alpha2.TLSRouteStatus)),
++			Status:     *(cfg.Status.(*gatewayv1beta1.HTTPRouteStatus)),
+ 		}, metav1.UpdateOptions{})
++
+ 	default:
+ 		return nil, fmt.Errorf("unsupported type: %v", cfg.GroupVersionKind)
+ 	}
+@@ -598,95 +600,95 @@
+ 		}
+ 		return ic.TelemetryV1alpha1().Telemetries(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.GatewayClass{
++	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
++		oldRes := &gatewayv1alpha2.TCPRoute{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.GatewayClassSpec)),
++			Spec:       *(orig.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.GatewayClass{
++		modRes := &gatewayv1alpha2.TCPRoute{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.GatewayClassSpec)),
++			Spec:       *(mod.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().GatewayClasses().
++		return sc.GatewayV1alpha2().TCPRoutes(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.Gateway{
++	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
++		oldRes := &gatewayv1alpha2.TLSRoute{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.GatewaySpec)),
++			Spec:       *(orig.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.Gateway{
++		modRes := &gatewayv1alpha2.TLSRoute{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.GatewaySpec)),
++			Spec:       *(mod.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().Gateways(orig.Namespace).
++		return sc.GatewayV1alpha2().TLSRoutes(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.HTTPRoute{
++	case collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind():
++		oldRes := &gatewayv1beta1.GatewayClass{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.HTTPRouteSpec)),
++			Spec:       *(orig.Spec.(*gatewayv1beta1.GatewayClassSpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.HTTPRoute{
++		modRes := &gatewayv1beta1.GatewayClass{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.HTTPRouteSpec)),
++			Spec:       *(mod.Spec.(*gatewayv1beta1.GatewayClassSpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().HTTPRoutes(orig.Namespace).
++		return sc.GatewayV1beta1().GatewayClasses().
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.ReferencePolicy{
++	case collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind():
++		oldRes := &gatewayv1beta1.Gateway{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.ReferencePolicySpec)),
++			Spec:       *(orig.Spec.(*gatewayv1beta1.GatewaySpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.ReferencePolicy{
++		modRes := &gatewayv1beta1.Gateway{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.ReferencePolicySpec)),
++			Spec:       *(mod.Spec.(*gatewayv1beta1.GatewaySpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().ReferencePolicies(orig.Namespace).
++		return sc.GatewayV1beta1().Gateways(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.TCPRoute{
++	case collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind():
++		oldRes := &gatewayv1beta1.HTTPRoute{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
++			Spec:       *(orig.Spec.(*gatewayv1beta1.HTTPRouteSpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.TCPRoute{
++		modRes := &gatewayv1beta1.HTTPRoute{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.TCPRouteSpec)),
++			Spec:       *(mod.Spec.(*gatewayv1beta1.HTTPRouteSpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().TCPRoutes(orig.Namespace).
++		return sc.GatewayV1beta1().HTTPRoutes(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+-	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
+-		oldRes := &gatewayv1alpha2.TLSRoute{
++	case collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind():
++		oldRes := &gatewayv1beta1.ReferenceGrant{
+ 			ObjectMeta: origMeta,
+-			Spec:       *(orig.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
++			Spec:       *(orig.Spec.(*gatewayv1beta1.ReferenceGrantSpec)),
+ 		}
+-		modRes := &gatewayv1alpha2.TLSRoute{
++		modRes := &gatewayv1beta1.ReferenceGrant{
+ 			ObjectMeta: modMeta,
+-			Spec:       *(mod.Spec.(*gatewayv1alpha2.TLSRouteSpec)),
++			Spec:       *(mod.Spec.(*gatewayv1beta1.ReferenceGrantSpec)),
+ 		}
+ 		patchBytes, err := genPatchBytes(oldRes, modRes, typ)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		return sc.GatewayV1alpha2().TLSRoutes(orig.Namespace).
++		return sc.GatewayV1beta1().ReferenceGrants(orig.Namespace).
+ 			Patch(context.TODO(), orig.Name, typ, patchBytes, metav1.PatchOptions{FieldManager: "pilot-discovery"})
+ 	default:
+ 		return nil, fmt.Errorf("unsupported type: %v", orig.GroupVersionKind)
+@@ -727,18 +729,18 @@
+ 		return ic.SecurityV1beta1().RequestAuthentications(namespace).Delete(context.TODO(), name, deleteOptions)
+ 	case collections.IstioTelemetryV1Alpha1Telemetries.Resource().GroupVersionKind():
+ 		return ic.TelemetryV1alpha1().Telemetries(namespace).Delete(context.TODO(), name, deleteOptions)
+-	case collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().GatewayClasses().Delete(context.TODO(), name, deleteOptions)
+-	case collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().Gateways(namespace).Delete(context.TODO(), name, deleteOptions)
+-	case collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().HTTPRoutes(namespace).Delete(context.TODO(), name, deleteOptions)
+-	case collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind():
+-		return sc.GatewayV1alpha2().ReferencePolicies(namespace).Delete(context.TODO(), name, deleteOptions)
+ 	case collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind():
+ 		return sc.GatewayV1alpha2().TCPRoutes(namespace).Delete(context.TODO(), name, deleteOptions)
+ 	case collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind():
+ 		return sc.GatewayV1alpha2().TLSRoutes(namespace).Delete(context.TODO(), name, deleteOptions)
++	case collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().GatewayClasses().Delete(context.TODO(), name, deleteOptions)
++	case collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().Gateways(namespace).Delete(context.TODO(), name, deleteOptions)
++	case collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().HTTPRoutes(namespace).Delete(context.TODO(), name, deleteOptions)
++	case collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind():
++		return sc.GatewayV1beta1().ReferenceGrants(namespace).Delete(context.TODO(), name, deleteOptions)
+ 	default:
+ 		return fmt.Errorf("unsupported type: %v", typ)
+ 	}
+@@ -1011,11 +1013,11 @@
+ 			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.GatewayClass)
++	collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1alpha2.TCPRoute)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Gatewayclasses.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1030,11 +1032,11 @@
+ 			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.Gateway)
++	collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1alpha2.TLSRoute)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Gateways.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1049,11 +1051,11 @@
+ 			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.HTTPRoute)
++	collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1beta1.GatewayClass)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Httproutes.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Beta1Gatewayclasses.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1068,11 +1070,11 @@
+ 			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.ReferencePolicy)
++	collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1beta1.Gateway)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Referencepolicies.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Beta1Gateways.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1083,14 +1085,15 @@
+ 				UID:               string(obj.UID),
+ 				Generation:        obj.Generation,
+ 			},
+-			Spec: &obj.Spec,
++			Spec:   &obj.Spec,
++			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.TCPRoute)
++	collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1beta1.HTTPRoute)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Tcproutes.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Beta1Httproutes.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1105,11 +1108,11 @@
+ 			Status: &obj.Status,
+ 		}
+ 	},
+-	collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
+-		obj := r.(*gatewayv1alpha2.TLSRoute)
++	collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind(): func(r runtime.Object) *config.Config {
++		obj := r.(*gatewayv1beta1.ReferenceGrant)
+ 		return &config.Config{
+ 			Meta: config.Meta{
+-				GroupVersionKind:  collections.K8SGatewayApiV1Alpha2Tlsroutes.Resource().GroupVersionKind(),
++				GroupVersionKind:  collections.K8SGatewayApiV1Beta1Referencegrants.Resource().GroupVersionKind(),
+ 				Name:              obj.Name,
+ 				Namespace:         obj.Namespace,
+ 				Labels:            obj.Labels,
+@@ -1120,8 +1123,7 @@
+ 				UID:               string(obj.UID),
+ 				Generation:        obj.Generation,
+ 			},
+-			Spec:   &obj.Spec,
+-			Status: &obj.Status,
++			Spec: &obj.Spec,
+ 		}
+ 	},
+ }
+diff -Naur istio/pilot/pkg/config/kube/gateway/conditions.go istio-new/pilot/pkg/config/kube/gateway/conditions.go
+--- istio/pilot/pkg/config/kube/gateway/conditions.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conditions.go	2023-10-31 19:21:02.000000000 +0800
+@@ -19,7 +19,7 @@
+ 	"sort"
+ 
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	k8s "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	"istio.io/istio/pilot/pkg/model/kstatus"
+ 	"istio.io/istio/pkg/config"
+diff -Naur istio/pilot/pkg/config/kube/gateway/controller.go istio-new/pilot/pkg/config/kube/gateway/controller.go
+--- istio/pilot/pkg/config/kube/gateway/controller.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/controller.go	2023-10-31 20:09:40.000000000 +0800
+@@ -25,7 +25,7 @@
+ 	klabels "k8s.io/apimachinery/pkg/labels"
+ 	listerv1 "k8s.io/client-go/listers/core/v1"
+ 	"k8s.io/client-go/tools/cache"
+-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	k8s "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	"istio.io/istio/pilot/pkg/features"
+ 	"istio.io/istio/pilot/pkg/model"
+@@ -182,20 +182,20 @@
+ 	if err != nil {
+ 		return fmt.Errorf("failed to list type TLSRoute: %v", err)
+ 	}
+-	referencePolicy, err := c.cache.List(gvk.ReferencePolicy, metav1.NamespaceAll)
++	referenceGrant, err := c.cache.List(gvk.ReferenceGrant, metav1.NamespaceAll)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to list type BackendPolicy: %v", err)
+ 	}
+ 
+ 	input := &KubernetesResources{
+-		GatewayClass:    deepCopyStatus(gatewayClass),
+-		Gateway:         deepCopyStatus(gateway),
+-		HTTPRoute:       deepCopyStatus(httpRoute),
+-		TCPRoute:        deepCopyStatus(tcpRoute),
+-		TLSRoute:        deepCopyStatus(tlsRoute),
+-		ReferencePolicy: referencePolicy,
+-		Domain:          c.domain,
+-		Context:         context,
++		GatewayClass:   deepCopyStatus(gatewayClass),
++		Gateway:        deepCopyStatus(gateway),
++		HTTPRoute:      deepCopyStatus(httpRoute),
++		TCPRoute:       deepCopyStatus(tcpRoute),
++		TLSRoute:       deepCopyStatus(tlsRoute),
++		ReferenceGrant: referenceGrant,
++		Domain:         c.domain,
++		Context:        context,
+ 	}
+ 
+ 	if !anyApisUsed(input) {
+@@ -387,5 +387,5 @@
+ 		len(input.HTTPRoute) > 0 ||
+ 		len(input.TCPRoute) > 0 ||
+ 		len(input.TLSRoute) > 0 ||
+-		len(input.ReferencePolicy) > 0
++		len(input.ReferenceGrant) > 0
+ }
+diff -Naur istio/pilot/pkg/config/kube/gateway/controller_test.go istio-new/pilot/pkg/config/kube/gateway/controller_test.go
+--- istio/pilot/pkg/config/kube/gateway/controller_test.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/controller_test.go	2023-10-31 19:59:19.000000000 +0800
+@@ -18,7 +18,7 @@
+ 	"testing"
+ 
+ 	. "github.com/onsi/gomega"
+-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	k8s "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	networking "istio.io/api/networking/v1alpha3"
+ 	"istio.io/istio/pilot/pkg/config/memory"
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion.go istio-new/pilot/pkg/config/kube/gateway/conversion.go
+--- istio/pilot/pkg/config/kube/gateway/conversion.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conversion.go	2023-10-31 20:09:44.000000000 +0800
+@@ -24,7 +24,8 @@
+ 	corev1 "k8s.io/api/core/v1"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	klabels "k8s.io/apimachinery/pkg/labels"
+-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	istio "istio.io/api/networking/v1alpha3"
+ 	"istio.io/istio/pilot/pkg/model"
+@@ -44,12 +45,12 @@
+ 
+ // KubernetesResources stores all inputs to our conversion
+ type KubernetesResources struct {
+-	GatewayClass    []config.Config
+-	Gateway         []config.Config
+-	HTTPRoute       []config.Config
+-	TCPRoute        []config.Config
+-	TLSRoute        []config.Config
+-	ReferencePolicy []config.Config
++	GatewayClass   []config.Config
++	Gateway        []config.Config
++	HTTPRoute      []config.Config
++	TCPRoute       []config.Config
++	TLSRoute       []config.Config
++	ReferenceGrant []config.Config
+ 	// Namespaces stores all namespace in the cluster, keyed by name
+ 	Namespaces map[string]*corev1.Namespace
+ 
+@@ -69,10 +70,10 @@
+ 	ReferencedNamespaceKeys sets.Set
+ }
+ 
+-// Reference stores a reference to a namespaced GVK, as used by ReferencePolicy
++// Reference stores a reference to a namespaced GVK, as used by ReferenceGrant
+ type Reference struct {
+ 	Kind      config.GroupVersionKind
+-	Namespace k8s.Namespace
++	Namespace gatewayapiV1beta1.Namespace
+ }
+ 
+ // convertResources is the top level entrypoint to our conversion logic, computing the full state based
+@@ -97,14 +98,14 @@
+ 	return result
+ }
+ 
+-// convertReferencePolicies extracts all ReferencePolicy into an easily accessibly index.
++// convertReferencePolicies extracts all ReferenceGrant into an easily accessibly index.
+ // The currently supported references are:
+ // * Gateway -> Secret
+ func convertReferencePolicies(r *KubernetesResources) map[Reference]map[Reference]struct{} {
+-	// TODO support Name in ReferencePolicyTo
++	// TODO support Name in ReferenceGrantTo
+ 	res := map[Reference]map[Reference]struct{}{}
+-	for _, obj := range r.ReferencePolicy {
+-		rp := obj.Spec.(*k8s.ReferencePolicySpec)
++	for _, obj := range r.ReferenceGrant {
++		rp := obj.Spec.(*gatewayapiV1beta1.ReferenceGrantSpec)
+ 		for _, from := range rp.From {
+ 			fromKey := Reference{
+ 				Namespace: from.Namespace,
+@@ -136,7 +137,7 @@
+ }
+ 
+ // convertVirtualService takes all xRoute types and generates corresponding VirtualServices.
+-func convertVirtualService(r *KubernetesResources, gatewayMap map[parentKey]map[k8s.SectionName]*parentInfo) []config.Config {
++func convertVirtualService(r *KubernetesResources, gatewayMap map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo) []config.Config {
+ 	result := []config.Config{}
+ 	for _, obj := range r.TCPRoute {
+ 		if vsConfig := buildTCPVirtualService(obj, gatewayMap, r.Domain); vsConfig != nil {
+@@ -158,14 +159,14 @@
+ 	return result
+ }
+ 
+-func buildHTTPVirtualServices(obj config.Config, gateways map[parentKey]map[k8s.SectionName]*parentInfo, domain string) *config.Config {
+-	route := obj.Spec.(*k8s.HTTPRouteSpec)
++func buildHTTPVirtualServices(obj config.Config, gateways map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, domain string) *config.Config {
++	route := obj.Spec.(*gatewayapiV1beta1.HTTPRouteSpec)
+ 
+ 	parentRefs := extractParentReferenceInfo(gateways, route.ParentRefs, route.Hostnames, gvk.HTTPRoute, obj.Namespace)
+ 
+ 	reportError := func(routeErr *ConfigError) {
+ 		obj.Status.(*kstatus.WrappedStatus).Mutate(func(s config.Status) config.Status {
+-			rs := s.(*k8s.HTTPRouteStatus)
++			rs := s.(*gatewayapiV1beta1.HTTPRouteStatus)
+ 			rs.Parents = createRouteStatus(parentRefs, obj, rs.Parents, routeErr)
+ 			return rs
+ 		})
+@@ -210,11 +211,11 @@
+ 		}
+ 		for _, filter := range r.Filters {
+ 			switch filter.Type {
+-			case k8s.HTTPRouteFilterRequestHeaderModifier:
++			case gatewayapiV1beta1.HTTPRouteFilterRequestHeaderModifier:
+ 				vs.Headers = createHeadersFilter(filter.RequestHeaderModifier)
+-			case k8s.HTTPRouteFilterRequestRedirect:
++			case gatewayapiV1beta1.HTTPRouteFilterRequestRedirect:
+ 				vs.Redirect = createRedirectFilter(filter.RequestRedirect)
+-			case k8s.HTTPRouteFilterRequestMirror:
++			case gatewayapiV1beta1.HTTPRouteFilterRequestMirror:
+ 				mirror, err := createMirrorFilter(filter.RequestMirror, obj.Namespace, domain)
+ 				if err != nil {
+ 					reportError(err)
+@@ -283,7 +284,7 @@
+ 	return &vsConfig
+ }
+ 
+-func parentMeta(obj config.Config, sectionName *k8s.SectionName) map[string]string {
++func parentMeta(obj config.Config, sectionName *gatewayapiV1beta1.SectionName) map[string]string {
+ 	name := fmt.Sprintf("%s/%s.%s", obj.GroupVersionKind.Kind, obj.Name, obj.Namespace)
+ 	if sectionName != nil {
+ 		name = fmt.Sprintf("%s/%s/%s.%s", obj.GroupVersionKind.Kind, obj.Name, *sectionName, obj.Namespace)
+@@ -293,7 +294,7 @@
+ 	}
+ }
+ 
+-func hostnameToStringList(h []k8s.Hostname) []string {
++func hostnameToStringList(h []gatewayapiV1beta1.Hostname) []string {
+ 	// In the Istio API, empty hostname is not allowed. In the Kubernetes API hosts means "any"
+ 	if len(h) == 0 {
+ 		return []string{"*"}
+@@ -305,7 +306,7 @@
+ 	return res
+ }
+ 
+-func toInternalParentReference(p k8s.ParentRef, localNamespace string) (parentKey, error) {
++func toInternalParentReference(p gatewayapiV1beta1.ParentRef, localNamespace string) (parentKey, error) {
+ 	empty := parentKey{}
+ 	grp := defaultIfNil((*string)(p.Group), gvk.KubernetesGateway.Group)
+ 	kind := defaultIfNil((*string)(p.Kind), gvk.KubernetesGateway.Kind)
+@@ -328,13 +329,13 @@
+ 	}, nil
+ }
+ 
+-func referenceAllowed(p *parentInfo, routeKind config.GroupVersionKind, parentKind config.GroupVersionKind, hostnames []k8s.Hostname, namespace string) error {
++func referenceAllowed(p *parentInfo, routeKind config.GroupVersionKind, parentKind config.GroupVersionKind, hostnames []gatewayapiV1beta1.Hostname, namespace string) error {
+ 	// First check the hostnames are a match. This is a bi-directional wildcard match. Only one route
+ 	// hostname must match for it to be allowed (but the others will be filtered at runtime)
+ 	// If either is empty its treated as a wildcard which always matches
+ 
+ 	if len(hostnames) == 0 {
+-		hostnames = []k8s.Hostname{"*"}
++		hostnames = []gatewayapiV1beta1.Hostname{"*"}
+ 	}
+ 	if len(p.Hostnames) > 0 {
+ 		// TODO: the spec actually has a label match, not a string match. That is, *.com does not match *.apple.com
+@@ -385,8 +386,8 @@
+ 	return nil
+ }
+ 
+-func extractParentReferenceInfo(gateways map[parentKey]map[k8s.SectionName]*parentInfo, routeRefs []k8s.ParentRef,
+-	hostnames []k8s.Hostname, kind config.GroupVersionKind, localNamespace string) []routeParentReference {
++func extractParentReferenceInfo(gateways map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, routeRefs []gatewayapiV1beta1.ParentRef,
++	hostnames []gatewayapiV1beta1.Hostname, kind config.GroupVersionKind, localNamespace string) []routeParentReference {
+ 	parentRefs := []routeParentReference{}
+ 	for _, ref := range routeRefs {
+ 		ir, err := toInternalParentReference(ref, localNamespace)
+@@ -421,14 +422,14 @@
+ 	return parentRefs
+ }
+ 
+-func buildTCPVirtualService(obj config.Config, gateways map[parentKey]map[k8s.SectionName]*parentInfo, domain string) *config.Config {
+-	route := obj.Spec.(*k8s.TCPRouteSpec)
++func buildTCPVirtualService(obj config.Config, gateways map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, domain string) *config.Config {
++	route := obj.Spec.(*gatewayapiV1alpha2.TCPRouteSpec)
+ 
+ 	parentRefs := extractParentReferenceInfo(gateways, route.ParentRefs, nil, gvk.TCPRoute, obj.Namespace)
+ 
+ 	reportError := func(routeErr *ConfigError) {
+ 		obj.Status.(*kstatus.WrappedStatus).Mutate(func(s config.Status) config.Status {
+-			rs := s.(*k8s.TCPRouteStatus)
++			rs := s.(*gatewayapiV1alpha2.TCPRouteStatus)
+ 			rs.Parents = createRouteStatus(parentRefs, obj, rs.Parents, routeErr)
+ 			return rs
+ 		})
+@@ -473,14 +474,14 @@
+ 	return &vsConfig
+ }
+ 
+-func buildTLSVirtualService(obj config.Config, gateways map[parentKey]map[k8s.SectionName]*parentInfo, domain string) *config.Config {
+-	route := obj.Spec.(*k8s.TLSRouteSpec)
++func buildTLSVirtualService(obj config.Config, gateways map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, domain string) *config.Config {
++	route := obj.Spec.(*gatewayapiV1alpha2.TLSRouteSpec)
+ 
+ 	parentRefs := extractParentReferenceInfo(gateways, route.ParentRefs, nil, gvk.TLSRoute, obj.Namespace)
+ 
+ 	reportError := func(routeErr *ConfigError) {
+ 		obj.Status.(*kstatus.WrappedStatus).Mutate(func(s config.Status) config.Status {
+-			rs := s.(*k8s.TLSRouteStatus)
++			rs := s.(*gatewayapiV1alpha2.TLSRouteStatus)
+ 			rs.Parents = createRouteStatus(parentRefs, obj, rs.Parents, routeErr)
+ 			return rs
+ 		})
+@@ -527,13 +528,13 @@
+ 	return &vsConfig
+ }
+ 
+-func buildTCPDestination(forwardTo []k8s.BackendRef, ns, domain string) ([]*istio.RouteDestination, *ConfigError) {
++func buildTCPDestination(forwardTo []gatewayapiV1beta1.BackendRef, ns, domain string) ([]*istio.RouteDestination, *ConfigError) {
+ 	if forwardTo == nil {
+ 		return nil, nil
+ 	}
+ 
+ 	weights := []int{}
+-	action := []k8s.BackendRef{}
++	action := []gatewayapiV1beta1.BackendRef{}
+ 	for i, w := range forwardTo {
+ 		wt := 1
+ 		if w.Weight != nil {
+@@ -560,14 +561,14 @@
+ 	return res, nil
+ }
+ 
+-func buildTLSMatch(hostnames []k8s.Hostname) []*istio.TLSMatchAttributes {
++func buildTLSMatch(hostnames []gatewayapiV1beta1.Hostname) []*istio.TLSMatchAttributes {
+ 	// Currently, the spec only supports extensions beyond hostname, which are not currently implemented by Istio.
+ 	return []*istio.TLSMatchAttributes{{
+ 		SniHosts: hostnamesToStringListWithWildcard(hostnames),
+ 	}}
+ }
+ 
+-func hostnamesToStringListWithWildcard(h []k8s.Hostname) []string {
++func hostnamesToStringListWithWildcard(h []gatewayapiV1beta1.Hostname) []string {
+ 	if len(h) == 0 {
+ 		return []string{"*"}
+ 	}
+@@ -586,7 +587,7 @@
+ 	return r
+ }
+ 
+-func buildHTTPDestination(forwardTo []k8s.HTTPBackendRef, ns string, domain string, totalZero bool, fallbackCluster string) ([]*istio.HTTPRouteDestination, *ConfigError) {
++func buildHTTPDestination(forwardTo []gatewayapiV1beta1.HTTPBackendRef, ns string, domain string, totalZero bool, fallbackCluster string) ([]*istio.HTTPRouteDestination, *ConfigError) {
+ 	if forwardTo == nil {
+ 		return nil, nil
+ 	}
+@@ -614,7 +615,7 @@
+ 	}
+ 
+ 	weights := []int{}
+-	action := []k8s.HTTPBackendRef{}
++	action := []gatewayapiV1beta1.HTTPBackendRef{}
+ 	for i, w := range forwardTo {
+ 		wt := 1
+ 		if w.Weight != nil {
+@@ -644,7 +645,7 @@
+ 		}
+ 		for _, filter := range fwd.Filters {
+ 			switch filter.Type {
+-			case k8s.HTTPRouteFilterRequestHeaderModifier:
++			case gatewayapiV1beta1.HTTPRouteFilterRequestHeaderModifier:
+ 				rd.Headers = createHeadersFilter(filter.RequestHeaderModifier)
+ 			default:
+ 				return nil, &ConfigError{Reason: InvalidFilter, Message: fmt.Sprintf("unsupported filter type %q", filter.Type)}
+@@ -655,7 +656,7 @@
+ 	return res, nil
+ }
+ 
+-func buildDestination(to k8s.BackendRef, ns, domain string) (*istio.Destination, *ConfigError) {
++func buildDestination(to gatewayapiV1beta1.BackendRef, ns, domain string) (*istio.Destination, *ConfigError) {
+ 	namespace := defaultIfNil((*string)(to.Namespace), ns)
+ 	if nilOrEqual((*string)(to.Group), "") && nilOrEqual((*string)(to.Kind), gvk.Service.Kind) {
+ 		// Service
+@@ -667,7 +668,7 @@
+ 			return nil, &ConfigError{Reason: InvalidDestination, Message: "serviceName invalid; the name of the Service must be used, not the hostname."}
+ 		}
+ 		return &istio.Destination{
+-			// TODO: implement ReferencePolicy for cross namespace
++			// TODO: implement ReferenceGrant for cross namespace
+ 			Host: fmt.Sprintf("%s.%s.svc.%s", to.Name, namespace, domain),
+ 			Port: &istio.PortSelector{Number: uint32(*to.Port)},
+ 		}, nil
+@@ -757,7 +758,7 @@
+ 	return s.idx
+ }
+ 
+-func headerListToMap(hl []k8s.HTTPHeader) map[string]string {
++func headerListToMap(hl []gatewayapiV1beta1.HTTPHeader) map[string]string {
+ 	if len(hl) == 0 {
+ 		return nil
+ 	}
+@@ -773,18 +774,18 @@
+ 	return res
+ }
+ 
+-func createMirrorFilter(filter *k8s.HTTPRequestMirrorFilter, ns, domain string) (*istio.Destination, *ConfigError) {
++func createMirrorFilter(filter *gatewayapiV1beta1.HTTPRequestMirrorFilter, ns, domain string) (*istio.Destination, *ConfigError) {
+ 	if filter == nil {
+ 		return nil, nil
+ 	}
+ 	var weightOne int32 = 1
+-	return buildDestination(k8s.BackendRef{
++	return buildDestination(gatewayapiV1beta1.BackendRef{
+ 		BackendObjectReference: filter.BackendRef,
+ 		Weight:                 &weightOne,
+ 	}, ns, domain)
+ }
+ 
+-func createRedirectFilter(filter *k8s.HTTPRequestRedirectFilter) *istio.HTTPRedirect {
++func createRedirectFilter(filter *gatewayapiV1beta1.HTTPRequestRedirectFilter) *istio.HTTPRedirect {
+ 	if filter == nil {
+ 		return nil
+ 	}
+@@ -811,7 +812,7 @@
+ 	return resp
+ }
+ 
+-func createHeadersFilter(filter *k8s.HTTPRequestHeaderFilter) *istio.Headers {
++func createHeadersFilter(filter *gatewayapiV1beta1.HTTPRequestHeaderFilter) *istio.Headers {
+ 	if filter == nil {
+ 		return nil
+ 	}
+@@ -825,7 +826,7 @@
+ }
+ 
+ // nolint: unparam
+-func createMethodMatch(match k8s.HTTPRouteMatch) (*istio.StringMatch, *ConfigError) {
++func createMethodMatch(match gatewayapiV1beta1.HTTPRouteMatch) (*istio.StringMatch, *ConfigError) {
+ 	if match.Method == nil {
+ 		return nil, nil
+ 	}
+@@ -834,19 +835,19 @@
+ 	}, nil
+ }
+ 
+-func createQueryParamsMatch(match k8s.HTTPRouteMatch) (map[string]*istio.StringMatch, *ConfigError) {
++func createQueryParamsMatch(match gatewayapiV1beta1.HTTPRouteMatch) (map[string]*istio.StringMatch, *ConfigError) {
+ 	res := map[string]*istio.StringMatch{}
+ 	for _, qp := range match.QueryParams {
+-		tp := k8s.QueryParamMatchExact
++		tp := gatewayapiV1beta1.QueryParamMatchExact
+ 		if qp.Type != nil {
+ 			tp = *qp.Type
+ 		}
+ 		switch tp {
+-		case k8s.QueryParamMatchExact:
++		case gatewayapiV1beta1.QueryParamMatchExact:
+ 			res[qp.Name] = &istio.StringMatch{
+ 				MatchType: &istio.StringMatch_Exact{Exact: qp.Value},
+ 			}
+-		case k8s.QueryParamMatchRegularExpression:
++		case gatewayapiV1beta1.QueryParamMatchRegularExpression:
+ 			res[qp.Name] = &istio.StringMatch{
+ 				MatchType: &istio.StringMatch_Regex{Regex: qp.Value},
+ 			}
+@@ -862,19 +863,19 @@
+ 	return res, nil
+ }
+ 
+-func createHeadersMatch(match k8s.HTTPRouteMatch) (map[string]*istio.StringMatch, *ConfigError) {
++func createHeadersMatch(match gatewayapiV1beta1.HTTPRouteMatch) (map[string]*istio.StringMatch, *ConfigError) {
+ 	res := map[string]*istio.StringMatch{}
+ 	for _, header := range match.Headers {
+-		tp := k8s.HeaderMatchExact
++		tp := gatewayapiV1beta1.HeaderMatchExact
+ 		if header.Type != nil {
+ 			tp = *header.Type
+ 		}
+ 		switch tp {
+-		case k8s.HeaderMatchExact:
++		case gatewayapiV1beta1.HeaderMatchExact:
+ 			res[string(header.Name)] = &istio.StringMatch{
+ 				MatchType: &istio.StringMatch_Exact{Exact: header.Value},
+ 			}
+-		case k8s.HeaderMatchRegularExpression:
++		case gatewayapiV1beta1.HeaderMatchRegularExpression:
+ 			res[string(header.Name)] = &istio.StringMatch{
+ 				MatchType: &istio.StringMatch_Regex{Regex: header.Value},
+ 			}
+@@ -894,8 +895,8 @@
+ // regex taken from https://github.com/projectcontour/contour/blob/2b3376449bedfea7b8cea5fbade99fb64009c0f6/internal/envoy/v3/route.go#L59
+ const prefixMatchRegex = `((\/).*)?`
+ 
+-func createURIMatch(match k8s.HTTPRouteMatch) (*istio.StringMatch, *ConfigError) {
+-	tp := k8s.PathMatchPathPrefix
++func createURIMatch(match gatewayapiV1beta1.HTTPRouteMatch) (*istio.StringMatch, *ConfigError) {
++	tp := gatewayapiV1beta1.PathMatchPathPrefix
+ 	if match.Path.Type != nil {
+ 		tp = *match.Path.Type
+ 	}
+@@ -904,7 +905,7 @@
+ 		dest = *match.Path.Value
+ 	}
+ 	switch tp {
+-	case k8s.PathMatchPathPrefix:
++	case gatewayapiV1beta1.PathMatchPathPrefix:
+ 		path := *match.Path.Value
+ 		if path == "/" {
+ 			// Optimize common case of / to not needed regex
+@@ -916,11 +917,11 @@
+ 		return &istio.StringMatch{
+ 			MatchType: &istio.StringMatch_Regex{Regex: regexp.QuoteMeta(path) + prefixMatchRegex},
+ 		}, nil
+-	case k8s.PathMatchExact:
++	case gatewayapiV1beta1.PathMatchExact:
+ 		return &istio.StringMatch{
+ 			MatchType: &istio.StringMatch_Exact{Exact: dest},
+ 		}, nil
+-	case k8s.PathMatchRegularExpression:
++	case gatewayapiV1beta1.PathMatchRegularExpression:
+ 		return &istio.StringMatch{
+ 			MatchType: &istio.StringMatch_Regex{Regex: dest},
+ 		}, nil
+@@ -935,7 +936,7 @@
+ 	classes := map[string]struct{}{}
+ 	builtinClassExists := false
+ 	for _, obj := range r.GatewayClass {
+-		gwc := obj.Spec.(*k8s.GatewayClassSpec)
++		gwc := obj.Spec.(*gatewayapiV1beta1.GatewayClassSpec)
+ 		if obj.Name == DefaultClassName {
+ 			builtinClassExists = true
+ 		}
+@@ -945,13 +946,13 @@
+ 			classes[obj.Name] = struct{}{}
+ 
+ 			obj.Status.(*kstatus.WrappedStatus).Mutate(func(s config.Status) config.Status {
+-				gcs := s.(*k8s.GatewayClassStatus)
++				gcs := s.(*gatewayapiV1beta1.GatewayClassStatus)
+ 				gcs.Conditions = kstatus.UpdateConditionIfChanged(gcs.Conditions, metav1.Condition{
+-					Type:               string(k8s.GatewayClassConditionStatusAccepted),
++					Type:               string(gatewayapiV1beta1.GatewayClassConditionStatusAccepted),
+ 					Status:             kstatus.StatusTrue,
+ 					ObservedGeneration: obj.Generation,
+ 					LastTransitionTime: metav1.Now(),
+-					Reason:             string(k8s.GatewayClassConditionStatusAccepted),
++					Reason:             string(gatewayapiV1beta1.GatewayClassConditionStatusAccepted),
+ 					Message:            "Handled by Higress controller",
+ 				})
+ 				return gcs
+@@ -973,7 +974,7 @@
+ }
+ 
+ // parentKey holds info about a parentRef (ie route binding to a Gateway). This is a mirror of
+-// k8s.ParentRef in a form that can be stored in a map
++// gatewayapiV1beta1.ParentRef in a form that can be stored in a map
+ type parentKey struct {
+ 	Kind config.GroupVersionKind
+ 	// Name is the original name of the resource (ie Kubernetes Gateway name)
+@@ -988,7 +989,7 @@
+ 	// InternalName refers to the internal name we can reference it by. For example, "mesh" or "my-ns/my-gateway"
+ 	InternalName string
+ 	// AllowedKinds indicates which kinds can be admitted by this parent
+-	AllowedKinds []k8s.RouteGroupKind
++	AllowedKinds []gatewayapiV1beta1.RouteGroupKind
+ 	// Hostnames is the hostnames that must be match to reference to the parent. For gateway this is listener hostname
+ 	// Format is ns/hostname
+ 	Hostnames []string
+@@ -1010,7 +1011,7 @@
+ 	// DeniedReason, if present, indicates why the reference was not valid
+ 	DeniedReason error
+ 	// OriginalReference contains the original reference
+-	OriginalReference k8s.ParentRef
++	OriginalReference gatewayapiV1beta1.ParentRef
+ }
+ 
+ // referencesToInternalNames converts valid parent references to names that can be used in VirtualService
+@@ -1028,18 +1029,18 @@
+ 	return ret
+ }
+ 
+-func convertGateways(r *KubernetesResources) ([]config.Config, map[parentKey]map[k8s.SectionName]*parentInfo, sets.Set) {
++func convertGateways(r *KubernetesResources) ([]config.Config, map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, sets.Set) {
+ 	// result stores our generated Istio Gateways
+ 	result := []config.Config{}
+ 	// gwMap stores an index to access parentInfo (which corresponds to a Kubernetes Gateway)
+-	gwMap := map[parentKey]map[k8s.SectionName]*parentInfo{}
++	gwMap := map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo{}
+ 	// namespaceLabelReferences keeps track of all namespace label keys referenced by Gateways. This is
+ 	// used to ensure we handle namespace updates for those keys.
+ 	namespaceLabelReferences := sets.NewSet()
+ 	classes := getGatewayClasses(r)
+ 	for _, obj := range r.Gateway {
+ 		obj := obj
+-		kgw := obj.Spec.(*k8s.GatewaySpec)
++		kgw := obj.Spec.(*gatewayapiV1beta1.GatewaySpec)
+ 		if _, f := classes[string(kgw.GatewayClassName)]; !f {
+ 			// No gateway class found, this may be meant for another controller; should be skipped.
+ 			continue
+@@ -1047,13 +1048,13 @@
+ 
+ 		// Setup initial conditions to the success state. If we encounter errors, we will update this.
+ 		gatewayConditions := map[string]*condition{
+-			string(k8s.GatewayConditionReady): {
++			string(gatewayapiV1beta1.GatewayConditionReady): {
+ 				reason:  "ListenersValid",
+ 				message: "Listeners valid",
+ 			},
+ 		}
+ 		if isManaged(kgw) {
+-			gatewayConditions[string(k8s.GatewayConditionScheduled)] = &condition{
++			gatewayConditions[string(gatewayapiV1beta1.GatewayConditionScheduled)] = &condition{
+ 				error: &ConfigError{
+ 					Reason:  "ResourcesPending",
+ 					Message: "Resources not yet deployed to the cluster",
+@@ -1061,7 +1062,7 @@
+ 				setOnce: true,
+ 			}
+ 		} else {
+-			gatewayConditions[string(k8s.GatewayConditionScheduled)] = &condition{
++			gatewayConditions[string(gatewayapiV1beta1.GatewayConditionScheduled)] = &condition{
+ 				reason:  "ResourcesAvailable",
+ 				message: "Resources available",
+ 			}
+@@ -1070,7 +1071,7 @@
+ 
+ 		// Extract the addresses. A gateway will bind to a specific Service
+ 		gatewayServices, skippedAddresses := extractGatewayServices(r, kgw, obj)
+-		invalidListeners := []k8s.SectionName{}
++		invalidListeners := []gatewayapiV1beta1.SectionName{}
+ 		for i, l := range kgw.Listeners {
+ 			i := i
+ 			namespaceLabelReferences.Insert(getNamespaceLabelReferences(l.AllowedRoutes)...)
+@@ -1101,7 +1102,7 @@
+ 				Namespace: obj.Namespace,
+ 			}
+ 			if _, f := gwMap[ref]; !f {
+-				gwMap[ref] = map[k8s.SectionName]*parentInfo{}
++				gwMap[ref] = map[gatewayapiV1beta1.SectionName]*parentInfo{}
+ 			}
+ 
+ 			pri := &parentInfo{
+@@ -1130,31 +1131,31 @@
+ 			} else {
+ 				msg = fmt.Sprintf("failed to assign to any requested addresses: %s", strings.Join(warnings, "; "))
+ 			}
+-			gatewayConditions[string(k8s.GatewayConditionReady)].error = &ConfigError{
+-				Reason:  string(k8s.GatewayReasonAddressNotAssigned),
++			gatewayConditions[string(gatewayapiV1beta1.GatewayConditionReady)].error = &ConfigError{
++				Reason:  string(gatewayapiV1beta1.GatewayReasonAddressNotAssigned),
+ 				Message: msg,
+ 			}
+ 		} else if len(invalidListeners) > 0 {
+-			gatewayConditions[string(k8s.GatewayConditionReady)].error = &ConfigError{
+-				Reason:  string(k8s.GatewayReasonListenersNotValid),
++			gatewayConditions[string(gatewayapiV1beta1.GatewayConditionReady)].error = &ConfigError{
++				Reason:  string(gatewayapiV1beta1.GatewayReasonListenersNotValid),
+ 				Message: fmt.Sprintf("Invalid listeners: %v", invalidListeners),
+ 			}
+ 		} else {
+-			gatewayConditions[string(k8s.GatewayConditionReady)].message = fmt.Sprintf("Gateway valid, assigned to service(s) %s", humanReadableJoin(internal))
++			gatewayConditions[string(gatewayapiV1beta1.GatewayConditionReady)].message = fmt.Sprintf("Gateway valid, assigned to service(s) %s", humanReadableJoin(internal))
+ 		}
+ 		obj.Status.(*kstatus.WrappedStatus).Mutate(func(s config.Status) config.Status {
+-			gs := s.(*k8s.GatewayStatus)
++			gs := s.(*gatewayapiV1beta1.GatewayStatus)
+ 			addressesToReport := external
+-			addrType := k8s.IPAddressType
++			addrType := gatewayapiV1beta1.IPAddressType
+ 			if len(addressesToReport) == 0 {
+ 				// There are no external addresses, so report the internal ones
+ 				// TODO: should we always report both?
+ 				addressesToReport = internal
+-				addrType = k8s.HostnameAddressType
++				addrType = gatewayapiV1beta1.HostnameAddressType
+ 			}
+-			gs.Addresses = make([]k8s.GatewayAddress, 0, len(addressesToReport))
++			gs.Addresses = make([]gatewayapiV1beta1.GatewayAddress, 0, len(addressesToReport))
+ 			for _, addr := range addressesToReport {
+-				gs.Addresses = append(gs.Addresses, k8s.GatewayAddress{
++				gs.Addresses = append(gs.Addresses, gatewayapiV1beta1.GatewayAddress{
+ 					Type:  &addrType,
+ 					Value: addr,
+ 				})
+@@ -1167,7 +1168,7 @@
+ 	gwMap[parentKey{
+ 		Kind: meshGVK,
+ 		Name: "istio",
+-	}] = map[k8s.SectionName]*parentInfo{
++	}] = map[gatewayapiV1beta1.SectionName]*parentInfo{
+ 		"": {
+ 			InternalName: "mesh",
+ 		},
+@@ -1182,27 +1183,27 @@
+ // While there is no defined standard for this in the API yet, it is tracked in https://github.com/kubernetes-sigs/gateway-api/issues/892.
+ // So far, this mirrors how out of clusters work (address set means to use existing IP, unset means to provision one),
+ // and there has been growing consensus on this model for in cluster deployments.
+-func isManaged(gw *k8s.GatewaySpec) bool {
++func isManaged(gw *gatewayapiV1beta1.GatewaySpec) bool {
+ 	if len(gw.Addresses) == 0 {
+ 		return true
+ 	}
+ 	if len(gw.Addresses) > 1 {
+ 		return false
+ 	}
+-	if t := gw.Addresses[0].Type; t == nil || *t == k8s.IPAddressType {
++	if t := gw.Addresses[0].Type; t == nil || *t == gatewayapiV1beta1.IPAddressType {
+ 		return true
+ 	}
+ 	return false
+ }
+ 
+-func extractGatewayServices(r *KubernetesResources, kgw *k8s.GatewaySpec, obj config.Config) ([]string, []string) {
++func extractGatewayServices(r *KubernetesResources, kgw *gatewayapiV1beta1.GatewaySpec, obj config.Config) ([]string, []string) {
+ 	if isManaged(kgw) {
+ 		return []string{fmt.Sprintf("%s.%s.svc.%v", obj.Name, obj.Namespace, r.Domain)}, nil
+ 	}
+ 	gatewayServices := []string{}
+ 	skippedAddresses := []string{}
+ 	for _, addr := range kgw.Addresses {
+-		if addr.Type != nil && *addr.Type != k8s.HostnameAddressType {
++		if addr.Type != nil && *addr.Type != gatewayapiV1beta1.HostnameAddressType {
+ 			// We only support HostnameAddressType. Keep track of invalid ones so we can report in status.
+ 			skippedAddresses = append(skippedAddresses, addr.Value)
+ 			continue
+@@ -1221,7 +1222,7 @@
+ }
+ 
+ // getNamespaceLabelReferences fetches all label keys used in namespace selectors. Return order may not be stable.
+-func getNamespaceLabelReferences(routes *k8s.AllowedRoutes) []string {
++func getNamespaceLabelReferences(routes *gatewayapiV1beta1.AllowedRoutes) []string {
+ 	if routes == nil || routes.Namespaces == nil || routes.Namespaces.Selector == nil {
+ 		return nil
+ 	}
+@@ -1235,23 +1236,23 @@
+ 	return res
+ }
+ 
+-func buildListener(r *KubernetesResources, obj config.Config, l k8s.Listener, listenerIndex int) (*istio.Server, bool) {
++func buildListener(r *KubernetesResources, obj config.Config, l gatewayapiV1beta1.Listener, listenerIndex int) (*istio.Server, bool) {
+ 	listenerConditions := map[string]*condition{
+-		string(k8s.ListenerConditionReady): {
++		string(gatewayapiV1beta1.ListenerConditionReady): {
+ 			reason:  "ListenerReady",
+ 			message: "No errors found",
+ 		},
+-		string(k8s.ListenerConditionDetached): {
++		string(gatewayapiV1beta1.ListenerConditionDetached): {
+ 			reason:  "ListenerReady",
+ 			message: "No errors found",
+ 			status:  kstatus.StatusFalse,
+ 		},
+-		string(k8s.ListenerConditionConflicted): {
++		string(gatewayapiV1beta1.ListenerConditionConflicted): {
+ 			reason:  "ListenerReady",
+ 			message: "No errors found",
+ 			status:  kstatus.StatusFalse,
+ 		},
+-		string(k8s.ListenerConditionResolvedRefs): {
++		string(gatewayapiV1beta1.ListenerConditionResolvedRefs): {
+ 			reason:  "ListenerReady",
+ 			message: "No errors found",
+ 		},
+@@ -1259,12 +1260,12 @@
+ 	defer reportListenerCondition(listenerIndex, l, obj, listenerConditions)
+ 	tls, err := buildTLS(l.TLS, obj.Namespace)
+ 	if err != nil {
+-		listenerConditions[string(k8s.ListenerConditionReady)].error = &ConfigError{
+-			Reason:  string(k8s.ListenerReasonInvalid),
++		listenerConditions[string(gatewayapiV1beta1.ListenerConditionReady)].error = &ConfigError{
++			Reason:  string(gatewayapiV1beta1.ListenerReasonInvalid),
+ 			Message: err.Message,
+ 		}
+-		listenerConditions[string(k8s.ListenerConditionResolvedRefs)].error = &ConfigError{
+-			Reason:  string(k8s.ListenerReasonInvalidCertificateRef),
++		listenerConditions[string(gatewayapiV1beta1.ListenerConditionResolvedRefs)].error = &ConfigError{
++			Reason:  string(gatewayapiV1beta1.ListenerReasonInvalidCertificateRef),
+ 			Message: err.Message,
+ 		}
+ 		return nil, false
+@@ -1284,12 +1285,12 @@
+ 	return server, true
+ }
+ 
+-func listenerProtocolToIstio(protocol k8s.ProtocolType) string {
++func listenerProtocolToIstio(protocol gatewayapiV1beta1.ProtocolType) string {
+ 	// Currently, all gateway-api protocols are valid Istio protocols.
+ 	return string(protocol)
+ }
+ 
+-func buildTLS(tls *k8s.GatewayTLSConfig, namespace string) (*istio.ServerTLSSettings, *ConfigError) {
++func buildTLS(tls *gatewayapiV1beta1.GatewayTLSConfig, namespace string) (*istio.ServerTLSSettings, *ConfigError) {
+ 	if tls == nil {
+ 		return nil, nil
+ 	}
+@@ -1299,12 +1300,12 @@
+ 	out := &istio.ServerTLSSettings{
+ 		HttpsRedirect: false,
+ 	}
+-	mode := k8s.TLSModeTerminate
++	mode := gatewayapiV1beta1.TLSModeTerminate
+ 	if tls.Mode != nil {
+ 		mode = *tls.Mode
+ 	}
+ 	switch mode {
+-	case k8s.TLSModeTerminate:
++	case gatewayapiV1beta1.TLSModeTerminate:
+ 		out.Mode = istio.ServerTLSSettings_SIMPLE
+ 		if len(tls.CertificateRefs) != 1 {
+ 			// This is required in the API, should be rejected in validation
+@@ -1315,20 +1316,20 @@
+ 			return nil, err
+ 		}
+ 		out.CredentialName = cred
+-	case k8s.TLSModePassthrough:
++	case gatewayapiV1beta1.TLSModePassthrough:
+ 		out.Mode = istio.ServerTLSSettings_PASSTHROUGH
+ 	}
+ 	return out, nil
+ }
+ 
+-func buildSecretReference(ref k8s.SecretObjectReference, defaultNamespace string) (string, *ConfigError) {
++func buildSecretReference(ref gatewayapiV1beta1.SecretObjectReference, defaultNamespace string) (string, *ConfigError) {
+ 	if !nilOrEqual((*string)(ref.Group), gvk.Secret.Group) || !nilOrEqual((*string)(ref.Kind), gvk.Secret.Kind) {
+ 		return "", &ConfigError{Reason: InvalidTLS, Message: fmt.Sprintf("invalid certificate reference %v, only secret is allowed", objectReferenceString(ref))}
+ 	}
+ 	return credentials.ToKubernetesGatewayResource(defaultIfNil((*string)(ref.Namespace), defaultNamespace), string(ref.Name)), nil
+ }
+ 
+-func objectReferenceString(ref k8s.SecretObjectReference) string {
++func objectReferenceString(ref gatewayapiV1beta1.SecretObjectReference) string {
+ 	return fmt.Sprintf("%s/%s/%s.%s",
+ 		emptyIfNil((*string)(ref.Group)),
+ 		emptyIfNil((*string)(ref.Kind)),
+@@ -1336,7 +1337,7 @@
+ 		emptyIfNil((*string)(ref.Namespace)))
+ }
+ 
+-func parentRefString(ref k8s.ParentRef) string {
++func parentRefString(ref gatewayapiV1beta1.ParentRef) string {
+ 	return fmt.Sprintf("%s/%s/%s/%s.%s",
+ 		emptyIfNil((*string)(ref.Group)),
+ 		emptyIfNil((*string)(ref.Kind)),
+@@ -1346,7 +1347,7 @@
+ }
+ 
+ // buildHostnameMatch generates a VirtualService.spec.hosts section from a listener
+-func buildHostnameMatch(localNamespace string, r *KubernetesResources, l k8s.Listener) []string {
++func buildHostnameMatch(localNamespace string, r *KubernetesResources, l gatewayapiV1beta1.Listener) []string {
+ 	// We may allow all hostnames or a specific one
+ 	hostname := "*"
+ 	if l.Hostname != nil {
+@@ -1368,12 +1369,12 @@
+ }
+ 
+ // namespacesFromSelector determines a list of allowed namespaces for a given AllowedRoutes
+-func namespacesFromSelector(localNamespace string, r *KubernetesResources, lr *k8s.AllowedRoutes) []string {
++func namespacesFromSelector(localNamespace string, r *KubernetesResources, lr *gatewayapiV1beta1.AllowedRoutes) []string {
+ 	// Default is to allow only the same namespace
+-	if lr == nil || lr.Namespaces == nil || lr.Namespaces.From == nil || *lr.Namespaces.From == k8s.NamespacesFromSame {
++	if lr == nil || lr.Namespaces == nil || lr.Namespaces.From == nil || *lr.Namespaces.From == gatewayapiV1beta1.NamespacesFromSame {
+ 		return []string{localNamespace}
+ 	}
+-	if *lr.Namespaces.From == k8s.NamespacesFromAll {
++	if *lr.Namespaces.From == gatewayapiV1beta1.NamespacesFromAll {
+ 		return []string{"*"}
+ 	}
+ 
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion_test.go istio-new/pilot/pkg/config/kube/gateway/conversion_test.go
+--- istio/pilot/pkg/config/kube/gateway/conversion_test.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conversion_test.go	2023-10-31 20:09:47.000000000 +0800
+@@ -25,7 +25,8 @@
+ 	"github.com/google/go-cmp/cmp"
+ 	corev1 "k8s.io/api/core/v1"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 	"sigs.k8s.io/yaml"
+ 
+ 	"istio.io/istio/pilot/pkg/config/kube/crd"
+@@ -195,8 +196,8 @@
+ 			out.TCPRoute = append(out.TCPRoute, c)
+ 		case gvk.TLSRoute:
+ 			out.TLSRoute = append(out.TLSRoute, c)
+-		case gvk.ReferencePolicy:
+-			out.ReferencePolicy = append(out.ReferencePolicy, c)
++		case gvk.ReferenceGrant:
++			out.ReferenceGrant = append(out.ReferenceGrant, c)
+ 		}
+ 	}
+ 	out.Namespaces = map[string]*corev1.Namespace{}
+@@ -238,15 +239,15 @@
+ 	for _, c := range cfgs {
+ 		switch c.GroupVersionKind {
+ 		case gvk.GatewayClass:
+-			c.Status = kstatus.Wrap(&k8s.GatewayClassStatus{})
++			c.Status = kstatus.Wrap(&gatewayapiV1beta1.GatewayClassStatus{})
+ 		case gvk.KubernetesGateway:
+-			c.Status = kstatus.Wrap(&k8s.GatewayStatus{})
++			c.Status = kstatus.Wrap(&gatewayapiV1beta1.GatewayStatus{})
+ 		case gvk.HTTPRoute:
+-			c.Status = kstatus.Wrap(&k8s.HTTPRouteStatus{})
++			c.Status = kstatus.Wrap(&gatewayapiV1beta1.HTTPRouteStatus{})
+ 		case gvk.TCPRoute:
+-			c.Status = kstatus.Wrap(&k8s.TCPRouteStatus{})
++			c.Status = kstatus.Wrap(&gatewayapiV1alpha2.TCPRouteStatus{})
+ 		case gvk.TLSRoute:
+-			c.Status = kstatus.Wrap(&k8s.TLSRouteStatus{})
++			c.Status = kstatus.Wrap(&gatewayapiV1alpha2.TLSRouteStatus{})
+ 		}
+ 		res = append(res, c)
+ 	}
+diff -Naur istio/pilot/pkg/config/kube/gateway/deploymentcontroller.go istio-new/pilot/pkg/config/kube/gateway/deploymentcontroller.go
+--- istio/pilot/pkg/config/kube/gateway/deploymentcontroller.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/deploymentcontroller.go	2023-10-31 20:24:35.000000000 +0800
+@@ -33,7 +33,7 @@
+ 	"k8s.io/client-go/kubernetes"
+ 	"k8s.io/client-go/tools/cache"
+ 	"k8s.io/client-go/util/workqueue"
+-	gateway "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 	"sigs.k8s.io/yaml"
+ 
+ 	"istio.io/istio/pkg/config"
+@@ -58,14 +58,14 @@
+ //
+ // Server Side Apply with go templates is an odd choice (no one likes YAML templating...) but is one of the few
+ // remaining options after all others are ruled out.
+-// * Merge patch/Update cannot be used. If we always enforce that our object is *exactly* the same as
+-//   the in-cluster object we will get in endless loops due to other controllers that like to add annotations, etc.
+-//   If we chose to allow any unknown fields, then we would never be able to remove fields we added, as
+-//   we cannot tell if we created it or someone else did. SSA fixes these issues
+-// * SSA using client-go Apply libraries is almost a good choice, but most third-party clients (Istio, MCS, and gateway-api)
+-//   do not provide these libraries.
+-// * SSA using standard API types doesn't work well either: https://github.com/kubernetes-sigs/controller-runtime/issues/1669
+-// * This leaves YAML templates, converted to unstructured types and Applied with the dynamic client.
++//   - Merge patch/Update cannot be used. If we always enforce that our object is *exactly* the same as
++//     the in-cluster object we will get in endless loops due to other controllers that like to add annotations, etc.
++//     If we chose to allow any unknown fields, then we would never be able to remove fields we added, as
++//     we cannot tell if we created it or someone else did. SSA fixes these issues
++//   - SSA using client-go Apply libraries is almost a good choice, but most third-party clients (Istio, MCS, and gateway-api)
++//     do not provide these libraries.
++//   - SSA using standard API types doesn't work well either: https://github.com/kubernetes-sigs/controller-runtime/issues/1669
++//   - This leaves YAML templates, converted to unstructured types and Applied with the dynamic client.
+ type DeploymentController struct {
+ 	client    kube.Client
+ 	queue     workqueue.RateLimitingInterface
+@@ -101,7 +101,7 @@
+ 	}).AddEventHandler(handler)
+ 
+ 	// Use the full informer; we are already watching all Gateways for the core Istiod logic
+-	client.GatewayAPIInformer().Gateway().V1alpha2().Gateways().Informer().
++	client.GatewayAPIInformer().Gateway().V1beta1().Gateways().Informer().
+ 		AddEventHandler(controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q)))
+ 
+ 	return &DeploymentController{
+@@ -158,7 +158,7 @@
+ func (d *DeploymentController) Reconcile(req types.NamespacedName) error {
+ 	log := log.WithLabels("gateway", req)
+ 
+-	gw, err := d.client.GatewayAPIInformer().Gateway().V1alpha2().Gateways().Lister().Gateways(req.Namespace).Get(req.Name)
++	gw, err := d.client.GatewayAPIInformer().Gateway().V1beta1().Gateways().Lister().Gateways(req.Namespace).Get(req.Name)
+ 	if err != nil || gw == nil {
+ 		log.Errorf("unable to fetch Gateway: %v", err)
+ 		// we'll ignore not-found errors, since they can't be fixed by an immediate
+@@ -175,7 +175,7 @@
+ 	return nil
+ }
+ 
+-func (d *DeploymentController) configureIstioGateway(log *istiolog.Scope, gw gateway.Gateway) error {
++func (d *DeploymentController) configureIstioGateway(log *istiolog.Scope, gw gatewayapiV1beta1.Gateway) error {
+ 	// If user explicitly sets addresses, we are assuming they are pointing to an existing deployment.
+ 	// We will not manage it in this case
+ 	if !isManaged(&gw.Spec) {
+@@ -196,7 +196,7 @@
+ 	}
+ 	log.Info("deployment updated")
+ 
+-	gws := &gateway.Gateway{
++	gws := &gatewayapiV1beta1.Gateway{
+ 		TypeMeta: metav1.TypeMeta{
+ 			Kind:       gvk.KubernetesGateway.Kind,
+ 			APIVersion: gvk.KubernetesGateway.Group + "/" + gvk.KubernetesGateway.Version,
+@@ -205,9 +205,9 @@
+ 			Name:      gw.Name,
+ 			Namespace: gw.Namespace,
+ 		},
+-		Status: gateway.GatewayStatus{
++		Status: gatewayapiV1beta1.GatewayStatus{
+ 			Conditions: setConditions(gw.Generation, nil, map[string]*condition{
+-				string(gateway.GatewayConditionScheduled): {
++				string(gatewayapiV1beta1.GatewayConditionScheduled): {
+ 					reason:  "ResourcesAvailable",
+ 					message: "Deployed gateway to the cluster",
+ 				},
+@@ -277,16 +277,16 @@
+ }
+ 
+ type serviceInput struct {
+-	gateway.Gateway
++	gatewayapiV1beta1.Gateway
+ 	Ports []corev1.ServicePort
+ }
+ 
+ type deploymentInput struct {
+-	gateway.Gateway
++	gatewayapiV1beta1.Gateway
+ 	KubeVersion122 bool
+ }
+ 
+-func extractServicePorts(gw gateway.Gateway) []corev1.ServicePort {
++func extractServicePorts(gw gatewayapiV1beta1.Gateway) []corev1.ServicePort {
+ 	svcPorts := make([]corev1.ServicePort, 0, len(gw.Spec.Listeners)+1)
+ 	svcPorts = append(svcPorts, corev1.ServicePort{
+ 		Name: "status-port",
+diff -Naur istio/pilot/pkg/config/kube/gateway/deploymentcontroller_test.go istio-new/pilot/pkg/config/kube/gateway/deploymentcontroller_test.go
+--- istio/pilot/pkg/config/kube/gateway/deploymentcontroller_test.go	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/deploymentcontroller_test.go	2023-10-31 20:07:46.000000000 +0800
+@@ -22,7 +22,7 @@
+ 	corev1 "k8s.io/api/core/v1"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/apimachinery/pkg/runtime/schema"
+-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
++	"sigs.k8s.io/gateway-api/apis/v1beta1"
+ 	"sigs.k8s.io/yaml"
+ 
+ 	"istio.io/istio/pilot/test/util"
+@@ -33,28 +33,28 @@
+ func TestConfigureIstioGateway(t *testing.T) {
+ 	tests := []struct {
+ 		name string
+-		gw   v1alpha2.Gateway
++		gw   v1beta1.Gateway
+ 	}{
+ 		{
+ 			"simple",
+-			v1alpha2.Gateway{
++			v1beta1.Gateway{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name:      "default",
+ 					Namespace: "default",
+ 				},
+-				Spec: v1alpha2.GatewaySpec{},
++				Spec: v1beta1.GatewaySpec{},
+ 			},
+ 		},
+ 		{
+ 			"manual-ip",
+-			v1alpha2.Gateway{
++			v1beta1.Gateway{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name:      "default",
+ 					Namespace: "default",
+ 				},
+-				Spec: v1alpha2.GatewaySpec{
+-					Addresses: []v1alpha2.GatewayAddress{{
+-						Type:  func() *v1alpha2.AddressType { x := v1alpha2.IPAddressType; return &x }(),
++				Spec: v1beta1.GatewaySpec{
++					Addresses: []v1beta1.GatewayAddress{{
++						Type:  func() *v1beta1.AddressType { x := v1beta1.IPAddressType; return &x }(),
+ 						Value: "1.2.3.4",
+ 					}},
+ 				},
+@@ -62,16 +62,16 @@
+ 		},
+ 		{
+ 			"cluster-ip",
+-			v1alpha2.Gateway{
++			v1beta1.Gateway{
+ 				ObjectMeta: metav1.ObjectMeta{
+ 					Name:        "default",
+ 					Namespace:   "default",
+ 					Annotations: map[string]string{"networking.istio.io/service-type": string(corev1.ServiceTypeClusterIP)},
+ 				},
+-				Spec: v1alpha2.GatewaySpec{
+-					Listeners: []v1alpha2.Listener{{
++				Spec: v1beta1.GatewaySpec{
++					Listeners: []v1beta1.Listener{{
+ 						Name: "http",
+-						Port: v1alpha2.PortNumber(80),
++						Port: v1beta1.PortNumber(80),
+ 					}},
+ 				},
+ 			},
+diff -Naur istio/pilot/pkg/config/kube/gateway/testdata/reference-policy-tls.yaml istio-new/pilot/pkg/config/kube/gateway/testdata/reference-policy-tls.yaml
+--- istio/pilot/pkg/config/kube/gateway/testdata/reference-policy-tls.yaml	2023-10-31 20:37:52.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/testdata/reference-policy-tls.yaml	2023-10-31 20:09:38.000000000 +0800
+@@ -33,7 +33,7 @@
+         namespace: cert
+ ---
+ apiVersion: gateway.networking.k8s.io/v1alpha2
+-kind: ReferencePolicy
++kind: ReferenceGrant
+ metadata:
+   name: alllow-cert
+   namespace: cert
+diff -Naur istio/pilot/pkg/xds/sds.go istio-new/pilot/pkg/xds/sds.go
+--- istio/pilot/pkg/xds/sds.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pilot/pkg/xds/sds.go	2023-10-31 20:09:51.000000000 +0800
+@@ -202,7 +202,7 @@
+ 	}
+ 
+ 	// There are 4 cases of secret reference
+-	// Verified cross namespace (by ReferencePolicy). No Authz needed.
++	// Verified cross namespace (by ReferenceGrant). No Authz needed.
+ 	// Verified same namespace (implicit). No Authz needed.
+ 	// Unverified cross namespace. Never allowed.
+ 	// Unverified same namespace. Allowed if authorized.
+@@ -215,7 +215,7 @@
+ 		case credentials.KubernetesGatewaySecretType:
+ 			// For KubernetesGateway, we only allow VerifiedCertificateReferences.
+ 			// This means a Secret in the same namespace as the Gateway (which also must be in the same namespace
+-			// as the proxy), or a ReferencePolicy allowing the reference.
++			// as the proxy), or a ReferenceGrant allowing the reference.
+ 			if verified {
+ 				allowedResources = append(allowedResources, r)
+ 			} else {
+@@ -247,7 +247,7 @@
+ 	if len(deniedResources) > 0 {
+ 		errMessage := authzError
+ 		if errMessage == nil {
+-			errMessage = fmt.Errorf("cross namespace secret reference requires ReferencePolicy")
++			errMessage = fmt.Errorf("cross namespace secret reference requires ReferenceGrant")
+ 		}
+ 		log.Warnf("proxy %v attempted to access unauthorized certificates %v: %v", proxy.ID, atMostNJoin(deniedResources, 3), errMessage)
+ 		pilotSDSCertificateErrors.Increment()
+diff -Naur istio/pkg/config/schema/codegen/collections.go istio-new/pkg/config/schema/codegen/collections.go
+--- istio/pkg/config/schema/codegen/collections.go	2023-10-31 20:37:56.000000000 +0800
++++ istio-new/pkg/config/schema/codegen/collections.go	2023-10-31 16:45:53.000000000 +0800
+@@ -144,7 +144,7 @@
+ func WriteGvk(packageName string, m *ast.Metadata) (string, error) {
+ 	entries := make([]colEntry, 0, len(m.Collections))
+ 	customNames := map[string]string{
+-		"k8s/gateway_api/v1alpha2/gateways": "KubernetesGateway",
++		"k8s/gateway_api/v1beta1/gateways": "KubernetesGateway",
+ 	}
+ 	for _, c := range m.Collections {
+ 		// Filter out pilot ones, as these are duplicated
+diff -Naur istio/pkg/config/schema/collections/collections.gen.go istio-new/pkg/config/schema/collections/collections.gen.go
+--- istio/pkg/config/schema/collections/collections.gen.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pkg/config/schema/collections/collections.gen.go	2023-10-31 16:49:20.000000000 +0800
+@@ -15,6 +15,7 @@
+ 	k8sioapiextensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+ 	k8sioapiextensionsapiserverpkgapisapiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+ 	sigsk8siogatewayapiapisv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	sigsk8siogatewayapiapisv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	istioioapiextensionsv1alpha1 "istio.io/api/extensions/v1alpha1"
+ 	istioioapimeshv1alpha1 "istio.io/api/mesh/v1alpha1"
+@@ -554,115 +555,115 @@
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Gatewayclasses describes the collection
+-	// k8s/gateway_api/v1alpha2/gatewayclasses
+-	K8SGatewayApiV1Alpha2Gatewayclasses = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/gatewayclasses",
+-		VariableName: "K8SGatewayApiV1Alpha2Gatewayclasses",
++	// K8SGatewayApiV1Alpha2Tcproutes describes the collection
++	// k8s/gateway_api/v1alpha2/tcproutes
++	K8SGatewayApiV1Alpha2Tcproutes = collection.Builder{
++		Name:         "k8s/gateway_api/v1alpha2/tcproutes",
++		VariableName: "K8SGatewayApiV1Alpha2Tcproutes",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+ 			Group:   "gateway.networking.k8s.io",
+-			Kind:    "GatewayClass",
+-			Plural:  "gatewayclasses",
++			Kind:    "TCPRoute",
++			Plural:  "tcproutes",
+ 			Version: "v1alpha2",
+-			Proto:   "k8s.io.gateway_api.api.v1alpha1.GatewayClassSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassStatus",
+-			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.GatewayClassSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.GatewayClassStatus{}).Elem(),
++			Proto:   "k8s.io.gateway_api.api.v1alpha1.TCPRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.TCPRouteStatus",
++			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TCPRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TCPRouteStatus{}).Elem(),
+ 			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2",
+-			ClusterScoped: true,
++			ClusterScoped: false,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Gateways describes the collection
+-	// k8s/gateway_api/v1alpha2/gateways
+-	K8SGatewayApiV1Alpha2Gateways = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/gateways",
+-		VariableName: "K8SGatewayApiV1Alpha2Gateways",
++	// K8SGatewayApiV1Alpha2Tlsroutes describes the collection
++	// k8s/gateway_api/v1alpha2/tlsroutes
++	K8SGatewayApiV1Alpha2Tlsroutes = collection.Builder{
++		Name:         "k8s/gateway_api/v1alpha2/tlsroutes",
++		VariableName: "K8SGatewayApiV1Alpha2Tlsroutes",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+ 			Group:   "gateway.networking.k8s.io",
+-			Kind:    "Gateway",
+-			Plural:  "gateways",
++			Kind:    "TLSRoute",
++			Plural:  "tlsroutes",
+ 			Version: "v1alpha2",
+-			Proto:   "k8s.io.gateway_api.api.v1alpha1.GatewaySpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayStatus",
+-			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.GatewaySpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.GatewayStatus{}).Elem(),
++			Proto:   "k8s.io.gateway_api.api.v1alpha1.TLSRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.TLSRouteStatus",
++			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TLSRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TLSRouteStatus{}).Elem(),
+ 			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2",
+ 			ClusterScoped: false,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Httproutes describes the collection
+-	// k8s/gateway_api/v1alpha2/httproutes
+-	K8SGatewayApiV1Alpha2Httproutes = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/httproutes",
+-		VariableName: "K8SGatewayApiV1Alpha2Httproutes",
++	// K8SGatewayApiV1Beta1Gatewayclasses describes the collection
++	// k8s/gateway_api/v1beta1/gatewayclasses
++	K8SGatewayApiV1Beta1Gatewayclasses = collection.Builder{
++		Name:         "k8s/gateway_api/v1beta1/gatewayclasses",
++		VariableName: "K8SGatewayApiV1Beta1Gatewayclasses",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+ 			Group:   "gateway.networking.k8s.io",
+-			Kind:    "HTTPRoute",
+-			Plural:  "httproutes",
+-			Version: "v1alpha2",
+-			Proto:   "k8s.io.gateway_api.api.v1alpha1.HTTPRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteStatus",
+-			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.HTTPRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.HTTPRouteStatus{}).Elem(),
+-			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2",
+-			ClusterScoped: false,
++			Kind:    "GatewayClass",
++			Plural:  "gatewayclasses",
++			Version: "v1beta1",
++			Proto:   "k8s.io.gateway_api.api.v1alpha1.GatewayClassSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassStatus",
++			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.GatewayClassSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.GatewayClassStatus{}).Elem(),
++			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1beta1",
++			ClusterScoped: true,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Referencepolicies describes the collection
+-	// k8s/gateway_api/v1alpha2/referencepolicies
+-	K8SGatewayApiV1Alpha2Referencepolicies = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/referencepolicies",
+-		VariableName: "K8SGatewayApiV1Alpha2Referencepolicies",
++	// K8SGatewayApiV1Beta1Gateways describes the collection
++	// k8s/gateway_api/v1beta1/gateways
++	K8SGatewayApiV1Beta1Gateways = collection.Builder{
++		Name:         "k8s/gateway_api/v1beta1/gateways",
++		VariableName: "K8SGatewayApiV1Beta1Gateways",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+-			Group:         "gateway.networking.k8s.io",
+-			Kind:          "ReferencePolicy",
+-			Plural:        "referencepolicies",
+-			Version:       "v1alpha2",
+-			Proto:         "k8s.io.gateway_api.api.v1alpha1.ReferencePolicySpec",
+-			ReflectType:   reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.ReferencePolicySpec{}).Elem(),
+-			ProtoPackage:  "sigs.k8s.io/gateway-api/apis/v1alpha2",
++			Group:   "gateway.networking.k8s.io",
++			Kind:    "Gateway",
++			Plural:  "gateways",
++			Version: "v1beta1",
++			Proto:   "k8s.io.gateway_api.api.v1alpha1.GatewaySpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayStatus",
++			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.GatewaySpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.GatewayStatus{}).Elem(),
++			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1beta1",
+ 			ClusterScoped: false,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Tcproutes describes the collection
+-	// k8s/gateway_api/v1alpha2/tcproutes
+-	K8SGatewayApiV1Alpha2Tcproutes = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/tcproutes",
+-		VariableName: "K8SGatewayApiV1Alpha2Tcproutes",
++	// K8SGatewayApiV1Beta1Httproutes describes the collection
++	// k8s/gateway_api/v1beta1/httproutes
++	K8SGatewayApiV1Beta1Httproutes = collection.Builder{
++		Name:         "k8s/gateway_api/v1beta1/httproutes",
++		VariableName: "K8SGatewayApiV1Beta1Httproutes",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+ 			Group:   "gateway.networking.k8s.io",
+-			Kind:    "TCPRoute",
+-			Plural:  "tcproutes",
+-			Version: "v1alpha2",
+-			Proto:   "k8s.io.gateway_api.api.v1alpha1.TCPRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.TCPRouteStatus",
+-			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TCPRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TCPRouteStatus{}).Elem(),
+-			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2",
++			Kind:    "HTTPRoute",
++			Plural:  "httproutes",
++			Version: "v1beta1",
++			Proto:   "k8s.io.gateway_api.api.v1alpha1.HTTPRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteStatus",
++			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.HTTPRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.HTTPRouteStatus{}).Elem(),
++			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1beta1",
+ 			ClusterScoped: false,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+ 	}.MustBuild()
+ 
+-	// K8SGatewayApiV1Alpha2Tlsroutes describes the collection
+-	// k8s/gateway_api/v1alpha2/tlsroutes
+-	K8SGatewayApiV1Alpha2Tlsroutes = collection.Builder{
+-		Name:         "k8s/gateway_api/v1alpha2/tlsroutes",
+-		VariableName: "K8SGatewayApiV1Alpha2Tlsroutes",
++	// K8SGatewayApiV1Beta1Referencegrants describes the collection
++	// k8s/gateway_api/v1beta1/referencegrants
++	K8SGatewayApiV1Beta1Referencegrants = collection.Builder{
++		Name:         "k8s/gateway_api/v1beta1/referencegrants",
++		VariableName: "K8SGatewayApiV1Beta1Referencegrants",
+ 		Disabled:     false,
+ 		Resource: resource.Builder{
+-			Group:   "gateway.networking.k8s.io",
+-			Kind:    "TLSRoute",
+-			Plural:  "tlsroutes",
+-			Version: "v1alpha2",
+-			Proto:   "k8s.io.gateway_api.api.v1alpha1.TLSRouteSpec", StatusProto: "k8s.io.gateway_api.api.v1alpha1.TLSRouteStatus",
+-			ReflectType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TLSRouteSpec{}).Elem(), StatusType: reflect.TypeOf(&sigsk8siogatewayapiapisv1alpha2.TLSRouteStatus{}).Elem(),
+-			ProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2", StatusPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2",
++			Group:         "gateway.networking.k8s.io",
++			Kind:          "ReferenceGrant",
++			Plural:        "referencegrants",
++			Version:       "v1beta1",
++			Proto:         "k8s.io.gateway_api.api.v1beta1.ReferenceGrantSpec",
++			ReflectType:   reflect.TypeOf(&sigsk8siogatewayapiapisv1beta1.ReferenceGrantSpec{}).Elem(),
++			ProtoPackage:  "sigs.k8s.io/gateway-api/apis/v1beta1",
+ 			ClusterScoped: false,
+ 			ValidateProto: validation.EmptyValidate,
+ 		}.MustBuild(),
+@@ -945,12 +946,12 @@
+ 		MustAdd(K8SCoreV1Services).
+ 		MustAdd(K8SExtensionsIstioIoV1Alpha1Wasmplugins).
+ 		MustAdd(K8SExtensionsV1Beta1Ingresses).
+-		MustAdd(K8SGatewayApiV1Alpha2Gatewayclasses).
+-		MustAdd(K8SGatewayApiV1Alpha2Gateways).
+-		MustAdd(K8SGatewayApiV1Alpha2Httproutes).
+-		MustAdd(K8SGatewayApiV1Alpha2Referencepolicies).
+ 		MustAdd(K8SGatewayApiV1Alpha2Tcproutes).
+ 		MustAdd(K8SGatewayApiV1Alpha2Tlsroutes).
++		MustAdd(K8SGatewayApiV1Beta1Gatewayclasses).
++		MustAdd(K8SGatewayApiV1Beta1Gateways).
++		MustAdd(K8SGatewayApiV1Beta1Httproutes).
++		MustAdd(K8SGatewayApiV1Beta1Referencegrants).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Destinationrules).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Envoyfilters).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Gateways).
+@@ -1000,12 +1001,12 @@
+ 		MustAdd(K8SCoreV1Services).
+ 		MustAdd(K8SExtensionsIstioIoV1Alpha1Wasmplugins).
+ 		MustAdd(K8SExtensionsV1Beta1Ingresses).
+-		MustAdd(K8SGatewayApiV1Alpha2Gatewayclasses).
+-		MustAdd(K8SGatewayApiV1Alpha2Gateways).
+-		MustAdd(K8SGatewayApiV1Alpha2Httproutes).
+-		MustAdd(K8SGatewayApiV1Alpha2Referencepolicies).
+ 		MustAdd(K8SGatewayApiV1Alpha2Tcproutes).
+ 		MustAdd(K8SGatewayApiV1Alpha2Tlsroutes).
++		MustAdd(K8SGatewayApiV1Beta1Gatewayclasses).
++		MustAdd(K8SGatewayApiV1Beta1Gateways).
++		MustAdd(K8SGatewayApiV1Beta1Httproutes).
++		MustAdd(K8SGatewayApiV1Beta1Referencegrants).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Destinationrules).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Envoyfilters).
+ 		MustAdd(K8SNetworkingIstioIoV1Alpha3Gateways).
+@@ -1055,12 +1056,12 @@
+ 			MustAdd(IstioSecurityV1Beta1Peerauthentications).
+ 			MustAdd(IstioSecurityV1Beta1Requestauthentications).
+ 			MustAdd(IstioTelemetryV1Alpha1Telemetries).
+-			MustAdd(K8SGatewayApiV1Alpha2Gatewayclasses).
+-			MustAdd(K8SGatewayApiV1Alpha2Gateways).
+-			MustAdd(K8SGatewayApiV1Alpha2Httproutes).
+-			MustAdd(K8SGatewayApiV1Alpha2Referencepolicies).
+ 			MustAdd(K8SGatewayApiV1Alpha2Tcproutes).
+ 			MustAdd(K8SGatewayApiV1Alpha2Tlsroutes).
++			MustAdd(K8SGatewayApiV1Beta1Gatewayclasses).
++			MustAdd(K8SGatewayApiV1Beta1Gateways).
++			MustAdd(K8SGatewayApiV1Beta1Httproutes).
++			MustAdd(K8SGatewayApiV1Beta1Referencegrants).
+ 			Build()
+ 
+ 	// Deprecated contains only collections used by that will soon be used by nothing.
+diff -Naur istio/pkg/config/schema/gvk/resources.gen.go istio-new/pkg/config/schema/gvk/resources.gen.go
+--- istio/pkg/config/schema/gvk/resources.gen.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pkg/config/schema/gvk/resources.gen.go	2023-10-31 16:49:14.000000000 +0800
+@@ -17,10 +17,10 @@
+ 	Endpoints = config.GroupVersionKind{Group: "", Version: "v1", Kind: "Endpoints"}
+ 	EnvoyFilter = config.GroupVersionKind{Group: "networking.istio.io", Version: "v1alpha3", Kind: "EnvoyFilter"}
+ 	Gateway = config.GroupVersionKind{Group: "networking.istio.io", Version: "v1alpha3", Kind: "Gateway"}
+-	GatewayClass = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Kind: "GatewayClass"}
+-	HTTPRoute = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Kind: "HTTPRoute"}
++	GatewayClass = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1beta1", Kind: "GatewayClass"}
++	HTTPRoute = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1beta1", Kind: "HTTPRoute"}
+ 	Ingress = config.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "Ingress"}
+-	KubernetesGateway = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Kind: "Gateway"}
++	KubernetesGateway = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1beta1", Kind: "Gateway"}
+ 	MeshConfig = config.GroupVersionKind{Group: "", Version: "v1alpha1", Kind: "MeshConfig"}
+ 	MeshNetworks = config.GroupVersionKind{Group: "", Version: "v1alpha1", Kind: "MeshNetworks"}
+ 	MutatingWebhookConfiguration = config.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "MutatingWebhookConfiguration"}
+@@ -28,7 +28,7 @@
+ 	Node = config.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}
+ 	PeerAuthentication = config.GroupVersionKind{Group: "security.istio.io", Version: "v1beta1", Kind: "PeerAuthentication"}
+ 	Pod = config.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}
+-	ReferencePolicy = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Kind: "ReferencePolicy"}
++	ReferenceGrant = config.GroupVersionKind{Group: "gateway.networking.k8s.io", Version: "v1beta1", Kind: "ReferenceGrant"}
+ 	RequestAuthentication = config.GroupVersionKind{Group: "security.istio.io", Version: "v1beta1", Kind: "RequestAuthentication"}
+ 	Secret = config.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}
+ 	Service = config.GroupVersionKind{Group: "", Version: "v1", Kind: "Service"}
+diff -Naur istio/pkg/config/schema/metadata.gen.go istio-new/pkg/config/schema/metadata.gen.go
+--- istio/pkg/config/schema/metadata.gen.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pkg/config/schema/metadata.gen.go	2023-10-31 16:48:55.000000000 +0800
+@@ -201,15 +201,15 @@
+     group: "extensions"
+ 
+   - kind: "GatewayClass"
+-    name: "k8s/gateway_api/v1alpha2/gatewayclasses"
++    name: "k8s/gateway_api/v1beta1/gatewayclasses"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "Gateway"
+-    name: "k8s/gateway_api/v1alpha2/gateways"
++    name: "k8s/gateway_api/v1beta1/gateways"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "HTTPRoute"
+-    name: "k8s/gateway_api/v1alpha2/httproutes"
++    name: "k8s/gateway_api/v1beta1/httproutes"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "TCPRoute"
+@@ -220,8 +220,8 @@
+     name: "k8s/gateway_api/v1alpha2/tlsroutes"
+     group: "gateway.networking.k8s.io"
+ 
+-  - kind: "ReferencePolicy"
+-    name: "k8s/gateway_api/v1alpha2/referencepolicies"
++  - kind: "ReferenceGrant"
++    name: "k8s/gateway_api/v1beta1/referencegrants"
+     group: "gateway.networking.k8s.io"
+ 
+   # Istio CRD collections
+@@ -407,31 +407,31 @@
+   - kind: "GatewayClass"
+     plural: "gatewayclasses"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
++    version: "v1beta1"
+     clusterScoped: true
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassSpec"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "Gateway"
+     plural: "gateways"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.GatewaySpec"
+     validate: "EmptyValidate"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "HTTPRoute"
+     plural: "httproutes"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteSpec"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "TCPRoute"
+     plural: "tcproutes"
+@@ -451,12 +451,12 @@
+     statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.TLSRouteStatus"
+ 
+-  - kind: "ReferencePolicy"
+-    plural: "referencepolicies"
++  - kind: "ReferenceGrant"
++    plural: "referencegrants"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
+-    proto: "k8s.io.gateway_api.api.v1alpha1.ReferencePolicySpec"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
++    proto: "k8s.io.gateway_api.api.v1beta1.ReferenceGrantSpec"
+ 
+   ## Istio resources
+   - kind: "VirtualService"
+diff -Naur istio/pkg/config/schema/metadata.yaml istio-new/pkg/config/schema/metadata.yaml
+--- istio/pkg/config/schema/metadata.yaml	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pkg/config/schema/metadata.yaml	2023-10-31 16:05:33.000000000 +0800
+@@ -146,15 +146,15 @@
+     group: "extensions"
+ 
+   - kind: "GatewayClass"
+-    name: "k8s/gateway_api/v1alpha2/gatewayclasses"
++    name: "k8s/gateway_api/v1beta1/gatewayclasses"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "Gateway"
+-    name: "k8s/gateway_api/v1alpha2/gateways"
++    name: "k8s/gateway_api/v1beta1/gateways"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "HTTPRoute"
+-    name: "k8s/gateway_api/v1alpha2/httproutes"
++    name: "k8s/gateway_api/v1beta1/httproutes"
+     group: "gateway.networking.k8s.io"
+ 
+   - kind: "TCPRoute"
+@@ -165,8 +165,8 @@
+     name: "k8s/gateway_api/v1alpha2/tlsroutes"
+     group: "gateway.networking.k8s.io"
+ 
+-  - kind: "ReferencePolicy"
+-    name: "k8s/gateway_api/v1alpha2/referencepolicies"
++  - kind: "ReferenceGrant"
++    name: "k8s/gateway_api/v1beta1/referencegrants"
+     group: "gateway.networking.k8s.io"
+ 
+   # Istio CRD collections
+@@ -352,31 +352,31 @@
+   - kind: "GatewayClass"
+     plural: "gatewayclasses"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
++    version: "v1beta1"
+     clusterScoped: true
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassSpec"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayClassStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "Gateway"
+     plural: "gateways"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.GatewaySpec"
+     validate: "EmptyValidate"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.GatewayStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "HTTPRoute"
+     plural: "httproutes"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+     proto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteSpec"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.HTTPRouteStatus"
+-    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
++    statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+   - kind: "TCPRoute"
+     plural: "tcproutes"
+@@ -396,12 +396,12 @@
+     statusProtoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
+     statusProto: "k8s.io.gateway_api.api.v1alpha1.TLSRouteStatus"
+ 
+-  - kind: "ReferencePolicy"
+-    plural: "referencepolicies"
++  - kind: "ReferenceGrant"
++    plural: "referencegrants"
+     group: "gateway.networking.k8s.io"
+-    version: "v1alpha2"
+-    protoPackage: "sigs.k8s.io/gateway-api/apis/v1alpha2"
+-    proto: "k8s.io.gateway_api.api.v1alpha1.ReferencePolicySpec"
++    version: "v1beta1"
++    protoPackage: "sigs.k8s.io/gateway-api/apis/v1beta1"
++    proto: "k8s.io.gateway_api.api.v1beta1.ReferenceGrantSpec"
+ 
+   ## Istio resources
+   - kind: "VirtualService"
+diff -Naur istio/pkg/config/xds/filter_types.gen.go istio-new/pkg/config/xds/filter_types.gen.go
+--- istio/pkg/config/xds/filter_types.gen.go	2023-10-31 20:37:57.000000000 +0800
++++ istio-new/pkg/config/xds/filter_types.gen.go	2023-10-31 16:49:24.000000000 +0800
+@@ -1,6 +1,4 @@
+-//go:build !agent
+ // +build !agent
+-
+ // Copyright Istio Authors
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+@@ -20,7 +18,9 @@
+ package xds
+ 
+ import (
++	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/custom_cluster_plugins/cluster_fallback/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/common/sentinel/v3"
++	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/sentinel/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/squash/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/http/sxg/v3alpha"
+@@ -32,6 +32,7 @@
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/network/sip_proxy/router/v3alpha"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/network/sip_proxy/v3alpha"
+ 	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/private_key_providers/cryptomb/v3alpha"
++	_ "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/upstreams/http/dubbo_tcp/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/envoy/admin/v2alpha"
+ 	_ "github.com/envoyproxy/go-control-plane/envoy/admin/v3"
+ 	_ "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+diff -Naur istio/pkg/kube/client.go istio-new/pkg/kube/client.go
+--- istio/pkg/kube/client.go	2023-10-31 20:37:56.000000000 +0800
++++ istio-new/pkg/kube/client.go	2023-10-31 16:00:46.000000000 +0800
+@@ -66,7 +66,8 @@
+ 	"k8s.io/kubectl/pkg/cmd/apply"
+ 	kubectlDelete "k8s.io/kubectl/pkg/cmd/delete"
+ 	"k8s.io/kubectl/pkg/cmd/util"
+-	gatewayapi "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
++	gatewayapiV1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/gateway/versioned"
+ 	gatewayapifake "sigs.k8s.io/gateway-api/pkg/client/clientset/gateway/versioned/fake"
+ 	gatewayapiinformer "sigs.k8s.io/gateway-api/pkg/client/informers/gateway/externalversions"
+@@ -1092,7 +1093,8 @@
+ 	utilruntime.Must(clientsecurity.AddToScheme(scheme))
+ 	utilruntime.Must(clienttelemetry.AddToScheme(scheme))
+ 	utilruntime.Must(clientextensions.AddToScheme(scheme))
+-	utilruntime.Must(gatewayapi.AddToScheme(scheme))
++	utilruntime.Must(gatewayapiV1alpha2.AddToScheme(scheme))
++	utilruntime.Must(gatewayapiV1beta1.AddToScheme(scheme))
+ 	utilruntime.Must(mcsapi.AddToScheme(scheme))
+ 	return scheme
+ }()
+diff -Naur istio/tests/integration/pilot/validation_test.go istio-new/tests/integration/pilot/validation_test.go
+--- istio/tests/integration/pilot/validation_test.go	2023-10-31 20:37:49.000000000 +0800
++++ istio-new/tests/integration/pilot/validation_test.go	2023-10-31 20:09:35.000000000 +0800
+@@ -186,7 +186,7 @@
+ 				"gateway.networking.k8s.io/v1alpha2/HTTPRoute",
+ 				"gateway.networking.k8s.io/v1alpha2/TCPRoute",
+ 				"gateway.networking.k8s.io/v1alpha2/TLSRoute",
+-				"gateway.networking.k8s.io/v1alpha2/ReferencePolicy",
++				"gateway.networking.k8s.io/v1alpha2/ReferenceGrant",
+ 			} {
+ 				delete(recognized, gvk)
+ 			}
