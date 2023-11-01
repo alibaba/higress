@@ -11,28 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-profile: kind
+profile: all
 global:
-  install: local # install mode k8s/local/docker
+  install: k8s # install mode k8s/local-k8s/local-docker/local
   ingressClass: higress
-  watchNamespace:
-  disableAlpnH2: true
-  enableStatus: true
   enableIstioAPI: true
+  enableGatewayAPI: false
   namespace: higress-system
-  istioNamespace: istio-system
 
 console:
   port: 8080
   replicas: 1
-  serviceType: ClusterIP
-  domain: console.higress.io
-  tlsSecretName:
-  webLoginPrompt:
   adminPasswordValue: admin
-  adminPasswordLength: 8
-  o11yEnabled: false
-  pvcRwxSupported: true
 
 gateway:
   replicas: 1
@@ -59,10 +49,6 @@ charts:
     url: https://higress.io/helm-charts
     name: higress
     version: latest
-  istio:
-    url: https://istio-release.storage.googleapis.com/charts
-    name: base
-    version: 1.18.2
   standalone:
     url: https://higress.io/standalone/get-higress.sh
     name: standalone

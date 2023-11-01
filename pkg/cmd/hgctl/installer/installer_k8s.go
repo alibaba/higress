@@ -250,12 +250,15 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 	components[Higress] = higressComponent
 
 	if profile.IstioEnabled() {
+		istioNamespace := profile.GetIstioNamespace()
+		if len(istioNamespace) == 0 {
+			istioNamespace = DefaultIstioNamespace
+		}
 		opts := []ComponentOption{
-			WithComponentNamespace(profile.Global.IstioNamespace),
-			WithComponentChartPath(profile.InstallPackagePath),
-			WithComponentVersion(profile.Charts.Istio.Version),
-			WithComponentRepoURL(profile.Charts.Istio.Url),
-			WithComponentChartName(profile.Charts.Istio.Name),
+			WithComponentNamespace(istioNamespace),
+			WithComponentVersion("1.18.2"),
+			WithComponentRepoURL("embed://istiobase"),
+			WithComponentChartName("istio"),
 		}
 		if quiet {
 			opts = append(opts, WithQuiet())
@@ -267,6 +270,25 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 		}
 		components[Istio] = istioCRDComponent
 	}
+
+	if profile.GatewayAPIEnabled() {
+		opts := []ComponentOption{
+			WithComponentNamespace(DefaultGatewayAPINamespace),
+			WithComponentVersion("1.0.0"),
+			WithComponentRepoURL("embed://gatewayapi"),
+			WithComponentChartName("gatewayAPI"),
+		}
+		if quiet {
+			opts = append(opts, WithQuiet())
+		}
+
+		gatewayAPIComponent, err := NewGatewayAPIComponent(profile, writer, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("NewGatewayAPIComponent failed, err: %s", err)
+		}
+		components[GatewayAPI] = gatewayAPIComponent
+	}
+
 	op := &K8sInstaller{
 		profile:    profile,
 		components: components,

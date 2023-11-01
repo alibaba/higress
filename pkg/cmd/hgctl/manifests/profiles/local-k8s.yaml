@@ -15,23 +15,13 @@ profile: local-k8s
 global:
   install: local-k8s # install mode k8s/local-k8s/local-docker/local
   ingressClass: higress
-  watchNamespace:
-  disableAlpnH2: true
-  enableStatus: true
   enableIstioAPI: true
+  enableGatewayAPI: true
   namespace: higress-system
-  istioNamespace: istio-system
 
 console:
   replicas: 1
-  serviceType: ClusterIP
-  domain: console.higress.io
-  tlsSecretName:
-  webLoginPrompt:
   adminPasswordValue: admin
-  adminPasswordLength: 8
-  o11yEnabled: true
-  pvcRwxSupported: true
 
 gateway:
   replicas: 1
@@ -47,10 +37,6 @@ charts:
     url: https://higress.io/helm-charts
     name: higress
     version: latest
-  istio:
-    url: https://istio-release.storage.googleapis.com/charts
-    name: base
-    version: 1.18.2
   standalone:
     url: https://higress.io/standalone/get-higress.sh
     name: standalone

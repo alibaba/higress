@@ -29,10 +29,12 @@ import (
 )
 
 const (
-	HgctlHomeDirPath        = ".hgctl"
-	StandaloneInstalledPath = "higress-standalone"
-	ProfileInstalledPath    = "profiles"
-	InstalledYamlFileName   = "install.yaml"
+	HgctlHomeDirPath           = ".hgctl"
+	StandaloneInstalledPath    = "higress-standalone"
+	ProfileInstalledPath       = "profiles"
+	InstalledYamlFileName      = "install.yaml"
+	DefaultGatewayAPINamespace = "gateway-system"
+	DefaultIstioNamespace      = "istio-system"
 )
 
 type Installer interface {
