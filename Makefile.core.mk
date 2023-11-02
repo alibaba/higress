@@ -79,15 +79,15 @@ $(ARM64_OUT_LINUX)/higress:
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
-build-hgctl: $(OUT)
+build-hgctl: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
 
 .PHONY: build-linux-hgctl
-build-linux-hgctl: $(OUT)
+build-linux-hgctl: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-multiarch
-build-hgctl-multiarch: $(OUT)
+build-hgctl-multiarch: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
