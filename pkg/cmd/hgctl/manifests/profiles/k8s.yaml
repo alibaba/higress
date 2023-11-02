@@ -9,6 +9,7 @@ global:
 console:
   replicas: 1
   adminPasswordValue: admin
+  o11yEnabled: false
 
 gateway:
   replicas: 2

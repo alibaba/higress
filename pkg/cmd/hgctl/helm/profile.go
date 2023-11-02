@@ -86,6 +86,7 @@ type ProfileConsole struct {
 	Port               uint32 `json:"port,omitempty"`
 	Replicas           uint32 `json:"replicas,omitempty"`
 	AdminPasswordValue string `json:"adminPasswordValue,omitempty"`
+	O11yEnabled        bool   `json:"o11YEnabled,omitempty"`
 }
 
 func (p ProfileConsole) SetFlags(install InstallMode) ([]string, error) {
@@ -93,9 +94,7 @@ func (p ProfileConsole) SetFlags(install InstallMode) ([]string, error) {
 	if install == InstallK8s || install == InstallLocalK8s {
 		sets = append(sets, fmt.Sprintf("higress-console.replicaCount=%d", p.Replicas))
 		sets = append(sets, fmt.Sprintf("higress-console.admin.password.value=%s", p.AdminPasswordValue))
-		if install == InstallLocalK8s {
-			sets = append(sets, fmt.Sprintf("higress-console.o11y.enabled=%t", true))
-		}
+		sets = append(sets, fmt.Sprintf("higress-console.o11y.enabled=%t", p.O11yEnabled))
 	}
 	return sets, nil
 }
