@@ -77,7 +77,6 @@ func (a *Agent) profileArgs() []string {
 		fmt.Sprintf("--nacos-password=%s", a.profile.Storage.Password),
 		fmt.Sprintf("--nacos-username=%s", a.profile.Storage.Username),
 		fmt.Sprintf("--data-enc-key=%s", a.profile.Storage.DataEncKey),
-		fmt.Sprintf("--console-password=%s", a.profile.Console.AdminPasswordValue),
 		fmt.Sprintf("--console-port=%d", a.profile.Console.Port),
 		fmt.Sprintf("--gateway-http-port=%d", a.profile.Gateway.HttpPort),
 		fmt.Sprintf("--gateway-https-port=%d", a.profile.Gateway.HttpsPort),
