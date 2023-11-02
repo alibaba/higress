@@ -23,6 +23,8 @@ import (
 // FS embeds the manifests
 //
 //go:embed profiles/*
+//go:embed gatewayapi/*
+//go:embed istiobase/*
 var FS embed.FS
 
 // BuiltinOrDir returns a FS for the provided directory. If no directory is passed, the compiled in
