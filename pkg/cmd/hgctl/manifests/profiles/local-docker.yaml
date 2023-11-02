@@ -4,7 +4,6 @@ global:
 
 console:
   port: 8080
-  adminPassword: admin
 
 gateway:
   httpPort: 80
