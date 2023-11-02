@@ -127,7 +127,7 @@ type RendererOptions struct {
 	Name      string
 	Namespace string
 
-	// fields for LocalRenderer
+	// fields for LocalChartRenderer and LocalFileRenderer
 	FS  fs.FS
 	Dir string
 
@@ -174,14 +174,84 @@ func WithRepoURL(repo string) RendererOption {
 	}
 }
 
-// LocalRenderer load chart from local file system
-type LocalRenderer struct {
+// LocalFileRenderer load yaml files from local file system
+type LocalFileRenderer struct {
+	Opts     *RendererOptions
+	filesMap map[string]string
+	Started  bool
+}
+
+func NewLocalFileRenderer(opts ...RendererOption) (Renderer, error) {
+	newOpts := &RendererOptions{}
+	for _, opt := range opts {
+		opt(newOpts)
+	}
+
+	return &LocalFileRenderer{
+		Opts:     newOpts,
+		filesMap: make(map[string]string),
+	}, nil
+}
+
+func (l *LocalFileRenderer) Init() error {
+	fileNames, err := getFileNames(l.Opts.FS, l.Opts.Dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("chart of component %s doesn't exist", l.Opts.Name)
+		}
+		return fmt.Errorf("getFileNames err: %s", err)
+	}
+	for _, fileName := range fileNames {
+		data, err := fs.ReadFile(l.Opts.FS, fileName)
+		if err != nil {
+			return fmt.Errorf("ReadFile %s err: %s", fileName, err)
+		}
+
+		l.filesMap[fileName] = string(data)
+	}
+	l.Started = true
+	return nil
+}
+
+func (l *LocalFileRenderer) RenderManifest(valsYaml string) (string, error) {
+	if !l.Started {
+		return "", errors.New("LocalFileRenderer has not been init")
+	}
+	keys := make([]string, 0, len(l.filesMap))
+	for key := range l.filesMap {
+		keys = append(keys, key)
+	}
+	// to ensure that every manifest rendered by same values are the same
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for i := 0; i < len(keys); i++ {
+		file := l.filesMap[keys[i]]
+		file = util.ApplyFilters(file, DefaultFilters...)
+		// ignore empty manifest
+		if file == "" {
+			continue
+		}
+		if !strings.HasSuffix(file, YAMLSeparator) {
+			file += YAMLSeparator
+		}
+		builder.WriteString(file)
+	}
+	return builder.String(), nil
+}
+
+func (l *LocalFileRenderer) SetVersion(version string) {
+	l.Opts.Version = version
+}
+
+// LocalChartRenderer load chart from local file system
+type LocalChartRenderer struct {
 	Opts    *RendererOptions
 	Chart   *chart.Chart
 	Started bool
 }
 
-func (lr *LocalRenderer) Init() error {
+func (lr *LocalChartRenderer) Init() error {
 	fileNames, err := getFileNames(lr.Opts.FS, lr.Opts.Dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -212,18 +282,18 @@ func (lr *LocalRenderer) Init() error {
 	return nil
 }
 
-func (lr *LocalRenderer) RenderManifest(valsYaml string) (string, error) {
+func (lr *LocalChartRenderer) RenderManifest(valsYaml string) (string, error) {
 	if !lr.Started {
-		return "", errors.New("LocalRenderer has not been init")
+		return "", errors.New("LocalChartRenderer has not been init")
 	}
 	return renderManifest(valsYaml, lr.Chart, true, lr.Opts, DefaultFilters...)
 }
 
-func (lr *LocalRenderer) SetVersion(version string) {
+func (lr *LocalChartRenderer) SetVersion(version string) {
 	lr.Opts.Version = version
 }
 
-func NewLocalRenderer(opts ...RendererOption) (Renderer, error) {
+func NewLocalChartRenderer(opts ...RendererOption) (Renderer, error) {
 	newOpts := &RendererOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
@@ -232,7 +302,7 @@ func NewLocalRenderer(opts ...RendererOption) (Renderer, error) {
 	if err := verifyRendererOptions(newOpts); err != nil {
 		return nil, fmt.Errorf("verify err: %s", err)
 	}
-	return &LocalRenderer{
+	return &LocalChartRenderer{
 		Opts: newOpts,
 	}, nil
 }

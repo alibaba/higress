@@ -21,7 +21,6 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/installer"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
@@ -32,13 +31,16 @@ const (
 	// manifestsFlagHelpStr is the command line description for --manifests
 	manifestsFlagHelpStr = `Specify a path to a directory of profiles
 (e.g. ~/Downloads/higress/manifests).`
-	outputHelpstr = "Specify a file to write profile yaml"
+	filenameFlagHelpStr = "Path to file containing helm custom values"
+	outputHelpstr       = "Specify a file to write profile yaml"
 
-	profileNameK8s      = "k8s"
-	profileNameLocalK8s = "local-k8s"
+	profileNameK8s         = "k8s"
+	profileNameLocalK8s    = "local-k8s"
+	profileNameLocalDocker = "local-docker"
 )
 
 type InstallArgs struct {
+	// InFilenames is a filename to helm custom values
 	InFilenames []string
 	// KubeConfigPath is the path to kube config file.
 	KubeConfigPath string
@@ -61,6 +63,7 @@ func (a *InstallArgs) String() string {
 }
 
 func addInstallFlags(cmd *cobra.Command, args *InstallArgs) {
+	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
 }
@@ -87,11 +90,15 @@ func newInstallCmd() *cobra.Command {
   # Install higress on local kubernetes cluster 
   hgctl install --set profile=local-k8s 
 
+  # Install higress on local docker environment with specific gateway port
+  hgctl install --set profile=local-docker --set gateway.httpPort=80 --set gateway.httpsPort=443
+
   # To override profile setting
   hgctl install --set profile=local-k8s  --set global.enableIstioAPI=true --set gateway.replicas=2"
 
   # To override helm setting
   hgctl install --set profile=local-k8s  --set values.global.proxy.resources.requsts.cpu=500m"
+
 
 `,
 		Args: cobra.ExactArgs(0),
@@ -99,7 +106,7 @@ func newInstallCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return Install(cmd.OutOrStdout(), iArgs)
+			return install(cmd.OutOrStdout(), iArgs)
 		},
 	}
 	addInstallFlags(installCmd, iArgs)
@@ -108,7 +115,7 @@ func newInstallCmd() *cobra.Command {
 	return installCmd
 }
 
-func Install(writer io.Writer, iArgs *InstallArgs) error {
+func install(writer io.Writer, iArgs *InstallArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
 
 	// check profileName
@@ -133,7 +140,7 @@ func Install(writer io.Writer, iArgs *InstallArgs) error {
 		return err
 	}
 
-	err = InstallManifests(profile, writer)
+	err = installManifests(profile, writer)
 	if err != nil {
 		return fmt.Errorf("failed to install manifests: %v", err)
 	}
@@ -158,11 +165,12 @@ func promptInstall(writer io.Writer, profileName string) bool {
 
 func promptProfileName(writer io.Writer) string {
 	answer := ""
-	fmt.Fprintf(writer, "Please select higress install configration profile:\n")
-	fmt.Fprintf(writer, "1.Install higress to local kubernetes cluster like kind etc.\n")
-	fmt.Fprintf(writer, "2.Install higress to kubernetes cluster\n")
+	fmt.Fprintf(writer, "\nPlease select higress install configration profile:\n")
+	fmt.Fprintf(writer, "\n1.Install higress to local kubernetes cluster like kind etc.\n")
+	fmt.Fprintf(writer, "\n2.Install higress to kubernetes cluster\n")
+	fmt.Fprintf(writer, "\n3.Install higress to local docker environment\n")
 	for {
-		fmt.Fprintf(writer, "Please input 1 or 2 to select, input your selection:")
+		fmt.Fprintf(writer, "\nPlease input 1, 2 or 3 to select, input your selection:")
 		fmt.Scanln(&answer)
 		if strings.TrimSpace(answer) == "1" {
 			return profileNameLocalK8s
@@ -170,33 +178,23 @@ func promptProfileName(writer io.Writer) string {
 		if strings.TrimSpace(answer) == "2" {
 			return profileNameK8s
 		}
+		if strings.TrimSpace(answer) == "3" {
+			return profileNameLocalDocker
+		}
 	}
 
 }
 
-func InstallManifests(profile *helm.Profile, writer io.Writer) error {
-	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
-	if err != nil {
-		return fmt.Errorf("failed to build kubernetes client: %w", err)
-	}
-
-	op, err := installer.NewInstaller(profile, cliClient, writer, false)
-	if err != nil {
-		return err
-	}
-	if err := op.Run(); err != nil {
-		return err
-	}
-
-	manifestMap, err := op.RenderManifests()
+func installManifests(profile *helm.Profile, writer io.Writer) error {
+	installer, err := installer.NewInstaller(profile, writer, false)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(writer, "\n⌛️ Processing installation... \n\n")
-	if err := op.ApplyManifests(manifestMap); err != nil {
+	err = installer.Install()
+	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "\n🎊 Install All Resources Complete!\n")
+
 	return nil
 }
