@@ -59,12 +59,15 @@ func newManifestCmd() *cobra.Command {
 
 	generate := newManifestGenerateCmd(iArgs)
 	addManifestFlags(generate, iArgs)
+	flags := generate.Flags()
+	options.AddKubeConfigFlags(flags)
 	manifestCmd.AddCommand(generate)
 
 	return manifestCmd
 }
 
 func addManifestFlags(cmd *cobra.Command, args *ManifestArgs) {
+	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
 }
@@ -123,7 +126,7 @@ func genManifests(profile *helm.Profile, writer io.Writer) error {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
 
-	op, err := installer.NewInstaller(profile, cliClient, writer, true)
+	op, err := installer.NewK8sInstaller(profile, cliClient, writer, true)
 	if err != nil {
 		return err
 	}

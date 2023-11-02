@@ -1,36 +1,24 @@
-profile: all
+profile: local-docker
 global:
-  install: k8s # install mode k8s/local-k8s/local-docker/local
-  ingressClass: higress
-  enableIstioAPI: true
-  enableGatewayAPI: false
-  namespace: higress-system
+  install: local-docker
 
 console:
   port: 8080
-  replicas: 1
   adminPasswordValue: admin
-  o11yEnabled: false
 
 gateway:
-  replicas: 1
   httpPort: 80
   httpsPort: 443
   metricsPort: 15020
 
 controller:
-  replicas: 1
 
 storage:
-  url: nacos://127.0.0.1:8848 #  file://opt/higress/conf
+  url: file://${INSTALLPACKAGEPATH}/conf
   ns: higress-system
   username:
   password:
   dataEncKey:
-
-# values passed through to helm
-values:
-
 
 charts:
   higress:
@@ -41,3 +29,4 @@ charts:
     url: https://higress.io/standalone/get-higress.sh
     name: standalone
     version: latest
+

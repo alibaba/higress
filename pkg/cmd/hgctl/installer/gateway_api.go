@@ -15,6 +15,7 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -24,10 +25,10 @@ import (
 )
 
 const (
-	Istio ComponentName = "istio"
+	GatewayAPI ComponentName = "gatewayAPI"
 )
 
-type IstioCRDComponent struct {
+type GatewayAPIComponent struct {
 	profile  *helm.Profile
 	started  bool
 	opts     *ComponentOptions
@@ -35,65 +36,54 @@ type IstioCRDComponent struct {
 	writer   io.Writer
 }
 
-func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
+func NewGatewayAPIComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
 	newOpts := &ComponentOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
 	}
 
-	var renderer helm.Renderer
-	var err error
-
-	// Istio can be installed by embed type or remote type
-	if strings.HasPrefix(newOpts.RepoURL, "embed://") {
-		chartDir := strings.TrimPrefix(newOpts.RepoURL, "embed://")
-		renderer, err = helm.NewLocalChartRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithRepoURL(newOpts.RepoURL),
-			helm.WithVersion(newOpts.Version),
-			helm.WithFS(manifests.BuiltinOrDir("")),
-			helm.WithDir(chartDir),
-		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		renderer, err = helm.NewRemoteRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithRepoURL(newOpts.RepoURL),
-			helm.WithVersion(newOpts.Version),
-		)
-		if err != nil {
-			return nil, err
-		}
+	if !strings.HasPrefix(newOpts.RepoURL, "embed://") {
+		return nil, errors.New("GatewayAPI Url need start with embed://")
 	}
 
-	istioComponent := &IstioCRDComponent{
+	chartDir := strings.TrimPrefix(newOpts.RepoURL, "embed://")
+	// GatewayAPI can only be installed by embed type
+	renderer, err := helm.NewLocalFileRenderer(
+		helm.WithName(newOpts.ChartName),
+		helm.WithNamespace(newOpts.Namespace),
+		helm.WithRepoURL(newOpts.RepoURL),
+		helm.WithVersion(newOpts.Version),
+		helm.WithFS(manifests.BuiltinOrDir("")),
+		helm.WithDir(chartDir),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	gatewayAPIComponent := &GatewayAPIComponent{
 		profile:  profile,
 		renderer: renderer,
 		opts:     newOpts,
 		writer:   writer,
 	}
-	return istioComponent, nil
+	return gatewayAPIComponent, nil
 }
 
-func (i *IstioCRDComponent) ComponentName() ComponentName {
-	return Istio
+func (i *GatewayAPIComponent) ComponentName() ComponentName {
+	return GatewayAPI
 }
 
-func (i *IstioCRDComponent) Namespace() string {
+func (i *GatewayAPIComponent) Namespace() string {
 	return i.opts.Namespace
 }
 
-func (i *IstioCRDComponent) Enabled() bool {
+func (i *GatewayAPIComponent) Enabled() bool {
 	return true
 }
 
-func (i *IstioCRDComponent) Run() error {
+func (i *GatewayAPIComponent) Run() error {
 	if !i.opts.Quiet {
-		fmt.Fprintf(i.writer, "🏄 Downloading Istio Helm Chart version: %s, url: %s\n", i.opts.Version, i.opts.RepoURL)
+		fmt.Fprintf(i.writer, "🏄 Downloading GatewayAPI Yaml Files version: %s, url: %s\n", i.opts.Version, i.opts.RepoURL)
 	}
 	if err := i.renderer.Init(); err != nil {
 		return err
@@ -102,12 +92,12 @@ func (i *IstioCRDComponent) Run() error {
 	return nil
 }
 
-func (i *IstioCRDComponent) RenderManifest() (string, error) {
+func (i *GatewayAPIComponent) RenderManifest() (string, error) {
 	if !i.started {
 		return "", nil
 	}
 	if !i.opts.Quiet {
-		fmt.Fprintf(i.writer, "📦 Rendering Istio Helm Chart\n")
+		fmt.Fprintf(i.writer, "📦 Rendering GatewayAPI Yaml Files\n")
 	}
 	values := make(map[string]any)
 	manifest, err := renderComponentManifest(values, i.renderer, false, i.ComponentName(), i.opts.Namespace)

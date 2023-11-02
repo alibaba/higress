@@ -15,11 +15,10 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"os"
-
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
+	"io"
 )
 
 const (
@@ -96,29 +95,19 @@ func NewHigressComponent(profile *helm.Profile, writer io.Writer, opts ...Compon
 		opt(newOpts)
 	}
 
-	var renderer helm.Renderer
-	var err error
-	if newOpts.RepoURL != "" {
-		renderer, err = helm.NewRemoteRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithRepoURL(newOpts.RepoURL),
-			helm.WithVersion(newOpts.Version),
-		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		renderer, err = helm.NewLocalRenderer(
-			helm.WithName(newOpts.ChartName),
-			helm.WithNamespace(newOpts.Namespace),
-			helm.WithVersion(newOpts.Version),
-			helm.WithFS(os.DirFS(newOpts.ChartPath)),
-			helm.WithDir(string(Higress)),
-		)
-		if err != nil {
-			return nil, err
-		}
+	if len(newOpts.RepoURL) == 0 {
+		return nil, errors.New("Higress helm chart url can't be empty")
+	}
+
+	// Higress can only be installed by remote type
+	renderer, err := helm.NewRemoteRenderer(
+		helm.WithName(newOpts.ChartName),
+		helm.WithNamespace(newOpts.Namespace),
+		helm.WithRepoURL(newOpts.RepoURL),
+		helm.WithVersion(newOpts.Version),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	higressComponent := &HigressComponent{

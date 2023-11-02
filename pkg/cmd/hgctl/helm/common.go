@@ -26,15 +26,40 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// ReadYamlProfile gets the overlay yaml file from list of files and return profile value from file overlay and set overlay.
-func ReadYamlProfile(inFilenames []string, setFlags []string) (string, string, error) {
+// GetProfileFromFlags get profile name from flags.
+func GetProfileFromFlags(setFlags []string) (string, error) {
 	profileName := DefaultProfileName
 	// The profile coming from --set flag has the highest precedence.
 	psf := GetValueForSetFlag(setFlags, "profile")
 	if psf != "" {
 		profileName = psf
 	}
-	return "", profileName, nil
+	return profileName, nil
+}
+
+func GetValuesOverylayFromFiles(inFilenames []string) (string, error) {
+	// Convert layeredYamls under values node in profile file to support helm values
+	overLayYamls := ""
+	// Get Overlays from files
+	if len(inFilenames) > 0 {
+		layeredYamls, err := ReadLayeredYAMLs(inFilenames)
+		if err != nil {
+			return "", err
+		}
+		vals := make(map[string]any)
+		if err := yaml.Unmarshal([]byte(layeredYamls), &vals); err != nil {
+			return "", fmt.Errorf("%s:\n\nYAML:\n%s", err, layeredYamls)
+		}
+		values := make(map[string]any)
+		values["values"] = vals
+		out, err := yaml.Marshal(values)
+		if err != nil {
+			return "", err
+		}
+		overLayYamls = string(out)
+	}
+
+	return overLayYamls, nil
 }
 
 func GetUninstallProfileName() string {
@@ -101,12 +126,17 @@ func GenerateConfig(inFilenames []string, setFlags []string) (string, *Profile, 
 		return "", nil, "", err
 	}
 
-	fy, profileName, err := ReadYamlProfile(inFilenames, setFlags)
+	profileName, err := GetProfileFromFlags(setFlags)
 	if err != nil {
 		return "", nil, "", err
 	}
 
-	profileString, profile, err := GenProfile(profileName, fy, setFlags)
+	valuesOverlay, err := GetValuesOverylayFromFiles(inFilenames)
+	if err != nil {
+		return "", nil, "", err
+	}
+
+	profileString, profile, err := GenProfile(profileName, valuesOverlay, setFlags)
 
 	if err != nil {
 		return "", nil, "", err
