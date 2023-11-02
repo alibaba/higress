@@ -326,7 +326,6 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.22.2
 
 	k8s.io/utils => k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
-	sigs.k8s.io/gateway-api => sigs.k8s.io/gateway-api v0.4.0 // indirect
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.8.11 // indirect
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 )
@@ -352,4 +351,5 @@ replace (
 	github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 	github.com/moby/buildkit => github.com/moby/buildkit v0.8.2-0.20210401015549-df49b648c8bf
 	github.com/tonistiigi/fsutil => github.com/tonistiigi/fsutil v0.0.0-20201103201449-0834f99b7b85
+	sigs.k8s.io/gateway-api => github.com/johnlanni/gateway-api v0.0.0-20231031082632-72137664e7c7
 )
