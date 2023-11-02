@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/options"
 )
 
@@ -35,13 +36,15 @@ type HelmRelease struct {
 }
 
 type HelmAgent struct {
+	profile        *helm.Profile
 	writer         io.Writer
 	helmBinaryName string
 	quiet          bool
 }
 
-func NewHelmAgent(writer io.Writer, quiet bool) *HelmAgent {
+func NewHelmAgent(profile *helm.Profile, writer io.Writer, quiet bool) *HelmAgent {
 	return &HelmAgent{
+		profile:        profile,
 		writer:         writer,
 		helmBinaryName: "helm",
 		quiet:          quiet,
@@ -49,7 +52,7 @@ func NewHelmAgent(writer io.Writer, quiet bool) *HelmAgent {
 }
 
 func (h *HelmAgent) IsHigressInstalled() (bool, error) {
-	args := []string{"list", "-A", "-f", "higress"}
+	args := []string{"list", "-n", h.profile.Global.Namespace, "-f", "higress"}
 	if len(*options.DefaultConfigFlags.KubeConfig) > 0 {
 		args = append(args, fmt.Sprintf("--kubeconfig=%s", *options.DefaultConfigFlags.KubeConfig))
 	}

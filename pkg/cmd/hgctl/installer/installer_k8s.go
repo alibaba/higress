@@ -37,7 +37,7 @@ type K8sInstaller struct {
 func (o *K8sInstaller) Install() error {
 	// check if higress is installed by helm
 	fmt.Fprintf(o.writer, "\n⌛️ Detecting higress installed by helm or not... \n\n")
-	helmAgent := NewHelmAgent(o.writer, false)
+	helmAgent := NewHelmAgent(o.profile, o.writer, false)
 	if helmInstalled, _ := helmAgent.IsHigressInstalled(); helmInstalled {
 		fmt.Fprintf(o.writer, "\n🧐 You have already installed higress by helm, please use \"helm upgrade\" to upgrade higress!\n")
 		return nil

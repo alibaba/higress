@@ -9,7 +9,7 @@ global:
 console:
   port: 8080
   replicas: 1
-  adminPasswordValue: admin
+  adminPassword: admin
   o11yEnabled: false
 
 gateway:
