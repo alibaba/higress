@@ -83,17 +83,15 @@ func (p ProfileGlobal) Validate(install InstallMode) []error {
 }
 
 type ProfileConsole struct {
-	Port               uint32 `json:"port,omitempty"`
-	Replicas           uint32 `json:"replicas,omitempty"`
-	AdminPasswordValue string `json:"adminPasswordValue,omitempty"`
-	O11yEnabled        bool   `json:"o11YEnabled,omitempty"`
+	Port        uint32 `json:"port,omitempty"`
+	Replicas    uint32 `json:"replicas,omitempty"`
+	O11yEnabled bool   `json:"o11YEnabled,omitempty"`
 }
 
 func (p ProfileConsole) SetFlags(install InstallMode) ([]string, error) {
 	sets := make([]string, 0)
 	if install == InstallK8s || install == InstallLocalK8s {
 		sets = append(sets, fmt.Sprintf("higress-console.replicaCount=%d", p.Replicas))
-		sets = append(sets, fmt.Sprintf("higress-console.admin.password.value=%s", p.AdminPasswordValue))
 		sets = append(sets, fmt.Sprintf("higress-console.o11y.enabled=%t", p.O11yEnabled))
 	}
 	return sets, nil
