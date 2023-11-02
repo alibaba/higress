@@ -20,7 +20,7 @@ source "$(dirname -- "$0")/setup-istio-env.sh"
 
 cd ${ROOT}/external/proxy
 
-CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${PWD}/out,destination=/home "
+CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/package,destination=/home/package "
 
 BUILD_WITH_CONTAINER=1 \
     CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
