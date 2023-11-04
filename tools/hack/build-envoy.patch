@@ -1,0 +1,25 @@
+diff --color -Naur scripts/release-binary.sh scripts/release-binary.sh
+--- proxy/scripts/release-binary.sh	2023-11-02 10:43:58.780662819 +0800
++++ proxy_new/scripts/release-binary.sh	2023-11-02 10:39:00.085602214 +0800
+@@ -113,7 +113,7 @@
+ # See: https://github.com/istio/istio/issues/15714 for details.
+ # k8-opt is the output directory for x86_64 optimized builds (-c opt, so --config=release-symbol and --config=release).
+ # k8-dbg is the output directory for -c dbg builds.
+-for config in release release-symbol asan debug
++for config in release
+ do
+   case $config in
+     "release" )
+@@ -146,9 +146,9 @@
+   export BUILD_CONFIG=${config}
+ 
+   echo "Building ${config} proxy"
+-  BINARY_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.tar.gz"
+-  DWP_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.dwp"
+-  SHA256_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.sha256"
++  BINARY_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.tar.gz"
++  DWP_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.dwp"
++  SHA256_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.sha256"
+   # shellcheck disable=SC2086
+   bazel build ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} //:envoy_tar //:envoy.dwp
+   BAZEL_TARGET="${BAZEL_OUT}/envoy_tar.tar.gz"
