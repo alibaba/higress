@@ -584,6 +584,48 @@ TEST_F(BasicAuthTest, RuleWithConsumerAllow) {
             FilterHeadersStatus::Continue);
 }
 
+TEST_F(BasicAuthTest, GlobalAuthRuleWithDomainPort) {
+  std::string configuration = R"(
+{
+  "global_auth": true,
+  "consumers" : [
+    {"credential" : "ok:test", "name" : "consumer_ok"},
+    {"credential" : "admin2:admin2", "name" : "consumer2"},
+    {"credential" : "YWRtaW4zOmFkbWluMw==", "name" : "consumer3"},
+    {"credential" : "admin:admin", "name" : "consumer"}
+  ],
+  "_rules_" : [
+    {
+      "_match_domain_" : ["test.com", "*.example.com"],
+      "allow" : [ "consumer" ]
+    }
+  ]
+})";
+
+  BufferBase buffer;
+  buffer.set({configuration.data(), configuration.size()});
+
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  authority_ = "www.example.com:8080";
+  cred_ = "admin:admin";
+  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+
+  cred_ = "admin2:admin2";
+  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  authority_ = "abc.com";
+  authorization_header_ = "Basic " + Base64::encode(cred_.data(), cred_.size());
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
 TEST_F(BasicAuthTest, RuleWithEncryptedConsumerAllow) {
   std::string configuration = R"(
 {

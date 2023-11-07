@@ -109,7 +109,6 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 	if keyCount > 0 {
 		err := parsePluginConfig(config, &pluginConfig)
 		if err != nil {
-			proxywasm.LogWarnf("parse global config failed, err:%v", err)
 			globalConfigError = err
 		} else {
 			m.globalConfig = pluginConfig
@@ -185,7 +184,25 @@ func (m RuleMatcher[PluginConfig]) parseHostMatchConfig(config gjson.Result) []H
 	return hostMatchers
 }
 
+func stripPortFromHost(reqHost string) string {
+	// Port removing code is inspired by
+	// https://github.com/envoyproxy/envoy/blob/v1.17.0/source/common/http/header_utility.cc#L219
+	portStart := strings.LastIndexByte(reqHost, ':')
+	if portStart != -1 {
+		// According to RFC3986 v6 address is always enclosed in "[]".
+		// section 3.2.2.
+		v6EndIndex := strings.LastIndexByte(reqHost, ']')
+		if v6EndIndex == -1 || v6EndIndex < portStart {
+			if portStart+1 <= len(reqHost) {
+				return reqHost[:portStart]
+			}
+		}
+	}
+	return reqHost
+}
+
 func (m RuleMatcher[PluginConfig]) hostMatch(rule RuleConfig[PluginConfig], reqHost string) bool {
+	reqHost = stripPortFromHost(reqHost)
 	for _, hostMatch := range rule.hosts {
 		switch hostMatch.matchType {
 		case Suffix:
