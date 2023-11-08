@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/manifests"
 )
 
@@ -33,9 +34,10 @@ type IstioCRDComponent struct {
 	opts     *ComponentOptions
 	renderer helm.Renderer
 	writer   io.Writer
+	kubeCli  kubernetes.CLIClient
 }
 
-func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
+func NewIstioCRDComponent(kubeCli kubernetes.CLIClient, profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
 	newOpts := &ComponentOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
@@ -54,6 +56,8 @@ func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...Compo
 			helm.WithVersion(newOpts.Version),
 			helm.WithFS(manifests.BuiltinOrDir("")),
 			helm.WithDir(chartDir),
+			helm.WithCapabilities(newOpts.Capabilities),
+			helm.WithRestConfig(kubeCli.RESTConfig()),
 		)
 		if err != nil {
 			return nil, err
@@ -64,6 +68,8 @@ func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...Compo
 			helm.WithNamespace(newOpts.Namespace),
 			helm.WithRepoURL(newOpts.RepoURL),
 			helm.WithVersion(newOpts.Version),
+			helm.WithCapabilities(newOpts.Capabilities),
+			helm.WithRestConfig(kubeCli.RESTConfig()),
 		)
 		if err != nil {
 			return nil, err
@@ -75,6 +81,7 @@ func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...Compo
 		renderer: renderer,
 		opts:     newOpts,
 		writer:   writer,
+		kubeCli:  kubeCli,
 	}
 	return istioComponent, nil
 }
