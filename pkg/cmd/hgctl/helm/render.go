@@ -437,7 +437,6 @@ func renderManifest(valsYaml string, cht *chart.Chart, builtIn bool, opts *Rende
 		Name:      opts.Name,
 		Namespace: opts.Namespace,
 	}
-	// TODO need to specify k8s version
 	var caps *chartutil.Capabilities
 	caps = opts.Capabilities
 	if caps == nil {
