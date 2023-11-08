@@ -17,8 +17,10 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"io"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 )
 
 const (
@@ -31,6 +33,7 @@ type HigressComponent struct {
 	opts     *ComponentOptions
 	renderer helm.Renderer
 	writer   io.Writer
+	kubeCli  kubernetes.CLIClient
 }
 
 func (h *HigressComponent) ComponentName() ComponentName {
@@ -89,7 +92,7 @@ func (h *HigressComponent) RenderManifest() (string, error) {
 	return manifest, nil
 }
 
-func NewHigressComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
+func NewHigressComponent(kubeCli kubernetes.CLIClient, profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
 	newOpts := &ComponentOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
@@ -105,6 +108,8 @@ func NewHigressComponent(profile *helm.Profile, writer io.Writer, opts ...Compon
 		helm.WithNamespace(newOpts.Namespace),
 		helm.WithRepoURL(newOpts.RepoURL),
 		helm.WithVersion(newOpts.Version),
+		helm.WithCapabilities(newOpts.Capabilities),
+		helm.WithRestConfig(kubeCli.RESTConfig()),
 	)
 	if err != nil {
 		return nil, err
@@ -115,6 +120,7 @@ func NewHigressComponent(profile *helm.Profile, writer io.Writer, opts ...Compon
 		renderer: renderer,
 		opts:     newOpts,
 		writer:   writer,
+		kubeCli:  kubeCli,
 	}
 	return higressComponent, nil
 }

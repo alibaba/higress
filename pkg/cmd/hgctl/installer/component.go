@@ -17,6 +17,7 @@ package installer
 import (
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
 )
 
@@ -49,6 +50,8 @@ type ComponentOptions struct {
 	ChartName string
 	Version   string
 	Quiet     bool
+	// Capabilities
+	Capabilities *chartutil.Capabilities
 }
 
 type ComponentOption func(*ComponentOptions)
@@ -80,6 +83,12 @@ func WithComponentRepoURL(url string) ComponentOption {
 func WithComponentVersion(version string) ComponentOption {
 	return func(opts *ComponentOptions) {
 		opts.Version = version
+	}
+}
+
+func WithComponentCapabilities(capabilities *chartutil.Capabilities) ComponentOption {
+	return func(opts *ComponentOptions) {
+		opts.Capabilities = capabilities
 	}
 }
 

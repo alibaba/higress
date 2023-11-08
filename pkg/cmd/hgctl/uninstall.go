@@ -26,13 +26,13 @@ import (
 )
 
 type uninstallArgs struct {
-	// purgeIstioCRD delete  all of Istio resources.
-	purgeIstioCRD bool
+	// purgeResources delete  all of installed resources.
+	purgeResources bool
 }
 
 func addUninstallFlags(cmd *cobra.Command, args *uninstallArgs) {
-	cmd.PersistentFlags().BoolVarP(&args.purgeIstioCRD, "purge-istio-crd", "", false,
-		"Delete  all of Istio resources")
+	cmd.PersistentFlags().BoolVarP(&args.purgeResources, "purge-resources", "", false,
+		"Delete  all of IstioAPI,GatewayAPI resources")
 }
 
 // newUninstallCmd command uninstalls Istio from a cluster
@@ -42,11 +42,11 @@ func newUninstallCmd() *cobra.Command {
 		Use:   "uninstall",
 		Short: "Uninstall higress from a cluster",
 		Long:  "The uninstall command uninstalls higress from a cluster or local environment",
-		Example: `  # Uninstall higress 
+		Example: `# Uninstall higress 
   hgctl uninstal
   
-  # Uninstall higress and istio CRD from a cluster
-  hgctl uninstall --purge-istio-crd
+  # Uninstall higress, istioAPI and GatewayAPI from a cluster
+  hgctl uninstall --purge-resources
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return uninstall(cmd.OutOrStdout(), uiArgs)
@@ -82,7 +82,12 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 	}
 
 	if profile.Global.Install == helm.InstallK8s || profile.Global.Install == helm.InstallLocalK8s {
-		profile.Global.EnableIstioAPI = uiArgs.purgeIstioCRD
+		if profile.Global.EnableIstioAPI {
+			profile.Global.EnableIstioAPI = uiArgs.purgeResources
+		}
+		if profile.Global.EnableGatewayAPI {
+			profile.Global.EnableGatewayAPI = uiArgs.purgeResources
+		}
 	}
 
 	err = uninstallManifests(profile, writer, uiArgs)
