@@ -17,6 +17,7 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
@@ -88,6 +89,11 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 	err = uninstallManifests(profile, writer, uiArgs)
 	if err != nil {
 		return err
+	}
+
+	// Remove "~/.hgctl/profiles/install.yaml"
+	if oldProfileName, isExisted := installer.GetInstalledYamlPath(); isExisted {
+		_ = os.Remove(oldProfileName)
 	}
 
 	return nil

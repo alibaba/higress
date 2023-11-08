@@ -17,21 +17,19 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"io"
-	"os"
-
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
+	"io"
 )
 
 type K8sInstaller struct {
-	started    bool
-	components map[ComponentName]Component
-	kubeCli    kubernetes.CLIClient
-	profile    *helm.Profile
-	writer     io.Writer
+	started      bool
+	components   map[ComponentName]Component
+	kubeCli      kubernetes.CLIClient
+	profile      *helm.Profile
+	writer       io.Writer
+	profileStore ProfileStore
 }
 
 func (o *K8sInstaller) Install() error {
@@ -41,10 +39,6 @@ func (o *K8sInstaller) Install() error {
 	if helmInstalled, _ := helmAgent.IsHigressInstalled(); helmInstalled {
 		fmt.Fprintf(o.writer, "\n🧐 You have already installed higress by helm, please use \"helm upgrade\" to upgrade higress!\n")
 		return nil
-	}
-
-	if _, err := GetProfileInstalledPath(); err != nil {
-		return err
 	}
 
 	if err := o.Run(); err != nil {
@@ -61,11 +55,11 @@ func (o *K8sInstaller) Install() error {
 		return err
 	}
 
-	profileName, _ := GetInstalledYamlPath()
-	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile: \"%s\" \n", profileName)
-	if err := util.WriteFileString(profileName, util.ToYAML(o.profile), 0o644); err != nil {
-		return err
+	profileName, err1 := o.profileStore.Save(o.profile)
+	if err1 != nil {
+		return err1
 	}
+	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile: \"%s\" \n", profileName)
 
 	fmt.Fprintf(o.writer, "\n🎊 Install All Resources Complete!\n")
 
@@ -91,9 +85,11 @@ func (o *K8sInstaller) UnInstall() error {
 		return err
 	}
 
-	profileName, _ := GetInstalledYamlPath()
+	profileName, err1 := o.profileStore.Delete(o.profile)
+	if err1 != nil {
+		return err1
+	}
 	fmt.Fprintf(o.writer, "\n✔️ Removed Profile: \"%s\" \n", profileName)
-	os.Remove(profileName)
 
 	fmt.Fprintf(o.writer, "\n🎊 Uninstall All Resources Complete!\n")
 
@@ -297,11 +293,26 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 		components[GatewayAPI] = gatewayAPIComponent
 	}
 
+	//profileInstalledPath, err1 := GetProfileInstalledPath()
+	//if err1 != nil {
+	//	return nil, err1
+	//}
+	//profileStore, err2 := NewFileDirProfileStore(profileInstalledPath)
+	//if err2 != nil {
+	//	return nil, err
+	//}
+
+	profileStore, err := NewConfigmapProfileStore(cli)
+	if err != nil {
+		return nil, err
+	}
+
 	op := &K8sInstaller{
-		profile:    profile,
-		components: components,
-		kubeCli:    cli,
-		writer:     writer,
+		profile:      profile,
+		components:   components,
+		kubeCli:      cli,
+		writer:       writer,
+		profileStore: profileStore,
 	}
 	return op, nil
 }

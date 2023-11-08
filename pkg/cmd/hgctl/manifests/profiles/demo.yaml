@@ -1,0 +1,6 @@
+higress-core:
+  gateway:
+    service:
+      type: NodePort
+    replicas: 1
+    nodeSelector:

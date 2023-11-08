@@ -17,6 +17,7 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
@@ -87,6 +88,11 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 	err = upgradeManifests(profile, writer)
 	if err != nil {
 		return err
+	}
+
+	// Remove "~/.hgctl/profiles/install.yaml"
+	if oldProfileName, isExisted := installer.GetInstalledYamlPath(); isExisted {
+		_ = os.Remove(oldProfileName)
 	}
 
 	return nil

@@ -67,6 +67,7 @@ func (h *HigressComponent) Run() error {
 	if err := h.renderer.Init(); err != nil {
 		return err
 	}
+	h.profile.HigressVersion = h.opts.Version
 	h.started = true
 	return nil
 }

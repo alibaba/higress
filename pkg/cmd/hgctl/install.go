@@ -17,6 +17,7 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
@@ -144,6 +145,12 @@ func install(writer io.Writer, iArgs *InstallArgs) error {
 	if err != nil {
 		return fmt.Errorf("failed to install manifests: %v", err)
 	}
+
+	// Remove "~/.hgctl/profiles/install.yaml"
+	if oldProfileName, isExisted := installer.GetInstalledYamlPath(); isExisted {
+		_ = os.Remove(oldProfileName)
+	}
+
 	return nil
 }
 
