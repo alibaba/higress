@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
@@ -202,6 +203,19 @@ func (o *K8sInstaller) DeleteManifests(manifestMap map[ComponentName]string) err
 	return nil
 }
 
+// WriteManifests write component manifests to local files
+func (o *K8sInstaller) WriteManifests(manifestMap map[ComponentName]string) error {
+	if o.kubeCli == nil {
+		return errors.New("no injected k8s cli into K8sInstaller")
+	}
+	rootPath, _ := os.Getwd()
+	for name, manifest := range manifestMap {
+		fileName := filepath.Join(rootPath, string(name)+".yaml")
+		util.WriteFileString(fileName, manifest, 0o644)
+	}
+	return nil
+}
+
 // deleteManifest delete manifest to certain namespace
 func (o *K8sInstaller) deleteManifest(manifest string, ns string) error {
 	objs, err := object.ParseK8sObjectsFromYAMLManifest(manifest)
@@ -239,6 +253,14 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 	if profile == nil {
 		return nil, errors.New("install profile is empty")
 	}
+	// initialize server info
+	serverInfo, _ := NewServerInfo(cli)
+	fmt.Fprintf(writer, "\n⌛️ Detecting kubernetes version ... ")
+	capabilities, err := serverInfo.GetCapabilities()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(writer, "%s\n", capabilities.KubeVersion.Version)
 	// initialize components
 	components := make(map[ComponentName]Component)
 	opts := []ComponentOption{
@@ -247,11 +269,12 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 		WithComponentVersion(profile.Charts.Higress.Version),
 		WithComponentRepoURL(profile.Charts.Higress.Url),
 		WithComponentChartName(profile.Charts.Higress.Name),
+		WithComponentCapabilities(capabilities),
 	}
 	if quiet {
 		opts = append(opts, WithQuiet())
 	}
-	higressComponent, err := NewHigressComponent(profile, writer, opts...)
+	higressComponent, err := NewHigressComponent(cli, profile, writer, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("NewHigressComponent failed, err: %s", err)
 	}
@@ -267,12 +290,13 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 			WithComponentVersion("1.18.2"),
 			WithComponentRepoURL("embed://istiobase"),
 			WithComponentChartName("istio"),
+			WithComponentCapabilities(capabilities),
 		}
 		if quiet {
 			opts = append(opts, WithQuiet())
 		}
 
-		istioCRDComponent, err := NewIstioCRDComponent(profile, writer, opts...)
+		istioCRDComponent, err := NewIstioCRDComponent(cli, profile, writer, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("NewIstioCRDComponent failed, err: %s", err)
 		}
@@ -285,12 +309,13 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 			WithComponentVersion("1.0.0"),
 			WithComponentRepoURL("embed://gatewayapi"),
 			WithComponentChartName("gatewayAPI"),
+			WithComponentCapabilities(capabilities),
 		}
 		if quiet {
 			opts = append(opts, WithQuiet())
 		}
 
-		gatewayAPIComponent, err := NewGatewayAPIComponent(profile, writer, opts...)
+		gatewayAPIComponent, err := NewGatewayAPIComponent(cli, profile, writer, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("NewGatewayAPIComponent failed, err: %s", err)
 		}
