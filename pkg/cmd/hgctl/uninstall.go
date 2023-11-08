@@ -82,8 +82,12 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 	}
 
 	if profile.Global.Install == helm.InstallK8s || profile.Global.Install == helm.InstallLocalK8s {
-		profile.Global.EnableIstioAPI = uiArgs.purgeResources
-		profile.Global.EnableGatewayAPI = uiArgs.purgeResources
+		if profile.Global.EnableIstioAPI {
+			profile.Global.EnableIstioAPI = uiArgs.purgeResources
+		}
+		if profile.Global.EnableGatewayAPI {
+			profile.Global.EnableGatewayAPI = uiArgs.purgeResources
+		}
 	}
 
 	err = uninstallManifests(profile, writer, uiArgs)
