@@ -38,6 +38,7 @@ import (
 	"helm.sh/helm/v3/pkg/engine"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
 )
 
@@ -134,6 +135,12 @@ type RendererOptions struct {
 	// fields for RemoteRenderer
 	Version string
 	RepoURL string
+
+	// Capabilities
+	Capabilities *chartutil.Capabilities
+
+	// rest config
+	restConfig *rest.Config
 }
 
 type RendererOption func(*RendererOptions)
@@ -171,6 +178,18 @@ func WithVersion(version string) RendererOption {
 func WithRepoURL(repo string) RendererOption {
 	return func(opts *RendererOptions) {
 		opts.RepoURL = repo
+	}
+}
+
+func WithCapabilities(capabilities *chartutil.Capabilities) RendererOption {
+	return func(opts *RendererOptions) {
+		opts.Capabilities = capabilities
+	}
+}
+
+func WithRestConfig(config *rest.Config) RendererOption {
+	return func(opts *RendererOptions) {
+		opts.restConfig = config
 	}
 }
 
@@ -418,8 +437,11 @@ func renderManifest(valsYaml string, cht *chart.Chart, builtIn bool, opts *Rende
 		Name:      opts.Name,
 		Namespace: opts.Namespace,
 	}
-	// TODO need to specify k8s version
-	caps := chartutil.DefaultCapabilities
+	var caps *chartutil.Capabilities
+	caps = opts.Capabilities
+	if caps == nil {
+		caps = chartutil.DefaultCapabilities
+	}
 	// maybe we need a configuration to change this caps
 	resVals, err := chartutil.ToRenderValues(cht, valsMap, RelOpts, caps)
 	if err != nil {
@@ -428,7 +450,7 @@ func renderManifest(valsYaml string, cht *chart.Chart, builtIn bool, opts *Rende
 	if builtIn {
 		resVals["Values"].(chartutil.Values)["enabled"] = true
 	}
-	filesMap, err := engine.Render(cht, resVals)
+	filesMap, err := engine.RenderWithClient(cht, resVals, opts.restConfig)
 	if err != nil {
 		return "", fmt.Errorf("Render chart failed err: %s", err)
 	}

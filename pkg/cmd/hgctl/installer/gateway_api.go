@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/manifests"
 )
 
@@ -34,9 +35,10 @@ type GatewayAPIComponent struct {
 	opts     *ComponentOptions
 	renderer helm.Renderer
 	writer   io.Writer
+	kubeCli  kubernetes.CLIClient
 }
 
-func NewGatewayAPIComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
+func NewGatewayAPIComponent(kubeCli kubernetes.CLIClient, profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
 	newOpts := &ComponentOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
@@ -55,6 +57,8 @@ func NewGatewayAPIComponent(profile *helm.Profile, writer io.Writer, opts ...Com
 		helm.WithVersion(newOpts.Version),
 		helm.WithFS(manifests.BuiltinOrDir("")),
 		helm.WithDir(chartDir),
+		helm.WithCapabilities(newOpts.Capabilities),
+		helm.WithRestConfig(kubeCli.RESTConfig()),
 	)
 	if err != nil {
 		return nil, err
@@ -65,6 +69,7 @@ func NewGatewayAPIComponent(profile *helm.Profile, writer io.Writer, opts ...Com
 		renderer: renderer,
 		opts:     newOpts,
 		writer:   writer,
+		kubeCli:  kubeCli,
 	}
 	return gatewayAPIComponent, nil
 }
