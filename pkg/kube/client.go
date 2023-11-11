@@ -263,3 +263,9 @@ func CheckKIngressCRDExist(config *rest.Config) bool {
 	}
 	return false
 }
+
+// EnableCrdWatcher enables the CRD watcher on the client.
+func EnableCrdWatcher(c Client) Client {
+	istiokube.EnableCrdWatcher(c.(*client).Client)
+	return c
+}

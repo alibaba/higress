@@ -31,10 +31,10 @@ import (
 
 type SecretController controller.Controller[listersv1.SecretLister]
 
-func NewController(client kubeclient.Client, clusterId string) SecretController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) SecretController {
 	opts := ktypes.InformerOptions{
 		Namespace: metav1.NamespaceAll,
-		Cluster:   cluster.ID(clusterId),
+		Cluster:   clusterId,
 		FieldSelector: fields.AndSelectors(
 			fields.OneTermNotEqualSelector("type", "helm.sh/release.v1"),
 			fields.OneTermNotEqualSelector("type", string(v1.SecretTypeServiceAccountToken)),

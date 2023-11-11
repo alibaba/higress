@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/kube"
 	v1 "k8s.io/api/core/v1"
@@ -101,18 +102,18 @@ func CreateOrUpdateAnnotations(annotations map[string]string, options Options) m
 		out[key] = value
 	}
 
-	out[ClusterIdAnnotation] = options.ClusterId
+	out[ClusterIdAnnotation] = options.ClusterId.String()
 	out[RawClusterIdAnnotation] = options.RawClusterId
 	return out
 }
 
-func GetClusterId(annotations map[string]string) string {
+func GetClusterId(annotations map[string]string) cluster.ID {
 	if len(annotations) == 0 {
 		return ""
 	}
 
 	if value, exist := annotations[ClusterIdAnnotation]; exist {
-		return value
+		return cluster.ID(value)
 	}
 
 	return ""

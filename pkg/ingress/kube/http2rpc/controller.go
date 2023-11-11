@@ -32,10 +32,10 @@ var http2rpcsResource = schema.GroupVersionResource{Group: "networking.higress.i
 
 type Http2RpcController controller.Controller[listersv1.Http2RpcLister]
 
-func NewController(client kubeclient.Client, clusterId string) Http2RpcController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) Http2RpcController {
 	opts := ktypes.InformerOptions{
 		Namespace: metav1.NamespaceAll,
-		Cluster:   cluster.ID(clusterId),
+		Cluster:   clusterId,
 	}
 	informer := client.Informers().InformerFor(http2rpcsResource, opts, func() cache.SharedIndexInformer {
 		return client.HigressInformer().Networking().V1().Http2Rpcs().Informer()

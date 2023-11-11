@@ -32,10 +32,10 @@ var wasmpluginResource = schema.GroupVersionResource{Group: "networking.higress.
 
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]
 
-func NewController(client kubeclient.Client, clusterId string) WasmPluginController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) WasmPluginController {
 	opts := ktypes.InformerOptions{
 		Namespace: metav1.NamespaceAll,
-		Cluster:   cluster.ID(clusterId),
+		Cluster:   clusterId,
 	}
 	informer := client.Informers().InformerFor(wasmpluginResource, opts, func() cache.SharedIndexInformer {
 		return client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Informer()

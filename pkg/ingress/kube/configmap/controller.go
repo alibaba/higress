@@ -38,10 +38,10 @@ import (
 
 type HigressConfigController controller.Controller[listersv1.ConfigMapNamespaceLister]
 
-func NewController(client kubeclient.Client, clusterId string, namespace string) HigressConfigController {
+func NewController(client kubeclient.Client, clusterId cluster.ID, namespace string) HigressConfigController {
 	opts := ktypes.InformerOptions{
 		Namespace: namespace,
-		Cluster:   cluster.ID(clusterId),
+		Cluster:   clusterId,
 	}
 	informer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.ConfigMap)
 	lister := listersv1.NewConfigMapLister(informer.Informer.GetIndexer()).ConfigMaps(namespace)

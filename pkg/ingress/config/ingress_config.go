@@ -36,6 +36,7 @@ import (
 	istiotype "istio.io/api/type/v1beta1"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/util/protoconv"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -54,6 +55,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/pkg/ingress/kube/gateway"
 	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
@@ -95,8 +97,8 @@ const (
 )
 
 type IngressConfig struct {
-	// key: cluster id
-	remoteIngressControllers map[string]common.IngressController
+	remoteIngressControllers map[cluster.ID]common.IngressController
+	remoteGatewayControllers map[cluster.ID]common.GatewayController
 	mutex                    sync.RWMutex
 
 	ingressRouteCache  model.IngressRouteCollection
@@ -146,26 +148,26 @@ type IngressConfig struct {
 
 	namespace string
 
-	clusterId string
+	clusterId cluster.ID
 }
 
-func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace, clusterId string) *IngressConfig {
+func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressConfig {
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
 	config := &IngressConfig{
-		remoteIngressControllers: make(map[string]common.IngressController),
+		remoteIngressControllers: make(map[cluster.ID]common.IngressController),
+		remoteGatewayControllers: make(map[cluster.ID]common.GatewayController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               xdsUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet:    sets.New[string](),
-		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(false),
-		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
-		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
+		globalGatewayName:        namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
+		watchedSecretSet:         sets.New[string](),
+		namespace:                namespace,
+		mcpbridgeReconciled:      atomic.NewBool(false),
+		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
+		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -213,9 +215,12 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f ist
 	for _, remoteIngressController := range m.remoteIngressControllers {
 		remoteIngressController.RegisterEventHandler(kind, f)
 	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		remoteGatewayController.RegisterEventHandler(kind, f)
+	}
 }
 
-func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressController {
+func (m *IngressConfig) AddLocalCluster(options common.Options) {
 	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
@@ -226,16 +231,9 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) common.IngressCo
 	} else {
 		ingressController = ingressv1.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
 	}
-
 	m.remoteIngressControllers[options.ClusterId] = ingressController
-	return ingressController
-}
 
-func (m *IngressConfig) InitializeCluster(ingressController common.IngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.watchErrorHandler)
-
-	go ingressController.Run(stop)
-	return nil
+	m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options)
 }
 
 func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []config.Config {
@@ -247,7 +245,20 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 		typ != gvk.WasmPlugin {
 		return nil
 	}
+	var configs = make([]config.Config, 0)
 
+	if configsFromIngress := m.listFromIngressControllers(typ, namespace); configsFromIngress != nil {
+		configs = append(configs, configsFromIngress...)
+	}
+
+	if configsFromGateway := m.listFromGatewayControllers(typ, namespace); configsFromGateway != nil {
+		configs = append(configs, configsFromGateway...)
+	}
+
+	return configs
+}
+
+func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, namespace string) []config.Config {
 	// Currently, only support list all namespaces gateways or virtualservices.
 	if namespace != "" {
 		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
@@ -304,12 +315,22 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 	return nil
 }
 
+func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, namespace string) []config.Config {
+	var configs []config.Config
+	for _, gatewayController := range m.remoteGatewayControllers {
+		if clusterConfigs := gatewayController.List(typ, namespace); clusterConfigs != nil {
+			configs = append(configs, clusterConfigs...)
+		}
+	}
+	return configs
+}
+
 func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
 	// Init global context
-	clusterSecretListers := map[string]listersv1.SecretLister{}
-	clusterServiceListers := map[string]listersv1.ServiceLister{}
+	clusterSecretListers := map[cluster.ID]listersv1.SecretLister{}
+	clusterServiceListers := map[cluster.ID]listersv1.ServiceLister{}
 	m.mutex.RLock()
 	for clusterId, controller := range m.remoteIngressControllers {
 		clusterSecretListers[clusterId] = controller.SecretLister()
@@ -384,7 +405,7 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: gateway.ClusterId,
+					common.ClusterIdAnnotation: gateway.ClusterId.String(),
 					common.HostAnnotation:      gateway.Host,
 				},
 			},
@@ -478,7 +499,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
 		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId, cleanHost),
+			common.CreateConvertedName(m.clusterId.String(), cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
 			gateways = append(gateways, m.globalGatewayName)
@@ -505,7 +526,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, firstRoute.WrapperConfig.Config.Namespace, firstRoute.WrapperConfig.Config.Name, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: firstRoute.ClusterId,
+					common.ClusterIdAnnotation: firstRoute.ClusterId.String(),
 				},
 			},
 			Spec: vs,
@@ -1426,9 +1447,17 @@ func QueryRpcServiceVersion(serviceEntry *memory.ServiceEntryWrapper, serviceNam
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
-	go m.mcpbridgeController.Run(stop)
-	go m.wasmPluginController.Run(stop)
-	go m.http2rpcController.Run(stop)
+	for _, remoteIngressController := range m.remoteIngressControllers {
+		_ = remoteIngressController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteIngressController.Run(stop)
+	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		_ = remoteGatewayController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteGatewayController.Run(stop)
+	}
+	//go m.mcpbridgeController.Run(stop)
+	//go m.wasmPluginController.Run(stop)
+	//go m.http2rpcController.Run(stop)
 	go m.configmapMgr.HigressConfigController.Run(stop)
 }
 
@@ -1437,6 +1466,11 @@ func (m *IngressConfig) HasSynced() bool {
 	defer m.mutex.RUnlock()
 	for _, remoteIngressController := range m.remoteIngressControllers {
 		if !remoteIngressController.HasSynced() {
+			return false
+		}
+	}
+	for _, remoteGatewayController := range m.remoteGatewayControllers {
+		if !remoteGatewayController.HasSynced() {
 			return false
 		}
 	}

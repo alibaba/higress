@@ -32,10 +32,10 @@ var mcpbridgesResource = schema.GroupVersionResource{Group: "networking.higress.
 
 type McpBridgeController controller.Controller[listersv1.McpBridgeLister]
 
-func NewController(client kubeclient.Client, clusterId string) McpBridgeController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) McpBridgeController {
 	opts := ktypes.InformerOptions{
 		Namespace: metav1.NamespaceAll,
-		Cluster:   cluster.ID(clusterId),
+		Cluster:   clusterId,
 	}
 	informer := client.Informers().InformerFor(mcpbridgesResource, opts, func() cache.SharedIndexInformer {
 		return client.HigressInformer().Networking().V1().McpBridges().Informer()

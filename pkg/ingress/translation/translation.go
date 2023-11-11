@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	istiomodel "istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -43,7 +44,7 @@ type IngressTranslation struct {
 	higressDomainCache model.IngressDomainCollection
 }
 
-func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace, clusterId string) *IngressTranslation {
+func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressTranslation {
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
@@ -54,24 +55,11 @@ func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XD
 	return Config
 }
 
-func (m *IngressTranslation) AddLocalCluster(options common.Options) (common.IngressController, common.KIngressController) {
-	if m.kingressConfig == nil {
-		return m.ingressConfig.AddLocalCluster(options), nil
+func (m *IngressTranslation) AddLocalCluster(options common.Options) {
+	m.ingressConfig.AddLocalCluster(options)
+	if m.kingressConfig != nil {
+		m.kingressConfig.AddLocalCluster(options)
 	}
-	return m.ingressConfig.AddLocalCluster(options), m.kingressConfig.AddLocalCluster(options)
-}
-
-func (m *IngressTranslation) InitializeCluster(ingressController common.IngressController, kingressController common.KIngressController, stop <-chan struct{}) error {
-	if err := m.ingressConfig.InitializeCluster(ingressController, stop); err != nil {
-		return err
-	}
-	if kingressController == nil {
-		return nil
-	}
-	if err := m.kingressConfig.InitializeCluster(kingressController, stop); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
@@ -104,9 +92,15 @@ func (m *IngressTranslation) Run(stop <-chan struct{}) {
 }
 
 func (m *IngressTranslation) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
-	m.ingressConfig.SetWatchErrorHandler(f)
+	err := m.ingressConfig.SetWatchErrorHandler(f)
+	if err != nil {
+		return err
+	}
 	if m.kingressConfig != nil {
-		m.kingressConfig.SetWatchErrorHandler(f)
+		err := m.kingressConfig.SetWatchErrorHandler(f)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -19,6 +19,7 @@ import (
 
 	networking "istio.io/api/networking/v1alpha3"
 	istiomodel "istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -45,8 +46,7 @@ var (
 )
 
 type KIngressConfig struct {
-	// key: cluster id
-	remoteIngressControllers map[string]common.KIngressController
+	remoteIngressControllers map[cluster.ID]common.KIngressController
 	mutex                    sync.RWMutex
 
 	ingressRouteCache  model.IngressRouteCollection
@@ -56,7 +56,7 @@ type KIngressConfig struct {
 	virtualServiceHandlers []istiomodel.EventHandler
 	gatewayHandlers        []istiomodel.EventHandler
 	envoyFilterHandlers    []istiomodel.EventHandler
-	WatchErrorHandler      cache.WatchErrorHandler
+	watchErrorHandler      cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
 
@@ -72,10 +72,10 @@ type KIngressConfig struct {
 
 	namespace string
 
-	clusterId string
+	clusterId cluster.ID
 }
 
-func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace, clusterId string) *KIngressConfig {
+func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *KIngressConfig {
 	if localKubeClient.KIngressInformer() == nil {
 		return nil
 	}
@@ -83,17 +83,15 @@ func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpd
 		clusterId = ""
 	}
 	config := &KIngressConfig{
-		remoteIngressControllers: make(map[string]common.KIngressController),
+		remoteIngressControllers: make(map[cluster.ID]common.KIngressController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet: sets.New[string](),
-		namespace:        namespace,
+		globalGatewayName:        namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
+		watchedSecretSet:         sets.New[string](),
+		namespace:                namespace,
 	}
-
 	return config
 }
 
@@ -125,12 +123,6 @@ func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngress
 
 	m.remoteIngressControllers[options.ClusterId] = ingressController
 	return ingressController
-}
-
-func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.WatchErrorHandler)
-	go ingressController.Run(stop)
-	return nil
 }
 
 func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) []config.Config {
@@ -171,8 +163,8 @@ func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.
 	var wrapperConfigs []common.WrapperConfig
 
 	// Init global context
-	clusterSecretListers := map[string]listersv1.SecretLister{}
-	clusterServiceListers := map[string]listersv1.ServiceLister{}
+	clusterSecretListers := map[cluster.ID]listersv1.SecretLister{}
+	clusterServiceListers := map[cluster.ID]listersv1.ServiceLister{}
 	m.mutex.RLock()
 	for clusterId, controller := range m.remoteIngressControllers {
 		clusterSecretListers[clusterId] = controller.SecretLister()
@@ -246,7 +238,7 @@ func (m *KIngressConfig) convertGateways(configs []common.WrapperConfig) []confi
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: gateway.ClusterId,
+					common.ClusterIdAnnotation: gateway.ClusterId.String(),
 					common.HostAnnotation:      gateway.Host,
 				},
 			},
@@ -318,7 +310,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
 		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId, cleanHost),
+			common.CreateConvertedName(m.clusterId.String(), cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
 			gateways = append(gateways, m.globalGatewayName)
@@ -342,7 +334,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, firstRoute.WrapperConfig.Config.Namespace, firstRoute.WrapperConfig.Config.Name, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: firstRoute.ClusterId,
+					common.ClusterIdAnnotation: firstRoute.ClusterId.String(),
 				},
 			},
 			Spec: vs,
@@ -492,7 +484,12 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	}
 }
 
-func (m *KIngressConfig) Run(stop <-chan struct{}) {}
+func (m *KIngressConfig) Run(stop <-chan struct{}) {
+	for _, remoteIngressController := range m.remoteIngressControllers {
+		_ = remoteIngressController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteIngressController.Run(stop)
+	}
+}
 
 func (m *KIngressConfig) HasSynced() bool {
 	IngressLog.Info("In Kingress Synced.")
@@ -510,7 +507,7 @@ func (m *KIngressConfig) HasSynced() bool {
 }
 
 func (m *KIngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
-	m.WatchErrorHandler = f
+	m.watchErrorHandler = f
 	return nil
 }
 

@@ -16,9 +16,10 @@ package controller
 
 import (
 	"errors"
-	"istio.io/istio/pkg/kube/informerfactory"
 
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
+	"istio.io/istio/pkg/kube/informerfactory"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -50,11 +51,11 @@ type CommonController[lister any] struct {
 	updateHandler func(util.ClusterNamespacedName)
 	removeHandler func(util.ClusterNamespacedName)
 	getFunc       GetObjectFunc[lister]
-	clusterId     string
+	clusterId     cluster.ID
 }
 
 func NewCommonController[lister any](typeName string, listerObj lister, informer informerfactory.StartableInformer,
-	getFunc GetObjectFunc[lister], clusterId string) Controller[lister] {
+	getFunc GetObjectFunc[lister], clusterId cluster.ID) Controller[lister] {
 	c := &CommonController[lister]{
 		typeName:  typeName,
 		lister:    listerObj,

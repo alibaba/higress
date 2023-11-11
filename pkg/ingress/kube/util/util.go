@@ -27,6 +27,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	_struct "github.com/golang/protobuf/ptypes/struct"
+	"istio.io/istio/pkg/cluster"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -42,11 +43,18 @@ var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
 	types.NamespacedName
-	ClusterId string
+	ClusterId cluster.ID
 }
 
 func (c ClusterNamespacedName) String() string {
-	return c.ClusterId + "/" + c.NamespacedName.String()
+	return c.ClusterId.String() + "/" + c.NamespacedName.String()
+}
+
+func GetDomainSuffix() string {
+	if len(domainSuffix) != 0 {
+		return domainSuffix
+	}
+	return DefaultDomainSuffix
 }
 
 func SplitNamespacedName(name string) types.NamespacedName {
@@ -64,8 +72,8 @@ func SplitNamespacedName(name string) types.NamespacedName {
 }
 
 // CreateDestinationRuleName create the same format of DR name with ops.
-func CreateDestinationRuleName(istioCluster, namespace, name string) string {
-	format := path.Join(istioCluster, namespace, name)
+func CreateDestinationRuleName(istioCluster cluster.ID, namespace, name string) string {
+	format := path.Join(istioCluster.String(), namespace, name)
 	hash := md5.Sum([]byte(format))
 	return hex.EncodeToString(hash[:])
 }

@@ -360,7 +360,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				Port: &networking.Port{
 					Number:   80,
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId.String(), cfg.Namespace, cfg.Name, cleanHost),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -388,7 +388,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		}
 
 		domainBuilder.Protocol = common.HTTPS
-		domainBuilder.SecretName = path.Join(c.options.ClusterId, cfg.Namespace, secretName)
+		domainBuilder.SecretName = path.Join(c.options.ClusterId.String(), cfg.Namespace, secretName)
 
 		// There is a matching secret and the gateway has already a tls secret.
 		// We should report the duplicated tls secret event.
@@ -405,7 +405,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Port: &networking.Port{
 				Number:   443,
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId.String(), cfg.Namespace, cfg.Name, cleanHost),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{

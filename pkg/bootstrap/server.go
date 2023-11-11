@@ -16,6 +16,9 @@ package bootstrap
 
 import (
 	"fmt"
+	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
+	"istio.io/istio/pkg/kube/multicluster"
+	"istio.io/istio/pkg/util/sets"
 	"net"
 	"net/http"
 	"time"
@@ -125,16 +128,17 @@ type ServerInterface interface {
 
 type Server struct {
 	*ServerArgs
-	environment      *model.Environment
-	kubeClient       higresskube.Client
-	configController model.ConfigStoreController
-	configStores     []model.ConfigStoreController
-	httpServer       *http.Server
-	httpMux          *http.ServeMux
-	grpcServer       *grpc.Server
-	xdsServer        *xds.DiscoveryServer
-	server           server.Instance
-	readinessProbes  map[string]readinessProbe
+	environment            *model.Environment
+	kubeClient             higresskube.Client
+	multiclusterController *multicluster.Controller
+	configController       model.ConfigStoreController
+	configStores           []model.ConfigStoreController
+	httpServer             *http.Server
+	httpMux                *http.ServeMux
+	grpcServer             *grpc.Server
+	xdsServer              *xds.DiscoveryServer
+	server                 server.Instance
+	readinessProbes        map[string]readinessProbe
 }
 
 var (
@@ -216,7 +220,7 @@ func (s *Server) initConfigController() error {
 	ns := PodNamespace
 	options := common.Options{
 		Enable:               true,
-		ClusterId:            string(s.RegistryOptions.KubeOptions.ClusterID),
+		ClusterId:            s.RegistryOptions.KubeOptions.ClusterID,
 		IngressClass:         s.IngressClass,
 		WatchNamespace:       s.WatchNamespace,
 		EnableStatus:         s.EnableStatus,
@@ -228,8 +232,11 @@ func (s *Server) initConfigController() error {
 		options.ClusterId = ""
 	}
 
+	s.initMulticluster(options)
+	s.initSDSServer(options)
+
 	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options.ClusterId)
-	ingressController, kingressController := ingressConfig.AddLocalCluster(options)
+	ingressConfig.AddLocalCluster(options)
 
 	s.configStores = append(s.configStores, ingressConfig)
 
@@ -248,16 +255,41 @@ func (s *Server) initConfigController() error {
 
 	// Defer starting the controller until after the service is created.
 	s.server.RunComponent("config-controller", func(stop <-chan struct{}) error {
-		if err := ingressConfig.InitializeCluster(ingressController, kingressController, stop); err != nil {
-			return err
-		}
 		go s.configController.Run(stop)
 		return nil
 	})
 	return nil
 }
 
+func (s *Server) initMulticluster(options common.Options) {
+	if s.kubeClient == nil {
+		return
+	}
+	s.multiclusterController = multicluster.NewController(s.kubeClient, options.WatchNamespace, options.ClusterId, s.environment.Watcher)
+	s.xdsServer.ListRemoteClusters = s.multiclusterController.ListRemoteClusters
+}
+
+func (s *Server) initSDSServer(options common.Options) {
+	if s.kubeClient == nil {
+		return
+	}
+	creds := kubecredentials.NewMulticluster(options.ClusterId)
+	creds.AddSecretHandler(func(name string, namespace string) {
+		s.xdsServer.ConfigUpdate(&model.PushRequest{
+			Full:           false,
+			ConfigsUpdated: sets.New(model.ConfigKey{Kind: kind.Secret, Name: name, Namespace: namespace}),
+
+			Reason: model.NewReasonStats(model.SecretTrigger),
+		})
+	})
+	s.multiclusterController.AddHandler(creds)
+	s.environment.CredentialsController = creds
+}
+
 func (s *Server) Start(stop <-chan struct{}) error {
+	if err := s.multiclusterController.Run(stop); err != nil {
+		return err
+	}
 	if err := s.server.Start(stop); err != nil {
 		return err
 	}
@@ -392,6 +424,7 @@ func (s *Server) initKubeClient() error {
 	if err != nil {
 		return fmt.Errorf("failed creating kube client: %v", err)
 	}
+	s.kubeClient = higresskube.EnableCrdWatcher(s.kubeClient)
 	return nil
 }
 
