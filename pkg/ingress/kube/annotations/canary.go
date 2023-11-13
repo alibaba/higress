@@ -165,7 +165,7 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 			match.Headers = map[string]*networking.StringMatch{
 				"cookie": {
 					MatchType: &networking.StringMatch_Regex{
-						Regex: "^(.\\*?;)?(" + canaryConfig.Cookie + "=always)(;.\\*)?$",
+						Regex: "^(.*?;\\s*)?(" + canaryConfig.Cookie + "=always)(;.*)?$",
 					},
 				},
 			}
