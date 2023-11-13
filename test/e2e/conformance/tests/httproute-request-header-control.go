@@ -80,6 +80,7 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 							Headers: map[string]string{
 								"stage":  "test",
 								"canary": "true",
+								"x-test": "higress; test=true",
 							},
 						},
 					},
