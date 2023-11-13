@@ -41,6 +41,7 @@ metadata:
       stage test
       canary true
       x-test "higress; test=true"
+      'x-test2' "higress; test=false"
   name: httproute-request-header-control-add-more
   namespace: higress-conformance-infra
 spec:
