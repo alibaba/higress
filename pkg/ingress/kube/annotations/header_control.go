@@ -141,6 +141,18 @@ func needHeaderControlConfig(annotations Annotations) bool {
 		annotations.HasHigress(responseHeaderRemove)
 }
 
+func trimQuotes(s string) string {
+	if len(s) >= 2 {
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			return s[1 : len(s)-1]
+		}
+		if s[0] == '\'' && s[len(s)-1] == '\'' {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
+}
+
 func convertAddOrUpdate(headers string) map[string]string {
 	result := map[string]string{}
 	parts := strings.Split(headers, "\n")
@@ -155,8 +167,8 @@ func convertAddOrUpdate(headers string) map[string]string {
 			IngressLog.Errorf("Header format %s is invalid.", keyValue)
 			continue
 		}
-		key := strings.TrimSpace(keyValue[0])
-		value := strings.TrimSpace(keyValue[1])
+		key := trimQuotes(strings.TrimSpace(keyValue[0]))
+		value := trimQuotes(strings.TrimSpace(keyValue[1]))
 		result[key] = value
 	}
 	return result
