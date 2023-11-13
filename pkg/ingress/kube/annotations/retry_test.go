@@ -37,8 +37,8 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      1,
-				perRetryTimeout: &types.Duration{},
 				retryOn:         "5xx",
+				perRetryTimeout: &types.Duration{},
 			},
 		},
 		{
@@ -60,8 +60,8 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      0,
-				perRetryTimeout: &types.Duration{},
 				retryOn:         "5xx",
+				perRetryTimeout: &types.Duration{},
 			},
 		},
 		{
@@ -71,8 +71,19 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      2,
-				perRetryTimeout: &types.Duration{},
 				retryOn:         "5xx",
+				perRetryTimeout: &types.Duration{},
+			},
+		},
+		{
+			input: map[string]string{
+				buildNginxAnnotationKey(retryCount): "2",
+				buildNginxAnnotationKey(retryOn):    "error  timeout",
+			},
+			expect: &RetryConfig{
+				retryCount:      2,
+				retryOn:         "5xx",
+				perRetryTimeout: &types.Duration{},
 			},
 		},
 		{
@@ -81,8 +92,18 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				perRetryTimeout: &types.Duration{},
 				retryOn:         "5xx,non_idempotent",
+				perRetryTimeout: &types.Duration{},
+			},
+		},
+		{
+			input: map[string]string{
+				buildNginxAnnotationKey(retryOn): "timeout non_idempotent",
+			},
+			expect: &RetryConfig{
+				retryCount:      3,
+				retryOn:         "5xx,non_idempotent",
+				perRetryTimeout: &types.Duration{},
 			},
 		},
 		{
@@ -91,18 +112,18 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				perRetryTimeout: &types.Duration{},
 				retryOn:         "5xx,retriable-status-codes,503,502,404",
+				perRetryTimeout: &types.Duration{},
 			},
 		},
 		{
 			input: map[string]string{
-				buildNginxAnnotationKey(retryOn): "timeout,http_505,http_503,http_502,http_404,http_403",
+				buildNginxAnnotationKey(retryOn): "timeout http_503  http_502 http_404",
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
+				retryOn:         "5xx,retriable-status-codes,503,502,404",
 				perRetryTimeout: &types.Duration{},
-				retryOn:         "5xx,retriable-status-codes,505,503,502,404,403",
 			},
 		},
 	}
