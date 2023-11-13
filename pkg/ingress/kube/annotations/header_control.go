@@ -15,6 +15,7 @@
 package annotations
 
 import (
+	"regexp"
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
@@ -37,6 +38,8 @@ const (
 var (
 	_ Parser       = headerControl{}
 	_ RouteHandler = headerControl{}
+
+	pattern = regexp.MustCompile(`\s+`)
 )
 
 type HeaderOperation struct {
@@ -147,7 +150,7 @@ func convertAddOrUpdate(headers string) map[string]string {
 			continue
 		}
 
-		keyValue := strings.Fields(part)
+		keyValue := pattern.Split(part, 2)
 		if len(keyValue) != 2 {
 			IngressLog.Errorf("Header format %s is invalid.", keyValue)
 			continue
