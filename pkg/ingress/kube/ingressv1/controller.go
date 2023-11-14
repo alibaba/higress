@@ -517,11 +517,11 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			var pathType common.PathType
 			originPath := httpPath.Path
-			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
-				if annotationsConfig.IsPrefixRegexMatch() {
-					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsFullPathRegexMatch() {
+			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch(originPath) {
+				if annotationsConfig.IsFullPathRegexMatch() {
 					pathType = common.FullPathRegex
+				} else {
+					pathType = common.PrefixRegex
 				}
 			} else {
 				switch *httpPath.PathType {
@@ -750,11 +750,11 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 
 			var pathType common.PathType
 			originPath := httpPath.Path
-			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
-				if annotationsConfig.IsPrefixRegexMatch() {
-					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsFullPathRegexMatch() {
+			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch(originPath) {
+				if annotationsConfig.IsFullPathRegexMatch() {
 					pathType = common.FullPathRegex
+				} else {
+					pathType = common.PrefixRegex
 				}
 			} else {
 				switch *httpPath.PathType {
