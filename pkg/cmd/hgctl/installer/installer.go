@@ -18,196 +18,113 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/pkg/cmd/options"
+	"k8s.io/client-go/util/homedir"
 )
 
-type Installer struct {
-	started    bool
-	components map[ComponentName]Component
-	kubeCli    kubernetes.CLIClient
-	profile    *helm.Profile
-	writer     io.Writer
+const (
+	HgctlHomeDirPath           = ".hgctl"
+	StandaloneInstalledPath    = "higress-standalone"
+	ProfileInstalledPath       = "profiles"
+	InstalledYamlFileName      = "install.yaml"
+	DefaultGatewayAPINamespace = "gateway-system"
+	DefaultIstioNamespace      = "istio-system"
+)
+
+type Installer interface {
+	Install() error
+	UnInstall() error
+	Upgrade() error
 }
 
-// Run must be invoked before invoking other functions.
-func (o *Installer) Run() error {
-	for name, component := range o.components {
-		if !component.Enabled() {
-			continue
-		}
-		if err := component.Run(); err != nil {
-			return fmt.Errorf("component %s run failed, err: %s", name, err)
-		}
-	}
-	o.started = true
-	return nil
-}
-
-// RenderManifests renders component manifests specified by profile.
-func (o *Installer) RenderManifests() (map[ComponentName]string, error) {
-	if !o.started {
-		return nil, errors.New("HigressOperator is not running")
-	}
-	res := make(map[ComponentName]string)
-	for name, component := range o.components {
-		if !component.Enabled() {
-			continue
-		}
-		manifest, err := component.RenderManifest()
+func NewInstaller(profile *helm.Profile, writer io.Writer, quiet bool) (Installer, error) {
+	switch profile.Global.Install {
+	case helm.InstallK8s, helm.InstallLocalK8s:
+		cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 		if err != nil {
-			return nil, fmt.Errorf("component %s RenderManifest err: %v", name, err)
+			return nil, fmt.Errorf("failed to build kubernetes client: %w", err)
 		}
-		res[name] = manifest
+		installer, err := NewK8sInstaller(profile, cliClient, writer, quiet)
+		return installer, err
+	case helm.InstallLocalDocker:
+		installer, err := NewDockerInstaller(profile, writer, quiet)
+		return installer, err
+	default:
+		return nil, errors.New("install is not supported")
 	}
-	return res, nil
 }
 
-// GenerateManifests generates component manifests to k8s cluster
-func (o *Installer) GenerateManifests(manifestMap map[ComponentName]string) error {
-	if o.kubeCli == nil {
-		return errors.New("no injected k8s cli into Installer")
+func GetHomeDir() (string, error) {
+	home := homedir.HomeDir()
+	if home == "" {
+		return "", fmt.Errorf("No user home environment variable found for OS %s", runtime.GOOS)
 	}
-	for _, manifest := range manifestMap {
-		fmt.Fprint(o.writer, manifest)
-	}
-	return nil
+
+	return home, nil
 }
 
-// ApplyManifests apply component manifests to k8s cluster
-func (o *Installer) ApplyManifests(manifestMap map[ComponentName]string) error {
-	if o.kubeCli == nil {
-		return errors.New("no injected k8s cli into Installer")
-	}
-	for name, manifest := range manifestMap {
-		namespace := o.components[name].Namespace()
-		if err := o.applyManifest(manifest, namespace); err != nil {
-			return fmt.Errorf("component %s ApplyManifest err: %v", name, err)
-		}
-	}
-	return nil
-}
-
-func (o *Installer) applyManifest(manifest string, ns string) error {
-	if err := o.kubeCli.CreateNamespace(ns); err != nil {
-		return err
-	}
-	objs, err := object.ParseK8sObjectsFromYAMLManifest(manifest)
+func GetHgctlPath() (string, error) {
+	home, err := GetHomeDir()
 	if err != nil {
-		return err
+		return "", err
 	}
-	for _, obj := range objs {
-		// check namespaced object if namespace property has been existed
-		if obj.Namespace == "" && o.isNamespacedObject(obj) {
-			obj.Namespace = ns
-			obj.UnstructuredObject().SetNamespace(ns)
-		}
-		if o.isNamespacedObject(obj) {
-			fmt.Fprintf(o.writer, "✔️ Installed %s:%s:%s.\n", obj.Kind, obj.Name, obj.Namespace)
-		} else {
-			fmt.Fprintf(o.writer, "✔️ Installed %s::%s.\n", obj.Kind, obj.Name)
-		}
-		if err := o.kubeCli.ApplyObject(obj.UnstructuredObject()); err != nil {
-			return err
+
+	hgctlPath := filepath.Join(home, HgctlHomeDirPath)
+	if _, err := os.Stat(hgctlPath); os.IsNotExist(err) {
+		if err = os.MkdirAll(hgctlPath, os.ModePerm); err != nil {
+			return "", err
 		}
 	}
-	return nil
+
+	return hgctlPath, nil
 }
 
-// DeleteManifests delete component manifests to k8s cluster
-func (o *Installer) DeleteManifests(manifestMap map[ComponentName]string) error {
-	if o.kubeCli == nil {
-		return errors.New("no injected k8s cli into Installer")
-	}
-	for name, manifest := range manifestMap {
-		namespace := o.components[name].Namespace()
-		if err := o.deleteManifest(manifest, namespace); err != nil {
-			return fmt.Errorf("component %s DeleteManifest err: %v", name, err)
-		}
-	}
-	return nil
-}
-
-// deleteManifest delete manifest to certain namespace
-func (o *Installer) deleteManifest(manifest string, ns string) error {
-	objs, err := object.ParseK8sObjectsFromYAMLManifest(manifest)
+func GetDefaultInstallPackagePath() (string, error) {
+	dir, err := os.Getwd()
 	if err != nil {
-		return err
+		return "", err
 	}
-	for _, obj := range objs {
-		// check namespaced object if namespace property has been existed
-		if obj.Namespace == "" && o.isNamespacedObject(obj) {
-			obj.Namespace = ns
-			obj.UnstructuredObject().SetNamespace(ns)
-		}
-		if o.isNamespacedObject(obj) {
-			fmt.Fprintf(o.writer, "✔️ Removed %s:%s:%s.\n", obj.Kind, obj.Name, obj.Namespace)
-		} else {
-			fmt.Fprintf(o.writer, "✔️ Removed %s::%s.\n", obj.Kind, obj.Name)
-		}
-		if err := o.kubeCli.DeleteObject(obj.UnstructuredObject()); err != nil {
-			return err
+
+	path := filepath.Join(dir, StandaloneInstalledPath)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err = os.MkdirAll(path, os.ModePerm); err != nil {
+			return "", err
 		}
 	}
 
-	return nil
+	return path, err
 }
 
-func (o *Installer) isNamespacedObject(obj *object.K8sObject) bool {
-	if obj.Kind != "CustomResourceDefinition" && obj.Kind != "ClusterRole" && obj.Kind != "ClusterRoleBinding" {
-		return true
-	}
-
-	return false
-}
-
-func NewInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer, quiet bool) (*Installer, error) {
-	if profile == nil {
-		return nil, errors.New("install profile is empty")
-	}
-	// initialize components
-	components := make(map[ComponentName]Component)
-	opts := []ComponentOption{
-		WithComponentNamespace(profile.Global.Namespace),
-		WithComponentChartPath(profile.InstallPackagePath),
-		WithComponentVersion(profile.Charts.Higress.Version),
-		WithComponentRepoURL(profile.Charts.Higress.Url),
-		WithComponentChartName(profile.Charts.Higress.Name),
-	}
-	if quiet {
-		opts = append(opts, WithQuiet())
-	}
-	higressComponent, err := NewHigressComponent(profile, writer, opts...)
+func GetProfileInstalledPath() (string, error) {
+	hgctlPath, err := GetHgctlPath()
 	if err != nil {
-		return nil, fmt.Errorf("NewHigressComponent failed, err: %s", err)
+		return "", err
 	}
-	components[Higress] = higressComponent
 
-	if profile.IstioEnabled() {
-		opts := []ComponentOption{
-			WithComponentNamespace(profile.Global.IstioNamespace),
-			WithComponentChartPath(profile.InstallPackagePath),
-			WithComponentVersion(profile.Charts.Istio.Version),
-			WithComponentRepoURL(profile.Charts.Istio.Url),
-			WithComponentChartName(profile.Charts.Istio.Name),
+	profilesPath := filepath.Join(hgctlPath, ProfileInstalledPath)
+	if _, err := os.Stat(profilesPath); os.IsNotExist(err) {
+		if err = os.MkdirAll(profilesPath, os.ModePerm); err != nil {
+			return "", err
 		}
-		if quiet {
-			opts = append(opts, WithQuiet())
-		}
+	}
 
-		istioCRDComponent, err := NewIstioCRDComponent(profile, writer, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("NewIstioCRDComponent failed, err: %s", err)
-		}
-		components[Istio] = istioCRDComponent
+	return profilesPath, nil
+}
+
+func GetInstalledYamlPath() (string, bool) {
+	profileInstalledPath, err := GetProfileInstalledPath()
+	if err != nil {
+		return "", false
 	}
-	op := &Installer{
-		profile:    profile,
-		components: components,
-		kubeCli:    cli,
-		writer:     writer,
+	installedYamlFile := filepath.Join(profileInstalledPath, InstalledYamlFileName)
+	if _, err := os.Stat(installedYamlFile); os.IsNotExist(err) {
+		return installedYamlFile, false
 	}
-	return op, nil
+	return installedYamlFile, true
 }

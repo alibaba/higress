@@ -57,6 +57,9 @@ type CLIClient interface {
 
 	// CreateNamespace create namespace
 	CreateNamespace(namespace string) error
+
+	// KubernetesInterface get kubernetes interface
+	KubernetesInterface() kubernetes.Interface
 }
 
 var _ CLIClient = &client{}
@@ -245,4 +248,9 @@ func (c *client) CreateNamespace(namespace string) error {
 	}
 
 	return nil
+}
+
+// KubernetesInterface get kubernetes interface
+func (c *client) KubernetesInterface() kubernetes.Interface {
+	return c.kube
 }

@@ -74,11 +74,7 @@ type Ingress struct {
 }
 
 func (i *Ingress) NeedRegexMatch() bool {
-	if i.Rewrite == nil {
-		return false
-	}
-
-	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
+	return i.Rewrite != nil && (i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch())
 }
 
 func (i *Ingress) IsPrefixRegexMatch() bool {

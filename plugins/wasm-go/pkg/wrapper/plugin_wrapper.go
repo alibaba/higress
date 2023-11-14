@@ -22,7 +22,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
-	_ "github.com/wasilibs/nottinygc"
+	_ "github.com/higress-group/nottinygc"
 )
 
 //export sched_yield

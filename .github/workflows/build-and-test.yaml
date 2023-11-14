@@ -38,10 +38,9 @@ jobs:
         path: |-
             envoy
             istio
-            external
             .git/modules
-        key: ${{ runner.os }}-submodules-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules
+        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-new
     
     - run: git stash # restore patch
 
@@ -85,10 +84,9 @@ jobs:
           path: |-
             envoy
             istio
-            external
             .git/modules
-          key: ${{ runner.os }}-submodules-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules
+          key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-submodules-new
 
       - run: git stash # restore patch
 
@@ -134,10 +132,9 @@ jobs:
         path: |-
             envoy
             istio
-            external
             .git/modules
-        key: ${{ runner.os }}-submodules-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules
+        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-new
           
     - run: git stash # restore patch
 
@@ -175,10 +172,9 @@ jobs:
         path: |-
             envoy
             istio
-            external
             .git/modules
-        key: ${{ runner.os }}-submodules-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules
+        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-new
           
     - run: git stash # restore patch
 

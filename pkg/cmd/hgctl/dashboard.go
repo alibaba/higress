@@ -104,7 +104,8 @@ func newDashboardCmd() *cobra.Command {
 	controllerDebugCmd := controllerDebugCmd()
 	controllerDebugCmd.PersistentFlags().IntVar(&controllerPort, "ui-port", defaultControllerPort, "The component dashboard UI port.")
 	dashboardCmd.AddCommand(controllerDebugCmd)
-
+	flags := dashboardCmd.PersistentFlags()
+	options.AddKubeConfigFlags(flags)
 	return dashboardCmd
 }
 

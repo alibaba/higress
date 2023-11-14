@@ -21,27 +21,18 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/installer"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
 
 type uninstallArgs struct {
-	// purgeIstioCRD delete  all of Istio resources.
-	purgeIstioCRD bool
-	// istioNamespace is the target namespace of istio control plane.
-	istioNamespace string
-	// namespace is the namespace of higress installed .
-	namespace string
+	// purgeResources delete  all of installed resources.
+	purgeResources bool
 }
 
 func addUninstallFlags(cmd *cobra.Command, args *uninstallArgs) {
-	cmd.PersistentFlags().StringVar(&args.istioNamespace, "istio-namespace", "istio-system",
-		"The namespace of Istio Control Plane.")
-	cmd.PersistentFlags().StringVarP(&args.namespace, "namespace", "n", "higress-system",
-		"The namespace of higress")
-	cmd.PersistentFlags().BoolVarP(&args.purgeIstioCRD, "purge-istio-crd", "p", false,
-		"Delete  all of Istio resources")
+	cmd.PersistentFlags().BoolVarP(&args.purgeResources, "purge-resources", "", false,
+		"Delete  all of IstioAPI,GatewayAPI resources")
 }
 
 // newUninstallCmd command uninstalls Istio from a cluster
@@ -50,15 +41,13 @@ func newUninstallCmd() *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall higress from a cluster",
-		Long:  "The uninstall command uninstalls higress from a cluster",
-		Example: `  # Uninstall higress 
-  hgctl uninstall 
-
-  # Uninstall higress by special namespace
-  hgctl uninstall --namespace=higress-system
+		Long:  "The uninstall command uninstalls higress from a cluster or local environment",
+		Example: `# Uninstall higress 
+  hgctl uninstal
   
-  # Uninstall higress and istio CRD
-  hgctl uninstall --purge-istio-crd  --istio-namespace=istio-system`,
+  # Uninstall higress, istioAPI and GatewayAPI from a cluster
+  hgctl uninstall --purge-resources
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return uninstall(cmd.OutOrStdout(), uiArgs)
 		},
@@ -71,9 +60,19 @@ func newUninstallCmd() *cobra.Command {
 
 // uninstall uninstalls control plane by either pruning by target revision or deleting specified manifests.
 func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
+	profileName, ok := installer.GetInstalledYamlPath()
+	if !ok {
+		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
+		return nil
+	}
 	setFlags := make([]string, 0)
-	profileName := helm.GetUninstallProfileName()
 	_, profile, err := helm.GenProfile(profileName, "", setFlags)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(writer, "🧐 Validating Profile: \"%s\" \n", profileName)
+	err = profile.Validate()
 	if err != nil {
 		return err
 	}
@@ -82,13 +81,20 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 		return nil
 	}
 
-	profile.Global.EnableIstioAPI = uiArgs.purgeIstioCRD
-	profile.Global.Namespace = uiArgs.namespace
-	profile.Global.IstioNamespace = uiArgs.istioNamespace
-	err = UnInstallManifests(profile, writer)
+	if profile.Global.Install == helm.InstallK8s || profile.Global.Install == helm.InstallLocalK8s {
+		if profile.Global.EnableIstioAPI {
+			profile.Global.EnableIstioAPI = uiArgs.purgeResources
+		}
+		if profile.Global.EnableGatewayAPI {
+			profile.Global.EnableGatewayAPI = uiArgs.purgeResources
+		}
+	}
+
+	err = uninstallManifests(profile, writer, uiArgs)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -108,29 +114,16 @@ func promptUninstall(writer io.Writer) bool {
 	}
 }
 
-func UnInstallManifests(profile *helm.Profile, writer io.Writer) error {
-	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
-	if err != nil {
-		return fmt.Errorf("failed to build kubernetes client: %w", err)
-	}
-
-	op, err := installer.NewInstaller(profile, cliClient, writer, false)
-	if err != nil {
-		return err
-	}
-	if err := op.Run(); err != nil {
-		return err
-	}
-
-	manifestMap, err := op.RenderManifests()
+func uninstallManifests(profile *helm.Profile, writer io.Writer, uiArgs *uninstallArgs) error {
+	installer, err := installer.NewInstaller(profile, writer, false)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(writer, "\n⌛️ Processing uninstallation... \n\n")
-	if err := op.DeleteManifests(manifestMap); err != nil {
+	err = installer.UnInstall()
+	if err != nil {
 		return err
 	}
-	fmt.Fprintf(writer, "\n🎊 Uninstall All Resources Complete!\n")
+
 	return nil
 }
