@@ -27,21 +27,47 @@ func init() {
 
 var WasmPluginsKeyAuth = suite.ConformanceTest{
 	ShortName:   "WasmPluginsKeyAuth",
-	Description: "The Ingress in the higress-conformance-infra namespace test key_auth wasmplugins.",
+	Description: "The Ingress in the higress-conformance-infra namespace test the key-auth WASM plugin.",
 	Manifests:   []string{"tests/go-wasm-key-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 1: Successful authentication",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/test.html",
-						UnfollowRedirect: true,
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "token11111111111111111111"},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo.com",
+							Path:    "/foo",
+							Headers: map[string]string{"X-Mse-Consumer": "consumer1"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 2: No Key Authentication information found",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
@@ -52,24 +78,63 @@ var WasmPluginsKeyAuth = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 3: Invalid token",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/test.html?apikey=2bda943c-ba2b-11ec-ba07-00163e1250b5",
-						UnfollowRedirect: true,
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "xxxxxxxxxnotfoundtoken"},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 401,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: Unauthorized consumer",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "token22222222222222222222"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4:  Muti Key Authentication information found",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"apikey": "token11111111111111111111", "x-api-key": "token11111111111111111111"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
 					},
 				},
 			},
 		}
-		t.Run("WasmPlugins golang key-auth.yaml", func(t *testing.T) {
+		t.Run("WasmPlugins key-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
