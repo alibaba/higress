@@ -48,8 +48,8 @@ func TestHeaderControlParse(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				buildHigressAnnotationKey(requestHeaderAdd):     "one 1\n  two  2\nthree   3  \n",
-				buildHigressAnnotationKey(requestHeaderUpdate):  "two 2",
+				buildHigressAnnotationKey(requestHeaderAdd):     "one 1\n  two  2\nthree   3  \nx-test mse; test=true\nx-pro    mse; pro=true\n",
+				buildHigressAnnotationKey(requestHeaderUpdate):  "two 2\n set-cookie name=test; sameage=111\nset-stage    name=stage;   stage=true\n",
 				buildHigressAnnotationKey(requestHeaderRemove):  "one, two,three\n",
 				buildHigressAnnotationKey(responseHeaderAdd):    "A a\nB b\n",
 				buildHigressAnnotationKey(responseHeaderUpdate): "X x\nY y\n",
@@ -58,12 +58,16 @@ func TestHeaderControlParse(t *testing.T) {
 			expect: &HeaderControlConfig{
 				Request: &HeaderOperation{
 					Add: map[string]string{
-						"one":   "1",
-						"two":   "2",
-						"three": "3",
+						"one":    "1",
+						"two":    "2",
+						"three":  "3",
+						"x-test": "mse; test=true",
+						"x-pro":  "mse; pro=true",
 					},
 					Update: map[string]string{
-						"two": "2",
+						"two":        "2",
+						"set-cookie": "name=test; sameage=111",
+						"set-stage":  "name=stage;   stage=true",
 					},
 					Remove: []string{"one", "two", "three"},
 				},
@@ -122,12 +126,16 @@ func TestHeaderControlApplyRoute(t *testing.T) {
 				HeaderControl: &HeaderControlConfig{
 					Request: &HeaderOperation{
 						Add: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+							"one":    "1",
+							"two":    "2",
+							"three":  "3",
+							"x-test": "mse; test=true",
+							"x-pro":  "mse;     pro=true",
 						},
 						Update: map[string]string{
-							"two": "2",
+							"two":        "2",
+							"set-cookie": "name=test; sameage=111",
+							"set-stage":  "name=stage;     sameage=111",
 						},
 						Remove: []string{"one", "two", "three"},
 					},
@@ -138,12 +146,16 @@ func TestHeaderControlApplyRoute(t *testing.T) {
 				Headers: &networking.Headers{
 					Request: &networking.Headers_HeaderOperations{
 						Add: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+							"one":    "1",
+							"two":    "2",
+							"three":  "3",
+							"x-test": "mse; test=true",
+							"x-pro":  "mse;     pro=true",
 						},
 						Set: map[string]string{
-							"two": "2",
+							"two":        "2",
+							"set-cookie": "name=test; sameage=111",
+							"set-stage":  "name=stage;     sameage=111",
 						},
 						Remove: []string{"one", "two", "three"},
 					},

@@ -59,12 +59,6 @@ func (r rewrite) Parse(annotations Annotations, config *Ingress, _ *GlobalContex
 	rewriteConfig.RewritePath, _ = annotations.ParseStringForHigress(rewritePath)
 
 	if rewriteConfig.RewritePath == "" && rewriteConfig.RewriteTarget != "" {
-		// When rewrite target is present and not empty,
-		// we will enforce regex match on all rules in this ingress.
-		if !rewriteConfig.UseRegex && !rewriteConfig.FullPathRegex {
-			rewriteConfig.UseRegex = true
-		}
-
 		// We should convert nginx regex rule to envoy regex rule.
 		rewriteConfig.RewriteTarget = convertToRE2(rewriteConfig.RewriteTarget)
 	}
@@ -92,9 +86,22 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 			}
 		}
 	} else if rewriteConfig.RewriteTarget != "" {
-		route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-			Pattern:      route.Match[0].Uri.GetRegex(),
-			Substitution: rewriteConfig.RewriteTarget,
+		uri := route.Match[0].Uri
+		if uri.GetExact() != "" {
+			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
+				Pattern:      uri.GetExact(),
+				Substitution: rewriteConfig.RewriteTarget,
+			}
+		} else if uri.GetPrefix() != "" {
+			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
+				Pattern:      uri.GetPrefix(),
+				Substitution: rewriteConfig.RewriteTarget,
+			}
+		} else {
+			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
+				Pattern:      uri.GetRegex(),
+				Substitution: rewriteConfig.RewriteTarget,
+			}
 		}
 	}
 
