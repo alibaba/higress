@@ -5,11 +5,11 @@
 
 | 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                        |
 | ----------- | --------------- | ------------------------------------------- | ------ | ----------------------------------------------------------- |
+| `global_auth` | bool | 选填     | -      | 若配置为true，则全局生效认证机制; 若配置为false，则只对做了配置的域名和路由生效认证机制; 若不配置则仅当没有域名和路由配置时全局生效（兼容机制）  |
 | `consumers` | array of object | 必填                                        | -      | 配置服务的调用者，用于对请求进行认证                        |
 | `keys`      | array of string | 必填                                        | -      | API Key 的来源字段名称，可以是 URL 参数或者 HTTP 请求头名称 |
 | `in_query`  | bool            | `in_query` 和 `in_header` 至少有一个为 true | true   | 配置 true 时，网关会尝试从 URL 参数中解析 API Key           |
 | `in_header` | bool            | `in_query` 和 `in_header` 至少有一个为 true | true   | 配置 true 时，网关会尝试从 HTTP 请求头中解析 API Key        |
-| `_rules_`   | array of object | 选填                                        | -      | 配置特定路由或域名的访问权限列表，用于对请求进行鉴权        |
 
 `consumers`中每一项的配置字段说明如下：
 
@@ -18,16 +18,8 @@
 | `credential` | string   | 必填     | -      | 配置该consumer的访问凭证 |
 | `name`       | string   | 必填     | -      | 配置该consumer的名称     |
 
-`_rules_` 中每一项的配置字段说明如下：
-
-| 名称             | 数据类型        | 填写要求                                          | 默认值 | 描述                                               |
-| ---------------- | --------------- | ------------------------------------------------- | ------ | -------------------------------------------------- |
-| `_match_route_`  | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的路由名称                               |
-| `_match_domain_` | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的域名                                   |
-| `allow`          | array of string | 必填                                              | -      | 对于符合匹配条件的请求，配置允许访问的consumer名称 |
 
 **注意：**
-- 若不配置`_rules_`字段，则默认对当前网关实例的所有路由开启认证；
 - 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
 
 # 配置示例
@@ -47,25 +39,23 @@ keys:
 - apikey
 - x-api-key
 in_query: true
-# 使用 _rules_ 字段进行细粒度规则配置
-_rules_:
-# 规则一：按路由名称匹配生效
-- _match_route_:
-  - route-a
-  - route-b
-  allow:
-  - consumer1
-# 规则二：按域名匹配生效
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  allow:
-  - consumer2
 ```
 
-此例 `_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许`name`为`consumer1`的调用者访问，其他调用者不允许访问；
+**路由级配置**
 
-此例 `_match_domain_` 中指定的 `*.example.com` 和 `test.com` 用于匹配请求的域名，当发现域名匹配时，将允许`name`为`consumer2`的调用者访问，其他调用者不允许访问。
+对 route-a 和 route-b 这两个路由做如下配置：
+
+```yaml
+allow: 
+- consumer1
+```
+
+对 *.example.com 和 test.com 在这两个域名做如下配置:
+
+```yaml
+allow:
+- consumer2
+```
 
 ### 根据该配置，下列请求可以允许访问：
 
