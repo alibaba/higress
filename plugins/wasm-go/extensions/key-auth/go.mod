@@ -6,7 +6,6 @@ require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20231017105619-a18879bf867c
 	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0
 	github.com/tidwall/gjson v1.17.0
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )
 
 require (
