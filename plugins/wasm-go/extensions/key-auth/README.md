@@ -37,6 +37,7 @@
 以下配置将对网关特定路由或域名开启 Key Auth 认证和鉴权，注意`credential`字段不能重复
 
 ```yaml
+global_auth: true
 consumers:
 - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
   name: consumer1
@@ -44,6 +45,7 @@ consumers:
   name: consumer2
 keys:
 - apikey
+- x-api-key
 in_query: true
 # 使用 _rules_ 字段进行细粒度规则配置
 _rules_:
@@ -116,6 +118,7 @@ in_query: true
 
 | HTTP 状态码 | 出错信息                                                  | 原因说明                |
 | ----------- | --------------------------------------------------------- | ----------------------- |
-| 401         | No API key found in request                               | 请求未提供 API Key      |
+| 401         | Request denied by Key Auth check. Muti API key found in request | 请求提供多个 API Key      |
+| 401         | Request denied by Key Auth check. No API key found in request | 请求未提供 API Key      |
 | 401         | Request denied by Key Auth check. Invalid API key         | 不允许当前 API Key 访问 |
 | 403         | Request denied by Key Auth check. Unauthorized consumer   | 请求的调用方无访问权限  |

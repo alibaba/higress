@@ -38,6 +38,7 @@ The configuration fields of each item in `_rules_` are described as follows:
 The following configuration will enable Key Auth authentication and authentication for gateway-specific routes or domain names. Note that the `credential` field can not be repeated.
 
 ```yaml
+global_auth: true
 consumers:
 - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
   name: consumer1
@@ -45,6 +46,7 @@ consumers:
   name: consumer2
 keys:
 - apikey
+- x-api-key
 in_query: true
 # Use the _rules_ field for fine-grained rule configuration
 _rules_:
@@ -117,6 +119,7 @@ in_query: true
 
 | HTTP status code | Error information                                          | Reason                                        |
 | ---------------- | ---------------------------------------------------------  | --------------------------------------------  |
+| 401              | Muti API key found in request.                             | Muti API provided by request Key.              |
 | 401              | No API key found in request.                               | API not provided by request Key.              |
 | 401              | Request denied by Key Auth check. Invalid API key.         | Current API Key access is not allowed.        |
 | 403              | Request denied by Key Auth check. Unauthorized consumer. | The requested caller does not have access.    |

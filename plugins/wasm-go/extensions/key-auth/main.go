@@ -17,47 +17,40 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
-	"key-auth/common"
-	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-	"golang.org/x/exp/slices"
 )
 
 var (
-	errMissingParams       = errors.New("key-auth: request missing params")
-	errUnauthorized        = errors.New("key-auth: request unauthorized")
-	errNotFoundKey         = errors.New("key-auth: request not found Key")
-	errNotParseHeader      = errors.New("key-auth: request not parse headers")
-	errKeyAuthNamesEmpty   = errors.New("key-auth: keys allow cannot be empty")
-	errHeaderQueryAllFalse = errors.New("key-auth: must one of in_query and in_header be true")
-
-	errRequestDeniedUnauthorizedConsumer = errors.New("key-auth: Request denied by Basic Auth check. Unauthorized consumer	")
-)
-
-const (
-	defaultKeyAuthName = "x-api-key"
+	ruleSet bool // 插件是否至少在一个 domain 或 route 上生效
 )
 
 func main() {
 	wrapper.SetCtx(
 		"key-auth", // middleware name
-		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 	)
 }
 
-type Config struct {
-	Keys     []string `yaml:"keys"` // key auth names
-	InQuery  bool     `yaml:"in_query,omitempty"`
-	InHeader bool     `yaml:"in_header,omitempty"`
-	*common.Consumers
-	*common.Rules
+type Consumer struct {
+	Name       string `yaml:"name"`
+	Credential string `yaml:"credential"`
+}
+
+type KeyAuthConfig struct {
+	globalAuth *bool      `yaml:"global_auth"` //是否开启全局认证. 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
+	Keys       []string   `yaml:"keys"`        // key auth names
+	InQuery    bool       `yaml:"in_query,omitempty"`
+	InHeader   bool       `yaml:"in_header,omitempty"`
+	consumers  []Consumer `yaml:"consumers"`
+	allow      []string   `yaml:"allow"`
+
+	credential2Name map[string]string `yaml:"-"`
 }
 
 type Response struct {
@@ -65,147 +58,229 @@ type Response struct {
 	StatusCode int    `json:"code"`
 }
 
-func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
-	err := common.ParseConsumersConfig(json, config.Consumers, log)
-	if err != nil {
-		return err
+func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log wrapper.Log) error {
+	log.Debug("global config")
+
+	ruleSet = false
+	global.credential2Name = make(map[string]string)
+	// global_auth
+	globalAuth := json.Get("global_auth")
+	if globalAuth.Exists() {
+		ga := globalAuth.Bool()
+		global.globalAuth = &ga
 	}
 
-	err = common.ParseRulesConfig(json, config.Rules, log)
-	if err != nil {
-		return err
+	// keys
+	names := json.Get("keys")
+	if !names.Exists() {
+		return errors.New("keys is required")
+	}
+	if len(names.Array()) == 0 {
+		return errors.New("keys cannot be empty")
 	}
 
-	names := json.Get("keys").Array()
-	if len(names) == 0 {
-		return errKeyAuthNamesEmpty
+	for _, name := range names.Array() {
+		global.Keys = append(global.Keys, name.String())
 	}
 
-	for _, name := range names {
-		config.Keys = append(config.Keys, name.String())
+	// in_query and in_header
+	in_query := json.Get("in_query")
+	in_header := json.Get("in_header")
+	if !in_query.Exists() && !in_header.Exists() {
+		return errors.New("must one of in_query/in_header required")
 	}
 
-	in_query := json.Get("in_query").Bool()
-	in_header := json.Get("in_header").Bool()
+	if in_query.Exists() && in_query.IsBool() {
+		global.InQuery = in_query.Bool()
+	}
+	if in_header.Exists() && in_query.IsBool() {
+		global.InHeader = in_header.Bool()
+	}
 
-	if in_query || in_header {
-		config.InHeader = in_header
-		config.InQuery = in_query
-	} else {
-		return errHeaderQueryAllFalse
+	// consumers
+	consumers := json.Get("consumers")
+	if !consumers.Exists() {
+		return errors.New("consumers is required")
+	}
+	if len(consumers.Array()) == 0 {
+		return errors.New("consumers cannot be empty")
+	}
+
+	for _, item := range consumers.Array() {
+		name := item.Get("name")
+		if !name.Exists() || name.String() == "" {
+			return errors.New("consumer name is required")
+		}
+		credential := item.Get("credential")
+		if !credential.Exists() || credential.String() == "" {
+			return errors.New("consumer credential is required")
+		}
+		if _, ok := global.credential2Name[credential.String()]; ok {
+			return errors.New("duplicate consumer credential: " + credential.String())
+		}
+
+		consumer := Consumer{
+			Name:       name.String(),
+			Credential: credential.String(),
+		}
+		global.consumers = append(global.consumers, consumer)
 	}
 
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
-	if len(config.Keys) <= 0 ||
-		len(config.Consumers.Consumers) <= 0 ||
-		(config.InHeader == false && config.InQuery == false) {
-		return SendHttpResponse(http.StatusUnauthorized, errUnauthorized.Error(), nil)
+func parseOverrideRuleConfig(json gjson.Result, global KeyAuthConfig, config *KeyAuthConfig, log wrapper.Log) error {
+	log.Debug("domain/route config")
+
+	*config = global
+
+	allow := json.Get("allow")
+	if !allow.Exists() {
+		return errors.New("allow is required")
+	}
+	if len(allow.Array()) == 0 {
+		return errors.New("allow cannot be empty")
 	}
 
+	for _, item := range allow.Array() {
+		config.allow = append(config.allow, item.String())
+	}
+	ruleSet = true
+
+	return nil
+}
+
+// key-auth 插件认证逻辑：
+// - global_auth == true 开启全局生效：
+//   - 若当前 domain/route 未配置 allow 列表，即未配置该插件：则在所有 consumers 中查找，如果找到则认证通过，否则认证失败 (1*)
+//   - 若当前 domain/route 配置了该插件：则在 allow 列表中查找，如果找到则认证通过，否则认证失败
+//
+// - global_auth == false 非全局生效：(2*)
+//   - 若当前 domain/route 未配置该插件：则直接放行
+//   - 若当前 domain/route 配置了该插件：则在 allow 列表中查找，如果找到则认证通过，否则认证失败
+//
+// - global_auth 未设置：
+//   - 若没有一个 domain/route 配置该插件：则遵循 (1*)
+//   - 若有至少一个 domain/route 配置该插件：则遵循 (2*)
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wrapper.Log) types.Action {
+	var (
+		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
+		globalAuthNoSet    = config.globalAuth == nil
+		globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
+		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
+	)
+	// 不需要认证而直接放行的情况：
+	// - global_auth == false 且 当前 domain/route 未配置该插件
+	// - global_auth 未设置 且 有至少一个 domain/route 配置该插件 且 当前 domain/route 未配置该插件
+	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
+		if noAllow {
+			log.Info("authorization is not required")
+			return types.ActionContinue
+		}
+	}
+
+	// 以下需要认证：
+	// - 从 header 中获取 tokens 信息
+	// - 从 query 中获取 tokens 信息
+	var tokens []string
 	if config.InHeader {
-		token := ""
+		// 匹配keys中的 keyname
 		for _, key := range config.Keys {
 			value, err := proxywasm.GetHttpRequestHeader(key)
 			if err != nil && value != "" {
-				token = value
-				break
+				tokens = append(tokens, value)
 			}
 		}
-
-		if token == "" {
-			return SendHttpResponse(http.StatusUnauthorized, errNotFoundKey.Error(), nil)
-		} else {
-			ok, consumer := ParseTokenValid(token, config.Consumers.Consumers)
-			if !ok {
-				_ = proxywasm.ResumeHttpRequest()
-				return types.ActionPause
-			} else {
-				ok, consumer := ParseRulesValid(ctx, consumer, config.Rules.Rules)
-				if !ok {
-					return SendHttpResponse(http.StatusForbidden, errRequestDeniedUnauthorizedConsumer.Error(), nil)
-				} else {
-					return Authenticated(consumer.Name)
-				}
-			}
-		}
-
 	} else if config.InQuery {
-		token := ""
 		for _, key := range config.Keys {
 			value, err := proxywasm.GetHttpRequestTrailer(key)
 			if err != nil && value != "" {
-				token = value
-				break
+				tokens = append(tokens, value)
 			}
 		}
-
-		if token == "" {
-			return SendHttpResponse(http.StatusUnauthorized, errNotFoundKey.Error(), nil)
-		} else {
-			ok, consumer := ParseTokenValid(token, config.Consumers.Consumers)
-			if !ok {
-				_ = proxywasm.ResumeHttpRequest()
-				return types.ActionPause
-			} else {
-				ok, consumer := ParseRulesValid(ctx, consumer, config.Rules.Rules)
-				if !ok {
-					return SendHttpResponse(http.StatusForbidden, errRequestDeniedUnauthorizedConsumer.Error(), nil)
-				} else {
-					return Authenticated(consumer.Name)
-				}
-			}
-		}
-	} else {
-		return SendHttpResponse(http.StatusUnauthorized, errNotFoundKey.Error(), nil)
 	}
+
+	// header/query
+	if len(tokens) > 1 {
+		return deniedMutiKeyAuthData()
+	} else if len(tokens) < 0 {
+		return deniedNoKeyAuthData()
+	}
+
+	// 验证token
+	name, ok := config.credential2Name[tokens[0]]
+	if !ok {
+		log.Warnf("credential %q is not configured", tokens[0])
+		return deniedUnauthorizedConsumer()
+	}
+
+	// 全局生效：
+	// - global_auth == true 且 当前 domain/route 未配置该插件
+	// - global_auth 未设置 且 没有任何一个 domain/route 配置该插件
+	if (globalAuthSetTrue && noAllow) || (globalAuthNoSet && !ruleSet) {
+		log.Infof("consumer %q authenticated", name)
+		return authenticated(name)
+	}
+
+	// 全局生效，但当前 domain/route 配置了 allow 列表
+	if globalAuthSetTrue && !noAllow {
+		if !contains(config.allow, name) {
+			log.Warnf("consumer %q is not allowed", name)
+			return deniedUnauthorizedConsumer()
+		}
+		log.Infof("consumer %q authenticated", name)
+		return authenticated(name)
+	}
+
+	// 非全局生效
+	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
+		if !noAllow { // 配置了 allow 列表
+			if !contains(config.allow, name) {
+				log.Warnf("consumer %q is not allowed", name)
+				return deniedUnauthorizedConsumer()
+			}
+			log.Infof("consumer %q authenticated", name)
+			return authenticated(name)
+		}
+	}
+
 	return types.ActionContinue
 }
 
-func ParseTokenValid(token string, consumers []common.Consumer) (bool, common.Consumer) {
-	for _, consumer := range consumers {
-		if consumer.Credential == token {
-			return true, consumer
-		}
-	}
-	return false, common.Consumer{}
-}
-
-func ParseRulesValid(ctx wrapper.HttpContext, consumer common.Consumer, rules []*common.Rule) (bool, common.Consumer) {
-	if len(rules) <= 0 {
-		return true, consumer
-	}
-	for _, rule := range rules {
-		if len(rule.Allow) <= 0 || slices.Contains(rule.Allow, consumer.Name) {
-			if len(rule.MatchDomain) > 0 {
-				if slices.Contains(rule.MatchDomain, ctx.Host()) {
-					return true, consumer
-				}
-			}
-
-			if len(rule.MatchRoute) > 0 {
-				if slices.Contains(rule.MatchRoute, ctx.Path()) {
-					return true, consumer
-				}
-			}
-		}
-	}
-
-	return false, common.Consumer{}
-}
-
-func SendHttpResponse(code int, message string, headers [][2]string) types.Action {
-	var res Response
-	res.StatusCode = code
-	res.Message = message
-	data, _ := json.Marshal(res)
-	_ = proxywasm.SendHttpResponse(uint32(res.StatusCode), headers, data, -1)
+func deniedMutiKeyAuthData() types.Action {
+	_ = proxywasm.SendHttpResponse(401, nil,
+		[]byte("Request denied by Key Auth check. Muti Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
-func Authenticated(name string) types.Action {
+func deniedNoKeyAuthData() types.Action {
+	_ = proxywasm.SendHttpResponse(401, nil,
+		[]byte("Request denied by Key Auth check. No Key Authentication information found."), -1)
+	return types.ActionContinue
+}
+
+func deniedInvalidCredentials() types.Action {
+	_ = proxywasm.SendHttpResponse(401, nil,
+		[]byte("Request denied by Key Auth check. Invalid username and/or password."), -1)
+	return types.ActionContinue
+}
+
+func deniedUnauthorizedConsumer() types.Action {
+	_ = proxywasm.SendHttpResponse(403, nil,
+		[]byte("Request denied by Key Auth check. Unauthorized consumer."), -1)
+	return types.ActionContinue
+}
+
+func authenticated(name string) types.Action {
 	_ = proxywasm.AddHttpRequestHeader("X-Mse-Consumer", name)
 	return types.ActionContinue
+}
+
+func contains(arr []string, item string) bool {
+	for _, i := range arr {
+		if i == item {
+			return true
+		}
+	}
+	return false
 }
