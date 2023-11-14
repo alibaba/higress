@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The 'Basic' HTTP Authentication Scheme: https://datatracker.ietf.org/doc/html/rfc7617
 
 package main
 
