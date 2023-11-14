@@ -15,6 +15,8 @@
 package annotations
 
 import (
+	"strings"
+
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -73,8 +75,17 @@ type Ingress struct {
 	Http2Rpc *Http2RpcConfig
 }
 
-func (i *Ingress) NeedRegexMatch() bool {
-	return i.Rewrite != nil && (i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch())
+func (i *Ingress) NeedRegexMatch(path string) bool {
+	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
+		return true
+	}
+	if i.Rewrite == nil {
+		return false
+	}
+	if strings.ContainsAny(i.Rewrite.RewriteTarget, `$\`) {
+		return true
+	}
+	return i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
 }
 
 func (i *Ingress) IsPrefixRegexMatch() bool {
