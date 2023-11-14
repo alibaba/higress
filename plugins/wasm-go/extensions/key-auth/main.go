@@ -203,7 +203,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 	// header/query
 	if len(tokens) > 1 {
 		return deniedMutiKeyAuthData()
-	} else if len(tokens) < 0 {
+	} else if len(tokens) <= 0 {
 		return deniedNoKeyAuthData()
 	}
 
