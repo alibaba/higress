@@ -78,8 +78,10 @@ var HTTPRouteRequestHeaderControl = suite.ConformanceTest{
 							Path: "/foo2",
 							Host: "foo.com",
 							Headers: map[string]string{
-								"stage":  "test",
-								"canary": "true",
+								"stage":   "test",
+								"canary":  "true",
+								"x-test":  "higress; test=true",
+								"x-test2": "higress; test=false",
 							},
 						},
 					},

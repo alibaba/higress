@@ -34,7 +34,7 @@ func TestNeedRegexMatch(t *testing.T) {
 		{
 			input: &Ingress{
 				Rewrite: &RewriteConfig{
-					RewriteTarget: "/test",
+					UseRegex: true,
 				},
 			},
 			expect: true,
@@ -42,10 +42,10 @@ func TestNeedRegexMatch(t *testing.T) {
 		{
 			input: &Ingress{
 				Rewrite: &RewriteConfig{
-					UseRegex: true,
+					UseRegex: false,
 				},
 			},
-			expect: true,
+			expect: false,
 		},
 	}
 
