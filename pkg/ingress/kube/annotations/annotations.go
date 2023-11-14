@@ -76,11 +76,11 @@ type Ingress struct {
 }
 
 func (i *Ingress) NeedRegexMatch(path string) bool {
-	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
-		return true
-	}
 	if i.Rewrite == nil {
 		return false
+	}
+	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
+		return true
 	}
 	if strings.ContainsAny(i.Rewrite.RewriteTarget, `$\`) {
 		return true
