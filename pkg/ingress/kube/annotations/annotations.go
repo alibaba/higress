@@ -54,9 +54,13 @@ type Ingress struct {
 
 	IPAccessControl *IPAccessControlConfig
 
+	Timeout *TimeoutConfig
+
 	Retry *RetryConfig
 
 	LoadBalance *LoadBalanceConfig
+
+	localRateLimit *localRateLimitConfig
 
 	Fallback *FallbackConfig
 
