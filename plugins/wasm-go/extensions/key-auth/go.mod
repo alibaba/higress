@@ -1,6 +1,6 @@
 module key-auth
 
-go 1.20
+go 1.19
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20231017105619-a18879bf867c
