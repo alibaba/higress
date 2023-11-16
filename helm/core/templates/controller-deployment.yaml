@@ -75,7 +75,7 @@ spec:
             timeoutSeconds: 5
           env:
           - name: PILOT_FILTER_GATEWAY_CLUSTER_CONFIG
-            value: "true"
+            value: "{{ .Values.global.onlyPushRouteCluster }}"
           - name: HIGRESS_CONTROLLER_SVC
             value: "127.0.0.1"
           - name: HIGRESS_CONTROLLER_PORT
