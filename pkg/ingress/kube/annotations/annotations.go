@@ -56,9 +56,13 @@ type Ingress struct {
 
 	IPAccessControl *IPAccessControlConfig
 
+	Timeout *TimeoutConfig
+
 	Retry *RetryConfig
 
 	LoadBalance *LoadBalanceConfig
+
+	localRateLimit *localRateLimitConfig
 
 	Fallback *FallbackConfig
 
@@ -150,8 +154,10 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			rewrite{},
 			upstreamTLS{},
 			ipAccessControl{},
+			timeout{},
 			retry{},
 			loadBalance{},
+			localRateLimit{},
 			fallback{},
 			auth{},
 			destination{},
@@ -171,7 +177,9 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			redirect{},
 			rewrite{},
 			ipAccessControl{},
+			timeout{},
 			retry{},
+			localRateLimit{},
 			fallback{},
 			ignoreCaseMatching{},
 			match{},
