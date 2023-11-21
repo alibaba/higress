@@ -318,7 +318,9 @@ func GenProfile(profileOrPath, fileOverlayYAML string, setFlags []string) (strin
 		return "", nil, err
 	}
 
-	finalProfile.InstallPackagePath = installPackagePath
+	if len(installPackagePath) > 0 {
+		finalProfile.InstallPackagePath = installPackagePath
+	}
 
 	if finalProfile.Profile == "" {
 		finalProfile.Profile = DefaultProfileName
@@ -352,7 +354,9 @@ func GenProfileFromProfileContent(profileContent, fileOverlayYAML string, setFla
 		return "", nil, err
 	}
 
-	finalProfile.InstallPackagePath = installPackagePath
+	if len(installPackagePath) > 0 {
+		finalProfile.InstallPackagePath = installPackagePath
+	}
 
 	if finalProfile.Profile == "" {
 		finalProfile.Profile = DefaultProfileName
