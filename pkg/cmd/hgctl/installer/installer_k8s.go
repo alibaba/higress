@@ -63,7 +63,7 @@ func (o *K8sInstaller) Install() error {
 	if err1 != nil {
 		return err1
 	}
-	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile: \"%s\" \n", profileName)
+	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile in configmap: \"%s\" \n", profileName)
 
 	fmt.Fprintf(o.writer, "\n🎊 Install All Resources Complete!\n")
 
@@ -320,15 +320,6 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 		}
 		components[GatewayAPI] = gatewayAPIComponent
 	}
-
-	//profileInstalledPath, err1 := GetProfileInstalledPath()
-	//if err1 != nil {
-	//	return nil, err1
-	//}
-	//profileStore, err2 := NewFileDirProfileStore(profileInstalledPath)
-	//if err2 != nil {
-	//	return nil, err
-	//}
 
 	profileStore, err := NewConfigmapProfileStore(cli)
 	if err != nil {

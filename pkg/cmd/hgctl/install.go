@@ -135,7 +135,7 @@ func install(writer io.Writer, iArgs *InstallArgs) error {
 		return fmt.Errorf("generate config: %v", err)
 	}
 
-	fmt.Fprintf(writer, "🧐 Validating Profile: \"%s\" \n", profileName)
+	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileName)
 	err = profile.Validate()
 	if err != nil {
 		return err

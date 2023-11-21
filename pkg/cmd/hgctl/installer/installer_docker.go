@@ -17,8 +17,9 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"io"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 )
 
 type DockerInstaller struct {

@@ -58,12 +58,6 @@ type CLIClient interface {
 	// CreateNamespace create namespace
 	CreateNamespace(namespace string) error
 
-	ListConfigmaps(name string, namespace string, size int64) (*corev1.ConfigMapList, error)
-
-	ApplyConfigmap(configmap *corev1.ConfigMap) error
-
-	DeleteConfigmap(configmap *corev1.ConfigMap) error
-
 	// KubernetesInterface get kubernetes interface
 	KubernetesInterface() kubernetes.Interface
 }
@@ -253,43 +247,6 @@ func (c *client) CreateNamespace(namespace string) error {
 		return fmt.Errorf("failed to check if namespace %v exists: %v", namespace, err)
 	}
 
-	return nil
-}
-
-func (c *client) ListConfigmaps(name string, namespace string, size int64) (*corev1.ConfigMapList, error) {
-	var result *corev1.ConfigMapList
-	var err error
-	if len(namespace) == 0 {
-		result, err = c.kube.CoreV1().ConfigMaps("").List(context.Background(), metav1.ListOptions{Limit: size, FieldSelector: fmt.Sprintf("metadata.name=%s", name)})
-	} else {
-		result, err = c.kube.CoreV1().ConfigMaps(namespace).List(context.Background(), metav1.ListOptions{Limit: size, FieldSelector: fmt.Sprintf("metadata.name=%s", name)})
-	}
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *client) ApplyConfigmap(configmap *corev1.ConfigMap) error {
-	_, err := c.kube.CoreV1().ConfigMaps(configmap.Namespace).Get(context.Background(), configmap.Name, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) {
-		_, err = c.kube.CoreV1().ConfigMaps(configmap.Namespace).Create(context.Background(), configmap, metav1.CreateOptions{})
-		return err
-	} else if err != nil {
-		return err
-	} else {
-		_, err = c.kube.CoreV1().ConfigMaps(configmap.Namespace).Update(context.Background(), configmap, metav1.UpdateOptions{})
-		return err
-	}
-}
-
-func (c *client) DeleteConfigmap(configmap *corev1.ConfigMap) error {
-	err := c.kube.CoreV1().ConfigMaps(configmap.Namespace).Delete(context.Background(), configmap.Name, metav1.DeleteOptions{})
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-	}
 	return nil
 }
 
