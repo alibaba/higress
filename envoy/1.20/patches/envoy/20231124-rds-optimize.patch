@@ -1,0 +1,315 @@
+diff -Naur envoy/envoy/router/rds.h envoy-new/envoy/router/rds.h
+--- envoy/envoy/router/rds.h	2023-11-24 10:52:39.914235488 +0800
++++ envoy-new/envoy/router/rds.h	2023-11-24 10:47:36.293873127 +0800
+@@ -51,12 +51,6 @@
+   virtual void onConfigUpdate() PURE;
+ 
+   /**
+-   * Validate if the route configuration can be applied to the context of the route config provider.
+-   */
+-  virtual void
+-  validateConfig(const envoy::config::route::v3::RouteConfiguration& config) const PURE;
+-
+-  /**
+    * Callback used to request an update to the route configuration from the management server.
+    * @param for_domain supplies the domain name that virtual hosts must match on
+    * @param thread_local_dispatcher thread-local dispatcher
+diff -Naur envoy/envoy/router/route_config_update_receiver.h envoy-new/envoy/router/route_config_update_receiver.h
+--- envoy/envoy/router/route_config_update_receiver.h	2023-11-24 10:52:39.918235651 +0800
++++ envoy-new/envoy/router/route_config_update_receiver.h	2023-11-24 10:47:36.293873127 +0800
+@@ -27,6 +27,7 @@
+    * @param rc supplies the RouteConfiguration.
+    * @param version_info supplies RouteConfiguration version.
+    * @return bool whether RouteConfiguration has been updated.
++   * @throw EnvoyException if the new config can't be applied.
+    */
+   virtual bool onRdsUpdate(const envoy::config::route::v3::RouteConfiguration& rc,
+                            const std::string& version_info) PURE;
+diff -Naur envoy/source/common/router/rds_impl.cc envoy-new/source/common/router/rds_impl.cc
+--- envoy/source/common/router/rds_impl.cc	2023-11-24 10:52:40.194246888 +0800
++++ envoy-new/source/common/router/rds_impl.cc	2023-11-24 10:47:36.293873127 +0800
+@@ -122,9 +122,6 @@
+     throw EnvoyException(fmt::format("Unexpected RDS configuration (expecting {}): {}",
+                                      route_config_name_, route_config.name()));
+   }
+-  if (route_config_provider_opt_.has_value()) {
+-    route_config_provider_opt_.value()->validateConfig(route_config);
+-  }
+   std::unique_ptr<Init::ManagerImpl> noop_init_manager;
+   std::unique_ptr<Cleanup> resume_rds;
+   if (config_update_info_->onRdsUpdate(route_config, version_info)) {
+@@ -292,12 +289,6 @@
+   }
+ }
+ 
+-void RdsRouteConfigProviderImpl::validateConfig(
+-    const envoy::config::route::v3::RouteConfiguration& config) const {
+-  // TODO(lizan): consider cache the config here until onConfigUpdate.
+-  ConfigImpl validation_config(config, optional_http_filters_, factory_context_, validator_, false);
+-}
+-
+ // Schedules a VHDS request on the main thread and queues up the callback to use when the VHDS
+ // response has been propagated to the worker thread that was the request origin.
+ void RdsRouteConfigProviderImpl::requestVirtualHostsUpdate(
+diff -Naur envoy/source/common/router/rds_impl.h envoy-new/source/common/router/rds_impl.h
+--- envoy/source/common/router/rds_impl.h	2023-11-24 10:52:40.194246888 +0800
++++ envoy-new/source/common/router/rds_impl.h	2023-11-24 10:47:36.293873127 +0800
+@@ -81,7 +81,6 @@
+   }
+   SystemTime lastUpdated() const override { return last_updated_; }
+   void onConfigUpdate() override {}
+-  void validateConfig(const envoy::config::route::v3::RouteConfiguration&) const override {}
+   void requestVirtualHostsUpdate(const std::string&, Event::Dispatcher&,
+                                  std::weak_ptr<Http::RouteConfigUpdatedCallback>) override {
+     NOT_IMPLEMENTED_GCOVR_EXCL_LINE;
+@@ -209,7 +208,6 @@
+   void requestVirtualHostsUpdate(
+       const std::string& for_domain, Event::Dispatcher& thread_local_dispatcher,
+       std::weak_ptr<Http::RouteConfigUpdatedCallback> route_config_updated_cb) override;
+-  void validateConfig(const envoy::config::route::v3::RouteConfiguration& config) const override;
+ 
+ private:
+   struct ThreadLocalConfig : public ThreadLocal::ThreadLocalObject {
+diff -Naur envoy/source/common/router/route_config_update_receiver_impl.cc envoy-new/source/common/router/route_config_update_receiver_impl.cc
+--- envoy/source/common/router/route_config_update_receiver_impl.cc	2023-11-24 10:52:40.194246888 +0800
++++ envoy-new/source/common/router/route_config_update_receiver_impl.cc	2023-11-24 10:47:36.297873290 +0800
+@@ -1,6 +1,7 @@
+ #include "source/common/router/route_config_update_receiver_impl.h"
+ 
+ #include <string>
++#include <utility>
+ 
+ #include "envoy/config/route/v3/route.pb.h"
+ #include "envoy/service/discovery/v3/discovery.pb.h"
+@@ -14,23 +15,49 @@
+ namespace Envoy {
+ namespace Router {
+ 
++namespace {
++
++// Resets 'route_config::virtual_hosts' by merging VirtualHost contained in
++// 'rds_vhosts' and 'vhds_vhosts'.
++void rebuildRouteConfigVirtualHosts(
++    const std::map<std::string, envoy::config::route::v3::VirtualHost>& rds_vhosts,
++    const std::map<std::string, envoy::config::route::v3::VirtualHost>& vhds_vhosts,
++    envoy::config::route::v3::RouteConfiguration& route_config) {
++  route_config.clear_virtual_hosts();
++  for (const auto& vhost : rds_vhosts) {
++    route_config.mutable_virtual_hosts()->Add()->CopyFrom(vhost.second);
++  }
++  for (const auto& vhost : vhds_vhosts) {
++    route_config.mutable_virtual_hosts()->Add()->CopyFrom(vhost.second);
++  }
++}
++
++} // namespace
++
+ bool RouteConfigUpdateReceiverImpl::onRdsUpdate(
+     const envoy::config::route::v3::RouteConfiguration& rc, const std::string& version_info) {
+   const uint64_t new_hash = MessageUtil::hash(rc);
+   if (new_hash == last_config_hash_) {
+     return false;
+   }
+-  route_config_proto_ = std::make_unique<envoy::config::route::v3::RouteConfiguration>(rc);
+-  last_config_hash_ = new_hash;
+   const uint64_t new_vhds_config_hash = rc.has_vhds() ? MessageUtil::hash(rc.vhds()) : 0ul;
++  std::map<std::string, envoy::config::route::v3::VirtualHost> rds_virtual_hosts;
++  for (const auto& vhost : rc.virtual_hosts()) {
++    rds_virtual_hosts.emplace(vhost.name(), vhost);
++  }
++  envoy::config::route::v3::RouteConfiguration new_route_config = rc;
++  rebuildRouteConfigVirtualHosts(rds_virtual_hosts, *vhds_virtual_hosts_, new_route_config);
++  auto new_config = std::make_shared<ConfigImpl>(
++      new_route_config, optional_http_filters_, factory_context_,
++      factory_context_.messageValidationContext().dynamicValidationVisitor(), false);
++  // If the above validation/validation doesn't raise exception, update the
++  // other cached config entries.
++  config_ = new_config;
++  rds_virtual_hosts_ = std::move(rds_virtual_hosts);
++  last_config_hash_ = new_hash;
++  *route_config_proto_ = std::move(new_route_config);
+   vhds_configuration_changed_ = new_vhds_config_hash != last_vhds_config_hash_;
+   last_vhds_config_hash_ = new_vhds_config_hash;
+-  initializeRdsVhosts(*route_config_proto_);
+-
+-  rebuildRouteConfig(rds_virtual_hosts_, *vhds_virtual_hosts_, *route_config_proto_);
+-  config_ = std::make_shared<ConfigImpl>(
+-      *route_config_proto_, optional_http_filters_, factory_context_,
+-      factory_context_.messageValidationContext().dynamicValidationVisitor(), false);
+ 
+   onUpdateCommon(version_info);
+   return true;
+@@ -50,8 +77,8 @@
+   auto route_config_after_this_update =
+       std::make_unique<envoy::config::route::v3::RouteConfiguration>();
+   route_config_after_this_update->CopyFrom(*route_config_proto_);
+-  rebuildRouteConfig(rds_virtual_hosts_, *vhosts_after_this_update,
+-                     *route_config_after_this_update);
++  rebuildRouteConfigVirtualHosts(rds_virtual_hosts_, *vhosts_after_this_update,
++                                 *route_config_after_this_update);
+ 
+   auto new_config = std::make_shared<ConfigImpl>(
+       *route_config_after_this_update, optional_http_filters_, factory_context_,
+@@ -73,14 +100,6 @@
+   config_info_.emplace(RouteConfigProvider::ConfigInfo{*route_config_proto_, last_config_version_});
+ }
+ 
+-void RouteConfigUpdateReceiverImpl::initializeRdsVhosts(
+-    const envoy::config::route::v3::RouteConfiguration& route_configuration) {
+-  rds_virtual_hosts_.clear();
+-  for (const auto& vhost : route_configuration.virtual_hosts()) {
+-    rds_virtual_hosts_.emplace(vhost.name(), vhost);
+-  }
+-}
+-
+ bool RouteConfigUpdateReceiverImpl::removeVhosts(
+     std::map<std::string, envoy::config::route::v3::VirtualHost>& vhosts,
+     const Protobuf::RepeatedPtrField<std::string>& removed_vhost_names) {
+@@ -110,18 +129,5 @@
+   return vhosts_added;
+ }
+ 
+-void RouteConfigUpdateReceiverImpl::rebuildRouteConfig(
+-    const std::map<std::string, envoy::config::route::v3::VirtualHost>& rds_vhosts,
+-    const std::map<std::string, envoy::config::route::v3::VirtualHost>& vhds_vhosts,
+-    envoy::config::route::v3::RouteConfiguration& route_config) {
+-  route_config.clear_virtual_hosts();
+-  for (const auto& vhost : rds_vhosts) {
+-    route_config.mutable_virtual_hosts()->Add()->CopyFrom(vhost.second);
+-  }
+-  for (const auto& vhost : vhds_vhosts) {
+-    route_config.mutable_virtual_hosts()->Add()->CopyFrom(vhost.second);
+-  }
+-}
+-
+ } // namespace Router
+ } // namespace Envoy
+diff -Naur envoy/source/common/router/route_config_update_receiver_impl.h envoy-new/source/common/router/route_config_update_receiver_impl.h
+--- envoy/source/common/router/route_config_update_receiver_impl.h	2023-11-24 10:52:40.194246888 +0800
++++ envoy-new/source/common/router/route_config_update_receiver_impl.h	2023-11-24 10:47:36.297873290 +0800
+@@ -27,15 +27,10 @@
+             std::make_unique<std::map<std::string, envoy::config::route::v3::VirtualHost>>()),
+         vhds_configuration_changed_(true), optional_http_filters_(optional_http_filters) {}
+ 
+-  void initializeRdsVhosts(const envoy::config::route::v3::RouteConfiguration& route_configuration);
+   bool removeVhosts(std::map<std::string, envoy::config::route::v3::VirtualHost>& vhosts,
+                     const Protobuf::RepeatedPtrField<std::string>& removed_vhost_names);
+   bool updateVhosts(std::map<std::string, envoy::config::route::v3::VirtualHost>& vhosts,
+                     const VirtualHostRefVector& added_vhosts);
+-  void rebuildRouteConfig(
+-      const std::map<std::string, envoy::config::route::v3::VirtualHost>& rds_vhosts,
+-      const std::map<std::string, envoy::config::route::v3::VirtualHost>& vhds_vhosts,
+-      envoy::config::route::v3::RouteConfiguration& route_config);
+   bool onDemandFetchFailed(const envoy::service::discovery::v3::Resource& resource) const;
+   void onUpdateCommon(const std::string& version_info);
+ 
+diff -Naur envoy/source/server/admin/admin.h envoy-new/source/server/admin/admin.h
+--- envoy/source/server/admin/admin.h	2023-11-24 10:52:41.358294284 +0800
++++ envoy-new/source/server/admin/admin.h	2023-11-24 10:47:36.297873290 +0800
+@@ -234,7 +234,6 @@
+     absl::optional<ConfigInfo> configInfo() const override { return {}; }
+     SystemTime lastUpdated() const override { return time_source_.systemTime(); }
+     void onConfigUpdate() override {}
+-    void validateConfig(const envoy::config::route::v3::RouteConfiguration&) const override {}
+     void requestVirtualHostsUpdate(const std::string&, Event::Dispatcher&,
+                                    std::weak_ptr<Http::RouteConfigUpdatedCallback>) override {
+       NOT_IMPLEMENTED_GCOVR_EXCL_LINE;
+diff -Naur envoy/test/common/router/rds_impl_test.cc envoy-new/test/common/router/rds_impl_test.cc
+--- envoy/test/common/router/rds_impl_test.cc	2023-11-24 10:52:40.714268062 +0800
++++ envoy-new/test/common/router/rds_impl_test.cc	2023-11-24 10:47:36.297873290 +0800
+@@ -528,34 +528,66 @@
+   rds_callbacks_->onConfigUpdate(decoded_resources.refvec_, response1.version_info());
+ }
+ 
+-// Validate behavior when the config is delivered but it fails PGV validation.
++// Validates behavior when the config is delivered but it fails PGV validation.
++// The invalid config won't affect existing valid config.
+ TEST_F(RdsImplTest, FailureInvalidConfig) {
+   InSequence s;
+ 
+   setup();
++  EXPECT_CALL(init_watcher_, ready());
+ 
+-  const std::string response1_json = R"EOF(
++  const std::string valid_json = R"EOF(
+ {
+   "version_info": "1",
+   "resources": [
+     {
+       "@type": "type.googleapis.com/envoy.config.route.v3.RouteConfiguration",
+-      "name": "INVALID_NAME_FOR_route_config",
++      "name": "foo_route_config",
+       "virtual_hosts": null
+     }
+   ]
+ }
+ )EOF";
++
+   auto response1 =
+-      TestUtility::parseYaml<envoy::service::discovery::v3::DiscoveryResponse>(response1_json);
++      TestUtility::parseYaml<envoy::service::discovery::v3::DiscoveryResponse>(valid_json);
+   const auto decoded_resources =
+       TestUtility::decodeResources<envoy::config::route::v3::RouteConfiguration>(response1);
++  EXPECT_NO_THROW(
++      rds_callbacks_->onConfigUpdate(decoded_resources.refvec_, response1.version_info()));
++  // Sadly the RdsRouteConfigSubscription privately inherited from
++  // SubscriptionCallbacks, so we has to use reinterpret_cast here.
++  RdsRouteConfigSubscription* rds_subscription =
++      reinterpret_cast<RdsRouteConfigSubscription*>(rds_callbacks_);
++  auto config_impl_pointer = rds_subscription->routeConfigProvider().value()->config();
++  // Now send an invalid config update.
++  const std::string invalid_json =
++      R"EOF(
++{
++  "version_info": "1",
++  "resources": [
++    {
++      "@type": "type.googleapis.com/envoy.config.route.v3.RouteConfiguration",
++      "name": "INVALID_NAME_FOR_route_config",
++      "virtual_hosts": null
++    }
++  ]
++}
++)EOF";
++
++  auto response2 =
++      TestUtility::parseYaml<envoy::service::discovery::v3::DiscoveryResponse>(invalid_json);
++  const auto decoded_resources_2 =
++      TestUtility::decodeResources<envoy::config::route::v3::RouteConfiguration>(response2);
+ 
+-  EXPECT_CALL(init_watcher_, ready());
+   EXPECT_THROW_WITH_MESSAGE(
+-      rds_callbacks_->onConfigUpdate(decoded_resources.refvec_, response1.version_info()),
++      rds_callbacks_->onConfigUpdate(decoded_resources_2.refvec_, response2.version_info()),
+       EnvoyException,
+-      "Unexpected RDS configuration (expecting foo_route_config): INVALID_NAME_FOR_route_config");
++      "Unexpected RDS configuration (expecting foo_route_config): "
++      "INVALID_NAME_FOR_route_config");
++
++  // Verify that the config is still the old value.
++  ASSERT_EQ(config_impl_pointer, rds_subscription->routeConfigProvider().value()->config());
+ }
+ 
+ // rds and vhds configurations change together
+diff -Naur envoy/test/mocks/router/mocks.h envoy-new/test/mocks/router/mocks.h
+--- envoy/test/mocks/router/mocks.h	2023-11-24 10:52:41.370294773 +0800
++++ envoy-new/test/mocks/router/mocks.h	2023-11-24 10:47:36.301873453 +0800
+@@ -538,7 +538,6 @@
+   MOCK_METHOD(absl::optional<ConfigInfo>, configInfo, (), (const));
+   MOCK_METHOD(SystemTime, lastUpdated, (), (const));
+   MOCK_METHOD(void, onConfigUpdate, ());
+-  MOCK_METHOD(void, validateConfig, (const envoy::config::route::v3::RouteConfiguration&), (const));
+   MOCK_METHOD(void, requestVirtualHostsUpdate,
+               (const std::string&, Event::Dispatcher&,
+                std::weak_ptr<Http::RouteConfigUpdatedCallback> route_config_updated_cb));
+diff -Naur envoy/tools/spelling/spelling_dictionary.txt envoy-new/tools/spelling/spelling_dictionary.txt
+--- envoy/tools/spelling/spelling_dictionary.txt	2023-11-24 10:52:41.370294773 +0800
++++ envoy-new/tools/spelling/spelling_dictionary.txt	2023-11-24 10:48:54.969076506 +0800
+@@ -1303,6 +1303,7 @@
+ ep
+ suri
+ transid
++vhosts
+ WAF
+ TRI
+ tmd
