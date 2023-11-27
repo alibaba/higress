@@ -347,13 +347,13 @@ bool PluginRootContext::checkPlugin(
         deniedInvalidDate();
         return false;
       }
-      time_offset = std::abs((long long)(timestamp - current_time));
       // milliseconds to nanoseconds
-      time_offset *= 1e6;
+      timestamp *= 1e6;
       // seconds
       if (date.size() < MILLISEC_MIN_LENGTH) {
-        time_offset *= 1e3;
+        timestamp *= 1e3;
       }
+      time_offset = std::abs((long long)(timestamp - current_time));
     }
     if (time_offset > rule.date_nano_offset) {
       LOG_DEBUG(absl::StrFormat("date expired, offset is: %u",
