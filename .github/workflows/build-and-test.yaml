@@ -2,9 +2,7 @@ name: "Build and Test"
 
 on:
   push:
-    branches: 
-      - main
-      - testing
+    branches: [ main ]
   pull_request:
     branches: ["*"]
 
@@ -49,6 +47,12 @@ jobs:
     # test
     - name: Run Coverage Tests
       run: GOPROXY="https://proxy.golang.org,direct" make go.test.coverage
+    - name: Upload coverage to Codecov	
+      uses: codecov/codecov-action@v3	
+      with:	
+        fail_ci_if_error: true	
+        files: ./coverage.xml	
+        verbose: true
 
   build:
     # The type of runner that the job will run on
