@@ -47,11 +47,11 @@ jobs:
     # test
     - name: Run Coverage Tests
       run: GOPROXY="https://proxy.golang.org,direct" make go.test.coverage
-    - name: Upload coverage to Codecov	
-      uses: codecov/codecov-action@v3	
-      with:	
-        fail_ci_if_error: true	
-        files: ./coverage.xml	
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        fail_ci_if_error: true
+        files: ./coverage.xml
         verbose: true
 
   build:
