@@ -91,7 +91,7 @@ var WasmPluginsKeyAuth = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 				},
 			},

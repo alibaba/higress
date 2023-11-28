@@ -39,31 +39,22 @@ metadata:
   name: wasm-keyauth-httpbin
   namespace: higress-system
 spec:
-  defaultConfigDisable: true
+  defaultConfig:
+    consumers:
+      - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
+        name: consumer1
+      - credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
+        name: consumer2
+    global_auth: false
+    keys:
+      - x-api-key
+      - apikey
+    in_header: true
+  defaultConfigDisable: false
   matchRules:
     - config:
-        consumers:
-        - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
-          name: consumer1
-        - credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
-          name: consumer2
-        keys:
-        - apikey
-        in_query: true
-        # 使用 _rules_ 字段进行细粒度规则配置
-        _rules_:
-        # 规则一：按路由名称匹配生效
-        - _match_route_:
-          - route-a
-          - route-b
-          allow:
+        allow:
           - consumer1
-        # 规则二：按域名匹配生效
-        - _match_domain_:
-          - "*.example.com"
-          - test.com
-          allow:
-          - consumer2
       configDisable: false
       ingress:
         - ingress-keyauth-httpbin

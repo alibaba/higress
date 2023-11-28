@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package main
 
 import (
 	"errors"
+	"fmt"
+	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
@@ -25,7 +26,9 @@ import (
 )
 
 var (
-	ruleSet bool // 插件是否至少在一个 domain 或 route 上生效
+	ruleSet         bool            // 插件是否至少在一个 domain 或 route 上生效
+	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Key realm=MSE Gateway
+
 )
 
 func main() {
@@ -52,16 +55,13 @@ type KeyAuthConfig struct {
 	credential2Name map[string]string `yaml:"-"`
 }
 
-type Response struct {
-	Message    string `json:"message"`
-	StatusCode int    `json:"code"`
-}
-
 func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log wrapper.Log) error {
 	log.Debug("global config")
 
+	// init
 	ruleSet = false
 	global.credential2Name = make(map[string]string)
+
 	// global_auth
 	globalAuth := json.Get("global_auth")
 	if globalAuth.Exists() {
@@ -89,10 +89,10 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log wrapper.Log
 		return errors.New("must one of in_query/in_header required")
 	}
 
-	if in_query.Exists() && in_query.IsBool() {
+	if in_query.Exists() {
 		global.InQuery = in_query.Bool()
 	}
-	if in_header.Exists() && in_query.IsBool() {
+	if in_header.Exists() {
 		global.InHeader = in_header.Bool()
 	}
 
@@ -123,8 +123,8 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log wrapper.Log
 			Credential: credential.String(),
 		}
 		global.consumers = append(global.consumers, consumer)
+		global.credential2Name[credential.String()] = name.String()
 	}
-
 	return nil
 }
 
@@ -186,15 +186,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 		// 匹配keys中的 keyname
 		for _, key := range config.Keys {
 			value, err := proxywasm.GetHttpRequestHeader(key)
-			if err != nil && value != "" {
+			if err == nil && value != "" {
 				tokens = append(tokens, value)
 			}
 		}
 	} else if config.InQuery {
+		requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
+		url, _ := url.Parse(requestUrl)
+		queryValues := url.Query()
 		for _, key := range config.Keys {
-			value, err := proxywasm.GetHttpRequestTrailer(key)
-			if err != nil && value != "" {
-				tokens = append(tokens, value)
+			values, ok := queryValues[key]
+			if ok && len(values) > 0 {
+				tokens = append(tokens, values...)
 			}
 		}
 	}
@@ -247,25 +250,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 }
 
 func deniedMutiKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, nil,
+	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. Muti Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedNoKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, nil,
+	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. No Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
-func deniedInvalidCredentials() types.Action {
-	_ = proxywasm.SendHttpResponse(401, nil,
-		[]byte("Request denied by Key Auth check. Invalid username and/or password."), -1)
-	return types.ActionContinue
-}
-
 func deniedUnauthorizedConsumer() types.Action {
-	_ = proxywasm.SendHttpResponse(403, nil,
+	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. Unauthorized consumer."), -1)
 	return types.ActionContinue
 }
@@ -282,4 +279,10 @@ func contains(arr []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func WWWAuthenticateHeader(realm string) [][2]string {
+	return [][2]string{
+		{"WWW-Authenticate", fmt.Sprintf("Key realm=%s", realm)},
+	}
 }
