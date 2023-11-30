@@ -94,7 +94,7 @@ func validGzip(g *Gzip) error {
 		}
 	}
 	if !isFound {
-		return fmt.Errorf("compressionLevel need be one of %s", compressionLevels)
+		return fmt.Errorf("compressionLevel need be one of %s", compressionLevelValues)
 	}
 
 	isFound = false
@@ -289,15 +289,15 @@ func (g *GzipController) RegisterItemEventHandler(eventHandler ItemEventHandler)
 
 func (g *GzipController) constructGzipStruct(gzip *Gzip, namespace string) string {
 	gzipConfig := ""
-	contentType := "\n"
+	contentType := ""
 	index := 0
 	for _, v := range gzip.ContentType {
-		contentType = contentType + fmt.Sprintf("%s", v)
+		contentType = contentType + fmt.Sprintf("\"%s\"", v)
 		if index < len(gzip.ContentType)-1 {
-			contentType = contentType + "，"
+			contentType = contentType + ","
 		}
+		index++
 	}
-	contentType = contentType + "\n"
 	structFmt := `{
    "name": "envoy.filters.http.compressor",
    "typed_config": {
