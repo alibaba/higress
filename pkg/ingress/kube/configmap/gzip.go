@@ -141,8 +141,8 @@ func deepCopyGzip(gzip *Gzip) (*Gzip, error) {
 func NewDefaultGzip() *Gzip {
 	gzip := &Gzip{
 		Enable:              false,
-		MinContentLength:    1024,
-		ContentType:         []string{"text/html", "text/css", "application/json", "application/javascript"},
+		MinContentLength:    30,
+		ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 		DisableOnEtagHeader: true,
 		MemoryLevel:         5,
 		WindowBits:          12,
