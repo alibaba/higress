@@ -18,15 +18,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pkg/config/schema/gvk"
 	"reflect"
 	"strings"
 	"sync/atomic"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 )
 
 const (
