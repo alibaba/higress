@@ -530,7 +530,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 				IngressLog.Infof("Found http2rpc for name %s", http2rpc.Name)
 				envoyFilter, err := m.constructHttp2RpcEnvoyFilter(http2rpc, route, m.namespace)
 				if err != nil {
-					IngressLog.Errorf("Construct http2rpc EnvoyFilter error %v", err)
+					IngressLog.Infof("Construct http2rpc EnvoyFilter error %v", err)
 				} else {
 					IngressLog.Infof("Append http2rpc EnvoyFilter for name %s", http2rpc.Name)
 					envoyFilters = append(envoyFilters, *envoyFilter)
@@ -573,6 +573,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 
 	// TODO Support other envoy filters
 
+	IngressLog.Infof("Found %d number of envoyFilters", len(envoyFilters))
 	m.mutex.Lock()
 	m.cachedEnvoyFilters = envoyFilters
 	m.mutex.Unlock()
@@ -1003,9 +1004,23 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
 	m.mutex.Unlock()
 	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
+	push := func(kind config.GroupVersionKind) {
+		m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+			Full: true,
+			ConfigsUpdated: map[model.ConfigKey]struct{}{{
+				Kind:      kind,
+				Name:      clusterNamespacedName.Name,
+				Namespace: clusterNamespacedName.Namespace,
+			}: {}},
+			Reason: []model.TriggerReason{"Http2Rpc-AddOrUpdate"},
+		})
+	}
+	push(gvk.VirtualService)
+	push(gvk.EnvoyFilter)
 }
 
 func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+	IngressLog.Infof("Http2Rpc triggerd deleted event %s", clusterNamespacedName.Name)
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -1017,7 +1032,20 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Debugf("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
+		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
+		push := func(kind config.GroupVersionKind) {
+			m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+				Full: true,
+				ConfigsUpdated: map[model.ConfigKey]struct{}{{
+					Kind:      kind,
+					Name:      clusterNamespacedName.Name,
+					Namespace: clusterNamespacedName.Namespace,
+				}: {}},
+				Reason: []model.TriggerReason{"Http2Rpc-Deleted"},
+			})
+		}
+		push(gvk.VirtualService)
+		push(gvk.EnvoyFilter)
 	}
 }
 
