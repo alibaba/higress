@@ -26,9 +26,7 @@ import (
 )
 
 var (
-	ruleSet         bool            // 插件是否至少在一个 domain 或 route 上生效
 	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Key realm=MSE Gateway
-
 )
 
 func main() {
@@ -53,13 +51,14 @@ type KeyAuthConfig struct {
 	allow      []string   `yaml:"allow"`
 
 	credential2Name map[string]string `yaml:"-"`
+	ruleSet         bool              `yaml:"-"` // 插件是否至少在一个 domain 或 route 上生效
 }
 
 func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log wrapper.Log) error {
 	log.Debug("global config")
 
 	// init
-	ruleSet = false
+	global.ruleSet = false
 	global.credential2Name = make(map[string]string)
 
 	// global_auth
@@ -144,7 +143,7 @@ func parseOverrideRuleConfig(json gjson.Result, global KeyAuthConfig, config *Ke
 	for _, item := range allow.Array() {
 		config.allow = append(config.allow, item.String())
 	}
-	ruleSet = true
+	config.ruleSet = true
 
 	return nil
 }
@@ -164,6 +163,7 @@ func parseOverrideRuleConfig(json gjson.Result, global KeyAuthConfig, config *Ke
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wrapper.Log) types.Action {
 	var (
 		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
+		ruleSet            = config.ruleSet
 		globalAuthNoSet    = config.globalAuth == nil
 		globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
 		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
