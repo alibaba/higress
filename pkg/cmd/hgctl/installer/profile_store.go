@@ -32,7 +32,7 @@ import (
 
 const (
 	ProfileConfigmapKey        = "profile"
-	ProfileConfigmapName       = "higress-install-profile"
+	ProfileConfigmapName       = "higress-profile"
 	ProfileConfigmapAnnotation = "higress.io/install"
 	ProfileFilePrefix          = "install"
 )
