@@ -38,17 +38,87 @@ func main() {
 }
 
 type Consumer struct {
-	Name       string `yaml:"name"`
+	// @Title 名称
+	// @Title en-US Name
+	// @Description 该调用方的名称。
+	// @Description en-US The name of the consumer.
+	Name string `yaml:"name"`
+
+	// @Title 访问凭证
+	// @Title en-US Credential
+	// @Description 该调用方的访问凭证。
+	// @Description en-US The credential of the consumer.
+	// @Scope GLOBAL
 	Credential string `yaml:"credential"`
 }
 
+// @Name key-auth
+// @Category auth
+// @Phase AUTHN
+// @Priority 321
+// @Title zh-CN Key Auth
+// @Description zh-CN 本插件实现了实现了基于 API Key 进行认证鉴权的功能.
+// @Description en-US This plugin implements an authentication function based on API Key Auth standard.
+// @IconUrl https://img.alicdn.com/imgextra/i4/O1CN01BPFGlT1pGZ2VDLgaH_!!6000000005333-2-tps-42-42.png
+// @Version 1.0.0
+//
+// @Contact.name Higress Team
+// @Contact.url http://higress.io/
+// @Contact.email admin@higress.io
+//
+// @Example
+// global_auth: false
+// consumers:
+//   - name: consumer1
+//     credential: token1
+//   - name: consumer2
+//     credential: token2
+// keys:
+//   - x-api-key
+//   - token
+// in_query: true
+// @End
 type KeyAuthConfig struct {
-	globalAuth *bool      `yaml:"global_auth"` //是否开启全局认证. 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
-	Keys       []string   `yaml:"keys"`        // key auth names
-	InQuery    bool       `yaml:"in_query,omitempty"`
-	InHeader   bool       `yaml:"in_header,omitempty"`
-	consumers  []Consumer `yaml:"consumers"`
-	allow      []string   `yaml:"allow"`
+	// @Title 是否开启全局认证
+	// @Title en-US Enable Global Auth
+	// @Description 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
+	// @Description en-US If set to false, only consumer info will be accepted from the global config. Auth feature shall only be enabled if the corresponding domain or route is configured.
+	// @Scope GLOBAL
+	globalAuth *bool `yaml:"global_auth"` //是否开启全局认证. 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
+
+	// @Title API Key 的来源字段名称列表
+	// @Title en-US The name of the source field of the API Key
+	// @Description API Key 的来源字段名称，可以是 URL 参数或者 HTTP 请求头名称.
+	// @Description en-US The name of the source field of the API Key, which can be a URL parameter or an HTTP request header name.
+	// @Scope GLOBAL
+	Keys []string `yaml:"keys"` // key auth names
+
+	// @Title key是否来源于URL参数
+	// @Title en-US the API Key from the URL parameters.
+	// @Description 如果配置 true 时，网关会尝试从 URL 参数中解析 API Key
+	// @Description en-US When configured true, the gateway will try to parse the API Key from the URL parameters.
+	// @Scope GLOBAL
+	InQuery bool `yaml:"in_query,omitempty"`
+
+	// @Title key是否来源于Header
+	// @Title en-US the API Key from the HTTP request header name.
+	// @Description 配置 true 时，网关会尝试从 URL header头中解析 API Key
+	// @Description en-US When configured true, the gateway will try to parse the API Key from the HTTP request header name.
+	// @Scope GLOBAL
+	InHeader bool `yaml:"in_header,omitempty"`
+
+	// @Title 调用方列表
+	// @Title en-US Consumer List
+	// @Description 服务调用方列表，用于对请求进行认证。
+	// @Description en-US List of service consumers which will be used in request authentication.
+	// @Scope GLOBAL
+	consumers []Consumer `yaml:"consumers"`
+
+	// @Title 授权访问的调用方列表
+	// @Title en-US Allowed Consumers
+	// @Description 对于匹配上述条件的请求，允许访问的调用方列表。
+	// @Description en-US Consumers to be allowed for matched requests.
+	allow []string `yaml:"allow"`
 
 	credential2Name map[string]string `yaml:"-"`
 	ruleSet         bool              `yaml:"-"` // 插件是否至少在一个 domain 或 route 上生效
