@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
@@ -63,7 +64,12 @@ func (o *K8sInstaller) Install() error {
 	if err1 != nil {
 		return err1
 	}
-	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile in configmap: \"%s\" \n", profileName)
+	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile in kubernetes configmap: \"%s\" \n", profileName)
+	fmt.Fprintf(o.writer, "\n   Use bellow kubectl command to edit profile for upgrade. \n")
+	fmt.Fprintf(o.writer, "   ================================================================================== \n")
+	names := strings.Split(profileName, "/")
+	fmt.Fprintf(o.writer, "   kubectl edit configmap %s -n %s \n", names[1], names[0])
+	fmt.Fprintf(o.writer, "   ================================================================================== \n")
 
 	fmt.Fprintf(o.writer, "\n🎊 Install All Resources Complete!\n")
 
