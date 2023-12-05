@@ -83,8 +83,6 @@ type BasicAuthConfig struct {
 
 	credential2Name map[string]string `yaml:"-"`
 	username2Passwd map[string]string `yaml:"-"`
-	ruleSet         bool              `yaml:"-"` // 插件是否至少在一个 domain 或 route 上生效
-
 }
 
 type Consumer struct {
@@ -103,12 +101,13 @@ type Consumer struct {
 }
 
 var (
+	ruleSet         bool            // 插件是否至少在一个 domain 或 route 上生效
 	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Basic realm=MSE Gateway
 )
 
 func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log wrapper.Log) error {
 	// log.Debug("global config")
-	global.ruleSet = false
+	ruleSet = false
 	global.credential2Name = make(map[string]string)
 	global.username2Passwd = make(map[string]string)
 
@@ -171,7 +170,7 @@ func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *
 	for _, item := range allow.Array() {
 		config.allow = append(config.allow, item.String())
 	}
-	config.ruleSet = true
+	ruleSet = true
 
 	return nil
 }
@@ -191,7 +190,6 @@ func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log wrapper.Log) types.Action {
 	var (
 		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
-		ruleSet            = config.ruleSet
 		globalAuthNoSet    = config.globalAuth == nil
 		globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
 		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
