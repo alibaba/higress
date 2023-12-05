@@ -17,10 +17,14 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/installer"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
@@ -58,8 +62,9 @@ func newUpgradeCmd() *cobra.Command {
 // upgrade upgrade higress resources from the cluster.
 func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
-	profileName, ok := installer.GetInstalledYamlPath()
-	if !ok {
+	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
+	profileContexts, _ := getAllProfiles()
+	if len(profileContexts) == 0 {
 		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
 		return nil
 	}
@@ -69,12 +74,14 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 		return err
 	}
 
-	_, profile, err := helm.GenProfile(profileName, valuesOverlay, setFlags)
+	profileContext := promptProfileContexts(writer, profileContexts)
+
+	_, profile, err := helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(writer, "🧐 Validating Profile: \"%s\" \n", profileName)
+	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
 	err = profile.Validate()
 	if err != nil {
 		return err
@@ -87,6 +94,11 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 	err = upgradeManifests(profile, writer)
 	if err != nil {
 		return err
+	}
+
+	// Remove "~/.hgctl/profiles/install.yaml"
+	if oldProfileName, isExisted := installer.GetInstalledYamlPath(); isExisted {
+		_ = os.Remove(oldProfileName)
 	}
 
 	return nil
@@ -120,4 +132,72 @@ func upgradeManifests(profile *helm.Profile, writer io.Writer) error {
 	}
 
 	return nil
+}
+
+func getAllProfiles() ([]*installer.ProfileContext, error) {
+	profileContexts := make([]*installer.ProfileContext, 0)
+	profileInstalledPath, err := installer.GetProfileInstalledPath()
+	if err != nil {
+		return profileContexts, nil
+	}
+	fileProfileStore, err := installer.NewFileDirProfileStore(profileInstalledPath)
+	if err != nil {
+		return profileContexts, nil
+	}
+	fileProfileContexts, err := fileProfileStore.List()
+	if err == nil {
+		profileContexts = append(profileContexts, fileProfileContexts...)
+	}
+
+	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+	if err != nil {
+		return profileContexts, nil
+	}
+	configmapProfileStore, err := installer.NewConfigmapProfileStore(cliClient)
+	if err != nil {
+		return profileContexts, nil
+	}
+
+	configmapProfileContexts, err := configmapProfileStore.List()
+	if err == nil {
+		profileContexts = append(profileContexts, configmapProfileContexts...)
+	}
+	return profileContexts, nil
+}
+
+func promptProfileContexts(writer io.Writer, profileContexts []*installer.ProfileContext) *installer.ProfileContext {
+	if len(profileContexts) == 1 {
+		fmt.Fprintf(writer, "\nFound a profile::  ")
+	} else {
+		fmt.Fprintf(writer, "\nPlease select higress installed configration profiles:\n")
+	}
+	index := 1
+	for _, profileContext := range profileContexts {
+		if len(profileContexts) > 1 {
+			fmt.Fprintf(writer, "\n%d: ", index)
+		}
+		fmt.Fprintf(writer, "install mode: %s, profile location: %s", profileContext.Install, profileContext.PathOrName)
+		if len(profileContext.Namespace) > 0 {
+			fmt.Fprintf(writer, ", namespace: %s", profileContext.Namespace)
+		}
+		if len(profileContext.HigressVersion) > 0 {
+			fmt.Fprintf(writer, ", version: %s", profileContext.HigressVersion)
+		}
+		fmt.Fprintf(writer, "\n")
+		index++
+	}
+
+	if len(profileContexts) == 1 {
+		return profileContexts[0]
+	}
+
+	answer := ""
+	for {
+		fmt.Fprintf(writer, "\nPlease input 1 to %d select, input your selection:", len(profileContexts))
+		fmt.Scanln(&answer)
+		index, err := strconv.Atoi(answer)
+		if err == nil && index >= 1 && index <= len(profileContexts) {
+			return profileContexts[index-1]
+		}
+	}
 }

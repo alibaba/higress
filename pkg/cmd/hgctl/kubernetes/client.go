@@ -253,4 +253,5 @@ func (c *client) CreateNamespace(namespace string) error {
 // KubernetesInterface get kubernetes interface
 func (c *client) KubernetesInterface() kubernetes.Interface {
 	return c.kube
+
 }
