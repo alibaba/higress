@@ -58,7 +58,10 @@ func (s *StandaloneComponent) Install() error {
 	if err := s.agent.Install(); err != nil {
 		return err
 	}
-
+	// Set Higress version
+	if version, err := s.agent.Version(); err == nil {
+		s.profile.HigressVersion = version
+	}
 	return nil
 }
 
@@ -86,7 +89,10 @@ func (s *StandaloneComponent) Upgrade() error {
 	if err := s.agent.Upgrade(); err != nil {
 		return err
 	}
-
+	// Set Higress version
+	if version, err := s.agent.Version(); err != nil {
+		s.profile.HigressVersion = version
+	}
 	return nil
 }
 
@@ -112,10 +118,6 @@ func NewStandaloneComponent(profile *helm.Profile, writer io.Writer, opts ...Com
 }
 
 func prepareProfile(profile *helm.Profile) error {
-	if _, err := GetProfileInstalledPath(); err != nil {
-		return err
-	}
-
 	if len(profile.InstallPackagePath) == 0 {
 		dir, err := GetDefaultInstallPackagePath()
 		if err != nil {

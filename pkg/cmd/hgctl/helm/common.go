@@ -318,7 +318,45 @@ func GenProfile(profileOrPath, fileOverlayYAML string, setFlags []string) (strin
 		return "", nil, err
 	}
 
-	finalProfile.InstallPackagePath = installPackagePath
+	if len(installPackagePath) > 0 {
+		finalProfile.InstallPackagePath = installPackagePath
+	}
+
+	if finalProfile.Profile == "" {
+		finalProfile.Profile = DefaultProfileName
+	}
+	return util.ToYAML(finalProfile), finalProfile, nil
+}
+
+func GenProfileFromProfileContent(profileContent, fileOverlayYAML string, setFlags []string) (string, *Profile, error) {
+	installPackagePath, err := getInstallPackagePath(fileOverlayYAML)
+	if err != nil {
+		return "", nil, err
+	}
+	if sfp := GetValueForSetFlag(setFlags, "installPackagePath"); sfp != "" {
+		// set flag installPackagePath has the highest precedence, if set.
+		installPackagePath = sfp
+	}
+
+	// Combine file and --set overlays and translate any K8s settings in values to Profile format
+	overlayYAML, err := overlaySetFlagValues(fileOverlayYAML, setFlags)
+	if err != nil {
+		return "", nil, err
+	}
+	// Merge user file and --set flags.
+	outYAML, err := util.OverlayYAML(profileContent, overlayYAML)
+	if err != nil {
+		return "", nil, fmt.Errorf("could not overlay user config over base: %s", err)
+	}
+
+	finalProfile, err := UnmarshalProfile(outYAML)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if len(installPackagePath) > 0 {
+		finalProfile.InstallPackagePath = installPackagePath
+	}
 
 	if finalProfile.Profile == "" {
 		finalProfile.Profile = DefaultProfileName
