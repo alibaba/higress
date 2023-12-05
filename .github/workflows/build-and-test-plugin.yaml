@@ -4,13 +4,13 @@ on:
   push:
     branches: [ main ]
     paths:
-      - plugins/**
-      - test/**       
+      - 'plugins/**'
+      - 'test/**'
   pull_request:
     branches: ["*"]
     paths:
-      - plugins/**
-      - test/**       
+      - 'plugins/**'
+      - 'test/**'
 
 jobs:
   lint:
