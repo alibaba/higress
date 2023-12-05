@@ -372,11 +372,11 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 
 	switch runtime.GOOS {
 	case "linux":
-		err = openCommand("xdg-open", url)
+		err = openCommand(writer, "xdg-open", url)
 	case "windows":
-		err = openCommand("rundll32", "url.dll,FileProtocolHandler", url)
+		err = openCommand(writer, "rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
-		err = openCommand("open", url)
+		err = openCommand(writer, "open", url)
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
@@ -386,9 +386,10 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 	}
 }
 
-func openCommand(command string, args ...string) error {
+func openCommand(writer io.Writer, command string, args ...string) error {
 	_, err := exec.LookPath(command)
 	if err != nil {
+		fmt.Fprintf(writer, "Could not open your browser. Please open it manually.\n")
 		return nil
 	}
 
