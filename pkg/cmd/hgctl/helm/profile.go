@@ -35,6 +35,7 @@ const (
 type Profile struct {
 	Profile            string            `json:"profile,omitempty"`
 	InstallPackagePath string            `json:"installPackagePath,omitempty"`
+	HigressVersion     string            `json:"higressVersion,omitempty"`
 	Global             ProfileGlobal     `json:"global,omitempty"`
 	Console            ProfileConsole    `json:"console,omitempty"`
 	Gateway            ProfileGateway    `json:"gateway,omitempty"`

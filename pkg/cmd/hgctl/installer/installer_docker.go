@@ -17,17 +17,17 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
 	"io"
-	"os"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 )
 
 type DockerInstaller struct {
-	started    bool
-	standalone *StandaloneComponent
-	profile    *helm.Profile
-	writer     io.Writer
+	started      bool
+	standalone   *StandaloneComponent
+	profile      *helm.Profile
+	writer       io.Writer
+	profileStore ProfileStore
 }
 
 func (d *DockerInstaller) Install() error {
@@ -37,11 +37,11 @@ func (d *DockerInstaller) Install() error {
 		return err
 	}
 
-	profileName, _ := GetInstalledYamlPath()
-	fmt.Fprintf(d.writer, "\n✔️ Wrote Profile: \"%s\" \n", profileName)
-	if err := util.WriteFileString(profileName, util.ToYAML(d.profile), 0o644); err != nil {
-		return err
+	profileName, err1 := d.profileStore.Save(d.profile)
+	if err1 != nil {
+		return err1
 	}
+	fmt.Fprintf(d.writer, "\n✔️ Wrote Profile: \"%s\" \n", profileName)
 
 	fmt.Fprintf(d.writer, "\n🎊 Install All Resources Complete!\n")
 	return nil
@@ -55,9 +55,11 @@ func (d *DockerInstaller) UnInstall() error {
 		return err
 	}
 
-	profileName, _ := GetInstalledYamlPath()
+	profileName, err1 := d.profileStore.Delete(d.profile)
+	if err1 != nil {
+		return err1
+	}
 	fmt.Fprintf(d.writer, "\n✔️ Removed Profile: \"%s\" \n", profileName)
-	os.Remove(profileName)
 
 	fmt.Fprintf(d.writer, "\n🎊 Uninstall All Resources Complete!\n")
 	return nil
@@ -92,10 +94,19 @@ func NewDockerInstaller(profile *helm.Profile, writer io.Writer, quiet bool) (*D
 		return nil, fmt.Errorf("NewStandaloneComponent failed, err: %s", err)
 	}
 
+	profileInstalledPath, err1 := GetProfileInstalledPath()
+	if err1 != nil {
+		return nil, err1
+	}
+	profileStore, err2 := NewFileDirProfileStore(profileInstalledPath)
+	if err2 != nil {
+		return nil, err2
+	}
 	op := &DockerInstaller{
-		profile:    profile,
-		standalone: standaloneComponent,
-		writer:     writer,
+		profile:      profile,
+		standalone:   standaloneComponent,
+		writer:       writer,
+		profileStore: profileStore,
 	}
 	return op, nil
 }
