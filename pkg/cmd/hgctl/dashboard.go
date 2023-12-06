@@ -390,6 +390,7 @@ func openCommand(writer io.Writer, command string, args ...string) {
 			return
 		}
 		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
+		return
 	}
 
 	err = exec.Command(command, args...).Start()
