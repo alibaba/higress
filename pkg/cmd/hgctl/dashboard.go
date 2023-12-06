@@ -361,8 +361,6 @@ func ClosePortForwarderOnInterrupt(fw kubernetes.PortForwarder) {
 }
 
 func openBrowser(url string, writer io.Writer, browser bool) {
-	var err error
-
 	fmt.Fprintf(writer, "%s\n", url)
 
 	if !browser {
@@ -372,16 +370,29 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 
 	switch runtime.GOOS {
 	case "linux":
-		err = exec.Command("xdg-open", url).Start()
+		openCommand(writer, "xdg-open", url)
 	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		openCommand(writer, "rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
-		err = exec.Command("open", url).Start()
+		openCommand(writer, "open", url)
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
+}
 
+func openCommand(writer io.Writer, command string, args ...string) {
+	_, err := exec.LookPath(command)
 	if err != nil {
-		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", url, err.Error())
+		if errors.Is(err, exec.ErrNotFound) {
+			fmt.Fprintf(writer, "Could not open your browser. Please open it maually.\n")
+			return
+		}
+		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
+		return
+	}
+
+	err = exec.Command(command, args...).Start()
+	if err != nil {
+		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
 	}
 }

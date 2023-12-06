@@ -17,10 +17,12 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/installer"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
@@ -60,18 +62,22 @@ func newUninstallCmd() *cobra.Command {
 
 // uninstall uninstalls control plane by either pruning by target revision or deleting specified manifests.
 func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
-	profileName, ok := installer.GetInstalledYamlPath()
-	if !ok {
+	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
+	profileContexts, _ := getAllProfiles()
+	if len(profileContexts) == 0 {
 		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
 		return nil
 	}
+
 	setFlags := make([]string, 0)
-	_, profile, err := helm.GenProfile(profileName, "", setFlags)
+
+	profileContext := promptProfileContexts(writer, profileContexts)
+	_, profile, err := helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), "", setFlags)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(writer, "🧐 Validating Profile: \"%s\" \n", profileName)
+	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
 	err = profile.Validate()
 	if err != nil {
 		return err
@@ -93,6 +99,11 @@ func uninstall(writer io.Writer, uiArgs *uninstallArgs) error {
 	err = uninstallManifests(profile, writer, uiArgs)
 	if err != nil {
 		return err
+	}
+
+	// Remove "~/.hgctl/profiles/install.yaml"
+	if oldProfileName, isExisted := installer.GetInstalledYamlPath(); isExisted {
+		_ = os.Remove(oldProfileName)
 	}
 
 	return nil

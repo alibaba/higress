@@ -4,13 +4,13 @@ on:
   push:
     branches: [ main ]
     paths:
-      - plugins/**
-      - test/**       
+      - 'plugins/**'
+      - 'test/**'
   pull_request:
     branches: ["*"]
     paths:
-      - plugins/**
-      - test/**       
+      - 'plugins/**'
+      - 'test/**'
 
 jobs:
   lint:
@@ -26,7 +26,6 @@ jobs:
 
   higress-wasmplugin-test:
     runs-on: ubuntu-latest
-    needs: [build]
     strategy:
       matrix:
         # TODO(Xunzhuo): Enable C WASM Filters in CI
