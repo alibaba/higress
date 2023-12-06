@@ -26,7 +26,6 @@ jobs:
 
   higress-wasmplugin-test:
     runs-on: ubuntu-latest
-    needs: [build]
     strategy:
       matrix:
         # TODO(Xunzhuo): Enable C WASM Filters in CI
