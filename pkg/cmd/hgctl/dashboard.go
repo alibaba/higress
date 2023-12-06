@@ -361,7 +361,6 @@ func ClosePortForwarderOnInterrupt(fw kubernetes.PortForwarder) {
 }
 
 func openBrowser(url string, writer io.Writer, browser bool) {
-
 	fmt.Fprintf(writer, "%s\n", url)
 
 	if !browser {
@@ -379,7 +378,6 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
-
 }
 
 func openCommand(writer io.Writer, command string, args ...string) {
