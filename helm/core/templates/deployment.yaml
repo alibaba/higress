@@ -134,6 +134,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.serviceAccountName
+          - name: PILOT_XDS_SEND_TIMEOUT
+            value: 60s
           - name: PROXY_XDS_VIA_AGENT
             value: "true"
           - name: ENABLE_INGRESS_GATEWAY_SDS

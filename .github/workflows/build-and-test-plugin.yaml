@@ -1,0 +1,70 @@
+name: "Build and Test Plugins"
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'plugins/**'
+      - 'test/**'
+  pull_request:
+    branches: ["*"]
+    paths:
+      - 'plugins/**'
+      - 'test/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version: 1.19
+    # There are too many lint errors in current code bases
+    # uncomment when we decide what lint should be addressed or ignored.
+    # - run: make lint
+
+  higress-wasmplugin-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # TODO(Xunzhuo): Enable C WASM Filters in CI
+        wasmPluginType: [ GO ]
+    steps:
+    - uses: actions/checkout@v3
+      
+    - name: "Setup Go"
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19
+
+    - name: Setup Golang Caches
+      uses: actions/cache@v3
+      with:
+        path: |-
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-go
+      
+    - name: Setup Submodule Caches
+      uses: actions/cache@v3
+      with:
+        path: |-
+            envoy
+            istio
+            .git/modules
+        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-new
+          
+    - run: git stash # restore patch
+
+    - name: "Run Ingress WasmPlugins Tests"
+      run: GOPROXY="https://proxy.golang.org,direct" PLUGIN_TYPE=${{ matrix.wasmPluginType }} make higress-wasmplugin-test
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [higress-wasmplugin-test]
+    steps:
+    - uses: actions/checkout@v3

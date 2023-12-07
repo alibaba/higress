@@ -1,0 +1,62 @@
+diff -Naur istio/pilot/pkg/xds/ads.go istio-new/pilot/pkg/xds/ads.go
+--- istio/pilot/pkg/xds/ads.go	2023-11-15 20:25:18.000000000 +0800
++++ istio-new/pilot/pkg/xds/ads.go	2023-11-15 20:24:20.000000000 +0800
+@@ -318,6 +318,27 @@
+ 	<-con.initialized
+ 
+ 	for {
++		// Go select{} statements are not ordered; the same channel can be chosen many times.
++		// For requests, these are higher priority (client may be blocked on startup until these are done)
++		// and often very cheap to handle (simple ACK), so we check it first.
++		select {
++		case req, ok := <-con.reqChan:
++			if ok {
++				if err := s.processRequest(req, con); err != nil {
++					return err
++				}
++			} else {
++				// Remote side closed connection or error processing the request.
++				return <-con.errorChan
++			}
++		case <-con.stop:
++			return nil
++		default:
++		}
++		// If there wasn't already a request, poll for requests and pushes. Note: if we have a huge
++		// amount of incoming requests, we may still send some pushes, as we do not `continue` above;
++		// however, requests will be handled ~2x as much as pushes. This ensures a wave of requests
++		// cannot completely starve pushes. However, this scenario is unlikely.
+ 		select {
+ 		case req, ok := <-con.reqChan:
+ 			if ok {
+diff -Naur istio/pilot/pkg/xds/delta.go istio-new/pilot/pkg/xds/delta.go
+--- istio/pilot/pkg/xds/delta.go	2023-11-15 20:25:18.000000000 +0800
++++ istio-new/pilot/pkg/xds/delta.go	2023-11-15 20:24:44.000000000 +0800
+@@ -102,6 +102,27 @@
+ 	<-con.initialized
+ 
+ 	for {
++		// Go select{} statements are not ordered; the same channel can be chosen many times.
++		// For requests, these are higher priority (client may be blocked on startup until these are done)
++		// and often very cheap to handle (simple ACK), so we check it first.
++		select {
++		case req, ok := <-con.deltaReqChan:
++			if ok {
++				if err := s.processDeltaRequest(req, con); err != nil {
++					return err
++				}
++			} else {
++				// Remote side closed connection or error processing the request.
++				return <-con.errorChan
++			}
++		case <-con.stop:
++			return nil
++		default:
++		}
++		// If there wasn't already a request, poll for requests and pushes. Note: if we have a huge
++		// amount of incoming requests, we may still send some pushes, as we do not `continue` above;
++		// however, requests will be handled ~2x as much as pushes. This ensures a wave of requests
++		// cannot completely starve pushes. However, this scenario is unlikely.
+ 		select {
+ 		case req, ok := <-con.deltaReqChan:
+ 			if ok {

@@ -41,7 +41,7 @@ jobs:
             envoy
             istio
             .git/modules
-          key: ${{ runner.os }}-submodules-${{ github.run_id }}
+          key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-submodules-new
 
       - name: Calculate Docker metadata

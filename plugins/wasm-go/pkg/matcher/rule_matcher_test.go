@@ -119,6 +119,19 @@ func TestHostMatch(t *testing.T) {
 			result: false,
 		},
 		{
+			name: "exact port",
+			config: RuleConfig[customConfig]{
+				hosts: []HostMatcher{
+					{
+						matchType: Exact,
+						host:      "www.example.com",
+					},
+				},
+			},
+			host:   "www.example.com:8080",
+			result: true,
+		},
+		{
 			name: "any",
 			config: RuleConfig[customConfig]{
 				hosts: []HostMatcher{

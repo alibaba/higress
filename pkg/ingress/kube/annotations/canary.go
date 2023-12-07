@@ -108,6 +108,8 @@ func ApplyByWeight(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 
 	// canary route use the header control applied on itself.
 	headerControl{}.ApplyRoute(canary, canaryIngress)
+	// reset
+	canary.Route[0].FallbackClusters = nil
 	// Move route level to destination level
 	canary.Route[0].Headers = canary.Headers
 
@@ -127,8 +129,6 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 
 	// Inherit configuration from non-canary rule
 	route.DeepCopyInto(canary)
-	// Assign temp copied canary route match
-	canary.Match = temp.Match
 	// Assign temp copied canary route destination
 	canary.Route = temp.Route
 
@@ -165,7 +165,7 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 			match.Headers = map[string]*networking.StringMatch{
 				"cookie": {
 					MatchType: &networking.StringMatch_Regex{
-						Regex: "^(.\\*?;)?(" + canaryConfig.Cookie + "=always)(;.\\*)?$",
+						Regex: "^(.*?;\\s*)?(" + canaryConfig.Cookie + "=always)(;.*)?$",
 					},
 				},
 			}
