@@ -71,7 +71,7 @@ func TestRetryParse(t *testing.T) {
 			expect: &RetryConfig{
 				retryCount:      2,
 				retryOn:         "5xx",
-				perRetryTimeout: &durations.Duration{},
+				perRetryTimeout: &duration.Duration{},
 			},
 		},
 		{
@@ -82,7 +82,7 @@ func TestRetryParse(t *testing.T) {
 			expect: &RetryConfig{
 				retryCount:      2,
 				retryOn:         "5xx",
-				perRetryTimeout: &durations.Duration{},
+				perRetryTimeout: &duration.Duration{},
 			},
 		},
 		{
