@@ -109,7 +109,8 @@ func ApplyByWeight(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 	// canary route use the header control applied on itself.
 	headerControl{}.ApplyRoute(canary, canaryIngress)
 	// reset
-	canary.Route[0].FallbackClusters = nil
+	// TODO: Upgrade fix
+	//canary.Route[0].FallbackClusters = nil
 	// Move route level to destination level
 	canary.Route[0].Headers = canary.Headers
 

@@ -1007,15 +1007,15 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
 	m.mutex.Unlock()
 	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
-	push := func(kind config.GroupVersionKind) {
-		m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+	push := func(gvk config.GroupVersionKind) {
+		m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 			Full: true,
-			ConfigsUpdated: map[model.ConfigKey]struct{}{{
-				Kind:      kind,
+			ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
+				Kind:      kind.MustFromGVK(gvk),
 				Name:      clusterNamespacedName.Name,
 				Namespace: clusterNamespacedName.Namespace,
 			}: {}},
-			Reason: []model.TriggerReason{"Http2Rpc-AddOrUpdate"},
+			Reason: istiomodel.NewReasonStats("Http2Rpc-AddOrUpdate"),
 		})
 	}
 	push(gvk.VirtualService)
@@ -1036,15 +1036,15 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	m.mutex.Unlock()
 	if hit {
 		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
-		push := func(kind config.GroupVersionKind) {
-			m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+		push := func(gvk config.GroupVersionKind) {
+			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
-				ConfigsUpdated: map[model.ConfigKey]struct{}{{
-					Kind:      kind,
+				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
+					Kind:      kind.MustFromGVK(gvk),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
-				Reason: []model.TriggerReason{"Http2Rpc-Deleted"},
+				Reason: istiomodel.NewReasonStats("Http2Rpc-Deleted"),
 			})
 		}
 		push(gvk.VirtualService)
