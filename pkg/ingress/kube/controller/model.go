@@ -19,7 +19,6 @@ import (
 
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
-	"istio.io/istio/pkg/kube/informerfactory"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
@@ -46,7 +45,7 @@ type GetObjectFunc[lister any] func(lister, types.NamespacedName) (controllers.O
 type CommonController[lister any] struct {
 	typeName      string
 	queue         controllers.Queue
-	informer      informerfactory.StartableInformer
+	informer      cache.SharedIndexInformer
 	lister        lister
 	updateHandler func(util.ClusterNamespacedName)
 	removeHandler func(util.ClusterNamespacedName)
@@ -54,7 +53,7 @@ type CommonController[lister any] struct {
 	clusterId     cluster.ID
 }
 
-func NewCommonController[lister any](typeName string, listerObj lister, informer informerfactory.StartableInformer,
+func NewCommonController[lister any](typeName string, listerObj lister, informer cache.SharedIndexInformer,
 	getFunc GetObjectFunc[lister], clusterId cluster.ID) Controller[lister] {
 	c := &CommonController[lister]{
 		typeName:  typeName,
@@ -66,7 +65,7 @@ func NewCommonController[lister any](typeName string, listerObj lister, informer
 	c.queue = controllers.NewQueue(typeName,
 		controllers.WithReconciler(c.onEvent),
 		controllers.WithMaxAttempts(5))
-	_, _ = c.informer.Informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
+	_, _ = c.informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 	return c
 }
 
@@ -75,7 +74,7 @@ func (c *CommonController[lister]) Lister() lister {
 }
 
 func (c *CommonController[lister]) Informer() cache.SharedIndexInformer {
-	return c.informer.Informer
+	return c.informer
 }
 
 func (c *CommonController[lister]) AddEventHandler(addOrUpdate func(util.ClusterNamespacedName), delete ...func(util.ClusterNamespacedName)) {
@@ -121,5 +120,5 @@ func (c *CommonController[lister]) Get(namespacedName types.NamespacedName) (con
 }
 
 func (c *CommonController[lister]) HasSynced() bool {
-	return c.informer.Informer.HasSynced()
+	return c.informer.HasSynced()
 }

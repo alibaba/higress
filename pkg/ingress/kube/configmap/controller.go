@@ -45,7 +45,7 @@ func NewController(client kubeclient.Client, clusterId cluster.ID, namespace str
 	}
 	informer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.ConfigMap)
 	lister := listersv1.NewConfigMapLister(informer.Informer.GetIndexer()).ConfigMaps(namespace)
-	return controller.NewCommonController("higressConfig", lister, informer, GetConfigmap, clusterId)
+	return controller.NewCommonController("higressConfig", lister, informer.Informer, GetConfigmap, clusterId)
 }
 
 func GetConfigmap(lister listersv1.ConfigMapNamespaceLister, namespacedName types.NamespacedName) (controllers.Object, error) {

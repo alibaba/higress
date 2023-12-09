@@ -41,7 +41,7 @@ func NewController(client kubeclient.Client, clusterId cluster.ID) SecretControl
 		).String(),
 	}
 	informer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Secret)
-	return controller.NewCommonController("secret", listersv1.NewSecretLister(informer.Informer.GetIndexer()), informer, GetSecret, clusterId)
+	return controller.NewCommonController("secret", listersv1.NewSecretLister(informer.Informer.GetIndexer()), informer.Informer, GetSecret, clusterId)
 }
 
 func GetSecret(lister listersv1.SecretLister, namespacedName types.NamespacedName) (controllers.Object, error) {
