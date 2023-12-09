@@ -5,7 +5,6 @@ import (
 
 	"istio.io/istio/pilot/pkg/bootstrap"
 	"istio.io/istio/pilot/pkg/config/kube/crdclient"
-	istiogateway "istio.io/istio/pilot/pkg/config/kube/gateway"
 	"istio.io/istio/pilot/pkg/credentials"
 	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
@@ -21,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	istiogateway "github.com/alibaba/higress/pkg/ingress/kube/gateway/istio"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
