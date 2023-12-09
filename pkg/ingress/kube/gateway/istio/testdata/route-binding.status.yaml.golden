@@ -2,13 +2,13 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: istio
+  name: higress
   namespace: default
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Istio controller
+    message: Handled by Higress controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -18,7 +18,7 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   addresses:
@@ -31,7 +31,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -188,7 +188,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -213,7 +213,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -240,7 +240,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: namespace-selector
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -267,7 +267,7 @@ status:
     parentRef:
       kind: Gateway
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: same-namespace
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -293,7 +293,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -319,7 +319,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: namespace-selector
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -345,7 +345,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: namespace-selector
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -353,7 +353,7 @@ kind: HTTPRoute
 metadata:
   creationTimestamp: null
   name: same-namespace-valid
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   parents:
@@ -371,7 +371,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: same-namespace
   - conditions:
     - lastTransitionTime: fake
@@ -387,7 +387,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
@@ -413,6 +413,6 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---

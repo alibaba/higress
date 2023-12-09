@@ -2,13 +2,13 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: istio
+  name: higress
   namespace: default
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Istio controller
+    message: Handled by Higress controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -18,6 +18,6 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 ---

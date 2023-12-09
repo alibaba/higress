@@ -2,9 +2,9 @@ apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway
 metadata:
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     port: 80
@@ -21,7 +21,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   rules:
   -
     backendRefs:

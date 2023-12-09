@@ -3,7 +3,7 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   conditions:
@@ -13,7 +13,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: 'Failed to assign to any requested addresses: hostname "gateway-istio.istio-system.svc.domain.suffix"
+    message: 'Failed to assign to any requested addresses: hostname "gateway-higress.higress-system.svc.domain.suffix"
       not found'
     reason: Invalid
     status: "False"
@@ -69,5 +69,5 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
 ---

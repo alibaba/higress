@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Updated based on Istio codebase by Higress
+
 package istio
 
 import (
@@ -112,7 +114,9 @@ func GetClassStatus(existing *k8s.GatewayClassStatus, gen int64) k8s.GatewayClas
 		ObservedGeneration: gen,
 		LastTransitionTime: metav1.Now(),
 		Reason:             string(gateway.GatewayClassConditionStatusAccepted),
-		Message:            "Handled by Istio controller",
+		// Start - Updated by Higress
+		Message: "Handled by Higress controller",
+		// End - Updated by Higress
 	})
 	return *existing
 }

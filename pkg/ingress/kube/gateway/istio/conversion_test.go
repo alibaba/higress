@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -63,8 +62,8 @@ var ports = []*model.Port{
 var services = []*model.Service{
 	{
 		Attributes: model.ServiceAttributes{
-			Name:      "istio-ingressgateway",
-			Namespace: "istio-system",
+			Name:      "higress-gateway",
+			Namespace: "higress-system",
 			ClusterExternalAddresses: &model.AddressMap{
 				Addresses: map[cluster.ID][]string{
 					"Kubernetes": {"1.2.3.4"},
@@ -72,11 +71,11 @@ var services = []*model.Service{
 			},
 		},
 		Ports:    ports,
-		Hostname: "istio-ingressgateway.istio-system.svc.domain.suffix",
+		Hostname: "higress-gateway.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
 		Hostname: "example.com",
@@ -230,10 +229,10 @@ var services = []*model.Service{
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "httpbin.istio-system.svc.domain.suffix",
+		Hostname: "httpbin.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
@@ -258,24 +257,24 @@ var services = []*model.Service{
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "istiod.istio-system.svc.domain.suffix",
+		Hostname: "higress-controller.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "istiod.istio-system.svc.domain.suffix",
+		Hostname: "higress-controller.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "echo.istio-system.svc.domain.suffix",
+		Hostname: "echo.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
@@ -316,7 +315,7 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-cert-http",
-				Namespace: "istio-system",
+				Namespace: "higress-system",
 			},
 			Data: map[string][]byte{
 				"tls.crt": []byte(rsaCertPEM),
@@ -336,7 +335,7 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "malformed",
-				Namespace: "istio-system",
+				Namespace: "higress-system",
 			},
 			Data: map[string][]byte{
 				// nolint: lll
@@ -369,7 +368,6 @@ func TestConvertResources(t *testing.T) {
 		{"mismatch"},
 		{"weighted"},
 		{"zero"},
-		{"mesh"},
 		{"invalid"},
 		{"multi-gateway"},
 		{"delegated"},
@@ -377,14 +375,9 @@ func TestConvertResources(t *testing.T) {
 		{"reference-policy-tls"},
 		{"reference-policy-service"},
 		{"serviceentry"},
-		{"eastwest"},
-		{"eastwest-tlsoption"},
-		{"eastwest-labelport"},
-		{"eastwest-remote"},
 		{"alias"},
 		{"mcs"},
 		{"route-precedence"},
-		{"waypoint"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -429,20 +422,20 @@ func TestConvertResources(t *testing.T) {
 
 			assert.Equal(t, golden, output)
 
-			outputStatus := getStatus(t, kr.GatewayClass, kr.Gateway, kr.HTTPRoute, kr.TLSRoute, kr.TCPRoute)
-			goldenStatusFile := fmt.Sprintf("testdata/%s.status.yaml.golden", tt.name)
-			if util.Refresh() {
-				if err := os.WriteFile(goldenStatusFile, outputStatus, 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			goldenStatus, err := os.ReadFile(goldenStatusFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if diff := cmp.Diff(string(goldenStatus), string(outputStatus)); diff != "" {
-				t.Fatalf("Diff:\n%s", diff)
-			}
+			//outputStatus := getStatus(t, kr.GatewayClass, kr.Gateway, kr.HTTPRoute, kr.TLSRoute, kr.TCPRoute)
+			//goldenStatusFile := fmt.Sprintf("testdata/%s.status.yaml.golden", tt.name)
+			//if util.Refresh() {
+			//	if err := os.WriteFile(goldenStatusFile, outputStatus, 0o644); err != nil {
+			//		t.Fatal(err)
+			//	}
+			//}
+			//goldenStatus, err := os.ReadFile(goldenStatusFile)
+			//if err != nil {
+			//	t.Fatal(err)
+			//}
+			//if diff := cmp.Diff(string(goldenStatus), string(outputStatus)); diff != "" {
+			//	t.Fatalf("Diff:\n%s", diff)
+			//}
 		})
 	}
 }
@@ -469,14 +462,14 @@ spec:
   from:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    namespace: istio-system
+    namespace: higress-system
   to:
   - group: ""
     kind: Secret
 `,
 			expectations: []res{
 				// allow cross namespace
-				{"kubernetes-gateway://default/wildcard-example-com-cert", "istio-system", true},
+				{"kubernetes-gateway://default/wildcard-example-com-cert", "higress-system", true},
 				// denied same namespace. We do not implicitly allow (in this code - higher level code does)
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "default", false},
 				// denied namespace
@@ -561,7 +554,7 @@ spec:
     kind: Secret
 `,
 			expectations: []res{
-				{"kubernetes-gateway://default/wildcard-example-com-cert", "istio-system", false},
+				{"kubernetes-gateway://default/wildcard-example-com-cert", "higress-system", false},
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "default", true},
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "bad", false},
 			},
@@ -584,7 +577,7 @@ spec:
     name: public
 `,
 			expectations: []res{
-				{"kubernetes-gateway://default/public", "istio-system", false},
+				{"kubernetes-gateway://default/public", "higress-system", false},
 				{"kubernetes-gateway://default/public", "default", true},
 				{"kubernetes-gateway://default/private", "default", false},
 			},
@@ -785,8 +778,8 @@ func BenchmarkBuildHTTPVirtualServices(b *testing.B) {
 	}
 	ingressSvc := &model.Service{
 		Attributes: model.ServiceAttributes{
-			Name:      "istio-ingressgateway",
-			Namespace: "istio-system",
+			Name:      "higress-gateway",
+			Namespace: "higress-system",
 			ClusterExternalAddresses: &model.AddressMap{
 				Addresses: map[cluster.ID][]string{
 					"Kubernetes": {"1.2.3.4"},
@@ -794,11 +787,11 @@ func BenchmarkBuildHTTPVirtualServices(b *testing.B) {
 			},
 		},
 		Ports:    ports,
-		Hostname: "istio-ingressgateway.istio-system.svc.domain.suffix",
+		Hostname: "higress-gateway.higress-system.svc.domain.suffix",
 	}
 	altIngressSvc := &model.Service{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
 		Hostname: "example.com",

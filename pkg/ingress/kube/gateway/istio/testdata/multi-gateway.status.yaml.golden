@@ -2,13 +2,13 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: istio
+  name: higress
   namespace: default
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Istio controller
+    message: Handled by Higress controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -18,7 +18,7 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   addresses:
@@ -31,9 +31,9 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: 'Assigned to service(s) example.com:34000, example.com:80, istio-ingressgateway.istio-system.svc.domain.suffix:34000,
-      and istio-ingressgateway.istio-system.svc.domain.suffix:80, but failed to assign
-      to all requested addresses: hostname "istio-ingressgateway.not-default.svc.domain.suffix"
+    message: 'Assigned to service(s) example.com:34000, example.com:80, higress-gateway.higress-system.svc.domain.suffix:34000,
+      and higress-gateway.higress-system.svc.domain.suffix:80, but failed to assign
+      to all requested addresses: hostname "higress-gateway.not-default.svc.domain.suffix"
       not found'
     reason: Invalid
     status: "False"

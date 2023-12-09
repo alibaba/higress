@@ -97,6 +97,7 @@ type Options struct {
 	Enable               bool
 	ClusterId            cluster.ID
 	IngressClass         string
+	GatewayClass         string
 	WatchNamespace       string
 	RawClusterId         string
 	EnableStatus         bool

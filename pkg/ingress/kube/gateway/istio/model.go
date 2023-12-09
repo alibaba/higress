@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Updated based on Istio codebase by Higress
+
 package istio
 
 import (
@@ -24,15 +26,19 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/util/sets"
+
+	"github.com/alibaba/higress/pkg/config/constants"
 )
 
 const (
-	defaultClassName             = "istio"
-	gatewayAliasForAnnotationKey = "gateway.istio.io/alias-for"
-	gatewayTLSTerminateModeKey   = "gateway.istio.io/tls-terminate-mode"
-	gatewayNameOverride          = "gateway.istio.io/name-override"
-	gatewaySAOverride            = "gateway.istio.io/service-account"
-	serviceTypeOverride          = "networking.istio.io/service-type"
+	// Start - Updated by Higress
+	defaultClassName             = constants.DefaultGatewayClass
+	gatewayAliasForAnnotationKey = "gateway.higress.io/alias-for"
+	gatewayTLSTerminateModeKey   = "gateway.higress.io/tls-terminate-mode"
+	gatewayNameOverride          = "gateway.higress.io/name-override"
+	gatewaySAOverride            = "gateway.higress.io/service-account"
+	serviceTypeOverride          = "networking.higress.io/service-type"
+	// End - Updated by Higress
 )
 
 // GatewayResources stores all gateway resources used for our conversion.
