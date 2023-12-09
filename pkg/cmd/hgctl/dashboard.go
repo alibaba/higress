@@ -15,18 +15,23 @@
 package hgctl
 
 import (
+	"context"
 	"fmt"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
+	types2 "github.com/docker/docker/api/types"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	"io"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"os/exec"
 	"os/signal"
 	"runtime"
-
-	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/options"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/types"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -49,6 +54,8 @@ var (
 	envoyDashNs = ""
 
 	proxyAdminPort int
+
+	docker = false
 )
 
 const (
@@ -81,6 +88,8 @@ func newDashboardCmd() *cobra.Command {
 			"Default is true which means hgctl dashboard will always open a browser to view the dashboard.")
 	dashboardCmd.PersistentFlags().StringVarP(&addonNamespace, "namespace", "n", "higress-system",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
+	dashboardCmd.PersistentFlags().StringVarP(&bindAddress, "listen", "l", "localhost", "The address to bind to")
+	dashboardCmd.PersistentFlags().BoolVar(&docker, "docker", false, "Search higress console from docker")
 
 	prom := promDashCmd()
 	prom.PersistentFlags().IntVar(&promPort, "ui-port", defaultPrometheusPort, "The component dashboard UI port.")
@@ -156,18 +165,26 @@ func consoleDashCmd() *cobra.Command {
   hgctl dash console
   hgctl d console`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if docker {
+				return accessDocker(cmd)
+			}
 			client, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 			if err != nil {
-				return fmt.Errorf("build CLI client fail: %w", err)
+				fmt.Printf("build kubernetes CLI client fail: %v\n", err)
+				fmt.Println("try to access docker container")
+				return accessDocker(cmd)
 			}
-
 			pl, err := client.PodsForSelector(addonNamespace, "app.kubernetes.io/name=higress-console")
 			if err != nil {
-				return fmt.Errorf("not able to locate console pod: %v", err)
+				fmt.Printf("not able to locate console pod: %v", err)
+				fmt.Println("try to access docker container")
+				return accessDocker(cmd)
 			}
 
 			if len(pl.Items) < 1 {
-				return errors.New("no higress console pods found")
+				fmt.Printf("no higress console pods found")
+				fmt.Println("try to access docker container")
+				return accessDocker(cmd)
 			}
 
 			// only use the first pod in the list
@@ -177,6 +194,32 @@ func consoleDashCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+// accessDocker access docker container
+func accessDocker(cmd *cobra.Command) error {
+	dockerCli, err := command.NewDockerCli(command.WithCombinedStreams(os.Stdout))
+	if err != nil {
+		return fmt.Errorf("build docker CLI client fail: %w", err)
+	}
+	err = dockerCli.Initialize(flags.NewClientOptions())
+	if err != nil {
+		return fmt.Errorf("docker client initialize fail: %w", err)
+	}
+	apiClient := dockerCli.Client()
+	list, err := apiClient.ContainerList(context.Background(), types2.ContainerListOptions{})
+	for _, container := range list {
+		for i, name := range container.Names {
+			if strings.Contains(name, "higress-console") {
+				port := container.Ports[i].PublicPort
+				// not support define ip address
+				url := fmt.Sprintf("http://localhost:%d\n", port)
+				openBrowser(url, cmd.OutOrStdout(), browser)
+				return nil
+			}
+		}
+	}
+	return errors.New("no higress console container found")
 }
 
 // port-forward to Higress System Grafana; open browser
@@ -338,7 +381,7 @@ func portForward(podName, namespace, flavor, urlFormat, localAddress string, rem
 		// Close the port forwarder when the command is terminated.
 		ClosePortForwarderOnInterrupt(fw)
 
-		openBrowser(fmt.Sprintf(urlFormat, fw.Address()), writer, browser)
+		openBrowser(fmt.Sprintf(urlFormat, localAddress+":"+strconv.Itoa(consolePort)), writer, browser)
 
 		// Wait for stop
 		fw.WaitForStop()
