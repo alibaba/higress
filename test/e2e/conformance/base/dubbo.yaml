@@ -29,7 +29,7 @@ metadata:
 spec:
   containers:
   - name: dubbo-demo-provider
-    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.2
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo:0.0.3-x86
     env:
     - name: NACOS_K8S_NAMESPACE
       value: higress-conformance-app-backend
@@ -37,3 +37,7 @@ spec:
       value: dev
     ports:
     - containerPort: 20880
+    resources:
+      requests:
+        cpu: 10m
+        memory: 300Mi
