@@ -1,6 +1,6 @@
 SHELL := /bin/bash -o pipefail
 
-export HIGRESS_BASE_VERSION ?= 2022-10-27T19-02-22
+export HIGRESS_BASE_VERSION ?= 2023-07-20T20-50-43
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
