@@ -85,7 +85,7 @@ type KeyAuthConfig struct {
 	// @Description 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
 	// @Description en-US If set to false, only consumer info will be accepted from the global config. Auth feature shall only be enabled if the corresponding domain or route is configured.
 	// @Scope GLOBAL
-	globalAuth *bool `yaml:"global_auth"` //是否开启全局认证. 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
+	globalAuth *bool `yaml:"global_auth,omitempty"` //是否开启全局认证. 若不开启全局认证，则全局配置只提供凭证信息。只有在域名或路由上进行了配置才会启用认证。
 
 	// @Title API Key 的来源字段名称列表
 	// @Title en-US The name of the source field of the API Key

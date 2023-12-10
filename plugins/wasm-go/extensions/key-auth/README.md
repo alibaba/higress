@@ -38,7 +38,6 @@ consumers:
 keys:
 - apikey
 - x-api-key
-in_query: true
 ```
 
 **路由级配置**
@@ -91,17 +90,26 @@ curl  http://xxx.hello.com/test?apikey=c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
 
 ## 网关实例级别开启
 
-以下配置未指定`_rules_`字段，因此将对网关实例级别开启 Key Auth 认证
+以下配置未指定`matchRules`字段，因此将对网关实例级别开启全局 Key Auth 认证.
 
 ```yaml
-consumers:
-- credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
-  name: consumer1
-- credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
-  name: consumer2
-keys:
-- apikey
-in_query: true
+defaultConfig
+  consumers:
+  - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
+    name: consumer1
+  - credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
+    name: consumer2
+  keys:
+  - apikey
+  in_query: true
+```
+
+开启`matchRules`方式如下：
+```yaml
+matchRules:
+  - config:
+      allow:
+        - consumer1
 ```
 
 # 相关错误码
