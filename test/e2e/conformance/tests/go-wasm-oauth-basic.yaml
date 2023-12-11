@@ -61,7 +61,8 @@ spec:
     token_ttl: 7200
     clock_skew_seconds: 3153600000
     keep_token: true
-
+    # global_auth is unset
+    
   matchRules:
       # 规则一：按路由名称匹配生效
       - ingress:

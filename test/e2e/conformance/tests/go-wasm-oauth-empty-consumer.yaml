@@ -49,7 +49,7 @@ spec:
     token_ttl: 7200
     clock_skew_seconds: 3153600000
     keep_token: true
-
+    # global_auth is unset
   matchRules:
       - ingress:
         - "higress-conformance-infra/wasmplugin-oauth"

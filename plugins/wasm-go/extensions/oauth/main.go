@@ -65,7 +65,7 @@ func main() {
 //     token_ttl: 7200
 //     clock_skew_seconds: 3153600000
 //     keep_token: true
-
+// 	   global_auth: true
 //   matchRules:
 //       # 规则一：按路由名称匹配生效
 //       - ingress:
@@ -143,6 +143,13 @@ type OAuthConfig struct {
 	// @Description en-US Consumers to be allowed for matched requests. Consisting of client_name. It exists based on specific routing/domain rules.
 	// @Scope RULELOCAL
 	allow []string `yaml:"allow"`
+
+	// @Title 是否开启全局认证
+	// @Title en-US Enable Global Auth
+	// @Description 若配置为true，则全局生效认证机制; 若配置为false，则只对做了配置的域名和路由生效认证机制; 若不配置则仅当没有域名和路由配置时全局生效（兼容机制）
+	// @Description en-US en-US If set to false, only consumer info will be accepted from the global config. Auth feature shall only be enabled if the corresponding domain or route is configured.
+	// @Scope GLOBAL
+	globalAuth *bool `yaml:"global_auth"`
 }
 
 type Consumer struct {
@@ -175,6 +182,7 @@ var (
 	routeName              = ""
 	DefaultAudience        = "default"
 	TypeHeader             = "application/at+jwt"
+	ruleSet                = false // oauth认证是否至少在一个 domain 或 route 上生效
 )
 
 // parseGlobalConfig 读取json中的数据到global中，除Consumer的数据检查外，OAuthConfig中的其他数据在json中不存在时赋默认值
@@ -270,6 +278,12 @@ func parseGlobalConfig(json gjson.Result, global *OAuthConfig, log wrapper.Log) 
 	if clockSkewSeconds.Exists() {
 		global.clockSkewSeconds = clockSkewSeconds.Uint()
 	}
+
+	globalAuth := json.Get("global_auth")
+	if globalAuth.Exists() {
+		ga := globalAuth.Bool()
+		global.globalAuth = &ga
+	}
 	return nil
 }
 
@@ -277,17 +291,19 @@ func parseOverrideRuleConfig(json gjson.Result, global OAuthConfig, config *OAut
 	// override config via global
 	*config = global
 
-	allow := json.Get("allow")
-	if !allow.Exists() {
-		return errors.New("allow is required")
-	}
-	if len(allow.Array()) == 0 {
-		return errors.New("allow cannot be empty")
-	}
+	allowJson := json.Get("allow")
 
-	for _, item := range allow.Array() {
-		config.allow = append(config.allow, item.String())
+	allow := make([]string, 0)
+
+	if !allowJson.Exists() || len(allowJson.Array()) == 0 {
+		log.Debug("allow is empty originally or not set")
+	} else {
+		for _, item := range allowJson.Array() {
+			allow = append(allow, item.String())
+		}
+		ruleSet = true
 	}
+	config.allow = allow
 	return nil
 }
 
@@ -336,7 +352,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OAuthConfig, log wrapp
 			tR := TokenResponse{"bearer", token, uint(config.tokenTtl)}
 			tokenResponse, _ := json.Marshal(tR)
 			proxywasm.SendHttpResponse(200, nil, tokenResponse, -1)
-			
+
 		}
 		return types.ActionContinue
 	}
@@ -444,9 +460,43 @@ func generateToken(config OAuthConfig, routeName string, raw_params string, toke
 
 	return true
 }
+
+// 基础认证：token解码->判断consumer合法性->token解密验证，失败返回401
+// 签发路由匹配：当globalCredentials为false时，需保证token签发路由与当前路由匹配，失败返回403，做签发路由匹配之前必须做基础认证token解码
+// 路由规则匹配：在 allow 列表中查找，如果找到则认证通过，否则认证失败，返回403
+
+// - global_auth == true 开启全局生效：
+//   - 若当前 domain/route 未配置 allow 列表，即未配置该插件，则基础认证->签发路由匹配 (1*)
+//   - 若当前 domain/route 配置了该插件：则基础认证->签发路由匹配->路由规则匹配
+//
+// - global_auth == false 非全局生效：(2*)
+//   - 若当前 domain/route 未配置该插件：则直接放行
+//   - 若当前 domain/route 配置了该插件：则基础认证->签发路由匹配->路由规则匹配
+//
+// - global_auth 未设置：
+//   - 若没有一个 domain/route 配置该插件，默认全局生效：则基础认证->签发路由匹配 (1*)
+//   - 若有至少一个 domain/route 配置该插件，默认非全局生效：遵循 (2*)
+
+// TODO：函数命名不够准确，不仅包含了检验token的逻辑，还包含了不验token直接放行的逻辑
 func parseTokenValid(config OAuthConfig, routeName string, errMsg *string, log wrapper.Log) bool {
-	var verified = false
+	var (
+		noAllow         = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
+		globalAuthNoSet = config.globalAuth == nil
+		// globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
+		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
+		verified           = false
+	)
+
+	// 不做基础认证，签发路由匹配、和路由规则匹配而直接放行：
+	// - global_auth == false 且 当前 domain/route 未配置该插件
+	// - global_auth 未设置 且 有至少一个 domain/route 配置该插件（视为非全局生效，只对做了配置的域名和路由生效认证机制），且当前domain/route未配置该插件
+	if noAllow && (globalAuthSetFalse || (globalAuthNoSet && ruleSet)) {
+		log.Debug("authorization is not required")
+		return true
+	}
+
 	{
+		// 基础认证
 		auth, err := proxywasm.GetHttpRequestHeader(config.authHeaderName)
 		if err != nil {
 			log.Debug("auth header is empty")
@@ -509,18 +559,10 @@ func parseTokenValid(config OAuthConfig, routeName string, errMsg *string, log w
 			goto failed
 		}
 
-		// 以上条件不通过时，返回401，以上条件都通过时，进一步判断路由/域名规则，若不符合规则返回403
+		// 以上基础认证不通过时，返回401，以上条件都通过时，进行签发路由匹配和路由规则匹配，若不符合规则返回403
 		verified = true
 
-		// consumer是否拥有该路由/域名规则下的权限
-		// 如果allowset为空，说明config此时为GlobalPluginConfig，且配置中rules字段为空
-		if len(config.allow) != 0 && !contains(config.allow, consumer.name) {
-			routeName, _ := proxywasm.GetProperty([]string{"route_name"})
-			log.Debugf("consumer: %s is not in route's: %s allow_set", consumer.name, routeName)
-			goto failed
-		}
-
-		// 如果token的签发不是全局生效，须进一步判断此token是否由当前路由签发
+		// 签发路由匹配
 		if !config.globalCredentials {
 			rawAudienceInToken, exist := decodedPayload["aud"]
 			if !exist {
@@ -539,6 +581,21 @@ func parseTokenValid(config OAuthConfig, routeName string, errMsg *string, log w
 				goto failed
 			}
 		}
+
+		// 满足某些条件时需进行路由规则匹配
+		// 当前domain/route已配置该插件时，不论global_auth的值，都进行路由规则匹配
+		if !noAllow {
+			if !contains(config.allow, consumer.name) {
+				routeName, _ := proxywasm.GetProperty([]string{"route_name"})
+				log.Debugf("consumer: %s is not in route's: %s allow_set", consumer.name, routeName)
+				goto failed
+			}
+		}
+
+		// 其余情况不做路由规则匹配，验证过程结束
+		// - global_auth == true 且 当前 domain/route 未配置该插件
+		// - global_auth 未设置 且 没有任何一个 domain/route 配置该插件
+
 		if !config.keepToken {
 			err = proxywasm.RemoveHttpRequestHeader(config.authHeaderName)
 			if err != nil {
@@ -549,6 +606,7 @@ func parseTokenValid(config OAuthConfig, routeName string, errMsg *string, log w
 		if err != nil {
 			log.Debug("failed to set request header")
 		}
+		log.Debugf("consumer %q authenticated", consumer.name)
 		return true
 	}
 failed:
