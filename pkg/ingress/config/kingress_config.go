@@ -66,8 +66,6 @@ type KIngressConfig struct {
 
 	annotationHandler annotations.AnnotationHandler
 
-	globalGatewayName string
-
 	namespace string
 
 	clusterId string
@@ -86,10 +84,8 @@ func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater,
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet: sets.NewSet(),
-		namespace:        namespace,
+		watchedSecretSet:         sets.NewSet(),
+		namespace:                namespace,
 	}
 
 	return config
@@ -319,7 +315,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
-			gateways = append(gateways, m.globalGatewayName)
+			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, "*"))
 		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
