@@ -23,9 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-
-	"github.com/alibaba/higress/pkg/kube"
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -47,10 +44,12 @@ import (
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
 	networkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
 
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/kingress/resources"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/kube"
 )
 
 var (
