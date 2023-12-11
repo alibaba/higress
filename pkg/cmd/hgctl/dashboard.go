@@ -17,6 +17,13 @@ package hgctl
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
+	"strings"
+
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/docker/cli/cli/command"
@@ -24,14 +31,7 @@ import (
 	types2 "github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"io"
 	"k8s.io/apimachinery/pkg/types"
-	"os"
-	"os/exec"
-	"os/signal"
-	"runtime"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -89,7 +89,6 @@ func newDashboardCmd() *cobra.Command {
 	dashboardCmd.PersistentFlags().StringVarP(&addonNamespace, "namespace", "n", "higress-system",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
 	dashboardCmd.PersistentFlags().StringVarP(&bindAddress, "listen", "l", "localhost", "The address to bind to")
-	dashboardCmd.PersistentFlags().BoolVar(&docker, "docker", false, "Search higress console from docker")
 
 	prom := promDashCmd()
 	prom.PersistentFlags().IntVar(&promPort, "ui-port", defaultPrometheusPort, "The component dashboard UI port.")
@@ -108,6 +107,7 @@ func newDashboardCmd() *cobra.Command {
 
 	consoleCmd := consoleDashCmd()
 	consoleCmd.PersistentFlags().IntVar(&consolePort, "ui-port", defaultConsolePort, "The component dashboard UI port.")
+	consoleCmd.PersistentFlags().BoolVar(&docker, "docker", false, "Search higress console from docker")
 	dashboardCmd.AddCommand(consoleCmd)
 
 	controllerDebugCmd := controllerDebugCmd()
@@ -367,7 +367,7 @@ func portForward(podName, namespace, flavor, urlFormat, localAddress string, rem
 	var err error
 	for _, localPort := range portPrefs {
 		var fw kubernetes.PortForwarder
-		fw, err = kubernetes.NewLocalPortForwarder(client, types.NamespacedName{Namespace: namespace, Name: podName}, localPort, remotePort)
+		fw, err = kubernetes.NewLocalPortForwarder(client, types.NamespacedName{Namespace: namespace, Name: podName}, localPort, remotePort, bindAddress)
 		if err != nil {
 			return fmt.Errorf("could not build port forwarder for %s: %v", flavor, err)
 		}
@@ -381,7 +381,7 @@ func portForward(podName, namespace, flavor, urlFormat, localAddress string, rem
 		// Close the port forwarder when the command is terminated.
 		ClosePortForwarderOnInterrupt(fw)
 
-		openBrowser(fmt.Sprintf(urlFormat, localAddress+":"+strconv.Itoa(consolePort)), writer, browser)
+		openBrowser(fmt.Sprintf(urlFormat, fw.Address()), writer, browser)
 
 		// Wait for stop
 		fw.WaitForStop()
