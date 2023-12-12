@@ -170,20 +170,17 @@ func consoleDashCmd() *cobra.Command {
 			}
 			client, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 			if err != nil {
-				fmt.Printf("build kubernetes CLI client fail: %v\n", err)
-				fmt.Println("try to access docker container")
+				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
 				return accessDocker(cmd)
 			}
 			pl, err := client.PodsForSelector(addonNamespace, "app.kubernetes.io/name=higress-console")
 			if err != nil {
-				fmt.Printf("not able to locate console pod: %v", err)
-				fmt.Println("try to access docker container")
+				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
 				return accessDocker(cmd)
 			}
 
 			if len(pl.Items) < 1 {
-				fmt.Printf("no higress console pods found")
-				fmt.Println("try to access docker container")
+				fmt.Printf("no higress console pods found\ntry to access docker container\n")
 				return accessDocker(cmd)
 			}
 
@@ -213,7 +210,7 @@ func accessDocker(cmd *cobra.Command) error {
 			if strings.Contains(name, "higress-console") {
 				port := container.Ports[i].PublicPort
 				// not support define ip address
-				url := fmt.Sprintf("http://localhost:%d\n", port)
+				url := fmt.Sprintf("http://localhost:%d", port)
 				openBrowser(url, cmd.OutOrStdout(), browser)
 				return nil
 			}
