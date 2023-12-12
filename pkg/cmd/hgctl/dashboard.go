@@ -418,6 +418,7 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
+
 }
 
 func openCommand(writer io.Writer, command string, args ...string) {
