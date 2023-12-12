@@ -31,11 +31,7 @@ spec:
       containers:
 {{- if not .Values.global.enableHigressIstio }}
         - name: discovery
-{{- if contains "/" .Values.pilot.image }}
-          image: "{{ .Values.pilot.image }}"
-{{- else }}
           image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Chart.AppVersion }}"
-{{- end }}
 {{- if .Values.global.imagePullPolicy }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
 {{- end }}
@@ -184,7 +180,7 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.controller.securityContext | nindent 12 }}
-          image: "{{ .Values.hub }}/{{ .Values.controller.image }}:{{ .Values.controller.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.controller.hub | default .Values.global.hub }}/{{ .Values.controller.image | default "higress" }}:{{ .Values.controller.tag | default .Chart.AppVersion }}"
           args:
           - "serve"
           - --gatewaySelectorKey=higress

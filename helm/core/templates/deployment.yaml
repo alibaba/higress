@@ -68,7 +68,7 @@ spec:
       {{- end }}
       containers:
         - name: higress-gateway
-          image: "{{ .Values.hub }}/{{ .Values.gateway.image }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.gateway.hub | default .Values.global.hub }}/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
           args:
             - proxy
             - router
