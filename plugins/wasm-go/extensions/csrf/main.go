@@ -127,9 +127,9 @@ type CSRFConfig struct {
 }
 
 type Token struct {
-	random  string `json:"random,omitempty"`
-	expires int64  `json:"expires,omitempty"`
-	sign    string `json:"sign"`
+	Random  string `json:"random,omitempty"`
+	Expires int64  `json:"expires,omitempty"`
+	Sign    string `json:"sign"`
 }
 
 func parseGlobalConfig(json gjson.Result, global *CSRFConfig, log wrapper.Log) error {
@@ -328,12 +328,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CSRFConfig, log wrappe
 
 func genSign(random string, expires int64, token string) string {
 	sha := sha256.New()
-	sha.Write([]byte("{expires:" + strconv.FormatInt(expires, 64) + ",random:" + random + ",key:" + token + "}"))
+	sha.Write([]byte("{expires:" + strconv.FormatInt(expires, 10) + ",random:" + random + ",key:" + token + "}"))
 	return string(sha.Sum(nil))
 }
 
 func checkCSRFToken(consumer Consumer, log wrapper.Log) bool {
-	tokenStr, err := base64.StdEncoding.DecodeString(consumer.Token)
+	tokenStr, err := base64.RawStdEncoding.DecodeString(consumer.Token)
 	if err != nil || len(tokenStr) <= 0 {
 		log.Errorf("failed to csrf token base64 decode: %v", err)
 		return false
@@ -345,12 +345,12 @@ func checkCSRFToken(consumer Consumer, log wrapper.Log) bool {
 		return false
 	}
 
-	if token.expires <= 0 || token.random == "" {
+	if token.Expires <= 0 || token.Random == "" {
 		log.Errorf("no expires/random in token")
 		return false
 	}
 
-	if token.sign != genSign(token.random, token.expires, consumer.Token) {
+	if token.Sign != genSign(token.Random, token.Expires, consumer.Token) {
 		log.Errorf("Invalid signatures")
 		return false
 	}
@@ -361,15 +361,13 @@ func genCSRFToken(expires int64, token string) string {
 	random := rand.Float64()
 	randomStr := strconv.FormatFloat(random, 'f', -1, 64)
 	sign := genSign(randomStr, expires, token)
-
-	tk := Token{
-		random:  randomStr,
-		expires: expires,
-		sign:    sign,
+	tk := &Token{
+		Random:  randomStr,
+		Expires: expires,
+		Sign:    sign,
 	}
-
 	tokenByte, _ := json.Marshal(tk)
-	cookie := base64.StdEncoding.EncodeToString(tokenByte)
+	cookie := base64.RawStdEncoding.EncodeToString(tokenByte)
 	return cookie
 }
 

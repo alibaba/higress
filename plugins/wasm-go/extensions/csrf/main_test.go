@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main_test
+package main
 
 import (
 	"testing"
@@ -25,4 +25,12 @@ func TestTimeAdd(t *testing.T) {
 	now := time.Now()
 	a := now.Add(time.Duration(7200) * time.Second)
 	assert.Equal(t, a.Sub(now).Seconds(), float64(7200))
+}
+
+func TestGenCSRFToken(t *testing.T) {
+	s := genCSRFToken(int64(7200), "token11111111111111111111")
+	assert.Equal(t, s, "e30")
+
+	s = genCSRFToken(int64(3600), "token22222222222222222222")
+	assert.Equal(t, s, "e30")
 }
