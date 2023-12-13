@@ -96,7 +96,7 @@ func portForwarder(nn types.NamespacedName) (kubernetes.PortForwarder, error) {
 		return nil, fmt.Errorf("pod %s is not running", nn)
 	}
 
-	fw, err := kubernetes.NewLocalPortForwarder(c, nn, 0, defaultProxyAdminPort)
+	fw, err := kubernetes.NewLocalPortForwarder(c, nn, 0, defaultProxyAdminPort, bindAddress)
 	if err != nil {
 		return nil, err
 	}
