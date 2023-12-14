@@ -16,7 +16,6 @@ package kingress
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"path"
 	"reflect"
 	"sort"
@@ -24,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/pkg/kube"
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -46,10 +44,12 @@ import (
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
 	networkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
 
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/kingress/resources"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/pkg/kube"
 )
 
 var (
@@ -337,7 +337,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 
 	for _, rule := range kingressv1alpha1.Rules {
 		for _, ruleHost := range rule.Hosts {
-			cleanHost := common.CleanHost(ruleHost)
 			// Need create builder for every rule.
 			domainBuilder := &common.IngressDomainBuilder{
 				ClusterId: c.options.ClusterId,
@@ -364,7 +363,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 						Port: &networking.Port{
 							Number:   8081,
 							Protocol: string(protocol.HTTP),
-							Name:     common.CreateConvertedName("http-8081-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+							Name:     common.CreateConvertedName("http-8081-ingress", c.options.ClusterId),
 						},
 						Hosts: []string{ruleHost},
 					})
@@ -374,7 +373,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 						Port: &networking.Port{
 							Number:   80,
 							Protocol: string(protocol.HTTP),
-							Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+							Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId),
 						},
 						Hosts: []string{ruleHost},
 					})
@@ -436,7 +435,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				Port: &networking.Port{
 					Number:   443,
 					Protocol: string(protocol.HTTPS),
-					Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+					Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{ruleHost},
 				Tls: &networking.ServerTLSSettings{
