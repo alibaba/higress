@@ -323,7 +323,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CSRFConfig, log wrappe
 		}
 	}
 
-	return types.ActionContinue
+	return authenticated(consumer, name)
 }
 
 func genSign(random string, expires int64, token string) string {
