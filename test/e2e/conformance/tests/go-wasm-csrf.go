@@ -58,6 +58,82 @@ var WasmPluginsCSRF = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 2: No header csrf token information found",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"cookie": "higress-csrf-token=eyJyYW5kb20iOiIwLjY1NDA1MjkxOTUxNzIwNDIiLCJleHBpcmVzIjozNjAwLCJzaWduIjoiXHVmZmZkXHVmZmZkXHUwMDFmXHVmZmZkMnVcdWZmZmQ/XHVmZmZkXHVmZmZkZ2ZpVFVcdTAwM2NcdWZmZmRcdWZmZmTiiqtcdWZmZmRcdWZmZmRcdWZmZmQrdVx1ZmZmZFxcbFx1ZmZmZFx1ZmZmZFx1ZmZmZCJ9"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 3: No cookie higress csrf token information found",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"higress-csrf-token": "eyJyYW5kb20iOiIwLjY1NDA1MjkxOTUxNzIwNDIiLCJleHBpcmVzIjozNjAwLCJzaWduIjoiXHVmZmZkXHVmZmZkXHUwMDFmXHVmZmZkMnVcdWZmZmQ/XHVmZmZkXHVmZmZkZ2ZpVFVcdTAwM2NcdWZmZmRcdWZmZmTiiqtcdWZmZmRcdWZmZmRcdWZmZmQrdVx1ZmZmZFxcbFx1ZmZmZFx1ZmZmZFx1ZmZmZCJ9"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: cookie higress csrf token  not equal header csrf token information",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"higress-csrf-token": "eyJyYW5k", "cookie": "higress-csrf-token=kb20iO"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 5: cookie higress csrf token/header csrf token decoding error",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"higress-csrf-token": "aaa", "cookie": "bbb"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugins csrf", func(t *testing.T) {
 			for _, testcase := range testcases {
