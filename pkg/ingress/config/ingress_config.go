@@ -140,8 +140,6 @@ type IngressConfig struct {
 
 	annotationHandler annotations.AnnotationHandler
 
-	globalGatewayName string
-
 	namespace string
 
 	clusterId string
@@ -157,13 +155,11 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet:    sets.NewSet(),
-		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(false),
-		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
-		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
+		watchedSecretSet:         sets.NewSet(),
+		namespace:                namespace,
+		mcpbridgeReconciled:      atomic.NewBool(false),
+		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
+		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -479,7 +475,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
-			gateways = append(gateways, m.globalGatewayName)
+			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, common.CleanHost("*")))
 		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
