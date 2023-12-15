@@ -13,7 +13,7 @@ import (
 
 func main() {
 	wrapper.SetCtx(
-		"jwt-auth", // 配置插件名称
+		"simple-jwt-auth", // 配置插件名称
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 	)
