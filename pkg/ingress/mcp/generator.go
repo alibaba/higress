@@ -35,9 +35,15 @@ var (
 	_ model.XdsDeltaResourceGenerator = ServiceEntryGenerator{}
 )
 
+type GeneratorOptions struct {
+	KeepConfigLabels      bool
+	KeepConfigAnnotations bool
+}
+
 type ServiceEntryGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c ServiceEntryGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
@@ -58,7 +64,7 @@ func (c ServiceEntryGenerator) Generate(proxy *model.Proxy, w *model.WatchedReso
 			return serviceEntries[i].CreationTimestamp.Before(serviceEntries[j].CreationTimestamp)
 		})
 	}
-	return generate(proxy, serviceEntries, w, updates)
+	return generate(proxy, serviceEntries, w, updates, false, false)
 }
 
 func (c ServiceEntryGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -68,14 +74,15 @@ func (c ServiceEntryGenerator) GenerateDeltas(proxy *model.Proxy, updates *model
 }
 
 type VirtualServiceGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c VirtualServiceGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	virtualServices := c.Environment.List(gvk.VirtualService, model.NamespaceAll)
-	return generate(proxy, virtualServices, w, updates)
+	return generate(proxy, virtualServices, w, updates, false, false)
 }
 
 func (c VirtualServiceGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -85,14 +92,15 @@ func (c VirtualServiceGenerator) GenerateDeltas(proxy *model.Proxy, updates *mod
 }
 
 type DestinationRuleGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c DestinationRuleGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	rules := c.Environment.List(gvk.DestinationRule, model.NamespaceAll)
-	return generate(proxy, rules, w, updates)
+	return generate(proxy, rules, w, updates, false, false)
 }
 
 func (c DestinationRuleGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -102,14 +110,15 @@ func (c DestinationRuleGenerator) GenerateDeltas(proxy *model.Proxy, updates *mo
 }
 
 type EnvoyFilterGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c EnvoyFilterGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	filters := c.Environment.List(gvk.EnvoyFilter, model.NamespaceAll)
-	return generate(proxy, filters, w, updates)
+	return generate(proxy, filters, w, updates, false, false)
 }
 
 func (c EnvoyFilterGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -119,14 +128,15 @@ func (c EnvoyFilterGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.
 }
 
 type GatewayGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c GatewayGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	gateways := c.Environment.List(gvk.Gateway, model.NamespaceAll)
-	return generate(proxy, gateways, w, updates)
+	return generate(proxy, gateways, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c GatewayGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -136,14 +146,15 @@ func (c GatewayGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.Push
 }
 
 type WasmPluginGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c WasmPluginGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	wasmPlugins := c.Environment.List(gvk.WasmPlugin, model.NamespaceAll)
-	return generate(proxy, wasmPlugins, w, updates)
+	return generate(proxy, wasmPlugins, w, updates, false, false)
 }
 
 func (c WasmPluginGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushContext, updates *model.PushRequest,
@@ -153,8 +164,9 @@ func (c WasmPluginGenerator) GenerateDeltas(proxy *model.Proxy, push *model.Push
 }
 
 type FallbackGenerator struct {
-	Environment *model.Environment
-	Server      *xds.DiscoveryServer
+	Environment      *model.Environment
+	Server           *xds.DiscoveryServer
+	GeneratorOptions GeneratorOptions
 }
 
 func (c FallbackGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
@@ -169,7 +181,7 @@ func (c FallbackGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushCo
 }
 
 func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource,
-	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
+	updates *model.PushRequest, keepLabels, keepAnnotations bool) (model.Resources, model.XdsLogDetails, error) {
 	resources := make(model.Resources, 0)
 	if configs == nil {
 		return resources, model.DefaultXdsLogDetails, nil
@@ -192,6 +204,12 @@ func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource
 					Nanos:   createTime.Nanos,
 				},
 			},
+		}
+		if keepLabels {
+			resource.Metadata.Labels = config.Labels
+		}
+		if keepAnnotations {
+			resource.Metadata.Annotations = config.Annotations
 		}
 		// nolint
 		mcpAny, err := anypb.New(resource)

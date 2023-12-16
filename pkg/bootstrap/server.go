@@ -16,9 +16,6 @@ package bootstrap
 
 import (
 	"fmt"
-	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
-	"istio.io/istio/pkg/kube/multicluster"
-	"istio.io/istio/pkg/util/sets"
 	"net"
 	"net/http"
 	"time"
@@ -28,6 +25,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	"istio.io/api/mesh/v1alpha1"
 	configaggregate "istio.io/istio/pilot/pkg/config/aggregate"
+	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/features"
 	istiogrpc "istio.io/istio/pilot/pkg/grpc"
 	"istio.io/istio/pilot/pkg/model"
@@ -44,7 +42,9 @@ import (
 	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/keepalive"
 	istiokube "istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/kube/multicluster"
 	"istio.io/istio/pkg/security"
+	"istio.io/istio/pkg/util/sets"
 	"istio.io/istio/security/pkg/server/ca/authenticate"
 	"istio.io/istio/security/pkg/server/ca/authenticate/kubeauth"
 	"istio.io/pkg/env"
@@ -69,6 +69,10 @@ type XdsOptions struct {
 	DebounceMax time.Duration
 	// EnableEDSDebounce indicates whether EDS pushes should be debounced.
 	EnableEDSDebounce bool
+	// KeepConfigLabels indicates whether to keep all the labels when converting configs to xDS resources.
+	KeepConfigLabels bool
+	// KeepConfigAnnotations indicates whether to keep all the annotations when converting configs to xDS resources.
+	KeepConfigAnnotations bool
 }
 
 // RegistryOptions provide configuration options for the configuration controller. If FileDir is set, that directory will
@@ -361,12 +365,13 @@ func (s *Server) WaitUntilCompletion() {
 func (s *Server) initXdsServer() error {
 	log.Info("init xds server")
 	s.xdsServer = xds.NewDiscoveryServer(s.environment, PodName, cluster.ID(PodNamespace), s.RegistryOptions.KubeOptions.ClusterAliases)
-	s.xdsServer.Generators[gvk.WasmPlugin.String()] = &mcp.WasmPluginGenerator{Environment: s.environment, Server: s.xdsServer}
-	s.xdsServer.Generators[gvk.DestinationRule.String()] = &mcp.DestinationRuleGenerator{Environment: s.environment, Server: s.xdsServer}
-	s.xdsServer.Generators[gvk.EnvoyFilter.String()] = &mcp.EnvoyFilterGenerator{Environment: s.environment, Server: s.xdsServer}
-	s.xdsServer.Generators[gvk.Gateway.String()] = &mcp.GatewayGenerator{Environment: s.environment, Server: s.xdsServer}
-	s.xdsServer.Generators[gvk.VirtualService.String()] = &mcp.VirtualServiceGenerator{Environment: s.environment, Server: s.xdsServer}
-	s.xdsServer.Generators[gvk.ServiceEntry.String()] = &mcp.ServiceEntryGenerator{Environment: s.environment, Server: s.xdsServer}
+	generatorOptions := mcp.GeneratorOptions{KeepConfigLabels: s.XdsOptions.KeepConfigLabels, KeepConfigAnnotations: s.XdsOptions.KeepConfigAnnotations}
+	s.xdsServer.Generators[gvk.WasmPlugin.String()] = &mcp.WasmPluginGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
+	s.xdsServer.Generators[gvk.DestinationRule.String()] = &mcp.DestinationRuleGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
+	s.xdsServer.Generators[gvk.EnvoyFilter.String()] = &mcp.EnvoyFilterGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
+	s.xdsServer.Generators[gvk.Gateway.String()] = &mcp.GatewayGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
+	s.xdsServer.Generators[gvk.VirtualService.String()] = &mcp.VirtualServiceGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
+	s.xdsServer.Generators[gvk.ServiceEntry.String()] = &mcp.ServiceEntryGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
 	for _, schema := range collections.Pilot.All() {
 		gvk := schema.GroupVersionKind().String()
 		if _, ok := s.xdsServer.Generators[gvk]; !ok {

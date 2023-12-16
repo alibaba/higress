@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -118,7 +119,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 	}
 	kingressV1Controller := kcontrollerv1.NewController(fake, fake, v1Options, nil)
 	m := NewKIngressConfig(fake, nil, "wakanda", "gw-123-istio")
-	m.remoteIngressControllers = map[string]common.KIngressController{
+	m.remoteIngressControllers = map[cluster.ID]common.KIngressController{
 		"kingress": kingressV1Controller,
 	}
 
