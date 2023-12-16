@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Updated based on Istio codebase by Higress
+
 package istio
 
 import (
@@ -57,6 +59,10 @@ var ports = []*model.Port{
 		Port:     34000,
 		Protocol: "TCP",
 	},
+}
+
+var defaultGatewaySelector = map[string]string{
+	"higress": "higress-system-higress-gateway",
 }
 
 var services = []*model.Service{
@@ -643,7 +649,7 @@ func splitOutput(configs []config.Config) IstioResources {
 }
 
 func splitInput(t test.Failer, configs []config.Config) GatewayResources {
-	out := GatewayResources{}
+	out := GatewayResources{DefaultGatewaySelector: defaultGatewaySelector}
 	namespaces := sets.New[string]()
 	for _, c := range configs {
 		namespaces.Insert(c.Namespace)
@@ -829,20 +835,22 @@ func BenchmarkBuildHTTPVirtualServices(b *testing.B) {
 	}
 }
 
+// Start - Updated by Higress
 func TestExtractGatewayServices(t *testing.T) {
 	tests := []struct {
-		name            string
-		r               GatewayResources
-		kgw             *k8s.GatewaySpec
-		obj             config.Config
-		gatewayServices []string
-		err             *ConfigError
+		name              string
+		r                 GatewayResources
+		kgw               *k8s.GatewaySpec
+		obj               config.Config
+		gatewayServices   []string
+		useDefaultService bool
+		err               *ConfigError
 	}{
 		{
-			name: "managed gateway",
-			r:    GatewayResources{Domain: "cluster.local"},
+			name: "default gateway",
+			r:    GatewayResources{Domain: "cluster.local", DefaultGatewaySelector: defaultGatewaySelector},
 			kgw: &k8s.GatewaySpec{
-				GatewayClassName: "istio",
+				GatewayClassName: "higress",
 			},
 			obj: config.Config{
 				Meta: config.Meta{
@@ -850,13 +858,14 @@ func TestExtractGatewayServices(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			gatewayServices: []string{"foo-istio.default.svc.cluster.local"},
+			gatewayServices:   []string{},
+			useDefaultService: true,
 		},
 		{
-			name: "managed gateway with name overridden",
-			r:    GatewayResources{Domain: "cluster.local"},
+			name: "default gateway with name overridden",
+			r:    GatewayResources{Domain: "cluster.local", DefaultGatewaySelector: defaultGatewaySelector},
 			kgw: &k8s.GatewaySpec{
-				GatewayClassName: "istio",
+				GatewayClassName: "higress",
 			},
 			obj: config.Config{
 				Meta: config.Meta{
@@ -870,10 +879,33 @@ func TestExtractGatewayServices(t *testing.T) {
 			gatewayServices: []string{"bar.default.svc.cluster.local"},
 		},
 		{
-			name: "unmanaged gateway",
-			r:    GatewayResources{Domain: "domain"},
+			name: "unmanaged gateway with only hostname address",
+			r:    GatewayResources{Domain: "domain", DefaultGatewaySelector: defaultGatewaySelector},
 			kgw: &k8s.GatewaySpec{
-				GatewayClassName: "istio",
+				GatewayClassName: "higress",
+				Addresses: []k8s.GatewayAddress{
+					{
+						Type: func() *k8s.AddressType {
+							t := k8s.HostnameAddressType
+							return &t
+						}(),
+						Value: "example.com",
+					},
+				},
+			},
+			obj: config.Config{
+				Meta: config.Meta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+			},
+			gatewayServices: []string{"example.com"},
+		},
+		{
+			name: "unmanaged gateway with other address types",
+			r:    GatewayResources{Domain: "domain", DefaultGatewaySelector: defaultGatewaySelector},
+			kgw: &k8s.GatewaySpec{
+				GatewayClassName: "higress",
 				Addresses: []k8s.GatewayAddress{
 					{
 						Value: "abc",
@@ -906,12 +938,58 @@ func TestExtractGatewayServices(t *testing.T) {
 				Message: "only Hostname is supported, ignoring [1.2.3.4]",
 			},
 		},
+		{
+			name: "unmanaged gateway with empty type address",
+			r:    GatewayResources{Domain: "domain", DefaultGatewaySelector: defaultGatewaySelector},
+			kgw: &k8s.GatewaySpec{
+				GatewayClassName: "higress",
+				Addresses: []k8s.GatewayAddress{
+					{
+						Value: "abc",
+					},
+				},
+			},
+			obj: config.Config{
+				Meta: config.Meta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+			},
+			gatewayServices: []string{"abc.default.svc.domain"},
+		},
+		{
+			name: "unmanaged gateway with no hostname address",
+			r:    GatewayResources{Domain: "domain", DefaultGatewaySelector: defaultGatewaySelector},
+			kgw: &k8s.GatewaySpec{
+				GatewayClassName: "higress",
+				Addresses: []k8s.GatewayAddress{
+					{
+						Type: func() *k8s.AddressType {
+							t := k8s.IPAddressType
+							return &t
+						}(),
+						Value: "1.2.3.4",
+					},
+				},
+			},
+			obj: config.Config{
+				Meta: config.Meta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+			},
+			gatewayServices:   []string{},
+			useDefaultService: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gatewayServices, err := extractGatewayServices(tt.r, tt.kgw, tt.obj)
+			gatewayServices, useDefaultService, err := extractGatewayServices(tt.r, tt.kgw, tt.obj)
 			assert.Equal(t, gatewayServices, tt.gatewayServices)
+			assert.Equal(t, useDefaultService, tt.useDefaultService)
 			assert.Equal(t, err, tt.err)
 		})
 	}
 }
+
+// End - Updated by Higress

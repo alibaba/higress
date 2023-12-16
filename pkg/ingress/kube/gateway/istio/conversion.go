@@ -1533,13 +1533,15 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 
 		servers := []*istio.Server{}
 
+		// Start - Updated by Higress
 		// Extract the addresses. A gateway will bind to a specific Service
-		gatewayServices, err := extractGatewayServices(r.GatewayResources, kgw, obj)
-		if len(gatewayServices) == 0 && err != nil {
-			// Short circuit if its a hard failure
+		gatewayServices, useDefaultService, err := extractGatewayServices(r.GatewayResources, kgw, obj)
+		if len(gatewayServices) == 0 && !useDefaultService && err != nil {
+			// Short circuit if it's a hard failure
 			reportGatewayStatus(r, obj, gatewayServices, servers, err)
 			continue
 		}
+		// End - Updated by Higress
 		for i, l := range kgw.Listeners {
 			i := i
 			namespaceLabelReferences.InsertAll(getNamespaceLabelReferences(l.AllowedRoutes)...)
@@ -1552,8 +1554,17 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 				// Waypoint doesn't actually convert the routes to VirtualServices
 				continue
 			}
+			var selector map[string]string
 			meta := parentMeta(obj, &l.Name)
-			meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+			if len(gatewayServices) != 0 {
+				meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+			} else if useDefaultService {
+				selector = r.GatewayResources.DefaultGatewaySelector
+			} else {
+				// Protective programming. This shouldn't happen.
+				continue
+			}
+			// End - Updated by Higress
 			// Each listener generates an Istio Gateway with a single Server. This allows binding to a specific listener.
 			gatewayConfig := config.Config{
 				Meta: config.Meta{
@@ -1566,6 +1577,9 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 				},
 				Spec: &istio.Gateway{
 					Servers: []*istio.Server{server},
+					// Start - Added by Higress
+					Selector: selector,
+					// End - Added by Higress
 				},
 			}
 			ref := parentKey{
@@ -1776,10 +1790,37 @@ func IsManaged(gw *k8s.GatewaySpec) bool {
 	return false
 }
 
-func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config.Config) ([]string, *ConfigError) {
-	if IsManaged(kgw) {
-		name := model.GetOrDefault(obj.Annotations[gatewayNameOverride], getDefaultName(obj.Name, kgw))
-		return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, nil
+// Start - Added by Higress
+// UseDefaultService checks if a Gateway shall be bound to the default gateway service
+// This is based on the addresses field of the spec
+// If addresses field contains any item with a Hostname type, it should point to the existing
+// Services that handles the gateway traffic
+// If it is not set, or all items refer to only a single IP, we will consider it pointed to the default data plane service.
+// While there is no defined standard for this in the API yet, it is tracked in https://github.com/kubernetes-sigs/gateway-api/issues/892.
+func UseDefaultService(gw *k8s.GatewaySpec) bool {
+	if len(gw.Addresses) == 0 {
+		return true
+	}
+	for _, addr := range gw.Addresses {
+		if t := addr.Type; t == nil || *t == k8s.HostnameAddressType {
+			return false
+		}
+	}
+	return true
+}
+
+// End - Added by Higress
+
+func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config.Config) ([]string, bool, *ConfigError) {
+	// Start - Updated by Higress
+	if UseDefaultService(kgw) {
+		//name := model.GetOrDefault(obj.Annotations[gatewayNameOverride], getDefaultName(obj.Name, kgw))
+		//return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, true, nil
+		name := obj.Annotations[gatewayNameOverride]
+		if len(name) > 0 {
+			return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, false, nil
+		}
+		return []string{}, true, nil
 	}
 	gatewayServices := []string{}
 	skippedAddresses := []string{}
@@ -1801,7 +1842,7 @@ func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config
 	}
 	if len(skippedAddresses) > 0 {
 		// Give error but return services, this is a soft failure
-		return gatewayServices, &ConfigError{
+		return gatewayServices, false, &ConfigError{
 			Reason:  InvalidAddress,
 			Message: fmt.Sprintf("only Hostname is supported, ignoring %v", skippedAddresses),
 		}
@@ -1809,12 +1850,13 @@ func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config
 	if _, f := obj.Annotations[serviceTypeOverride]; f {
 		// Give error but return services, this is a soft failure
 		// Remove entirely in 1.20
-		return gatewayServices, &ConfigError{
+		return gatewayServices, false, &ConfigError{
 			Reason:  DeprecateFieldUsage,
 			Message: fmt.Sprintf("annotation %v is deprecated, use Spec.Infrastructure.Routeability", serviceTypeOverride),
 		}
 	}
-	return gatewayServices, nil
+	return gatewayServices, false, nil
+	// End - Updated by Higress
 }
 
 // getNamespaceLabelReferences fetches all label keys used in namespace selectors. Return order may not be stable.

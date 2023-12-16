@@ -90,6 +90,10 @@ type Controller struct {
 	statusController *status.Controller
 	statusEnabled    *atomic.Bool
 
+	// Start - Added by Higress
+	DefaultGatewaySelector map[string]string
+	// End - Added by Higress
+
 	waitForCRD func(class schema.GroupVersionResource, stop <-chan struct{}) bool
 }
 
@@ -190,14 +194,15 @@ func (c *Controller) Reconcile(ps *model.PushContext) error {
 	referenceGrant := c.cache.List(gvk.ReferenceGrant, metav1.NamespaceAll)
 
 	input := GatewayResources{
-		GatewayClass:   deepCopyStatus(gatewayClass),
-		Gateway:        deepCopyStatus(gateway),
-		HTTPRoute:      deepCopyStatus(httpRoute),
-		TCPRoute:       deepCopyStatus(tcpRoute),
-		TLSRoute:       deepCopyStatus(tlsRoute),
-		ReferenceGrant: referenceGrant,
-		Domain:         c.domain,
-		Context:        NewGatewayContext(ps),
+		GatewayClass:           deepCopyStatus(gatewayClass),
+		Gateway:                deepCopyStatus(gateway),
+		HTTPRoute:              deepCopyStatus(httpRoute),
+		TCPRoute:               deepCopyStatus(tcpRoute),
+		TLSRoute:               deepCopyStatus(tlsRoute),
+		ReferenceGrant:         referenceGrant,
+		DefaultGatewaySelector: c.DefaultGatewaySelector,
+		Domain:                 c.domain,
+		Context:                NewGatewayContext(ps),
 	}
 
 	if !input.hasResources() {

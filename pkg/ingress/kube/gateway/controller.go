@@ -58,6 +58,9 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 	credsController := kubecredentials.NewMulticluster(clusterId)
 	credsController.ClusterAdded(&multicluster.Cluster{ID: clusterId, Client: client}, nil)
 	istioController := istiogateway.NewController(client, store, client.CrdWatcher().WaitForCRD, credsController, kubecontroller.Options{DomainSuffix: domainSuffix})
+	if options.GatewaySelectorKey != "" {
+		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
+	}
 
 	if options.EnableStatus {
 		// TODO: Add status sync support
@@ -66,7 +69,11 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
 	}
 
-	return &gatewayController{store: store, credsController: credsController, istioController: istioController}
+	return &gatewayController{
+		store:           store,
+		credsController: credsController,
+		istioController: istioController,
+	}
 }
 
 func (g *gatewayController) Schemas() collection.Schemas {

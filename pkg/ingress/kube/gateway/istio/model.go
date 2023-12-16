@@ -54,6 +54,10 @@ type GatewayResources struct {
 	// Credentials stores all credentials in the cluster
 	Credentials credentials.Controller
 
+	// Start - Added by Higress
+	DefaultGatewaySelector map[string]string
+	// End - Added by Higress
+
 	// Domain for the cluster. Typically, cluster.local
 	Domain  string
 	Context GatewayContext
