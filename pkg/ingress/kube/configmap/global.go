@@ -18,8 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync/atomic"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
@@ -40,7 +38,7 @@ const (
 	minInitialConnectionWindowSize = 65535
 	maxInitialConnectionWindowSize = 2147483647
 
-	defaultIdleTimeout                 = "180s"
+	defaultIdleTimeout                 = 180
 	defaultMaxRequestHeadersKb         = 60
 	defaultConnectionBufferLimits      = 32768
 	defaultMaxConcurrentStreams        = 100
@@ -60,7 +58,7 @@ type Global struct {
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
-	IdleTimeout string `json:"idleTimeout,omitempty"`
+	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
 	MaxRequestHeadersKb uint32 `json:"maxRequestHeadersKb,omitempty"`
 	// ConnectionBufferLimits configures the buffer size limits for connections.
@@ -90,15 +88,7 @@ func validGlobal(global *Global) error {
 	}
 
 	downStream := global.Downstream
-	// check idleTimeout
-	if downStream.IdleTimeout == "" {
-		downStream.IdleTimeout = defaultIdleTimeout
-	}
-	duration, err := validDuration(downStream.IdleTimeout)
-	if err != nil {
-		return err
-	}
-	downStream.IdleTimeout = duration
+
 	// check maxRequestHeadersKb
 	if downStream.MaxRequestHeadersKb > maxMaxRequestHeadersKb {
 		return fmt.Errorf("maxRequestHeadersKb must be less than or equal to 8192")
@@ -123,37 +113,6 @@ func validGlobal(global *Global) error {
 	}
 
 	return nil
-}
-
-// validDuration validates the idleTimeout.
-func validDuration(duration string) (string, error) {
-	//  180 s  -> 180s
-	duration = strings.ReplaceAll(duration, " ", "")
-	if duration == "" {
-		return duration, fmt.Errorf("idleTimeout is empty")
-	}
-	// 0 is a special value that means no timeout
-	if duration == "0" {
-		return duration, nil
-	}
-	// 180S -> 180s
-	duration = strings.ToLower(duration)
-	// check unit: s/m/h/d
-	if !strings.HasSuffix(duration, "s") && !strings.HasSuffix(duration, "m") &&
-		!strings.HasSuffix(duration, "h") && !strings.HasSuffix(duration, "d") {
-		return duration, fmt.Errorf("idleTimeout has an invalid unit or is missing a unit")
-	}
-	newDuration := duration
-	// 180s -> 180
-	duration = duration[:len(duration)-1]
-	parseInt, err := strconv.ParseInt(duration, 10, 64)
-	if err != nil {
-		return newDuration, fmt.Errorf("idleTimeout is not a valid duration")
-	}
-	if parseInt < 0 {
-		return newDuration, fmt.Errorf("idleTimeout cannot be negative")
-	}
-	return newDuration, nil
 }
 
 // compareGlobal compares the old and new global option.
@@ -475,7 +434,7 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			"typed_config": {
 				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
 				"common_http_protocol_options": {
-					"idleTimeout": "%s"
+					"idleTimeout": "%ds"
 				},
 				"http2_protocol_options": {
 					"maxConcurrentStreams": %d,
@@ -483,7 +442,7 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 					"initialConnectionWindowSize": %d
 				},
 				"maxRequestHeadersKb": %d,
-				"streamIdleTimeout": "%s"
+				"streamIdleTimeout": "%ds"
 			}
 		}
 `, idleTimeout, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb, idleTimeout)
@@ -496,10 +455,10 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			"typed_config": {
 				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
 				"common_http_protocol_options": {
-					"idleTimeout": "%s"
+					"idleTimeout": "%ds"
 				},
 				"maxRequestHeadersKb": %d,
-				"streamIdleTimeout": "%s"
+				"streamIdleTimeout": "%ds"
 			}
 		}
 `, idleTimeout, maxRequestHeadersKb, idleTimeout)

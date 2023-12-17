@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
@@ -44,60 +43,6 @@ func Test_validGlobal(t *testing.T) {
 				Downstream:           nil,
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
-			},
-			wantErr: nil,
-		},
-		{
-			name: "idleTimeout empty",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "",
-				},
-			},
-			wantErr: nil,
-		},
-		{
-			name: "idleTimeout invalid type 1",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "1  ",
-				},
-			},
-			wantErr: fmt.Errorf("idleTimeout has an invalid unit or is missing a unit"),
-		},
-		{
-			name: "idleTimeout invalid type 2",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "  1t  ",
-				},
-			},
-			wantErr: fmt.Errorf("idleTimeout has an invalid unit or is missing a unit"),
-		},
-		{
-			name: "idleTimeout invalid type 3",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "  1.1s  ",
-				},
-			},
-			wantErr: fmt.Errorf("idleTimeout is not a valid duration"),
-		},
-		{
-			name: "idleTimeout invalid type 4",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "  -1s  ",
-				},
-			},
-			wantErr: fmt.Errorf("idleTimeout cannot be negative"),
-		},
-		{
-			name: "idleTimeout valid",
-			global: &Global{
-				Downstream: &Downstream{
-					IdleTimeout: "  1   s  ",
-				},
 			},
 			wantErr: nil,
 		},
@@ -151,7 +96,7 @@ func Test_compareGlobal(t *testing.T) {
 			old:  NewDefaultGlobalOption(),
 			new: &Global{
 				Downstream: &Downstream{
-					IdleTimeout: "  1   s  ",
+					IdleTimeout: 1,
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
@@ -186,7 +131,7 @@ func Test_deepCopyGlobal(t *testing.T) {
 			name: "deep copy 2",
 			global: &Global{
 				Downstream: &Downstream{
-					IdleTimeout:            "  1   s  ",
+					IdleTimeout:            1,
 					MaxRequestHeadersKb:    9600,
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),
@@ -196,7 +141,7 @@ func Test_deepCopyGlobal(t *testing.T) {
 			},
 			want: &Global{
 				Downstream: &Downstream{
-					IdleTimeout:            "  1   s  ",
+					IdleTimeout:            1,
 					MaxRequestHeadersKb:    9600,
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),
@@ -264,7 +209,7 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			old:  NewDefaultHigressConfig(),
 			new: &HigressConfig{
 				Downstream: &Downstream{
-					IdleTimeout: "  1   s  ",
+					IdleTimeout: 1,
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
@@ -273,7 +218,7 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			wantEventPush: "push",
 			wantGlobal: &Global{
 				Downstream: &Downstream{
-					IdleTimeout: "1s",
+					IdleTimeout: 1,
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
