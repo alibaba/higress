@@ -17,6 +17,7 @@ package configmap
 import (
 	"encoding/json"
 	"fmt"
+	"istio.io/istio/pkg/config/schema/gvk"
 	"reflect"
 	"strconv"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/schema/gvk"
 )
 
 const (
@@ -94,9 +94,11 @@ func validGlobal(global *Global) error {
 	if downStream.IdleTimeout == "" {
 		downStream.IdleTimeout = defaultIdleTimeout
 	}
-	if err := validDuration(downStream.IdleTimeout); err != nil {
+	duration, err := validDuration(downStream.IdleTimeout)
+	if err != nil {
 		return err
 	}
+	downStream.IdleTimeout = duration
 	// check maxRequestHeadersKb
 	if downStream.MaxRequestHeadersKb > maxMaxRequestHeadersKb {
 		return fmt.Errorf("maxRequestHeadersKb must be less than or equal to 8192")
@@ -124,35 +126,34 @@ func validGlobal(global *Global) error {
 }
 
 // validDuration validates the idleTimeout.
-func validDuration(duration string) error {
-	//  180s  -> 180s
-	duration = strings.Trim(duration, " ")
+func validDuration(duration string) (string, error) {
+	//  180 s  -> 180s
+	duration = strings.ReplaceAll(duration, " ", "")
 	if duration == "" {
-		return fmt.Errorf("idleTimeout is empty")
+		return duration, fmt.Errorf("idleTimeout is empty")
 	}
 	// 0 is a special value that means no timeout
 	if duration == "0" {
-		return nil
+		return duration, nil
 	}
 	// 180S -> 180s
 	duration = strings.ToLower(duration)
 	// check unit: s/m/h/d
 	if !strings.HasSuffix(duration, "s") && !strings.HasSuffix(duration, "m") &&
 		!strings.HasSuffix(duration, "h") && !strings.HasSuffix(duration, "d") {
-		return fmt.Errorf("idleTimeout has an invalid unit or is missing a unit")
+		return duration, fmt.Errorf("idleTimeout has an invalid unit or is missing a unit")
 	}
+	newDuration := duration
 	// 180s -> 180
 	duration = duration[:len(duration)-1]
-	// 180 s -> 180
-	duration = strings.Trim(duration, " ")
 	parseInt, err := strconv.ParseInt(duration, 10, 64)
 	if err != nil {
-		return fmt.Errorf("idleTimeout is not a valid duration")
+		return newDuration, fmt.Errorf("idleTimeout is not a valid duration")
 	}
 	if parseInt < 0 {
-		return fmt.Errorf("idleTimeout cannot be negative")
+		return newDuration, fmt.Errorf("idleTimeout cannot be negative")
 	}
-	return nil
+	return newDuration, nil
 }
 
 // compareGlobal compares the old and new global option.
@@ -318,9 +319,10 @@ func (g *GlobalOptionController) ValidHigressConfig(higressConfig *HigressConfig
 }
 
 func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, error) {
-	configs := make([]*config.Config, 0)
+	configPatch := make([]*networking.EnvoyFilter_EnvoyConfigObjectPatch, 0)
 	global := g.GetGlobal()
 	if global == nil {
+		configs := make([]*config.Config, 0)
 		return configs, nil
 	}
 
@@ -329,25 +331,45 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 	if global.AddXRealIpHeader {
 		addXRealIpStruct := g.constructAddXRealIpHeader()
 		addXRealIpHeaderConfig := g.generateAddXRealIpHeaderEnvoyFilter(addXRealIpStruct, namespace)
-		configs = append(configs, addXRealIpHeaderConfig)
+		configPatch = append(configPatch, addXRealIpHeaderConfig...)
 	}
 
 	if global.DisableXEnvoyHeaders {
 		disableXEnvoyHeadersStruct := g.constructDisableXEnvoyHeaders()
 		disableXEnvoyHeadersConfig := g.generateDisableXEnvoyHeadersEnvoyFilter(disableXEnvoyHeadersStruct, namespace)
-		configs = append(configs, disableXEnvoyHeadersConfig)
+		configPatch = append(configPatch, disableXEnvoyHeadersConfig...)
+	}
+
+	if global.Downstream == nil {
+		return generateEnvoyFilter(namespace, configPatch), nil
 	}
 
 	downstreamStruct := g.constructDownstream(global.Downstream)
 	bufferLimitStruct := g.constructBufferLimit(global.Downstream)
 	if len(downstreamStruct) == 0 && len(bufferLimitStruct) == 0 {
-		return configs, nil
+		return generateEnvoyFilter(namespace, configPatch), nil
 	}
 
 	downstreamConfig := g.generateDownstreamEnvoyFilter(downstreamStruct, bufferLimitStruct, namespace)
-	configs = append(configs, downstreamConfig)
+	configPatch = append(configPatch, downstreamConfig...)
 
-	return configs, nil
+	return generateEnvoyFilter(namespace, configPatch), nil
+}
+
+func generateEnvoyFilter(namespace string, configPatch []*networking.EnvoyFilter_EnvoyConfigObjectPatch) []*config.Config {
+	configs := make([]*config.Config, 0)
+	envoyConfig := &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.EnvoyFilter,
+			Name:             higressGlobalEnvoyFilterName,
+			Namespace:        namespace,
+		},
+		Spec: &networking.EnvoyFilter{
+			ConfigPatches: configPatch,
+		},
+	}
+	configs = append(configs, envoyConfig)
+	return configs
 }
 
 func (g *GlobalOptionController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
@@ -355,44 +377,35 @@ func (g *GlobalOptionController) RegisterItemEventHandler(eventHandler ItemEvent
 }
 
 // generateDownstreamEnvoyFilter generates the downstream envoy filter.
-func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueStruct string, bufferLimitStruct string, namespace string) *config.Config {
-	downstreamConfig := &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             higressGlobalEnvoyFilterName,
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_NETWORK_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-									},
-								},
+func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueStruct string, bufferLimitStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	downstreamConfig := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_NETWORK_FILTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+					Listener: &networking.EnvoyFilter_ListenerMatch{
+						FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+							Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+								Name: "envoy.filters.network.http_connection_manager",
 							},
 						},
 					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     util.BuildPatchStruct(downstreamValueStruct),
-					},
 				},
-				{
-					ApplyTo: networking.EnvoyFilter_LISTENER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     util.BuildPatchStruct(bufferLimitStruct),
-					},
-				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(downstreamValueStruct),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_LISTENER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(bufferLimitStruct),
 			},
 		},
 	}
@@ -400,25 +413,16 @@ func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueSt
 }
 
 // generateAddXRealIpHeaderEnvoyFilter generates the add x-real-ip header envoy filter.
-func (g *GlobalOptionController) generateAddXRealIpHeaderEnvoyFilter(addXRealIpHeaderStruct string, namespace string) *config.Config {
-	addXRealIpHeaderConfig := &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             higressGlobalEnvoyFilterName,
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_ROUTE_CONFIGURATION,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     util.BuildPatchStruct(addXRealIpHeaderStruct),
-					},
-				},
+func (g *GlobalOptionController) generateAddXRealIpHeaderEnvoyFilter(addXRealIpHeaderStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	addXRealIpHeaderConfig := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_ROUTE_CONFIGURATION,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(addXRealIpHeaderStruct),
 			},
 		},
 	}
@@ -426,37 +430,28 @@ func (g *GlobalOptionController) generateAddXRealIpHeaderEnvoyFilter(addXRealIpH
 }
 
 // generateDisableXEnvoyHeadersEnvoyFilter generates the disable x-envoy headers envoy filter.
-func (g *GlobalOptionController) generateDisableXEnvoyHeadersEnvoyFilter(disableXEnvoyStruct string, namespace string) *config.Config {
-	disableXEnvoyHeadersConfig := &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             higressGlobalEnvoyFilterName,
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.router",
-										},
-									},
+func (g *GlobalOptionController) generateDisableXEnvoyHeadersEnvoyFilter(disableXEnvoyStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	disableXEnvoyHeadersConfig := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+					Listener: &networking.EnvoyFilter_ListenerMatch{
+						FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+							Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+								Name: "envoy.filters.network.http_connection_manager",
+								SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+									Name: "envoy.filters.http.router",
 								},
 							},
 						},
 					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_REPLACE,
-						Value:     util.BuildPatchStruct(disableXEnvoyStruct),
-					},
 				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_REPLACE,
+				Value:     util.BuildPatchStruct(disableXEnvoyStruct),
 			},
 		},
 	}
@@ -548,6 +543,7 @@ func (g *GlobalOptionController) constructDisableXEnvoyHeaders() string {
 func (g *GlobalOptionController) constructBufferLimit(downstream *Downstream) string {
 	return fmt.Sprintf(`
 		{
-			" per_connection_buffer_limit_bytes": %d
+			"per_connection_buffer_limit_bytes": %d
+		}
 	`, downstream.ConnectionBufferLimits)
 }

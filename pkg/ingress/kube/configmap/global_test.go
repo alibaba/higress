@@ -273,7 +273,7 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			wantEventPush: "push",
 			wantGlobal: &Global{
 				Downstream: &Downstream{
-					IdleTimeout: "  1   s  ",
+					IdleTimeout: "1s",
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
