@@ -65,7 +65,7 @@ spec:
       configDisable: false
       config:
           type: request
-          rules:
+          reqRules:
             - operate: remove
               headers:
                 - key: X-remove
@@ -73,18 +73,18 @@ spec:
                 - key: k1
             - operate: rename
               headers:
-                - key: X-not-renamed
-                  value: X-renamed
+                - oldKey: X-not-renamed
+                  newKey: X-renamed
               querys:
-                - key: k2
-                  value: k2-new
+                - oldKey: k2
+                  newKey: k2-new
             - operate: replace
               headers:
                 - key: X-replace
-                  value: replaced
+                  newValue: replaced
               querys:
                 - key: k2-new
-                  value: v2-new
+                  newValue: v2-new
             - operate: add
               headers:
                 - key: X-add-append
@@ -95,28 +95,28 @@ spec:
             - operate: append
               headers:
                 - key: X-add-append
-                  value: append
+                  appendValue: append
               querys:
                 - key: k3
-                  value: v32
+                  appendValue: v32
             - operate: map
               headers:
-                - key: X-add-append
-                  value: X-map
+                - fromKey: X-add-append
+                  toKey: X-map
               querys:
-                - key: k3
-                  value: k4
+                - fromKey: k3
+                  toKey: k4
             - operate: dedupe
               headers:
                 - key: X-dedupe-first
-                  value: RETAIN_FIRST
+                  strategy: RETAIN_FIRST
                 - key: X-dedupe-last
-                  value: RETAIN_LAST
+                  strategy: RETAIN_LAST
                 - key: X-dedupe-unique
-                  value: RETAIN_UNIQUE
+                  strategy: RETAIN_UNIQUE
               querys:
                 - key: k4
-                  value: RETAIN_FIRST
+                  strategy: RETAIN_FIRST
 
     # response transformer
     - ingress:
@@ -124,18 +124,18 @@ spec:
       configDisable: false
       config:
         type: response
-        rules:
+        respRules:
           - operate: remove
             headers:
               - key: X-remove
           - operate: rename
             headers:
-              - key: X-not-renamed
-                value: X-renamed
+              - oldKey: X-not-renamed
+                newKey: X-renamed
           - operate: replace
             headers:
               - key: X-replace
-                value: replace-$1
+                newValue: replace-$1
                 path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
           - operate: add
             headers:
@@ -145,11 +145,11 @@ spec:
           - operate: append
             headers:
               - key: X-add-append
-                value: append-$1
+                appendValue: append-$1
                 path_pattern: ^\/get\/(.*)\.html$
           - operate: map
             headers:
-              - key: X-add-append
-                value: X-map
+              - fromKey: X-add-append
+                toKey: X-map
 
   url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
