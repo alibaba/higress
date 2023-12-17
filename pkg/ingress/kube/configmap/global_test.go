@@ -16,9 +16,10 @@ package configmap
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_validGlobal(t *testing.T) {
