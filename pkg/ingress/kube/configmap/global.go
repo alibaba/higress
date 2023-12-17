@@ -91,10 +91,11 @@ func validGlobal(global *Global) error {
 
 	downStream := global.Downstream
 	// check idleTimeout
-	if downStream.IdleTimeout != "" {
-		if err := validDuration(downStream.IdleTimeout); err != nil {
-			return err
-		}
+	if downStream.IdleTimeout == "" {
+		downStream.IdleTimeout = defaultIdleTimeout
+	}
+	if err := validDuration(downStream.IdleTimeout); err != nil {
+		return err
 	}
 	// check maxRequestHeadersKb
 	if downStream.MaxRequestHeadersKb > maxMaxRequestHeadersKb {
@@ -126,8 +127,20 @@ func validGlobal(global *Global) error {
 func validDuration(duration string) error {
 	//  180s  -> 180s
 	duration = strings.Trim(duration, " ")
+	if duration == "" {
+		return fmt.Errorf("idleTimeout is empty")
+	}
+	// 0 is a special value that means no timeout
+	if duration == "0" {
+		return nil
+	}
 	// 180S -> 180s
 	duration = strings.ToLower(duration)
+	// check unit: s/m/h/d
+	if !strings.HasSuffix(duration, "s") && !strings.HasSuffix(duration, "m") &&
+		!strings.HasSuffix(duration, "h") && !strings.HasSuffix(duration, "d") {
+		return fmt.Errorf("idleTimeout has an invalid unit or is missing a unit")
+	}
 	// 180s -> 180
 	duration = duration[:len(duration)-1]
 	// 180 s -> 180
@@ -144,11 +157,15 @@ func validDuration(duration string) error {
 
 // compareGlobal compares the old and new global option.
 func compareGlobal(old *Global, new *Global) (Result, error) {
-	if old == nil || new == nil {
+	if old == nil && new == nil {
 		return ResultNothing, nil
 	}
 
 	if new == nil {
+		return ResultDelete, nil
+	}
+
+	if new.Downstream == nil && !new.AddXRealIpHeader && !new.DisableXEnvoyHeaders {
 		return ResultDelete, nil
 	}
 
@@ -161,7 +178,7 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
-	defaultGlobal := NewDefaultGlobalOption()
+	defaultGlobal := &Global{}
 
 	bytes, err := json.Marshal(global)
 	if err != nil {
