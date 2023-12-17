@@ -17,7 +17,6 @@ package configmap
 import (
 	"encoding/json"
 	"fmt"
-	"istio.io/istio/pkg/config/schema/gvk"
 	"reflect"
 	"strconv"
 	"strings"
@@ -27,6 +26,7 @@ import (
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 )
 
 const (
