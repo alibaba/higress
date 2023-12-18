@@ -22,12 +22,12 @@ import "fmt"
 // check if array element is in range
 // check if array element is unique
 type ArrayValidation struct {
-	Type      string
-	Required  bool
-	MinLength int
-	Unique    bool
-	MinValue  interface{}
-	MaxValue  interface{}
+	Type      string      `json:"type"`
+	Required  bool        `json:"required"`
+	MinLength int         `json:"minLength"`
+	Unique    bool        `json:"uniqueItems"`
+	MinValue  interface{} `json:"minItems"`
+	MaxValue  interface{} `json:"maxItems"`
 }
 
 func (a ArrayValidation) Validation(schema map[string]interface{}, paramName string) error {

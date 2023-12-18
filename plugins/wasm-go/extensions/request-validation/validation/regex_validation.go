@@ -23,11 +23,11 @@ import (
 // validation for regex type, just string
 // check if param is match regex
 type RegexValidation struct {
-	Required  bool
-	Type      string
-	MinLength int
-	MaxLength int
-	Pattern   string
+	Required  bool   `json:"required"`
+	Type      string `json:"type"`
+	MinLength int    `json:"minLength"`
+	MaxLength int    `json:"maxLength"`
+	Pattern   string `json:"pattern"`
 }
 
 func (r RegexValidation) Validation(schema map[string]interface{}, paramName string) error {

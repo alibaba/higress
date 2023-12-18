@@ -20,10 +20,10 @@ import "fmt"
 // validation for int range type, including string, integer, float
 // check if param is in range
 type IntRangeValidation struct {
-	Required bool
-	Type     string
-	Min      interface{}
-	Max      interface{}
+	Required bool        `json:"required"`
+	Type     string      `json:"type"`
+	Min      interface{} `json:"minimum"`
+	Max      interface{} `json:"maximum"`
 }
 
 func (i IntRangeValidation) Validation(schema map[string]interface{}, paramName string) error {

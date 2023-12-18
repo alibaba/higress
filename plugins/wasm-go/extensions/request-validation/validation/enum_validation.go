@@ -20,9 +20,9 @@ import "fmt"
 // validation for enum type, including string, integer, float
 // check if param is in enum
 type EnumValidation struct {
-	Required bool
-	Type     string
-	Enum     []interface{}
+	Required bool          `json:"required"`
+	Type     string        `json:"type"`
+	Enum     []interface{} `json:"enum"`
 }
 
 func (e EnumValidation) Validation(schema map[string]interface{}, paramName string) error {

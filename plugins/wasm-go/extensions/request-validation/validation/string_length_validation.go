@@ -20,10 +20,10 @@ import "fmt"
 // validation for string length type, just string
 // check if param length is in range
 type StringLengthValidation struct {
-	Required  bool
-	Type      string
-	MinLength int
-	MaxLength int
+	Required  bool   `json:"required"`
+	Type      string `json:"type"`
+	MinLength int    `json:"minLength"`
+	MaxLength int    `json:"maxLength"`
 }
 
 func (s StringLengthValidation) Validation(schema map[string]interface{}, paramName string) error {

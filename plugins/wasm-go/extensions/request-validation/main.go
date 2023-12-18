@@ -82,6 +82,10 @@ func (s *Schema) GetTraffics() (map[string]Traffic, error) {
 func parseConfig(result gjson.Result, config *Config, log wrapper.Log) error {
 	headerSchema := result.Get("header_schema").String()
 	bodySchema := result.Get("body_schema").String()
+
+	log.Debug("header_schema: " + headerSchema)
+	log.Debug("body_schema: " + bodySchema)
+
 	if headerSchema == "" && bodySchema == "" {
 		return nil
 	}
@@ -109,6 +113,10 @@ func parseConfig(result gjson.Result, config *Config, log wrapper.Log) error {
 		config.RejectedCode = 403
 	}
 	config.RejectedMsg = result.Get("rejected_msg").String()
+
+	log.Debug("rejected_code: " + fmt.Sprint(config.RejectedCode))
+	log.Debug("rejected_msg: " + config.RejectedMsg)
+
 	return nil
 }
 
@@ -123,12 +131,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	for _, header := range headers {
 		schema[header[0]] = header[1]
 	}
+
+	log.Debug("request headers: " + fmt.Sprint(schema))
+
 	// validate
 	traffics, err := config.HeaderSchema.GetTraffics()
 	if err != nil {
 		log.Errorf("get header traffics failed: %v", err)
 		return types.ActionContinue
 	}
+
+	log.Debug("header traffics: " + fmt.Sprint(traffics))
+
 	for paramName, traffic := range traffics {
 		err := traffic.Validation(schema, paramName)
 		if err != nil {
@@ -148,12 +162,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 		log.Errorf("unmarshal request body failed: %v", err)
 		return types.ActionContinue
 	}
+
+	log.Debug("request body: " + fmt.Sprint(schema))
+
 	// validate
 	traffics, err := config.BodySchema.GetTraffics()
 	if err != nil {
 		log.Errorf("get body traffics failed: %v", err)
 		return types.ActionContinue
 	}
+
+	log.Debug("body traffics: " + fmt.Sprint(traffics))
+
 	for paramName, traffic := range traffics {
 		err := traffic.Validation(schema, paramName)
 		if err != nil {
