@@ -1,6 +1,6 @@
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/source/BUILD
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 15:05:48.281593033 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 19:08:11.408975013 +0800
 @@ -83,6 +83,7 @@
          "//envoy/http:query_params_interface",
          "//source/common/buffer:buffer_lib",
@@ -10,8 +10,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD envoy_n
          "//source/common/http:utility_lib",
          "@envoy_api//contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3:pkg_cc_proto",
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.cc
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 15:06:03.714046266 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 19:08:11.408975013 +0800
 @@ -8,9 +8,11 @@
  namespace HttpDubboTranscoder {
  
@@ -42,8 +42,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc env
  
  REGISTER_FACTORY(HttpDubboTranscodeFilterFactory,
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.h
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 15:06:25.094674191 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 19:08:11.408975013 +0800
 @@ -11,6 +11,8 @@
  namespace HttpFilters {
  namespace HttpDubboTranscoder {
@@ -54,8 +54,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h envo
   * Config registration for the buffer filter.
   */
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 15:25:31.852345393 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 19:08:11.408975013 +0800
 @@ -34,12 +34,14 @@
  static const std::string AttachmentVersionKey = "version";
  static const std::string AttachmentTrueValue = "true";
@@ -254,8 +254,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transco
    }
  
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 15:19:14.069253314 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 19:08:11.412975131 +0800
 @@ -31,6 +31,22 @@
  
  class Http2DubboTranscoder;
@@ -363,8 +363,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transco
    bool error_{false};
  };
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.cc
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 15:11:14.923185846 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 19:08:11.412975131 +0800
 @@ -6,6 +6,7 @@
  #include "envoy/http/codes.h"
  #include "envoy/http/query_params.h"
@@ -590,8 +590,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc en
    default:
      break;
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.h
---- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 15:11:27.291549045 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 19:08:11.412975131 +0800
 @@ -32,7 +32,6 @@
  using MapObject = Hessian2::UntypedMapObject;
  using MapObjectPtr = std::unique_ptr<MapObject>;
@@ -613,8 +613,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h env
  };
  
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/test/BUILD
---- envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 15:11:57.924448581 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 19:08:11.412975131 +0800
 @@ -21,11 +21,20 @@
  
  envoy_cc_test(
@@ -637,8 +637,8 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD envoy_new
      ],
  )
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc
---- envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 15:46:39.193542795 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 15:12:09.144778067 +0800
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 19:08:11.412975131 +0800
 @@ -1,5 +1,7 @@
 +#include <fstream>
  #include "test/mocks/server/factory_context.h"
@@ -1324,13 +1324,13 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcode
  
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body
 --- envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body	1970-01-01 08:00:00.000000000 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body	2023-12-18 15:09:28.316055181 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body	2023-12-18 19:08:11.412975131 +0800
 @@ -0,0 +1 @@
 +{"gebfjh": ["Z8Phit1r1yqTYRu_N",false,-1874609963.6780415,{"wvhipdzn": {"fxulpeqbbv": "R0"},"uacfnggi": "s","tjgrp": {"kzufxpapsi": {"hvmeworf": {"kvcjigtpkq": "jHdOx1UubMiElwn","zkpxlen": [true,-1696836778,674138528,1814293593,"f8RZR9VPtqls1Mee8Cy7",-1777251289],"xppzpkag": "Csb3EJJguhwcHxylCi0"},"bxrvsqdbmab": 1546418242,"oaiwuyxg": ["kSC8"],"ccmposyf": -1966816994,"cwqsjpdmsyo": [{"hztrgiesabn": true,"dupigo": false,"gzteg": "QMiN8fWzukSbNE","hgpomys": false,"rbsij": false,"rvzllj": false,"bzdvycmcjmp": -789627763},-17410347,[-1839055094,true,-1698623779,true,-353931240.3622999,true,544112146.7967532,431864659.3216296],424546576.86917436],"apeouad": false,"tfctvrnpa": "J1C3cemW19vIljmfp9UL","ipxejcteqv": [[false,true,-743430571.3896658]]},"eabslckqne": false,"dozmicm": {"szjtejfwzzz": true}},"lwopbg": true,"zfpafmvycht": "K6Zuhfh1cz"},{"njfwjqqjv": [true,false,{"zwxjbj": true,"ipvedxwxvn": false,"mnyhzfl": {"zixonhitu": true,"akyehtmcivuw": -1164644185.000639,"paonvucc": 1399763731.031868,"vhpjirdne": true,"egjmsbm": false,"scgoz": [true,2130356151.8818755,"yiFxdfBEc0p7i02rPGe",-286610574.46345943,-256386296.7373656,261835722,-1122995147,"9",false],"jvfysgqoecb": 353170534.65448564},"plyqgqi": "fCdz0hIvLm2T"},"bgcwZ1YRN",-2045418785.3451211,"Df6QFTnQLtXbBafM"],"yxeiooeceq": [true,1520799628.8768916,[-233199273.01942745,[[false]],false,{"zhbgqn": [false,"Bqw",true,true,"_4CU_pcpu","m-UZZHqyCuR","FfylJS",876309508.4970961],"oxvwtlidr": true,"jggaue": [2104138652.6818604,-1838286814],"thmtnvai": [-915348228],"mkneelldacpe": 361113991,"omgfp": [true,false,452865285.04284465,"rJ1WL7tGjtXTzYOj","0Xz",-458065016,"8AvOlHR"]},{"gyexywddinvw": false,"jvfbqnq": [false,"DQVlySmgTdR43B_","s_2",1654005717.7170205,false,-1514754868.9750252],"ikpxldqpy": false,"xsqbp": ["tPynSvy",-1001103628,true,-515241904.0306626,"4gQxpB563S3vh","xo33FTe1f2ZKb",true,true],"kkbzvul": false,"feeifcfwnc": {"vxitzzasgsx": false,"xbhzmyt": true}},"1Ifr"],"Nx","Sdb9lQ",false],"xjbmaxfj": 1546702803.505219,"gvfazuymxaj": [true,{"uopixgpehkmn": [[-1706501649.3347661,939444184,-489900868,"ty9Vh-VzLeJXA",814859737,false,1433198291.4491618,"5xxeodB9"],true,{"cnkaknt": 936088172.6826627,"zsfawghvq": false},"wYe",true],"eiwthpkjawn": [true,-1303434176,["OjQpdi",true,true,-1003624606.982674,-1828129590.757288,true,968197052],false,{"opxdfkjedbe": false,"jxrbmskmsh": "u1","kjplsndmcg": "2yE","tmpir": false,"zajjchtqeu": -1024544796,"nqavzii": "o_r9tq","blkhqcncu": "C_zLGhAP31mXNCx3SLh","cmwwiqixbwj": "z7BEnIRFs"},[-1761202743.514457,605963876.5721357,false,1142071654,-29341830.63987344,327729485.0430406,"a2ijBnlWa4cz",-1849564593,"W7KkH-KSTHK"]],"ymippdwakyb": "UbaOZ","pmhcv": false,"vdozsn": "ICp2p-FFPPqU_8E","njsbad": [[false,-231830047,"mQr-TSDVGvGB9KA2dvca",false,"N80rfENLbORWO",1448153667,-874578340.9833133,"QANtPJC"],-2036906953,{"dtrpcmwssww": false},true,-1771872323.877133,530887849],"fobvrcvwayuf": -174080491.97444606},["XQ",[{"avukqwnhl": false,"hqlpucgopn": -2046507753}],"Ku2gLNBW9cARY","Vus",[false,{"rcrjnmim": true,"rlggpl": "ZqkExAQ_W"},[61185980],"o4wvk3OZ__T",-1530084203.818758,true,"UOIuU",["o8-g9u3L4toOHX",false,"VXBi-5B46","Z87dyr6qU6w8C"]],"5oC81qY0W",["ccpuyX2FAInsBS1",["fnSSElF70rs3fwl3Eb",1038842378.3845956],{"fyotmznlhyiz": true,"ntdondmmmo": true,"jhqhiybx": "N5MgM-dGEduRDl-","rqlghpjap": "Dqras4qcX","ssgrwctxy": -1648400789,"fhtof": "4DQRw3FZI"},[false,false],[-1703717935.6076155,"XqAra","wblCqBkIR",822744070.6647763,"sHKkjFXFoB6sM0G6QO0","yBrubVz9J6Dt48mE",544621099.5012496,"iTCS0jRNT2i"]],2034789463],{"gqblenask": 602793888,"fshoncj": {"zyzklqrtffj": "zk4zok"},"vgelpbu": {"wachgrgx": "aTXzKVFk","ctbihuaplcsn": ["I_8W6Ih7fw0sSyzM3H"],"znepguyij": false},"alqvpkc": {"abqegvzvqurx": "e"}},{"pliniyj": true}]},{"jdkchmkmrbe": [{"zskwnuhvr": [1172496051.556019,true,1742687675.7930105],"hbwvvuseguh": true,"foduzezw": [{"qikdoghvf": false,"nlzfovx": "P7cNonFX8VyoDprf","sqzrqmgko": false,"yqeqau": -428385274.4653239,"rghonok": 491882583.1680483,"uwsqn": false,"vohxzzha": false,"csjlhyi": true},"yLxlayVsEG",false],"kdgrjkvwumfb": false,"dhyqulmztc": {"mrnvqvilx": -1338477178.0823896,"cdrrkooukuxd": [-169312265,"d09-sKvdr5ZeEwuR",true,"IDjf0nU_fGyDQxy",false,false],"ywlhqqzj": "W_rtl5oD2YRF_"}}],"zorbzvsti": "cm3pQpkkC2r33QY","fzfgqsst": 1271514452,"muepqivgbsxs": {"lkmljsbfqtam": false,"xqzzcknbu": [["cUW5MRzyZIEwCIZD",1831885823,"_CVv",true,{"muuirzviabdj": -164761922,"gnzxnjun": true,"jdelzbjjkwal": true,"iwqmkgzv": false,"vgrxzrdq": "c6_6Mr_GtfM4np-tSY7","faispvnzao": false},[true],false],[{"pbtkbkd": 605858835.278347,"clmxrmbzze": -631980698.7533013,"ohohrmqbe": false,"cmbsotwslb": "pr9w-j","mibjubgi": true,"vdsuvqtp": "1E0GUtEX6psfEInuhR","ikejbasdq": false,"uzmlwppov": "OM6o"},[626892233,false],false,"UXoAUo1idUy"],true,["OFduNJsu1ihNs"],569447293.7961918,[{"unrnvbmtrps": true,"fwvvpwtuy": 1300863561,"bufnkhbmuf": 1178293198.8882728,"wnptntgxf": 727491964.5889429,"ypnldkomd": true,"vypbfgoridnk": 1102836917.2110972,"tldjuhiw": -914671684,"xcasfkmo": "Z-YghQCeLOPEJPX_ZcWD","dsyltunqbxue": -230049304},"tMdMqKVJ8",{"xbeguteh": "c2Ky6U2-","iiqnrtptdcz": -590935560,"fkkkm": "5fGuYXA"},"SQd8Eu28R",true],false],"wkdsubyzoxf": "ZE_Y8","steedeb": [-1232996748,{"xcuqlvi": false,"pfjhpnr": false,"bsfusjksuqzr": {"mhcmtaygvhz": true},"jvicfuyea": 543821155.3341044,"uygbi": {"rkfauvom": -1026747765},"bsslzomqn": 551981527},-505453035.0982449,[false,746648276],{"gywjxgqwddf": -1236177377,"ozzylbonhgh": "Cds","couxvxncrk": "9yK3ToQGFCxT0l3ZrZ","obberiofmzg": ["Ic7MeULG","1PVjV4hLvk3_aVl1yZ","3XxiGZWfhq6o",false,-842072922,false],"wukfgwj": -215418126,"wqvjzhaffdl": [false,false,-2009241616.1072602],"pzmtkzpup": {"lmoatm": false,"wefocf": "uNu7WTfcpEaVnuc","kzaydd": -1576476013.4600675,"pdywza": "ZOwcHoSAUrJ-","rhtzamc": true},"psyuf": {"xobzn": 1563974237,"mfjtkl": 1842290314.8467672,"jedaaayp": 1467490916,"slddpl": true,"siqbojitbe": false},"nmrubqyiwot": {"mpmnmpj": -1051343423,"ciisxfjsqh": -1886929142}},1233314403],"mmyxuqbe": false,"pxprxlt": "5rdkAyBjFBKE9sH","ohxurytrc": [950184048.3243737,true,true],"gviolfvkuh": false},"tmbaooe": -2131828352,"oopjxvrnsd": -1078841971.8488972,"oaricvubn": 558318781,"nvjrtinlo": -1508415360.153841},584420524,[1024497481.9758645],"20McfuEaA"],"wxauhh": true,"coiitbxtotu": {"zcccjsb": "V_JN2"},"xqrpwjdvz": {"ulsrelib": true,"ukkvypsrh": [false,"sOjyjAITLdloeQaQahKn","wWhHRL_aie",false,true]}}
 \ No newline at end of file
 diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD
 --- envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD	1970-01-01 08:00:00.000000000 +0800
-+++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD	2023-12-18 15:08:56.047107479 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD	2023-12-18 19:08:11.412975131 +0800
 @@ -0,0 +1,13 @@
 +load(
 +    "//bazel:envoy_build_system.bzl",
@@ -1345,3 +1345,158 @@ diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD
 +    name = "http2dubbo_test_data",
 +    srcs = glob(["big_reqeust_body"]),
 +)
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc
+--- envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc	2023-12-18 19:26:04.952489147 +0800
+@@ -91,7 +91,33 @@
+ 
+ void TcpUpstream::onUpstreamData(Buffer::Instance& data, bool end_stream) {
+   end_stream = true;
+-  upstream_request_->decodeData(data, end_stream);
++  if (response_buffer_.length() == 0) {
++    if (data.length() < DUBBO_MAGIC_SIZE || data.peekBEInt<uint16_t>() != DUBBO_MAGIC_NUMBER) {
++      data.drain(data.length());
++      data.add(ProtocolErrorMessage);
++      upstream_request_->decodeData(data, end_stream);
++      return;
++    }
++  }
++  if (decodeDubboFrame(data) == DubboFrameDecodeStatus::Ok) {
++    uint32_t body_length_ = response_buffer_.peekBEInt<uint32_t>(DUBBO_LENGTH_OFFSET);
++    data.move(response_buffer_, body_length_ + DUBBO_HEADER_SIZE);
++    upstream_request_->decodeData(data, end_stream);
++  }
++}
++
++DubboFrameDecodeStatus TcpUpstream::decodeDubboFrame(Buffer::Instance& data) {
++  response_buffer_.move(data);
++  if (response_buffer_.length() < DUBBO_HEADER_SIZE) {
++    return DubboFrameDecodeStatus::NeedMoreData;
++  }
++
++  uint32_t body_length_ = response_buffer_.peekBEInt<uint32_t>(DUBBO_LENGTH_OFFSET);
++  if (response_buffer_.length() < body_length_ + DUBBO_HEADER_SIZE) {
++    return DubboFrameDecodeStatus::NeedMoreData;
++  }
++
++  return DubboFrameDecodeStatus::Ok;
+ }
+ 
+ void TcpUpstream::onEvent(Network::ConnectionEvent event) {
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h
+--- envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h	2023-12-18 19:30:03.595493886 +0800
+@@ -21,6 +21,18 @@
+ namespace Http {
+ namespace DubboTcp {
+ 
++enum class DubboFrameDecodeStatus : uint8_t {
++  Ok = 0,
++  NeedMoreData = 1,
++  InvalidHeader = 2,
++};
++
++constexpr uint64_t DUBBO_HEADER_SIZE = 16;
++constexpr uint64_t DUBBO_MAGIC_SIZE = 2;
++constexpr uint16_t DUBBO_MAGIC_NUMBER = 0xdabb;
++constexpr uint64_t DUBBO_LENGTH_OFFSET = 12;
++constexpr absl::string_view ProtocolErrorMessage = "Not dubbo message";
++
+ class TcpConnPool : public Router::GenericConnPool, public Envoy::Tcp::ConnectionPool::Callbacks {
+ public:
+   TcpConnPool(Upstream::ThreadLocalCluster& thread_local_cluster, bool is_connect,
+@@ -87,8 +99,12 @@
+   void onBelowWriteBufferLowWatermark() override;
+ 
+ private:
++  DubboFrameDecodeStatus decodeDubboFrame(Buffer::Instance& data);
++
++private:
+   Router::UpstreamToDownstream* upstream_request_;
+   Envoy::Tcp::ConnectionPool::ConnectionDataPtr upstream_conn_data_;
++  Buffer::OwnedImpl response_buffer_{};
+ };
+ 
+ } // namespace DubboTcp
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc envoy_new/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc
+--- envoy/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc	2023-12-18 19:26:33.465326043 +0800
+@@ -98,8 +98,10 @@
+         .Times(AnyNumber())
+         .WillRepeatedly(Return(&request_));
+     EXPECT_CALL(mock_router_filter_, cluster()).Times(AnyNumber());
++    EXPECT_CALL(mock_router_filter_, callbacks()).Times(AnyNumber());
+     mock_router_filter_.requests_.push_back(std::make_unique<UpstreamRequest>(
+-        mock_router_filter_, std::make_unique<NiceMock<Router::MockGenericConnPool>>()));
++        mock_router_filter_, std::make_unique<NiceMock<Router::MockGenericConnPool>>(), false,
++        false));
+     auto data = std::make_unique<NiceMock<Envoy::Tcp::ConnectionPool::MockConnectionData>>();
+     EXPECT_CALL(*data, connection()).Times(AnyNumber()).WillRepeatedly(ReturnRef(connection_));
+     tcp_upstream_ =
+@@ -137,13 +139,14 @@
+   // Forward data.
+   Buffer::OwnedImpl response1("bar");
+   // The dubbo forces end_stream to be true in the onupStreamData function.
+-  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("bar"), _, true));
++  // If data is incompatible with dubbo protocol, data will be set to 'Not dubbo message'.
++  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("Not dubbo message"), _, true));
+   tcp_upstream_->onUpstreamData(response1, false);
+ }
+ 
+ TEST_F(TcpUpstreamTest, V1Header) {
+   envoy::config::core::v3::ProxyProtocolConfig* proxy_config =
+-      mock_router_filter_.route_entry_.connect_config_->mutable_proxy_protocol_config();
++      mock_router_filter_.route_.route_entry_.connect_config_->mutable_proxy_protocol_config();
+   proxy_config->set_version(envoy::config::core::v3::ProxyProtocolConfig::V1);
+   mock_router_filter_.client_connection_.stream_info_.downstream_connection_info_provider_
+       ->setRemoteAddress(std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 5));
+@@ -166,7 +169,7 @@
+ 
+ TEST_F(TcpUpstreamTest, V2Header) {
+   envoy::config::core::v3::ProxyProtocolConfig* proxy_config =
+-      mock_router_filter_.route_entry_.connect_config_->mutable_proxy_protocol_config();
++      mock_router_filter_.route_.route_entry_.connect_config_->mutable_proxy_protocol_config();
+   proxy_config->set_version(envoy::config::core::v3::ProxyProtocolConfig::V2);
+   mock_router_filter_.client_connection_.stream_info_.downstream_connection_info_provider_
+       ->setRemoteAddress(std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 5));
+@@ -233,7 +236,7 @@
+ TEST_F(TcpUpstreamTest, EmptyConnectConfig) {
+   NiceMock<Envoy::Router::MockRouteEntry> route_entry;
+   EXPECT_FALSE(route_entry.connect_config_.has_value());
+-  EXPECT_CALL(mock_router_filter_, routeEntry()).WillOnce(Return(&route_entry));
++  EXPECT_CALL(mock_router_filter_.route_, routeEntry()).WillOnce(Return(&route_entry));
+ 
+   // Swallow the request headers and generate response headers.
+   EXPECT_CALL(connection_, write(_, false)).Times(0);
+@@ -252,15 +255,29 @@
+   // Forward data.
+   Buffer::OwnedImpl response1("bar");
+   // The dubbo forces end_stream to be true in the onupStreamData function.
+-  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("bar"), _, true));
++  // If data is incompatible with dubbo protocol, data will be set to 'Not dubbo message'.
++  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("Not dubbo message"), _, true));
+   tcp_upstream_->onUpstreamData(response1, false);
+ }
+ 
++TEST_F(TcpUpstreamTest, DubboMessage) {
++  // If data is dubbo message, it will be sent to filter.
++  Buffer::OwnedImpl response2;
++  response2.add(std::string({'\xda', '\xbb', 0x42, 20}));
++  response2.writeBEInt(static_cast<uint64_t>(1));
++  std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
++  response2.writeBEInt(static_cast<uint32_t>(content.size()));
++  response2.add(content);
++  EXPECT_CALL(mock_router_filter_,
++              onUpstreamData(BufferStringEqual(response2.toString()), _, true));
++  tcp_upstream_->onUpstreamData(response2, false);
++}
++
+ TEST_F(TcpUpstreamTest, ConnectConfig) {
+   NiceMock<Envoy::Router::MockRouteEntry> route_entry;
+   route_entry.connect_config_ = absl::make_optional<Envoy::Router::RouteEntry::ConnectConfig>();
+   EXPECT_TRUE(route_entry.connect_config_.has_value());
+-  EXPECT_CALL(mock_router_filter_, routeEntry()).WillOnce(Return(&route_entry));
++  EXPECT_CALL(mock_router_filter_.route_, routeEntry()).WillOnce(Return(&route_entry));
+ 
+   // Swallow the request headers and generate response headers.
+   EXPECT_CALL(connection_, write(_, false)).Times(0);
