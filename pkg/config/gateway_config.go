@@ -12,41 +12,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hgctl
+package config
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
+	"io"
 	"k8s.io/apimachinery/pkg/types"
+	"net/http"
 	"sigs.k8s.io/yaml"
 )
 
 var (
-	output       string
-	podName      string
-	podNamespace string
+	BootstrapEnvoyConfigType EnvoyConfigType = "bootstrap"
+	ClusterEnvoyConfigType   EnvoyConfigType = "cluster"
+	EndpointEnvoyConfigType  EnvoyConfigType = "endpoint"
+	ListenerEnvoyConfigType  EnvoyConfigType = "listener"
+	RouteEnvoyConfigType     EnvoyConfigType = "route"
+	AllEnvoyConfigType       EnvoyConfigType = "all"
 )
 
 const (
 	defaultProxyAdminPort = 15000
-	containerName         = "envoy"
 )
 
-func retrieveConfigDump(args []string, includeEds bool) ([]byte, error) {
-	if len(args) != 0 {
-		podName = args[0]
-	}
+type EnvoyConfigType string
 
+type GetEnvoyConfigOptions struct {
+	IncludeEds      bool
+	PodName         string
+	PodNamespace    string
+	BindAddress     string
+	Output          string
+	EnvoyConfigType EnvoyConfigType
+}
+
+func NewDefaultGetEnvoyConfigOptions() *GetEnvoyConfigOptions {
+	return &GetEnvoyConfigOptions{
+		IncludeEds:      true,
+		PodName:         "",
+		PodNamespace:    "higress-system",
+		BindAddress:     "localhost",
+		Output:          "json",
+		EnvoyConfigType: AllEnvoyConfigType,
+	}
+}
+
+func GetEnvoyConfig(config *GetEnvoyConfigOptions) ([]byte, error) {
+	configDump, err := retrieveConfigDump(config.PodName, config.PodNamespace, config.BindAddress, config.IncludeEds)
+	if err != nil {
+		return nil, err
+	}
+	if config.EnvoyConfigType == AllEnvoyConfigType {
+		return configDump, nil
+	}
+	resource, err := getXDSResource(config.EnvoyConfigType, configDump)
+	if err != nil {
+		return nil, err
+	}
+	return formatGatewayConfig(resource, config.Output)
+}
+
+func retrieveConfigDump(podName, podNamespace, bindAddress string, includeEds bool) ([]byte, error) {
 	if podNamespace == "" {
 		return nil, fmt.Errorf("pod namespace is required")
 	}
 
-	if podName == "" || len(args) == 0 {
+	if podName == "" {
 		c, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 		if err != nil {
 			return nil, fmt.Errorf("failed to build kubernetes client: %w", err)
@@ -65,7 +99,7 @@ func retrieveConfigDump(args []string, includeEds bool) ([]byte, error) {
 	fw, err := portForwarder(types.NamespacedName{
 		Namespace: podNamespace,
 		Name:      podName,
-	})
+	}, bindAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +116,7 @@ func retrieveConfigDump(args []string, includeEds bool) ([]byte, error) {
 	return configDump, nil
 }
 
-func portForwarder(nn types.NamespacedName) (kubernetes.PortForwarder, error) {
+func portForwarder(nn types.NamespacedName, bindAddress string) (kubernetes.PortForwarder, error) {
 	c, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
 		return nil, fmt.Errorf("build CLI client fail: %w", err)
@@ -148,4 +182,54 @@ func configDumpRequest(address string, includeEds bool) ([]byte, error) {
 	}()
 
 	return io.ReadAll(resp.Body)
+}
+
+func getXDSResource(resourceType EnvoyConfigType, configDump []byte) (any, error) {
+	cd := map[string]any{}
+	if err := json.Unmarshal(configDump, &cd); err != nil {
+		return nil, err
+	}
+	if resourceType == AllEnvoyConfigType {
+		return cd, nil
+	}
+	configs := cd["configs"]
+	globalConfigs := configs.([]any)
+
+	switch resourceType {
+	case BootstrapEnvoyConfigType:
+		for _, config := range globalConfigs {
+			if config.(map[string]interface{})["@type"] == "type.googleapis.com/envoy.admin.v3.BootstrapConfigDump" {
+				return config, nil
+			}
+		}
+	case EndpointEnvoyConfigType:
+		for _, config := range globalConfigs {
+			if config.(map[string]interface{})["@type"] == "type.googleapis.com/envoy.admin.v3.EndpointsConfigDump" {
+				return config, nil
+			}
+		}
+
+	case ClusterEnvoyConfigType:
+		for _, config := range globalConfigs {
+			if config.(map[string]interface{})["@type"] == "type.googleapis.com/envoy.admin.v3.ClustersConfigDump" {
+				return config, nil
+			}
+		}
+	case ListenerEnvoyConfigType:
+		for _, config := range globalConfigs {
+			if config.(map[string]interface{})["@type"] == "type.googleapis.com/envoy.admin.v3.ListenersConfigDump" {
+				return config, nil
+			}
+		}
+	case RouteEnvoyConfigType:
+		for _, config := range globalConfigs {
+			if config.(map[string]interface{})["@type"] == "type.googleapis.com/envoy.admin.v3.RoutesConfigDump" {
+				return config, nil
+			}
+		}
+	default:
+		return nil, fmt.Errorf("unknown resourceType %s", resourceType)
+	}
+
+	return nil, fmt.Errorf("unknown resourceType %s", resourceType)
 }

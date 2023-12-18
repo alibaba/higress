@@ -16,10 +16,22 @@ package hgctl
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/pkg/config"
 
 	"github.com/alibaba/higress/pkg/cmd/options"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+)
+
+var (
+	output       string
+	podName      string
+	podNamespace string
+)
+
+const (
+	defaultProxyAdminPort = 15000
+	containerName         = "envoy"
 )
 
 func newConfigCommand() *cobra.Command {
@@ -69,11 +81,20 @@ func allConfigCmd() *cobra.Command {
 }
 
 func runAllConfig(c *cobra.Command, args []string) error {
-	configDump, err := retrieveConfigDump(args, true)
+	if len(args) != 0 {
+		podName = args[0]
+	}
+	envoyConfig, err := config.GetEnvoyConfig(&config.GetEnvoyConfigOptions{
+		PodName:         podName,
+		PodNamespace:    podNamespace,
+		BindAddress:     bindAddress,
+		Output:          output,
+		EnvoyConfigType: config.AllEnvoyConfigType,
+		IncludeEds:      true,
+	})
 	if err != nil {
 		return err
 	}
-
-	_, err = fmt.Fprintln(c.OutOrStdout(), string(configDump))
+	_, err = fmt.Fprintln(c.OutOrStdout(), string(envoyConfig))
 	return err
 }

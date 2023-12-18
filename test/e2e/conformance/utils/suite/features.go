@@ -31,6 +31,9 @@ const (
 	EurekaConformanceFeature SupportedFeature = "eureka"
 	ConsulConformanceFeature SupportedFeature = "consul"
 	NacosConformanceFeature  SupportedFeature = "nacos"
+
+	// extended: envoy config
+	EnvoyConfigConformanceFeature SupportedFeature = "envoy-config"
 )
 
 var AllFeatures = sets.Set{}.

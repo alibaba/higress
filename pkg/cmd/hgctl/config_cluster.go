@@ -15,6 +15,7 @@ package hgctl
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/pkg/config"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -44,21 +45,20 @@ func clusterConfigCmd() *cobra.Command {
 }
 
 func runClusterConfig(c *cobra.Command, args []string) error {
-	configDump, err := retrieveConfigDump(args, false)
+	if len(args) != 0 {
+		podName = args[0]
+	}
+	envoyConfig, err := config.GetEnvoyConfig(&config.GetEnvoyConfigOptions{
+		PodName:         podName,
+		PodNamespace:    podNamespace,
+		BindAddress:     bindAddress,
+		Output:          output,
+		EnvoyConfigType: config.ClusterEnvoyConfigType,
+		IncludeEds:      true,
+	})
 	if err != nil {
 		return err
 	}
-
-	cluster, err := GetXDSResource(ClusterEnvoyConfigType, configDump)
-	if err != nil {
-		return err
-	}
-
-	out, err := formatGatewayConfig(cluster, output)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintln(c.OutOrStdout(), string(out))
+	_, err = fmt.Fprintln(c.OutOrStdout(), string(envoyConfig))
 	return err
 }

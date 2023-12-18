@@ -16,6 +16,7 @@ package hgctl
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/pkg/config"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -45,21 +46,20 @@ func endpointConfigCmd() *cobra.Command {
 }
 
 func runEndpointConfig(c *cobra.Command, args []string) error {
-	configDump, err := retrieveConfigDump(args, true)
+	if len(args) != 0 {
+		podName = args[0]
+	}
+	envoyConfig, err := config.GetEnvoyConfig(&config.GetEnvoyConfigOptions{
+		PodName:         podName,
+		PodNamespace:    podNamespace,
+		BindAddress:     bindAddress,
+		Output:          output,
+		EnvoyConfigType: config.EndpointEnvoyConfigType,
+		IncludeEds:      true,
+	})
 	if err != nil {
 		return err
 	}
-
-	endpoint, err := GetXDSResource(EndpointEnvoyConfigType, configDump)
-	if err != nil {
-		return err
-	}
-
-	out, err := formatGatewayConfig(endpoint, output)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintln(c.OutOrStdout(), string(out))
+	_, err = fmt.Fprintln(c.OutOrStdout(), string(envoyConfig))
 	return err
 }
