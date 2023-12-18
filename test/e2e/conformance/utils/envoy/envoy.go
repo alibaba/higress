@@ -15,10 +15,11 @@ package envoy
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/alibaba/higress/pkg/config"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"testing"
 )
 
 type Assertion struct {

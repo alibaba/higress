@@ -17,11 +17,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
-	"io"
 	"k8s.io/apimachinery/pkg/types"
-	"net/http"
 	"sigs.k8s.io/yaml"
 )
 
