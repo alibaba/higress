@@ -99,7 +99,7 @@ func newDashboardCmd() *cobra.Command {
 	dashboardCmd.AddCommand(graf)
 
 	envoy := envoyDashCmd()
-	envoy.PersistentFlags().StringVarP(&labelSelector, "selector", "l", "app=higress-gateway", "Label selector")
+	envoy.PersistentFlags().StringVarP(&labelSelector, "selector", "s", "app=higress-gateway", "Label selector")
 	envoy.PersistentFlags().StringVarP(&envoyDashNs, "namespace", "n", "",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
 	envoy.PersistentFlags().IntVar(&proxyAdminPort, "ui-port", defaultProxyAdminPort, "The component dashboard UI port.")
