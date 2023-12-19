@@ -154,7 +154,7 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 				match.Headers = map[string]*networking.StringMatch{
 					canaryConfig.Header: {
 						MatchType: &networking.StringMatch_Regex{
-							Regex: canaryConfig.HeaderPattern,
+							Regex: ".*" + canaryConfig.HeaderPattern + ".*",
 						},
 					},
 				}
