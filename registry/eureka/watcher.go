@@ -23,9 +23,7 @@ import (
 
 	"github.com/hudl/fargo"
 	"istio.io/api/networking/v1alpha3"
-	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	"istio.io/pkg/log"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
@@ -49,7 +47,6 @@ type watcher struct {
 	cache                memory.Cache
 	mutex                *sync.Mutex
 	stop                 chan struct{}
-	istioClient          *versionedclient.Clientset
 	isStop               bool
 	updateCacheWhenEmpty bool
 
@@ -69,18 +66,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		mutex:            &sync.Mutex{},
 		stop:             make(chan struct{}),
 	}
-
-	config, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	ic, err := versionedclient.NewForConfig(config)
-	if err != nil {
-		log.Errorf("can not new istio client, err:%v", err)
-		return nil, err
-	}
-	w.istioClient = ic
 
 	w.fullRefreshIntervalLimit = DefaultFullRefreshIntervalLimit
 
