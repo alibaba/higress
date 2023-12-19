@@ -365,7 +365,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	case "self":
 
 	default:
-		log.Warn("invalid mapSource")
+		log.Warnf("invalid mapSource in request header: %v", config.reqTrans.GetMapSource())
 		return types.ActionContinue
 	}
 
@@ -476,7 +476,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 			mapSourceData.kvs = structuredBody.(map[string][]string)
 		}
 	default:
-		log.Warn("invalid mapSource")
+		log.Warnf("invalid mapSource in request body: %v", config.reqTrans.GetMapSource())
 		return types.ActionContinue
 	}
 
@@ -533,7 +533,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 		mapSourceData.mapSourceType = "headers"
 		mapSourceData.kvs = hs
 	default:
-		log.Warn("invalid mapSource")
+		log.Warnf("invalid mapSource in response header: %v", config.respTrans.GetMapSource())
 		return types.ActionContinue
 	}
 
@@ -611,7 +611,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 			mapSourceData.kvs = structuredBody.(map[string][]string)
 		}
 	default:
-		log.Warn("invalid mapSource")
+		log.Warnf("invalid mapSource in response body: %v", config.respTrans.GetMapSource())
 		return types.ActionContinue
 	}
 
@@ -1260,35 +1260,34 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				}
 				kvtOp.removeKvtGroup = append(kvtOp.removeKvtGroup, removeKvt{key})
 			case "rename":
-				if typ == "headers"{
-					p.renameParam.oldKey=strings.ToLower(p.renameParam.oldKey)
-					p.renameParam.newKey=strings.ToLower(p.renameParam.newKey)
+				if typ == "headers" {
+					p.renameParam.oldKey = strings.ToLower(p.renameParam.oldKey)
+					p.renameParam.newKey = strings.ToLower(p.renameParam.newKey)
 				}
 				kvtOp.renameKvtGroup = append(kvtOp.renameKvtGroup, renameKvt{p.renameParam.oldKey, p.renameParam.newKey, p.valueType})
 			case "map":
-				if typ == "headers"{
-					p.mapParam.fromKey=strings.ToLower(p.mapParam.fromKey)
-					p.mapParam.toKey=strings.ToLower(p.mapParam.toKey)
+				if typ == "headers" {
+					p.mapParam.fromKey = strings.ToLower(p.mapParam.fromKey)
+					p.mapParam.toKey = strings.ToLower(p.mapParam.toKey)
 				}
 				kvtOp.mapSource = r.mapSource
-				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey,p.mapParam.toKey, p.valueType})
+				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey, p.mapParam.toKey, p.valueType})
 			case "dedupe":
-				if typ == "headers"{
-					p.dedupeParam.key=strings.ToLower(p.dedupeParam.key)
+				if typ == "headers" {
+					p.dedupeParam.key = strings.ToLower(p.dedupeParam.key)
 				}
-				kvtOp.dedupeKvtGroup = append(kvtOp.dedupeKvtGroup, dedupeKvt{p.dedupeParam.key,p.dedupeParam.strategy, p.valueType})
+				kvtOp.dedupeKvtGroup = append(kvtOp.dedupeKvtGroup, dedupeKvt{p.dedupeParam.key, p.dedupeParam.strategy, p.valueType})
 			case "replace":
 				if typ == "headers" {
 					p.replaceParam.key = strings.ToLower(p.replaceParam.key)
 				}
 				var rg *reg
 				if p.hostPattern != "" || p.pathPattern != "" {
-				rg, err = newReg(p.hostPattern, p.pathPattern)
+					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
 						return nil, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
-				
 				kvtOp.replaceKvtGroup = append(kvtOp.replaceKvtGroup, replaceKvt{p.replaceParam.key, p.replaceParam.newValue, p.valueType, rg})
 			case "add":
 				if typ == "headers" {
@@ -1296,12 +1295,11 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				}
 				var rg *reg
 				if p.hostPattern != "" || p.pathPattern != "" {
-				rg, err = newReg(p.hostPattern, p.pathPattern)
+					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
 						return nil, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
-				
 				kvtOp.addKvtGroup = append(kvtOp.addKvtGroup, addKvt{p.addParam.key, p.addParam.value, p.valueType, rg})
 			case "append":
 				if typ == "headers" {
@@ -1309,7 +1307,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				}
 				var rg *reg
 				if p.hostPattern != "" || p.pathPattern != "" {
-				rg, err = newReg(p.hostPattern, p.pathPattern)
+					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
 						return nil, false, errors.Wrap(err, "failed to new reg")
 					}

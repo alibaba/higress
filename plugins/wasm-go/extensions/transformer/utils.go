@@ -61,7 +61,7 @@ func isValidOperation(op string) bool {
 
 func isValidMapSource(source string) bool {
 	switch source {
-	case "headers", "query", "body":
+	case "headers", "querys", "body":
 		return true
 	default:
 		return false
