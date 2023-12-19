@@ -28,12 +28,8 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-const (
-	DefaultLocalAddress = "localhost"
-)
-
-func LocalAvailablePort() (int, error) {
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:0", DefaultLocalAddress))
+func LocalAvailablePort(localAddress string) (int, error) {
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:0", localAddress))
 	if err != nil {
 		return 0, err
 	}
@@ -59,23 +55,25 @@ type localForwarder struct {
 	types.NamespacedName
 	CLIClient
 
-	localPort int
-	podPort   int
+	localPort    int
+	podPort      int
+	localAddress string
 
 	stopCh chan struct{}
 }
 
-func NewLocalPortForwarder(client CLIClient, namespacedName types.NamespacedName, localPort, podPort int) (PortForwarder, error) {
+func NewLocalPortForwarder(client CLIClient, namespacedName types.NamespacedName, localPort, podPort int, bindAddress string) (PortForwarder, error) {
 	f := &localForwarder{
 		stopCh:         make(chan struct{}),
 		CLIClient:      client,
 		NamespacedName: namespacedName,
 		localPort:      localPort,
 		podPort:        podPort,
+		localAddress:   bindAddress,
 	}
 	if f.localPort == 0 {
 		// get a random port
-		p, err := LocalAvailablePort()
+		p, err := LocalAvailablePort(bindAddress)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to get a local available port")
 		}
@@ -136,7 +134,7 @@ func (f *localForwarder) buildKubernetesPortForwarder(readyCh chan struct{}) (*p
 
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, serverURL)
 	fw, err := portforward.NewOnAddresses(dialer,
-		[]string{DefaultLocalAddress},
+		[]string{f.localAddress},
 		[]string{fmt.Sprintf("%d:%d", f.localPort, f.podPort)},
 		f.stopCh,
 		readyCh,
@@ -154,7 +152,7 @@ func (f *localForwarder) Stop() {
 }
 
 func (f *localForwarder) Address() string {
-	return fmt.Sprintf("%s:%d", DefaultLocalAddress, f.localPort)
+	return fmt.Sprintf("%s:%d", f.localAddress, f.localPort)
 }
 
 func (f *localForwarder) WaitForStop() {

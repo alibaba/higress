@@ -15,6 +15,7 @@ package kubernetes
 
 import (
 	"context"
+	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 	"time"
@@ -118,4 +119,29 @@ func FindPodConditionInList(t *testing.T, conditions []v1.PodCondition, condName
 
 	t.Logf("⌛️ %s was not in conditions list", condName)
 	return false
+}
+
+func ApplyConfigmapDataWithYaml(c client.Client, namespace string, name string, key string, val any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cm := &v1.ConfigMap{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm); err != nil {
+		return err
+	}
+	y, err := yaml.Marshal(val)
+	if err != nil {
+		return err
+	}
+	data := string(y)
+
+	if cm.Data == nil {
+		cm.Data = make(map[string]string, 0)
+	}
+	cm.Data[key] = data
+
+	if err := c.Update(ctx, cm); err != nil {
+		return err
+	}
+	return nil
 }

@@ -70,3 +70,23 @@ spec:
             name: infra-backend-v1
             port:
               number: 8080
+  - host: "api.bar.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/bar"
+        backend:
+          service:
+            name: infra-backend-v2
+            port:
+              number: 8080
+  - host: "api-bar.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/bar"
+        backend:
+          service:
+            name: infra-backend-v3
+            port:
+              number: 8080

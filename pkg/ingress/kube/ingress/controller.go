@@ -373,7 +373,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 	}
 
 	for _, rule := range ingressV1Beta.Rules {
-		cleanHost := common.CleanHost(rule.Host)
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
 			ClusterId: c.options.ClusterId,
@@ -401,7 +400,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				Port: &networking.Port{
 					Number:   80,
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -446,7 +445,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Port: &networking.Port{
 				Number:   443,
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
