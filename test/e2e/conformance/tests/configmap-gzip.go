@@ -227,13 +227,6 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 						"@type":       "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
 						"stat_prefix": "outbound_0.0.0.0_80",
 					},
-				},
-			},
-			{
-				Path:            "configs",
-				TargetNamespace: "higress-system",
-				CheckType:       envoy.CheckTypeExist,
-				ExpectEnvoyConfig: map[string]interface{}{
 					"memory_level":       5,
 					"compression_level":  "COMPRESSION_LEVEL_9",
 					"window_bits":        12,
