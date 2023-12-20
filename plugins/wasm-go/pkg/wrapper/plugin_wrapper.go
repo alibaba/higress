@@ -159,8 +159,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	var jsonData gjson.Result
 	if len(data) == 0 {
 		if ctx.vm.hasCustomConfig {
-			ctx.vm.log.Warn("need config")
-			return types.OnPluginStartStatusFailed
+			ctx.vm.log.Warn("config is empty, but has ParseConfigFunc")
 		}
 	} else {
 		if !gjson.ValidBytes(data) {
