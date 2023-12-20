@@ -35,11 +35,13 @@ type ItemEventHandler = func(name string)
 
 type HigressConfig struct {
 	Tracing *Tracing `json:"tracing,omitempty"`
+	Gzip    *Gzip    `json:"gzip,omitempty"`
 }
 
 func NewDefaultHigressConfig() *HigressConfig {
 	higressConfig := &HigressConfig{
 		Tracing: NewDefaultTracing(),
+		Gzip:    NewDefaultGzip(),
 	}
 	return higressConfig
 }
