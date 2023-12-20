@@ -244,10 +244,13 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 				},
 			},
 		}
-		for _, test := range testCase {
-			if err := envoy.AssertEnvoyConfig(t, test); err != nil {
-				t.Errorf("failed to assert envoy config: %v", err)
+
+		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
+			for _, testcase := range testCase {
+				if err := envoy.AssertEnvoyConfig(t, testcase); err != nil {
+					t.Errorf("failed to assert envoy config: %v", err)
+				}
 			}
-		}
+		})
 	},
 }
