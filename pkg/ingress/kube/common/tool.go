@@ -143,17 +143,19 @@ func GetHost(annotations map[string]string) string {
 	return ""
 }
 
+// Istio requires that the name of the gateway must conform to the DNS label.
+// For details, you can view: https://github.com/istio/istio/blob/2d5c40ad5e9cceebe64106005aa38381097da2ba/pkg/config/validation/validation.go#L478
+func convertToDNSLabelValid(input string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(input))
+	hash := hasher.Sum(nil)
+
+	return hex.EncodeToString(hash)
+}
+
 // CleanHost follow the format of mse-ops for host.
 func CleanHost(host string) string {
-	if host == "*" {
-		return "global"
-	}
-
-	if strings.HasPrefix(host, "*") {
-		host = strings.ReplaceAll(host, "*", "global-")
-	}
-
-	return strings.ReplaceAll(host, ".", "-")
+	return convertToDNSLabelValid(host)
 }
 
 func CreateConvertedName(items ...string) string {

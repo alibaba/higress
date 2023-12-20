@@ -81,7 +81,9 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	configmapMgr.SetHigressConfig(NewDefaultHigressConfig())
 
 	tracingController := NewTracingController(namespace)
+	gzipController := NewGzipController(namespace)
 	configmapMgr.AddItemControllers(tracingController)
+	configmapMgr.AddItemControllers(gzipController)
 	configmapMgr.initEventHandlers()
 
 	return configmapMgr

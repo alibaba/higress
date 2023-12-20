@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Alibaba Group Holding Ltd.
+// Copyright (c) 2023 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,89 +22,34 @@ import (
 )
 
 func init() {
-	Register(HTTPRouteHostNameSameNamespace)
+	Register(WasmPluginsKeyAuth)
 }
 
-var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
-	ShortName:   "HTTPRouteHostNameSameNamespace",
-	Description: "A Ingress in the higress-conformance-infra namespace demonstrates host match ability.",
-	Manifests:   []string{"tests/httproute-hostname-same-namespace.yaml"},
-	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
+var WasmPluginsKeyAuth = suite.ConformanceTest{
+	ShortName:   "WasmPluginsKeyAuth",
+	Description: "The Ingress in the higress-conformance-infra namespace test the key-auth WASM plugin.",
+	Manifests:   []string{"tests/go-wasm-key-auth.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 1: Successful authentication",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
-						Host: "foo.com",
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "token11111111111111111111"},
 					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/foo",
-						Host: "bar.com",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/bar",
-						Host: "foo.com",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v3",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/bar",
-						Host: "bar.com",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			}, {
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Path: "/any",
-						Host: "any.bar.com",
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo.com",
+							Path:    "/foo",
+							Headers: map[string]string{"X-Mse-Consumer": "consumer1"},
+						},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -115,40 +60,81 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v2",
+					TestCaseName:    "case 2: No Key Authentication information found",
+					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/bar",
-						Host: "api.bar.com",
+						Host: "foo.com",
+						Path: "/foo",
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 401,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v3",
+					TestCaseName:    "case 3: Invalid token",
+					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/bar",
-						Host: "api-bar.com",
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "xxxxxxxxxnotfoundtoken"},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 403,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: Unauthorized consumer",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"x-api-key": "token22222222222222222222"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 5:  Muti Key Authentication information found",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"apikey": "token11111111111111111111", "x-api-key": "token11111111111111111111"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
 					},
 				},
 			},
 		}
-
-		t.Run("HTTP request should reach infra-backend with different hostname", func(t *testing.T) {
+		t.Run("WasmPlugins key-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

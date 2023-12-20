@@ -179,6 +179,39 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 	}
 }
 
+// MustDelete delete Kubernetes resources defined with the provided YAML file .
+func (a Applier) MustDelete(t *testing.T, c client.Client, timeoutConfig config.TimeoutConfig, location string) {
+	data, err := getContentsFromPathOrURL(location, timeoutConfig)
+	require.NoError(t, err)
+
+	decoder := yaml.NewYAMLOrJSONDecoder(data, 4096)
+
+	resources, err := a.prepareResources(t, decoder)
+	if err != nil {
+		t.Logf("🧳 Manifest: %s", data.String())
+		require.NoErrorf(t, err, "error parsing manifest")
+	}
+
+	for i := range resources {
+		uObj := &resources[i]
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeoutConfig.CreateTimeout)
+		defer cancel()
+
+		// namespacedName := types.NamespacedName{Namespace: uObj.GetNamespace(), Name: uObj.GetName()}
+		// err := c.Get(ctx, namespacedName, uObj)
+		// if err != nil {
+		// 	if !apierrors.IsNotFound(err) {
+		// 		require.NoErrorf(t, err, "error getting resource")
+		// 	}
+		// }
+
+		t.Logf("🏗 Deleting %s %s %s", uObj.GetName(), uObj.GetKind(), uObj.GetNamespace())
+		err = c.Delete(ctx, uObj)
+		require.NoErrorf(t, err, "error delete resource")
+	}
+}
+
 // getContentsFromPathOrURL takes a string that can either be a local file
 // path or an https:// URL to YAML manifests and provides the contents.
 func getContentsFromPathOrURL(location string, timeoutConfig config.TimeoutConfig) (*bytes.Buffer, error) {

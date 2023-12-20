@@ -118,7 +118,7 @@ func validTracing(t *Tracing) error {
 		}
 	}
 
-	if tracerNum != 1 {
+	if tracerNum != 1 && t.Enable == true {
 		return errors.New("only one of skywalking，zipkin and opentelemetry configuration can be set")
 	}
 	return nil

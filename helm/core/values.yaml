@@ -369,6 +369,8 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
+
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   # revision declares which revision this gateway is a part of
   revision: ""
@@ -457,6 +459,8 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
+
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   env: {}
 

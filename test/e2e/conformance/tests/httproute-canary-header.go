@@ -34,6 +34,7 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 1: canary header value matches",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -49,8 +50,10 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 2: canary header value does not match",
 					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -65,8 +68,10 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 3: canary header value matches when the exact path matches",
 					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -82,8 +87,10 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: canary header value matches when the prefix path matches",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -102,6 +109,7 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 5: canary header value does not match when the exact path matches",
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -119,6 +127,7 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:    "case 6: canary header value does not match when the prefix path matches",
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -126,6 +135,87 @@ var HTTPRouteCanaryHeader = suite.ConformanceTest{
 					ActualRequest: http.Request{
 						Path: "/foo/bar",
 						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 7: canary header pattern matches",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/baz",
+						Host: "canary.higress.io",
+						Headers: map[string]string{
+							"traffic-split-higress": "test.com",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 8: canary header pattern matches including the suffix",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/baz",
+						Host: "canary.higress.io",
+						Headers: map[string]string{
+							"traffic-split-higress": "test.com.abc",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 9: canary header is not set",
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/baz",
+						Host: "canary.higress.io",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 10: canary header pattern does not match",
+					TargetBackend:   "infra-backend-v2",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Path: "/baz",
+						Host: "canary.higress.io",
+						Headers: map[string]string{
+							"traffic-split-higress": "test.org",
+						},
 					},
 				},
 				Response: http.AssertionResponse{

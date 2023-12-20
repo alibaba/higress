@@ -115,9 +115,9 @@ func New(s Options) *ConformanceTestSuite {
 		suite.BaseManifests = []string{
 			"base/manifests.yaml",
 			"base/consul.yaml",
-			"base/dubbo.yaml",
 			"base/eureka.yaml",
 			"base/nacos.yaml",
+			"base/dubbo.yaml",
 		}
 	}
 
@@ -179,11 +179,13 @@ type ConformanceTests []ConformanceTest
 type ConformanceTest struct {
 	ShortName   string
 	Description string
+	PreDeleteRs []string
 	Manifests   []string
 	Features    []SupportedFeature
 	Slow        bool
 	Parallel    bool
 	Test        func(*testing.T, *ConformanceTestSuite)
+	NotCleanup  bool
 }
 
 // Run runs an individual tests, applying and cleaning up the required manifests
@@ -208,9 +210,14 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 
 	t.Logf("🔥 Running Conformance Test: %s", test.ShortName)
 
+	for _, manifestLocation := range test.PreDeleteRs {
+		t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
+		suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
+	}
+
 	for _, manifestLocation := range test.Manifests {
 		t.Logf("🧳 Applying Manifests: %s", manifestLocation)
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, true)
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)
 	}
 
 	test.Test(t, suite)

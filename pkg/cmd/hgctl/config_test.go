@@ -38,7 +38,7 @@ type fakePortForwarder struct {
 }
 
 func newFakePortForwarder(b []byte) (kubernetes.PortForwarder, error) {
-	p, err := kubernetes.LocalAvailablePort()
+	p, err := kubernetes.LocalAvailablePort("localhost")
 	if err != nil {
 		return nil, err
 	}
