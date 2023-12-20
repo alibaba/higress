@@ -15,68 +15,176 @@ package envoy
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/alibaba/higress/pkg/config"
-	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+type CheckType string
+
+const (
+	// CheckTypeMatch checks if the actual value matches the expected value.
+	CheckTypeMatch CheckType = "match"
+	// CheckTypeExist checks if the actual value exists.
+	CheckTypeExist CheckType = "exist"
+	// CheckTypeNotExist checks if the actual value does not exist.
+	CheckTypeNotExist CheckType = "notexist"
+)
+
+// Assertion defines the assertion to be made on the Envoy config.
 type Assertion struct {
-	Path                     string
-	ExceptContainEnvoyConfig map[string]interface{}
-	TargetNamespace          string
+	// Path is the path of gjson to the value to be asserted.
+	Path string
+	// CheckType is the type of assertion to be made.
+	CheckType CheckType
+	// ExpectEnvoyConfig is the expected value of the Envoy config.
+	ExpectEnvoyConfig map[string]interface{}
+	// TargetNamespace is the namespace of the Envoy pod.
+	TargetNamespace string
 }
 
+// AssertEnvoyConfig asserts the Envoy config.
 func AssertEnvoyConfig(t *testing.T, expected Assertion) error {
 	options := config.NewDefaultGetEnvoyConfigOptions()
 	options.PodNamespace = expected.TargetNamespace
 
-	out, err := config.GetEnvoyConfig(options)
+	var allEnvoyConfig string
+
+	// wait for envoy to be ready
+	err := wait.PollImmediate(1*time.Second, 60*time.Second, func() (bool, error) {
+		t.Logf("Waiting for envoy to be ready")
+		out, err := config.GetEnvoyConfig(options)
+		if err != nil {
+			return false, nil
+		}
+		allEnvoyConfig = string(out)
+		return true, nil
+	})
 	if err != nil {
 		return err
 	}
-	allEnvoyConfig := string(out)
 
-	result := gjson.Get(allEnvoyConfig, expected.Path)
-	actualValue := result.Value()
-	if actualValue == nil {
-		if expected.ExceptContainEnvoyConfig == nil {
-			return nil
-		} else {
-			return fmt.Errorf("Key '%s' not found in actual config", expected.Path)
-		}
+	switch expected.CheckType {
+	case CheckTypeMatch:
+		return assertEnvoyConfigMatch(t, allEnvoyConfig, expected)
+	case CheckTypeExist:
+		return assertEnvoyConfigExist(t, allEnvoyConfig, expected)
+	case CheckTypeNotExist:
+		return assertEnvoyConfigNotExist(t, allEnvoyConfig, expected)
+	default:
+		return fmt.Errorf("Unknown check type '%s'", expected.CheckType)
 	}
+}
 
-	result.ForEach(func(key, value gjson.Result) bool {
-		err = compareValues(value.Value(), expected.ExceptContainEnvoyConfig)
-		require.NoError(t, err)
-		return true
-	})
+// AssertEnvoyConfigNotExist asserts the Envoy config does not exist.
+func assertEnvoyConfigNotExist(t *testing.T, envoyConfig string, expected Assertion) error {
+	result := gjson.Get(envoyConfig, expected.Path).Value()
+	if result == nil {
+		return nil
+	}
+	if find(result, expected.ExpectEnvoyConfig) {
+		return fmt.Errorf("the expected value %s exists in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
+	}
 	return nil
 }
 
-func compareValues(actual interface{}, expected map[string]interface{}) error {
-	for key, expectedValue := range expected {
-		actualMap, ok := actual.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("Expected type map[string]interface{} for key '%s'", key)
-		}
-		actualValue := actualMap[key]
-		if actualValue == nil {
-			return fmt.Errorf("Key '%s' not found in actual config", key)
-		}
-		switch v := expectedValue.(type) {
-		case map[string]interface{}:
-			err := compareValues(actualValue, v)
-			if err != nil {
-				return err
-			}
-		default:
-			if actualValue != expectedValue {
-				return fmt.Errorf("Value mismatch for key '%s'. Expected '%v', but got '%v'", key, expectedValue, actualValue)
-			}
-		}
+// AssertEnvoyConfigExist asserts the Envoy config exists.
+func assertEnvoyConfigExist(t *testing.T, envoyConfig string, expected Assertion) error {
+	result := gjson.Get(envoyConfig, expected.Path).Value()
+	if result == nil {
+		return fmt.Errorf("failed to get value from path '%s'", expected.Path)
+	}
+	if !find(result, expected.ExpectEnvoyConfig) {
+		return fmt.Errorf("the expected value %s does not exist in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
 	}
 	return nil
+}
+
+// AssertEnvoyConfigMatch asserts the Envoy config matches the expected value.
+func assertEnvoyConfigMatch(t *testing.T, envoyConfig string, expected Assertion) error {
+	result := gjson.Get(envoyConfig, expected.Path).Value()
+	if result == nil {
+		return fmt.Errorf("failed to get value from path '%s'", expected.Path)
+	}
+	if !match(result, expected.ExpectEnvoyConfig) {
+		return fmt.Errorf("failed to match value from path '%s'", expected.Path)
+	}
+	return nil
+}
+
+// match
+// 1. interface{} is a slice: if one of the slice elements matches, the assertion passes
+// Notice: can recursively find slices
+// 2. interface{} is a map: if all the map elements match, the assertion passes
+// 3. interface{} is a field: if the field matches, the assertion passes
+func match(actual interface{}, expected map[string]interface{}) bool {
+	reflectValue := reflect.ValueOf(actual)
+	kind := reflectValue.Kind()
+	switch kind {
+	case reflect.Slice:
+		actualValueSlice := actual.([]interface{})
+		for _, v := range actualValueSlice {
+			if match(v, expected) {
+				return true
+			}
+		}
+		return false
+	case reflect.Map:
+		actualValueMap := actual.(map[string]interface{})
+		for key, expectValue := range expected {
+			actualValue, ok := actualValueMap[key]
+			if !ok {
+				return false
+			}
+			if !reflect.DeepEqual(actualValue, expectValue) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(actual, expected)
+	}
+}
+
+// find finds the value of the given path in the given Envoy config.
+func find(actual interface{}, expected map[string]interface{}) bool {
+	for key, expectValue := range expected {
+		if findKey(actual, key, expectValue) {
+			return true
+		}
+	}
+	return false
+}
+
+// findKey finds the value of the given key in the given Envoy config.
+func findKey(actual interface{}, key string, expectValue interface{}) bool {
+	reflectValue := reflect.ValueOf(actual)
+	kind := reflectValue.Kind()
+	switch kind {
+	case reflect.Slice:
+		actualValueSlice := actual.([]interface{})
+		for _, v := range actualValueSlice {
+			if findKey(v, key, expectValue) {
+				return true
+			}
+		}
+		return false
+	case reflect.Map:
+		actualValueMap := actual.(map[string]interface{})
+		for actualKey, actualValue := range actualValueMap {
+			if actualKey == key && reflect.DeepEqual(actualValue, expectValue) {
+				return true
+			}
+			if findKey(actualValue, key, expectValue) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
