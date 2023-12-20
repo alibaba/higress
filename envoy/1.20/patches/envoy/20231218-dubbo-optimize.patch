@@ -1,0 +1,1502 @@
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/source/BUILD
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/BUILD	2023-12-18 19:08:11.408975013 +0800
+@@ -83,6 +83,7 @@
+         "//envoy/http:query_params_interface",
+         "//source/common/buffer:buffer_lib",
+         "//source/common/common:enum_to_int",
++        "//source/common/common:regex_lib",
+         "//source/common/http:codes_lib",
+         "//source/common/http:utility_lib",
+         "@envoy_api//contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3:pkg_cc_proto",
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.cc
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.cc	2023-12-18 19:08:11.408975013 +0800
+@@ -8,9 +8,11 @@
+ namespace HttpDubboTranscoder {
+ 
+ Http::FilterFactoryCb HttpDubboTranscodeFilterFactory::createFilterFactoryFromProtoTyped(
+-    const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder& proto_config,
+-    const std::string&, Server::Configuration::FactoryContext&) {
+-  DubboTranscoderConfigSharedPtr config = std::make_shared<DubboTranscoderConfig>(proto_config);
++    const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
++        proto_config,
++    const std::string&, Server::Configuration::FactoryContext& context) {
++  DubboTranscoderConfigSharedPtr config =
++      std::make_shared<DubboTranscoderConfig>(proto_config, DUBBO_STATS_PREFIX, context.scope());
+   return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
+     callbacks.addStreamFilter(std::make_shared<TranscodeFilter>(*config));
+   };
+@@ -18,9 +20,10 @@
+ 
+ Router::RouteSpecificFilterConfigConstSharedPtr
+ HttpDubboTranscodeFilterFactory::createRouteSpecificFilterConfigTyped(
+-    const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder& proto_config,
+-    Server::Configuration::ServerFactoryContext&, ProtobufMessage::ValidationVisitor&) {
+-  return std::make_shared<DubboTranscoderConfig>(proto_config);
++    const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
++        proto_config,
++    Server::Configuration::ServerFactoryContext& context, ProtobufMessage::ValidationVisitor&) {
++  return std::make_shared<DubboTranscoderConfig>(proto_config, DUBBO_STATS_PREFIX, context.scope());
+ };
+ 
+ REGISTER_FACTORY(HttpDubboTranscodeFilterFactory,
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.h
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/config.h	2023-12-18 19:08:11.408975013 +0800
+@@ -11,6 +11,8 @@
+ namespace HttpFilters {
+ namespace HttpDubboTranscoder {
+ 
++const std::string DUBBO_STATS_PREFIX = "http_dubbo_transcoder";
++
+ /**
+  * Config registration for the buffer filter.
+  */
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.cc	2023-12-18 19:08:11.408975013 +0800
+@@ -34,12 +34,14 @@
+ static const std::string AttachmentVersionKey = "version";
+ static const std::string AttachmentTrueValue = "true";
+ static const std::string AttachmentGroupKey = "group";
+-constexpr uint8_t EVENT_BIT_ON = 0x20;
++static const std::string ContentTypeHeaderValue = "application/json; charset=utf-8";
+ static std::atomic_ulong RequestId{0};
+ 
+ DubboTranscoderConfig::DubboTranscoderConfig(
+     const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
+-        proto_config) {
++        proto_config,
++    const std::string& stat_prefix, Stats::Scope& scope)
++    : stats_(generateStats(stat_prefix, scope)) {
+ 
+   disabled_ = proto_config.services_mapping().empty();
+   if (disabled_) {
+@@ -164,38 +166,22 @@
+ };
+ 
+ absl::Status Http2DubboTranscoder::translateDubboToHttp(Buffer::Instance& data) {
+-  if (response_buffer_.length() == 0) {
+-    response_buffer_.move(data);
+-
+-    if (response_buffer_.length() < DUBBO_HEADER_SIZE) {
+-      return absl::DataLossError("Dubbo message data is incomplete");
+-    }
+-
+-    if (!validateMagicNumber(response_buffer_)) {
+-      return absl::InternalError("Illegal Dubbo message");
+-    }
+-  } else {
+-    response_buffer_.move(data);
++  if (data.length() < DUBBO_MAGIC_SIZE || !validateMagicNumber(data)) {
++    return absl::UnknownError("Service unachievable or not dubbo message");
+   }
+ 
+-  decodeDubboHeader(response_buffer_, response_header_);
+-
+-  if ((response_header_.type_ & EVENT_BIT_ON) == EVENT_BIT_ON) {
+-    response_buffer_.drain(DUBBO_HEADER_SIZE + static_cast<uint64_t>(response_header_.length_));
+-    return absl::AbortedError("Heartbeat response should be aborted");
+-  }
+-
+-  if ((static_cast<uint64_t>(response_header_.length_) + DUBBO_HEADER_SIZE) >
+-      response_buffer_.length()) {
+-    return absl::OutOfRangeError("Invalid dubbo response size");
++  if (data.length() < DUBBO_HEADER_SIZE) {
++    data.drain(data.length());
++    return absl::DataLossError("Dubbo message data is incomplete");
+   }
+ 
+-  response_buffer_.drain(DUBBO_HEADER_SIZE);
++  int32_t dubbo_data_length = data.peekBEInt<uint32_t>(DUBBO_LENGTH_OFFSET);
++  data.drain(DUBBO_HEADER_SIZE);
+   std::string response;
+-  response.reserve(response_header_.length_);
+-  response.resize(response_header_.length_);
+-  response_buffer_.copyOut(0, response_header_.length_, &response[0]);
+-  response_buffer_.drain(response_header_.length_);
++  response.reserve(dubbo_data_length);
++  response.resize(dubbo_data_length);
++  data.copyOut(0, dubbo_data_length, &response[0]);
++  data.drain(data.length());
+   Hessian2::Decoder decoder(response);
+   auto type_value = decoder.decode<int32_t>();
+   if (type_value == nullptr) {
+@@ -420,30 +406,10 @@
+   return data.peekBEInt<uint16_t>() == DUBBO_MAGIC;
+ }
+ 
+-void Http2DubboTranscoder::decodeDubboHeader(Buffer::Instance& data, Header& dubbo_header) {
+-  ASSERT(data.length() >= DUBBO_HEADER_SIZE);
+-
+-  uint64_t start_position = 0;
+-  dubbo_header.magic_ = data.peekBEInt<uint16_t>(start_position);
+-
+-  start_position += sizeof(dubbo_header.magic_);
+-  dubbo_header.type_ = data.peekBEInt<uint8_t>(start_position);
+-
+-  start_position += sizeof(dubbo_header.type_);
+-  dubbo_header.state_ = data.peekBEInt<uint8_t>(start_position);
+-
+-  start_position += sizeof(dubbo_header.state_);
+-  dubbo_header.reqId_ = data.peekBEInt<int64_t>(start_position);
+-
+-  start_position += sizeof(dubbo_header.reqId_);
+-  dubbo_header.length_ = data.peekBEInt<int32_t>(start_position);
+-}
+-
+ void TranscodeFilter::initPerRouteConfig() {
+   const auto* route_local =
+       Http::Utility::resolveMostSpecificPerFilterConfig<DubboTranscoderConfig>(
+           "envoy.filters.http.http_dubbo_transcoder", decoder_callbacks_->route());
+-
+   per_route_config_ = route_local ? route_local : &config_;
+ }
+ 
+@@ -455,10 +421,12 @@
+     return Http::FilterHeadersStatus::Continue;
+   }
+ 
++  per_route_config_->stats_.dubbo_req_total_.inc();
+   ENVOY_STREAM_LOG(debug, "decodeHeaders:", *decoder_callbacks_);
+ 
+   auto [status, transcoder] = per_route_config_->createTranscoder(header);
+   if (!status.ok()) {
++    per_route_config_->stats_.resolve_method_error_.inc();
+     ENVOY_STREAM_LOG(debug, "Failed to transcode request headers: {}", *decoder_callbacks_,
+                      status.ToString());
+ 
+@@ -480,6 +448,7 @@
+     Buffer::OwnedImpl empty_data;
+     status = transcoder_->extractTranscoderParameters(header, empty_data);
+     if (!status.ok()) {
++      per_route_config_->stats_.extract_parameter_error_.inc();
+       ENVOY_LOG(warn, "Failed to resolve headers, error is {}", status.ToString());
+ 
+       // TODO(zhaobingkun.zbk)
+@@ -503,10 +472,6 @@
+ }
+ 
+ Http::FilterDataStatus TranscodeFilter::decodeData(Buffer::Instance& data, bool end_stream) {
+-  if (data.length() == 0) {
+-    return Http::FilterDataStatus::Continue;
+-  }
+-
+   if (!transcoder_ || error_) {
+     ENVOY_STREAM_LOG(debug, "Transcoder does not exist or an error occurred, end_stream: {}",
+                      *decoder_callbacks_, end_stream);
+@@ -514,8 +479,18 @@
+     return Http::FilterDataStatus::Continue;
+   }
+ 
+-  const auto status = transcoder_->extractTranscoderParameters(*request_header_, data);
++  if (!request_body_buffer_) {
++    request_body_buffer_ = std::make_unique<Buffer::OwnedImpl>();
++  }
++  request_body_buffer_->move(data);
++  if (!end_stream) {
++    return Http::FilterDataStatus::StopIterationAndBuffer;
++  }
++
++  const auto status =
++      transcoder_->extractTranscoderParameters(*request_header_, *request_body_buffer_);
+   if (!status.ok()) {
++    per_route_config_->stats_.extract_parameter_error_.inc();
+     ENVOY_LOG(warn, "Failed to auto mapping body, error is {}", status.ToString());
+ 
+     // TODO(zhaobingkun.zbk)
+@@ -539,7 +514,10 @@
+   return Http::FilterTrailersStatus::Continue;
+ }
+ 
+-Http::FilterHeadersStatus TranscodeFilter::encodeHeaders(Http::ResponseHeaderMap&, bool) {
++Http::FilterHeadersStatus TranscodeFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
++  if (transcoder_) {
++    headers.setReferenceContentType(ContentTypeHeaderValue);
++  }
+   return Http::FilterHeadersStatus::Continue;
+ }
+ 
+@@ -549,14 +527,26 @@
+ 
+   if (transcoder_) {
+     absl::Status status = transcoder_->translateDubboToHttp(data);
+-    if (!status.ok()) {
+-      if (status.code() != absl::StatusCode::kAborted) {
+-        Http::Code http_code = DubboUtility::convertStatusToHttpCode(status.code());
+-        error_ = true;
+-        decoder_callbacks_->sendLocalReply(static_cast<Http::Code>(http_code), status.ToString(),
+-                                           nullptr, absl::nullopt, "");
+-      }
+-      return Http::FilterDataStatus::StopIterationNoBuffer;
++    switch (status.code()) {
++    case absl::StatusCode::kUnknown:
++      per_route_config_->stats_.response_protocol_error_.inc();
++      break;
++    case absl::StatusCode::kDataLoss:
++      per_route_config_->stats_.response_incomplete_.inc();
++      break;
++    case absl::StatusCode::kInternal:
++      per_route_config_->stats_.response_type_error_.inc();
++      break;
++    case absl::StatusCode::kOk:
++      per_route_config_->stats_.response_success_.inc();
++      break;
++    default:
++      break;
++    }
++    if (status.code() != absl::StatusCode::kOk && status.code() != absl::StatusCode::kUnknown) {
++      ENVOY_STREAM_LOG(debug, "translateDubboToHttp failed, faliled reason {}", *decoder_callbacks_,
++                       status.message());
++      data.add(status.message());
+     }
+   }
+ 
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/dubbo_transcoder_filter.h	2023-12-18 19:08:11.412975131 +0800
+@@ -31,6 +31,22 @@
+ 
+ class Http2DubboTranscoder;
+ 
++/**
++ * All http_dubbo_transcoder stats.
++ */
++#define ALL_HTTP_DUBBO_TRANSCODER_STATS(COUNTER)                                                   \
++  COUNTER(response_protocol_error)                                                                 \
++  COUNTER(response_incomplete)                                                                     \
++  COUNTER(response_type_error)                                                                     \
++  COUNTER(extract_parameter_error)                                                                 \
++  COUNTER(resolve_method_error)                                                                    \
++  COUNTER(response_success)                                                                        \
++  COUNTER(dubbo_req_total)
++
++struct HttpDubboTranscoderStats {
++  ALL_HTTP_DUBBO_TRANSCODER_STATS(GENERATE_COUNTER_STRUCT)
++};
++
+ /***
+  * transcoder config
+  */
+@@ -42,7 +58,8 @@
+    */
+   DubboTranscoderConfig(
+       const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
+-          config);
++          config,
++      const std::string& stat_prefix, Stats::Scope& scope);
+ 
+   /***
+    * this function will create the corresponding transcoder acccording to the
+@@ -70,7 +87,14 @@
+     return request_validate_options_;
+   }
+ 
++  HttpDubboTranscoderStats stats_;
++
+ private:
++  HttpDubboTranscoderStats generateStats(const std::string& prefix, Stats::Scope& scope) {
++    return HttpDubboTranscoderStats{
++        ALL_HTTP_DUBBO_TRANSCODER_STATS(POOL_COUNTER_PREFIX(scope, prefix))};
++  }
++
+   bool disabled_{false};
+   envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder::
+       RequestValidateOptions request_validate_options_;
+@@ -92,15 +116,6 @@
+   OthersError = 7,
+ };
+ 
+-// DUBBO HEADER FRAME
+-struct Header {
+-  uint16_t magic_;
+-  uint8_t type_;
+-  uint8_t state_;
+-  int64_t reqId_;
+-  int32_t length_;
+-};
+-
+ constexpr uint64_t DUBBO_HEADER_SIZE = 16;
+ constexpr uint64_t DUBBO_MAGIC_SIZE = 2;
+ constexpr uint64_t DUBBO_TYPE_SIZE = 1;
+@@ -108,6 +123,7 @@
+ constexpr uint64_t DUBBO_REQID_SIZE = 8;
+ constexpr uint64_t DUBBO_PACKETLEN_SIZE = 4;
+ constexpr uint16_t DUBBO_MAGIC = 0xdabb;
++constexpr uint64_t DUBBO_LENGTH_OFFSET = 12;
+ constexpr uint8_t DEFAULT_REQUEST_STAT = 0;
+ constexpr int64_t DEFAULT_REQUEST_ID = 1;
+ /**
+@@ -169,7 +185,6 @@
+ 
+ private:
+   bool validateMagicNumber(Buffer::Instance& data);
+-  void decodeDubboHeader(Buffer::Instance& data, Header& dubbo_header);
+ 
+   struct TypedParamsWithAttachment {
+     std::vector<std::string> parameter_types_;
+@@ -180,8 +195,6 @@
+   const MethodInfo& method_info_;
+   const std::vector<VariableBinding> bindings_;
+   Buffer::OwnedImpl request_buffer_{};
+-  Buffer::OwnedImpl response_buffer_{};
+-  Header response_header_;
+   absl::optional<TypedParamsWithAttachment> current_params_;
+ };
+ 
+@@ -209,7 +222,7 @@
+   Http::FilterHeadersStatus encode100ContinueHeaders(Http::ResponseHeaderMap&) override {
+     return Http::FilterHeadersStatus::Continue;
+   }
+-  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap&, bool) override;
++  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap& headers, bool) override;
+   Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override;
+   Http::FilterTrailersStatus encodeTrailers(Http::ResponseTrailerMap&) override;
+   Http::FilterMetadataStatus encodeMetadata(Http::MetadataMap&) override {
+@@ -228,6 +241,7 @@
+   Http::StreamEncoderFilterCallbacks* encoder_callbacks_{};
+   Http::StreamDecoderFilterCallbacks* decoder_callbacks_{};
+   Http::RequestHeaderMap* request_header_{};
++  std::unique_ptr<Buffer::OwnedImpl> request_body_buffer_{};
+ 
+   bool error_{false};
+ };
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.cc
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.cc	2023-12-18 19:08:11.412975131 +0800
+@@ -6,6 +6,7 @@
+ #include "envoy/http/codes.h"
+ #include "envoy/http/query_params.h"
+ 
++#include "source/common/common/assert.h"
+ #include "source/common/buffer/buffer_impl.h"
+ #include "source/common/common/enum_to_int.h"
+ #include "source/common/common/regex.h"
+@@ -116,72 +117,185 @@
+   return {has_value, has_excption, has_attachment};
+ }
+ 
++std::string DubboUtility::hessianType2String(Hessian2::Object::Type type) {
++  switch (type) {
++  case Hessian2::Object::Type::Binary:
++    return "Binary";
++  case Hessian2::Object::Type::Boolean:
++    return "Boolean";
++  case Hessian2::Object::Type::Date:
++    return "Date";
++  case Hessian2::Object::Type::Double:
++    return "Double";
++  case Hessian2::Object::Type::Integer:
++    return "Integer";
++  case Hessian2::Object::Type::Long:
++    return "Long";
++  case Hessian2::Object::Type::Null:
++    return "Null";
++  case Hessian2::Object::Type::Ref:
++    return "Ref";
++  case Hessian2::Object::Type::String:
++    return "String";
++  case Hessian2::Object::Type::TypedList:
++    return "TypedList";
++  case Hessian2::Object::Type::UntypedList:
++    return "UntypedList";
++  case Hessian2::Object::Type::TypedMap:
++    return "TypedMap";
++  case Hessian2::Object::Type::UntypedMap:
++    return "UntypedMap";
++  case Hessian2::Object::Type::Class:
++    return "Class";
++  default:
++    return "Unknown";
++  }
++}
++
++json DubboUtility::badCastErrorMessageJson(const std::string& type) {
++  json error_message_json;
++  error_message_json["error"] = absl::StrFormat(
++      "The data returned by dubbo service does not comply with the hessian protocol, data type: %s",
++      type);
++  return error_message_json;
++}
++
+ json DubboUtility::hessian2Json(Object* input) {
+   json out;
+ 
+   if (input == nullptr) {
+-    out = NullValue;
+-    return out;
++    return nullptr;
+   }
+ 
+   switch (input->type()) {
+-  case Object::Type::TypedMap:
++  case Object::Type::TypedMap: {
++    if (dynamic_cast<Hessian2::TypedMapObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      for (auto& item : *(static_cast<Hessian2::TypedMapObject*>(input))) {
++        Hessian2::StringObject& key = item.first->asType<Hessian2::StringObject>();
++        if (key.toMutableString() != nullptr) {
++          out[*(key.toMutableString())] = hessian2Json(item.second.get());
++        }
++      }
++    }
++  } break;
+   case Object::Type::UntypedMap: {
+-    for (auto& item : input->asType<Hessian2::UntypedMapObject>()) {
+-      Hessian2::StringObject& key = item.first->asType<Hessian2::StringObject>();
+-      if (key.toMutableString() != nullptr && *(key.toMutableString()) != ClassKey) {
+-        out[*(key.toMutableString())] = hessian2Json(item.second.get());
++    if (dynamic_cast<Hessian2::UntypedMapObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      for (auto& item : *(static_cast<Hessian2::UntypedMapObject*>(input))) {
++        Hessian2::StringObject& key = item.first->asType<Hessian2::StringObject>();
++        if (key.toMutableString() != nullptr && *(key.toMutableString()) != ClassKey) {
++          out[*(key.toMutableString())] = hessian2Json(item.second.get());
++        }
++      }
++    }
++  } break;
++  case Object::Type::UntypedList: {
++    if (dynamic_cast<Hessian2::UntypedListObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      for (auto& item : *(static_cast<Hessian2::UntypedListObject*>(input))) {
++        json j = hessian2Json(item.get());
++        out.push_back(j);
+       }
+     }
+   } break;
+-
+-  case Object::Type::UntypedList:
+   case Object::Type::TypedList: {
+-    for (auto& item : input->asType<Hessian2::TypedListObject>()) {
+-      json j = hessian2Json(item.get());
+-      out.push_back(j);
++    if (dynamic_cast<Hessian2::TypedListObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      for (auto& item : *(static_cast<Hessian2::TypedListObject*>(input))) {
++        json j = hessian2Json(item.get());
++        out.push_back(j);
++      }
+     }
+   } break;
+ 
+   case Object::Type::String: {
+-    out = *(input->asType<Hessian2::StringObject>().toMutableString());
++    if (dynamic_cast<Hessian2::StringObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::StringObject*>(input)->toMutableString());
++    }
+   } break;
+ 
+   case Object::Type::Double: {
+-    out = *(input->asType<Hessian2::DoubleObject>().toMutableDouble());
++    if (dynamic_cast<Hessian2::DoubleObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::DoubleObject*>(input)->toMutableDouble());
++    }
+   } break;
+ 
+   case Object::Type::Integer: {
+-    out = *(input->asType<Hessian2::IntegerObject>().toMutableInteger());
++    if (dynamic_cast<Hessian2::IntegerObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::IntegerObject*>(input)->toMutableInteger());
++    }
+   } break;
+ 
+   case Object::Type::Long: {
+-    out = *(input->asType<Hessian2::LongObject>().toMutableLong());
++    if (dynamic_cast<Hessian2::LongObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::LongObject*>(input)->toMutableLong());
++    }
+   } break;
+ 
+   case Object::Type::Boolean: {
+-    out = *(input->asType<Hessian2::BooleanObject>().toMutableBoolean());
++    if (dynamic_cast<Hessian2::BooleanObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::BooleanObject*>(input)->toMutableBoolean());
++    }
+   } break;
+ 
+   case Object::Type::Ref: {
+-    out = hessian2Json((input->asType<Hessian2::RefObject>().toRefDest().value()));
++    if (dynamic_cast<Hessian2::RefObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      Hessian2::Object* obj = static_cast<Hessian2::RefObject*>(input)->toRefDest().value();
++      out = absl::StrFormat("Type: Ref, target Object Type: %s", hessianType2String(obj->type()));
++    }
+   } break;
+ 
+-  case Object::Type::Class:
+-    out = input->toClassInstance().value()->def_->type_;
+-    break;
++  case Object::Type::Class: {
++    if (dynamic_cast<Hessian2::ClassInstanceObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      const Hessian2::Object::ClassInstance* class_instance =
++          static_cast<Hessian2::ClassInstanceObject*>(input)->toClassInstance().value();
++      RELEASE_ASSERT(class_instance->def_->field_names_.size() == class_instance->data_.size(),
++                     "The size of def_->field_names_ and data_ of class_instance is inconsistent");
++      out[ClassKey] = class_instance->def_->type_;
++      for (int i = 0; i < static_cast<int>(class_instance->def_->field_names_.size()); i++) {
++        out[class_instance->def_->field_names_[i]] = hessian2Json(class_instance->data_[i].get());
++      }
++    }
++  } break;
+ 
+-  case Object::Type::Date:
+-    out = input->toMutableDate()->count();
+-    break;
++  case Object::Type::Date: {
++    if (dynamic_cast<Hessian2::DateObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = static_cast<Hessian2::DateObject*>(input)->toMutableDate()->count();
++    }
++  } break;
+ 
+-  case Object::Type::Null:
+-    out = NullValue;
+-    break;
++  case Object::Type::Null: {
++    out = nullptr;
++  } break;
+ 
+-  case Object::Type::Binary:
+-    out = *(input->toMutableBinary());
+-    break;
++  case Object::Type::Binary: {
++    if (dynamic_cast<Hessian2::BinaryObject*>(input) == nullptr) {
++      out = badCastErrorMessageJson(hessianType2String(input->type()));
++    } else {
++      out = *(static_cast<Hessian2::BinaryObject*>(input)->toMutableBinary());
++    }
++  } break;
+ 
+   default:
+     break;
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.h
+--- envoy/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/source/utility.h	2023-12-18 19:08:11.412975131 +0800
+@@ -32,7 +32,6 @@
+ using MapObject = Hessian2::UntypedMapObject;
+ using MapObjectPtr = std::unique_ptr<MapObject>;
+ 
+-static const std::string NullValue = "null";
+ static const std::string ClassKey = "class";
+ 
+ static const absl::flat_hash_map<json::value_t, std::string> JsonType2JavaType{
+@@ -78,7 +77,10 @@
+   static void json2Hessian(json&& j, Hessian2::Encoder& encoder);
+   static void json2Hessian(json& j, Hessian2::Encoder& encoder);
+   static void encodeParameterList(json& j, Hessian2::Encoder& encoder);
+-  static void createUntypedListObjcet(const json& object, Hessian2::Object::UntypedList& untyped_list);
++  static void createUntypedListObjcet(const json& object,
++                                      Hessian2::Object::UntypedList& untyped_list);
++  static std::string hessianType2String(Hessian2::Object::Type type);
++  static json badCastErrorMessageJson(const std::string& type);
+   static std::tuple<bool, bool, bool> resolveResponseFlag(RpcResponseType flag);
+ };
+ 
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/test/BUILD
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/BUILD	2023-12-18 19:08:11.412975131 +0800
+@@ -21,11 +21,20 @@
+ 
+ envoy_cc_test(
+     name = "dubbo_transcoder_filter_test",
++    data = [
++        "//contrib/http_dubbo_transcoder/filters/http/test/test_data:http2dubbo_test_data"
++    ],
++    external_deps = [
++        "hessian2_codec_object_impl",
++        "hessian2_codec_codec_impl",
++        "hessian2_codec_object_codec_lib",
++    ],
+     srcs = ["dubbo_transcoder_filter_test.cc"],
+     deps = [
+         "//contrib/http_dubbo_transcoder/filters/http/source:config",
+         "//test/mocks/server:factory_context_mocks",
+         "//test/test_common:utility_lib",
++        "//test/test_common:environment_lib",
+         "@envoy_api//contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3:pkg_cc_proto",
+     ],
+ )
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc envoy_new/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 19:34:18.278984269 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/dubbo_transcoder_filter_test.cc	2023-12-18 19:08:11.412975131 +0800
+@@ -1,5 +1,7 @@
++#include <fstream>
+ #include "test/mocks/server/factory_context.h"
+ #include "test/test_common/utility.h"
++#include "test/test_common/environment.h"
+ 
+ #include "contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3/http_dubbo_transcoder.pb.h"
+ #include "contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3/http_dubbo_transcoder.pb.validate.h"
+@@ -9,6 +11,7 @@
+ 
+ #include "gmock/gmock.h"
+ #include "gtest/gtest.h"
++#include "hessian2/object.hpp"
+ 
+ using testing::_;
+ 
+@@ -50,7 +53,8 @@
+     TestUtility::loadFromYaml(yaml_string, proto_config);
+ 
+     time_system_.setSystemTime(std::chrono::seconds(1610503040));
+-    config_ = std::make_shared<DubboTranscoderConfig>(proto_config);
++    config_ =
++        std::make_shared<DubboTranscoderConfig>(proto_config, "http_dubbo_transcoder", scope_);
+   }
+ 
+   void setFilter() { setFilter(std::make_shared<TranscodeFilter>(*config_)); }
+@@ -61,6 +65,17 @@
+     filter_->setEncoderFilterCallbacks(encoder_callbacks_);
+   }
+ 
++  std::string readHexStream(std::string hex_stream) {
++    ASSERT(hex_stream.size() % 2 == 0);
++    std::stringstream ss;
++    for (size_t i = 0; i < hex_stream.size(); i += 2) {
++      std::string str_byte = hex_stream.substr(i, 2);
++      char chr = static_cast<char>(strtol(str_byte.c_str(), NULL, 16));
++      ss << chr;
++    }
++    return ss.str();
++  }
++
+   Stats::TestUtil::TestStore scope_;
+   Event::SimulatedTimeSystem time_system_;
+   NiceMock<Http::MockStreamDecoderFilterCallbacks> decoder_callbacks_;
+@@ -69,6 +84,13 @@
+   std::shared_ptr<TranscodeFilter> filter_;
+ };
+ 
++class MockObject : public Hessian2::Object {
++public:
++  MOCK_METHOD(Hessian2::Object::Type, type, (), (const));
++  MOCK_METHOD(size_t, hash, (), (const));
++  MOCK_METHOD(bool, equal, (const Object&), (const));
++};
++
+ TEST_F(TranscodeFilterTest, NormalHttpGetMethod) {
+   setConfiguration();
+   setFilter();
+@@ -340,11 +362,6 @@
+ 
+     EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+     EXPECT_CALL(decoder_callbacks_, addDecodedData(_, _)).Times(0);
+-    Http::TestRequestHeaderMapImpl request_headers{
+-        {":method", "GET"}, {":path", "/common.sayHello/sayHello"}, {"my_param1", "test"}};
+-    EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
+-    EXPECT_EQ(Http::Headers::get().MethodValues.Connect, request_headers.getMethodValue());
+-
+     std::string json_string = R"EOF(
+       {
+         "age": 10,
+@@ -352,7 +369,15 @@
+       }
+     )EOF";
+     Buffer::OwnedImpl data(json_string);
+-    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, false));
++    Http::TestRequestHeaderMapImpl request_headers{
++        {":method", "GET"},
++        {":path", "/common.sayHello/sayHello"},
++        {"my_param1", "test"},
++        {"Content-Length", std::to_string(data.length())}};
++    EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
++    EXPECT_EQ(Http::Headers::get().MethodValues.Connect, request_headers.getMethodValue());
++
++    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+ 
+     std::string encoded_data(data.toString());
+     EXPECT_TRUE(encoded_data.find("test") != std::string::npos);
+@@ -379,6 +404,8 @@
+ 
+     EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+     EXPECT_CALL(decoder_callbacks_, addDecodedData(_, _)).Times(0);
++
++    // if there is not Content-Length header, filter will conly parse the first package
+     Http::TestRequestHeaderMapImpl request_headers{{":method", "GET"},
+                                                    {":path", "/common.sayHello/sayHello"}};
+     EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
+@@ -391,14 +418,14 @@
+       }
+     )EOF";
+     Buffer::OwnedImpl data(json_string);
+-    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, false));
++    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+ 
+     std::string encoded_data(data.toString());
+     EXPECT_TRUE(encoded_data.find("age") != std::string::npos);
+   }
+ }
+ 
+-TEST_F(TranscodeFilterTest, PassthroughSetting) {
++TEST_F(TranscodeFilterTest, ExtractParameterKeyFromBigBody) {
+   {
+     const std::string yaml_string = R"EOF(
+ url_unescape_spec: ALL_CHARACTERS_EXCEPT_RESERVED
+@@ -411,30 +438,92 @@
+   group: "dev"
+   method_mapping:
+     name: "sayHello"
++    path_matcher:
++      match_pattern: "/common.sayHello/sayHello"
++      match_http_method_spec: ALL_POST
+     parameter_mapping:
+     - extract_key_spec: ALL_BODY
+-      extract_key: name
++      mapping_type: "java.util.Map"
++    - extract_key_spec: ALL_HEADER
++      extract_key: my_param1
+       mapping_type: "java.lang.String"
+-    passthrough_setting:
+-      passthrough_all_headers: true
+ )EOF";
++
++    std::ifstream file(TestEnvironment::substitute(
++        "{{ test_rundir "
++        "}}/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_reqeust_body"));
++    ASSERT_TRUE(file.fail() == false);
++
++    std::string json_body;
++    std::getline(file, json_body);
++    int pos = json_body.length() / 2;
++    std::string body_part1 = json_body.substr(0, pos);
++    std::string body_part2 = json_body.substr(pos);
++    Buffer::OwnedImpl data_part1(body_part1);
++    Buffer::OwnedImpl data_part2(body_part2);
++
+     setConfiguration(yaml_string);
+     setFilter();
+ 
+     EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
++    EXPECT_CALL(decoder_callbacks_, addDecodedData(_, _)).Times(0);
++
+     Http::TestRequestHeaderMapImpl request_headers{
+-        {":method", "GET"}, {":path", "/common.sayHello/sayHello"}, {"my_param1", "test"}};
++        {":method", "POST"},
++        {":path", "/common.sayHello/sayHello"},
++        {"my_param1", "test"},
++        {"Content-Length", std::to_string(data_part1.length() + data_part2.length())}};
+     EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
+     EXPECT_EQ(Http::Headers::get().MethodValues.Connect, request_headers.getMethodValue());
+ 
++    // The first part of body will be buffed, the second part of body will be parsed along with the
++    // first part.
++    EXPECT_EQ(Http::FilterDataStatus::StopIterationAndBuffer,
++              filter_->decodeData(data_part1, false));
++    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data_part2, true));
++  }
++}
++
++TEST_F(TranscodeFilterTest, PassthroughSetting) {
++  {
++    const std::string yaml_string = R"EOF(
++  url_unescape_spec: ALL_CHARACTERS_EXCEPT_RESERVED
++  request_validation_options:
++    reject_unknown_query_parameters: false
++    reject_unknown_method: false
++  services_mapping:
++  - name: "common.sayHello"
++    version: "0.0.0"
++    group: "dev"
++    method_mapping:
++      name: "sayHello"
++      parameter_mapping:
++      - extract_key_spec: ALL_BODY
++        extract_key: name
++        mapping_type: "java.lang.String"
++      passthrough_setting:
++        passthrough_all_headers: true
++  )EOF";
++    setConfiguration(yaml_string);
++    setFilter();
++
++    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+     std::string json_string = R"EOF(
+-      {
+-        "age": 10,
+-        "name" : "test"
+-      }
+-    )EOF";
++        {
++          "age": 10,
++          "name" : "test"
++        }
++      )EOF";
+     Buffer::OwnedImpl data(json_string);
+-    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, false));
++    Http::TestRequestHeaderMapImpl request_headers{
++        {":method", "GET"},
++        {":path", "/common.sayHello/sayHello"},
++        {"my_param1", "test"},
++        {"Content-Length", std::to_string(data.length())}};
++    EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
++    EXPECT_EQ(Http::Headers::get().MethodValues.Connect, request_headers.getMethodValue());
++
++    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+ 
+     std::string encoded_data(data.toString());
+     EXPECT_TRUE(encoded_data.find("my_param1") != std::string::npos);
+@@ -443,40 +532,43 @@
+ 
+   {
+     const std::string yaml_string = R"EOF(
+-url_unescape_spec: ALL_CHARACTERS_EXCEPT_RESERVED
+-request_validation_options:
+-  reject_unknown_query_parameters: false
+-  reject_unknown_method: false
+-services_mapping:
+-- name: "common.sayHello"
+-  version: "0.0.0"
+-  group: "dev"
+-  method_mapping:
+-    name: "sayHello"
+-    parameter_mapping:
+-    - extract_key_spec: ALL_BODY
+-      extract_key: name
+-      mapping_type: "java.lang.String"
+-    passthrough_setting:
+-      passthrough_all_headers: false
+-)EOF";
++  url_unescape_spec: ALL_CHARACTERS_EXCEPT_RESERVED
++  request_validation_options:
++    reject_unknown_query_parameters: false
++    reject_unknown_method: false
++  services_mapping:
++  - name: "common.sayHello"
++    version: "0.0.0"
++    group: "dev"
++    method_mapping:
++      name: "sayHello"
++      parameter_mapping:
++      - extract_key_spec: ALL_BODY
++        extract_key: name
++        mapping_type: "java.lang.String"
++      passthrough_setting:
++        passthrough_all_headers: false
++  )EOF";
+     setConfiguration(yaml_string);
+     setFilter();
+ 
+     EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
++    std::string json_string = R"EOF(
++        {
++          "age": 10,
++          "name" : "test"
++        }
++      )EOF";
++    Buffer::OwnedImpl data(json_string);
+     Http::TestRequestHeaderMapImpl request_headers{
+-        {":method", "GET"}, {":path", "/common.sayHello/sayHello"}, {"my_param1", "test"}};
++        {":method", "GET"},
++        {":path", "/common.sayHello/sayHello"},
++        {"my_param1", "test"},
++        {"Content-Length", std::to_string(data.length())}};
+     EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
+     EXPECT_EQ(Http::Headers::get().MethodValues.Connect, request_headers.getMethodValue());
+ 
+-    std::string json_string = R"EOF(
+-      {
+-        "age": 10,
+-        "name" : "test"
+-      }
+-    )EOF";
+-    Buffer::OwnedImpl data(json_string);
+-    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, false));
++    EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+ 
+     std::string encoded_data(data.toString());
+     EXPECT_TRUE(encoded_data.find("my_param1") == std::string::npos);
+@@ -536,6 +628,96 @@
+   }
+ }
+ 
++TEST(DobboUtilityTest, HessianToJsonBadCast) {
++  const std::string ERROR_KEY = "error";
++  const std::string ERROR_VALUE_TEMP =
++      "The data returned by dubbo service does not comply with the hessian protocol, data type: ";
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Binary));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Binary));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Boolean));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Boolean));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Date));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Date));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Double));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Double));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Integer));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Integer));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Long));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Long));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::Ref));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::Ref));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::String));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY],
++              ERROR_VALUE_TEMP + DubboUtility::hessianType2String(Hessian2::Object::Type::String));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::TypedList));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY], ERROR_VALUE_TEMP + DubboUtility::hessianType2String(
++                                                            Hessian2::Object::Type::TypedList));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::UntypedList));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY], ERROR_VALUE_TEMP + DubboUtility::hessianType2String(
++                                                            Hessian2::Object::Type::UntypedList));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::TypedMap));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY], ERROR_VALUE_TEMP + DubboUtility::hessianType2String(
++                                                            Hessian2::Object::Type::TypedMap));
++  }
++  {
++    NiceMock<MockObject> mock_obj;
++    EXPECT_CALL(mock_obj, type()).WillRepeatedly(Return(Hessian2::Object::Type::UntypedMap));
++    nlohmann::json error_json = DubboUtility::hessian2Json(&mock_obj);
++    EXPECT_EQ(error_json[ERROR_KEY], ERROR_VALUE_TEMP + DubboUtility::hessianType2String(
++                                                            Hessian2::Object::Type::UntypedMap));
++  }
++} // namespace HttpDubboTranscoder
++
+ TEST_F(TranscodeFilterTest, EncodeDataFromDubboServer) {
+   setConfiguration();
+   setFilter();
+@@ -553,106 +735,220 @@
+     std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+     buffer.writeBEInt(static_cast<uint32_t>(content.size()));
+     buffer.add(content);
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+     EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
+   }
+ 
+   {
+-    // 2. Response is divided into header and body
+-    Buffer::OwnedImpl response_header;
+-    response_header.add(std::string({'\xda', '\xbb', 0x42, 20}));
+-    response_header.writeBEInt(static_cast<uint64_t>(1));
+-    std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+-    response_header.writeBEInt(static_cast<uint32_t>(content.size()));
+-    // recieve dubbo header
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::RangeNotSatisfiable, _, _, _, _))
+-        .Times(1);
+-    EXPECT_EQ(filter_->encodeData(response_header, true),
+-              Http::FilterDataStatus::StopIterationNoBuffer);
+-    Buffer::OwnedImpl response_body;
+-    response_body.add(content);
+-    // recieve dubbo body
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+-    EXPECT_EQ(filter_->encodeData(response_body, true), Http::FilterDataStatus::Continue);
++    // 2. Protocol error
++    Buffer::OwnedImpl buffer;
++    buffer.add("Not dubbo message");
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(buffer.toString(), "Not dubbo message");
+   }
+ 
+   {
+-    // 3. The header is split into two parts, and the second part is sent along with the body
+-    Buffer::OwnedImpl response_header;
+-    response_header.add(std::string({'\xda', '\xbb', 0x42, 20}));
+-    response_header.writeBEInt(static_cast<uint64_t>(1));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::BadRequest, _, _, _, _)).Times(1);
+-    EXPECT_EQ(filter_->encodeData(response_header, true),
+-              Http::FilterDataStatus::StopIterationNoBuffer);
++    // 3. The length of dubbo message is less than DUBBO_HEADER_SIZE
++    Buffer::OwnedImpl buffer;
++    buffer.add(std::string({'\xda', '\xbb', 0x42}));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(buffer.toString(), "Dubbo message data is incomplete");
++  }
+ 
+-    std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+-    Buffer::OwnedImpl response_body;
+-    response_body.writeBEInt(static_cast<uint32_t>(content.size()));
+-    response_body.add(content);
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+-    EXPECT_EQ(filter_->encodeData(response_body, true), Http::FilterDataStatus::Continue);
++  {
++    // 4. Cannot parse RpcResult type from buffer
++    Buffer::OwnedImpl buffer;
++    buffer.add(std::string({'\xda', '\xbb', 0x42, 20}));
++    buffer.writeBEInt(static_cast<uint64_t>(1));
++    std::string content({0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
++    buffer.writeBEInt(static_cast<uint32_t>(content.size()));
++    buffer.add(content);
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(buffer.toString(), "Cannot parse RpcResult type from buffer");
+   }
++
+   {
+-    // 4. The body is split into two parts, with the first part sent along with the header
+-    Buffer::OwnedImpl response_header;
+-    response_header.add(std::string({'\xda', '\xbb', 0x42, 20}));
+-    response_header.writeBEInt(static_cast<uint64_t>(1));
+-    std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+-    response_header.writeBEInt(static_cast<uint32_t>(content.size()));
+-    response_header.add(std::string({'I', 0x00, 0x00, 0x00, 0x01, 0x05}));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::RangeNotSatisfiable, _, _, _, _))
+-        .Times(1);
+-    EXPECT_EQ(filter_->encodeData(response_header, true),
+-              Http::FilterDataStatus::StopIterationNoBuffer);
++    // 5. In the Hessian protocol, if an object is empty, it is represented by the character 'N'.
++    //    When decoding, we interpret it as null instead of the string "null".
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb02140000000000000001000000509148046e616d654e05636c617373302e636f6"
++                             "d2e616c69626162612e6e61636f732e6578616d706c652e647562626f2e7365727669"
++                             "63652e506572736f6e03616765900a7365636f6e644e616d654e5a"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":{\"age\":0,\"name\":null,\"secondName\":null}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
+ 
+-    Buffer::OwnedImpl response_body;
+-    response_body.add(std::string({'h', 'e', 'l', 'l', 'o'}));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+-    EXPECT_EQ(filter_->encodeData(response_body, true), Http::FilterDataStatus::Continue);
++  {
++    // 6. The java backend returns a fastjson object, which corresponds to TypedMap in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream(
++        "dabb0214000000000000000c0000021e914d1f636f6d2e616c69626162612e666173746a736f6e2e4a534f4e4f"
++        "626a656374036d7367024f4b04636f6465c8c804646174614d90036d7367077375636365737304636f64659104"
++        "6461746172136a6176612e7574696c2e41727261794c6973744d90046d6369641e597a703763587736496a6736"
++        "4c6930714b69346f5231394b4f6d5525334403696d67304868747470733a2f2f646174612e30303776696e2e63"
++        "6f6d2f737463696d67732f696d672f343738636164373934653466623164633965373836613464303637613563"
++        "38322e6a70670a636f6c6f7276616c756591036e756d0131056c6162656c1954686520656e67696e652f467565"
++        "6c20747970652f746f6f6c096272616e64436f646506746f796f74615a4d90046d6369641e597a703763587736"
++        "496a67364c6930714b69346f5231394b4f6d5525334403696d67304868747470733a2f2f646174612e30303776"
++        "696e2e636f6d2f737463696d67732f696d672f6565666438376236326436363539316566616336303835356261"
++        "6232656163622e6a70670a636f6c6f7276616c756591036e756d0132056c6162656c1944726976652074726169"
++        "6e2f4368617373697320636c617373096272616e64436f646506746f796f74615a066c656e677468940474696d"
++        "651231303139383730362e3131333138323234350a71756572795f74696d6514302e3031333330303230363531"
++        "323231323735335a0773756363657373545a"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response =
++        "{\"result\":{\"code\":200,\"data\":{\"code\":1,\"data\":[{\"brandCode\":\"toyota\","
++        "\"colorvalue\":1,\"img\":\"https://data.007vin.com/stcimgs/img/"
++        "478cad794e4fb1dc9e786a4d067a5c82.jpg\",\"label\":\"The engine/Fuel "
++        "type/"
++        "tool\",\"mcid\":\"Yzp7cXw6Ijg6Li0qKi4oR19KOmU%3D\",\"num\":\"1\"},{\"brandCode\":"
++        "\"toyota\",\"colorvalue\":1,\"img\":\"https://data.007vin.com/stcimgs/img/"
++        "eefd87b62d66591efac60855bab2eacb.jpg\",\"label\":\"Drive train/Chassis "
++        "class\",\"mcid\":\"Yzp7cXw6Ijg6Li0qKi4oR19KOmU%3D\",\"num\":\"2\"}],\"length\":4,\"msg\":"
++        "\"success\",\"query_time\":\"0.013300206512212753\",\"time\":\"10198706.113182245\"},"
++        "\"msg\":\"OK\",\"success\":true}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
+   }
++
+   {
+-    // 5. The whole response is divided into three parts
+-    Buffer::OwnedImpl response_header;
+-    response_header.add(std::string({'\xda', '\xbb', 0x42, 20}));
+-    response_header.writeBEInt(static_cast<uint64_t>(1));
+-    std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+-    response_header.writeBEInt(static_cast<uint32_t>(content.size()));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::RangeNotSatisfiable, _, _, _, _))
+-        .Times(1);
+-    EXPECT_EQ(filter_->encodeData(response_header, true),
+-              Http::FilterDataStatus::StopIterationNoBuffer);
++    // 7. The java backend returns a java.math.BigDecimal object, which corresponds to ClassInstance
++    // in hessian serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb02140000000000000001000000329143146a6176612e6d6174682e42696744656"
++                             "3696d616c910576616c7565601231303139383730362e313133313832323435"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response =
++        "{\"result\":{\"class\":\"java.math.BigDecimal\",\"value\":\"10198706.113182245\"}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
+ 
+-    Buffer::OwnedImpl body_part1;
+-    body_part1.add(std::string({'I', 0x00, 0x00, 0x00, 0x01}));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::RangeNotSatisfiable, _, _, _, _))
+-        .Times(1);
+-    EXPECT_EQ(filter_->encodeData(body_part1, true), Http::FilterDataStatus::StopIterationNoBuffer);
++  {
++    // 8. The java backend returns a byte[] object, which corresponds to Binary in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb0214000000000000000a00000011912f010203010203010203010203010203"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":[1,2,3,1,2,3,1,2,3,1,2,3,1,2,3]}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
+ 
+-    Buffer::OwnedImpl body_part2;
+-    body_part2.add(std::string({0x05, 'h', 'e', 'l', 'l', 'o'}));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+-    EXPECT_EQ(filter_->encodeData(body_part2, true), Http::FilterDataStatus::Continue);
++  {
++    // 9. The java backend returns a java.util.Date object, which corresponds to Date in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream(
++        "dabb021400000000000000020000009b914806706572736f6e48046974656d5190046e616d654e05636c617373"
++        "302e636f6d2e616c69626162612e6e61636f732e6578616d706c652e647562626f2e736572766963652e506572"
++        "736f6e03616765900a7365636f6e644e616d654e5a05636c617373302c636f6d2e616c69626162612e6e61636f"
++        "732e6578616d706c652e647562626f2e736572766963652e4974656d056f726465724e5a"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response =
++        "{\"result\":{\"order\":null,\"person\":{\"age\":0,\"item\":\"Type: Ref, target Object "
++        "Type: UntypedMap\",\"name\":null,\"secondName\":null}}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
+   }
++
+   {
+-    // 6. Cannot parse RpcResult type from buffer
++    // 10. The java backend returns an object, which has a circular reference problem. At this time,
++    // a Ref object will appear in the Hessian serialization protocol
+     Buffer::OwnedImpl buffer;
+-    buffer.add(std::string({'\xda', '\xbb', 0x42, 20}));
+-    buffer.writeBEInt(static_cast<uint64_t>(1));
+-    std::string content({0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
+-    buffer.writeBEInt(static_cast<uint32_t>(content.size()));
+-    buffer.add(content);
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(Http::Code::InternalServerError, _, _, _, _))
+-        .Times(1);
+-    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::StopIterationNoBuffer);
++    buffer.add(readHexStream(
++        "dabb021400000000000000020000009b914806706572736f6e48046974656d5190046e616d654e05636c617373"
++        "302e636f6d2e616c69626162612e6e61636f732e6578616d706c652e647562626f2e736572766963652e506572"
++        "736f6e03616765900a7365636f6e644e616d654e5a05636c617373302c636f6d2e616c69626162612e6e61636f"
++        "732e6578616d706c652e647562626f2e736572766963652e4974656d056f726465724e5a"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response =
++        "{\"result\":{\"order\":null,\"person\":{\"age\":0,\"item\":\"Type: Ref, target Object "
++        "Type: UntypedMap\",\"name\":null,\"secondName\":null}}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
+   }
++
+   {
+-    // 7. Heartbeat event
++    // 11. The java backend returns a boolean object, which corresponds to Boolean in hessian
++    // serialization protocol.
+     Buffer::OwnedImpl buffer;
+-    buffer.add(std::string({'\xda', '\xbb', 0x62, 20})); // event bit is set to 1
+-    buffer.writeBEInt(static_cast<uint64_t>(1));
+-    buffer.writeBEInt(static_cast<uint32_t>(0));
+-    EXPECT_CALL(decoder_callbacks_, sendLocalReply(_, _, _, _, _)).Times(0);
+-    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::StopIterationNoBuffer);
++    buffer.add(readHexStream("dabb02140000000000000002000000029146"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":false}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 12. The java backend returns a double object, which corresponds to Double in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb021400000000000000040000000a9144402877e90ff97247"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":12.2342}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 13. The java backend returns a int object, which corresponds to Integer in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb021400000000000000060000000491d5e162"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":123234}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 14. The java backend returns a long object, which corresponds to Long in hessian
++    // serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb02140000000000000008000000069159117e0c07"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":293473287}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 15. The java backend returns a java.lang.String object, which corresponds to String in
++    // hessian serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb0214000000000000000a00000021911f6162636465736173636e756b736e63697"
++                             "57366686175686461657569646861"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":\"abcdesascnuksnciusfhauhdaeuidha\"}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 16. The java backend returns a ArrayList<String>, which corresponds to TypedList in
++    // hessian serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb02140000000000000002000000229173136a6176612e7574696c2e41727261794"
++                             "c697374036162630362636403636465"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":[\"abc\",\"bcd\",\"cde\"]}";
++    EXPECT_EQ(buffer.toString(), expected_response);
++  }
++
++  {
++    // 17. The java backend returns a Map<String, Integer>, which corresponds to UntypedMap in
++    // hessian serialization protocol.
++    Buffer::OwnedImpl buffer;
++    buffer.add(readHexStream("dabb021400000000000000020000001c91480373696649000e51d4036a6e6749000f0"
++                             "32703616263d5e1625a"));
++    filter_->encodeData(buffer, true);
++    EXPECT_EQ(filter_->encodeData(buffer, true), Http::FilterDataStatus::Continue);
++    std::string expected_response = "{\"result\":{\"abc\":123234,\"jng\":983847,\"sif\":938452}}";
++    EXPECT_EQ(buffer.toString(), expected_response);
+   }
+ }
+ 
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body	1970-01-01 08:00:00.000000000 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/big_request_body	2023-12-18 19:08:11.412975131 +0800
+@@ -0,0 +1 @@
++{"gebfjh": ["Z8Phit1r1yqTYRu_N",false,-1874609963.6780415,{"wvhipdzn": {"fxulpeqbbv": "R0"},"uacfnggi": "s","tjgrp": {"kzufxpapsi": {"hvmeworf": {"kvcjigtpkq": "jHdOx1UubMiElwn","zkpxlen": [true,-1696836778,674138528,1814293593,"f8RZR9VPtqls1Mee8Cy7",-1777251289],"xppzpkag": "Csb3EJJguhwcHxylCi0"},"bxrvsqdbmab": 1546418242,"oaiwuyxg": ["kSC8"],"ccmposyf": -1966816994,"cwqsjpdmsyo": [{"hztrgiesabn": true,"dupigo": false,"gzteg": "QMiN8fWzukSbNE","hgpomys": false,"rbsij": false,"rvzllj": false,"bzdvycmcjmp": -789627763},-17410347,[-1839055094,true,-1698623779,true,-353931240.3622999,true,544112146.7967532,431864659.3216296],424546576.86917436],"apeouad": false,"tfctvrnpa": "J1C3cemW19vIljmfp9UL","ipxejcteqv": [[false,true,-743430571.3896658]]},"eabslckqne": false,"dozmicm": {"szjtejfwzzz": true}},"lwopbg": true,"zfpafmvycht": "K6Zuhfh1cz"},{"njfwjqqjv": [true,false,{"zwxjbj": true,"ipvedxwxvn": false,"mnyhzfl": {"zixonhitu": true,"akyehtmcivuw": -1164644185.000639,"paonvucc": 1399763731.031868,"vhpjirdne": true,"egjmsbm": false,"scgoz": [true,2130356151.8818755,"yiFxdfBEc0p7i02rPGe",-286610574.46345943,-256386296.7373656,261835722,-1122995147,"9",false],"jvfysgqoecb": 353170534.65448564},"plyqgqi": "fCdz0hIvLm2T"},"bgcwZ1YRN",-2045418785.3451211,"Df6QFTnQLtXbBafM"],"yxeiooeceq": [true,1520799628.8768916,[-233199273.01942745,[[false]],false,{"zhbgqn": [false,"Bqw",true,true,"_4CU_pcpu","m-UZZHqyCuR","FfylJS",876309508.4970961],"oxvwtlidr": true,"jggaue": [2104138652.6818604,-1838286814],"thmtnvai": [-915348228],"mkneelldacpe": 361113991,"omgfp": [true,false,452865285.04284465,"rJ1WL7tGjtXTzYOj","0Xz",-458065016,"8AvOlHR"]},{"gyexywddinvw": false,"jvfbqnq": [false,"DQVlySmgTdR43B_","s_2",1654005717.7170205,false,-1514754868.9750252],"ikpxldqpy": false,"xsqbp": ["tPynSvy",-1001103628,true,-515241904.0306626,"4gQxpB563S3vh","xo33FTe1f2ZKb",true,true],"kkbzvul": false,"feeifcfwnc": {"vxitzzasgsx": false,"xbhzmyt": true}},"1Ifr"],"Nx","Sdb9lQ",false],"xjbmaxfj": 1546702803.505219,"gvfazuymxaj": [true,{"uopixgpehkmn": [[-1706501649.3347661,939444184,-489900868,"ty9Vh-VzLeJXA",814859737,false,1433198291.4491618,"5xxeodB9"],true,{"cnkaknt": 936088172.6826627,"zsfawghvq": false},"wYe",true],"eiwthpkjawn": [true,-1303434176,["OjQpdi",true,true,-1003624606.982674,-1828129590.757288,true,968197052],false,{"opxdfkjedbe": false,"jxrbmskmsh": "u1","kjplsndmcg": "2yE","tmpir": false,"zajjchtqeu": -1024544796,"nqavzii": "o_r9tq","blkhqcncu": "C_zLGhAP31mXNCx3SLh","cmwwiqixbwj": "z7BEnIRFs"},[-1761202743.514457,605963876.5721357,false,1142071654,-29341830.63987344,327729485.0430406,"a2ijBnlWa4cz",-1849564593,"W7KkH-KSTHK"]],"ymippdwakyb": "UbaOZ","pmhcv": false,"vdozsn": "ICp2p-FFPPqU_8E","njsbad": [[false,-231830047,"mQr-TSDVGvGB9KA2dvca",false,"N80rfENLbORWO",1448153667,-874578340.9833133,"QANtPJC"],-2036906953,{"dtrpcmwssww": false},true,-1771872323.877133,530887849],"fobvrcvwayuf": -174080491.97444606},["XQ",[{"avukqwnhl": false,"hqlpucgopn": -2046507753}],"Ku2gLNBW9cARY","Vus",[false,{"rcrjnmim": true,"rlggpl": "ZqkExAQ_W"},[61185980],"o4wvk3OZ__T",-1530084203.818758,true,"UOIuU",["o8-g9u3L4toOHX",false,"VXBi-5B46","Z87dyr6qU6w8C"]],"5oC81qY0W",["ccpuyX2FAInsBS1",["fnSSElF70rs3fwl3Eb",1038842378.3845956],{"fyotmznlhyiz": true,"ntdondmmmo": true,"jhqhiybx": "N5MgM-dGEduRDl-","rqlghpjap": "Dqras4qcX","ssgrwctxy": -1648400789,"fhtof": "4DQRw3FZI"},[false,false],[-1703717935.6076155,"XqAra","wblCqBkIR",822744070.6647763,"sHKkjFXFoB6sM0G6QO0","yBrubVz9J6Dt48mE",544621099.5012496,"iTCS0jRNT2i"]],2034789463],{"gqblenask": 602793888,"fshoncj": {"zyzklqrtffj": "zk4zok"},"vgelpbu": {"wachgrgx": "aTXzKVFk","ctbihuaplcsn": ["I_8W6Ih7fw0sSyzM3H"],"znepguyij": false},"alqvpkc": {"abqegvzvqurx": "e"}},{"pliniyj": true}]},{"jdkchmkmrbe": [{"zskwnuhvr": [1172496051.556019,true,1742687675.7930105],"hbwvvuseguh": true,"foduzezw": [{"qikdoghvf": false,"nlzfovx": "P7cNonFX8VyoDprf","sqzrqmgko": false,"yqeqau": -428385274.4653239,"rghonok": 491882583.1680483,"uwsqn": false,"vohxzzha": false,"csjlhyi": true},"yLxlayVsEG",false],"kdgrjkvwumfb": false,"dhyqulmztc": {"mrnvqvilx": -1338477178.0823896,"cdrrkooukuxd": [-169312265,"d09-sKvdr5ZeEwuR",true,"IDjf0nU_fGyDQxy",false,false],"ywlhqqzj": "W_rtl5oD2YRF_"}}],"zorbzvsti": "cm3pQpkkC2r33QY","fzfgqsst": 1271514452,"muepqivgbsxs": {"lkmljsbfqtam": false,"xqzzcknbu": [["cUW5MRzyZIEwCIZD",1831885823,"_CVv",true,{"muuirzviabdj": -164761922,"gnzxnjun": true,"jdelzbjjkwal": true,"iwqmkgzv": false,"vgrxzrdq": "c6_6Mr_GtfM4np-tSY7","faispvnzao": false},[true],false],[{"pbtkbkd": 605858835.278347,"clmxrmbzze": -631980698.7533013,"ohohrmqbe": false,"cmbsotwslb": "pr9w-j","mibjubgi": true,"vdsuvqtp": "1E0GUtEX6psfEInuhR","ikejbasdq": false,"uzmlwppov": "OM6o"},[626892233,false],false,"UXoAUo1idUy"],true,["OFduNJsu1ihNs"],569447293.7961918,[{"unrnvbmtrps": true,"fwvvpwtuy": 1300863561,"bufnkhbmuf": 1178293198.8882728,"wnptntgxf": 727491964.5889429,"ypnldkomd": true,"vypbfgoridnk": 1102836917.2110972,"tldjuhiw": -914671684,"xcasfkmo": "Z-YghQCeLOPEJPX_ZcWD","dsyltunqbxue": -230049304},"tMdMqKVJ8",{"xbeguteh": "c2Ky6U2-","iiqnrtptdcz": -590935560,"fkkkm": "5fGuYXA"},"SQd8Eu28R",true],false],"wkdsubyzoxf": "ZE_Y8","steedeb": [-1232996748,{"xcuqlvi": false,"pfjhpnr": false,"bsfusjksuqzr": {"mhcmtaygvhz": true},"jvicfuyea": 543821155.3341044,"uygbi": {"rkfauvom": -1026747765},"bsslzomqn": 551981527},-505453035.0982449,[false,746648276],{"gywjxgqwddf": -1236177377,"ozzylbonhgh": "Cds","couxvxncrk": "9yK3ToQGFCxT0l3ZrZ","obberiofmzg": ["Ic7MeULG","1PVjV4hLvk3_aVl1yZ","3XxiGZWfhq6o",false,-842072922,false],"wukfgwj": -215418126,"wqvjzhaffdl": [false,false,-2009241616.1072602],"pzmtkzpup": {"lmoatm": false,"wefocf": "uNu7WTfcpEaVnuc","kzaydd": -1576476013.4600675,"pdywza": "ZOwcHoSAUrJ-","rhtzamc": true},"psyuf": {"xobzn": 1563974237,"mfjtkl": 1842290314.8467672,"jedaaayp": 1467490916,"slddpl": true,"siqbojitbe": false},"nmrubqyiwot": {"mpmnmpj": -1051343423,"ciisxfjsqh": -1886929142}},1233314403],"mmyxuqbe": false,"pxprxlt": "5rdkAyBjFBKE9sH","ohxurytrc": [950184048.3243737,true,true],"gviolfvkuh": false},"tmbaooe": -2131828352,"oopjxvrnsd": -1078841971.8488972,"oaricvubn": 558318781,"nvjrtinlo": -1508415360.153841},584420524,[1024497481.9758645],"20McfuEaA"],"wxauhh": true,"coiitbxtotu": {"zcccjsb": "V_JN2"},"xqrpwjdvz": {"ulsrelib": true,"ukkvypsrh": [false,"sOjyjAITLdloeQaQahKn","wWhHRL_aie",false,true]}}
+\ No newline at end of file
+diff -Naur envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD
+--- envoy/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD	1970-01-01 08:00:00.000000000 +0800
++++ envoy_new/contrib/http_dubbo_transcoder/filters/http/test/test_data/BUILD	2023-12-18 19:08:11.412975131 +0800
+@@ -0,0 +1,13 @@
++load(
++    "//bazel:envoy_build_system.bzl",
++    "envoy_contrib_package",
++)
++
++licenses(["notice"])  # Apache 2
++
++envoy_contrib_package()
++
++filegroup(
++    name = "http2dubbo_test_data",
++    srcs = glob(["big_reqeust_body"]),
++)
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc
+--- envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.cc	2023-12-18 19:26:04.952489147 +0800
+@@ -91,7 +91,33 @@
+ 
+ void TcpUpstream::onUpstreamData(Buffer::Instance& data, bool end_stream) {
+   end_stream = true;
+-  upstream_request_->decodeData(data, end_stream);
++  if (response_buffer_.length() == 0) {
++    if (data.length() < DUBBO_MAGIC_SIZE || data.peekBEInt<uint16_t>() != DUBBO_MAGIC_NUMBER) {
++      data.drain(data.length());
++      data.add(ProtocolErrorMessage);
++      upstream_request_->decodeData(data, end_stream);
++      return;
++    }
++  }
++  if (decodeDubboFrame(data) == DubboFrameDecodeStatus::Ok) {
++    uint32_t body_length_ = response_buffer_.peekBEInt<uint32_t>(DUBBO_LENGTH_OFFSET);
++    data.move(response_buffer_, body_length_ + DUBBO_HEADER_SIZE);
++    upstream_request_->decodeData(data, end_stream);
++  }
++}
++
++DubboFrameDecodeStatus TcpUpstream::decodeDubboFrame(Buffer::Instance& data) {
++  response_buffer_.move(data);
++  if (response_buffer_.length() < DUBBO_HEADER_SIZE) {
++    return DubboFrameDecodeStatus::NeedMoreData;
++  }
++
++  uint32_t body_length_ = response_buffer_.peekBEInt<uint32_t>(DUBBO_LENGTH_OFFSET);
++  if (response_buffer_.length() < body_length_ + DUBBO_HEADER_SIZE) {
++    return DubboFrameDecodeStatus::NeedMoreData;
++  }
++
++  return DubboFrameDecodeStatus::Ok;
+ }
+ 
+ void TcpUpstream::onEvent(Network::ConnectionEvent event) {
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h
+--- envoy/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/source/upstream_request.h	2023-12-18 19:30:03.595493886 +0800
+@@ -21,6 +21,18 @@
+ namespace Http {
+ namespace DubboTcp {
+ 
++enum class DubboFrameDecodeStatus : uint8_t {
++  Ok = 0,
++  NeedMoreData = 1,
++  InvalidHeader = 2,
++};
++
++constexpr uint64_t DUBBO_HEADER_SIZE = 16;
++constexpr uint64_t DUBBO_MAGIC_SIZE = 2;
++constexpr uint16_t DUBBO_MAGIC_NUMBER = 0xdabb;
++constexpr uint64_t DUBBO_LENGTH_OFFSET = 12;
++constexpr absl::string_view ProtocolErrorMessage = "Not dubbo message";
++
+ class TcpConnPool : public Router::GenericConnPool, public Envoy::Tcp::ConnectionPool::Callbacks {
+ public:
+   TcpConnPool(Upstream::ThreadLocalCluster& thread_local_cluster, bool is_connect,
+@@ -87,8 +99,12 @@
+   void onBelowWriteBufferLowWatermark() override;
+ 
+ private:
++  DubboFrameDecodeStatus decodeDubboFrame(Buffer::Instance& data);
++
++private:
+   Router::UpstreamToDownstream* upstream_request_;
+   Envoy::Tcp::ConnectionPool::ConnectionDataPtr upstream_conn_data_;
++  Buffer::OwnedImpl response_buffer_{};
+ };
+ 
+ } // namespace DubboTcp
+diff -Naur envoy/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc envoy_new/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc
+--- envoy/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc	2023-12-18 19:34:18.282984386 +0800
++++ envoy_new/contrib/upstreams/http/dubbo_tcp/test/upstream_request_test.cc	2023-12-18 19:26:33.465326043 +0800
+@@ -98,8 +98,10 @@
+         .Times(AnyNumber())
+         .WillRepeatedly(Return(&request_));
+     EXPECT_CALL(mock_router_filter_, cluster()).Times(AnyNumber());
++    EXPECT_CALL(mock_router_filter_, callbacks()).Times(AnyNumber());
+     mock_router_filter_.requests_.push_back(std::make_unique<UpstreamRequest>(
+-        mock_router_filter_, std::make_unique<NiceMock<Router::MockGenericConnPool>>()));
++        mock_router_filter_, std::make_unique<NiceMock<Router::MockGenericConnPool>>(), false,
++        false));
+     auto data = std::make_unique<NiceMock<Envoy::Tcp::ConnectionPool::MockConnectionData>>();
+     EXPECT_CALL(*data, connection()).Times(AnyNumber()).WillRepeatedly(ReturnRef(connection_));
+     tcp_upstream_ =
+@@ -137,13 +139,14 @@
+   // Forward data.
+   Buffer::OwnedImpl response1("bar");
+   // The dubbo forces end_stream to be true in the onupStreamData function.
+-  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("bar"), _, true));
++  // If data is incompatible with dubbo protocol, data will be set to 'Not dubbo message'.
++  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("Not dubbo message"), _, true));
+   tcp_upstream_->onUpstreamData(response1, false);
+ }
+ 
+ TEST_F(TcpUpstreamTest, V1Header) {
+   envoy::config::core::v3::ProxyProtocolConfig* proxy_config =
+-      mock_router_filter_.route_entry_.connect_config_->mutable_proxy_protocol_config();
++      mock_router_filter_.route_.route_entry_.connect_config_->mutable_proxy_protocol_config();
+   proxy_config->set_version(envoy::config::core::v3::ProxyProtocolConfig::V1);
+   mock_router_filter_.client_connection_.stream_info_.downstream_connection_info_provider_
+       ->setRemoteAddress(std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 5));
+@@ -166,7 +169,7 @@
+ 
+ TEST_F(TcpUpstreamTest, V2Header) {
+   envoy::config::core::v3::ProxyProtocolConfig* proxy_config =
+-      mock_router_filter_.route_entry_.connect_config_->mutable_proxy_protocol_config();
++      mock_router_filter_.route_.route_entry_.connect_config_->mutable_proxy_protocol_config();
+   proxy_config->set_version(envoy::config::core::v3::ProxyProtocolConfig::V2);
+   mock_router_filter_.client_connection_.stream_info_.downstream_connection_info_provider_
+       ->setRemoteAddress(std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 5));
+@@ -233,7 +236,7 @@
+ TEST_F(TcpUpstreamTest, EmptyConnectConfig) {
+   NiceMock<Envoy::Router::MockRouteEntry> route_entry;
+   EXPECT_FALSE(route_entry.connect_config_.has_value());
+-  EXPECT_CALL(mock_router_filter_, routeEntry()).WillOnce(Return(&route_entry));
++  EXPECT_CALL(mock_router_filter_.route_, routeEntry()).WillOnce(Return(&route_entry));
+ 
+   // Swallow the request headers and generate response headers.
+   EXPECT_CALL(connection_, write(_, false)).Times(0);
+@@ -252,15 +255,29 @@
+   // Forward data.
+   Buffer::OwnedImpl response1("bar");
+   // The dubbo forces end_stream to be true in the onupStreamData function.
+-  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("bar"), _, true));
++  // If data is incompatible with dubbo protocol, data will be set to 'Not dubbo message'.
++  EXPECT_CALL(mock_router_filter_, onUpstreamData(BufferStringEqual("Not dubbo message"), _, true));
+   tcp_upstream_->onUpstreamData(response1, false);
+ }
+ 
++TEST_F(TcpUpstreamTest, DubboMessage) {
++  // If data is dubbo message, it will be sent to filter.
++  Buffer::OwnedImpl response2;
++  response2.add(std::string({'\xda', '\xbb', 0x42, 20}));
++  response2.writeBEInt(static_cast<uint64_t>(1));
++  std::string content({'I', 0x00, 0x00, 0x00, 0x01, 0x05, 'h', 'e', 'l', 'l', 'o'});
++  response2.writeBEInt(static_cast<uint32_t>(content.size()));
++  response2.add(content);
++  EXPECT_CALL(mock_router_filter_,
++              onUpstreamData(BufferStringEqual(response2.toString()), _, true));
++  tcp_upstream_->onUpstreamData(response2, false);
++}
++
+ TEST_F(TcpUpstreamTest, ConnectConfig) {
+   NiceMock<Envoy::Router::MockRouteEntry> route_entry;
+   route_entry.connect_config_ = absl::make_optional<Envoy::Router::RouteEntry::ConnectConfig>();
+   EXPECT_TRUE(route_entry.connect_config_.has_value());
+-  EXPECT_CALL(mock_router_filter_, routeEntry()).WillOnce(Return(&route_entry));
++  EXPECT_CALL(mock_router_filter_.route_, routeEntry()).WillOnce(Return(&route_entry));
+ 
+   // Swallow the request headers and generate response headers.
+   EXPECT_CALL(connection_, write(_, false)).Times(0);

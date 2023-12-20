@@ -14,7 +14,11 @@
 
 package wrapper
 
-import "github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+import (
+	"strings"
+
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+)
 
 func GetRequestScheme() string {
 	scheme, err := proxywasm.GetHttpRequestHeader(":scheme")
@@ -50,4 +54,30 @@ func GetRequestMethod() string {
 		return ""
 	}
 	return method
+}
+
+func IsBinaryRequestBody() bool {
+	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
+	if strings.Contains(contentType, "octet-stream") ||
+		strings.Contains(contentType, "grpc") {
+		return true
+	}
+	encoding, _ := proxywasm.GetHttpRequestHeader("content-encoding")
+	if encoding != "" {
+		return true
+	}
+	return false
+}
+
+func IsBinaryResponseBody() bool {
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	if strings.Contains(contentType, "octet-stream") ||
+		strings.Contains(contentType, "grpc") {
+		return true
+	}
+	encoding, _ := proxywasm.GetHttpResponseHeader("content-encoding")
+	if encoding != "" {
+		return true
+	}
+	return false
 }
