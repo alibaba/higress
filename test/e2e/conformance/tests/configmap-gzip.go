@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
@@ -25,6 +26,7 @@ import (
 
 func init() {
 	Register(ConfigmapGzip)
+	Register(ConfigMapGzipEnvoy)
 }
 
 var ConfigmapGzip = suite.ConformanceTest{
@@ -204,5 +206,48 @@ var ConfigmapGzip = suite.ConformanceTest{
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
 			}
 		})
+	},
+}
+
+var ConfigMapGzipEnvoy = suite.ConformanceTest{
+	ShortName:   "ConfigMapGzipEnvoy",
+	Description: "The Envoy config should contain gzip config",
+	Manifests:   []string{"tests/configmap-gzip.yaml"},
+	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testCase := []envoy.Assertion{
+			{
+				//Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#",
+				Path:            "configs",
+				TargetNamespace: "higress-system",
+				CheckType:       envoy.CheckTypeExist,
+				ExpectEnvoyConfig: map[string]interface{}{
+					"name": "envoy.filters.network.http_connection_manager",
+					"typed_config": map[string]interface{}{
+						"@type":       "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+						"stat_prefix": "outbound_0.0.0.0_80",
+					},
+					"memory_level":       5,
+					"compression_level":  "COMPRESSION_LEVEL_9",
+					"window_bits":        12,
+					"min_content_length": 100,
+					"content_type": []interface{}{
+						"text/html",
+						"text/css",
+						"text/plain",
+						"text/xml",
+						"application/json",
+						"application/javascript",
+						"application/xhtml+xml",
+						"image/svg+xml",
+					},
+				},
+			},
+		}
+		for _, test := range testCase {
+			if err := envoy.AssertEnvoyConfig(t, test); err != nil {
+				t.Errorf("failed to assert envoy config: %v", err)
+			}
+		}
 	},
 }

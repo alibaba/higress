@@ -154,6 +154,10 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 				t.Cleanup(func() {
 					ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 					defer cancel()
+					if uObj.GetName() == "higress-config" && uObj.GetKind() == "ConfigMap" {
+						t.Logf("🚮 Do not delete %s %s", uObj.GetName(), uObj.GetKind())
+						return
+					}
 					t.Logf("🚮 Deleting %s %s", uObj.GetName(), uObj.GetKind())
 					err = c.Delete(ctx, uObj)
 					require.NoErrorf(t, err, "error deleting resource")
@@ -170,6 +174,10 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 			t.Cleanup(func() {
 				ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 				defer cancel()
+				if uObj.GetName() == "higress-config" && uObj.GetKind() == "ConfigMap" {
+					t.Logf("🚮 Do not delete %s %s", uObj.GetName(), uObj.GetKind())
+					return
+				}
 				t.Logf("🚮 Deleting %s %s", uObj.GetName(), uObj.GetKind())
 				err = c.Delete(ctx, uObj)
 				require.NoErrorf(t, err, "error deleting resource")
