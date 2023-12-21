@@ -61,6 +61,17 @@ func (this *Param) UnmarshalJSON(b []byte) error {
 	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for ParamFromEntireBody
+func (this *ParamFromEntireBody) MarshalJSON() ([]byte, error) {
+	str, err := Http_2RpcMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for ParamFromEntireBody
+func (this *ParamFromEntireBody) UnmarshalJSON(b []byte) error {
+	return Http_2RpcUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 // MarshalJSON is a custom marshaler for GrpcService
 func (this *GrpcService) MarshalJSON() ([]byte, error) {
 	str, err := Http_2RpcMarshaler.MarshalToString(this)
