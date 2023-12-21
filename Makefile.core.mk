@@ -240,9 +240,6 @@ higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-bui
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
 
-.PHONY: higress-envoy-config-test
-higress-envoy-config-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-higress-e2e-test-envoy delete-cluster
-
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
 create-cluster: $(tools/kind)
@@ -291,12 +288,3 @@ run-higress-e2e-test-wasmplugin:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true
-
-.PHONY: run-higress-e2e-test-envoy
-run-higress-e2e-test-envoy:
-	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
-	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
-	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
-	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
-	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go --debug=true --isEnvoyConfigTest=true
