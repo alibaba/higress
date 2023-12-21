@@ -30,29 +30,4 @@ spec:
                 name: infra-backend-v3
                 port:
                   number: 8080
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: higress-config
-  namespace: higress-system
-data:
-  higress: |-
-    gzip:
-      enable: true
-      minContentLength: 1024
-      contentType:
-        - text/html
-        - text/css
-        - text/plain
-        - text/xml
-        - application/json
-        - application/javascript
-        - application/xhtml+xml
-        - image/svg+xml
-      disableOnEtagHeader: true
-      memoryLevel: 5
-      windowBits: 12
-      chunkSize: 4096
-      compressionLevel: "BEST_COMPRESSION"
-      compressionStrategy: "DEFAULT_STRATEGY"
+

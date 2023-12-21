@@ -121,7 +121,7 @@ func FindPodConditionInList(t *testing.T, conditions []v1.PodCondition, condName
 	return false
 }
 
-func ApplyConfigmapDataWithYaml(c client.Client, namespace string, name string, key string, val any) error {
+func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string, name string, key string, val any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -140,8 +140,23 @@ func ApplyConfigmapDataWithYaml(c client.Client, namespace string, name string, 
 	}
 	cm.Data[key] = data
 
+	t.Logf("🏗 Updating %s %s", name, namespace)
+
 	if err := c.Update(ctx, cm); err != nil {
 		return err
 	}
+
+	// wait for configmap to be ready
+	err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (bool, error) {
+		err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

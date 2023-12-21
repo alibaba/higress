@@ -36,6 +36,8 @@ const (
 )
 
 // Assertion defines the assertion to be made on the Envoy config.
+// TODO: It can support localization judgment so that this configuration check function will be more universal.
+// TODO: Can be used for general e2e tests, rather than just envoy filter scenarios.
 type Assertion struct {
 	// Path is the path of gjson to the value to be asserted.
 	Path string
@@ -52,67 +54,94 @@ func AssertEnvoyConfig(t *testing.T, expected Assertion) error {
 	options := config.NewDefaultGetEnvoyConfigOptions()
 	options.PodNamespace = expected.TargetNamespace
 
-	var allEnvoyConfig string
-
-	// wait for envoy to be ready
-	err := wait.PollImmediate(1*time.Second, 60*time.Second, func() (bool, error) {
-		t.Logf("Waiting for envoy to be ready")
-		out, err := config.GetEnvoyConfig(options)
-		if err != nil {
-			return false, nil
-		}
-		allEnvoyConfig = string(out)
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-
 	switch expected.CheckType {
 	case CheckTypeMatch:
-		return assertEnvoyConfigMatch(t, allEnvoyConfig, expected)
+		tryNumber := 1
+		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
+			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
+			tryNumber++
+			out, err := config.GetEnvoyConfig(options)
+			if err != nil {
+				return false, nil
+			}
+			allEnvoyConfig := string(out)
+			err = assertEnvoyConfigMatch(t, allEnvoyConfig, expected)
+			if err != nil {
+				return false, nil
+			}
+			return true, nil
+		})
 	case CheckTypeExist:
-		return assertEnvoyConfigExist(t, allEnvoyConfig, expected)
+		tryNumber := 1
+		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
+			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
+			tryNumber++
+			out, err := config.GetEnvoyConfig(options)
+			if err != nil {
+				return false, nil
+			}
+			allEnvoyConfig := string(out)
+			err = assertEnvoyConfigExist(t, allEnvoyConfig, expected)
+			if err != nil {
+				return false, nil
+			}
+			return true, nil
+		})
 	case CheckTypeNotExist:
-		return assertEnvoyConfigNotExist(t, allEnvoyConfig, expected)
+		tryNumber := 1
+		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
+			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
+			tryNumber++
+			out, err := config.GetEnvoyConfig(options)
+			if err != nil {
+				return false, nil
+			}
+			allEnvoyConfig := string(out)
+			err = assertEnvoyConfigNotExist(t, allEnvoyConfig, expected)
+			if err != nil {
+				return false, nil
+			}
+			return true, nil
+		})
 	default:
 		return fmt.Errorf("Unknown check type '%s'", expected.CheckType)
 	}
 }
 
-// AssertEnvoyConfigNotExist asserts the Envoy config does not exist.
+// assertEnvoyConfigNotExist asserts the Envoy config does not exist.
 func assertEnvoyConfigNotExist(t *testing.T, envoyConfig string, expected Assertion) error {
 	result := gjson.Get(envoyConfig, expected.Path).Value()
 	if result == nil {
 		return nil
 	}
-	if find(result, expected.ExpectEnvoyConfig) {
+	if !findMustNotExist(t, result, expected.ExpectEnvoyConfig) {
 		return fmt.Errorf("the expected value %s exists in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
 	}
 	return nil
 }
 
-// AssertEnvoyConfigExist asserts the Envoy config exists.
+// assertEnvoyConfigExist asserts the Envoy config exists.
 func assertEnvoyConfigExist(t *testing.T, envoyConfig string, expected Assertion) error {
 	result := gjson.Get(envoyConfig, expected.Path).Value()
 	if result == nil {
 		return fmt.Errorf("failed to get value from path '%s'", expected.Path)
 	}
-	if !find(result, expected.ExpectEnvoyConfig) {
+	if !findMustExist(t, result, expected.ExpectEnvoyConfig) {
 		return fmt.Errorf("the expected value %s does not exist in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
 	}
 	return nil
 }
 
-// AssertEnvoyConfigMatch asserts the Envoy config matches the expected value.
+// assertEnvoyConfigMatch asserts the Envoy config matches the expected value.
 func assertEnvoyConfigMatch(t *testing.T, envoyConfig string, expected Assertion) error {
 	result := gjson.Get(envoyConfig, expected.Path).Value()
 	if result == nil {
 		return fmt.Errorf("failed to get value from path '%s'", expected.Path)
 	}
-	if !match(result, expected.ExpectEnvoyConfig) {
+	if !match(t, result, expected.ExpectEnvoyConfig) {
 		return fmt.Errorf("failed to match value from path '%s'", expected.Path)
 	}
+	t.Logf("✅ Matched value %s in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
 	return nil
 }
 
@@ -121,14 +150,14 @@ func assertEnvoyConfigMatch(t *testing.T, envoyConfig string, expected Assertion
 // Notice: can recursively find slices
 // 2. interface{} is a map: if all the map elements match, the assertion passes
 // 3. interface{} is a field: if the field matches, the assertion passes
-func match(actual interface{}, expected map[string]interface{}) bool {
+func match(t *testing.T, actual interface{}, expected map[string]interface{}) bool {
 	reflectValue := reflect.ValueOf(actual)
 	kind := reflectValue.Kind()
 	switch kind {
 	case reflect.Slice:
 		actualValueSlice := actual.([]interface{})
 		for _, v := range actualValueSlice {
-			if match(v, expected) {
+			if match(t, v, expected) {
 				return true
 			}
 		}
@@ -150,41 +179,88 @@ func match(actual interface{}, expected map[string]interface{}) bool {
 	}
 }
 
-// find finds the value of the given path in the given Envoy config.
-func find(actual interface{}, expected map[string]interface{}) bool {
+// findMustExist finds the value of the given path in the given Envoy config.
+func findMustExist(t *testing.T, actual interface{}, expected map[string]interface{}) bool {
 	for key, expectValue := range expected {
-		if findKey(actual, key, expectValue) {
-			return true
+		// If the key does not exist, the assertion fails.
+		t.Logf("🔍 Finding key %s", key)
+		findKey(actual, key, expectValue)
+		if !flag {
+			t.Logf("❌ Not found key %s", key)
+			return false
 		}
+		flag = false
+		t.Logf("✅ Found key %s", key)
 	}
-	return false
+	return true
 }
 
+// findMustNotExist finds the value of the given path in the given Envoy config.
+func findMustNotExist(t *testing.T, actual interface{}, expected map[string]interface{}) bool {
+	for key, expectValue := range expected {
+		// If the key exists, the assertion fails.
+		t.Logf("🔍 Finding key %s", key)
+		findKey(actual, key, expectValue)
+		if flag {
+			t.Logf("❌ Found key %s", key)
+			flag = false
+			return false
+		}
+		t.Logf("✅ Not found key %s", key)
+	}
+	return true
+}
+
+var flag = false
+
 // findKey finds the value of the given key in the given Envoy config.
-func findKey(actual interface{}, key string, expectValue interface{}) bool {
+func findKey(actual interface{}, key string, expectValue interface{}) {
+	if flag {
+		return
+	}
 	reflectValue := reflect.ValueOf(actual)
 	kind := reflectValue.Kind()
 	switch kind {
 	case reflect.Slice:
 		actualValueSlice := actual.([]interface{})
 		for _, v := range actualValueSlice {
-			if findKey(v, key, expectValue) {
-				return true
-			}
+			findKey(v, key, expectValue)
 		}
-		return false
 	case reflect.Map:
 		actualValueMap := actual.(map[string]interface{})
 		for actualKey, actualValue := range actualValueMap {
-			if actualKey == key && reflect.DeepEqual(actualValue, expectValue) {
-				return true
+			if actualKey == key && reflect.DeepEqual(convertType(actualValue, expectValue), expectValue) {
+				flag = true
 			}
-			if findKey(actualValue, key, expectValue) {
-				return true
-			}
+			findKey(actualValue, key, expectValue)
 		}
-		return false
 	default:
-		return false
+		if reflectValue.String() == key && reflect.DeepEqual(convertType(actual, expectValue), expectValue) {
+			flag = true
+		}
 	}
+}
+
+func convertType(value interface{}, targetType interface{}) interface{} {
+	targetTypeValue := reflect.ValueOf(targetType)
+	targetTypeKind := targetTypeValue.Kind()
+
+	switch targetTypeKind {
+	case reflect.Int:
+		switch value.(type) {
+		case int:
+			return value
+		case float64:
+			return int(value.(float64))
+		}
+	case reflect.Float64:
+		switch value.(type) {
+		case int:
+			return float64(value.(int))
+		case float64:
+			return value
+		}
+	}
+
+	return value
 }
