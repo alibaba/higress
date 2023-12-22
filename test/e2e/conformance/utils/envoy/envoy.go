@@ -233,6 +233,7 @@ func findMustNotExist(t *testing.T, actual interface{}, expected map[string]inte
 	return true
 }
 
+// flag is used to indicate whether the key is found.
 var flag = false
 
 // findKey finds the value of the given key in the given Envoy config.
