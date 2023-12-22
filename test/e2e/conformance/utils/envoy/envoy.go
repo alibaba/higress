@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/pkg/config"
+	cfg "github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	"github.com/tidwall/gjson"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -33,6 +34,9 @@ const (
 	CheckTypeExist CheckType = "exist"
 	// CheckTypeNotExist checks if the actual value does not exist.
 	CheckTypeNotExist CheckType = "notexist"
+
+	// defaultSuccessThreshold is the default number of times the assertion must succeed in a row.
+	defaultSuccessThreshold = 3
 )
 
 // Assertion defines the assertion to be made on the Envoy config.
@@ -50,62 +54,43 @@ type Assertion struct {
 }
 
 // AssertEnvoyConfig asserts the Envoy config.
-func AssertEnvoyConfig(t *testing.T, expected Assertion) error {
+func AssertEnvoyConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig, expected Assertion) {
 	options := config.NewDefaultGetEnvoyConfigOptions()
 	options.PodNamespace = expected.TargetNamespace
+	waitForEnvoyConfig(t, timeoutConfig, options, expected)
+}
 
-	switch expected.CheckType {
-	case CheckTypeMatch:
-		tryNumber := 1
-		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
-			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
-			tryNumber++
+// waitForEnvoyConfig waits for the Envoy config to be ready and asserts it.
+func waitForEnvoyConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig, options *config.GetEnvoyConfigOptions, expected Assertion) {
+	awaitConvergence(t, defaultSuccessThreshold, timeoutConfig.MaxTimeToConsistency, func(elapsed time.Duration) bool {
+		allEnvoyConfig := ""
+		err := wait.Poll(1*time.Second, 10*time.Second, func() (bool, error) {
 			out, err := config.GetEnvoyConfig(options)
 			if err != nil {
-				return false, nil
+				return false, err
 			}
-			allEnvoyConfig := string(out)
+			allEnvoyConfig = string(out)
+			return true, nil
+		})
+		if err != nil {
+			return false
+		}
+		switch expected.CheckType {
+		case CheckTypeMatch:
 			err = assertEnvoyConfigMatch(t, allEnvoyConfig, expected)
-			if err != nil {
-				return false, nil
-			}
-			return true, nil
-		})
-	case CheckTypeExist:
-		tryNumber := 1
-		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
-			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
-			tryNumber++
-			out, err := config.GetEnvoyConfig(options)
-			if err != nil {
-				return false, nil
-			}
-			allEnvoyConfig := string(out)
+		case CheckTypeExist:
 			err = assertEnvoyConfigExist(t, allEnvoyConfig, expected)
-			if err != nil {
-				return false, nil
-			}
-			return true, nil
-		})
-	case CheckTypeNotExist:
-		tryNumber := 1
-		return wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
-			t.Logf("🔍 Checking Envoy config for the %d time, type: %s", tryNumber, expected.CheckType)
-			tryNumber++
-			out, err := config.GetEnvoyConfig(options)
-			if err != nil {
-				return false, nil
-			}
-			allEnvoyConfig := string(out)
+		case CheckTypeNotExist:
 			err = assertEnvoyConfigNotExist(t, allEnvoyConfig, expected)
-			if err != nil {
-				return false, nil
-			}
-			return true, nil
-		})
-	default:
-		return fmt.Errorf("Unknown check type '%s'", expected.CheckType)
-	}
+		default:
+			err = fmt.Errorf("unsupported check type %s", expected.CheckType)
+		}
+		if err != nil {
+			return false
+		}
+		return true
+	})
+	t.Logf("✅ Envoy config checked")
 }
 
 // assertEnvoyConfigNotExist asserts the Envoy config does not exist.
@@ -143,6 +128,43 @@ func assertEnvoyConfigMatch(t *testing.T, envoyConfig string, expected Assertion
 	}
 	t.Logf("✅ Matched value %s in path '%s'", expected.ExpectEnvoyConfig, expected.Path)
 	return nil
+}
+
+// awaitConvergence runs the given function until it returns 'true' `threshold` times in a row.
+// Each failed attempt has a 1s delay; successful attempts have no delay.
+func awaitConvergence(t *testing.T, threshold int, maxTimeToConsistency time.Duration, fn func(elapsed time.Duration) bool) {
+	successes := 0
+	attempts := 0
+	start := time.Now()
+	to := time.After(maxTimeToConsistency)
+	delay := time.Second
+	for {
+		select {
+		case <-to:
+			t.Fatalf("timeout while waiting after %d attempts", attempts)
+		default:
+		}
+
+		completed := fn(time.Now().Sub(start))
+		attempts++
+		if completed {
+			successes++
+			if successes >= threshold {
+				return
+			}
+			// Skip delay if we have a success
+			continue
+		}
+
+		successes = 0
+		select {
+		// Capture the overall timeout
+		case <-to:
+			t.Fatalf("timeout while waiting after %d attempts, %d/%d sucessess", attempts, successes, threshold)
+			// And the per-try delay
+		case <-time.After(delay):
+		}
+	}
 }
 
 // match
@@ -241,6 +263,7 @@ func findKey(actual interface{}, key string, expectValue interface{}) {
 	}
 }
 
+// convertType converts the type of the given value to the type of the given target value.
 func convertType(value interface{}, targetType interface{}) interface{} {
 	targetTypeValue := reflect.ValueOf(targetType)
 	targetTypeKind := targetTypeValue.Kind()

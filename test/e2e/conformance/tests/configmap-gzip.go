@@ -315,9 +315,7 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
-				if err := envoy.AssertEnvoyConfig(t, testcase.envoyAssertion); err != nil {
-					t.Errorf("failed to assert envoy config: %v", err)
-				}
+				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
 			}
 		})
 	},

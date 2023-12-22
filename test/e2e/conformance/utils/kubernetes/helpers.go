@@ -146,17 +146,5 @@ func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string,
 		return err
 	}
 
-	// wait for configmap to be ready
-	err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (bool, error) {
-		err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
-		if err != nil {
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
