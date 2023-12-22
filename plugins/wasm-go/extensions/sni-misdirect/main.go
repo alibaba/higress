@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -55,18 +54,41 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		log.Errorf("failed to get request authority: %v", err)
 		return types.ActionContinue
 	}
-	host, _, err = net.SplitHostPort(host)
-	if err != nil {
-		log.Errorf("failed to split host and port: %v", err)
+	host = stripPortFromHost(host)
+	if string(sni) == host {
 		return types.ActionContinue
 	}
-	if strings.HasPrefix(string(sni), "*.") {
-		proxywasm.SendHttpResponse(421, nil, []byte("421 Misdirected Request"), -1)
+	if !strings.HasPrefix(string(sni), "*.") {
+		proxywasm.SendHttpResponse(421, nil, []byte("Misdirected Request"), -1)
 		return types.ActionPause
 	}
 	if !strings.Contains(host, string(sni)[1:]) {
-		proxywasm.SendHttpResponse(421, nil, []byte("421 Misdirected Request"), -1)
+		proxywasm.SendHttpResponse(421, nil, []byte("Misdirected Request"), -1)
 		return types.ActionPause
 	}
 	return types.ActionContinue
+}
+
+func stripPortFromHost(requestHost string) string {
+	// Find the last occurrence of ':' to locate the port.
+	portStart := strings.LastIndex(requestHost, ":")
+
+	// Check if ':' is found.
+	if portStart != -1 {
+		// According to RFC3986, IPv6 address is always enclosed in "[]".
+		// section 3.2.2.
+		v6EndIndex := strings.LastIndex(requestHost, "]")
+
+		// Check if ']' is found and its position is after the ':'.
+		if v6EndIndex == -1 || v6EndIndex < portStart {
+			// Check if there are characters after ':'.
+			if portStart+1 <= len(requestHost) {
+				// Return the substring without the port.
+				return requestHost[:portStart]
+			}
+		}
+	}
+
+	// If no port is found or the conditions are not met, return the original requestHost.
+	return requestHost
 }
