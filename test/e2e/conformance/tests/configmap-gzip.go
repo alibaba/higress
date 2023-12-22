@@ -73,7 +73,7 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeNotExist,
 			ExpectEnvoyConfig: map[string]interface{}{
@@ -133,7 +133,7 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeExist,
 			ExpectEnvoyConfig: map[string]interface{}{
@@ -196,7 +196,7 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeExist,
 			ExpectEnvoyConfig: map[string]interface{}{
@@ -259,7 +259,7 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeExist,
 			ExpectEnvoyConfig: map[string]interface{}{

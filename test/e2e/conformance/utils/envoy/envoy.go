@@ -15,11 +15,11 @@ package envoy
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/cmd/hgctl/config"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/pkg/config"
 	cfg "github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	"github.com/tidwall/gjson"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -206,12 +206,10 @@ func findMustExist(t *testing.T, actual interface{}, expected map[string]interfa
 	for key, expectValue := range expected {
 		// If the key does not exist, the assertion fails.
 		t.Logf("🔍 Finding key %s", key)
-		findKey(actual, key, expectValue)
-		if !flag {
+		if !findKey(actual, key, expectValue) {
 			t.Logf("❌ Not found key %s", key)
 			return false
 		}
-		flag = false
 		t.Logf("✅ Found key %s", key)
 	}
 	return true
@@ -222,10 +220,8 @@ func findMustNotExist(t *testing.T, actual interface{}, expected map[string]inte
 	for key, expectValue := range expected {
 		// If the key exists, the assertion fails.
 		t.Logf("🔍 Finding key %s", key)
-		findKey(actual, key, expectValue)
-		if flag {
+		if findKey(actual, key, expectValue) {
 			t.Logf("❌ Found key %s", key)
-			flag = false
 			return false
 		}
 		t.Logf("✅ Not found key %s", key)
@@ -233,34 +229,35 @@ func findMustNotExist(t *testing.T, actual interface{}, expected map[string]inte
 	return true
 }
 
-// flag is used to indicate whether the key is found.
-var flag = false
-
 // findKey finds the value of the given key in the given Envoy config.
-func findKey(actual interface{}, key string, expectValue interface{}) {
-	if flag {
-		return
-	}
+func findKey(actual interface{}, key string, expectValue interface{}) bool {
 	reflectValue := reflect.ValueOf(actual)
 	kind := reflectValue.Kind()
 	switch kind {
 	case reflect.Slice:
 		actualValueSlice := actual.([]interface{})
 		for _, v := range actualValueSlice {
-			findKey(v, key, expectValue)
+			if findKey(v, key, expectValue) {
+				return true
+			}
 		}
+		return false
 	case reflect.Map:
 		actualValueMap := actual.(map[string]interface{})
 		for actualKey, actualValue := range actualValueMap {
 			if actualKey == key && reflect.DeepEqual(convertType(actualValue, expectValue), expectValue) {
-				flag = true
+				return true
 			}
-			findKey(actualValue, key, expectValue)
+			if findKey(actualValue, key, expectValue) {
+				return true
+			}
 		}
+		return false
 	default:
 		if reflectValue.String() == key && reflect.DeepEqual(convertType(actual, expectValue), expectValue) {
-			flag = true
+			return true
 		}
+		return false
 	}
 }
 

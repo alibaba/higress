@@ -41,7 +41,8 @@ var AllFeatures = sets.Set{}.
 	Insert(string(DubboConformanceFeature)).
 	Insert(string(EurekaConformanceFeature)).
 	Insert(string(ConsulConformanceFeature)).
-	Insert(string(NacosConformanceFeature))
+	Insert(string(NacosConformanceFeature)).
+	Insert(string(EnvoyConfigConformanceFeature))
 
 var ExperimentFeatures = sets.Set{}.
 	Insert(string(WASMGoConformanceFeature)).
