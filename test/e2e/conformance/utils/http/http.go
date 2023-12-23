@@ -192,10 +192,6 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 
 	expected.Request.ActualRequest.Method = strings.ToUpper(expected.Request.ActualRequest.Method)
 
-	if expected.Request.ActualRequest.Method != "GET" && expected.Request.ActualRequest.Method != "POST" {
-		t.Fatalf("request method invalid or not supported: %s", expected.Request.ActualRequest.Method)
-	}
-
 	if expected.Response.ExpectedResponse.StatusCode == 0 {
 		expected.Response.ExpectedResponse.StatusCode = 200
 	}
