@@ -14,6 +14,7 @@ limitations under the License.
 package roundtripper
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -41,6 +42,8 @@ type Request struct {
 	Protocol         string
 	Method           string
 	Headers          map[string][]string
+	Body             []byte
+	ContentType      string
 	UnfollowRedirect bool
 	TLSConfig        *TLSConfig
 }
@@ -70,14 +73,15 @@ type ClientKeyPair struct {
 // CapturedRequest contains request metadata captured from an echoserver
 // response.
 type CapturedRequest struct {
-	Path     string              `json:"path"`
-	Host     string              `json:"host"`
-	Method   string              `json:"method"`
-	Protocol string              `json:"proto"`
-	Headers  map[string][]string `json:"headers"`
-
-	Namespace string `json:"namespace"`
-	Pod       string `json:"pod"`
+	Path        string              `json:"path"`
+	Host        string              `json:"host"`
+	Method      string              `json:"method"`
+	Protocol    string              `json:"proto"`
+	Headers     map[string][]string `json:"headers"`
+	Body        []byte
+	ContentType string
+	Namespace   string `json:"namespace"`
+	Pod         string `json:"pod"`
 }
 
 // RedirectRequest contains a follow up request metadata captured from a redirect
@@ -112,7 +116,7 @@ type DefaultRoundTripper struct {
 func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedRequest, *CapturedResponse, error) {
 	cReq := &CapturedRequest{}
 	client := &http.Client{}
-
+	cRes := &CapturedResponse{}
 	if request.UnfollowRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -148,10 +152,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		}
 	}
 
-	method := "GET"
-	if request.Method != "" {
-		method = request.Method
-	}
+	method := request.Method
 	ctx, cancel := context.WithTimeout(context.Background(), d.TimeoutConfig.RequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, request.URL.String(), nil)
@@ -169,6 +170,11 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 				req.Header.Add(name, value)
 			}
 		}
+	}
+
+	if method == "POST" && request.Body != nil {
+		req.Header.Add("Content-Type", string(request.ContentType))
+		req.Body = io.NopCloser(bytes.NewReader(request.Body))
 	}
 
 	if d.Debug {
@@ -198,17 +204,31 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		fmt.Printf("Received Response:\n%s\n\n", formatDump(dump, "< "))
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-
-	// we cannot assume the response is JSON
-	if resp.Header.Get("Content-type") == "application/json" {
-		err = json.Unmarshal(body, cReq)
-		if err != nil {
-			return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
-		}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unexpected error reading response body: %w", err)
 	}
 
-	cRes := &CapturedResponse{
+	if request.Method == "GET" {
+		// we cannot assume the response is JSON
+		if resp.Header.Get("Content-type") == "application/json" {
+			err = json.Unmarshal(body, cReq)
+			if err != nil {
+				return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
+			}
+		}
+	} else if request.Method == "POST" {
+		// 使用POST时，默认backend为echo-body服务
+		// cReq只能捕获echo-body服务返回的body和Content-Type，cRes捕获echo-body服务返回的状态码等
+		resBody := body
+
+		fmt.Printf("Received Response %s", resp.Status)
+		cReq = &CapturedRequest{
+			Body:        resBody,
+			ContentType: resp.Header.Get("Content-type"),
+		}
+	}
+	cRes = &CapturedResponse{
 		StatusCode:    resp.StatusCode,
 		ContentLength: resp.ContentLength,
 		Protocol:      resp.Proto,

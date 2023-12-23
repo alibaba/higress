@@ -86,6 +86,63 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				// post blocked body
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo2.com",
+						Path:             "/foo",
+						Method: "POST",
+						ContentType: http.ContentTypeTextPlain,
+						Body: []byte(`hello world`),
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+				},
+			},
+			{
+				// check body echoed back
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo2.com",
+						Path:             "/foo",
+						Method: "POST",
+						ContentType: http.ContentTypeTextPlain,
+						Body: []byte(`hello higress`),
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						ContentType: http.ContentTypeTextPlain,
+						Body: []byte(`hello higress`),
+					},
+				},
+			},
+			{
+				// not check body echoed back
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo2.com",
+						Path:             "/foo",
+						Method: "POST",
+						ContentType: http.ContentTypeTextPlain,
+						Body: []byte(`hello higress`),
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			
 		}
 		t.Run("WasmPlugins request-block", func(t *testing.T) {
 			for _, testcase := range testcases {

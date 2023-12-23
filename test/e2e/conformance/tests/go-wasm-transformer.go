@@ -35,7 +35,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: request transformer",
+					TestCaseName:    "case 1: request header&query transformer",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -77,7 +77,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 2: response transformer",
+					TestCaseName:    "case 2: response header&query transformer",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -108,6 +108,40 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 							"X-map":        "add-foo2,append-index",
 						},
 						AbsentHeaders: []string{"X-remove"},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName: "case 3: resquest body transformer",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo4.com",
+						Path: "/post",
+						// TODO(Uncle-Justice) dedupe, replace的body插件逻辑有问题，暂跳过测试
+						Method: "POST",
+						Body: []byte(`
+						{
+							"X-removed":["v1", "v2"],
+							"X-not-renamed":["v1"]
+						}
+						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body: []byte(`
+						{
+							"X-renamed":["v1"],
+							"X-add-append":["add","append"],
+							"X-map":["add","append"]
+						}
+						`),
 					},
 				},
 			},
