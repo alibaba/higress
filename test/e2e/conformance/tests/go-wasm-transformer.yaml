@@ -149,7 +149,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-request
       configDisable: false
       config:
-          type: request
           reqRules:
             - operate: remove
               headers:
@@ -208,7 +207,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-response
       configDisable: false
       config:
-        type: response
         respRules:
           - operate: remove
             headers:
@@ -241,7 +239,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-bothway
       configDisable: false
       config:
-        type: request
         reqRules:
           - operate: remove
             headers:
@@ -295,7 +292,6 @@ spec:
               - key: k4
                 strategy: RETAIN_FIRST
 
-        type: response
         respRules:
           - operate: remove
             headers:
@@ -328,7 +324,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-request-arbitary-rule-order
       configDisable: false
       config:
-        type: request
         reqRules:
           - operate: remove
             headers:
@@ -388,7 +383,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-response-arbitary-rule-order
       configDisable: false
       config:
-        type: response
         respRules:
           - operate: remove
             headers:
@@ -421,7 +415,6 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-request-map-from-query
       configDisable: false
       config:
-          type: request
           reqRules:
             - operate: remove
               headers:
