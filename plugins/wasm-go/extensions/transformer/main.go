@@ -192,20 +192,9 @@ type DedupeParam struct {
 	// @Description
 	strategy string `yaml:"strategy"`
 }
-type ParamType int
-
-const (
-	RemoveP ParamType = iota
-	RenameP
-	ReplaceP
-	AddP
-	AppendP
-	MapP
-	DedupeP
-)
 
 type Param struct {
-	paramType    ParamType
+	paramType    string
 	removeParam  RemoveParam
 	renameParam  RenameParam
 	replaceParam ReplaceParam
@@ -263,32 +252,26 @@ func constructParam(item *gjson.Result, op, valueType string) Param {
 	p := Param{
 		valueType: valueType,
 	}
-	switch op {
+	p.paramType = op
+	switch p.paramType {
 	case "remove":
-		p.paramType = RemoveP
 		p.removeParam.key = item.Get("key").String()
 	case "rename":
-		p.paramType = RenameP
 		p.renameParam.oldKey = item.Get("oldKey").String()
 		p.renameParam.newKey = item.Get("newKey").String()
 	case "replace":
-		p.paramType = ReplaceP
 		p.replaceParam.key = item.Get("key").String()
 		p.replaceParam.newValue = item.Get("newValue").String()
 	case "add":
-		p.paramType = AddP
 		p.addParam.key = item.Get("key").String()
 		p.addParam.value = item.Get("value").String()
 	case "append":
-		p.paramType = AppendP
 		p.appendParam.key = item.Get("key").String()
 		p.appendParam.appendValue = item.Get("appendValue").String()
 	case "map":
-		p.paramType = MapP
 		p.mapParam.fromKey = item.Get("fromKey").String()
 		p.mapParam.toKey = item.Get("toKey").String()
 	case "dedupe":
-		p.paramType = DedupeP
 		p.dedupeParam.key = item.Get("key").String()
 		p.dedupeParam.strategy = item.Get("strategy").String()
 	}
