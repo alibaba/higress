@@ -681,15 +681,15 @@ type requestTransformer struct {
 }
 
 func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
-	headerKvtGroup, isHeaderChange, err := newKvtGroup(config.reqRules, "headers")
+	headerKvtGroup, isHeaderChange, withHeaderMapKvt, err := newKvtGroup(config.reqRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
-	queryKvtGroup, isQueryChange, err := newKvtGroup(config.reqRules, "querys")
+	queryKvtGroup, isQueryChange, withQueryMapKvt, err := newKvtGroup(config.reqRules, "querys")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for querys")
 	}
-	bodyKvtGroup, isBodyChange, err := newKvtGroup(config.reqRules, "body")
+	bodyKvtGroup, isBodyChange, _, err := newKvtGroup(config.reqRules, "body")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
@@ -697,7 +697,7 @@ func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
 	mapSource := getMapSourceFromRule(config.reqRules)
 
 	// TODO: not support mapping headers or querys from body in requestTransformer before #582 is fixed
-	if mapSource == "body" && (isHeaderChange || isQueryChange) {
+	if mapSource == "body" && (withHeaderMapKvt || withQueryMapKvt) {
 		return nil, errors.Wrap(err, "not support mapping headers or querys from body in requestTransformer")
 	}
 
@@ -759,17 +759,17 @@ type responseTransformer struct {
 
 func newResponseTransformer(config *TransformerConfig) (Transformer, error) {
 
-	headerKvtGroup, isHeaderChange, err := newKvtGroup(config.respRules, "headers")
+	headerKvtGroup, isHeaderChange, withHeaderMapKvt, err := newKvtGroup(config.respRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
-	bodyKvtGroup, isBodyChange, err := newKvtGroup(config.respRules, "body")
+	bodyKvtGroup, isBodyChange, _, err := newKvtGroup(config.respRules, "body")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
 	mapSource := getMapSourceFromRule(config.respRules)
 	// TODO: not support mapping headers from body in responseTransformer before #582 is fixed
-	if mapSource == "body" && isHeaderChange {
+	if mapSource == "body" && withHeaderMapKvt {
 		return nil, errors.Wrap(err, "not support mapping headers from body in responseTransformer")
 	}
 	return &responseTransformer{
@@ -1184,7 +1184,7 @@ type kvtOperation struct {
 	mapSource       string
 }
 
-func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange bool, err error) {
+func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange bool, withMapKvt bool, err error) {
 	g = []kvtOperation{}
 	for _, r := range rules {
 		var prams []Param
@@ -1214,7 +1214,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 		case "append":
 			kvtOp.kvtOpType = AppendK
 		default:
-			return nil, false, errors.Wrap(err, "invalid operation type")
+			return nil, false, false, errors.Wrap(err, "invalid operation type")
 		}
 		for _, p := range prams {
 			switch r.operate {
@@ -1250,7 +1250,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				if p.hostPattern != "" || p.pathPattern != "" {
 					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
-						return nil, false, errors.Wrap(err, "failed to new reg")
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
 				kvtOp.replaceKvtGroup = append(kvtOp.replaceKvtGroup, replaceKvt{p.replaceParam.key, p.replaceParam.newValue, p.valueType, rg})
@@ -1262,7 +1262,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				if p.hostPattern != "" || p.pathPattern != "" {
 					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
-						return nil, false, errors.Wrap(err, "failed to new reg")
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
 				kvtOp.addKvtGroup = append(kvtOp.addKvtGroup, addKvt{p.addParam.key, p.addParam.value, p.valueType, rg})
@@ -1274,7 +1274,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				if p.hostPattern != "" || p.pathPattern != "" {
 					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
-						return nil, false, errors.Wrap(err, "failed to new reg")
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
 				kvtOp.appendKvtGroup = append(kvtOp.appendKvtGroup, appendKvt{p.appendParam.key, p.appendParam.appendValue, p.valueType, rg})
@@ -1284,10 +1284,11 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 			len(kvtOp.renameKvtGroup) != 0 || len(kvtOp.replaceKvtGroup) != 0 ||
 			len(kvtOp.addKvtGroup) != 0 || len(kvtOp.appendKvtGroup) != 0 ||
 			len(kvtOp.mapKvtGroup) != 0 || len(kvtOp.dedupeKvtGroup) != 0
+		withMapKvt = withMapKvt || len(kvtOp.mapKvtGroup) != 0
 		g = append(g, kvtOp)
 	}
 
-	return g, isChange, nil
+	return g, isChange, withMapKvt, nil
 }
 
 type MapSourceData struct {
