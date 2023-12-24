@@ -245,38 +245,54 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 6: request transformer, map from query",
+					TestCaseName:    "case 6: request transformer, map from query to header",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo6.com",
-						Path: "/get?k1=v11&k1=v12&k2=v2&kmap=vmap",
-						Headers: map[string]string{
-							"X-remove":        "exist",
-							"X-not-renamed":   "test",
-							"X-replace":       "not-replaced",
-							"X-dedupe-first":  "1,2,3",
-							"X-dedupe-last":   "a,b,c",
-							"X-dedupe-unique": "1,2,3,3,2,1",
-						},
+						Host:    "foo6.com",
+						Path:    "/get?kmap=vmap",
+						Headers: map[string]string{},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
 							Host: "foo6.com",
-							Path: "/get?k2-new=v2-new&k3=v31&k3=v32&k4=v31&kmap=vmap", // url.Value.Encode() is ordered by key
+							Path: "/get?kmap=vmap",
 							Headers: map[string]string{
-								"X-renamed":       "test",
-								"X-replace":       "replaced",
-								"X-add-append":    "add,append", // header with same name
-								"X-map":           "vmap",
-								"X-dedupe-first":  "1",
-								"X-dedupe-last":   "c",
-								"X-dedupe-unique": "1,2,3",
+								"X-map": "vmap",
 							},
 						},
-						AbsentHeaders: []string{"X-remove"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 7: request transformer, map from header to query",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo7.com",
+						Path:    "/get",
+						Headers: map[string]string{
+							"X-map":"vmap",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo7.com",
+							Path: "/get?kmap=vmap",
+							Headers: map[string]string{
+								"X-map":"vmap",
+							},
+						},
 					},
 				},
 				Response: http.AssertionResponse{
