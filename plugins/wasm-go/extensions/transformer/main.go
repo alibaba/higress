@@ -96,10 +96,6 @@ func main() {
 //
 // @End
 type TransformerConfig struct {
-	// @Title 转换器类型
-	// @Description 指定转换器类型，可选值为 request, response。
-	// typ string `yaml:"type"`
-
 	// @Title 转换规则
 	// @Description 指定转换操作类型以及请求/响应头、请求查询参数、请求/响应体参数的转换规则
 	reqRules  []TransformRule `yaml:"reqRules"`
@@ -231,13 +227,6 @@ type Param struct {
 }
 
 func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) (err error) {
-	// config.typ = strings.ToLower(json.Get("type").String())
-	// if config.typ != "request" && config.typ != "response" {
-	// 	return errors.Errorf("invalid transformer type %q", config.typ)
-	// }
-
-	// config.rules = make([]TransformRule, 0)
-	// rules := json.Get("rules").Array()
 	reqRulesInJson := json.Get("reqRules")
 	respRulesInJson := json.Get("respRules")
 
@@ -589,14 +578,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 				return types.ActionContinue
 			}
 			hs := convertHeaders(headers)
-			// if hs[":authority"] == nil {
-			// 	log.Warn(errGetResponseHost.Error())
-			// 	return types.ActionContinue
-			// }
-			// if hs[":path"] == nil {
-			// 	log.Warn(errGetResponsePath.Error())
-			// 	return types.ActionContinue
-			// }
+
 			mapSourceData.mapSourceType = "headers"
 			mapSourceData.kvs = hs
 		}
