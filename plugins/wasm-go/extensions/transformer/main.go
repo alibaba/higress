@@ -326,6 +326,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 		return types.ActionContinue
 	}
 
+	ctx.SetContext("headers", hs)
+	ctx.SetContext("querys", qs)
+
 	var mapSourceData MapSourceData
 	switch config.reqTrans.GetMapSource() {
 	case "headers":
@@ -405,15 +408,16 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 	}
 
 	var mapSourceData MapSourceData
+	var hs map[string][]string
+	var qs map[string][]string
 	switch config.reqTrans.GetMapSource() {
 	case "headers":
 		{
-			headers, err := proxywasm.GetHttpRequestHeaders()
-			if err != nil {
+			hs = ctx.GetContext("headers").(map[string][]string)
+			if hs == nil {
 				log.Warn("failed to get request headers")
 				return types.ActionContinue
 			}
-			hs := convertHeaders(headers)
 			if hs[":authority"] == nil {
 				log.Warn(errGetRequestHost.Error())
 				return types.ActionContinue
@@ -428,10 +432,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 
 	case "querys":
 		{
-			path := ctx.Path()
-			qs, err := parseQueryByPath(path)
-			if err != nil {
-				log.Warnf("failed to parse query params by path: %v", err)
+			qs = ctx.GetContext("querys").(map[string][]string)
+			if qs == nil {
+				log.Warn("failed to get request querys")
 				return types.ActionContinue
 			}
 			mapSourceData.mapSourceType = "querys"
@@ -488,6 +491,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
+	ctx.SetContext("headers", hs)
 	contentType := ""
 	if hs["content-type"] != nil {
 		contentType = hs["content-type"][0]
@@ -555,13 +559,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 	switch config.respTrans.GetMapSource() {
 	case "headers":
 		{
-			headers, err := proxywasm.GetHttpResponseHeaders()
-			if err != nil {
-				log.Warn("failed to get request headers")
+			hs := ctx.GetContext("headers").(map[string][]string)
+			if hs == nil {
+				log.Warn("failed to get response headers")
 				return types.ActionContinue
 			}
-			hs := convertHeaders(headers)
-
 			mapSourceData.mapSourceType = "headers"
 			mapSourceData.kvs = hs
 		}
