@@ -345,39 +345,6 @@ spec:
       configDisable: false
       config:
         reqRules:
-          - operate: remove
-            headers:
-              - key: X-remove
-            querys:
-              - key: k1
-          - operate: replace
-            headers:
-              - key: X-replace
-                newValue: replaced
-            querys:
-              - key: k2
-                newValue: v2-new
-          - operate: add
-            headers:
-              - key: X-add-append
-                value: add
-            querys:
-              - key: k3
-                value: v31
-          - operate: append
-            headers:
-              - key: X-add-append
-                appendValue: append
-            querys:
-              - key: k3
-                appendValue: v32
-          - operate: map
-            headers:
-              - fromKey: X-add-append
-                toKey: X-map
-            querys:
-              - fromKey: k3
-                toKey: k4
           - operate: dedupe
             headers:
               - key: X-dedupe-first
@@ -387,17 +354,53 @@ spec:
               - key: X-dedupe-unique
                 strategy: RETAIN_UNIQUE
             querys:
-              - key: k4
+              - key: k1
                 strategy: RETAIN_FIRST
+
+          - operate: map
+            headers:
+              - fromKey: X-dedupe-first
+                toKey: X-map-dedupe-first
+            querys:
+              - fromKey: k1
+                toKey: k2
+
+          - operate: append
+            headers:
+              - key: X-map-dedupe-first
+                appendValue: append
+            querys:
+              - key: k2
+                appendValue: v22
+
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add
+            querys:
+              - key: k3
+                value: v31
+
+          - operate: replace
+            headers:
+              - key: X-dedupe-last
+                newValue: X-dedupe-last-replaced
+                
           - operate: rename
             headers:
-              - oldKey: X-not-renamed
-                newKey: X-renamed
-              - oldKey: X-map
-                newKey: X-map-renamed
+              - oldKey: X-dedupe-unique
+                newKey: X-dedupe-unique-renamed
             querys:
-              - oldKey: k2
-                newKey: k2-new
+              - oldKey: k3
+                newKey: k3-new
+
+          - operate: remove
+            headers:
+              - key: X-dedupe-first
+            querys:
+              - key: k1
+          
+
 
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-response-arbitary-rule-order

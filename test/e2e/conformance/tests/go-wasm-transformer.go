@@ -174,11 +174,8 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo4.com",
-						Path: "/get?k1=v11&k1=v12&k2=v2",
+						Path: "/get?k1=v11&k1=v12",
 						Headers: map[string]string{
-							"X-remove":        "exist",
-							"X-not-renamed":   "test",
-							"X-replace":       "not-replaced",
 							"X-dedupe-first":  "1,2,3",
 							"X-dedupe-last":   "a,b,c",
 							"X-dedupe-unique": "1,2,3,3,2,1",
@@ -187,18 +184,15 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
 							Host: "foo4.com",
-							Path: "/get?k2-new=v2-new&k3=v31&k3=v32&k4=v31", // url.Value.Encode() is ordered by key
+							Path: "/get?k2=v11&k2=v22&k3-new=v31",
 							Headers: map[string]string{
-								"X-renamed":       "test",
-								"X-replace":       "replaced",
-								"X-add-append":    "add,append", // header with same name
-								"X-map-renamed":   "add,append",
-								"X-dedupe-first":  "1",
-								"X-dedupe-last":   "c",
-								"X-dedupe-unique": "1,2,3",
+								"X-add-append":            "add",
+								"X-map-dedupe-first":      "1,append",
+								"X-dedupe-last":           "X-dedupe-last-replaced",
+								"X-dedupe-unique-renamed": "1,2,3",
 							},
 						},
-						AbsentHeaders: []string{"X-remove"},
+						AbsentHeaders: []string{"X-dedupe-first"},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -279,10 +273,10 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:    "foo7.com",
-						Path:    "/get",
+						Host: "foo7.com",
+						Path: "/get",
 						Headers: map[string]string{
-							"X-map":"vmap",
+							"X-map": "vmap",
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
@@ -290,7 +284,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 							Host: "foo7.com",
 							Path: "/get?kmap=vmap",
 							Headers: map[string]string{
-								"X-map":"vmap",
+								"X-map": "vmap",
 							},
 						},
 					},
