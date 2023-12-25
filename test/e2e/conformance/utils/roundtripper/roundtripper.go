@@ -151,8 +151,11 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			},
 		}
 	}
-
-	method := request.Method
+	
+	method := "GET"
+	if request.Method != "" {
+		method = request.Method
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), d.TimeoutConfig.RequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, request.URL.String(), nil)
