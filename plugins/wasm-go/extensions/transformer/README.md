@@ -5,15 +5,16 @@
 # 配置字段
 
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
-| -------- | -------- | -------- | -------- | -------- |
-|  type |  string  | 必填，可选值为 `request`, `response` |   -  |  指定转换器类型  |
-| rules |  array of object  | 选填     |   -  | 指定转换操作类型以及请求/响应头、请求查询参数、请求/响应体参数的转换规则 |
+| :----: | :----: | :----: | :----: | -------- |
+|  reqRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  请求转换器配置，指定转换操作类型以及请求头、请求查询参数、请求参数的转换规则  |
+|  respRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  响应转换器配置，指定转换操作类型以及响应头、响应查询参数、响应参数的转换规则  |
 
-`rules`中每一项的配置字段说明如下：
+`reqRules`和`respRules`中每一项的配置字段说明如下：
 
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
-| -------- | -------- | -------- | -------- | -------- |
+| :----: | :----: | :----: | :----: | -------- |
 | operate |  string  | 必填，可选值为 `remove`, `rename`, `replace`, `add`, `append`, `map`, `dedupe` |   -  |  指定转换操作类型，支持的操作类型有删除 (remove)、重命名 (rename)、更新 (replace)、添加 (add)、追加 (append)、映射 (map)、去重 (dedupe)，当存在多项不同类型的转换规则时，按照上述操作类型顺序依次执行  |
+|  mapSource  | string  | 选填，可选值为`headers`, `querys`,`body` |  -  | 仅在operate为`map`时有效。指定映射来源，若不填该字段，则默认映射来源为自身 |
 |  headers  |  array of object  | 选填     |  -  | 指定请求/响应头转换规则 |
 | querys |  array of object  | 选填     |   -  | 指定请求查询参数转换规则 |
 | body | array of object | 选填 | - | 指定请求/响应体参数转换规则，请求体转换允许 content-type 为 `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data`；响应体转换仅允许 content-type 为 `application/json` |
@@ -21,9 +22,20 @@
 `headers`, `querys`, `body`中每一项的配置字段说明如下：
 
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述                                                |
-| -------- | -------- | -------- | -------- |---------------------------------------------------|
-| key |  string  | 选填 |   -  | 指定键，详见[转换操作类型](#转换操作类型) |
-| value | string | 选填 | - | 指定值，详见[转换操作类型](#转换操作类型) |
+| :----: | :----: | :----: | -------- |---------------------------------------------------|
+| key |  string  | 选填 |   -  | 在operate为`remove`时使用，用法详见[转换操作类型](#转换操作类型) |
+| oldKey | string | 选填 | - |在operate为`rename`时使用，用法详见[转换操作类型](#转换操作类型) |
+| newKey |  string  | 选填 |   -  | 在operate为`rename`时使用，用法详见[转换操作类型](#转换操作类型) |
+| key | string | 选填 | - | 在operate为`replace`时使用，用法详见[转换操作类型](#转换操作类型) |
+| newValue |  string  | 选填 |   -  | 在operate为`replace`时使用，用法详见[转换操作类型](#转换操作类型) |
+| key | string | 选填 | - | 在operate为`add`时使用，用法详见[转换操作类型](#转换操作类型) |
+| value | string | 选填 | - | 在operate为`add`时使用，用法详见[转换操作类型](#转换操作类型) |
+| key |  string  | 选填 |   -  | 在operate为`append`时使用，用法详见[转换操作类型](#转换操作类型) |
+| appendValue | string | 选填 | - | 在operate为`append`时使用，用法详见[转换操作类型](#转换操作类型) |
+| fromKey |  string  | 选填 |   -  | 在operate为`map`时使用，用法详见[转换操作类型](#转换操作类型) |
+| toKey |  string  | 选填 |   -  | 在operate为`map`时使用，用法详见[转换操作类型](#转换操作类型) |
+| key |  string  | 选填 |   -  | 在operate为`dedupe`时使用，用法详见[转换操作类型](#转换操作类型) |
+| strategy |  string  | 选填 |   -  | 在operate为`dedupe`时使用，用法详见[转换操作类型](#转换操作类型) |
 |  value_type  |  string  | 选填，可选值为 `object`, `boolean`, `number`, `string` |  string  | 当`content-type: application/json`时，该字段指定请求/响应体参数的值类型 |
 | host_pattern |  string  | 选填     |   -  | 指定请求主机名匹配规则，当转换操作类型为 `replace`, `add`, `append` 时有效 |
 | path_pattern | string | 选填 | - | 指定请求路径匹配规则，当转换操作类型为 `replace`, `add`, `append` 时有效 |
@@ -32,8 +44,8 @@
 
 * `request transformer` 支持以下转换对象：请求头部、请求查询参数、请求体（application/json, application/x-www-form-urlencoded, multipart/form-data）
 * `response transformer` 支持以下转换对象：响应头部、响应体（application/json）
-
-* 转换操作类型的执行顺序：remove → rename → replace → add → append → map → dedupe
+* 插件支持双向转换能力，即单个插件能够完成对请求和响应都做转换
+* 转换操作类型的执行顺序，为配置文件中编写的顺序，如：remove → rename → replace → add → append → map → dedupe或者dedupe → map → append → add → replace → rename → remove等
 * 当转换对象为 headers 时，` key` 不区分大小写；当为 headers 且为 `rename`, `map` 操作时，`value` 也不区分大小写（因为此时该字段具有 key 含义）；而 querys 和 body 的 `key`, `value` 字段均区分大小写
 * `value_type` 仅对 content-type 为 application/json 的请求/响应体有效
 * `host_pattern` 和 `path_pathern` 支持 [RE2 语法](https://pkg.go.dev/regexp/syntax)，仅对 `replace`, `add`, `append` 操作有效，且在一项转换规则中两者只能选填其一，若均填写，则 `host_pattern` 生效，而 `path_pattern` 失效
@@ -43,7 +55,7 @@
 # 转换操作类型
 
 | 操作类型      | key 字段含义 | value 字段含义     | 描述                                                         |
-| ------------- | ----------------- |-----| ------------------------------------------------------------ |
+| :----: | :----: | :----: | ------------------------------------------------------------ |
 | 删除 remove   | 目标 key     |无需设置| 若存在指定的 `key`，则删除；否则无操作                 |
 | 重命名 rename | 目标 oldKey |新的 key 名称 newKey| 若存在指定的 `oldKey:value`，则将其键名重命名为 `newKey`，得到 `newKey:value`；否则无操作 |
 | 更新 replace  | 目标 key |新的 value 值 newValue| 若存在指定的 `key:value`，则将其 value 更新为 `newValue`，得到 `key:newValue`；否则无操作 |
@@ -62,19 +74,18 @@
 ### 转换请求头部
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: remove
   headers:
   - key: X-remove
 - operate: rename
   headers:
-  - key: X-not-renamed
-    value: X-renamed
+  - oldKey: X-not-renamed
+    newKey: X-renamed
 - operate: replace
   headers:
   - key: X-replace
-    value: replaced
+    newValue: replaced
 - operate: add
   headers:
   - key: X-add-append
@@ -83,20 +94,20 @@ rules:
 - operate: append
   headers:
   - key: X-add-append
-    value: path-$1
+    appendValue: path-$1
     path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
 - operate: map
   headers:
-  - key: X-add-append
-    value: X-map
+  - fromKey: X-add-append
+    toKey: X-map
 - operate: dedupe
   headers:
   - key: X-dedupe-first
-    value: RETAIN_FIRST
+    strategy: RETAIN_FIRST
   - key: X-dedupe-last
-    value: RETAIN_LAST
+    strategy: RETAIN_LAST
   - key: X-dedupe-unique
-    value: RETAIN_UNIQUE
+    strategy: RETAIN_UNIQUE
 ```
 
 发送请求
@@ -131,19 +142,18 @@ $ curl -v console.higress.io/get -H 'host: foo.bar.com' \
 ### 转换请求查询参数
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: remove
   querys:
   - key: k1
 - operate: rename
   querys:
-  - key: k2
-    value: k2-new
+  - oldKey: k2
+    newKey: k2-new
 - operate: replace
   querys:
   - key: k2-new
-    value: v2-new
+    newValue: v2-new
 - operate: add
   querys:
   - key: k3
@@ -152,15 +162,15 @@ rules:
 - operate: append
   querys:
   - key: k3
-    value: v32
+    appendValue: v32
 - operate: map
   querys:
-  - key: k3
-    value: k4
+  - fromKey: k3
+    toKey: k4
 - operate: dedupe
   querys:
   - key: k4
-    value: RETAIN_FIRST
+    strategy: RETAIN_FIRST
 ```
 
 发送请求
@@ -186,19 +196,18 @@ $ curl -v "console.higress.io/get?k1=v11&k1=v12&k2=v2"
 ### 转换请求体
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: remove
   body:
   - key: a1
 - operate: rename
   body: 
-  - key: a2
-    value: a2-new
+  - oldKey: a2
+    newKey: a2-new
 - operate: replace
   body:
   - key: a3
-    value: t3-new
+    newValue: t3-new
     value_type: string
 - operate: add
   body:
@@ -208,17 +217,17 @@ rules:
 - operate: append
   body:
   - key: a1-new
-    value: t1-$1-append
+    appendValue: t1-$1-append
     value_type: string
     host_pattern: ^(.*)\.com$
 - operate: map
   body:
-  - key: a1-new
-    value: a4
+  - fromKey: a1-new
+    toKey: a4
 - operate: dedupe
   body:
   - key: a4
-    value: RETAIN_FIRST
+    strategy: RETAIN_FIRST
 ```
 
 发送请求：
@@ -313,8 +322,7 @@ $ curl -v -X POST console.higress.io/post -H 'host: foo.bar.com' \
 1.通常情况下，指定的 key 中含有 `.` 表示嵌套含义，如下：
 
 ```yaml
-type: response
-rules:
+respRules:
 - operate: add
   body:
   - key: foo.bar
@@ -339,8 +347,7 @@ $ curl -v console.higress.io/get
 > 当使用双引号括住字符串时使用 `\\.` 进行转义
 
 ```yaml
-type: response
-rules:
+respRules:
 - operate: add
   body:
   - key: foo\.bar
@@ -378,8 +385,7 @@ $ curl -v console.higress.io/get
 1.移除 `user` 第一个元素：
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: remove
   body:
   - key: users.0
@@ -409,12 +415,11 @@ $ curl -v -X POST console.higress.io/post \
 2.将 `users` 第一个元素的 key 为 `123` 重命名为 `msg`:
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: rename
   body:
-  - key: users.0.123
-    value: users.0.first
+  - oldKey: users.0.123
+    newKey: users.0.first
 ```
 
 ```bash
@@ -466,12 +471,11 @@ $ curl -v -X POST console.higress.io/post \
 ```
 
 ```yaml
-type: request
-rules:
+reqRules:
 - operate: replace
   body:
   - key: users.#.age
-    value: 20
+    newValue: 20
 ```
 
 ```bash
