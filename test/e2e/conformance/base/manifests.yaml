@@ -199,6 +199,7 @@ spec:
     spec:
       containers:
       - name: infra-backend-echo-body-v1
+        # FROM https://github.com/higress-group/echo-body
         image: 873292889/echo-body:1.5.0
         env:
         - name: POD_NAME
