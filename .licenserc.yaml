@@ -28,6 +28,7 @@ header:
     - 'test/README.md'
     - 'pkg/cmd/hgctl/testdata/config'
     - 'pkg/cmd/hgctl/manifests'
+    - 'pkg/ingress/kube/gateway/istio/testdata'
 
   comment: on-failure
 dependency:
