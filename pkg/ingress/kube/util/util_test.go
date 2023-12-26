@@ -15,6 +15,7 @@
 package util
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -84,7 +85,7 @@ func TestSplitNamespacedName(t *testing.T) {
 }
 
 func TestCreateDestinationRuleName(t *testing.T) {
-	istioCluster := "gw-123-istio"
+	istioCluster := cluster.ID("gw-123-istio")
 	namespace := "default"
 	serviceName := "go-httpbin-v1"
 	t.Log(CreateDestinationRuleName(istioCluster, namespace, serviceName))

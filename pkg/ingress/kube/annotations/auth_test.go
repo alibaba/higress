@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,7 +190,7 @@ func initGlobalContext(secret *v1.Secret) (*GlobalContext, context.CancelFunc) {
 
 	return &GlobalContext{
 		WatchedSecrets: sets.New[string](),
-		ClusterSecretLister: map[string]listerv1.SecretLister{
+		ClusterSecretLister: map[cluster.ID]listerv1.SecretLister{
 			"cluster": secretInformer.Lister(),
 		},
 	}, cancel

@@ -95,24 +95,24 @@ func TestLocalRateLimitApplyRoute(t *testing.T) {
 					FillInterval:  second,
 				},
 			},
-			input: &networking.HTTPRoute{},
+			input:  &networking.HTTPRoute{},
 			expect: &networking.HTTPRoute{
-				RouteHTTPFilters: []*networking.HTTPFilter{
-					// TODO: Upgrade fix
-					//{
-					//	Name: mseingress.LocalRateLimit,
-					//	Filter: &networking.HTTPFilter_LocalRateLimit{
-					//		LocalRateLimit: &networking.LocalRateLimit{
-					//			TokenBucket: &networking.TokenBucket{
-					//				MaxTokens:     60,
-					//				TokensPefFill: 20,
-					//				FillInterval:  second,
-					//			},
-					//			StatusCode: defaultStatusCode,
-					//		},
-					//	},
-					//},
-				},
+				// TODO: Upgrade fix
+				//RouteHTTPFilters: []*networking.HTTPFilter{
+				//	{
+				//		Name: mseingress.LocalRateLimit,
+				//		Filter: &networking.HTTPFilter_LocalRateLimit{
+				//			LocalRateLimit: &networking.LocalRateLimit{
+				//				TokenBucket: &networking.TokenBucket{
+				//					MaxTokens:     60,
+				//					TokensPefFill: 20,
+				//					FillInterval:  second,
+				//				},
+				//				StatusCode: defaultStatusCode,
+				//			},
+				//		},
+				//	},
+				//},
 			},
 		},
 	}

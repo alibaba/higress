@@ -363,9 +363,9 @@ func TestRewriteApplyRoute(t *testing.T) {
 					},
 				},
 				Rewrite: &networking.HTTPRewrite{
-					UriRegex: &networking.RegexMatchAndSubstitute{
-						Pattern:      "/exact",
-						Substitution: "/test",
+					UriRegexRewrite: &networking.RegexRewrite{
+						Match:   "/exact",
+						Rewrite: "/test",
 					},
 				},
 			},
@@ -398,9 +398,9 @@ func TestRewriteApplyRoute(t *testing.T) {
 					},
 				},
 				Rewrite: &networking.HTTPRewrite{
-					UriRegex: &networking.RegexMatchAndSubstitute{
-						Pattern:      "/prefix",
-						Substitution: "/test",
+					UriRegexRewrite: &networking.RegexRewrite{
+						Match:   "/prefix",
+						Rewrite: "/test",
 					},
 				},
 			},

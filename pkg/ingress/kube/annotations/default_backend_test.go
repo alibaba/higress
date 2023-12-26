@@ -21,6 +21,7 @@ import (
 	"time"
 
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/cluster"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -223,7 +224,7 @@ func initGlobalContextForService() (*GlobalContext, context.CancelFunc) {
 	cache.WaitForCacheSync(ctx.Done(), serviceInformer.Informer().HasSynced)
 
 	return &GlobalContext{
-		ClusterServiceList: map[string]listerv1.ServiceLister{
+		ClusterServiceList: map[cluster.ID]listerv1.ServiceLister{
 			"cluster": serviceInformer.Lister(),
 		},
 	}, cancel

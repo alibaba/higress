@@ -121,7 +121,7 @@ func TestRetryParse(t *testing.T) {
 			},
 			expect: &RetryConfig{
 				retryCount:      3,
-				retryOn:         "5xx,retriable-status-codes,505,503,502,404,403",
+				retryOn:         "5xx,retriable-status-codes,503,502,404",
 				perRetryTimeout: &duration.Duration{},
 			},
 		},
