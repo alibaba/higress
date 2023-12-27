@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -29,83 +30,75 @@ func main() {
 		"custom-response",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
 }
 
 type CustomResponseConfig struct {
-	statusCode     uint32            `yaml:"status_code"`
-	headers        map[string]string `yaml:"headers"`
-	body           string            `yaml:"body"`
-	enableOnStatus uint32            `yaml:"enable_on_status"`
+	statusCode     uint32      `yaml:"status_code"`
+	headers        [][2]string `yaml:"headers"`
+	body           string      `yaml:"body"`
+	enableOnStatus []uint32    `yaml:"enable_on_status"`
 }
 
 func parseConfig(json gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
-	headers := json.Get("headers")
-	if len(headers.Raw) > 0 {
-		config.headers = make(map[string]string)
-		for _, v := range headers.Array() {
-			kv := strings.Split(v.String(), "=")
-			config.headers[kv[0]] = kv[1]
+	headersArray := json.Get("headers").Array()
+	config.headers = make([][2]string, 0, len(headersArray))
+	for _, v := range headersArray {
+		kv := strings.Split(v.String(), "=")
+		if len(kv) == 2 {
+			config.headers = append(config.headers, [2]string{kv[0], kv[1]})
+		} else {
+			return fmt.Errorf("invalid header pair format: %s", v.String())
 		}
 	}
+
 	config.body = json.Get("body").String()
-	config.statusCode = uint32(json.Get("status_code").Int())
-	config.enableOnStatus = uint32(json.Get("enable_on_status").Int())
+
+	config.statusCode = 200
+	if json.Get("status_code").Exists() {
+		statusCode := json.Get("status_code")
+		parsedStatusCode, err := strconv.Atoi(statusCode.String())
+		if err != nil {
+			return fmt.Errorf("invalid status code value: %s", statusCode.String())
+		}
+		config.statusCode = uint32(parsedStatusCode)
+	}
+
+	enableOnStatusArray := json.Get("enable_on_status").Array()
+	config.enableOnStatus = make([]uint32, len(enableOnStatusArray))
+	for _, v := range enableOnStatusArray {
+		parsedEnableOnStatus, err := strconv.Atoi(v.String())
+		if err != nil {
+			return fmt.Errorf("invalid enable_on_status value: %s", v.String())
+		}
+		config.enableOnStatus = append(config.enableOnStatus, uint32(parsedEnableOnStatus))
+	}
 
 	return nil
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
-	if config.enableOnStatus != 0 {
-		statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
-		if err != nil {
-			log.Warnf("get http response status code failed: %v", err)
-			return types.ActionContinue
-		}
-		statusCode, err := strconv.ParseUint(statusCodeStr, 10, 32)
-		if err != nil {
-			log.Warnf("parse http response status code failed: %v", err)
-			return types.ActionContinue
-		}
-		if uint32(statusCode) != config.enableOnStatus {
-			return types.ActionContinue
-		}
+	if len(config.enableOnStatus) == 0 {
+		proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+		return types.ActionContinue
 	}
 
-	// Add custom HTTP response header
-	for k, v := range config.headers {
-		proxywasm.AddHttpResponseHeader(k, v)
+	// enableOnStatus is not empty, compare the status code.
+	// if match the status code, mock the response.
+	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
+	if err != nil {
+		log.Warnf("get http response status code failed: %v", err)
+		return types.ActionContinue
 	}
-	// When we modify the response body, we need to remove the content-length header.
-	// Otherwise, the wrong content-length is sent to the upstream and that might result in client crash,
-	// if the size of the data differs from the original size.
-	if config.body != "" {
-		proxywasm.RemoveHttpResponseHeader("content-length")
+	statusCode, err := strconv.ParseUint(statusCodeStr, 10, 32)
+	if err != nil {
+		log.Warnf("parse http response status code failed: %v", err)
+		return types.ActionContinue
 	}
-
-	// Modify HTTP response status code
-	if config.statusCode != 0 {
-		headers, err := proxywasm.GetHttpResponseHeaders()
-		if err != nil {
-			log.Warnf("get http response headers failed: %v", err)
-			return types.ActionContinue
-		}
-		proxywasm.SendHttpResponse(config.statusCode, headers, []byte(config.body), -1)
-	}
-
-	return types.ActionContinue
-}
-
-func onHttpResponseBody(ctx wrapper.HttpContext, config CustomResponseConfig, body []byte, log wrapper.Log) types.Action {
-	// Modify HTTP response body
-	if config.body != "" && config.statusCode == 0 {
-		err := proxywasm.ReplaceHttpResponseBody([]byte(config.body))
-		if err != nil {
-			log.Warnf("replace http response body failed: %v", err)
-			return types.ActionContinue
+	for _, v := range config.enableOnStatus {
+		if uint32(statusCode) == v {
+			proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
 		}
 	}
-
 	return types.ActionContinue
 }

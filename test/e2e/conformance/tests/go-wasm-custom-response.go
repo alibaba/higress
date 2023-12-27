@@ -25,6 +25,8 @@ func init() {
 	Register(WasmPluginsCustomResponse)
 }
 
+// Currently, the E2E test verifies request and response metadata (like headers and path) based on the echoserver's response.
+// Since the custom-response plugin mocks the response body, we can't verify the header and body.
 var WasmPluginsCustomResponse = suite.ConformanceTest{
 	ShortName:   "WasmPluginsCustomResponse",
 	Description: "The Ingress in the higress-conformance-infra namespace test the custom-response WASM plugin.",
@@ -43,20 +45,10 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 						Host: "foo.com",
 						Path: "/",
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "foo.com",
-							Path: "/",
-						},
-					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers: map[string]string{
-							"key1": "value1",
-							"key2": "value2",
-						},
+						StatusCode: 201,
 					},
 				},
 			},
@@ -71,20 +63,10 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 						Host: "bar.com",
 						Path: "/",
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "bar.com",
-							Path: "/",
-						},
-					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers: map[string]string{
-							"key3": "value3",
-							"key4": "value4",
-						},
+						StatusCode: 202,
 					},
 				},
 			},
@@ -99,44 +81,10 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 						Host: "baz.com",
 						Path: "/",
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "baz.com",
-							Path: "/",
-						},
-					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers: map[string]string{
-							"key5": "value5",
-							"key6": "value6",
-						},
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 4: Change status code",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host: "qux.com",
-						Path: "/",
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host: "qux.com",
-							Path: "/",
-						},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 201,
+						StatusCode: 203,
 					},
 				},
 			},

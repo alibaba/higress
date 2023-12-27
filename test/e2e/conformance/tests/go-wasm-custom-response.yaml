@@ -50,16 +50,6 @@ spec:
                 name: infra-backend-v1
                 port:
                   number: 8080
-    - host: "qux.com"
-      http:
-        paths:
-          - pathType: Prefix
-            path: "/"
-            backend:
-              service:
-                name: infra-backend-v1
-                port:
-                  number: 8080
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -68,25 +58,17 @@ metadata:
   namespace: higress-system
 spec:
   defaultConfig:
-    headers:
-      - key1=value1
-      - key2=value2
+    status_code: 201
   matchRules:
     - config:
-        headers:
-          - key3=value3
-          - key4=value4
+        status_code: 202
       domain:
         - bar.com
     - config:
-        enable_on_status: 200
-        headers:
-          - key5=value5
-          - key6=value6
+        enable_on_status:
+          - 200
+          - 201
+        status_code: 203
       domain:
         - baz.com
-    - config:
-        status_code: 201
-      domain:
-        - qux.com
   url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm

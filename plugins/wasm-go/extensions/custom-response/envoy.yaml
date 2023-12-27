@@ -50,7 +50,7 @@ static_resources:
                                 "headers": ["key1=value1","key2=value2"],
                                 "status_code": 203,
                                 "body": "{\"welcome\":\"wasm\"}",
-                                "enable_on_status": 200
+                                "enable_on_status": [202, 204]
                               }
                   - name: envoy.filters.http.router
   clusters:
