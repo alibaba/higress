@@ -79,7 +79,7 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Lo
 
 	// Claims 支持直接传入 jose 的 jwks 并自动选择合适的公钥
 	// 无需额外调用verify，claims内部已进行验证
-	err = token.Claims(keys, out)
+	err = token.Claims(keys, &out)
 	if err != nil {
 		return &ErrDenied{
 			msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: %s",
