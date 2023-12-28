@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Updated based on Istio codebase by Higress
+
 package istio
 
 import (
@@ -32,10 +34,11 @@ import (
 // GatewayContext contains a minimal subset of push context functionality to be exposed to GatewayAPIControllers
 type GatewayContext struct {
 	ps *model.PushContext
+	si *serviceIndex
 }
 
-func NewGatewayContext(ps *model.PushContext) GatewayContext {
-	return GatewayContext{ps}
+func NewGatewayContext(ps *model.PushContext, si *serviceIndex) GatewayContext {
+	return GatewayContext{ps, si}
 }
 
 // ResolveGatewayInstances attempts to resolve all instances that a gateway will be exposed on.
@@ -50,6 +53,9 @@ func NewGatewayContext(ps *model.PushContext) GatewayContext {
 func (gc GatewayContext) ResolveGatewayInstances(
 	namespace string,
 	gwsvcs []string,
+	// Start - Updated by Higress
+	gatewaySelector map[string]string,
+	// End - Updated by Higress
 	servers []*networking.Server,
 ) (internal, external, pending, warns []string) {
 	ports := map[int]struct{}{}
@@ -60,11 +66,30 @@ func (gc GatewayContext) ResolveGatewayInstances(
 	foundExternal := sets.New[string]()
 	foundPending := sets.New[string]()
 	warnings := []string{}
+	// Start - Added by Higress
+	if gatewaySelector != nil && len(gatewaySelector) != 0 {
+		gwsvcs = append([]string{}, gwsvcs...)
+		for _, svc := range gc.si.all {
+			matches := true
+			for k, v := range gatewaySelector {
+				if svc.Attributes.Labels[k] != v {
+					matches = false
+					break
+				}
+			}
+			if matches {
+				gwsvcs = append(gwsvcs, string(svc.Hostname))
+			}
+		}
+	}
+	// End - Added by Higress
 	for _, g := range gwsvcs {
-		svc, f := gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(g)][namespace]
+		// Start - Updated by Higress
+		svc, f := gc.si.HostnameAndNamespace[host.Name(g)][namespace]
+		// End - Updated by Higress
 		if !f {
 			otherNamespaces := []string{}
-			for ns := range gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(g)] {
+			for ns := range gc.si.HostnameAndNamespace[host.Name(g)] {
 				otherNamespaces = append(otherNamespaces, `"`+ns+`"`) // Wrap in quotes for output
 			}
 			if len(otherNamespaces) > 0 {
@@ -78,7 +103,9 @@ func (gc GatewayContext) ResolveGatewayInstances(
 		}
 		svcKey := svc.Key()
 		for port := range ports {
-			instances := gc.ps.ServiceInstancesByPort(svc, port, nil)
+			// Start - Updated by Higress
+			instances := gc.si.ServiceInstancesByPort(svc, port, nil)
+			// End - Updated by Higress
 			if len(instances) > 0 {
 				foundInternal.Insert(fmt.Sprintf("%s:%d", g, port))
 				if svc.Attributes.ClusterExternalAddresses.Len() > 0 {
@@ -93,7 +120,9 @@ func (gc GatewayContext) ResolveGatewayInstances(
 					}
 				}
 			} else {
-				instancesByPort := gc.ps.ServiceInstances(svcKey)
+				// Start - Updated by Higress
+				instancesByPort := gc.si.ServiceInstances(svcKey)
+				// End - Updated by Higress
 				if instancesEmpty(instancesByPort) {
 					warnings = append(warnings, fmt.Sprintf("no instances found for hostname %q", g))
 				} else {
@@ -121,7 +150,9 @@ func (gc GatewayContext) ResolveGatewayInstances(
 }
 
 func (gc GatewayContext) GetService(hostname, namespace string) *model.Service {
-	return gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(hostname)][namespace]
+	// Start - Updated by Higress
+	return gc.si.HostnameAndNamespace[host.Name(hostname)][namespace]
+	// End - Updated by Higress
 }
 
 func instancesEmpty(m map[int][]*model.ServiceInstance) bool {
