@@ -65,12 +65,10 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.L
 
 	config.body = gjson.Get("body").String()
 	if config.contentType == "" && config.body != "" {
-		_, err := json.Marshal(config.body)
-		if err != nil {
-			log.Warnf("marshal body to JSON failed: %v", err)
-			config.contentType = "text/plain; charset=utf-8"
-		} else {
+		if json.Valid([]byte(config.body)) {
 			config.contentType = "application/json; charset=utf-8"
+		} else {
+			config.contentType = "text/plain; charset=utf-8"
 		}
 	}
 	config.headers = append(config.headers, [2]string{"content-type", config.contentType})
@@ -86,7 +84,7 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.L
 	}
 
 	enableOnStatusArray := gjson.Get("enable_on_status").Array()
-	config.enableOnStatus = make([]uint32, len(enableOnStatusArray))
+	config.enableOnStatus = make([]uint32, 0, len(enableOnStatusArray))
 	for _, v := range enableOnStatusArray {
 		parsedEnableOnStatus, err := strconv.Atoi(v.String())
 		if err != nil {
