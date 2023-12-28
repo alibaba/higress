@@ -20,10 +20,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"os/user"
 	"strings"
-	"syscall"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	ptypes "github.com/alibaba/higress/pkg/cmd/hgctl/plugin/types"
@@ -633,11 +631,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 		b.w = os.Stdout
 	}
 
-	b.sig = make(chan os.Signal, 1)
-	b.stop = make(chan struct{}, 1)
-	b.done = make(chan struct{}, 1)
-	signal.Notify(b.sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM,
-		syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGQUIT, syscall.SIGTSTP)
+	signalNotify(b)
 
 	if b.Debugger == nil {
 		b.Debugger = utils.NewDefaultDebugger(b.Debug, b.w)
