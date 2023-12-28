@@ -18,6 +18,7 @@ package istio
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/visibility"
 	"sync"
 	"time"
 
@@ -62,6 +63,10 @@ var errUnsupportedOp = fmt.Errorf("unsupported operation: the gateway config sto
 // During Reconcile(), the status on all gateway-api types is also tracked. Once completed, if the status
 // has changed at all, it is queued to asynchronously update the status of the object in Kubernetes.
 type Controller struct {
+	// Start - Added by Higress
+	environment *model.Environment
+	// End - Added by Higress
+
 	// client for accessing Kubernetes
 	client kube.Client
 	// cache provides access to the underlying gateway-configs
@@ -99,6 +104,7 @@ type Controller struct {
 var _ model.GatewayController = &Controller{}
 
 func NewController(
+	env *model.Environment,
 	kc kube.Client,
 	c model.ConfigStoreController,
 	waitForCRD func(class schema.GroupVersionResource, stop <-chan struct{}) bool,
@@ -109,6 +115,7 @@ func NewController(
 
 	namespaces := kclient.New[*corev1.Namespace](kc)
 	gatewayController := &Controller{
+		environment:           env,
 		client:                kc,
 		cache:                 c,
 		namespaces:            namespaces,
@@ -201,7 +208,9 @@ func (c *Controller) Reconcile(ps *model.PushContext) error {
 		ReferenceGrant:         referenceGrant,
 		DefaultGatewaySelector: c.DefaultGatewaySelector,
 		Domain:                 c.domain,
-		Context:                NewGatewayContext(ps),
+		// Start - Updated by Higress
+		Context: NewGatewayContext(ps, c.buildServiceIndex()),
+		// End - Updated by Higress
 	}
 
 	if !input.hasResources() {
@@ -238,6 +247,78 @@ func (c *Controller) Reconcile(ps *model.PushContext) error {
 	c.state = output
 	return nil
 }
+
+// Start - Added by Higress
+func (c *Controller) buildServiceIndex() *serviceIndex {
+	si := newServiceIndex()
+
+	env := c.environment
+
+	exportToDefaults := make(map[visibility.Instance]bool)
+	mesh := env.Mesh()
+	if mesh.DefaultServiceExportTo != nil {
+		for _, e := range mesh.DefaultServiceExportTo {
+			exportToDefaults[visibility.Instance(e)] = true
+		}
+	} else {
+		exportToDefaults[visibility.Public] = true
+	}
+
+	// Sort the services in order of creation.
+	allServices := model.SortServicesByCreationTime(env.Services())
+	si.all = append(si.all, allServices...)
+	for _, s := range allServices {
+		svcKey := s.Key()
+		// Precache instances
+		for _, port := range s.Ports {
+			if _, ok := si.instancesByPort[svcKey]; !ok {
+				si.instancesByPort[svcKey] = make(map[int][]*model.ServiceInstance)
+			}
+			instances := make([]*model.ServiceInstance, 0)
+			instances = append(instances, env.InstancesByPort(s, port.Port)...)
+			si.instancesByPort[svcKey][port.Port] = instances
+		}
+
+		if _, f := si.HostnameAndNamespace[s.Hostname]; !f {
+			si.HostnameAndNamespace[s.Hostname] = map[string]*model.Service{}
+		}
+		si.HostnameAndNamespace[s.Hostname][s.Attributes.Namespace] = s
+
+		ns := s.Attributes.Namespace
+		if len(s.Attributes.ExportTo) == 0 {
+			if exportToDefaults[visibility.Private] {
+				si.privateByNamespace[ns] = append(si.privateByNamespace[ns], s)
+			} else if exportToDefaults[visibility.Public] {
+				si.public = append(si.public, s)
+			}
+		} else {
+			// if service has exportTo *, make it public and ignore all other exportTos.
+			// if service does not have exportTo *, but has exportTo ~ - i.e. not visible to anyone, ignore all exportTos.
+			// if service has exportTo ., replace with current namespace.
+			if s.Attributes.ExportTo[visibility.Public] {
+				si.public = append(si.public, s)
+				continue
+			} else if s.Attributes.ExportTo[visibility.None] {
+				continue
+			} else {
+				// . or other namespaces
+				for exportTo := range s.Attributes.ExportTo {
+					if exportTo == visibility.Private || string(exportTo) == ns {
+						// exportTo with same namespace is effectively private
+						si.privateByNamespace[ns] = append(si.privateByNamespace[ns], s)
+					} else {
+						// exportTo is a specific target namespace
+						si.exportedToNamespace[string(exportTo)] = append(si.exportedToNamespace[string(exportTo)], s)
+					}
+				}
+			}
+		}
+	}
+
+	return si
+}
+
+// End - Added by Higress
 
 func (c *Controller) QueueStatusUpdates(r GatewayResources) {
 	c.handleStatusUpdates(r.GatewayClass)

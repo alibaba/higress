@@ -21,6 +21,8 @@ import (
 	"istio.io/istio/pilot/pkg/model"
 	creds "istio.io/istio/pilot/pkg/model/credentials"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/host"
+	"istio.io/istio/pkg/config/labels"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/util/sets"
 	corev1 "k8s.io/api/core/v1"
@@ -120,3 +122,66 @@ type Reference struct {
 	Kind      config.GroupVersionKind
 	Namespace k8s.Namespace
 }
+
+// Start - Added by Higress - Based on istio/pilot/pkg/model/push_context.go
+// serviceIndex is an index of all services by various fields for easy access during push.
+type serviceIndex struct {
+	// privateByNamespace are services that can reachable within the same namespace, with exportTo "."
+	privateByNamespace map[string][]*model.Service
+	// public are services reachable within the mesh with exportTo "*"
+	public []*model.Service
+	// exportedToNamespace are services that were made visible to this namespace
+	// by an exportTo explicitly specifying this namespace.
+	exportedToNamespace map[string][]*model.Service
+
+	// HostnameAndNamespace has all services, indexed by hostname then namespace.
+	HostnameAndNamespace map[host.Name]map[string]*model.Service `json:"-"`
+
+	all []*model.Service
+
+	// instancesByPort contains a map of service key and instances by port. It is stored here
+	// to avoid recomputations during push. This caches instanceByPort calls with empty labels.
+	// Call InstancesByPort directly when instances need to be filtered by actual labels.
+	instancesByPort map[string]map[int][]*model.ServiceInstance
+}
+
+func newServiceIndex() *serviceIndex {
+	return &serviceIndex{
+		all:                  []*model.Service{},
+		public:               []*model.Service{},
+		privateByNamespace:   map[string][]*model.Service{},
+		exportedToNamespace:  map[string][]*model.Service{},
+		HostnameAndNamespace: map[host.Name]map[string]*model.Service{},
+		instancesByPort:      map[string]map[int][]*model.ServiceInstance{},
+	}
+}
+
+// ServiceInstancesByPort returns the cached instances by port if it exists.
+func (si *serviceIndex) ServiceInstancesByPort(svc *model.Service, port int, labels labels.Instance) []*model.ServiceInstance {
+	out := []*model.ServiceInstance{}
+	if instances, exists := si.instancesByPort[svc.Key()][port]; exists {
+		// Use cached version of instances by port when labels are empty.
+		if len(labels) == 0 {
+			return instances
+		}
+		// If there are labels,	we will filter instances by pod labels.
+		for _, instance := range instances {
+			// check that one of the input labels is a subset of the labels
+			if labels.SubsetOf(instance.Endpoint.Labels) {
+				out = append(out, instance)
+			}
+		}
+	}
+
+	return out
+}
+
+// ServiceInstances returns the cached instances by svc if exists.
+func (si *serviceIndex) ServiceInstances(svcKey string) map[int][]*model.ServiceInstance {
+	if instances, exists := si.instancesByPort[svcKey]; exists {
+		return instances
+	}
+	return nil
+}
+
+// End - Added by Higress

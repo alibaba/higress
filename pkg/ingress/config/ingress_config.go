@@ -103,6 +103,7 @@ type IngressConfig struct {
 	ingressRouteCache  istiomodel.IngressRouteCollection
 	ingressDomainCache istiomodel.IngressDomainCollection
 
+	environment     *istiomodel.Environment
 	localKubeClient kube.Client
 
 	virtualServiceHandlers  []istiomodel.EventHandler
@@ -150,13 +151,15 @@ type IngressConfig struct {
 	httpsConfigMgr *cert.ConfigMgr
 }
 
-func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressConfig {
+func NewIngressConfig(environment *istiomodel.Environment, localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater,
+	namespace string, clusterId cluster.ID) *IngressConfig {
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
 	config := &IngressConfig{
 		remoteIngressControllers: make(map[cluster.ID]common.IngressController),
 		remoteGatewayControllers: make(map[cluster.ID]common.GatewayController),
+		environment:              environment,
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               xdsUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
@@ -234,7 +237,7 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) {
 	}
 	m.remoteIngressControllers[options.ClusterId] = ingressController
 
-	m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options)
+	m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.environment, m.localKubeClient, options)
 }
 
 func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []config.Config {
