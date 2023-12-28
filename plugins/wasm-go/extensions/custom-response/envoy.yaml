@@ -47,10 +47,10 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: |
                               {
-                                "headers": ["key1=value1","key2=value2"],
-                                "status_code": 203,
-                                "body": "{\"welcome\":\"wasm\"}",
-                                "enable_on_status": [202, 204]
+                                "headers": ["key1=value1", "key2=value2"],
+                                "status_code": 200,
+                                "enable_on_status": [200, 201],
+                                "body": "{\"hello\":\"world\"}"
                               }
                   - name: envoy.filters.http.router
   clusters:

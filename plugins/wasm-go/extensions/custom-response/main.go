@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -29,34 +30,54 @@ func main() {
 	wrapper.SetCtx(
 		"custom-response",
 		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 	)
 }
 
 type CustomResponseConfig struct {
-	statusCode     uint32      `yaml:"status_code"`
-	headers        [][2]string `yaml:"headers"`
-	body           string      `yaml:"body"`
-	enableOnStatus []uint32    `yaml:"enable_on_status"`
+	statusCode     uint32
+	headers        [][2]string
+	body           string
+	enableOnStatus []uint32
+	contentType    string
 }
 
-func parseConfig(json gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
-	headersArray := json.Get("headers").Array()
+func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
+	headersArray := gjson.Get("headers").Array()
 	config.headers = make([][2]string, 0, len(headersArray))
 	for _, v := range headersArray {
-		kv := strings.Split(v.String(), "=")
+		kv := strings.SplitN(v.String(), "=", 2)
 		if len(kv) == 2 {
-			config.headers = append(config.headers, [2]string{kv[0], kv[1]})
+			key := strings.TrimSpace(kv[0])
+			value := strings.TrimSpace(kv[1])
+			if strings.EqualFold(key, "content-type") {
+				config.contentType = value
+			} else if strings.EqualFold(key, "content-length") {
+				continue
+			} else {
+				config.headers = append(config.headers, [2]string{key, value})
+			}
 		} else {
 			return fmt.Errorf("invalid header pair format: %s", v.String())
 		}
 	}
 
-	config.body = json.Get("body").String()
+	config.body = gjson.Get("body").String()
+	if config.contentType == "" && config.body != "" {
+		_, err := json.Marshal(config.body)
+		if err != nil {
+			log.Warnf("marshal body to JSON failed: %v", err)
+			config.contentType = "text/plain; charset=utf-8"
+		} else {
+			config.contentType = "application/json; charset=utf-8"
+		}
+	}
+	config.headers = append(config.headers, [2]string{"content-type", config.contentType})
 
 	config.statusCode = 200
-	if json.Get("status_code").Exists() {
-		statusCode := json.Get("status_code")
+	if gjson.Get("status_code").Exists() {
+		statusCode := gjson.Get("status_code")
 		parsedStatusCode, err := strconv.Atoi(statusCode.String())
 		if err != nil {
 			return fmt.Errorf("invalid status code value: %s", statusCode.String())
@@ -64,7 +85,7 @@ func parseConfig(json gjson.Result, config *CustomResponseConfig, log wrapper.Lo
 		config.statusCode = uint32(parsedStatusCode)
 	}
 
-	enableOnStatusArray := json.Get("enable_on_status").Array()
+	enableOnStatusArray := gjson.Get("enable_on_status").Array()
 	config.enableOnStatus = make([]uint32, len(enableOnStatusArray))
 	for _, v := range enableOnStatusArray {
 		parsedEnableOnStatus, err := strconv.Atoi(v.String())
@@ -77,28 +98,40 @@ func parseConfig(json gjson.Result, config *CustomResponseConfig, log wrapper.Lo
 	return nil
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
-	if len(config.enableOnStatus) == 0 {
-		proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
+	if len(config.enableOnStatus) != 0 {
 		return types.ActionContinue
 	}
+	err := proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+	if err != nil {
+		log.Errorf("send http response failed: %v", err)
+	}
 
+	return types.ActionPause
+}
+
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
 	// enableOnStatus is not empty, compare the status code.
 	// if match the status code, mock the response.
 	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil {
-		log.Warnf("get http response status code failed: %v", err)
+		log.Errorf("get http response status code failed: %v", err)
 		return types.ActionContinue
 	}
 	statusCode, err := strconv.ParseUint(statusCodeStr, 10, 32)
 	if err != nil {
-		log.Warnf("parse http response status code failed: %v", err)
+		log.Errorf("parse http response status code failed: %v", err)
 		return types.ActionContinue
 	}
+
 	for _, v := range config.enableOnStatus {
 		if uint32(statusCode) == v {
-			proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+			err = proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+			if err != nil {
+				log.Errorf("send http response failed: %v", err)
+			}
 		}
 	}
+
 	return types.ActionContinue
 }
