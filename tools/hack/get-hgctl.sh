@@ -15,36 +15,37 @@
 #!/usr/bin/env bash
 
 : "${BINARY_NAME:="hgctl"}"
+: "${BINARY_NAME_WINDOWS:="hgctl.exe"}"
 : "${hgctl_INSTALL_DIR:="/usr/local/bin"}"
-
+: "${hgctl_INSTALL_DIR_WINDOWS:="${USERPROFILE}/hgctl/bin"}"
 export VERSION
 
-HAS_CURL="$(type "curl" &> /dev/null && echo true || echo false)"
-HAS_WGET="$(type "wget" &> /dev/null && echo true || echo false)"
-HAS_GIT="$(type "git" &> /dev/null && echo true || echo false)"
+HAS_CURL="$(type "curl" &>/dev/null && echo true || echo false)"
+HAS_WGET="$(type "wget" &>/dev/null && echo true || echo false)"
+HAS_GIT="$(type "git" &>/dev/null && echo true || echo false)"
 
 # initArch discovers the architecture for this system.
 initArch() {
   ARCH=$(uname -m)
   case $ARCH in
-    armv5*) ARCH="armv5";;
-    armv6*) ARCH="armv6";;
-    armv7*) ARCH="arm";;
-    aarch64) ARCH="arm64";;
-    x86) ARCH="386";;
-    x86_64) ARCH="amd64";;
-    i686) ARCH="386";;
-    i386) ARCH="386";;
+  armv5*) ARCH="armv5" ;;
+  armv6*) ARCH="armv6" ;;
+  armv7*) ARCH="arm" ;;
+  aarch64) ARCH="arm64" ;;
+  x86) ARCH="386" ;;
+  x86_64) ARCH="amd64" ;;
+  i686) ARCH="386" ;;
+  i386) ARCH="386" ;;
   esac
 }
 
 # initOS discovers the operating system for this system.
 initOS() {
-  OS="$(uname|tr '[:upper:]' '[:lower:]')"
+  OS="$(uname | tr '[:upper:]' '[:lower:]')"
 
   case "$OS" in
-    # Minimalist GNU for Windows
-    mingw*|cygwin*) OS='windows';;
+  # Minimalist GNU for Windows
+  mingw* | cygwin*) OS='windows' ;;
   esac
 }
 
@@ -60,7 +61,7 @@ runAsRoot() {
 # verifySupported checks that the os/arch combination is supported for
 # binary builds, as well whether or not necessary tools are present.
 verifySupported() {
-  local supported="darwin-amd64\ndarwin-arm64\nlinux-amd64\nlinux-arm64\n"
+  local supported="darwin-amd64\ndarwin-arm64\nlinux-amd64\nlinux-arm64\nwindows-amd64\nwindows-arm64\n"
   if ! echo "${supported}" | grep -q "${OS}-${ARCH}"; then
     echo "No prebuilt binary for ${OS}-${ARCH}."
     echo "To build from source, go to https://github.com/alibaba/higress"
@@ -94,7 +95,7 @@ checkDesiredVersion() {
 # if it needs to be changed.
 checkhgctlInstalledVersion() {
   if [[ -f "${hgctl_INSTALL_DIR}/${BINARY_NAME}" ]]; then
-    version=$("${hgctl_INSTALL_DIR}/${BINARY_NAME}" version --client | grep -Eo "v[0-9]+\.[0-9]+.*" )
+    version=$("${hgctl_INSTALL_DIR}/${BINARY_NAME}" version --client | grep -Eo "v[0-9]+\.[0-9]+.*")
     if [[ "$version" == "$VERSION" ]]; then
       echo "hgctl ${version} is already ${VERSION:-latest}"
       return 0
@@ -111,6 +112,9 @@ checkhgctlInstalledVersion() {
 # for that binary.
 downloadFile() {
   hgctl_DIST="hgctl_${VERSION}_${OS}_${ARCH}.tar.gz"
+  if [ "${OS}" == "windows" ]; then
+    hgctl_DIST="hgctl_${VERSION}_${OS}_${ARCH}.zip"
+  fi
   DOWNLOAD_URL="https://github.com/alibaba/higress/releases/download/$VERSION/$hgctl_DIST"
   hgctl_TMP_ROOT="$(mktemp -dt hgctl-installer-XXXXXX)"
   hgctl_TMP_FILE="$hgctl_TMP_ROOT/$hgctl_DIST"
@@ -133,6 +137,18 @@ installFile() {
   echo "$BINARY_NAME installed into $hgctl_INSTALL_DIR/$BINARY_NAME"
 }
 
+# installFileWindows installs the hgctl binary for windows.
+installFileWindows() {
+  hgctl_TMP="$hgctl_TMP_ROOT/$BINARY_NAME"
+  mkdir -p "$hgctl_TMP"
+  unzip "$hgctl_TMP_FILE" -d "$hgctl_TMP"
+  hgctl_TMP_BIN="$hgctl_TMP/out/${OS}_${ARCH}/hgctl.exe"
+  echo "Preparing to install ${BINARY_NAME} into "
+  mkdir -p ${hgctl_INSTALL_DIR_WINDOWS}
+  cp "$hgctl_TMP_BIN" "$hgctl_INSTALL_DIR_WINDOWS/$BINARY_NAME_WINDOWS"
+  echo "$BINARY_NAME installed into $hgctl_INSTALL_DIR_WINDOWS/$BINARY_NAME_WINDOWS"
+}
+
 # fail_trap is executed if an error occurs.
 fail_trap() {
   result=$?
@@ -150,9 +166,13 @@ fail_trap() {
 
 # testVersion tests the installed client to make sure it is working.
 testVersion() {
+  dir="$hgctl_INSTALL_DIR"
+  if [ "${OS}" == "windows" ]; then
+    dir="$hgctl_INSTALL_DIR_WINDOWS"
+  fi
   set +e
   if ! [ "$(command -v $BINARY_NAME)" ]; then
-    echo "$BINARY_NAME not found. Is $hgctl_INSTALL_DIR on your PATH?"
+    echo "$BINARY_NAME not found. Is ${dir} on your PATH?"
     exit 1
   fi
   set -e
@@ -177,7 +197,11 @@ verifySupported
 checkDesiredVersion
 if ! checkhgctlInstalledVersion; then
   downloadFile
-  installFile
+  if [ "${OS}" == "windows" ]; then
+    installFileWindows
+  else
+    installFile
+  fi
 fi
 testVersion
 cleanup
