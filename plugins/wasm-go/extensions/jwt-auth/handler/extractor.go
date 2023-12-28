@@ -54,7 +54,10 @@ func extractToken(keepToken bool, consumer *cfg.Consumer, log wrapper.Log) strin
 
 func extractFromHeader(keepToken bool, headers []cfg.FromHeader, log wrapper.Log) (token string) {
 	for i := range headers {
-		token, err := proxywasm.GetHttpRequestHeader(headers[i].Name)
+
+		// proxywasm 获取到的 header name 均为小写，此处需做修改
+		lowerName := strings.ToLower(headers[i].Name)
+		token, err := proxywasm.GetHttpRequestHeader(lowerName)
 		if err != nil {
 			log.Warnf("failed to get authorization: %v", err)
 			continue
@@ -66,7 +69,7 @@ func extractFromHeader(keepToken bool, headers []cfg.FromHeader, log wrapper.Log
 				return ""
 			}
 			if !keepToken {
-				_ = proxywasm.RemoveHttpRequestHeader(headers[i].Name)
+				_ = proxywasm.RemoveHttpRequestHeader(lowerName)
 			}
 			return strings.TrimPrefix(token, headers[i].ValuePrefix)
 		}
@@ -97,7 +100,7 @@ func extractFromParams(keepToken bool, params []string, log wrapper.Log) (token 
 }
 
 func extractFromCookies(keepToken bool, cookies []string, log wrapper.Log) (token string) {
-	requestCookies, err := proxywasm.GetHttpRequestHeader("Cookie")
+	requestCookies, err := proxywasm.GetHttpRequestHeader("cookie")
 	if err != nil {
 		log.Warnf("failed to get authorization: %v", err)
 		return ""
@@ -107,7 +110,7 @@ func extractFromCookies(keepToken bool, cookies []string, log wrapper.Log) (toke
 		token := findCookie(requestCookies, cookies[i])
 		if token != "" {
 			if !keepToken {
-				_ = proxywasm.ReplaceHttpRequestHeader("Cookie", deleteCookie(requestCookies, cookies[i]))
+				_ = proxywasm.ReplaceHttpRequestHeader("cookie", deleteCookie(requestCookies, cookies[i]))
 			}
 			return token
 		}
