@@ -27,8 +27,8 @@ func init() {
 
 var WasmPluginsJwtAuth = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJwtAuth",
-	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth wasmplugins.",
-	Manifests:   []string{"tests/go-wasm-jwt-auth.yaml"},
+	Description: "The Ingress in the higress-conformance-infra namespace test the simple-jwt-auth wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-simple-jwt-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
@@ -51,7 +51,7 @@ var WasmPluginsJwtAuth = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("WasmPlugins jwt-auth", func(t *testing.T) {
+		t.Run("WasmPlugins simple-jwt-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

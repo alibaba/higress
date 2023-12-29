@@ -172,6 +172,8 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.7 // indirect
@@ -225,6 +227,7 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	github.com/rubenv/sql-migrate v0.0.0-20210614095031-55d5740dbbcc // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/sanathkr/go-yaml v0.0.0-20170819195128-ed9d249f429b // indirect
@@ -323,7 +326,6 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.22.2
 
 	k8s.io/utils => k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
-	sigs.k8s.io/gateway-api => sigs.k8s.io/gateway-api v0.4.0 // indirect
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.8.11 // indirect
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 )
@@ -349,4 +351,5 @@ replace (
 	github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 	github.com/moby/buildkit => github.com/moby/buildkit v0.8.2-0.20210401015549-df49b648c8bf
 	github.com/tonistiigi/fsutil => github.com/tonistiigi/fsutil v0.0.0-20201103201449-0834f99b7b85
+	sigs.k8s.io/gateway-api => github.com/johnlanni/gateway-api v0.0.0-20231031082632-72137664e7c7
 )

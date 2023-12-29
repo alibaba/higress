@@ -18,8 +18,9 @@ import "testing"
 
 func TestNeedRegexMatch(t *testing.T) {
 	testCases := []struct {
-		input  *Ingress
-		expect bool
+		input     *Ingress
+		inputPath string
+		expect    bool
 	}{
 		{
 			input:  &Ingress{},
@@ -34,7 +35,7 @@ func TestNeedRegexMatch(t *testing.T) {
 		{
 			input: &Ingress{
 				Rewrite: &RewriteConfig{
-					RewriteTarget: "/test",
+					UseRegex: true,
 				},
 			},
 			expect: true,
@@ -42,17 +43,46 @@ func TestNeedRegexMatch(t *testing.T) {
 		{
 			input: &Ingress{
 				Rewrite: &RewriteConfig{
-					UseRegex: true,
+					UseRegex: false,
+				},
+			},
+			expect: false,
+		},
+		{
+			input: &Ingress{
+				Rewrite: &RewriteConfig{
+					UseRegex:      false,
+					RewriteTarget: "/$1",
 				},
 			},
 			expect: true,
+		},
+		{
+			input: &Ingress{
+				Rewrite: &RewriteConfig{
+					UseRegex:      false,
+					RewriteTarget: "/",
+				},
+			},
+			inputPath: "/.*",
+			expect:    true,
+		},
+		{
+			input: &Ingress{
+				Rewrite: &RewriteConfig{
+					UseRegex:      false,
+					RewriteTarget: "/",
+				},
+			},
+			inputPath: "/",
+			expect:    false,
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
-			if testCase.input.NeedRegexMatch() != testCase.expect {
-				t.Fatalf("Should be %t, but actual is %t", testCase.expect, testCase.input.NeedRegexMatch())
+			if testCase.input.NeedRegexMatch(testCase.inputPath) != testCase.expect {
+				t.Fatalf("Should be %t, but actual is %t", testCase.expect, !testCase.expect)
 			}
 		})
 	}

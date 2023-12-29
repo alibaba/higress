@@ -358,7 +358,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 	}
 
 	for _, rule := range ingressV1.Rules {
-		cleanHost := common.CleanHost(rule.Host)
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
 			ClusterId: c.options.ClusterId,
@@ -386,7 +385,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				Port: &networking.Port{
 					Number:   80,
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -431,7 +430,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Port: &networking.Port{
 				Number:   443,
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId, cfg.Namespace, cfg.Name, cleanHost),
+				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
@@ -517,11 +516,11 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 
 			var pathType common.PathType
 			originPath := httpPath.Path
-			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
-				if annotationsConfig.IsPrefixRegexMatch() {
-					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsFullPathRegexMatch() {
+			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch(originPath) {
+				if annotationsConfig.IsFullPathRegexMatch() {
 					pathType = common.FullPathRegex
+				} else {
+					pathType = common.PrefixRegex
 				}
 			} else {
 				switch *httpPath.PathType {
@@ -716,7 +715,7 @@ func (c *controller) ApplyDefaultBackend(convertOptions *common.ConvertOptions, 
 }
 
 func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
-	byHeader, byWeight := wrapper.AnnotationsConfig.CanaryKind()
+	byHeader, _ := wrapper.AnnotationsConfig.CanaryKind()
 
 	cfg := wrapper.Config
 	ingressV1, ok := cfg.Spec.(ingress.IngressSpec)
@@ -750,11 +749,11 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 
 			var pathType common.PathType
 			originPath := httpPath.Path
-			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch() {
-				if annotationsConfig.IsPrefixRegexMatch() {
-					pathType = common.PrefixRegex
-				} else if annotationsConfig.IsFullPathRegexMatch() {
+			if annotationsConfig := wrapper.AnnotationsConfig; annotationsConfig.NeedRegexMatch(originPath) {
+				if annotationsConfig.IsFullPathRegexMatch() {
 					pathType = common.FullPathRegex
+				} else {
+					pathType = common.PrefixRegex
 				}
 			} else {
 				switch *httpPath.PathType {
@@ -769,8 +768,6 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			}
 			canary.OriginPath = originPath
 			canary.OriginPathType = pathType
-			canary.HTTPRoute.Match = c.generateHttpMatches(pathType, httpPath.Path, nil)
-			canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
 
 			ingressRouteBuilder := convertOptions.IngressRouteCache.New(canary)
 			// backend service check
@@ -785,38 +782,36 @@ func (c *controller) ApplyCanaryIngress(convertOptions *common.ConvertOptions, w
 			}
 			canary.RuleKey = createRuleKey(canary.WrapperConfig.Config.Annotations, canary.PathFormat())
 
-			canaryConfig := wrapper.AnnotationsConfig.Canary
-			if byWeight {
-				canary.HTTPRoute.Route[0].Weight = int32(canaryConfig.Weight)
-			}
-
+			// find the base ingress
 			pos := 0
 			var targetRoute *common.WrapperHTTPRoute
 			for _, route := range routes {
 				if isCanaryRoute(canary, route) {
 					targetRoute = route
-					// Header, Cookie
-					if byHeader {
-						IngressLog.Debug("Insert canary route by header")
-						annotations.ApplyByHeader(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
-						canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
-					} else {
-						IngressLog.Debug("Merge canary route by weight")
-						if route.WeightTotal == 0 {
-							route.WeightTotal = int32(canaryConfig.WeightTotal)
-						}
-						annotations.ApplyByWeight(canary.HTTPRoute, route.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
-					}
-
 					break
 				}
 				pos += 1
 			}
 
-			IngressLog.Debugf("Canary route is %v", canary)
 			if targetRoute == nil {
 				continue
 			}
+
+			canaryConfig := wrapper.AnnotationsConfig.Canary
+
+			// Header, Cookie
+			if byHeader {
+				IngressLog.Debug("Insert canary route by header")
+				annotations.ApplyByHeader(canary.HTTPRoute, targetRoute.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
+				canary.HTTPRoute.Name = common.GenerateUniqueRouteName(c.options.SystemNamespace, canary)
+			} else {
+				IngressLog.Debug("Merge canary route by weight")
+				if targetRoute.WeightTotal == 0 {
+					targetRoute.WeightTotal = int32(canaryConfig.WeightTotal)
+				}
+				annotations.ApplyByWeight(canary.HTTPRoute, targetRoute.HTTPRoute, canary.WrapperConfig.AnnotationsConfig)
+			}
+			IngressLog.Debugf("Canary route is %v", canary)
 
 			if byHeader {
 				// Inherit policy from normal route

@@ -140,8 +140,6 @@ type IngressConfig struct {
 
 	annotationHandler annotations.AnnotationHandler
 
-	globalGatewayName string
-
 	namespace string
 
 	clusterId string
@@ -157,13 +155,11 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet:    sets.NewSet(),
-		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(false),
-		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
-		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
+		watchedSecretSet:         sets.NewSet(),
+		namespace:                namespace,
+		mcpbridgeReconciled:      atomic.NewBool(false),
+		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
+		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -479,7 +475,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
-			gateways = append(gateways, m.globalGatewayName)
+			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, common.CleanHost("*")))
 		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
@@ -530,7 +526,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 				IngressLog.Infof("Found http2rpc for name %s", http2rpc.Name)
 				envoyFilter, err := m.constructHttp2RpcEnvoyFilter(http2rpc, route, m.namespace)
 				if err != nil {
-					IngressLog.Errorf("Construct http2rpc EnvoyFilter error %v", err)
+					IngressLog.Infof("Construct http2rpc EnvoyFilter error %v", err)
 				} else {
 					IngressLog.Infof("Append http2rpc EnvoyFilter for name %s", http2rpc.Name)
 					envoyFilters = append(envoyFilters, *envoyFilter)
@@ -573,6 +569,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 
 	// TODO Support other envoy filters
 
+	IngressLog.Infof("Found %d number of envoyFilters", len(envoyFilters))
 	m.mutex.Lock()
 	m.cachedEnvoyFilters = envoyFilters
 	m.mutex.Unlock()
@@ -1003,9 +1000,23 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
 	m.mutex.Unlock()
 	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
+	push := func(kind config.GroupVersionKind) {
+		m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+			Full: true,
+			ConfigsUpdated: map[model.ConfigKey]struct{}{{
+				Kind:      kind,
+				Name:      clusterNamespacedName.Name,
+				Namespace: clusterNamespacedName.Namespace,
+			}: {}},
+			Reason: []model.TriggerReason{"Http2Rpc-AddOrUpdate"},
+		})
+	}
+	push(gvk.VirtualService)
+	push(gvk.EnvoyFilter)
 }
 
 func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
+	IngressLog.Infof("Http2Rpc triggerd deleted event %s", clusterNamespacedName.Name)
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -1017,7 +1028,20 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Debugf("Http2Rpc triggerd deleted %s", clusterNamespacedName.Name)
+		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
+		push := func(kind config.GroupVersionKind) {
+			m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+				Full: true,
+				ConfigsUpdated: map[model.ConfigKey]struct{}{{
+					Kind:      kind,
+					Name:      clusterNamespacedName.Name,
+					Namespace: clusterNamespacedName.Namespace,
+				}: {}},
+				Reason: []model.TriggerReason{"Http2Rpc-Deleted"},
+			})
+		}
+		push(gvk.VirtualService)
+		push(gvk.EnvoyFilter)
 	}
 }
 
@@ -1241,12 +1265,21 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var params []interface{}
-		for _, methodParam := range serviceMethod.GetParams() {
+		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore parmas.
+		var paramFromEntireBody = serviceMethod.GetParamFromEntireBody()
+		if paramFromEntireBody != nil {
 			var param = make(map[string]interface{})
-			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
-			param["mapping_type"] = methodParam.GetParamType()
+			param["extract_key_spec"] = Http2RpcParamSourceMap()["BODY"]
+			param["mapping_type"] = paramFromEntireBody.GetParamType()
 			params = append(params, param)
+		} else {
+			for _, methodParam := range serviceMethod.GetParams() {
+				var param = make(map[string]interface{})
+				param["extract_key"] = methodParam.GetParamKey()
+				param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
+				param["mapping_type"] = methodParam.GetParamType()
+				params = append(params, param)
+			}
 		}
 		method["parameter_mapping"] = params
 		var path_matcher = make(map[string]interface{})

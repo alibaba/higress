@@ -387,6 +387,8 @@ class RouteRuleMatcher {
       return true;
     }
 
+    request_host = Wasm::Common::Http::stripPortFromHost(request_host);
+
     for (const auto& host_match : rule.hosts) {
       const auto& host = host_match.second;
       switch (host_match.first) {

@@ -79,20 +79,21 @@ $(ARM64_OUT_LINUX)/higress:
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
-build-hgctl: $(OUT)
+build-hgctl: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
 
 .PHONY: build-linux-hgctl
-build-linux-hgctl: $(OUT)
+build-linux-hgctl: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-multiarch
-build-hgctl-multiarch: $(OUT)
+build-hgctl-multiarch: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
-
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
@@ -137,11 +138,11 @@ export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
 external/package/envoy-amd64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-amd64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-amd64.tar.gz"
 
 external/package/envoy-arm64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.2.0/envoy-arm64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-arm64.tar.gz"
 
 build-pilot:
 	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
@@ -176,8 +177,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-754ec71
-ISTIO_LATEST_IMAGE_TAG ?= sha-754ec71
+ENVOY_LATEST_IMAGE_TAG ?= sha-2d5d9c0
+ISTIO_LATEST_IMAGE_TAG ?= sha-2d5d9c0
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -257,13 +258,13 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
-	tools/hack/docker-pull-image.sh docker.io/alihigress/dubbo-provider-demo 0.0.1
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
 	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
 	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
-	tools/hack/kind-load-image.sh docker.io/alihigress/dubbo-provider-demo 0.0.1
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
 	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2

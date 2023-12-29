@@ -70,8 +70,13 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 	}
 
 	if retryOn, err := annotations.ParseStringASAP(retryOn); err == nil {
-		extraConfigs := splitBySeparator(retryOn, ",")
-		conditions := toSet(extraConfigs)
+		var retryOnConditions []string
+		if strings.Contains(retryOn, ",") {
+			retryOnConditions = splitBySeparator(retryOn, ",")
+		} else {
+			retryOnConditions = strings.Fields(retryOn)
+		}
+		conditions := toSet(retryOnConditions)
 		if len(conditions) > 0 {
 			if conditions.Contains("off") {
 				retryConfig.retryCount = 0
@@ -88,7 +93,7 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 					stringBuilder.WriteString("non_idempotent,")
 				}
 				// Append the status codes.
-				statusCodes := convertStatusCodes(extraConfigs)
+				statusCodes := convertStatusCodes(retryOnConditions)
 				if len(statusCodes) > 0 {
 					stringBuilder.WriteString(retryStatusCode + ",")
 					for _, code := range statusCodes {

@@ -15,15 +15,20 @@
 package hgctl
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
+	types2 "github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,6 +54,8 @@ var (
 	envoyDashNs = ""
 
 	proxyAdminPort int
+
+	docker = false
 )
 
 const (
@@ -81,6 +88,7 @@ func newDashboardCmd() *cobra.Command {
 			"Default is true which means hgctl dashboard will always open a browser to view the dashboard.")
 	dashboardCmd.PersistentFlags().StringVarP(&addonNamespace, "namespace", "n", "higress-system",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
+	dashboardCmd.PersistentFlags().StringVarP(&bindAddress, "listen", "l", "localhost", "The address to bind to")
 
 	prom := promDashCmd()
 	prom.PersistentFlags().IntVar(&promPort, "ui-port", defaultPrometheusPort, "The component dashboard UI port.")
@@ -91,7 +99,7 @@ func newDashboardCmd() *cobra.Command {
 	dashboardCmd.AddCommand(graf)
 
 	envoy := envoyDashCmd()
-	envoy.PersistentFlags().StringVarP(&labelSelector, "selector", "l", "app=higress-gateway", "Label selector")
+	envoy.PersistentFlags().StringVarP(&labelSelector, "selector", "s", "app=higress-gateway", "Label selector")
 	envoy.PersistentFlags().StringVarP(&envoyDashNs, "namespace", "n", "",
 		"Namespace where the addon is running, if not specified, higress-system would be used")
 	envoy.PersistentFlags().IntVar(&proxyAdminPort, "ui-port", defaultProxyAdminPort, "The component dashboard UI port.")
@@ -99,12 +107,14 @@ func newDashboardCmd() *cobra.Command {
 
 	consoleCmd := consoleDashCmd()
 	consoleCmd.PersistentFlags().IntVar(&consolePort, "ui-port", defaultConsolePort, "The component dashboard UI port.")
+	consoleCmd.PersistentFlags().BoolVar(&docker, "docker", false, "Search higress console from docker")
 	dashboardCmd.AddCommand(consoleCmd)
 
 	controllerDebugCmd := controllerDebugCmd()
 	controllerDebugCmd.PersistentFlags().IntVar(&controllerPort, "ui-port", defaultControllerPort, "The component dashboard UI port.")
 	dashboardCmd.AddCommand(controllerDebugCmd)
-
+	flags := dashboardCmd.PersistentFlags()
+	options.AddKubeConfigFlags(flags)
 	return dashboardCmd
 }
 
@@ -155,18 +165,23 @@ func consoleDashCmd() *cobra.Command {
   hgctl dash console
   hgctl d console`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if docker {
+				return accessDocker(cmd)
+			}
 			client, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 			if err != nil {
-				return fmt.Errorf("build CLI client fail: %w", err)
+				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
+				return accessDocker(cmd)
 			}
-
 			pl, err := client.PodsForSelector(addonNamespace, "app.kubernetes.io/name=higress-console")
 			if err != nil {
-				return fmt.Errorf("not able to locate console pod: %v", err)
+				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
+				return accessDocker(cmd)
 			}
 
 			if len(pl.Items) < 1 {
-				return errors.New("no higress console pods found")
+				fmt.Printf("no higress console pods found\ntry to access docker container\n")
+				return accessDocker(cmd)
 			}
 
 			// only use the first pod in the list
@@ -176,6 +191,32 @@ func consoleDashCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+// accessDocker access docker container
+func accessDocker(cmd *cobra.Command) error {
+	dockerCli, err := command.NewDockerCli(command.WithCombinedStreams(os.Stdout))
+	if err != nil {
+		return fmt.Errorf("build docker CLI client fail: %w", err)
+	}
+	err = dockerCli.Initialize(flags.NewClientOptions())
+	if err != nil {
+		return fmt.Errorf("docker client initialize fail: %w", err)
+	}
+	apiClient := dockerCli.Client()
+	list, err := apiClient.ContainerList(context.Background(), types2.ContainerListOptions{})
+	for _, container := range list {
+		for i, name := range container.Names {
+			if strings.Contains(name, "higress-console") {
+				port := container.Ports[i].PublicPort
+				// not support define ip address
+				url := fmt.Sprintf("http://localhost:%d", port)
+				openBrowser(url, cmd.OutOrStdout(), browser)
+				return nil
+			}
+		}
+	}
+	return errors.New("no higress console container found")
 }
 
 // port-forward to Higress System Grafana; open browser
@@ -323,7 +364,7 @@ func portForward(podName, namespace, flavor, urlFormat, localAddress string, rem
 	var err error
 	for _, localPort := range portPrefs {
 		var fw kubernetes.PortForwarder
-		fw, err = kubernetes.NewLocalPortForwarder(client, types.NamespacedName{Namespace: namespace, Name: podName}, localPort, remotePort)
+		fw, err = kubernetes.NewLocalPortForwarder(client, types.NamespacedName{Namespace: namespace, Name: podName}, localPort, remotePort, bindAddress)
 		if err != nil {
 			return fmt.Errorf("could not build port forwarder for %s: %v", flavor, err)
 		}
@@ -360,8 +401,6 @@ func ClosePortForwarderOnInterrupt(fw kubernetes.PortForwarder) {
 }
 
 func openBrowser(url string, writer io.Writer, browser bool) {
-	var err error
-
 	fmt.Fprintf(writer, "%s\n", url)
 
 	if !browser {
@@ -371,16 +410,30 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 
 	switch runtime.GOOS {
 	case "linux":
-		err = exec.Command("xdg-open", url).Start()
+		openCommand(writer, "xdg-open", url)
 	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		openCommand(writer, "rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
-		err = exec.Command("open", url).Start()
+		openCommand(writer, "open", url)
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
 
+}
+
+func openCommand(writer io.Writer, command string, args ...string) {
+	_, err := exec.LookPath(command)
 	if err != nil {
-		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", url, err.Error())
+		if errors.Is(err, exec.ErrNotFound) {
+			fmt.Fprintf(writer, "Could not open your browser. Please open it maually.\n")
+			return
+		}
+		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
+		return
+	}
+
+	err = exec.Command(command, args...).Start()
+	if err != nil {
+		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
 	}
 }

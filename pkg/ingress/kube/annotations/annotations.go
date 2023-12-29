@@ -15,6 +15,8 @@
 package annotations
 
 import (
+	"strings"
+
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -54,9 +56,13 @@ type Ingress struct {
 
 	IPAccessControl *IPAccessControlConfig
 
+	Timeout *TimeoutConfig
+
 	Retry *RetryConfig
 
 	LoadBalance *LoadBalanceConfig
+
+	localRateLimit *localRateLimitConfig
 
 	Fallback *FallbackConfig
 
@@ -73,12 +79,17 @@ type Ingress struct {
 	Http2Rpc *Http2RpcConfig
 }
 
-func (i *Ingress) NeedRegexMatch() bool {
+func (i *Ingress) NeedRegexMatch(path string) bool {
 	if i.Rewrite == nil {
 		return false
 	}
-
-	return i.Rewrite.RewriteTarget != "" || i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
+	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
+		return true
+	}
+	if strings.ContainsAny(i.Rewrite.RewriteTarget, `$\`) {
+		return true
+	}
+	return i.IsPrefixRegexMatch() || i.IsFullPathRegexMatch()
 }
 
 func (i *Ingress) IsPrefixRegexMatch() bool {
@@ -143,8 +154,10 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			rewrite{},
 			upstreamTLS{},
 			ipAccessControl{},
+			timeout{},
 			retry{},
 			loadBalance{},
+			localRateLimit{},
 			fallback{},
 			auth{},
 			destination{},
@@ -164,7 +177,9 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			redirect{},
 			rewrite{},
 			ipAccessControl{},
+			timeout{},
 			retry{},
+			localRateLimit{},
 			fallback{},
 			ignoreCaseMatching{},
 			match{},

@@ -17,6 +17,7 @@ package main
 import (
 	"cors/config"
 	"fmt"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
@@ -28,8 +29,6 @@ func main() {
 		"cors",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 	)
 }
@@ -109,11 +108,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, corsConfig config.CorsConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debug("onHttpRequestBody()")
-	return types.ActionContinue
-}
-
 func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log wrapper.Log) types.Action {
 	log.Debug("onHttpResponseHeaders()")
 	// Remove trace header if existed
@@ -160,10 +154,5 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig
 		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlMaxAge, fmt.Sprintf("%d", httpCorsContext.MaxAge))
 	}
 
-	return types.ActionContinue
-}
-
-func onHttpResponseBody(ctx wrapper.HttpContext, corsConfig config.CorsConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debug("onHttpResponseBody()")
 	return types.ActionContinue
 }

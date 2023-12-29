@@ -17,9 +17,11 @@ package installer
 import (
 	"fmt"
 	"io"
-	"os"
+	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/manifests"
 )
 
 const (
@@ -32,9 +34,10 @@ type IstioCRDComponent struct {
 	opts     *ComponentOptions
 	renderer helm.Renderer
 	writer   io.Writer
+	kubeCli  kubernetes.CLIClient
 }
 
-func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
+func NewIstioCRDComponent(kubeCli kubernetes.CLIClient, profile *helm.Profile, writer io.Writer, opts ...ComponentOption) (Component, error) {
 	newOpts := &ComponentOptions{}
 	for _, opt := range opts {
 		opt(newOpts)
@@ -42,23 +45,31 @@ func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...Compo
 
 	var renderer helm.Renderer
 	var err error
-	if newOpts.RepoURL != "" {
-		renderer, err = helm.NewRemoteRenderer(
+
+	// Istio can be installed by embed type or remote type
+	if strings.HasPrefix(newOpts.RepoURL, "embed://") {
+		chartDir := strings.TrimPrefix(newOpts.RepoURL, "embed://")
+		renderer, err = helm.NewLocalChartRenderer(
 			helm.WithName(newOpts.ChartName),
 			helm.WithNamespace(newOpts.Namespace),
 			helm.WithRepoURL(newOpts.RepoURL),
 			helm.WithVersion(newOpts.Version),
+			helm.WithFS(manifests.BuiltinOrDir("")),
+			helm.WithDir(chartDir),
+			helm.WithCapabilities(newOpts.Capabilities),
+			helm.WithRestConfig(kubeCli.RESTConfig()),
 		)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		renderer, err = helm.NewLocalRenderer(
+		renderer, err = helm.NewRemoteRenderer(
 			helm.WithName(newOpts.ChartName),
 			helm.WithNamespace(newOpts.Namespace),
+			helm.WithRepoURL(newOpts.RepoURL),
 			helm.WithVersion(newOpts.Version),
-			helm.WithFS(os.DirFS(newOpts.ChartPath)),
-			helm.WithDir(string(Istio)),
+			helm.WithCapabilities(newOpts.Capabilities),
+			helm.WithRestConfig(kubeCli.RESTConfig()),
 		)
 		if err != nil {
 			return nil, err
@@ -70,6 +81,7 @@ func NewIstioCRDComponent(profile *helm.Profile, writer io.Writer, opts ...Compo
 		renderer: renderer,
 		opts:     newOpts,
 		writer:   writer,
+		kubeCli:  kubeCli,
 	}
 	return istioComponent, nil
 }

@@ -68,7 +68,7 @@ spec:
       {{- end }}
       containers:
         - name: higress-gateway
-          image: "{{ .Values.hub }}/{{ .Values.gateway.image }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.gateway.hub | default .Values.global.hub }}/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
           args:
             - proxy
             - router
@@ -134,6 +134,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.serviceAccountName
+          - name: PILOT_XDS_SEND_TIMEOUT
+            value: 60s
           - name: PROXY_XDS_VIA_AGENT
             value: "true"
           - name: ENABLE_INGRESS_GATEWAY_SDS
