@@ -51,6 +51,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		},
 		GatewayAddress:             "localhost",
 		EnableAllSupportedFeatures: true,
+		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
 	cSuite.Setup(t)
