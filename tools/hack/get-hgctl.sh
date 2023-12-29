@@ -143,7 +143,7 @@ installFileWindows() {
   mkdir -p "$hgctl_TMP"
   unzip "$hgctl_TMP_FILE" -d "$hgctl_TMP"
   hgctl_TMP_BIN="$hgctl_TMP/out/${OS}_${ARCH}/hgctl.exe"
-  echo "Preparing to install ${BINARY_NAME} into "
+  echo "Preparing to install ${BINARY_NAME} into ${hgctl_INSTALL_DIR_WINDOWS}"
   mkdir -p ${hgctl_INSTALL_DIR_WINDOWS}
   cp "$hgctl_TMP_BIN" "$hgctl_INSTALL_DIR_WINDOWS/$BINARY_NAME_WINDOWS"
   echo "$BINARY_NAME installed into $hgctl_INSTALL_DIR_WINDOWS/$BINARY_NAME_WINDOWS"
