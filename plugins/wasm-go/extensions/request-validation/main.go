@@ -16,10 +16,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/santhosh-tekuri/jsonschema"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+)
+
+const (
+	defaultHeaderSchema = "header"
+	defaultBodySchema   = "body"
+	defaultRejectedCode = 403
 )
 
 func main() {
@@ -33,106 +43,156 @@ func main() {
 
 // Config is the config for request validation.
 type Config struct {
-	// HeaderSchema is the schema for request header.
-	//HeaderSchema gojsonschema.JSONLoader
-	// BodySchema is the schema for request body.
-	//BodySchema gojsonschema.JSONLoader
-	// RejectedCode is the code for rejected request.
-	RejectedCode uint32
-	// RejectedMsg is the message for rejected request.
-	RejectedMsg string
+	// compiler is the compiler for json schema.
+	compiler *jsonschema.Compiler
+	// rejectedCode is the code for rejected request.
+	rejectedCode uint32
+	// rejectedMsg is the message for rejected request.
+	rejectedMsg string
+	// draft is the draft version of json schema.
+	draft *jsonschema.Draft
+	// enableBodySchema is the flag for enable body schema.
+	enableBodySchema bool
+	// enableHeaderSchema is the flag for enable header schema.
+	enableHeaderSchema bool
 }
 
 func parseConfig(result gjson.Result, config *Config, log wrapper.Log) error {
 	headerSchema := result.Get("header_schema").String()
 	bodySchema := result.Get("body_schema").String()
+	enableSwagger := result.Get("enable_swagger").Bool()
+	enableOas3 := result.Get("enable_oas3").Bool()
+	code := result.Get("rejected_code").Int()
+	msg := result.Get("rejected_msg").String()
 
-	log.Infof("header_schema: %s", headerSchema)
+	// set config default value
+	config.enableBodySchema = false
+	config.enableHeaderSchema = false
 
-	if headerSchema == "" && bodySchema == "" {
-		return nil
+	// check enable_swagger and enable_oas3
+	if enableSwagger && enableOas3 {
+		return fmt.Errorf("enable_swagger and enable_oas3 can not be true at the same time")
 	}
+
+	// set draft version
+	if enableSwagger {
+		config.draft = jsonschema.Draft4
+	}
+	if enableOas3 {
+		config.draft = jsonschema.Draft7
+	}
+	if !enableSwagger && !enableOas3 {
+		config.draft = jsonschema.Draft7
+	}
+
+	// create compiler
+	compiler := jsonschema.NewCompiler()
+	compiler.Draft = config.draft
+	config.compiler = compiler
+
+	// add header schema to compiler
 	if headerSchema != "" {
-		//config.HeaderSchema = gojsonschema.NewStringLoader(headerSchema)
+		err := config.compiler.AddResource(defaultHeaderSchema, strings.NewReader(headerSchema))
+		if err != nil {
+			return err
+		}
+		config.enableHeaderSchema = true
 	}
+
+	// add body schema to compiler
 	if bodySchema != "" {
-		//config.BodySchema = gojsonschema.NewStringLoader(bodySchema)
+		err := config.compiler.AddResource(defaultBodySchema, strings.NewReader(bodySchema))
+		if err != nil {
+			return err
+		}
+		config.enableBodySchema = true
 	}
 
 	// check rejected_code is valid
-	code := result.Get("rejected_code").Int()
 	if code != 0 && code > 100 && code < 600 {
-		config.RejectedCode = uint32(code)
+		config.rejectedCode = uint32(code)
 	} else {
-		config.RejectedCode = 403
+		config.rejectedCode = defaultRejectedCode
 	}
-	config.RejectedMsg = result.Get("rejected_msg").String()
+	config.rejectedMsg = msg
+
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
-	//if config.HeaderSchema == nil {
-	//	log.Infof("header_schema is nil")
-	//	return types.ActionContinue
-	//}
-
-	log.Infof("Config: ", config)
+	if !config.enableHeaderSchema {
+		return types.ActionContinue
+	}
 
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Errorf("get request headers failed: %v", err)
 		return types.ActionContinue
 	}
+
 	// covert to schema
 	schema := make(map[string]interface{})
 	for _, header := range headers {
 		schema[header[0]] = header[1]
 	}
 
+	// convert to json string
+	schemaBytes, err := json.Marshal(schema)
+	if err != nil {
+		log.Errorf("marshal schema failed: %v", err)
+		return types.ActionContinue
+	}
+
 	// validate
-	//requestSchema := gojsonschema.NewGoLoader(schema)
-	////validate, err := gojsonschema.Validate(config.HeaderSchema, requestSchema)
-	//if err != nil {
-	//	log.Errorf("validate request headers failed: %v", err)
-	//	return types.ActionContinue
-	//}
-	//if !validate.Valid() {
-	//	log.Errorf("validate request headers failed: %v", validate.Errors())
-	//	proxywasm.SendHttpResponse(config.RejectedCode, nil, []byte(config.RejectedMsg), -1)
-	//	return types.ActionPause
-	//}
+	document := strings.NewReader(string(schemaBytes))
+	compile, err := config.compiler.Compile(defaultHeaderSchema)
+	if err != nil {
+		log.Errorf("compile schema failed: %v", err)
+		return types.ActionContinue
+	}
+	err = compile.Validate(document)
+	if err != nil {
+		log.Errorf("validate request headers failed: %v", err)
+		proxywasm.SendHttpResponse(config.rejectedCode, nil, []byte(config.rejectedMsg), -1)
+		return types.ActionPause
+	}
 
 	return types.ActionContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
-	//if config.BodySchema == nil {
-	//	log.Infof("body_schema is nil")
-	//	return types.ActionContinue
-	//}
+	if !config.enableBodySchema {
+		return types.ActionContinue
+	}
 
 	// covert to schema
 	schema := make(map[string]interface{})
 	err := json.Unmarshal(body, &schema)
 	if err != nil {
-		log.Errorf("unmarshal request body failed: %v", err)
+		log.Errorf("unmarshal body failed: %v", err)
+		return types.ActionContinue
+	}
+
+	// convert to json string
+	schemaBytes, err := json.Marshal(schema)
+	if err != nil {
+		log.Errorf("marshal schema failed: %v", err)
 		return types.ActionContinue
 	}
 
 	// validate
-	//requestSchema := gojsonschema.NewGoLoader(schema)
-	//validate, err := gojsonschema.Validate(config.BodySchema, requestSchema)
-	//if err != nil {
-	//	log.Errorf("validate request body failed: %v", err)
-	//	return types.ActionContinue
-	//}
-	//if !validate.Valid() {
-	//	log.Errorf("validate request body failed: %v", validate.Errors())
-	//	proxywasm.SendHttpResponse(config.RejectedCode, nil, []byte(config.RejectedMsg), -1)
-	//	return types.ActionPause
-	//}
-	//
-	//log.Errorf("passed request-validation")
+	document := strings.NewReader(string(schemaBytes))
+	compile, err := config.compiler.Compile(defaultBodySchema)
+	if err != nil {
+		log.Errorf("compile schema failed: %v", err)
+		return types.ActionContinue
+	}
+	err = compile.Validate(document)
+	if err != nil {
+		log.Errorf("validate request body failed: %v", err)
+		proxywasm.SendHttpResponse(config.rejectedCode, nil, []byte(config.rejectedMsg), -1)
+		return types.ActionPause
+	}
 
 	return types.ActionContinue
 }
