@@ -26,4 +26,5 @@ var (
 	IsWasmPluginTest     = flag.Bool("isWasmPluginTest", false, "Determine if run wasm plugin conformance test")
 	WasmPluginType       = flag.String("wasmPluginType", "GO", "Define wasm plugin type, currently supports GO, CPP")
 	WasmPluginName       = flag.String("wasmPluginName", "", "Define wasm plugin name")
+	IsEnvoyConfigTest    = flag.Bool("isEnvoyConfigTest", false, "Determine if run envoy config conformance test")
 )
