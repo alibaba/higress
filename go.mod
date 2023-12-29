@@ -15,7 +15,7 @@ replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
-	github.com/agiledragon/gomonkey/v2 v2.9.0
+	github.com/agiledragon/gomonkey/v2 v2.11.0
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/compose-spec/compose-go v1.8.2
 	github.com/docker/cli v20.10.20+incompatible
