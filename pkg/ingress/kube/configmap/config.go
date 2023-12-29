@@ -38,6 +38,7 @@ type HigressConfig struct {
 	Downstream           *Downstream `json:"downstream,omitempty"`
 	DisableXEnvoyHeaders bool        `json:"disableXEnvoyHeaders,omitempty"`
 	AddXRealIpHeader     bool        `json:"addXRealIpHeader,omitempty"`
+	Gzip    *Gzip    `json:"gzip,omitempty"`
 }
 
 func NewDefaultHigressConfig() *HigressConfig {
@@ -47,6 +48,8 @@ func NewDefaultHigressConfig() *HigressConfig {
 		Downstream:           globalOption.Downstream,
 		DisableXEnvoyHeaders: globalOption.DisableXEnvoyHeaders,
 		AddXRealIpHeader:     globalOption.AddXRealIpHeader,
+		Gzip:    NewDefaultGzip(),
+
 	}
 	return higressConfig
 }
