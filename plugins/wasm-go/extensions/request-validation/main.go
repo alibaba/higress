@@ -124,6 +124,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		return types.ActionContinue
 	}
 
+	// get headers
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Errorf("get request headers failed: %v", err)
