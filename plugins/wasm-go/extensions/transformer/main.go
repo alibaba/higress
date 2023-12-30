@@ -1114,17 +1114,6 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData Map
 	return data, nil
 }
 
-type kvtGroup struct {
-	remove    []string // key
-	rename    []kvt    // oldKey:newKey
-	replace   []kvtReg // key:newValue
-	add       []kvtReg // newKey:newValue TODO: 与文档的字段名不一致，优先文档
-	append    []kvtReg // key:appendValue
-	map_      []kvt    // fromKey:toKey
-	dedupe    []kvt    // key:strategy
-	mapSource string
-}
-
 type removeKvt struct {
 	key string
 }
@@ -1155,12 +1144,10 @@ type appendKvt struct {
 type mapKvt struct {
 	fromKey string
 	toKey   string
-	typ     string
 }
 type dedupeKvt struct {
 	key      string
 	strategy string
-	typ      string
 }
 type KvtOpType int
 
@@ -1238,12 +1225,12 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 					p.mapParam.toKey = strings.ToLower(p.mapParam.toKey)
 				}
 				kvtOp.mapSource = r.mapSource
-				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey, p.mapParam.toKey, p.valueType})
+				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey, p.mapParam.toKey})
 			case "dedupe":
 				if typ == "headers" {
 					p.dedupeParam.key = strings.ToLower(p.dedupeParam.key)
 				}
-				kvtOp.dedupeKvtGroup = append(kvtOp.dedupeKvtGroup, dedupeKvt{p.dedupeParam.key, p.dedupeParam.strategy, p.valueType})
+				kvtOp.dedupeKvtGroup = append(kvtOp.dedupeKvtGroup, dedupeKvt{p.dedupeParam.key, p.dedupeParam.strategy})
 			case "replace":
 				if typ == "headers" {
 					p.replaceParam.key = strings.ToLower(p.replaceParam.key)
