@@ -194,7 +194,6 @@ type DedupeParam struct {
 }
 
 type Param struct {
-	paramType    string
 	removeParam  RemoveParam
 	renameParam  RenameParam
 	replaceParam ReplaceParam
@@ -252,8 +251,8 @@ func constructParam(item *gjson.Result, op, valueType string) Param {
 	p := Param{
 		valueType: valueType,
 	}
-	p.paramType = op
-	switch p.paramType {
+	
+	switch op {
 	case "remove":
 		p.removeParam.key = item.Get("key").String()
 	case "rename":
