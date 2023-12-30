@@ -168,7 +168,7 @@ func Test_deepCopyGlobal(t *testing.T) {
 		{
 			name:    "deep copy 4",
 			global:  nil,
-			want:    &Global{},
+			want:    nil,
 			wantErr: nil,
 		},
 	}

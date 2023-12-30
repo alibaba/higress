@@ -139,6 +139,9 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
+	if global == nil {
+		return nil, nil
+	}
 	newGlobal := NewDefaultGlobalOption()
 	newGlobal.Downstream = global.Downstream
 	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
