@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync/atomic"
@@ -57,6 +56,8 @@ type Global struct {
 
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
+	// Enable enables the downstream config.
+	Enable bool `json:"enable,omitempty"`
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
 	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
@@ -138,19 +139,11 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
-	defaultGlobal := &Global{}
-
-	bytes, err := json.Marshal(global)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(bytes, defaultGlobal)
-	if err != nil {
-		return nil, err
-	}
-
-	return defaultGlobal, nil
+	newGlobal := NewDefaultGlobalOption()
+	newGlobal.Downstream = global.Downstream
+	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
+	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
+	return newGlobal, nil
 }
 
 // NewDefaultGlobalOption returns a default global config.
@@ -165,6 +158,7 @@ func NewDefaultGlobalOption() *Global {
 // NewDefaultDownstream returns a default downstream config.
 func NewDefaultDownstream() *Downstream {
 	return &Downstream{
+		Enable:                 false,
 		IdleTimeout:            defaultIdleTimeout,
 		MaxRequestHeadersKb:    defaultMaxRequestHeadersKb,
 		ConnectionBufferLimits: defaultConnectionBufferLimits,
@@ -299,7 +293,7 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 		configPatch = append(configPatch, disableXEnvoyHeadersConfig...)
 	}
 
-	if global.Downstream == nil {
+	if global.Downstream == nil || !global.Downstream.Enable {
 		return generateEnvoyFilter(namespace, configPatch), nil
 	}
 
