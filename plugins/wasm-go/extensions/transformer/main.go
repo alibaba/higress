@@ -887,6 +887,9 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
 			for _, map_ := range kvtOp.mapKvtGroup {
 				fromKey, toKey := map_.fromKey, map_.toKey
+				if mapSourceData.mapSourceType == "headers" {
+					fromKey = strings.ToLower(fromKey)
+				}
 				if fromValue, ok := mapSourceData.search(fromKey); ok {
 					switch mapSourceData.mapSourceType {
 					case "headers", "querys", "bodyKv":
@@ -1051,6 +1054,9 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData Map
 			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
 			for _, map_ := range kvtOp.mapKvtGroup {
 				fromKey, toKey := map_.fromKey, map_.toKey
+				if mapSourceData.mapSourceType == "headers" {
+					fromKey = strings.ToLower(fromKey)
+				}
 				if fromValue, ok := mapSourceData.search(fromKey); ok {
 					// search返回的类型为[]string或者gjson.Result.Value()
 					// sjson.SetBytes()能够直接处理[]byte，其他更复杂的数据类型均会json.Marshall化

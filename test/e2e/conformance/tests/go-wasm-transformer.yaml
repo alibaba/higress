@@ -456,7 +456,7 @@ spec:
             - operate: map
               mapSource: headers
               querys:
-                # 由于读进代码中时，header中的字符全部改为小写，而query没有这个变化，因此只能匹配到x-map而不能匹配X-map
-                - fromKey: x-map
+                # 映射来源为headers时，fromKey的匹配不区分大小写
+                - fromKey: X-map
                   toKey: kmap
   url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
