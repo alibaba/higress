@@ -249,9 +249,13 @@ higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-buil
 .PHONY: higress-wasmplugin-test-prepare
 higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
 
-# clean-higress-conformance-test cleans the environment for ingress api conformance tests.
-.PHONY: clean-higress-conformance-test
-clean-higress-conformance-test: delete-cluster
+# higress-conformance-test-clean cleans the environment for ingress api conformance tests.
+.PHONY: higress-conformance-test-clean
+higress-conformance-test-clean: delete-cluster
+
+# higress-wasmplugin-test-clean cleans the environment for ingress wasmplugin tests.
+.PHONY: higress-wasmplugin-test-clean
+higress-wasmplugin-test-clean: delete-cluster
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
