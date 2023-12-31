@@ -28,7 +28,7 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
-func TestHigressConformanceTests(t *testing.T) {
+func TestPrepareHigressConformanceTests(t *testing.T) {
 	flag.Parse()
 
 	cfg, err := config.GetConfig()
@@ -40,10 +40,9 @@ func TestHigressConformanceTests(t *testing.T) {
 	require.NoError(t, v1.AddToScheme(client.Scheme()))
 
 	cSuite := suite.New(suite.Options{
-		Client:               client,
-		IngressClassName:     *flags.IngressClassName,
-		Debug:                *flags.ShowDebug,
-		CleanupBaseResources: *flags.CleanupBaseResources,
+		Client:           client,
+		IngressClassName: *flags.IngressClassName,
+		Debug:            *flags.ShowDebug,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -54,6 +53,61 @@ func TestHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t)
+	cSuite.Setup(t, false)
+}
+
+func TestRunHigressConformanceTests(t *testing.T) {
+	flag.Parse()
+
+	cfg, err := config.GetConfig()
+	require.NoError(t, err)
+
+	client, err := client.New(cfg, client.Options{})
+	require.NoError(t, err)
+
+	require.NoError(t, v1.AddToScheme(client.Scheme()))
+
+	cSuite := suite.New(suite.Options{
+		Client:           client,
+		IngressClassName: *flags.IngressClassName,
+		Debug:            *flags.ShowDebug,
+		WASMOptions: suite.WASMOptions{
+			IsWasmPluginTest: *flags.IsWasmPluginTest,
+			WasmPluginName:   *flags.WasmPluginName,
+			WasmPluginType:   *flags.WasmPluginType,
+		},
+		GatewayAddress:             "localhost",
+		EnableAllSupportedFeatures: true,
+		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
+	})
+
 	cSuite.Run(t, tests.ConformanceTests)
+}
+
+func TestCleanHigressConformanceTests(t *testing.T) {
+	flag.Parse()
+
+	cfg, err := config.GetConfig()
+	require.NoError(t, err)
+
+	client, err := client.New(cfg, client.Options{})
+	require.NoError(t, err)
+
+	require.NoError(t, v1.AddToScheme(client.Scheme()))
+
+	cSuite := suite.New(suite.Options{
+		Client:           client,
+		IngressClassName: *flags.IngressClassName,
+		Debug:            *flags.ShowDebug,
+		WASMOptions: suite.WASMOptions{
+			IsWasmPluginTest: *flags.IsWasmPluginTest,
+			WasmPluginName:   *flags.WasmPluginName,
+			WasmPluginType:   *flags.WasmPluginType,
+		},
+		GatewayAddress:             "localhost",
+		EnableAllSupportedFeatures: true,
+		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
+	})
+
+	cSuite.Setup(t, true)
 }

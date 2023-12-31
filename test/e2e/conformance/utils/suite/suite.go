@@ -131,7 +131,7 @@ func New(s Options) *ConformanceTestSuite {
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
-func (suite *ConformanceTestSuite) Setup(t *testing.T) {
+func (suite *ConformanceTestSuite) Setup(t *testing.T, cleanup bool) {
 	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
 
 	suite.Applier.IngressClass = suite.IngressClassName
@@ -139,14 +139,14 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("📦 Test Setup: Applying base manifests")
 
 	for _, baseManifest := range suite.BaseManifests {
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, cleanup)
 	}
 
 	t.Logf("📦 Test Setup: Applying programmatic resources")
 	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, cleanup)
 	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, cleanup)
 
 	t.Logf("📦 Test Setup: Ensuring Pods from base manifests are ready")
 	namespaces := []string{
