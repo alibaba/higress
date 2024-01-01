@@ -30,4 +30,3 @@ spec:
                 name: infra-backend-v3
                 port:
                   number: 8080
-
