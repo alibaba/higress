@@ -151,7 +151,7 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 				err = c.Delete(ctx, uObj)
 				require.NoErrorf(t, err, "error deleting resource")
 			})
-			return
+			continue
 		}
 
 		err := c.Get(ctx, namespacedName, fetchedObj)
