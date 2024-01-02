@@ -206,7 +206,7 @@ func (a Applier) MustDelete(t *testing.T, c client.Client, timeoutConfig config.
 		// 	}
 		// }
 
-		t.Logf("🏗 Deleting %s %s %s", uObj.GetName(), uObj.GetKind(), uObj.GetNamespace())
+		t.Logf("🚮 Deleting %s %s %s", uObj.GetName(), uObj.GetKind(), uObj.GetNamespace())
 		err = c.Delete(ctx, uObj)
 		require.NoErrorf(t, err, "error delete resource")
 	}

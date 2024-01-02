@@ -32,7 +32,6 @@ type ConformanceTestSuite struct {
 	GatewayAddress    string
 	IngressClassName  string
 	Debug             bool
-	Cleanup           bool
 	BaseManifests     []string
 	Applier           kubernetes.Applier
 	SkipTests         sets.Set
@@ -56,10 +55,7 @@ type Options struct {
 	// Options for wasm extended features
 	WASMOptions
 
-	// CleanupBaseResources indicates whether or not the base test
-	// resources such as Gateways should be cleaned up after the run.
-	CleanupBaseResources bool
-	TimeoutConfig        config.TimeoutConfig
+	TimeoutConfig config.TimeoutConfig
 
 	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
 	IsEnvoyConfigTest bool
@@ -105,7 +101,6 @@ func New(s Options) *ConformanceTestSuite {
 		RoundTripper:      roundTripper,
 		IngressClassName:  s.IngressClassName,
 		Debug:             s.Debug,
-		Cleanup:           s.CleanupBaseResources,
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
@@ -139,14 +134,14 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("📦 Test Setup: Applying base manifests")
 
 	for _, baseManifest := range suite.BaseManifests {
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
 	}
 
 	t.Logf("📦 Test Setup: Applying programmatic resources")
 	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
 	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
 
 	t.Logf("📦 Test Setup: Ensuring Pods from base manifests are ready")
 	namespaces := []string{
@@ -159,14 +154,21 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("🌱 Supported Features: %+v", suite.SupportedFeatures.UnsortedList())
 }
 
-// RunWithTests runs the provided set of conformance tests.
+// Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
+	suite.Applier.IngressClass = suite.IngressClassName
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
 		})
 	}
+}
+
+// Cleanup ensures that all resources created by the test suite are cleaned up.
+func (suite *ConformanceTestSuite) Cleanup(t *testing.T) {
+	t.Logf("🧹 Test Cleanup: Ensuring all resources are cleaned up")
+	suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, "base/manifests.yaml")
 }
 
 func globalConformanceTestsListInfo(tests []ConformanceTest) string {
