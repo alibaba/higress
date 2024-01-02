@@ -53,7 +53,7 @@ func TestPrepareHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t, false)
+	cSuite.Prepare(t)
 }
 
 func TestRunHigressConformanceTests(t *testing.T) {
@@ -81,6 +81,7 @@ func TestRunHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
+	cSuite.Setup(t)
 	cSuite.Run(t, tests.ConformanceTests)
 }
 
@@ -109,5 +110,5 @@ func TestCleanHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t, true)
+	cSuite.Clean(t)
 }
