@@ -121,19 +121,11 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 		return
 	}
 
-	var higressConfig *HigressConfig
-	err = yaml.Unmarshal([]byte(higressConfigmap.Data[HigressConfigMapKey]), &higressConfig)
-	if err != nil {
+	newHigressConfig := NewDefaultHigressConfig()
+	if err = yaml.Unmarshal([]byte(higressConfigmap.Data[HigressConfigMapKey]), newHigressConfig); err != nil {
 		IngressLog.Errorf("data:%s,  convert to higress config error, error: %+v", higressConfigmap.Data[HigressConfigMapKey], err)
 		return
 	}
-
-	newHigressConfig := NewDefaultHigressConfig()
-	newHigressConfig.Tracing = higressConfig.Tracing
-	newHigressConfig.Gzip = higressConfig.Gzip
-	newHigressConfig.Downstream = higressConfig.Downstream
-	newHigressConfig.DisableXEnvoyHeaders = higressConfig.DisableXEnvoyHeaders
-	newHigressConfig.AddXRealIpHeader = higressConfig.AddXRealIpHeader
 
 	for _, itemController := range c.ItemControllers {
 		if itemErr := itemController.ValidHigressConfig(newHigressConfig); itemErr != nil {
