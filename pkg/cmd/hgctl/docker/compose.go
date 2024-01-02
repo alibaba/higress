@@ -48,7 +48,7 @@ func NewCompose(w io.Writer) (*Compose, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.client = api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli.Client(), dockerCli.ConfigFile()))
+	c.client = api.NewServiceProxy().WithService(compose.NewComposeService(dockerCli))
 
 	return c, nil
 }
@@ -86,8 +86,7 @@ func (c Compose) Up(ctx context.Context, name string, configs []string, source s
 	// for log
 	var consumer api.LogConsumer
 	if !detach {
-		// TODO(WeixinX): Change to `formatter.NewLogConsumer(ctx, c.w, c.w, true, true, false)` after upgrading the dependency library github.com/compose-spec/compose-go
-		consumer = formatter.NewLogConsumer(ctx, c.w, true, true)
+		consumer = formatter.NewLogConsumer(ctx, c.w, c.w, true, true, false)
 	}
 	attachTo := make([]string, 0)
 	for _, svc := range project.Services {
