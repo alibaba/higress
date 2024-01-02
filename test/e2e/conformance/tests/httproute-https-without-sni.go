@@ -39,7 +39,7 @@ var HTTPHttpsWithoutSni = suite.ConformanceTest{
 		_, _, caCert, caKey := cert.MustGenerateCaCert(t)
 		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"foo.com"})
 		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
-		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret}, suite.Cleanup)
+		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret}, true)
 
 		testcases := []http.Assertion{
 			{

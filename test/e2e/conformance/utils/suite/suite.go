@@ -32,7 +32,6 @@ type ConformanceTestSuite struct {
 	GatewayAddress    string
 	IngressClassName  string
 	Debug             bool
-	Cleanup           bool
 	BaseManifests     []string
 	Applier           kubernetes.Applier
 	SkipTests         sets.Set
@@ -56,10 +55,7 @@ type Options struct {
 	// Options for wasm extended features
 	WASMOptions
 
-	// CleanupBaseResources indicates whether or not the base test
-	// resources such as Gateways should be cleaned up after the run.
-	CleanupBaseResources bool
-	TimeoutConfig        config.TimeoutConfig
+	TimeoutConfig config.TimeoutConfig
 
 	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
 	IsEnvoyConfigTest bool
@@ -105,7 +101,6 @@ func New(s Options) *ConformanceTestSuite {
 		RoundTripper:      roundTripper,
 		IngressClassName:  s.IngressClassName,
 		Debug:             s.Debug,
-		Cleanup:           s.CleanupBaseResources,
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
@@ -126,28 +121,28 @@ func New(s Options) *ConformanceTestSuite {
 		}
 	}
 
+	suite.Applier.IngressClass = suite.IngressClassName
+
 	return suite
+}
+
+func (suite *ConformanceTestSuite) Prepare(t *testing.T) {
+	t.Logf("📦 Test Prepare: Applying base manifests")
+
+	for _, baseManifest := range suite.BaseManifests {
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
+	}
+
+	t.Logf("📦 Test Prepare: Applying programmatic resources")
+	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
+	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
-	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
-
-	suite.Applier.IngressClass = suite.IngressClassName
-
-	t.Logf("📦 Test Setup: Applying base manifests")
-
-	for _, baseManifest := range suite.BaseManifests {
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
-	}
-
-	t.Logf("📦 Test Setup: Applying programmatic resources")
-	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
-	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
-
 	t.Logf("📦 Test Setup: Ensuring Pods from base manifests are ready")
 	namespaces := []string{
 		"higress-conformance-infra",
@@ -159,13 +154,19 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("🌱 Supported Features: %+v", suite.SupportedFeatures.UnsortedList())
 }
 
-// RunWithTests runs the provided set of conformance tests.
+// Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
 		})
+	}
+}
+
+func (suite *ConformanceTestSuite) Clean(t *testing.T) {
+	for _, baseManifest := range suite.BaseManifests {
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, true)
 	}
 }
 
