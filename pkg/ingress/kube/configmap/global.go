@@ -56,8 +56,6 @@ type Global struct {
 
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
-	// Enable enables the downstream config.
-	Enable bool `json:"enable,omitempty"`
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
 	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
@@ -161,7 +159,6 @@ func NewDefaultGlobalOption() *Global {
 // NewDefaultDownstream returns a default downstream config.
 func NewDefaultDownstream() *Downstream {
 	return &Downstream{
-		Enable:                 false,
 		IdleTimeout:            defaultIdleTimeout,
 		MaxRequestHeadersKb:    defaultMaxRequestHeadersKb,
 		ConnectionBufferLimits: defaultConnectionBufferLimits,
@@ -296,7 +293,7 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 		configPatch = append(configPatch, disableXEnvoyHeadersConfig...)
 	}
 
-	if global.Downstream == nil || !global.Downstream.Enable {
+	if global.Downstream == nil {
 		return generateEnvoyFilter(namespace, configPatch), nil
 	}
 
