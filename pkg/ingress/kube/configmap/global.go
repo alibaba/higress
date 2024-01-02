@@ -15,6 +15,7 @@
 package configmap
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync/atomic"
@@ -137,14 +138,13 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
-	if global == nil {
-		return nil, nil
-	}
 	newGlobal := NewDefaultGlobalOption()
-	newGlobal.Downstream = global.Downstream
-	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
-	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
-	return newGlobal, nil
+	bytes, err := json.Marshal(global)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, newGlobal)
+	return newGlobal, err
 }
 
 // NewDefaultGlobalOption returns a default global config.
