@@ -338,164 +338,162 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 			expected.Request.ExpectedRequest.Method = "GET"
 		}
 
-		if expected.Request.ActualRequest.Method == "GET" || expected.Request.ActualRequest.Method == "POST" {
-			if expected.Request.ExpectedRequest.Host != "" && expected.Request.ExpectedRequest.Host != cReq.Host {
-				return fmt.Errorf("expected host to be %s, got %s", expected.Request.ExpectedRequest.Host, cReq.Host)
-			}
-
-			if expected.Request.ExpectedRequest.Path != cReq.Path {
-				return fmt.Errorf("expected path to be %s, got %s", expected.Request.ExpectedRequest.Path, cReq.Path)
-			}
-			if expected.Request.ExpectedRequest.Method != cReq.Method {
-				return fmt.Errorf("expected method to be %s, got %s", expected.Request.ExpectedRequest.Method, cReq.Method)
-			}
-			if expected.Meta.TargetNamespace != cReq.Namespace {
-				return fmt.Errorf("expected namespace to be %s, got %s", expected.Meta.TargetNamespace, cReq.Namespace)
-			}
-			if expected.Request.ExpectedRequest.Headers != nil {
-				if cReq.Headers == nil {
-					return fmt.Errorf("no headers captured, expected %v", len(expected.Request.ExpectedRequest.Headers))
-				}
-				for name, val := range cReq.Headers {
-					cReq.Headers[strings.ToLower(name)] = val
-				}
-				for name, expectedVal := range expected.Request.ExpectedRequest.Headers {
-					actualVal, ok := cReq.Headers[strings.ToLower(name)]
-					if !ok {
-						return fmt.Errorf("expected %s header to be set, actual headers: %v", name, cReq.Headers)
-					} else if strings.Join(actualVal, ",") != expectedVal {
-						return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
-					}
-				}
-			}
-			if expected.Request.ExpectedRequest.Body != nil && len(expected.Request.ExpectedRequest.Body) > 0 {
-				// 对ExpectedRequest.Body做断言时，须手动指定ExpectedRequest.ContentType
-				if len(expected.Request.ExpectedRequest.ContentType) == 0 {
-					return fmt.Errorf("ExpectedRequest.ContentType should not be empty since ExpectedRequest.Body is set")
-				}
-
-				if cReq.Headers["Content-type"] == nil || len(cReq.Headers["Content-type"]) == 0 {
-					cReq.Headers["Content-type"] = []string{expected.Request.ExpectedRequest.ContentType}
-				}
-
-				eTyp, eParams, err := mime.ParseMediaType(expected.Request.ExpectedRequest.ContentType)
-				if err != nil {
-					return fmt.Errorf("ExpectedRequest Content-type: %s failed to parse: %s", expected.Request.ExpectedRequest.ContentType, err.Error())
-				}
-
-				cTyp := cReq.Headers["Content-type"][0]
-
-				if eTyp != cTyp {
-					return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-type"][0])
-				}
-				var ok bool
-				switch cTyp {
-				case ContentTypeTextPlain:
-					if string(expected.Request.ExpectedRequest.Body) != cReq.Body.(string) {
-						return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Request.ExpectedRequest.Body), cReq.Body.(string))
-					}
-				case ContentTypeApplicationJson:
-					var eReqBody map[string]interface{}
-					var cReqBody map[string]interface{}
-
-					err := json.Unmarshal(expected.Request.ExpectedRequest.Body, &eReqBody)
-					if err != nil {
-						return fmt.Errorf("failed to unmarshall ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
-					}
-
-					if cReqBody, ok = cReq.Body.(map[string]interface{}); !ok {
-						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
-					}
-
-					if !reflect.DeepEqual(eReqBody, cReqBody) {
-						b, _ := json.Marshal(cReqBody)
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(b))
-					}
-				case ContentTypeFormUrlencoded:
-					var eReqBody map[string][]string
-					var cReqBody map[string][]string
-					eReqBody, err = ParseFormUrlencodedBody(expected.Request.ExpectedRequest.Body)
-					if err != nil {
-						return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
-					}
-
-					if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
-						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
-					}
-
-					if !reflect.DeepEqual(eReqBody, cReqBody) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
-					}
-				case ContentTypeMultipartForm:
-					var eReqBody map[string][]string
-					var cReqBody map[string][]string
-
-					eReqBody, err = ParseMultipartFormBody(expected.Request.ExpectedRequest.Body, eParams["boundary"])
-					if err != nil {
-						return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
-					}
-					if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
-						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
-					}
-
-					if !reflect.DeepEqual(eReqBody, cReqBody) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
-					}
-				default:
-					return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
-				}
-			}
-			if expected.Response.ExpectedResponse.Headers != nil {
-				if cRes.Headers == nil {
-					return fmt.Errorf("no headers captured, expected %v", len(expected.Request.ExpectedRequest.Headers))
-				}
-				for name, val := range cRes.Headers {
-					cRes.Headers[strings.ToLower(name)] = val
-				}
-
-				for name, expectedVal := range expected.Response.ExpectedResponse.Headers {
-					actualVal, ok := cRes.Headers[strings.ToLower(name)]
-					if !ok {
-						return fmt.Errorf("expected %s header to be set, actual headers: %v", name, cRes.Headers)
-					} else if strings.Join(actualVal, ",") != expectedVal {
-						return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
-					}
-				}
-			}
-
-			if len(expected.Response.ExpectedResponse.AbsentHeaders) > 0 {
-				for name, val := range cRes.Headers {
-					cRes.Headers[strings.ToLower(name)] = val
-				}
-
-				for _, name := range expected.Response.ExpectedResponse.AbsentHeaders {
-					val, ok := cRes.Headers[strings.ToLower(name)]
-					if ok {
-						return fmt.Errorf("expected %s header to not be set, got %s", name, val)
-					}
-				}
-			}
-
-			// Verify that headers expected *not* to be present on the
-			// request are actually not present.
-			if len(expected.Request.ExpectedRequest.AbsentHeaders) > 0 {
-				for name, val := range cReq.Headers {
-					cReq.Headers[strings.ToLower(name)] = val
-				}
-
-				for _, name := range expected.Request.ExpectedRequest.AbsentHeaders {
-					val, ok := cReq.Headers[strings.ToLower(name)]
-					if ok {
-						return fmt.Errorf("expected %s header to not be set, got %s", name, val)
-					}
-				}
-			}
-
-			if !strings.HasPrefix(cReq.Pod, expected.Meta.TargetBackend) {
-				return fmt.Errorf("expected pod name to start with %s, got %s", expected.Meta.TargetBackend, cReq.Pod)
-			}
-
+		if expected.Request.ExpectedRequest.Host != "" && expected.Request.ExpectedRequest.Host != cReq.Host {
+			return fmt.Errorf("expected host to be %s, got %s", expected.Request.ExpectedRequest.Host, cReq.Host)
 		}
+
+		if expected.Request.ExpectedRequest.Path != cReq.Path {
+			return fmt.Errorf("expected path to be %s, got %s", expected.Request.ExpectedRequest.Path, cReq.Path)
+		}
+		if expected.Request.ExpectedRequest.Method != cReq.Method {
+			return fmt.Errorf("expected method to be %s, got %s", expected.Request.ExpectedRequest.Method, cReq.Method)
+		}
+		if expected.Meta.TargetNamespace != cReq.Namespace {
+			return fmt.Errorf("expected namespace to be %s, got %s", expected.Meta.TargetNamespace, cReq.Namespace)
+		}
+		if expected.Request.ExpectedRequest.Headers != nil {
+			if cReq.Headers == nil {
+				return fmt.Errorf("no headers captured, expected %v", len(expected.Request.ExpectedRequest.Headers))
+			}
+			for name, val := range cReq.Headers {
+				cReq.Headers[strings.ToLower(name)] = val
+			}
+			for name, expectedVal := range expected.Request.ExpectedRequest.Headers {
+				actualVal, ok := cReq.Headers[strings.ToLower(name)]
+				if !ok {
+					return fmt.Errorf("expected %s header to be set, actual headers: %v", name, cReq.Headers)
+				} else if strings.Join(actualVal, ",") != expectedVal {
+					return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
+				}
+			}
+		}
+		if expected.Request.ExpectedRequest.Body != nil && len(expected.Request.ExpectedRequest.Body) > 0 {
+			// 对ExpectedRequest.Body做断言时，须手动指定ExpectedRequest.ContentType
+			if len(expected.Request.ExpectedRequest.ContentType) == 0 {
+				return fmt.Errorf("ExpectedRequest.ContentType should not be empty since ExpectedRequest.Body is set")
+			}
+
+			if cReq.Headers["Content-type"] == nil || len(cReq.Headers["Content-type"]) == 0 {
+				cReq.Headers["Content-type"] = []string{expected.Request.ExpectedRequest.ContentType}
+			}
+
+			eTyp, eParams, err := mime.ParseMediaType(expected.Request.ExpectedRequest.ContentType)
+			if err != nil {
+				return fmt.Errorf("ExpectedRequest Content-type: %s failed to parse: %s", expected.Request.ExpectedRequest.ContentType, err.Error())
+			}
+
+			cTyp := cReq.Headers["Content-type"][0]
+
+			if eTyp != cTyp {
+				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-type"][0])
+			}
+			var ok bool
+			switch cTyp {
+			case ContentTypeTextPlain:
+				if string(expected.Request.ExpectedRequest.Body) != cReq.Body.(string) {
+					return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Request.ExpectedRequest.Body), cReq.Body.(string))
+				}
+			case ContentTypeApplicationJson:
+				var eReqBody map[string]interface{}
+				var cReqBody map[string]interface{}
+
+				err := json.Unmarshal(expected.Request.ExpectedRequest.Body, &eReqBody)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshall ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+				}
+
+				if cReqBody, ok = cReq.Body.(map[string]interface{}); !ok {
+					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+				}
+
+				if !reflect.DeepEqual(eReqBody, cReqBody) {
+					b, _ := json.Marshal(cReqBody)
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(b))
+				}
+			case ContentTypeFormUrlencoded:
+				var eReqBody map[string][]string
+				var cReqBody map[string][]string
+				eReqBody, err = ParseFormUrlencodedBody(expected.Request.ExpectedRequest.Body)
+				if err != nil {
+					return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+				}
+
+				if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
+					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+				}
+
+				if !reflect.DeepEqual(eReqBody, cReqBody) {
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+				}
+			case ContentTypeMultipartForm:
+				var eReqBody map[string][]string
+				var cReqBody map[string][]string
+
+				eReqBody, err = ParseMultipartFormBody(expected.Request.ExpectedRequest.Body, eParams["boundary"])
+				if err != nil {
+					return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+				}
+				if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
+					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+				}
+
+				if !reflect.DeepEqual(eReqBody, cReqBody) {
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+				}
+			default:
+				return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
+			}
+		}
+		if expected.Response.ExpectedResponse.Headers != nil {
+			if cRes.Headers == nil {
+				return fmt.Errorf("no headers captured, expected %v", len(expected.Request.ExpectedRequest.Headers))
+			}
+			for name, val := range cRes.Headers {
+				cRes.Headers[strings.ToLower(name)] = val
+			}
+
+			for name, expectedVal := range expected.Response.ExpectedResponse.Headers {
+				actualVal, ok := cRes.Headers[strings.ToLower(name)]
+				if !ok {
+					return fmt.Errorf("expected %s header to be set, actual headers: %v", name, cRes.Headers)
+				} else if strings.Join(actualVal, ",") != expectedVal {
+					return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
+				}
+			}
+		}
+
+		if len(expected.Response.ExpectedResponse.AbsentHeaders) > 0 {
+			for name, val := range cRes.Headers {
+				cRes.Headers[strings.ToLower(name)] = val
+			}
+
+			for _, name := range expected.Response.ExpectedResponse.AbsentHeaders {
+				val, ok := cRes.Headers[strings.ToLower(name)]
+				if ok {
+					return fmt.Errorf("expected %s header to not be set, got %s", name, val)
+				}
+			}
+		}
+
+		// Verify that headers expected *not* to be present on the
+		// request are actually not present.
+		if len(expected.Request.ExpectedRequest.AbsentHeaders) > 0 {
+			for name, val := range cReq.Headers {
+				cReq.Headers[strings.ToLower(name)] = val
+			}
+
+			for _, name := range expected.Request.ExpectedRequest.AbsentHeaders {
+				val, ok := cReq.Headers[strings.ToLower(name)]
+				if ok {
+					return fmt.Errorf("expected %s header to not be set, got %s", name, val)
+				}
+			}
+		}
+
+		if !strings.HasPrefix(cReq.Pod, expected.Meta.TargetBackend) {
+			return fmt.Errorf("expected pod name to start with %s, got %s", expected.Meta.TargetBackend, cReq.Pod)
+		}
+
 	} else if roundtripper.IsRedirect(cRes.StatusCode) {
 		if expected.Request.RedirectRequest == nil {
 			return nil
