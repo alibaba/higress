@@ -3,7 +3,7 @@
 	url = https://github.com/higress-group/api
 [submodule "istio/istio"]
 	path = istio/istio
-	url = https://github.com/higress-group/istio
+	url = https://github.com/rinfx/istio
 [submodule "istio/client-go"]
 	path = istio/client-go
 	url = https://github.com/higress-group/client-go

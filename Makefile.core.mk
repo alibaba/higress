@@ -52,6 +52,7 @@ $(OUT):
 
 submodule:
 	git submodule update --init
+	git submodule update --remote istio/istio
 
 .PHONY: prebuild
 prebuild: submodule
@@ -149,7 +150,7 @@ build-pilot-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} ./tools/hack/build-istio-pilot.sh
 
 build-gateway: prebuild
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+	cd external/istio; ENVOY_VERSION=v1.3.0 BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
 
 build-gateway-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh
