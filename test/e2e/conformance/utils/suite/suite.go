@@ -121,16 +121,13 @@ func New(s Options) *ConformanceTestSuite {
 		}
 	}
 
+	suite.Applier.IngressClass = suite.IngressClassName
 	return suite
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
-	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
-
-	suite.Applier.IngressClass = suite.IngressClassName
-
 	t.Logf("📦 Test Setup: Applying base manifests")
 
 	for _, baseManifest := range suite.BaseManifests {
