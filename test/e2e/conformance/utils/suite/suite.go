@@ -128,7 +128,6 @@ func New(s Options) *ConformanceTestSuite {
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("📦 Test Setup: Applying base manifests")
-
 	for _, baseManifest := range suite.BaseManifests {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
 	}
