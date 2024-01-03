@@ -43,6 +43,8 @@ type AssertionMeta struct {
 	TargetBackend string
 	// TargetNamespace defines the target backend namespace
 	TargetNamespace string
+	// CompareTarget defines who's header&body to compare in test, either "Request"(default) or "Response", case insensitive
+	CompareTarget string
 }
 
 type AssertionRequest struct {
@@ -181,23 +183,24 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 			tlsConfig.SNI = expected.Request.ActualRequest.Host
 		}
 	}
-
+	if expected.Meta.CompareTarget == "" {
+		expected.Meta.CompareTarget = "Request"
+	}
 	if expected.Request.ActualRequest.Method == "" {
 		expected.Request.ActualRequest.Method = "GET"
 	}
 
 	if expected.Request.ActualRequest.Body != nil && len(expected.Request.ActualRequest.Body) > 0 {
-		expected.Request.ActualRequest.Method = "POST"
+		if len(expected.Request.ActualRequest.ContentType) == 0 {
+			t.Error(`please set Content-Type in ActualRequest manually if you want to send a request with body. 
+			For example, \"ContentType: http.ContentTypeApplicationJson\"`)
+		}
 	}
 
 	expected.Request.ActualRequest.Method = strings.ToUpper(expected.Request.ActualRequest.Method)
 
 	if expected.Response.ExpectedResponse.StatusCode == 0 {
 		expected.Response.ExpectedResponse.StatusCode = 200
-	}
-
-	if len(expected.Request.ActualRequest.ContentType) == 0 {
-		expected.Request.ActualRequest.ContentType = ContentTypeApplicationJson
 	}
 
 	t.Logf("Making %s request to %s://%s%s", expected.Request.ActualRequest.Method, scheme, gwAddr, expected.Request.ActualRequest.Path)
@@ -281,9 +284,36 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 			t.Logf("Request failed, not ready yet: %v (after %v)", err.Error(), elapsed)
 			return false
 		}
+		// CompareTarget为Request（默认）时，ExpectedRequest中设置的所有断言均支持；除ExpectedResponse.Body外，ExpectedResponse中设置的所有断言均支持。目前支持echo-server作为backend
+		// CompareTarget为Response时，不支持设定ExpectedRequest断言，ExpectedResponse中设置的所有断言均支持。支持任意backend，如echo-body
+		if strings.EqualFold(expected.Meta.CompareTarget, "Request") {
+			if expected.Response.ExpectedResponse.Body != nil {
+				t.Logf(`detected CompareTarget is Request, but ExpectedResponse.Body is set. 
+				You can only choose one to compare between Response and Request.`)
+				return false
+			}
 
-		if err := CompareRequest(&req, cReq, cRes, expected); err != nil {
-			t.Logf("Response expectation failed for request: %v  not ready yet: %v (after %v)", req, err, elapsed)
+			if cRes.StatusCode == 200 && cReq.Host == "" && cReq.Path == "" && cReq.Headers == nil && cReq.Body == nil {
+				t.Logf(`decoding client's response failed. Maybe you have chosen a wrong backend.
+				Choose echo-server if you want to check expected request header&body instead of response header&body.`)
+				return false
+			}
+			if err := CompareRequest(&req, cReq, cRes, expected); err != nil {
+				t.Logf("request expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
+				return false
+			}
+		} else if strings.EqualFold(expected.Meta.CompareTarget, "Response") {
+			if expected.Request.ExpectedRequest != nil {
+				t.Logf(`detected CompareTarget is Response, but ExpectedRequest is set. 
+				You can only choose one to compare between Response and Request.`)
+				return false
+			}
+			if err := CompareResponse(cRes, expected); err != nil {
+				t.Logf("Response expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
+				return false
+			}
+		} else {
+			t.Logf("invalid CompareTarget: %v  please set it Request or Response", expected.Meta.CompareTarget, err, elapsed)
 			return false
 		}
 
@@ -308,7 +338,7 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 			expected.Request.ExpectedRequest.Method = "GET"
 		}
 
-		if expected.Request.ActualRequest.Method == "GET" {
+		if expected.Request.ActualRequest.Method == "GET" || expected.Request.ActualRequest.Method == "POST" {
 			if expected.Request.ExpectedRequest.Host != "" && expected.Request.ExpectedRequest.Host != cReq.Host {
 				return fmt.Errorf("expected host to be %s, got %s", expected.Request.ExpectedRequest.Host, cReq.Host)
 			}
@@ -336,10 +366,85 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 					} else if strings.Join(actualVal, ",") != expectedVal {
 						return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
 					}
-
 				}
 			}
+			if expected.Request.ExpectedRequest.Body != nil && len(expected.Request.ExpectedRequest.Body) > 0 {
+				// 对ExpectedRequest.Body做断言时，须手动指定ExpectedRequest.ContentType
+				if len(expected.Request.ExpectedRequest.ContentType) == 0 {
+					return fmt.Errorf("ExpectedRequest.ContentType should not be empty since ExpectedRequest.Body is set")
+				}
 
+				if cReq.Headers["Content-type"] == nil || len(cReq.Headers["Content-type"]) == 0 {
+					cReq.Headers["Content-type"] = []string{expected.Request.ExpectedRequest.ContentType}
+				}
+
+				eTyp, eParams, err := mime.ParseMediaType(expected.Request.ExpectedRequest.ContentType)
+				if err != nil {
+					return fmt.Errorf("ExpectedRequest Content-type: %s failed to parse: %s", expected.Request.ExpectedRequest.ContentType, err.Error())
+				}
+
+				cTyp := cReq.Headers["Content-type"][0]
+
+				if eTyp != cTyp {
+					return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-type"][0])
+				}
+				var ok bool
+				switch cTyp {
+				case ContentTypeTextPlain:
+					if string(expected.Request.ExpectedRequest.Body) != cReq.Body.(string) {
+						return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Request.ExpectedRequest.Body), cReq.Body.(string))
+					}
+				case ContentTypeApplicationJson:
+					var eReqBody map[string]interface{}
+					var cReqBody map[string]interface{}
+
+					err := json.Unmarshal(expected.Request.ExpectedRequest.Body, &eReqBody)
+					if err != nil {
+						return fmt.Errorf("failed to unmarshall ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+					}
+
+					if cReqBody, ok = cReq.Body.(map[string]interface{}); !ok {
+						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					}
+
+					if !reflect.DeepEqual(eReqBody, cReqBody) {
+						b, _ := json.Marshal(cReqBody)
+						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(b))
+					}
+				case ContentTypeFormUrlencoded:
+					var eReqBody map[string][]string
+					var cReqBody map[string][]string
+					eReqBody, err = ParseFormUrlencodedBody(expected.Request.ExpectedRequest.Body)
+					if err != nil {
+						return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+					}
+
+					if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
+						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					}
+
+					if !reflect.DeepEqual(eReqBody, cReqBody) {
+						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+					}
+				case ContentTypeMultipartForm:
+					var eReqBody map[string][]string
+					var cReqBody map[string][]string
+
+					eReqBody, err = ParseMultipartFormBody(expected.Request.ExpectedRequest.Body, eParams["boundary"])
+					if err != nil {
+						return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
+					}
+					if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
+						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					}
+
+					if !reflect.DeepEqual(eReqBody, cReqBody) {
+						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+					}
+				default:
+					return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
+				}
+			}
 			if expected.Response.ExpectedResponse.Headers != nil {
 				if cRes.Headers == nil {
 					return fmt.Errorf("no headers captured, expected %v", len(expected.Request.ExpectedRequest.Headers))
@@ -390,78 +495,6 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 				return fmt.Errorf("expected pod name to start with %s, got %s", expected.Meta.TargetBackend, cReq.Pod)
 			}
 
-		} else if expected.Request.ActualRequest.Method == "POST" {
-			// 对POST请求只比对Content-Type和Body是否符合预期
-
-			if expected.Response.ExpectedResponse.Body != nil && len(expected.Response.ExpectedResponse.Body) > 0 {
-
-				if len(expected.Response.ExpectedResponse.ContentType) == 0{
-					expected.Response.ExpectedResponse.ContentType = cReq.ContentType
-				}
-
-				eTyp, eParams, err := mime.ParseMediaType(expected.Response.ExpectedResponse.ContentType)
-				if err != nil {
-					return fmt.Errorf("ExpectedResponse Content-type: %s failed to parse: %s", expected.Response.ExpectedResponse.ContentType, err.Error())
-				}
-
-				cTyp, cParams, err := mime.ParseMediaType(cReq.ContentType)
-				if err != nil {
-					return fmt.Errorf("CapturedRequest Content-type: %s failed to parse: %s", cReq.ContentType, err.Error())
-				}
-
-				if eTyp != cTyp {
-					return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Response.ExpectedResponse.ContentType, cReq.ContentType)
-				}
-
-				switch cTyp {
-				case ContentTypeTextPlain:
-					if !bytes.Equal(expected.Response.ExpectedResponse.Body, cReq.Body) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cReq.Body))
-					}
-				case ContentTypeApplicationJson:
-					eResBody := make(map[string]interface{})
-					cReqBody := make(map[string]interface{})
-					err := json.Unmarshal(expected.Response.ExpectedResponse.Body, &eResBody)
-					if err != nil {
-						return fmt.Errorf("failed to unmarshall ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
-					}
-					err = json.Unmarshal(cReq.Body, &cReqBody)
-					if err != nil {
-						return fmt.Errorf("failed to unmarshall CapturedRequest body %s, %s", string(cReq.Body), err.Error())
-					}
-
-					if !reflect.DeepEqual(eResBody, cReqBody) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cReq.Body))
-					}
-				case ContentTypeFormUrlencoded:
-					eResBody, err := ParseFormUrlencodedBody(expected.Response.ExpectedResponse.Body)
-					if err != nil {
-						return fmt.Errorf("failed to parse ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
-					}
-					cReqBody, err := ParseFormUrlencodedBody(cReq.Body)
-					if err != nil {
-						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body), err.Error())
-					}
-
-					if !reflect.DeepEqual(eResBody, cReqBody) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cReq.Body))
-					}
-				case ContentTypeMultipartForm:
-					eResBody, err := ParseMultipartFormBody(expected.Response.ExpectedResponse.Body, eParams["boundary"])
-					if err != nil {
-						return fmt.Errorf("failed to parse ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
-					}
-					cReqBody, err := ParseMultipartFormBody(cReq.Body, cParams["boundary"])
-					if err != nil {
-						return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body), err.Error())
-					}
-					if !reflect.DeepEqual(eResBody, cReqBody) {
-						return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cReq.Body))
-					}
-				default:
-					return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
-				}
-			}
 		}
 	} else if roundtripper.IsRedirect(cRes.StatusCode) {
 		if expected.Request.RedirectRequest == nil {
@@ -489,6 +522,132 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 	return nil
 }
 
+func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) error {
+	if expected.Response.ExpectedResponse.StatusCode != cRes.StatusCode {
+		return fmt.Errorf("expected status code to be %d, got %d", expected.Response.ExpectedResponse.StatusCode, cRes.StatusCode)
+	}
+	if cRes.StatusCode == 200 {
+		if len(expected.Meta.TargetNamespace) > 0 {
+			if cRes.Headers["Namespace"] == nil || len(cRes.Headers["Namespace"]) == 0 {
+				return fmt.Errorf("expected namespace to be %s, field not found in CaptureResponse", expected.Meta.TargetNamespace)
+			}
+			if expected.Meta.TargetNamespace != cRes.Headers["Namespace"][0] {
+				return fmt.Errorf("expected namespace to be %s, got %s", expected.Meta.TargetNamespace, cRes.Headers["Namespace"][0])
+			}
+		}
+
+		if len(expected.Meta.TargetBackend) > 0 {
+			if cRes.Headers["Pod"] == nil || len(cRes.Headers["Pod"]) == 0 {
+				return fmt.Errorf("expected pod to be %s, field not found in CaptureResponse", expected.Meta.TargetBackend)
+			}
+			if !strings.HasPrefix(cRes.Headers["Pod"][0], expected.Meta.TargetBackend) {
+				return fmt.Errorf("expected pod to be %s, got %s", expected.Meta.TargetBackend, cRes.Headers["Pod"][0])
+			}
+		}
+
+		if expected.Response.ExpectedResponse.Headers != nil {
+			if cRes.Headers == nil {
+				return fmt.Errorf("no headers captured, expected %v", len(expected.Response.ExpectedResponse.Headers))
+			}
+			for name, val := range cRes.Headers {
+				cRes.Headers[strings.ToLower(name)] = val
+			}
+			for name, expectedVal := range expected.Response.ExpectedResponse.Headers {
+				actualVal, ok := cRes.Headers[strings.ToLower(name)]
+				if !ok {
+					return fmt.Errorf("expected %s header to be set, actual headers: %v", name, cRes.Headers)
+				} else if strings.Join(actualVal, ",") != expectedVal {
+					return fmt.Errorf("expected %s header to be set to %s, got %s", name, expectedVal, strings.Join(actualVal, ","))
+				}
+			}
+		}
+		if expected.Response.ExpectedResponse.Body != nil && len(expected.Response.ExpectedResponse.Body) > 0 {
+			// 对ExpectedResponse.Body做断言时，必须指定ExpectedResponse.ContentType
+			if len(expected.Response.ExpectedResponse.ContentType) == 0 {
+				return fmt.Errorf("ExpectedResponse.ContentType should not be empty since ExpectedResponse.Body is set")
+			}
+
+			if cRes.Headers["Content-type"] == nil || len(cRes.Headers["Content-type"]) == 0 {
+				cRes.Headers["Content-type"] = []string{expected.Response.ExpectedResponse.ContentType}
+			}
+
+			eTyp, eParams, err := mime.ParseMediaType(expected.Response.ExpectedResponse.ContentType)
+			if err != nil {
+				return fmt.Errorf("ExpectedResponse Content-type: %s failed to parse: %s", expected.Response.ExpectedResponse.ContentType, err.Error())
+			}
+			cTyp, cParams, err := mime.ParseMediaType(cRes.Headers["Content-type"][0])
+			if err != nil {
+				return fmt.Errorf("CapturedResponse Content-type: %s failed to parse: %s", cRes.Headers["Content-type"][0], err.Error())
+			}
+
+			if eTyp != cTyp {
+				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Response.ExpectedResponse.ContentType, cRes.Headers["Content-type"][0])
+			}
+
+			switch cTyp {
+			case ContentTypeTextPlain:
+				if !bytes.Equal(expected.Response.ExpectedResponse.Body, cRes.Body) {
+					return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
+				}
+			case ContentTypeApplicationJson:
+				eResBody := make(map[string]interface{})
+				cResBody := make(map[string]interface{})
+				err := json.Unmarshal(expected.Response.ExpectedResponse.Body, &eResBody)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshall ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
+				}
+				err = json.Unmarshal(cRes.Body, &cResBody)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshall CapturedResponse body %s, %s", string(cRes.Body), err.Error())
+				}
+
+				if !reflect.DeepEqual(eResBody, cResBody) {
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
+				}
+			case ContentTypeFormUrlencoded:
+				eResBody, err := ParseFormUrlencodedBody(expected.Response.ExpectedResponse.Body)
+				if err != nil {
+					return fmt.Errorf("failed to parse ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
+				}
+				cResBody, err := ParseFormUrlencodedBody(cRes.Body)
+				if err != nil {
+					return fmt.Errorf("failed to parse CapturedResponse body %s, %s", string(cRes.Body), err.Error())
+				}
+
+				if !reflect.DeepEqual(eResBody, cResBody) {
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
+				}
+			case ContentTypeMultipartForm:
+				eResBody, err := ParseMultipartFormBody(expected.Response.ExpectedResponse.Body, eParams["boundary"])
+				if err != nil {
+					return fmt.Errorf("failed to parse ExpectedResponse body %s, %s", string(expected.Response.ExpectedResponse.Body), err.Error())
+				}
+				cResBody, err := ParseMultipartFormBody(cRes.Body, cParams["boundary"])
+				if err != nil {
+					return fmt.Errorf("failed to parse CapturedResponse body %s, %s", string(cRes.Body), err.Error())
+				}
+				if !reflect.DeepEqual(eResBody, cResBody) {
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
+				}
+			default:
+				return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
+			}
+		}
+		if len(expected.Response.ExpectedResponse.AbsentHeaders) > 0 {
+			for name, val := range cRes.Headers {
+				cRes.Headers[strings.ToLower(name)] = val
+			}
+
+			for _, name := range expected.Response.ExpectedResponse.AbsentHeaders {
+				val, ok := cRes.Headers[strings.ToLower(name)]
+				if ok {
+					return fmt.Errorf("expected %s header to not be set, got %s", name, val)
+				}
+			}
+		}
+	}
+	return nil
+}
 func ParseFormUrlencodedBody(body []byte) (map[string][]string, error) {
 	ret := make(map[string][]string)
 	kvs, err := url.ParseQuery(string(body))

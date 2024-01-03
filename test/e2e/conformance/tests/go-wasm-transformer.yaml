@@ -36,7 +36,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-  name: wasmplugin-transform-response
+  name: wasmplugin-transform-response-header-and-query
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -62,6 +62,26 @@ spec:
   ingressClassName: higress
   rules:
     - host: "foo4.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-response-body
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo5.com"
       http:
         paths:
           - pathType: Prefix
@@ -138,9 +158,8 @@ spec:
                 - key: k4
                   value: RETAIN_FIRST
 
-    # response transformer
     - ingress:
-        - higress-conformance-infra/wasmplugin-transform-response
+        - higress-conformance-infra/wasmplugin-transform-response-header-and-query
       configDisable: false
       config:
         type: response
@@ -171,8 +190,6 @@ spec:
             headers:
               - key: X-add-append
                 value: X-map
-
-# request transformer
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-request-body
       configDisable: false
@@ -210,5 +227,41 @@ spec:
                   value: RETAIN_LAST
                 - key: X-dedupe-unique
                   value: RETAIN_UNIQUE
-
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-response-body
+      configDisable: false
+      config:
+          type: response
+          rules:
+            - operate: remove
+              body:
+                - key: X-removed
+            - operate: rename
+              body:
+                - key: X-not-renamed
+                  value: X-renamed
+            - operate: replace
+              body:
+                - key: X-replace
+                  value: replaced
+            - operate: add
+              body:
+                - key: X-add-append
+                  value: add
+            - operate: append
+              body:
+                - key: X-add-append
+                  value: append
+            - operate: map
+              body:
+                - key: X-add-append
+                  value: X-map
+            - operate: dedupe
+              body:
+                - key: X-dedupe-first
+                  value: RETAIN_FIRST
+                - key: X-dedupe-last
+                  value: RETAIN_LAST
+                - key: X-dedupe-unique
+                  value: RETAIN_UNIQUE
   url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm

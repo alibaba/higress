@@ -73,15 +73,14 @@ type ClientKeyPair struct {
 // CapturedRequest contains request metadata captured from an echoserver
 // response.
 type CapturedRequest struct {
-	Path        string              `json:"path"`
-	Host        string              `json:"host"`
-	Method      string              `json:"method"`
-	Protocol    string              `json:"proto"`
-	Headers     map[string][]string `json:"headers"`
-	Body        []byte
-	ContentType string
-	Namespace   string `json:"namespace"`
-	Pod         string `json:"pod"`
+	Path      string              `json:"path"`
+	Host      string              `json:"host"`
+	Method    string              `json:"method"`
+	Protocol  string              `json:"proto"`
+	Headers   map[string][]string `json:"headers"`
+	Body      interface{}         `json:"body"`
+	Namespace string              `json:"namespace"`
+	Pod       string              `json:"pod"`
 }
 
 // RedirectRequest contains a follow up request metadata captured from a redirect
@@ -99,6 +98,7 @@ type CapturedResponse struct {
 	ContentLength   int64
 	Protocol        string
 	Headers         map[string][]string
+	Body            []byte
 	RedirectRequest *RedirectRequest
 }
 
@@ -151,7 +151,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			},
 		}
 	}
-	
+
 	method := "GET"
 	if request.Method != "" {
 		method = request.Method
@@ -175,7 +175,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		}
 	}
 
-	if method == "POST" && request.Body != nil {
+	if request.Body != nil {
 		req.Header.Add("Content-Type", string(request.ContentType))
 		req.Body = io.NopCloser(bytes.NewReader(request.Body))
 	}
@@ -212,7 +212,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		return nil, nil, fmt.Errorf("unexpected error reading response body: %w", err)
 	}
 
-	if request.Method == "GET" {
+	if request.Method == "GET" || request.Method == "POST" {
 		// we cannot assume the response is JSON
 		if resp.Header.Get("Content-type") == "application/json" {
 			err = json.Unmarshal(body, cReq)
@@ -220,22 +220,13 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 				return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
 			}
 		}
-	} else if request.Method == "POST" {
-		// 使用POST时，默认backend为echo-body服务
-		// cReq只能捕获echo-body服务返回的body和Content-Type，cRes捕获echo-body服务返回的状态码等
-		resBody := body
-
-		fmt.Printf("Received Response %s", resp.Status)
-		cReq = &CapturedRequest{
-			Body:        resBody,
-			ContentType: resp.Header.Get("Content-type"),
-		}
 	}
 	cRes = &CapturedResponse{
 		StatusCode:    resp.StatusCode,
 		ContentLength: resp.ContentLength,
 		Protocol:      resp.Proto,
 		Headers:       resp.Header,
+		Body:          body,
 	}
 
 	if IsRedirect(resp.StatusCode) {

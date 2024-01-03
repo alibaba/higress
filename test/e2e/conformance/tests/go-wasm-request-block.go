@@ -88,13 +88,17 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 			},
 			{
 				// post blocked body
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo2.com",
+						Host:             "foo.com",
 						Path:             "/foo",
-						Method: "POST",
-						ContentType: http.ContentTypeTextPlain,
-						Body: []byte(`hello world`),
+						Method:           "POST",
+						ContentType:      http.ContentTypeTextPlain,
+						Body:             []byte(`hello world`),
 						UnfollowRedirect: true,
 					},
 				},
@@ -105,44 +109,53 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 				},
 			},
 			{
-				// check body echoed back
+				// check body echoed back in expected request(same as ActualRequest if not set)
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   "Request",
+				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo2.com",
+						Host:             "foo.com",
 						Path:             "/foo",
-						Method: "POST",
-						ContentType: http.ContentTypeTextPlain,
-						Body: []byte(`hello higress`),
+						Method:           "POST",
+						ContentType:      http.ContentTypeTextPlain,
+						Body:             []byte(`hello higress`),
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
-						ContentType: http.ContentTypeTextPlain,
-						Body: []byte(`hello higress`),
 					},
 				},
 			},
 			{
-				// not check body echoed back
+				// check body echoed back in expected response
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-echo-body-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   "Response",
+				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo2.com",
 						Path:             "/foo",
-						Method: "POST",
-						ContentType: http.ContentTypeTextPlain,
-						Body: []byte(`hello higress`),
+						Method:           "POST",
+						ContentType:      http.ContentTypeTextPlain,
+						Body:             []byte(`hello higress`),
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextPlain,
+						Body:        []byte(`hello higress`),
 					},
 				},
 			},
-			
 		}
 		t.Run("WasmPlugins request-block", func(t *testing.T) {
 			for _, testcase := range testcases {
