@@ -212,15 +212,14 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		return nil, nil, fmt.Errorf("unexpected error reading response body: %w", err)
 	}
 
-	if request.Method == "GET" || request.Method == "POST" {
-		// we cannot assume the response is JSON
-		if resp.Header.Get("Content-type") == "application/json" {
-			err = json.Unmarshal(body, cReq)
-			if err != nil {
-				return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
-			}
+	// we cannot assume the response is JSON
+	if resp.Header.Get("Content-type") == "application/json" {
+		err = json.Unmarshal(body, cReq)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
 		}
 	}
+
 	cRes = &CapturedResponse{
 		StatusCode:    resp.StatusCode,
 		ContentLength: resp.ContentLength,
