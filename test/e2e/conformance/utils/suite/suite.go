@@ -120,17 +120,13 @@ func New(s Options) *ConformanceTestSuite {
 			"base/dubbo.yaml",
 		}
 	}
-
+	suite.Applier.IngressClass = suite.IngressClassName
 	return suite
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
-	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
-
-	suite.Applier.IngressClass = suite.IngressClassName
-
 	t.Logf("📦 Test Setup: Applying base manifests")
 
 	for _, baseManifest := range suite.BaseManifests {
@@ -157,7 +153,6 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
-	suite.Applier.IngressClass = suite.IngressClassName
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
