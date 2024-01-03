@@ -121,28 +121,28 @@ func New(s Options) *ConformanceTestSuite {
 		}
 	}
 
-	suite.Applier.IngressClass = suite.IngressClassName
-
 	return suite
-}
-
-func (suite *ConformanceTestSuite) Prepare(t *testing.T) {
-	t.Logf("📦 Test Prepare: Applying base manifests")
-
-	for _, baseManifest := range suite.BaseManifests {
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
-	}
-
-	t.Logf("📦 Test Prepare: Applying programmatic resources")
-	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
-	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
-	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
+	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
+
+	suite.Applier.IngressClass = suite.IngressClassName
+
+	t.Logf("📦 Test Setup: Applying base manifests")
+
+	for _, baseManifest := range suite.BaseManifests {
+		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
+	}
+
+	t.Logf("📦 Test Setup: Applying programmatic resources")
+	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
+	secret = kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-infra", "tls-validity-checks-certificate", []string{"*"})
+	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, false)
+
 	t.Logf("📦 Test Setup: Ensuring Pods from base manifests are ready")
 	namespaces := []string{
 		"higress-conformance-infra",
@@ -157,6 +157,7 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
+	suite.Applier.IngressClass = suite.IngressClassName
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
@@ -164,10 +165,10 @@ func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	}
 }
 
-func (suite *ConformanceTestSuite) Clean(t *testing.T) {
-	for _, baseManifest := range suite.BaseManifests {
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, true)
-	}
+// Cleanup ensures that all resources created by the test suite are cleaned up.
+func (suite *ConformanceTestSuite) Cleanup(t *testing.T) {
+	t.Logf("🧹 Test Cleanup: Ensuring all resources are cleaned up")
+	suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, "base/manifests.yaml")
 }
 
 func globalConformanceTestsListInfo(tests []ConformanceTest) string {

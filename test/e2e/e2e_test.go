@@ -16,6 +16,7 @@ package test
 
 import (
 	"flag"
+	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
@@ -53,7 +53,7 @@ func TestPrepareHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Prepare(t)
+	cSuite.Setup(t)
 }
 
 func TestRunHigressConformanceTests(t *testing.T) {
@@ -81,7 +81,6 @@ func TestRunHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t)
 	cSuite.Run(t, tests.ConformanceTests)
 }
 
@@ -110,5 +109,5 @@ func TestCleanHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Clean(t)
+	cSuite.Cleanup(t)
 }
