@@ -1,0 +1,21 @@
+{
+    "name": "Wasm Go Dev",
+    // "dockerFile": "Dockerfile",
+    "image": "liuxr25/wasm-go:tinygo-0.29.0",
+    "runArgs": [
+      "--user=root"
+    ],
+    "customizations": {
+      "vscode": {
+        "settings": {
+          "terminal.integrated.shell.linux": "/bin/bash",
+          "python.pythonPath": "/usr/bin/python3"
+        },
+        "extensions": [
+          "ms-python.python",
+          "golang.go"
+        ]
+      }
+    }
+  }
+  
