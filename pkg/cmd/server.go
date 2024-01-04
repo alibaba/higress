@@ -276,7 +276,7 @@ func getRecoverCmd() *cobra.Command {
 		os.Exit(1)
 	}
 	kubeConfigDir := homeDir + "/.kube/config"
-	recoverCmd.PersistentFlags().StringVar(&kubeConfigDir, "kubeconfig", "",
+	recoverCmd.PersistentFlags().StringVar(&kubeConfigDir, "kubeconfig", kubeConfigDir,
 		"Use a Kubernetes configuration file instead of in-cluster configuration")
 
 	return recoverCmd
