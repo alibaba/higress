@@ -120,7 +120,9 @@ func New(s Options) *ConformanceTestSuite {
 			"base/dubbo.yaml",
 		}
 	}
+
 	suite.Applier.IngressClass = suite.IngressClassName
+
 	return suite
 }
 
