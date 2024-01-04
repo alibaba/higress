@@ -267,7 +267,7 @@ func (g *GzipController) ConstructEnvoyFilters() ([]*config.Config, error) {
 									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
 										Name: "envoy.filters.network.http_connection_manager",
 										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.router",
+											Name: "envoy.filters.http.cors",
 										},
 									},
 								},
