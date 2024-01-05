@@ -27,8 +27,6 @@ func GetRootCommand() *cobra.Command {
 
 	cmd.AddCommand(getServerCommand())
 	cmd.AddCommand(getVersionCommand())
-	cmd.AddCommand(getDebugServerCommand())
-	cmd.AddCommand(getRecoverCmd())
 
 	return cmd
 }
