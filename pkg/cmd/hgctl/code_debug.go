@@ -148,6 +148,23 @@ func getStopCodeDebugCmd() *cobra.Command {
 				return nil
 			}
 
+			// check profile type is local or not
+			fmt.Fprintf(writer, "Checking profile type...\n")
+			profiles, err := getAllProfiles()
+			if err != nil {
+				return fmt.Errorf("fail to get all profiles: %v", err)
+			}
+			if len(profiles) == 0 {
+				fmt.Fprintf(writer, "Higress hasn't been installed yet!\n")
+				return nil
+			}
+			for _, profile := range profiles {
+				if profile.Install != helm.InstallLocalK8s {
+					fmt.Fprintf(writer, "\nHigress needs to be installed locally!\n")
+					return nil
+				}
+			}
+
 			// get kubernetes clientSet
 			fmt.Fprintf(writer, "Getting kubernetes clientset...\n")
 			config, err := clientcmd.BuildConfigFromFlags("", kubeConfigDir)
