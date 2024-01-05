@@ -1,6 +1,6 @@
 diff -Naur istio/pilot/pkg/features/pilot.go istio-new/pilot/pkg/features/pilot.go
---- istio/pilot/pkg/features/pilot.go	2024-01-04 21:07:47.000000000 +0800
-+++ istio-new/pilot/pkg/features/pilot.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/features/pilot.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pilot/pkg/features/pilot.go	2024-01-04 21:20:00.000000000 +0800
 @@ -569,6 +569,12 @@
  	// Added by ingress
  	CustomCACertConfigMapName = env.RegisterStringVar("CUSTOM_CA_CERT_NAME", "",
@@ -15,8 +15,8 @@ diff -Naur istio/pilot/pkg/features/pilot.go istio-new/pilot/pkg/features/pilot.
  )
  
 diff -Naur istio/pilot/pkg/networking/core/configgen.go istio-new/pilot/pkg/networking/core/configgen.go
---- istio/pilot/pkg/networking/core/configgen.go	2024-01-04 21:07:46.000000000 +0800
-+++ istio-new/pilot/pkg/networking/core/configgen.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/networking/core/configgen.go	2024-01-05 17:58:02.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/configgen.go	2024-01-04 21:20:00.000000000 +0800
 @@ -17,6 +17,7 @@
  import (
  	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -37,8 +37,8 @@ diff -Naur istio/pilot/pkg/networking/core/configgen.go istio-new/pilot/pkg/netw
  	BuildNameTable(node *model.Proxy, push *model.PushContext) *dnsProto.NameTable
  
 diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
---- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-04 21:07:46.000000000 +0800
-+++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-05 11:19:54.000000000 +0800
 @@ -41,7 +41,9 @@
  	"istio.io/istio/pilot/pkg/networking/plugin"
  	"istio.io/istio/pilot/pkg/networking/util"
@@ -49,7 +49,27 @@ diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/p
  	"istio.io/istio/pkg/config/gateway"
  	"istio.io/istio/pkg/config/host"
  	"istio.io/istio/pkg/config/protocol"
-@@ -340,6 +342,269 @@
+@@ -104,10 +106,15 @@
+ 			// We can also have QUIC on a given port along with HTTPS/TLS on a given port. It does not
+ 			// cause port-conflict as they use different transport protocols
+ 			opts := &buildListenerOpts{
+-				push:       builder.push,
+-				proxy:      builder.node,
+-				bind:       bind,
+-				port:       &model.Port{Port: int(port.Number)},
++				push:  builder.push,
++				proxy: builder.node,
++				bind:  bind,
++				port: &model.Port{
++					Port: int(port.Number),
++					// Added by ingress
++					Protocol: protocol.Parse(port.Protocol),
++					// End added by ingress
++				},
+ 				bindToPort: true,
+ 				class:      istionetworking.ListenerClassGateway,
+ 				transport:  transport,
+@@ -340,6 +347,269 @@
  	return nameToServiceMap
  }
  
@@ -319,7 +339,7 @@ diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/p
  func (configgen *ConfigGeneratorImpl) buildGatewayHTTPRouteConfig(node *model.Proxy, push *model.PushContext,
  	routeName string) *route.RouteConfiguration {
  	if node.MergedGateway == nil {
-@@ -351,6 +616,12 @@
+@@ -351,6 +621,12 @@
  		}
  	}
  
@@ -332,17 +352,28 @@ diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/p
  	merged := node.MergedGateway
  	log.Debugf("buildGatewayRoutes: gateways after merging: %v", merged)
  
+@@ -670,7 +946,9 @@
+ // TLS mode      | Mesh-wide SDS | Ingress SDS | Resulting Configuration
+ // SIMPLE/MUTUAL |    ENABLED    |   ENABLED   | support SDS at ingress gateway to terminate SSL communication outside the mesh
+ // ISTIO_MUTUAL  |    ENABLED    |   DISABLED  | support SDS at gateway to terminate workload mTLS, with internal workloads
+-// 											   | for egress or with another trusted cluster for ingress)
++//
++//	| for egress or with another trusted cluster for ingress)
++//
+ // ISTIO_MUTUAL  |    DISABLED   |   DISABLED  | use file-mounted secret paths to terminate workload mTLS from gateway
+ //
+ // Note that ISTIO_MUTUAL TLS mode and ingressSds should not be used simultaneously on the same ingress gateway.
 diff -Naur istio/pilot/pkg/networking/core/v1alpha3/listener.go istio-new/pilot/pkg/networking/core/v1alpha3/listener.go
---- istio/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-04 21:07:46.000000000 +0800
-+++ istio-new/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-04 21:13:44.000000000 +0800
-@@ -1279,8 +1279,49 @@
+--- istio/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-05 17:31:10.000000000 +0800
+@@ -1279,8 +1279,48 @@
  
  	notimeout := durationpb.New(0 * time.Second)
  	connectionManager.StreamIdleTimeout = notimeout
+-
+-	if httpOpts.rds != "" {
 +	// Added by ingress
 +	enableSRDS := false
- 
--	if httpOpts.rds != "" {
 +	if features.EnableScopedRDS &&
 +		(listenerOpts.port.Protocol.IsHTTP() || (listenerOpts.port.Protocol == protocol.HTTPS)) {
 +		enableSRDS = true
@@ -386,7 +417,7 @@ diff -Naur istio/pilot/pkg/networking/core/v1alpha3/listener.go istio-new/pilot/
  		rds := &hcm.HttpConnectionManager_Rds{
  			Rds: &hcm.Rds{
  				ConfigSource: &core.ConfigSource{
-@@ -1304,8 +1345,15 @@
+@@ -1304,8 +1344,15 @@
  
  	filters := make([]*hcm.HttpFilter, len(httpFilters))
  	copy(filters, httpFilters)
@@ -405,9 +436,17 @@ diff -Naur istio/pilot/pkg/networking/core/v1alpha3/listener.go istio-new/pilot/
  	if features.MetadataExchange {
  		filters = append(filters, xdsfilters.HTTPMx)
 diff -Naur istio/pilot/pkg/xds/ads.go istio-new/pilot/pkg/xds/ads.go
---- istio/pilot/pkg/xds/ads.go	2024-01-04 21:07:47.000000000 +0800
-+++ istio-new/pilot/pkg/xds/ads.go	2024-01-04 21:13:44.000000000 +0800
-@@ -804,8 +804,11 @@
+--- istio/pilot/pkg/xds/ads.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pilot/pkg/xds/ads.go	2024-01-05 17:31:44.000000000 +0800
+@@ -797,15 +797,18 @@
+ 
+ // PushOrder defines the order that updates will be pushed in. Any types not listed here will be pushed in random
+ // order after the types listed here
+-var PushOrder = []string{v3.ClusterType, v3.EndpointType, v3.ListenerType, v3.RouteType, v3.SecretType}
++var PushOrder = []string{v3.ClusterType, v3.EndpointType, v3.ListenerType, v3.ScopedRouteType, v3.RouteType, v3.SecretType}
+ 
+ // KnownOrderedTypeUrls has typeUrls for which we know the order of push.
+ var KnownOrderedTypeUrls = map[string]struct{}{
  	v3.ClusterType:  {},
  	v3.EndpointType: {},
  	v3.ListenerType: {},
@@ -422,8 +461,8 @@ diff -Naur istio/pilot/pkg/xds/ads.go istio-new/pilot/pkg/xds/ads.go
  
  // orderWatchedResources orders the resources in accordance with known push order.
 diff -Naur istio/pilot/pkg/xds/discovery.go istio-new/pilot/pkg/xds/discovery.go
---- istio/pilot/pkg/xds/discovery.go	2024-01-04 21:07:47.000000000 +0800
-+++ istio-new/pilot/pkg/xds/discovery.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/xds/discovery.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/xds/discovery.go	2024-01-04 21:20:00.000000000 +0800
 @@ -589,6 +589,9 @@
  	s.Generators[v3.ClusterType] = &CdsGenerator{Server: s}
  	s.Generators[v3.ListenerType] = &LdsGenerator{Server: s}
@@ -435,8 +474,8 @@ diff -Naur istio/pilot/pkg/xds/discovery.go istio-new/pilot/pkg/xds/discovery.go
  	s.Generators[v3.NameTableType] = &NdsGenerator{Server: s}
  	s.Generators[v3.ExtensionConfigurationType] = &EcdsGenerator{Server: s}
 diff -Naur istio/pilot/pkg/xds/filters/filters.go istio-new/pilot/pkg/xds/filters/filters.go
---- istio/pilot/pkg/xds/filters/filters.go	2024-01-04 21:07:46.000000000 +0800
-+++ istio-new/pilot/pkg/xds/filters/filters.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/xds/filters/filters.go	2024-01-05 17:58:03.000000000 +0800
++++ istio-new/pilot/pkg/xds/filters/filters.go	2024-01-04 21:20:00.000000000 +0800
 @@ -21,6 +21,7 @@
  	fault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/fault/v3"
  	grpcstats "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/grpc_stats/v3"
@@ -462,8 +501,8 @@ diff -Naur istio/pilot/pkg/xds/filters/filters.go istio-new/pilot/pkg/xds/filter
  		ConfigType: &hcm.HttpFilter_TypedConfig{
 diff -Naur istio/pilot/pkg/xds/srds.go istio-new/pilot/pkg/xds/srds.go
 --- istio/pilot/pkg/xds/srds.go	1970-01-01 08:00:00.000000000 +0800
-+++ istio-new/pilot/pkg/xds/srds.go	2024-01-04 21:13:44.000000000 +0800
-@@ -0,0 +1,84 @@
++++ istio-new/pilot/pkg/xds/srds.go	2024-01-05 13:45:49.000000000 +0800
+@@ -0,0 +1,79 @@
 +// Copyright Istio Authors
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -497,13 +536,8 @@ diff -Naur istio/pilot/pkg/xds/srds.go istio-new/pilot/pkg/xds/srds.go
 +
 +// Map of all configs that do not impact SRDS
 +var skippedSrdsConfigs = map[config.GroupVersionKind]struct{}{
-+	gvk.WorkloadEntry: {},
-+	gvk.WorkloadGroup: {},
-+	// Delete by ingress
-+	// When the authn and authz filter changes, we should
-+	// rebuild srds to populate host-scoped and route-scoped filters.
-+	// gvk.AuthorizationPolicy:   {},
-+	// End delete by ingress
++	gvk.WorkloadEntry:         {},
++	gvk.WorkloadGroup:         {},
 +	gvk.RequestAuthentication: {},
 +	gvk.PeerAuthentication:    {},
 +	gvk.Secret:                {},
@@ -549,8 +583,8 @@ diff -Naur istio/pilot/pkg/xds/srds.go istio-new/pilot/pkg/xds/srds.go
 +	return resources, model.DefaultXdsLogDetails, nil
 +}
 diff -Naur istio/pilot/pkg/xds/v3/model.go istio-new/pilot/pkg/xds/v3/model.go
---- istio/pilot/pkg/xds/v3/model.go	2024-01-04 21:07:46.000000000 +0800
-+++ istio-new/pilot/pkg/xds/v3/model.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pilot/pkg/xds/v3/model.go	2024-01-05 17:58:03.000000000 +0800
++++ istio-new/pilot/pkg/xds/v3/model.go	2024-01-05 16:55:49.000000000 +0800
 @@ -31,6 +31,10 @@
  	SecretType                 = resource.SecretType
  	ExtensionConfigurationType = resource.ExtensionConfigType
@@ -562,9 +596,31 @@ diff -Naur istio/pilot/pkg/xds/v3/model.go istio-new/pilot/pkg/xds/v3/model.go
  	NameTableType   = apiTypePrefix + "istio.networking.nds.v1.NameTable"
  	HealthInfoType  = apiTypePrefix + "istio.v1.HealthInformation"
  	ProxyConfigType = apiTypePrefix + "istio.mesh.v1alpha1.ProxyConfig"
+@@ -61,6 +65,10 @@
+ 		return "PCDS"
+ 	case ExtensionConfigurationType:
+ 		return "ECDS"
++	// Added by ingress
++	case ScopedRouteType:
++		return "SRDS"
++	// End added by ingress
+ 	default:
+ 		return typeURL
+ 	}
+@@ -87,6 +95,10 @@
+ 		return "ecds"
+ 	case BootstrapType:
+ 		return "bds"
++	// Added by ingress
++	case ScopedRouteType:
++		return "srds"
++	// End added by ingress
+ 	default:
+ 		return typeURL
+ 	}
 diff -Naur istio/pkg/config/constants/constants.go istio-new/pkg/config/constants/constants.go
---- istio/pkg/config/constants/constants.go	2024-01-04 21:07:47.000000000 +0800
-+++ istio-new/pkg/config/constants/constants.go	2024-01-04 21:13:44.000000000 +0800
+--- istio/pkg/config/constants/constants.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pkg/config/constants/constants.go	2024-01-04 21:20:00.000000000 +0800
 @@ -143,4 +143,9 @@
  	// CertProviderNone does not create any certificates for the control plane. It is assumed that some external
  	// load balancer, such as an Istio Gateway, is terminating the TLS.
