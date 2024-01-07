@@ -50,6 +50,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
+	github.com/tidwall/gjson v1.17.0
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
@@ -269,11 +270,10 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/theupdateframework/notary v0.7.0 // indirect
-	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20230629203738-36ef4d8c0dbb // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20220930225714-4638ad635be5 // indirect
+	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
+	github.com/tonistiigi/fsutil v0.0.0-20230629203738-36ef4d8c0dbb // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20230623042737-f9a4f7ef6531 // indirect
 	github.com/toolkits/concurrent v0.0.0-20150624120057-a4371d70e3e3 // indirect
@@ -347,38 +347,6 @@ replace istio.io/pkg => ./external/pkg
 replace istio.io/client-go => ./external/client-go
 
 replace istio.io/istio => ./external/istio
-
-require (
-	github.com/evanphx/json-patch/v5 v5.6.0
-	github.com/google/yamlfmt v0.10.0
-	github.com/kylelemons/godebug v1.1.0
-	github.com/tidwall/gjson v1.17.0
-	helm.sh/helm/v3 v3.7.1
-	k8s.io/apiextensions-apiserver v0.25.4
-	knative.dev/networking v0.0.0-20220302134042-e8b2eb995165
-	knative.dev/pkg v0.0.0-20220301181942-2fdd5f232e77
-)
-
-replace (
-	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.9.3
-
-	k8s.io/api => k8s.io/api v0.22.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.22.2
-	k8s.io/apimachinery => k8s.io/apimachinery v0.22.2
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.22.2
-	k8s.io/client-go => k8s.io/client-go v0.22.2
-	k8s.io/code-generator => k8s.io/code-generator v0.22.2
-	k8s.io/component-base => k8s.io/component-base v0.22.2
-	k8s.io/component-helpers => k8s.io/component-helpers v0.22.2
-	k8s.io/klog/v2 => k8s.io/klog/v2 v2.10.0
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
-	k8s.io/kubectl => k8s.io/kubectl v0.22.2
-	k8s.io/metrics => k8s.io/metrics v0.22.2
-
-	k8s.io/utils => k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
-	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.8.11 // indirect
-	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
-)
 
 replace (
 	github.com/cucumber/godog => github.com/laurazard/godog v0.0.0-20220922095256-4c4b17abdae7
