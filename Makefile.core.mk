@@ -92,7 +92,8 @@ build-hgctl-multiarch: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
-
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
@@ -174,8 +175,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-34054f8
-ISTIO_LATEST_IMAGE_TAG ?= sha-34054f8
+ENVOY_LATEST_IMAGE_TAG ?= sha-2d5d9c0
+ISTIO_LATEST_IMAGE_TAG ?= sha-2d5d9c0
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'

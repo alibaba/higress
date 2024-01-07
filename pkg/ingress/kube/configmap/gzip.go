@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -130,12 +129,17 @@ func compareGzip(old *Gzip, new *Gzip) (Result, error) {
 
 func deepCopyGzip(gzip *Gzip) (*Gzip, error) {
 	newGzip := NewDefaultGzip()
-	bytes, err := json.Marshal(gzip)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(bytes, newGzip)
-	return newGzip, err
+	newGzip.Enable = gzip.Enable
+	newGzip.MinContentLength = gzip.MinContentLength
+	newGzip.ContentType = make([]string, 0, len(gzip.ContentType))
+	newGzip.ContentType = append(newGzip.ContentType, gzip.ContentType...)
+	newGzip.DisableOnEtagHeader = gzip.DisableOnEtagHeader
+	newGzip.MemoryLevel = gzip.MemoryLevel
+	newGzip.WindowBits = gzip.WindowBits
+	newGzip.ChunkSize = gzip.ChunkSize
+	newGzip.CompressionLevel = gzip.CompressionLevel
+	newGzip.CompressionStrategy = gzip.CompressionStrategy
+	return newGzip, nil
 }
 
 func NewDefaultGzip() *Gzip {
@@ -263,7 +267,7 @@ func (g *GzipController) ConstructEnvoyFilters() ([]*config.Config, error) {
 									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
 										Name: "envoy.filters.network.http_connection_manager",
 										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.router",
+											Name: "envoy.filters.http.cors",
 										},
 									},
 								},
@@ -305,9 +309,9 @@ func (g *GzipController) constructGzipStruct(gzip *Gzip, namespace string) strin
       "response_direction_config": {
          "common_config": {
             "min_content_length": %d,
-            "content_type": [%s],
-            "disable_on_etag_header": %t
-         }
+            "content_type": [%s]
+         },
+        "disable_on_etag_header": %t
       },
       "request_direction_config": {
          "common_config": {

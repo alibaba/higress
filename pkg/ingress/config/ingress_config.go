@@ -1293,12 +1293,21 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var params []interface{}
-		for _, methodParam := range serviceMethod.GetParams() {
+		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore parmas.
+		var paramFromEntireBody = serviceMethod.GetParamFromEntireBody()
+		if paramFromEntireBody != nil {
 			var param = make(map[string]interface{})
-			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
-			param["mapping_type"] = methodParam.GetParamType()
+			param["extract_key_spec"] = Http2RpcParamSourceMap()["BODY"]
+			param["mapping_type"] = paramFromEntireBody.GetParamType()
 			params = append(params, param)
+		} else {
+			for _, methodParam := range serviceMethod.GetParams() {
+				var param = make(map[string]interface{})
+				param["extract_key"] = methodParam.GetParamKey()
+				param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
+				param["mapping_type"] = methodParam.GetParamType()
+				params = append(params, param)
+			}
 		}
 		method["parameter_mapping"] = params
 		var path_matcher = make(map[string]interface{})
