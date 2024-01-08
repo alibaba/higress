@@ -293,7 +293,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				return false
 			}
 
-			if cRes.StatusCode == 200 && cReq.Host == "" && cReq.Path == "" && cReq.Headers == nil && cReq.Body == nil {
+			if cRes.StatusCode == 200 && !expected.Response.ExpectedResponseNoRequest && cReq.Host == "" && cReq.Path == "" && cReq.Headers == nil && cReq.Body == nil {
 				t.Logf(`decoding client's response failed. Maybe you have chosen a wrong backend.
 				Choose echo-server if you want to check expected request header&body instead of response header&body.`)
 				return false
