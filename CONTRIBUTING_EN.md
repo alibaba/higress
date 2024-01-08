@@ -169,6 +169,12 @@ No matter commit message, or commit content, we do take more emphasis on code re
 
 PR is the only way to make change to Higress project files. To help reviewers better get your purpose, PR description could not be too detailed. We encourage contributors to follow the [PR template](./.github/PULL_REQUEST_TEMPLATE.md) to finish the pull request.
 
+### Pre-development preparation
+
+```shell
+make prebuild && go mod tidy
+```
+
 ## Test case contribution
 
 Any test case would be welcomed. Currently, Higress function test cases are high priority.
