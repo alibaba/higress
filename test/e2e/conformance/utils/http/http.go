@@ -573,7 +573,7 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 			if err != nil {
 				return fmt.Errorf("ExpectedResponse Content-type: %s failed to parse: %s", expected.Response.ExpectedResponse.ContentType, err.Error())
 			}
-			cTyp, cParams, err := mime.ParseMediaType(cRes.Headers["Content-type"][0])
+			cTyp, cParams, err := mime.ParseMediaType(cRes.Headers["Content-Type"][0])
 			if err != nil {
 				return fmt.Errorf("CapturedResponse Content-type: %s failed to parse: %s", cRes.Headers["Content-type"][0], err.Error())
 			}
