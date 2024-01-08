@@ -138,11 +138,11 @@ export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
 external/package/envoy-amd64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-amd64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.2/envoy-amd64.tar.gz"
 
 external/package/envoy-arm64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-arm64.tar.gz"
+	cd external/package; wget "https://github.com/alibaba/higress/releases/download/v1.3.2/envoy-arm64.tar.gz"
 
 build-pilot:
 	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
