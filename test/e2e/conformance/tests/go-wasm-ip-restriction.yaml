@@ -38,10 +38,7 @@ metadata:
   namespace: higress-system
 spec:
   defaultConfig:
-    allow:
-      - 10.0.0.1
-      - 192.168.0.0/16
     deny:
-      - 192.168.1.0/24
-      - 10.0.0.2
+      - 10.0.0.1
+      - 192.168.0.1/16
   url: file:///opt/plugins/wasm-go/extensions/ip-restriction/plugin.wasm

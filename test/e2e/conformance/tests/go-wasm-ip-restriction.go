@@ -47,7 +47,7 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 403,
 					},
 				},
 			},
@@ -66,7 +66,7 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 403,
+						StatusCode: 200,
 					},
 				},
 			},
@@ -80,7 +80,7 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "192.168.1.1"},
+						Headers:          map[string]string{"X-Real-IP": "192.168.5.0"},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -99,7 +99,7 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "192.168.0.1"},
+						Headers:          map[string]string{"X-Real-IP": "192.169.5.0"},
 					},
 				},
 				Response: http.AssertionResponse{

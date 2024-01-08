@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	"github.com/zmap/go-iptree/iptree"
 	"net"
 )
 
@@ -16,11 +18,11 @@ const (
 )
 
 type RestrictionConfig struct {
-	RealIPHeader string      `json:"real_ip_header"` //真实IP头
-	Allow        []net.IPNet `json:"allow"`          //允许的IP
-	Deny         []net.IPNet `json:"deny"`           //拒绝的IP
-	Status       uint32      `json:"status"`         //被拒绝时返回的状态码
-	Message      string      `json:"message"`        //被拒绝时返回的消息
+	RealIPHeader string         `json:"real_ip_header"` //真实IP头
+	Allow        *iptree.IPTree `json:"allow"`          //允许的IP
+	Deny         *iptree.IPTree `json:"deny"`           //拒绝的IP
+	Status       uint32         `json:"status"`         //被拒绝时返回的状态码
+	Message      string         `json:"message"`        //被拒绝时返回的消息
 }
 
 func main() {
@@ -53,16 +55,18 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) 
 	if err != nil {
 		log.Error(err.Error())
 		return err
-	} else {
-		config.Allow = allowNets
 	}
 	denyNets, err := parseIPNets(json.Get("deny").Array())
 	if err != nil {
 		log.Error(err.Error())
 		return err
-	} else {
-		config.Deny = denyNets
 	}
+	if allowNets != nil && denyNets != nil {
+		log.Warn("allow and deny cannot be set at the same time")
+		return fmt.Errorf("allow and deny cannot be set at the same time")
+	}
+	config.Allow = allowNets
+	config.Deny = denyNets
 	return nil
 }
 
@@ -74,25 +78,25 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig,
 	realIp := net.ParseIP(s)
 	allow := config.Allow
 	deny := config.Deny
-	if len(deny) != 0 {
-		for _, ipNet := range deny {
-			if ipNet.Contains(realIp) {
-				log.Debugf("request from %s denied", s)
-				return deniedUnauthorized(config)
-			}
+	if allow != nil {
+		if realIp == nil {
+			log.Error("realIp is nil, blocked")
+			return deniedUnauthorized(config)
+		}
+		if _, found, _ := allow.Get(realIp); !found {
+			return deniedUnauthorized(config)
 		}
 	}
-	if len(allow) != 0 {
-		for _, ipNet := range allow {
-			if ipNet.Contains(realIp) {
-				return types.ActionContinue
-			}
+	if deny != nil {
+		if realIp == nil {
+			log.Error("realIp is nil, continue")
+			return types.ActionContinue
 		}
-		return deniedUnauthorized(config)
-	} else {
-		// 空白名单,直接放行
-		return types.ActionContinue
+		if _, found, _ := deny.Get(realIp); found {
+			return deniedUnauthorized(config)
+		}
 	}
+	return types.ActionContinue
 }
 
 func deniedUnauthorized(config RestrictionConfig) types.Action {

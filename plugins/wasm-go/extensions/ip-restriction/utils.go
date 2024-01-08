@@ -3,37 +3,21 @@ package main
 import (
 	"fmt"
 	"github.com/tidwall/gjson"
-	"net"
-	"strings"
+	"github.com/zmap/go-iptree/iptree"
 )
 
 // parseIPNets 解析Ip段配置
-func parseIPNets(array []gjson.Result) ([]net.IPNet, error) {
+func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 	if len(array) == 0 {
-		return []net.IPNet{}, nil
+		return nil, nil
 	} else {
-		var ips []net.IPNet
+		tree := iptree.New()
 		for _, result := range array {
-			s := result.String()
-			if strings.Contains(s, "/") {
-				_, ipNet, err := net.ParseCIDR(s)
-				if err != nil {
-					return nil, err
-				} else {
-					ips = append(ips, *ipNet)
-				}
-			} else {
-				ip := net.ParseIP(s)
-				if ip == nil {
-					return []net.IPNet{}, fmt.Errorf("invalid IP[%s]", s)
-				} else {
-					ips = append(ips, net.IPNet{
-						IP:   ip,
-						Mask: net.IPv4Mask(255, 255, 255, 255),
-					})
-				}
+			err := tree.AddByString(result.String(), 0)
+			if err != nil {
+				return nil, fmt.Errorf("invalid IP[%s]", result.String())
 			}
 		}
-		return ips, nil
+		return tree, nil
 	}
 }
