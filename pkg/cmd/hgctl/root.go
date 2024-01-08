@@ -40,6 +40,7 @@ func GetRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newManifestCmd())
 	rootCmd.AddCommand(plugin.NewCommand())
 	rootCmd.AddCommand(newCompletionCmd(os.Stdout))
+	rootCmd.AddCommand(newCodeDebugCmd())
 
 	return rootCmd
 }
