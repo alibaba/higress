@@ -113,7 +113,7 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
-					CompareTarget:   "Request",
+					CompareTarget:   http.CompareTargetRequest,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -136,7 +136,7 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-echo-body-v1",
 					TargetNamespace: "higress-conformance-infra",
-					CompareTarget:   "Response",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{

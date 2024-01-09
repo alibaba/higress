@@ -43,7 +43,7 @@ type AssertionMeta struct {
 	TargetBackend string
 	// TargetNamespace defines the target backend namespace
 	TargetNamespace string
-	// CompareTarget defines who's header&body to compare in test, either "Request"(default) or "Response", case insensitive
+	// CompareTarget defines who's header&body to compare in test, either CompareTargetResponse or CompareTargetRequest
 	CompareTarget string
 }
 
@@ -75,6 +75,11 @@ const (
 	ContentTypeFormUrlencoded         = "application/x-www-form-urlencoded"
 	ContentTypeMultipartForm          = "multipart/form-data"
 	ContentTypeTextPlain              = "text/plain"
+)
+
+const (
+	CompareTargetRequest  = "Request"
+	CompareTargetResponse = "Response"
 )
 
 // Request can be used as both the request to make and a means to verify
@@ -184,7 +189,7 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 		}
 	}
 	if expected.Meta.CompareTarget == "" {
-		expected.Meta.CompareTarget = "Request"
+		expected.Meta.CompareTarget = CompareTargetRequest
 	}
 	if expected.Request.ActualRequest.Method == "" {
 		expected.Request.ActualRequest.Method = "GET"
@@ -286,7 +291,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 		}
 		// CompareTarget为Request（默认）时，ExpectedRequest中设置的所有断言均支持；除ExpectedResponse.Body外，ExpectedResponse中设置的所有断言均支持。目前支持echo-server作为backend
 		// CompareTarget为Response时，不支持设定ExpectedRequest断言，ExpectedResponse中设置的所有断言均支持。支持任意backend，如echo-body
-		if strings.EqualFold(expected.Meta.CompareTarget, "Request") {
+		if expected.Meta.CompareTarget == CompareTargetRequest {
 			if expected.Response.ExpectedResponse.Body != nil {
 				t.Logf(`detected CompareTarget is Request, but ExpectedResponse.Body is set. 
 				You can only choose one to compare between Response and Request.`)
@@ -302,7 +307,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				t.Logf("request expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
 				return false
 			}
-		} else if strings.EqualFold(expected.Meta.CompareTarget, "Response") {
+		} else if expected.Meta.CompareTarget == CompareTargetResponse {
 			if expected.Request.ExpectedRequest != nil {
 				t.Logf(`detected CompareTarget is Response, but ExpectedRequest is set. 
 				You can only choose one to compare between Response and Request.`)

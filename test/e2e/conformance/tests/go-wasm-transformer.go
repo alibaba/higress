@@ -159,7 +159,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					TestCaseName:    "case 5: response json body transformer",
 					TargetBackend:   "infra-backend-echo-body-v1",
 					TargetNamespace: "higress-conformance-infra",
-					CompareTarget:   "Response",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
