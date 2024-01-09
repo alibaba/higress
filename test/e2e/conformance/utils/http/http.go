@@ -378,19 +378,19 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 				return fmt.Errorf("ExpectedRequest.ContentType should not be empty since ExpectedRequest.Body is set")
 			}
 
-			if cReq.Headers["Content-type"] == nil || len(cReq.Headers["Content-type"]) == 0 {
-				cReq.Headers["Content-type"] = []string{expected.Request.ExpectedRequest.ContentType}
+			if cReq.Headers["Content-Type"] == nil || len(cReq.Headers["Content-Type"]) == 0 {
+				cReq.Headers["Content-Type"] = []string{expected.Request.ExpectedRequest.ContentType}
 			}
 
 			eTyp, eParams, err := mime.ParseMediaType(expected.Request.ExpectedRequest.ContentType)
 			if err != nil {
-				return fmt.Errorf("ExpectedRequest Content-type: %s failed to parse: %s", expected.Request.ExpectedRequest.ContentType, err.Error())
+				return fmt.Errorf("ExpectedRequest Content-Type: %s failed to parse: %s", expected.Request.ExpectedRequest.ContentType, err.Error())
 			}
 
-			cTyp := cReq.Headers["Content-type"][0]
+			cTyp := cReq.Headers["Content-Type"][0]
 
 			if eTyp != cTyp {
-				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-type"][0])
+				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-Type"][0])
 			}
 			var ok bool
 			switch cTyp {
@@ -446,7 +446,7 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
 				}
 			default:
-				return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
+				return fmt.Errorf("Content-Type: %s invalid or not support.", cTyp)
 			}
 		}
 		if expected.Response.ExpectedResponse.Headers != nil {
@@ -570,21 +570,21 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 				return fmt.Errorf("ExpectedResponse.ContentType should not be empty since ExpectedResponse.Body is set")
 			}
 
-			if cRes.Headers["Content-type"] == nil || len(cRes.Headers["Content-type"]) == 0 {
-				cRes.Headers["Content-type"] = []string{expected.Response.ExpectedResponse.ContentType}
+			if cRes.Headers["Content-Type"] == nil || len(cRes.Headers["Content-Type"]) == 0 {
+				cRes.Headers["Content-Type"] = []string{expected.Response.ExpectedResponse.ContentType}
 			}
 
 			eTyp, eParams, err := mime.ParseMediaType(expected.Response.ExpectedResponse.ContentType)
 			if err != nil {
-				return fmt.Errorf("ExpectedResponse Content-type: %s failed to parse: %s", expected.Response.ExpectedResponse.ContentType, err.Error())
+				return fmt.Errorf("ExpectedResponse Content-Type: %s failed to parse: %s", expected.Response.ExpectedResponse.ContentType, err.Error())
 			}
 			cTyp, cParams, err := mime.ParseMediaType(cRes.Headers["Content-Type"][0])
 			if err != nil {
-				return fmt.Errorf("CapturedResponse Content-type: %s failed to parse: %s", cRes.Headers["Content-type"][0], err.Error())
+				return fmt.Errorf("CapturedResponse Content-Type: %s failed to parse: %s", cRes.Headers["Content-Type"][0], err.Error())
 			}
 
 			if eTyp != cTyp {
-				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Response.ExpectedResponse.ContentType, cRes.Headers["Content-type"][0])
+				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Response.ExpectedResponse.ContentType, cRes.Headers["Content-Type"][0])
 			}
 
 			switch cTyp {
@@ -633,7 +633,7 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
 				}
 			default:
-				return fmt.Errorf("Content-type: %s invalid or not support.", cTyp)
+				return fmt.Errorf("Content-Type: %s invalid or not support.", cTyp)
 			}
 		}
 		if len(expected.Response.ExpectedResponse.AbsentHeaders) > 0 {

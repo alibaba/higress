@@ -213,7 +213,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 	}
 
 	// we cannot assume the response is JSON
-	if resp.Header.Get("Content-type") == "application/json" {
+	if resp.Header.Get("Content-Type") == "application/json" {
 		err = json.Unmarshal(body, cReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
