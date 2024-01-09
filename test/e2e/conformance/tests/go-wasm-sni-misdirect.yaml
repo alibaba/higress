@@ -15,19 +15,32 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: higress-conformance-infra-configmap-gzip-test
+  annotations:
+    higress.io/auth-tls-secret: foo-secret-cacert
+  name: wasmplugin-sni-misdirect
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
+  tls:
+    - hosts:
+        - "foo.com"
+      secretName: foo-secret
   rules:
     - host: "foo.com"
       http:
         paths:
-          - pathType: Prefix
+          - pathType: Exact
             path: "/foo"
             backend:
               service:
-                name: infra-backend-v3
+                name: infra-backend-v1
                 port:
                   number: 8080
-
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: sni-misdirect
+  namespace: higress-system
+spec:
+  url: file:///opt/plugins/wasm-go/extensions/sni-misdirect/plugin.wasm

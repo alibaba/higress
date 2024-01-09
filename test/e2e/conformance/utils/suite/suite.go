@@ -60,6 +60,9 @@ type Options struct {
 	// resources such as Gateways should be cleaned up after the run.
 	CleanupBaseResources bool
 	TimeoutConfig        config.TimeoutConfig
+
+	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
+	IsEnvoyConfigTest bool
 }
 
 type WASMOptions struct {
@@ -87,6 +90,8 @@ func New(s Options) *ConformanceTestSuite {
 		} else {
 			s.SupportedFeatures.Insert(string(WASMGoConformanceFeature))
 		}
+	} else if s.IsEnvoyConfigTest {
+		s.SupportedFeatures.Insert(string(EnvoyConfigConformanceFeature))
 	} else if s.EnableAllSupportedFeatures {
 		s.SupportedFeatures = AllFeatures
 	}
