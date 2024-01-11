@@ -1,0 +1,65 @@
+diff -Naur envoy/source/common/router/scoped_config_impl.cc envoy-new/source/common/router/scoped_config_impl.cc
+--- envoy/source/common/router/scoped_config_impl.cc	2024-01-11 16:23:55.407881263 +0800
++++ envoy-new/source/common/router/scoped_config_impl.cc	2024-01-11 16:23:42.311786814 +0800
+@@ -53,21 +53,26 @@
+ }
+ 
+ std::unique_ptr<ScopeKeyFragmentBase>
+-HostValueExtractorImpl::reComputeHelper(const std::string& host, ReComputeCbPtr& next_recompute,
++HostValueExtractorImpl::reComputeHelper(const std::string& host,
++                                        ReComputeCbWeakPtr& weak_next_recompute,
+                                         uint32_t recompute_seq) const {
+   if (recompute_seq == max_recompute_num_) {
+     ENVOY_LOG_MISC(warn,
+                    "recompute host fragment failed, maximum number of recalculations exceeded");
+     return nullptr;
+   }
++  auto next_recompute = weak_next_recompute.lock();
++  if (!next_recompute) {
++    return nullptr;
++  }
+   if (host == "*") {
+     *next_recompute = nullptr;
+     return nullptr;
+   }
+   auto masked_host = maskFirstDNSLabel(host);
+   *next_recompute = [this, masked_host, recompute_seq,
+-                     next_recompute]() mutable -> std::unique_ptr<ScopeKeyFragmentBase> {
+-    return reComputeHelper(masked_host, next_recompute, recompute_seq + 1);
++                     weak_next_recompute]() mutable -> std::unique_ptr<ScopeKeyFragmentBase> {
++    return reComputeHelper(masked_host, weak_next_recompute, recompute_seq + 1);
+   };
+   return std::make_unique<StringKeyFragment>(masked_host);
+ }
+@@ -81,8 +86,9 @@
+   if (port_start != absl::string_view::npos) {
+     host = host.substr(0, port_start);
+   }
+-  *recompute = [this, host, recompute]() mutable -> std::unique_ptr<ScopeKeyFragmentBase> {
+-    return reComputeHelper(std::string(host), recompute, 0);
++  *recompute = [this, host, weak_recompute = ReComputeCbWeakPtr(recompute)]() mutable
++      -> std::unique_ptr<ScopeKeyFragmentBase> {
++    return reComputeHelper(std::string(host), weak_recompute, 0);
+   };
+   return std::make_unique<StringKeyFragment>(host);
+ }
+diff -Naur envoy/source/common/router/scoped_config_impl.h envoy-new/source/common/router/scoped_config_impl.h
+--- envoy/source/common/router/scoped_config_impl.h	2024-01-11 16:23:55.407881263 +0800
++++ envoy-new/source/common/router/scoped_config_impl.h	2024-01-11 16:23:42.311786814 +0800
+@@ -25,6 +25,7 @@
+ #if defined(ALIMESH)
+ using ReComputeCb = std::function<std::unique_ptr<ScopeKeyFragmentBase>()>;
+ using ReComputeCbPtr = std::shared_ptr<ReComputeCb>;
++using ReComputeCbWeakPtr = std::weak_ptr<ReComputeCb>;
+ #endif
+ 
+ /**
+@@ -83,7 +84,7 @@
+ 
+ private:
+   std::unique_ptr<ScopeKeyFragmentBase> reComputeHelper(const std::string& host,
+-                                                        ReComputeCbPtr& next_recompute,
++                                                        ReComputeCbWeakPtr& weak_next_recompute,
+                                                         uint32_t recompute_seq) const;
+ 
+   static constexpr uint32_t DefaultMaxRecomputeNum = 100;
