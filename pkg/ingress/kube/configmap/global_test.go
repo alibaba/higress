@@ -131,7 +131,7 @@ func Test_deepCopyGlobal(t *testing.T) {
 			name: "deep copy 2",
 			global: &Global{
 				Downstream: &Downstream{
-					IdleTimeout:            1,
+					IdleTimeout:            0,
 					MaxRequestHeadersKb:    9600,
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),
@@ -141,7 +141,7 @@ func Test_deepCopyGlobal(t *testing.T) {
 			},
 			want: &Global{
 				Downstream: &Downstream{
-					IdleTimeout:            1,
+					IdleTimeout:            0,
 					MaxRequestHeadersKb:    9600,
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),

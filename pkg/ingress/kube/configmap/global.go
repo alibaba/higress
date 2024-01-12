@@ -144,6 +144,7 @@ func deepCopyGlobal(global *Global) (*Global, error) {
 		return nil, err
 	}
 	err = json.Unmarshal(bytes, newGlobal)
+	newGlobal.Downstream.IdleTimeout = global.Downstream.IdleTimeout
 	return newGlobal, err
 }
 
@@ -422,7 +423,8 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 		initialStreamWindowSize := downstream.Http2.InitialStreamWindowSize
 		initialConnectionWindowSize := downstream.Http2.InitialConnectionWindowSize
 
-		downstreamConfig = fmt.Sprintf(`
+		if idleTimeout != 0 {
+			downstreamConfig = fmt.Sprintf(`
 		{
 			"name": "envoy.filters.network.http_connection_manager",
 			"typed_config": {
@@ -440,10 +442,28 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			}
 		}
 `, idleTimeout, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb, idleTimeout)
+		} else {
+			// if idleTimeout is 0, don't push it to envoy
+			downstreamConfig = fmt.Sprintf(`
+		{
+			"name": "envoy.filters.network.http_connection_manager",
+			"typed_config": {
+				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+				"http2_protocol_options": {
+					"maxConcurrentStreams": %d,
+					"initialStreamWindowSize": %d,
+					"initialConnectionWindowSize": %d
+				},
+				"maxRequestHeadersKb": %d,
+			}
+		}
+`, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb)
+		}
 		return downstreamConfig
 	}
 
-	downstreamConfig = fmt.Sprintf(`
+	if idleTimeout != 0 {
+		downstreamConfig = fmt.Sprintf(`
 		{
 			"name": "envoy.filters.network.http_connection_manager",
 			"typed_config": {
@@ -456,6 +476,18 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			}
 		}
 `, idleTimeout, maxRequestHeadersKb, idleTimeout)
+	} else {
+		// if idleTimeout is 0, don't push it to envoy
+		downstreamConfig = fmt.Sprintf(`
+		{
+			"name": "envoy.filters.network.http_connection_manager",
+			"typed_config": {
+				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+				"maxRequestHeadersKb": %d,
+			}
+		}
+`, maxRequestHeadersKb)
+	}
 
 	return downstreamConfig
 }
