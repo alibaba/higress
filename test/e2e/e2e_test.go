@@ -43,7 +43,7 @@ func TestPrepareHigressConformanceTests(t *testing.T) {
 		Client:               client,
 		IngressClassName:     *flags.IngressClassName,
 		Debug:                *flags.ShowDebug,
-		CleanupBaseResources: *flags.CleanupBaseResources,
+		CleanupBaseResources: false,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -72,7 +72,7 @@ func TestRunHigressConformanceTests(t *testing.T) {
 		Client:               client,
 		IngressClassName:     *flags.IngressClassName,
 		Debug:                *flags.ShowDebug,
-		CleanupBaseResources: *flags.CleanupBaseResources,
+		CleanupBaseResources: false,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -88,10 +88,6 @@ func TestRunHigressConformanceTests(t *testing.T) {
 
 func TestCleanHigressConformanceTests(t *testing.T) {
 	flag.Parse()
-
-	if !*flags.CleanupBaseResources {
-		return
-	}
 
 	cfg, err := config.GetConfig()
 	require.NoError(t, err)
