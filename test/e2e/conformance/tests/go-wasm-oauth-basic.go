@@ -23,7 +23,7 @@ import (
 
 func init() {
 	Register(WasmPluginsOAuthBasic)
-	
+
 }
 
 var WasmPluginsOAuthBasic = suite.ConformanceTest{
@@ -35,7 +35,7 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 1: path lacks <?>",
+					TestCaseName:    "scene 1: generate token, case 1: GET, path lacks <?>",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -48,14 +48,12 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 400,
-						// TODO: 目前http.Response未支持body校验
 					},
-					// TODO: cpp版本是可以直接比照types.Action的，这里似乎不可以
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 2: path lacks grant_type",
+					TestCaseName:    "scene 1: generate token, case 2: GET, path lacks grant_type",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -73,7 +71,7 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 3: path lacks client_id",
+					TestCaseName:    "scene 1: generate token, case 3: GET, path lacks client_id",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -91,7 +89,7 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 4: path lacks client_secret",
+					TestCaseName:    "scene 1: generate token, case 4: GET, path lacks client_secret",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -109,7 +107,7 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 5: consumer_id not found in configs",
+					TestCaseName:    "scene 1: generate token, case 5: GET, consumer_id not found in configs",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -127,7 +125,7 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "scene 1: generate token, case 6: Failed token service with consumerid and secret not matched",
+					TestCaseName:    "scene 1: generate token, case 6: GET, Failed token service with consumerid and secret not matched",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -182,8 +180,133 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 					ExpectedResponseNoRequest: true,
 				},
 			},
-			// TODO scene 1, case 8: success by POST method
-			// 但是目前http.Request未支持body
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 9:POST, body lacks grant_type",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`client_id=8521b564-0b1d-11ee-9c4c-00163e1250b5&client_secret=8520b564-0b1d-11ee-9c4c-00163e1250b5`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 400,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 10: POST, body lacks client_id",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`grant_type=client_credentials&client_secret=8520b564-0b1d-11ee-9c4c-00163e1250b5`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 400,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 11: POST, body lacks client_secret",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`grant_type=client_credentials&client_id=8521b564-0b1d-11ee-9c4c-00163e1250b5`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 400,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 12: POST, consumer_id not found in configs",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`grant_type=client_credentials&client_id=c05&client_secret=xxxxx`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 400,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 13: POST, Failed token service with consumerid and secret not matched",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`grant_type=client_credentials&client_id=9515b564-0b1d-11ee-9c4c-00163e1250b5&client_secret=c01xxxx`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 400,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "scene 1: generate token, case 14: success by POST method, consumser info in request body (consumer2)",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo.com",
+						Path:        "/foo/oauth2/token",
+						Method:      "POST",
+						ContentType: http.ContentTypeFormUrlencoded,
+						Body:        []byte(`grant_type=client_credentials&client_id=8521b564-0b1d-11ee-9c4c-00163e1250b5&client_secret=8520b564-0b1d-11ee-9c4c-00163e1250b5`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "scene 2: invalid token, case 1: not a bearer token",
@@ -192,8 +315,8 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
-						Path: "/foo",
+						Host:    "foo.com",
+						Path:    "/foo",
 						Headers: map[string]string{"Authorization": "alksdjf"},
 					},
 				},
@@ -211,8 +334,8 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
-						Path: "/foo",
+						Host:    "foo.com",
+						Path:    "/foo",
 						Headers: map[string]string{"Authorization": "Bearer alksdjf"},
 					},
 				},
@@ -230,8 +353,8 @@ var WasmPluginsOAuthBasic = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
-						Path: "/foo",
+						Host:    "foo.com",
+						Path:    "/foo",
 						Headers: map[string]string{"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6ImFwcGxpY2F0aW9uL2F0K2p3dCJ9.eyJhdWQiOiJkZWZhdWx0IiwiY2xpZW50X2lkIjoiOTUxNTVhNjQtMGIxZC0xcWVlLTljNGMtMDAxcXdlMTI1MGI1IiwiZXhwIjoxNzAxMzYzODc0LCJpYXQiOjE3MDEzNTY2NzQsImlzcyI6IkhpZ3Jlc3MtR2F0ZXdheSIsImp0aSI6IjYyM2UyMmQ5LTc1MTctNGEwOC04ZDc2LTliZjBlNDljYjEyYyIsInN1YiI6IiJ9.IB2-T_v9aHRfOyd_QQcNIMtdjA8q5pHfCeixMi5-b0E"},
 					},
 				},
