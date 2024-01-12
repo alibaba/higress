@@ -97,6 +97,15 @@ func (a Applier) MustApplyObjectsWithCleanup(t *testing.T, c client.Client, time
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutConfig.CreateTimeout)
 		defer cancel()
 
+		t.Logf("🏗 Creating %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
+
+		err := c.Create(ctx, resource)
+		if err != nil {
+			if !apierrors.IsAlreadyExists(err) {
+				require.NoError(t, err, "error creating resource")
+			}
+		}
+
 		if cleanup {
 			t.Cleanup(func() {
 				ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
@@ -105,16 +114,6 @@ func (a Applier) MustApplyObjectsWithCleanup(t *testing.T, c client.Client, time
 				err := c.Delete(ctx, resource)
 				require.NoErrorf(t, err, "error deleting resource")
 			})
-			return
-		}
-
-		t.Logf("🏗 Creating %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
-
-		err := c.Create(ctx, resource)
-		if err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				require.NoError(t, err, "error creating resource")
-			}
 		}
 	}
 }
@@ -142,6 +141,30 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 
 		namespacedName := types.NamespacedName{Namespace: uObj.GetNamespace(), Name: uObj.GetName()}
 		fetchedObj := uObj.DeepCopy()
+		err := c.Get(ctx, namespacedName, fetchedObj)
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				require.NoErrorf(t, err, "error getting resource")
+			}
+			t.Logf("🏗 Creating %s %s", uObj.GetName(), uObj.GetKind())
+			err = c.Create(ctx, uObj)
+			require.NoErrorf(t, err, "error creating resource")
+
+			if cleanup {
+				t.Cleanup(func() {
+					ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
+					defer cancel()
+					t.Logf("🚮 Deleting %s %s", uObj.GetName(), uObj.GetKind())
+					err = c.Delete(ctx, uObj)
+					require.NoErrorf(t, err, "error deleting resource")
+				})
+			}
+			continue
+		}
+
+		uObj.SetResourceVersion(fetchedObj.GetResourceVersion())
+		t.Logf("🏗 Updating %s %s", uObj.GetName(), uObj.GetKind())
+		err = c.Update(ctx, uObj)
 
 		if cleanup {
 			t.Cleanup(func() {
@@ -151,23 +174,7 @@ func (a Applier) MustApplyWithCleanup(t *testing.T, c client.Client, timeoutConf
 				err = c.Delete(ctx, uObj)
 				require.NoErrorf(t, err, "error deleting resource")
 			})
-			continue
 		}
-
-		err := c.Get(ctx, namespacedName, fetchedObj)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				require.NoErrorf(t, err, "error getting resource")
-			}
-			t.Logf("🏗 Creating %s %s", uObj.GetName(), uObj.GetKind())
-			err = c.Create(ctx, uObj)
-			require.NoErrorf(t, err, "error creating resource")
-			continue
-		}
-
-		uObj.SetResourceVersion(fetchedObj.GetResourceVersion())
-		t.Logf("🏗 Updating %s %s", uObj.GetName(), uObj.GetKind())
-		err = c.Update(ctx, uObj)
 		require.NoErrorf(t, err, "error updating resource")
 	}
 }
