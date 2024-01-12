@@ -40,7 +40,7 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 		cliCertOut, cliKeyOut := cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, caKey, nil)
 		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
 		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", caCertOut.Bytes())
-		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, true)
+		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, suite.Cleanup)
 
 		testcases := []http.Assertion{
 			{
