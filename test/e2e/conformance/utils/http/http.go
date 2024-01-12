@@ -318,7 +318,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				return false
 			}
 		} else {
-			t.Logf("invalid CompareTarget: %v  please set it Request or Response", expected.Meta.CompareTarget, err, elapsed)
+			t.Logf("invalid CompareTarget: %v  please set it CompareTargetRequest or CompareTargetResponse", expected.Meta.CompareTarget)
 			return false
 		}
 
@@ -390,13 +390,15 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 			cTyp := cReq.Headers["Content-Type"][0]
 
 			if eTyp != cTyp {
-				return fmt.Errorf("expected %s Content-Type to be set, got %s", expected.Request.ExpectedRequest.ContentType, cReq.Headers["Content-Type"][0])
+				if !(eTyp == ContentTypeMultipartForm && strings.Contains(cTyp, eTyp)) {
+					return fmt.Errorf("expected %s Content-Type to be set, got %s", eTyp, cTyp)
+				}
 			}
 			var ok bool
-			switch cTyp {
+			switch eTyp {
 			case ContentTypeTextPlain:
 				if string(expected.Request.ExpectedRequest.Body) != cReq.Body.(string) {
-					return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Request.ExpectedRequest.Body), cReq.Body.(string))
+					return fmt.Errorf("expected %s body to be %s, got %s", eTyp, string(expected.Request.ExpectedRequest.Body), cReq.Body.(string))
 				}
 			case ContentTypeApplicationJson:
 				var eReqBody map[string]interface{}
@@ -408,12 +410,13 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 				}
 
 				if cReqBody, ok = cReq.Body.(map[string]interface{}); !ok {
-					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					return fmt.Errorf("failed to parse CapturedRequest body")
 				}
 
 				if !reflect.DeepEqual(eReqBody, cReqBody) {
-					b, _ := json.Marshal(cReqBody)
-					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(b))
+					eRBJson, _ := json.Marshal(eReqBody)
+					cRBJson, _ := json.Marshal(cReqBody)
+					return fmt.Errorf("expected %s body to be %s, got result: %s", eTyp, string(eRBJson), string(cRBJson))
 				}
 			case ContentTypeFormUrlencoded:
 				var eReqBody map[string][]string
@@ -424,11 +427,13 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 				}
 
 				if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
-					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					return fmt.Errorf("failed to parse CapturedRequest body")
 				}
 
 				if !reflect.DeepEqual(eReqBody, cReqBody) {
-					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+					eRBJson, _ := json.Marshal(eReqBody)
+					cRBJson, _ := json.Marshal(cReqBody)
+					return fmt.Errorf("expected %s body to be %s, got result: %s", eTyp, string(eRBJson), string(cRBJson))
 				}
 			case ContentTypeMultipartForm:
 				var eReqBody map[string][]string
@@ -439,14 +444,16 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 					return fmt.Errorf("failed to parse ExpectedRequest body %s, %s", string(expected.Request.ExpectedRequest.Body), err.Error())
 				}
 				if cReqBody, ok = cReq.Body.(map[string][]string); !ok {
-					return fmt.Errorf("failed to parse CapturedRequest body %s, %s", string(cReq.Body.([]byte)), err.Error())
+					return fmt.Errorf("failed to parse CapturedRequest body")
 				}
 
 				if !reflect.DeepEqual(eReqBody, cReqBody) {
-					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Request.ExpectedRequest.Body), string(cReq.Body.([]byte)))
+					eRBJson, _ := json.Marshal(eReqBody)
+					cRBJson, _ := json.Marshal(cReqBody)
+					return fmt.Errorf("expected %s body to be %s, got result: %s", eTyp, string(eRBJson), string(cRBJson))
 				}
 			default:
-				return fmt.Errorf("Content-Type: %s invalid or not support.", cTyp)
+				return fmt.Errorf("Content-Type: %s invalid or not support.", eTyp)
 			}
 		}
 		if expected.Response.ExpectedResponse.Headers != nil {
@@ -590,7 +597,7 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 			switch cTyp {
 			case ContentTypeTextPlain:
 				if !bytes.Equal(expected.Response.ExpectedResponse.Body, cRes.Body) {
-					return fmt.Errorf("expected %s body to be %s, got %s##", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
+					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
 				}
 			case ContentTypeApplicationJson:
 				eResBody := make(map[string]interface{})
