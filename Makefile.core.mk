@@ -233,13 +233,29 @@ include tools/lint.mk
 .PHONY: gateway-conformance-test
 gateway-conformance-test:
 
+# higress-conformance-test-prepare prepares the environment for higress conformance tests.
+.PHONY: higress-conformance-test-prepare
+higress-conformance-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev
+
 # higress-conformance-test runs ingress api conformance tests.
 .PHONY: higress-conformance-test
 higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-higress-e2e-test delete-cluster
 
+# higress-conformance-test-clean cleans the environment for higress conformance tests.
+.PHONY: higress-conformance-test-clean
+higress-conformance-test-clean: $(tools/kind) delete-cluster
+
+# higress-wasmplugin-test-prepare prepares the environment for higress wasmplugin tests.
+.PHONY: higress-wasmplugin-test-prepare
+higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
+
 # higress-wasmplugin-test runs ingress wasmplugin tests.
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
+
+# higress-wasmplugin-test-clean cleans the environment for higress wasmplugin tests.
+.PHONY: higress-wasmplugin-test-clean
+higress-wasmplugin-test-clean: $(tools/kind) delete-cluster
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
