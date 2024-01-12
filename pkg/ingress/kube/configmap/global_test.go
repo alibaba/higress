@@ -159,7 +159,12 @@ func Test_deepCopyGlobal(t *testing.T) {
 				DisableXEnvoyHeaders: true,
 			},
 			want: &Global{
-				Downstream:           NewDefaultDownstream(),
+				Downstream: &Downstream{
+					IdleTimeout:            0,
+					Http2:                  NewDefaultHttp2(),
+					ConnectionBufferLimits: 32768,
+					MaxRequestHeadersKb:    60,
+				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
 			},
