@@ -122,6 +122,7 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	suite.Applier.IngressClass = suite.IngressClassName
+
 	return suite
 }
 
@@ -129,7 +130,6 @@ func New(s Options) *ConformanceTestSuite {
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("📦 Test Setup: Applying base manifests")
-
 	for _, baseManifest := range suite.BaseManifests {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, false)
 	}
@@ -154,7 +154,6 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
-	suite.Applier.IngressClass = suite.IngressClassName
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
