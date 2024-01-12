@@ -140,8 +140,6 @@ type IngressConfig struct {
 
 	annotationHandler annotations.AnnotationHandler
 
-	globalGatewayName string
-
 	namespace string
 
 	clusterId string
@@ -157,13 +155,11 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		globalGatewayName: namespace + "/" +
-			common.CreateConvertedName(clusterId, "global"),
-		watchedSecretSet:    sets.NewSet(),
-		namespace:           namespace,
-		mcpbridgeReconciled: atomic.NewBool(false),
-		wasmPlugins:         make(map[string]*extensions.WasmPlugin),
-		http2rpcs:           make(map[string]*higressv1.Http2Rpc),
+		watchedSecretSet:         sets.NewSet(),
+		namespace:                namespace,
+		mcpbridgeReconciled:      atomic.NewBool(false),
+		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
+		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -479,7 +475,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 		if host != "*" {
-			gateways = append(gateways, m.globalGatewayName)
+			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, common.CleanHost("*")))
 		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
@@ -1269,12 +1265,21 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var params []interface{}
-		for _, methodParam := range serviceMethod.GetParams() {
+		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore parmas.
+		var paramFromEntireBody = serviceMethod.GetParamFromEntireBody()
+		if paramFromEntireBody != nil {
 			var param = make(map[string]interface{})
-			param["extract_key"] = methodParam.GetParamKey()
-			param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
-			param["mapping_type"] = methodParam.GetParamType()
+			param["extract_key_spec"] = Http2RpcParamSourceMap()["BODY"]
+			param["mapping_type"] = paramFromEntireBody.GetParamType()
 			params = append(params, param)
+		} else {
+			for _, methodParam := range serviceMethod.GetParams() {
+				var param = make(map[string]interface{})
+				param["extract_key"] = methodParam.GetParamKey()
+				param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
+				param["mapping_type"] = methodParam.GetParamType()
+				params = append(params, param)
+			}
 		}
 		method["parameter_mapping"] = params
 		var path_matcher = make(map[string]interface{})

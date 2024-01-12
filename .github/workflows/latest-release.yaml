@@ -18,6 +18,8 @@ jobs:
         tar -zcvf hgctl_latest_linux_arm64.tar.gz out/linux_arm64/
         tar -zcvf hgctl_latest_darwin_amd64.tar.gz out/darwin_amd64/
         tar -zcvf hgctl_latest_darwin_arm64.tar.gz out/darwin_arm64/
+        zip -q -r hgctl_latest_windows_amd64.zip out/windows_amd64/
+        zip -q -r hgctl_latest_windows_arm64.zip out/windows_arm64/
 
     # Ignore the error when we delete the latest release, it might not exist.
 
@@ -54,6 +56,8 @@ jobs:
           hgctl_latest_linux_arm64.tar.gz
           hgctl_latest_darwin_amd64.tar.gz
           hgctl_latest_darwin_arm64.tar.gz
+          hgctl_latest_windows_amd64.zip
+          hgctl_latest_windows_arm64.zip
         body: |
           This is the "latest" release of **Higress**, which contains the most recent commits from the main branch.
           

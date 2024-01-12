@@ -1,5 +1,8 @@
 revision: ""
 global:
+  enableSRDS: false
+  onDemandRDS: true
+  hostRDSMergeSubset: true
   onlyPushRouteCluster: true
   # IngressClass filters which ingress resources the higress controller watches.
   # The default ingress class is higress.
@@ -369,6 +372,8 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
+
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   # revision declares which revision this gateway is a part of
   revision: ""
@@ -457,6 +462,8 @@ controller:
   name: "higress-controller"
   replicas: 1
   image: higress
+
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   env: {}
 

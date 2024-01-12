@@ -159,8 +159,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	var jsonData gjson.Result
 	if len(data) == 0 {
 		if ctx.vm.hasCustomConfig {
-			ctx.vm.log.Warn("need config")
-			return types.OnPluginStartStatusFailed
+			ctx.vm.log.Warn("config is empty, but has ParseConfigFunc")
 		}
 	} else {
 		if !gjson.ValidBytes(data) {
@@ -263,6 +262,10 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 		return types.ActionContinue
 	}
 	ctx.config = config
+	// To avoid unexpected operations, plugins do not read the binary content body
+	if IsBinaryRequestBody() {
+		ctx.needRequestBody = false
+	}
 	if ctx.plugin.vm.onHttpRequestHeaders == nil {
 		return types.ActionContinue
 	}
@@ -294,6 +297,10 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
 	if ctx.config == nil {
 		return types.ActionContinue
+	}
+	// To avoid unexpected operations, plugins do not read the binary content body
+	if IsBinaryResponseBody() {
+		ctx.needResponseBody = false
 	}
 	if ctx.plugin.vm.onHttpResponseHeaders == nil {
 		return types.ActionContinue

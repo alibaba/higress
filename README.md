@@ -121,13 +121,7 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 ### 联系我们
 
-- Mailing list: higress@googlegroups.com
-
 社区交流群: 
 
-![image](https://img.alicdn.com/imgextra/i1/O1CN01KWonlE1DkpqaYVTiC_!!6000000000255-0-tps-720-405.jpg)
+![image](https://img.alicdn.com/imgextra/i2/O1CN01qPd7Ix1uZPVEsWjWp_!!6000000006051-0-tps-720-405.jpg)
 
-
-开发者群：
-
-![image](https://img.alicdn.com/imgextra/i2/O1CN010jFMgn1qTDaHqeIgH_!!6000000005496-2-tps-406-531.png)

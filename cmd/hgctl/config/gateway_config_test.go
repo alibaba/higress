@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hgctl
+package config
 
 import (
 	"fmt"
@@ -38,7 +38,7 @@ type fakePortForwarder struct {
 }
 
 func newFakePortForwarder(b []byte) (kubernetes.PortForwarder, error) {
-	p, err := kubernetes.LocalAvailablePort()
+	p, err := kubernetes.LocalAvailablePort("localhost")
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func TestExtractAllConfigDump(t *testing.T) {
 		t.Run(tc.output, func(t *testing.T) {
 			configDump, err := fetchGatewayConfig(fw, true)
 			assert.NoError(t, err)
-			data, err := GetXDSResource(AllEnvoyConfigType, configDump)
+			data, err := getXDSResource(AllEnvoyConfigType, configDump)
 			assert.NoError(t, err)
 			got, err := formatGatewayConfig(data, tc.output)
 			assert.NoError(t, err)
@@ -137,7 +137,7 @@ func TestExtractSubResourcesConfigDump(t *testing.T) {
 	cases := []struct {
 		output       string
 		expected     string
-		resourceType envoyConfigType
+		resourceType EnvoyConfigType
 	}{
 		{
 			output:       "json",
@@ -192,7 +192,7 @@ func TestExtractSubResourcesConfigDump(t *testing.T) {
 		t.Run(tc.output, func(t *testing.T) {
 			configDump, err := fetchGatewayConfig(fw, false)
 			assert.NoError(t, err)
-			resource, err := GetXDSResource(tc.resourceType, configDump)
+			resource, err := getXDSResource(tc.resourceType, configDump)
 			assert.NoError(t, err)
 			got, err := formatGatewayConfig(resource, tc.output)
 			assert.NoError(t, err)

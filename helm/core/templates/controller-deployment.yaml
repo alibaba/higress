@@ -31,11 +31,7 @@ spec:
       containers:
 {{- if not .Values.global.enableHigressIstio }}
         - name: discovery
-{{- if contains "/" .Values.pilot.image }}
-          image: "{{ .Values.pilot.image }}"
-{{- else }}
           image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Chart.AppVersion }}"
-{{- end }}
 {{- if .Values.global.imagePullPolicy }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
 {{- end }}
@@ -74,6 +70,12 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: ENBALE_SCOPED_RDS
+            value: "{{ .Values.global.enableSRDS }}"
+          - name: ON_DEMAND_RDS
+            value: "{{ .Values.global.onDemandRDS }}"
+          - name: HOST_RDS_MERGE_SUBSET
+            value: "{{ .Values.global.hostRDSMergeSubset }}"
           - name: PILOT_FILTER_GATEWAY_CLUSTER_CONFIG
             value: "{{ .Values.global.onlyPushRouteCluster }}"
           - name: HIGRESS_CONTROLLER_SVC
@@ -184,7 +186,7 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.controller.securityContext | nindent 12 }}
-          image: "{{ .Values.hub }}/{{ .Values.controller.image }}:{{ .Values.controller.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.controller.hub | default .Values.global.hub }}/{{ .Values.controller.image | default "higress" }}:{{ .Values.controller.tag | default .Chart.AppVersion }}"
           args:
           - "serve"
           - --gatewaySelectorKey=higress
