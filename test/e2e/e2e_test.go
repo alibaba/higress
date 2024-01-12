@@ -89,6 +89,10 @@ func TestRunHigressConformanceTests(t *testing.T) {
 func TestCleanHigressConformanceTests(t *testing.T) {
 	flag.Parse()
 
+	if !*flags.CleanupBaseResources {
+		return
+	}
+
 	cfg, err := config.GetConfig()
 	require.NoError(t, err)
 
