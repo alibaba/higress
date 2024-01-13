@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync/atomic"
@@ -139,13 +138,19 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
 	newGlobal := NewDefaultGlobalOption()
-	bytes, err := json.Marshal(global)
-	if err != nil {
-		return nil, err
+	if global.Downstream != nil {
+		newGlobal.Downstream.IdleTimeout = global.Downstream.IdleTimeout
+		newGlobal.Downstream.MaxRequestHeadersKb = global.Downstream.MaxRequestHeadersKb
+		newGlobal.Downstream.ConnectionBufferLimits = global.Downstream.ConnectionBufferLimits
+		if global.Downstream.Http2 != nil {
+			newGlobal.Downstream.Http2.MaxConcurrentStreams = global.Downstream.Http2.MaxConcurrentStreams
+			newGlobal.Downstream.Http2.InitialStreamWindowSize = global.Downstream.Http2.InitialStreamWindowSize
+			newGlobal.Downstream.Http2.InitialConnectionWindowSize = global.Downstream.Http2.InitialConnectionWindowSize
+		}
 	}
-	err = json.Unmarshal(bytes, newGlobal)
-	newGlobal.Downstream.IdleTimeout = global.Downstream.IdleTimeout
-	return newGlobal, err
+	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
+	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
+	return newGlobal, nil
 }
 
 // NewDefaultGlobalOption returns a default global config.
@@ -454,7 +459,7 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 					"initialStreamWindowSize": %d,
 					"initialConnectionWindowSize": %d
 				},
-				"maxRequestHeadersKb": %d,
+				"maxRequestHeadersKb": %d
 			}
 		}
 `, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb)
@@ -483,7 +488,7 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			"name": "envoy.filters.network.http_connection_manager",
 			"typed_config": {
 				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-				"maxRequestHeadersKb": %d,
+				"maxRequestHeadersKb": %d
 			}
 		}
 `, maxRequestHeadersKb)

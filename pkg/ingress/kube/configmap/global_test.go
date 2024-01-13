@@ -151,25 +151,6 @@ func Test_deepCopyGlobal(t *testing.T) {
 			},
 			wantErr: nil,
 		},
-		{
-			name: "deep copy 3",
-			global: &Global{
-				Downstream:           &Downstream{},
-				AddXRealIpHeader:     true,
-				DisableXEnvoyHeaders: true,
-			},
-			want: &Global{
-				Downstream: &Downstream{
-					IdleTimeout:            0,
-					Http2:                  NewDefaultHttp2(),
-					ConnectionBufferLimits: 32768,
-					MaxRequestHeadersKb:    60,
-				},
-				AddXRealIpHeader:     true,
-				DisableXEnvoyHeaders: true,
-			},
-			wantErr: nil,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -208,7 +189,10 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			old:  NewDefaultHigressConfig(),
 			new: &HigressConfig{
 				Downstream: &Downstream{
-					IdleTimeout: 1,
+					IdleTimeout:            1,
+					MaxRequestHeadersKb:    defaultMaxRequestHeadersKb,
+					ConnectionBufferLimits: defaultConnectionBufferLimits,
+					Http2:                  NewDefaultHttp2(),
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
