@@ -43,10 +43,19 @@ var WasmPluginsRequestValidation = suite.ConformanceTest{
 						Host: "foo.com",
 						Path: "/foo",
 						Headers: map[string]string{
-							"enum_payload":   "enum_string_1",
-							"string_payload": "string",
-							"regex_payload":  "abc",
+							"enum_payload": "enum_string_1",
 						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
 					},
 				},
 				Response: http.AssertionResponse{
@@ -57,92 +66,337 @@ var WasmPluginsRequestValidation = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "enum_payload validation fail",
+					TestCaseName:    "header lack of require parameter",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo.com",
 						Path: "/foo",
-						Headers: map[string]string{
-							"enum_payload":   "a",
-							"string_payload": "string",
-							"regex_payload":  "abc",
-						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "string_payload validation fail",
+					TestCaseName:    "body lack of require parameter",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo.com",
 						Path: "/foo",
 						Headers: map[string]string{
-							"enum_payload":   "enum_string_1",
-							"string_payload": "s",
-							"regex_payload":  "abc",
+							"enum_payload": "enum_string_1",
 						},
+						Body: []byte(`
+							{
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "regex_payload validation fail",
+					TestCaseName:    "body enum payload not in enum list",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo.com",
 						Path: "/foo",
 						Headers: map[string]string{
-							"enum_payload":   "enum_string_1",
-							"string_payload": "string",
-							"regex_payload":  "abc@",
+							"enum_payload": "enum_string_1",
 						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_3",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "required params validation fail",
+					TestCaseName:    "body bool payload not bool type",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo.com",
 						Path: "/foo",
 						Headers: map[string]string{
-							"enum_payload":   "enum_string_1",
-							"string_payload": "string",
+							"enum_payload": "enum_string_1",
 						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": "string",
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body integer payload not in range",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 70000,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body string payload length not in range",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "a",
+								"regex_payload": "abc123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body regex payload not match regex pattern",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc@123",
+								"array_payload": [200, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body array payload not in array range",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [150, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body array payload not unique array items",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [302, 302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "body array payload length not in range",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"enum_payload": "enum_string_1",
+						},
+						Body: []byte(`
+							{
+								"enum_payload": "enum_string_1",
+								"bool_payload": true,
+								"integer_payload": 100,
+								"string_payload": "abc",
+								"regex_payload": "abc123",
+								"array_payload": [302]
+							}
+ 						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+						Body:       []byte(`customize reject message`),
 					},
 				},
 			},
@@ -150,6 +404,7 @@ var WasmPluginsRequestValidation = suite.ConformanceTest{
 
 		t.Run("WasmPlugins request-validation", func(t *testing.T) {
 			for _, testcase := range testCases {
+				t.Logf("Running test case: %s", testcase.Meta.TestCaseName)
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
 		})

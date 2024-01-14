@@ -42,8 +42,6 @@ spec:
       type: object
       required:
         - enum_payload
-        - string_payload
-        - regex_payload
       properties:
         enum_payload:
             type: string
@@ -51,13 +49,47 @@ spec:
               - "enum_string_1"
               - "enum_string_2"
             default: "enum_string_1"
+    body_schema:
+      type: object
+      required:
+        - enum_payload
+        - bool_payload
+        - integer_payload
+        - string_payload
+        - regex_payload
+        - array_payload
+      properties:
+        enum_payload:
+          type: string
+          enum:
+            - "enum_string_1"
+            - "enum_string_2"
+          default: "enum_string_1"
+        bool_payload:
+          type: boolean
+          default: true
+        integer_payload:
+          type: integer
+          minimum: 1
+          maximum: 65535
         string_payload:
-            type: string
-            minLength: 2
-            maxLength: 32
+          type: string
+          minLength: 2
+          maxLength: 32
         regex_payload:
-            type: string
-            pattern: "^[a-zA-Z0-9]+$"
+          type: string
+          minLength: 1
+          maxLength: 32
+          pattern: "^[a-zA-Z0-9]+$"
+        array_payload:
+          type: array
+          minItems: 2
+          items:
+            type: integer
+            minimum: 200
+            maximum: 599
+          uniqueItems: true
+          default: [200, 302]
     rejected_code: 403
     rejected_msg: "customize reject message"
     enable_swagger: true
