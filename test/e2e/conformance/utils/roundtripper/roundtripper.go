@@ -14,6 +14,7 @@ limitations under the License.
 package roundtripper
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -41,6 +42,8 @@ type Request struct {
 	Protocol         string
 	Method           string
 	Headers          map[string][]string
+	Body             []byte
+	ContentType      string
 	UnfollowRedirect bool
 	TLSConfig        *TLSConfig
 }
@@ -70,14 +73,14 @@ type ClientKeyPair struct {
 // CapturedRequest contains request metadata captured from an echoserver
 // response.
 type CapturedRequest struct {
-	Path     string              `json:"path"`
-	Host     string              `json:"host"`
-	Method   string              `json:"method"`
-	Protocol string              `json:"proto"`
-	Headers  map[string][]string `json:"headers"`
-
-	Namespace string `json:"namespace"`
-	Pod       string `json:"pod"`
+	Path      string              `json:"path"`
+	Host      string              `json:"host"`
+	Method    string              `json:"method"`
+	Protocol  string              `json:"proto"`
+	Headers   map[string][]string `json:"headers"`
+	Body      interface{}         `json:"body"`
+	Namespace string              `json:"namespace"`
+	Pod       string              `json:"pod"`
 }
 
 // RedirectRequest contains a follow up request metadata captured from a redirect
@@ -95,6 +98,7 @@ type CapturedResponse struct {
 	ContentLength   int64
 	Protocol        string
 	Headers         map[string][]string
+	Body            []byte
 	RedirectRequest *RedirectRequest
 }
 
@@ -112,7 +116,7 @@ type DefaultRoundTripper struct {
 func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedRequest, *CapturedResponse, error) {
 	cReq := &CapturedRequest{}
 	client := &http.Client{}
-
+	cRes := &CapturedResponse{}
 	if request.UnfollowRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -171,6 +175,11 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		}
 	}
 
+	if request.Body != nil {
+		req.Header.Add("Content-Type", string(request.ContentType))
+		req.Body = io.NopCloser(bytes.NewReader(request.Body))
+	}
+
 	if d.Debug {
 		var dump []byte
 		dump, err = httputil.DumpRequestOut(req, true)
@@ -198,21 +207,25 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		fmt.Printf("Received Response:\n%s\n\n", formatDump(dump, "< "))
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unexpected error reading response body: %w", err)
+	}
 
 	// we cannot assume the response is JSON
-	if resp.Header.Get("Content-type") == "application/json" {
+	if resp.Header.Get("Content-Type") == "application/json" {
 		err = json.Unmarshal(body, cReq)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unexpected error reading response: %w", err)
 		}
 	}
 
-	cRes := &CapturedResponse{
+	cRes = &CapturedResponse{
 		StatusCode:    resp.StatusCode,
 		ContentLength: resp.ContentLength,
 		Protocol:      resp.Proto,
 		Headers:       resp.Header,
+		Body:          body,
 	}
 
 	if IsRedirect(resp.StatusCode) {
