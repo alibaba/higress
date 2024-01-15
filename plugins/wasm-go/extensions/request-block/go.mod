@@ -2,7 +2,10 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/request-block
 
 go 1.18
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
+replace (
+	github.com/alibaba/higress/plugins/wasm-go => ../..
+	github.com/tetratelabs/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240105034322-9a6ac242c3dd
+)
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0
