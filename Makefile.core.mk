@@ -131,6 +131,7 @@ export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-ARCH.tar.gz
+export ENVOY_VERSION ?= v1.3.0
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -148,20 +149,14 @@ build-pilot: prebuild
 build-pilot-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} ./tools/hack/build-istio-pilot.sh
 
-build-gateway:	
-	git submodule update --init
-	git submodule update --remote istio/istio
-	./tools/hack/prebuild.sh
-	cd external/istio; ENVOY_VERSION=v1.3.0 BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+build-gateway: prebuild
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker.buildx
 
 build-gateway-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh
 
-build-istio: 
-	git submodule update --init
-	git submodule update --remote istio/istio
-	./tools/hack/prebuild.sh
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+build-istio: prebuild
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker.buildx
 
 build-istio-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh
