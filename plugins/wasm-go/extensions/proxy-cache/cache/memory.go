@@ -16,47 +16,43 @@ package cache
 
 import (
 	"fmt"
-	"runtime"
-	"sync"
+	"github.com/coocood/freecache"
 )
 
 type memoryCache struct {
-	cache    map[string][]byte
-	limit    int
-	lock     sync.RWMutex
-	memStats runtime.MemStats
+	cache *freecache.Cache
+	ttl   int
 }
 
-func NewMemoryCache(limit int) (Cache, error) {
+func NewMemoryCache(limit int, ttl int) (Cache, error) {
+	cache := freecache.NewCache(limit)
 	return &memoryCache{
-		cache:    make(map[string][]byte),
-		lock:     sync.RWMutex{},
-		limit:    limit,
-		memStats: runtime.MemStats{},
+		cache: cache,
+		ttl:   ttl,
 	}, nil
 }
 
 func (c *memoryCache) Get(key string) ([]byte, bool) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	val, ok := c.cache[key]
-	return val, ok
+	bytes, err := c.cache.Get([]byte(key))
+	if err != nil {
+		return nil, false
+	}
+	return bytes, true
 }
 
 func (c *memoryCache) Set(key string, value []byte) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	runtime.ReadMemStats(&c.memStats)
-	for c.memStats.Alloc+uint64(len(value)) > uint64(c.limit) {
-		return fmt.Errorf("memory limit exceeded")
-	}
-	c.cache[key] = value
-	return nil
+	return c.cache.Set([]byte(key), value, c.ttl)
 }
 
 func (c *memoryCache) Delete(key string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	delete(c.cache, key)
+	ok := c.cache.Del([]byte(key))
+	if !ok {
+		return fmt.Errorf("delete cache failed")
+	}
+	return nil
+}
+
+func (c *memoryCache) Clean() error {
+	c.cache.Clear()
 	return nil
 }

@@ -16,21 +16,21 @@ package main
 
 import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	"higress/plugins/wasm-go/extensions/proxy-cache/cache"
+	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
 	CacheStrategyMemory = "memory"
 	CacheStrategyDisk   = "disk"
 
-	CacheMethodGET  = "GET"
-	CacheMethodHEAD = "HEAD"
-	CacheMethodPOST = "POST"
-	CacheMethodPUT  = "PUT"
-	CacheMethodALL  = "ALL"
+	CacheMethodGET   = "GET"
+	CacheMethodHEAD  = "HEAD"
+	CacheMethodPURGE = "PURGE"
 
 	CacheKeyHost       = "$host"
 	CacheKeyScheme     = "$scheme"
@@ -44,80 +44,47 @@ const (
 	CacheKeyCookie     = "$cookie"
 	CacheKeyReferer    = "$referer"
 
-	CacheHttpStatusCodeOk           = 200
-	CacheHttpStatusCodeNotModified  = 304
-	CacheHttpStatusCodeBadRequest   = 400
-	CacheHttpStatusCodeUnauthorized = 401
+	CacheHttpStatusCodeOk = 200
 
 	DefaultCacheTTL   = "300s"
 	DefaultMemorySize = "50m"
-	DefaultDiskSize   = "1g"
-	DefaultDiskPath   = "/tmp/cache"
 )
 
 func main() {
 	wrapper.SetCtx(
-		"request-block",
+		"proxy-cache",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),
 	)
 }
 
 // ProxyCacheConfig is the config for proxy-cache extension
 type ProxyCacheConfig struct {
-	Zones                []CacheZone
+	CacheStrategy        string
+	MemorySize           string
+	DiskSize             string
+	RootDir              string
 	CacheTTL             string
 	CacheMethod          []string
 	CacheKey             []string
 	CacheHttpStatusCodes []uint32
-}
-
-type ProxyCache struct {
-	config ProxyCacheConfig
-	memory *MemoryCache
-	disk   *DiskCache
-	Lock   *sync.Mutex
-}
-
-type MemoryCache struct {
-	Data map[string][]byte
-}
-
-type DiskCache struct {
-	RootDir string
-}
-
-type CacheZone struct {
-	CacheStrategy string
-	Name          string
-	MemorySize    string
-	DiskSize      string
-	DiskPath      string
+	actualTTL            int
+	actualCacheKey       string
+	cache                cache.Cache
 }
 
 func NewDefaultProxyCache() *ProxyCacheConfig {
+	// default config is memory cache, current DiskSize and RootDir are empty
+	// if CacheStrategy is disk, disk size and disk path must be set
 	return &ProxyCacheConfig{
 		CacheTTL:             DefaultCacheTTL,
 		CacheMethod:          []string{CacheMethodGET, CacheMethodHEAD},
 		CacheKey:             []string{CacheKeyHost, CacheKeyPath},
 		CacheHttpStatusCodes: []uint32{CacheHttpStatusCodeOk},
-		Zones:                make([]CacheZone, 0),
-	}
-}
-
-func NewDefaultCacheZone() []CacheZone {
-	return []CacheZone{
-		{
-			CacheStrategy: CacheStrategyMemory,
-			Name:          "default",
-			MemorySize:    DefaultMemorySize,
-		},
-		{
-			CacheStrategy: CacheStrategyDisk,
-			Name:          "default",
-			DiskSize:      DefaultDiskSize,
-			DiskPath:      DefaultDiskPath,
-		},
+		CacheStrategy:        CacheStrategyMemory,
+		MemorySize:           DefaultMemorySize,
 	}
 }
 
@@ -129,9 +96,12 @@ func parseConfig(json gjson.Result, config *ProxyCacheConfig, log wrapper.Log) e
 		config.CacheTTL = cacheTTL
 	}
 	if json.Get("cache_method").Exists() {
-		cacheMethod := json.Get("cache_method").String()
-		cacheMethod = strings.ToUpper(cacheMethod)
-		config.CacheMethod = cacheMethod
+		cacheMethodArray := json.Get("cache_method").Array()
+		for _, item := range cacheMethodArray {
+			cacheMethod := item.String()
+			cacheMethod = strings.ToUpper(cacheMethod)
+			config.CacheMethod = append(config.CacheMethod, cacheMethod)
+		}
 	}
 	if json.Get("cache_key").Exists() {
 		cacheKeyArray := json.Get("cache_key").Array()
@@ -145,38 +115,320 @@ func parseConfig(json gjson.Result, config *ProxyCacheConfig, log wrapper.Log) e
 			config.CacheHttpStatusCodes = append(config.CacheHttpStatusCodes, uint32(item.Int()))
 		}
 	}
-	if json.Get("zones").Exists() {
-		zonesArray := json.Get("zones").Array()
-		for _, item := range zonesArray {
-			zone := CacheZone{}
-			if item.Get("cache_strategy").Exists() {
-				cacheStrategy := item.Get("cache_strategy").String()
-				cacheStrategy = strings.ToLower(cacheStrategy)
-				zone.CacheStrategy = cacheStrategy
-			}
-			if item.Get("name").Exists() {
-				zone.Name = item.Get("name").String()
-			}
-			if item.Get("memory_size").Exists() {
-				zone.MemorySize = item.Get("memory_size").String()
-			}
-			if item.Get("disk_size").Exists() {
-				zone.DiskSize = item.Get("disk_size").String()
-			}
-			if item.Get("disk_path").Exists() {
-				zone.DiskPath = item.Get("disk_path").String()
-			}
-			config.Zones = append(config.Zones, zone)
-		}
+	if json.Get("cache_strategy").Exists() {
+		config.CacheStrategy = json.Get("cache_strategy").String()
 	}
-	if len(config.Zones) == 0 {
-		config.Zones = NewDefaultCacheZone()
+	if json.Get("memory_size").Exists() {
+		config.MemorySize = json.Get("memory_size").String()
+	}
+	if json.Get("disk_size").Exists() {
+		config.DiskSize = json.Get("disk_size").String()
+	}
+	if json.Get("disk_path").Exists() {
+		config.RootDir = json.Get("disk_path").String()
+	}
+
+	// validate config
+	err := validation(config, log)
+	if err != nil {
+		return err
+	}
+
+	// calculate actual ttl
+	ttl, err := calculateTTL(config.CacheTTL)
+	if err != nil {
+		return err
+	}
+
+	// create cache
+	switch config.CacheStrategy {
+	case CacheStrategyMemory:
+		memorySize, err := calculate(config.MemorySize)
+		if err != nil {
+			return err
+		}
+		config.cache, err = cache.NewMemoryCache(memorySize, ttl)
+		if err != nil {
+			return err
+		}
+	case CacheStrategyDisk:
+		diskSize, err := calculate(config.DiskSize)
+		if err != nil {
+			return err
+		}
+		memorySize, err := calculate(config.MemorySize)
+		if err != nil {
+			return err
+		}
+		config.cache, err = cache.NewDiskCache(cache.DiskCacheOptions{
+			RootDir:     config.RootDir,
+			DiskLimit:   diskSize,
+			MemoryLimit: memorySize,
+		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config ProxyCacheConfig, body []byte, log wrapper.Log) types.Action {
+func validation(config *ProxyCacheConfig, log wrapper.Log) error {
+	if config.CacheStrategy != CacheStrategyMemory && config.CacheStrategy != CacheStrategyDisk {
+		log.Errorf("invalid cache strategy: %s", config.CacheStrategy)
+		return types.ErrorStatusBadArgument
+	}
+	if config.CacheStrategy == CacheStrategyDisk {
+		if config.DiskSize == "" {
+			log.Error("disk size is empty")
+			return types.ErrorStatusBadArgument
+		}
+		if config.RootDir == "" {
+			log.Error("disk path is empty")
+			return types.ErrorStatusBadArgument
+		}
+	}
+	if config.CacheTTL == "" {
+		log.Error("cache ttl is empty")
+		return types.ErrorStatusBadArgument
+	}
+	if config.MemorySize == "" {
+		log.Error("memory size is empty")
+		return types.ErrorStatusBadArgument
+	}
+	if config.CacheMethod == nil {
+		log.Error("cache method is empty")
+		return types.ErrorStatusBadArgument
+	}
+	if config.CacheKey == nil {
+		log.Error("cache key is empty")
+		return types.ErrorStatusBadArgument
+	}
+	if config.CacheHttpStatusCodes == nil {
+		log.Error("cache http status codes is empty")
+		return types.ErrorStatusBadArgument
+	}
+	return nil
+}
 
+func calculate(size string) (int, error) {
+	size = strings.Replace(size, " ", "", -1)
+	if strings.HasSuffix(size, "k") || strings.HasSuffix(size, "K") {
+		size = strings.TrimSuffix(size, "k")
+		size = strings.TrimSuffix(size, "K")
+		sizeInt, err := strconv.Atoi(size)
+		if err != nil {
+			return 0, err
+		}
+		return sizeInt * 1024, nil
+	}
+	if strings.HasSuffix(size, "m") || strings.HasSuffix(size, "M") {
+		size = strings.TrimSuffix(size, "m")
+		size = strings.TrimSuffix(size, "M")
+		sizeInt, err := strconv.Atoi(size)
+		if err != nil {
+			return 0, err
+		}
+		return sizeInt * 1024 * 1024, nil
+	}
+	if strings.HasSuffix(size, "g") || strings.HasSuffix(size, "G") {
+		size = strings.TrimSuffix(size, "g")
+		size = strings.TrimSuffix(size, "G")
+		sizeInt, err := strconv.Atoi(size)
+		if err != nil {
+			return 0, err
+		}
+		return sizeInt * 1024 * 1024 * 1024, nil
+	}
+	sizeInt, err := strconv.Atoi(size)
+	if err != nil {
+		return 0, err
+	}
+	return sizeInt, nil
+}
+
+func calculateTTL(ttl string) (int, error) {
+	ttl = strings.Replace(ttl, " ", "", -1)
+	if strings.HasSuffix(ttl, "s") || strings.HasSuffix(ttl, "S") {
+		ttl = strings.TrimSuffix(ttl, "s")
+		ttl = strings.TrimSuffix(ttl, "S")
+		ttlInt, err := strconv.Atoi(ttl)
+		if err != nil {
+			return 0, err
+		}
+		return ttlInt, nil
+	}
+	if strings.HasSuffix(ttl, "m") || strings.HasSuffix(ttl, "M") {
+		ttl = strings.TrimSuffix(ttl, "m")
+		ttl = strings.TrimSuffix(ttl, "M")
+		ttlInt, err := strconv.Atoi(ttl)
+		if err != nil {
+			return 0, err
+		}
+		return ttlInt * 60, nil
+	}
+	if strings.HasSuffix(ttl, "h") || strings.HasSuffix(ttl, "H") {
+		ttl = strings.TrimSuffix(ttl, "h")
+		ttl = strings.TrimSuffix(ttl, "H")
+		ttlInt, err := strconv.Atoi(ttl)
+		if err != nil {
+			return 0, err
+		}
+		return ttlInt * 60 * 60, nil
+	}
+	if strings.HasSuffix(ttl, "d") || strings.HasSuffix(ttl, "D") {
+		ttl = strings.TrimSuffix(ttl, "d")
+		ttl = strings.TrimSuffix(ttl, "D")
+		ttlInt, err := strconv.Atoi(ttl)
+		if err != nil {
+			return 0, err
+		}
+		return ttlInt * 60 * 60 * 24, nil
+	}
+	ttlInt, err := strconv.Atoi(ttl)
+	if err != nil {
+		return 0, err
+	}
+	return ttlInt, nil
+}
+
+func onHttpRequestBody(ctx wrapper.HttpContext, config ProxyCacheConfig, body []byte, log wrapper.Log) types.Action {
+	// add response header
+	err := proxywasm.AddHttpResponseHeader("Higress-Cache", "MISS")
+	if err != nil {
+		log.Errorf("add response header failed: %v", err)
+		return types.ActionContinue
+	}
+
+	// find value from cache, if found, return it
+	// if not found, continue to process request
+	cacheKeyList := make([]string, 0)
+	for _, cacheKey := range config.CacheKey {
+		switch cacheKey {
+		case CacheKeyHost:
+			host := ctx.Host()
+			cacheKey = CacheKeyHost + host
+		case CacheKeyScheme:
+			scheme := ctx.Scheme()
+			cacheKey = CacheKeyScheme + scheme
+		case CacheKeyPath:
+			path := ctx.Path()
+			cacheKey = CacheKeyPath + path
+		case CacheKeyQuery:
+			query, err := proxywasm.GetHttpRequestHeader(":query")
+			if err != nil {
+				log.Error("parse request query failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyQuery + query
+		case CacheKeyMethod:
+			method := ctx.Method()
+			cacheKey = CacheKeyMethod + method
+		case CacheKeyUserAgent:
+			userAgent, err := proxywasm.GetHttpRequestHeader("user-agent")
+			if err != nil {
+				log.Error("parse request user-agent failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyUserAgent + userAgent
+		case CacheKeyAccept:
+			accept, err := proxywasm.GetHttpRequestHeader("accept")
+			if err != nil {
+				log.Error("parse request accept failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyAccept + accept
+		case CacheKeyAcceptLang:
+			acceptLang, err := proxywasm.GetHttpRequestHeader("accept-language")
+			if err != nil {
+				log.Error("parse request accept-language failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyAcceptLang + acceptLang
+		case CacheKeyAcceptEnc:
+			acceptEnc, err := proxywasm.GetHttpRequestHeader("accept-encoding")
+			if err != nil {
+				log.Error("parse request accept-encoding failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyAcceptEnc + acceptEnc
+		case CacheKeyCookie:
+			cookie, err := proxywasm.GetHttpRequestHeader("cookie")
+			if err != nil {
+				log.Error("parse request cookie failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyCookie + cookie
+		case CacheKeyReferer:
+			referer, err := proxywasm.GetHttpRequestHeader("referer")
+			if err != nil {
+				log.Error("parse request referer failed")
+				return types.ActionContinue
+			}
+			cacheKey = CacheKeyReferer + referer
+		default:
+			log.Errorf("invalid cache key: %s", cacheKey)
+		}
+		cacheKeyList = append(cacheKeyList, cacheKey)
+	}
+	// TODO: join them or use multi key?
+	cacheKey := strings.Join(cacheKeyList, "-")
+	config.actualCacheKey = cacheKey
+	value, ok := config.cache.Get(cacheKey)
+	if ok {
+		// if method is PURGE, delete cache
+		if ctx.Method() == CacheMethodPURGE {
+			err := config.cache.Delete(cacheKey)
+			if err != nil {
+				log.Errorf("delete cache failed: %v", err)
+				return types.ActionContinue
+			}
+			return types.ActionContinue
+		}
+		// update response header
+		err := proxywasm.AddHttpResponseHeader("Higress-Cache", "HIT")
+		if err != nil {
+			log.Errorf("add response header failed: %v", err)
+			return types.ActionContinue
+		}
+		_ = proxywasm.SendHttpResponse(200, nil, value, -1)
+		return types.ActionPause
+	}
+	return types.ActionContinue
+}
+
+func onHttpResponseBody(ctx wrapper.HttpContext, config ProxyCacheConfig, body []byte, log wrapper.Log) types.Action {
+	// cache response body
+	// if response status code is not 200, do not cache it
+	status, err := proxywasm.GetHttpResponseHeader(":status")
+	if err != nil {
+		log.Error("parse response status code failed")
+		return types.ActionContinue
+	}
+	// convert status code to uint32
+	statusCode, err := strconv.Atoi(status)
+	if err != nil {
+		log.Errorf("convert status code to uint32 failed: %v", err)
+		return types.ActionContinue
+	}
+	if !config.containCacheHttpStatus(uint32(statusCode)) {
+		return types.ActionContinue
+	}
+	// if request method is not GET or HEAD, do not cache it
+	if !config.containCacheMethod(ctx.Method()) {
+		return types.ActionContinue
+	}
+	// check actual cache key
+	if config.actualCacheKey == "" {
+		log.Error("actual cache key is empty")
+		return types.ActionContinue
+	}
+	// cache response body
+	err = config.cache.Set(config.actualCacheKey, body)
+	if err != nil {
+		log.Errorf("cache response body failed: %v", err)
+		return types.ActionContinue
+	}
+	return types.ActionContinue
 }
 
 func (p ProxyCacheConfig) containCacheMethod(method string) bool {
@@ -187,3 +439,33 @@ func (p ProxyCacheConfig) containCacheMethod(method string) bool {
 	}
 	return false
 }
+
+func (p ProxyCacheConfig) containCacheHttpStatus(statusCode uint32) bool {
+	for _, code := range p.CacheHttpStatusCodes {
+		if code == statusCode {
+			return true
+		}
+	}
+	return false
+}
+
+func parseGlobalConfig(json gjson.Result, global *ProxyCacheConfig, log wrapper.Log) error {
+	// if switch memory cache to disk or disk cache to memory, need to clean cache
+	if json.Get("cache_strategy").Exists() && global.CacheStrategy != json.Get("cache_strategy").String() {
+		if global.cache != nil {
+			err := global.cache.Clean()
+			if err != nil {
+				log.Errorf("clean cache failed: %v", err)
+				return err
+			}
+		}
+	}
+	return parseConfig(json, global, log)
+}
+
+func parseOverrideRuleConfig(json gjson.Result, global ProxyCacheConfig, config *ProxyCacheConfig, log wrapper.Log) error {
+	*config = global
+	return nil
+}
+
+// TODO: when delete wasm plugin, clean cache, how to do?
