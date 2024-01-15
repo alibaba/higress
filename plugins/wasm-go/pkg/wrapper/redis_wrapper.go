@@ -16,25 +16,11 @@ package wrapper
 
 import (
 	"bytes"
-	"io"
-	// "strings"
-	// "unsafe"
-	// "strconv"
 	"fmt"
-	// "crypto/sha1"
-	// "encoding/hex"
-	// "reflect"
+	"io"
 
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/resp"
-)
-
-const (
-	SimpleString string = "SimpleString" // "+"
-	Error        string = "Error" // "-"
-	Integer      string = "Integer" // ":"
-	BulkString   string = "BulkString" // "$"
-	Array        string = "Array" // "*"
 )
 
 type RedisResponseCallback func(status int, response resp.Value)
@@ -109,9 +95,9 @@ type RedisClient interface {
 	ZScore(key, member string, callback RedisResponseCallback) error
 	ZRank(key, member string, callback RedisResponseCallback) error
 	ZRevRank(key, member string, callback RedisResponseCallback) error
-    ZRem(key string, members []string, callback RedisResponseCallback) error
-    ZRange(key string, start, stop int, callback RedisResponseCallback) error
-    ZRevRange(key string, start, stop int, callback RedisResponseCallback) error
+	ZRem(key string, members []string, callback RedisResponseCallback) error
+	ZRange(key string, start, stop int, callback RedisResponseCallback) error
+	ZRevRange(key string, start, stop int, callback RedisResponseCallback) error
 }
 
 type RedisClusterClient[C Cluster] struct {
@@ -128,7 +114,7 @@ func RedisInit(cluster Cluster, username, password string, timeout uint32) error
 
 func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback) error {
 	_, err := proxywasm.DispatchRedisCall(
-		cluster.ClusterName(), 
+		cluster.ClusterName(),
 		respQuery,
 		func(status, responseSize int) {
 			// proxywasm.LogCriticalf("[rinfx log] responseSize is: %d", responseSize)
@@ -176,49 +162,6 @@ func (c RedisClusterClient[C]) Command(cmds []interface{}, callback RedisRespons
 	RedisCall(c.cluster, respString(cmds), callback)
 	return nil
 }
-
-// func (c RedisClusterClient[C]) BatchCommands(cmds [][]interface{}, callback func(status int, response []resp.Value)) error {
-// 	var buf bytes.Buffer
-// 	wr := resp.NewWriter(&buf)
-// 	for _, cmd := range cmds {
-// 		arr := make([]resp.Value, len(cmd))
-// 		for i, arg := range cmd {
-// 			arr[i] = resp.StringValue(fmt.Sprint(arg))
-// 		}
-// 		wr.WriteArray(arr)
-// 	}
-// 	proxywasm.LogCriticalf("resp batch cmds are: %s", buf.String())
-// 	_, err := proxywasm.DispatchRedisCall(
-// 		c.cluster.ClusterName(), 
-// 		buf.String(),
-// 		func(status, responseSize int) {
-// 			proxywasm.LogCriticalf("mark, responseSize is: %d", responseSize)
-// 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
-// 			if err != nil {
-// 				proxywasm.LogCriticalf("failed to get redis response body: %v", err)
-// 			}
-// 			rd := resp.NewReader(bytes.NewReader(response))
-// 			vs := make([]resp.Value, 0)
-// 			for {
-// 				v, _, err := rd.ReadValue()
-// 				proxywasm.LogCriticalf("mark: %s", v)
-// 				if err == io.EOF {
-// 					break
-// 				}			
-// 				if err != nil {
-// 					proxywasm.LogCriticalf("failed to read redis response body: %v", err)
-// 				}
-// 				vs = append(vs, v)
-// 			}
-// 			proxywasm.LogCriticalf("length of vs: %d", len(vs))
-// 			callback(status, vs)
-// 		})
-// 	if err != nil {
-// 		proxywasm.LogCriticalf("redis call failed: %v", err)
-// 		return err
-// 	}
-// 	return nil
-// }
 
 func (c RedisClusterClient[C]) Eval(script string, params []interface{}, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
@@ -628,7 +571,7 @@ func (c RedisClusterClient[C]) ZCard(key string, callback RedisResponseCallback)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C])  ZAdd(key string, msMap map[string]interface{}, callback RedisResponseCallback) error {
+func (c RedisClusterClient[C]) ZAdd(key string, msMap map[string]interface{}, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
 	args = append(args, "zadd")
 	args = append(args, key)
@@ -657,7 +600,7 @@ func (c RedisClusterClient[C]) ZIncrBy(key string, member string, delta interfac
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C])  ZScore(key, member string, callback RedisResponseCallback) error {
+func (c RedisClusterClient[C]) ZScore(key, member string, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
 	args = append(args, "zscore")
 	args = append(args, key)
