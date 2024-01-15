@@ -16,6 +16,7 @@ package cache
 
 import (
 	"fmt"
+
 	"github.com/coocood/freecache"
 )
 

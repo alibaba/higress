@@ -15,13 +15,14 @@
 package main
 
 import (
+	"higress/plugins/wasm-go/extensions/proxy-cache/cache"
+	"strconv"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-	"higress/plugins/wasm-go/extensions/proxy-cache/cache"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -62,17 +63,28 @@ func main() {
 
 // ProxyCacheConfig is the config for proxy-cache extension
 type ProxyCacheConfig struct {
-	CacheStrategy        string
-	MemorySize           string
-	DiskSize             string
-	RootDir              string
-	CacheTTL             string
-	CacheMethod          []string
-	CacheKey             []string
+	// CacheStrategy is the cache strategy, memory or disk
+	CacheStrategy string
+	// MemorySize is the memory size for memory cache or disk cache
+	MemorySize string
+	// DiskSize is the disk size for disk cache
+	DiskSize string
+	// RootDir is the root directory for disk cache
+	RootDir string
+	// CacheTTL is the ttl for cache
+	CacheTTL string
+	// CacheMethod is the method for cache
+	CacheMethod []string
+	// CacheKey is the key for cache
+	CacheKey []string
+	// CacheHttpStatusCodes is the http status codes for cache
 	CacheHttpStatusCodes []uint32
-	actualTTL            int
-	actualCacheKey       string
-	cache                cache.Cache
+	// actualTTL is the actual ttl by calculate CacheTTL
+	actualTTL int
+	// actualMemorySize is the actual memory size by calculate MemorySize
+	actualCacheKey string
+	// cache is the cache instance
+	cache cache.Cache
 }
 
 func NewDefaultProxyCache() *ProxyCacheConfig {
@@ -89,12 +101,16 @@ func NewDefaultProxyCache() *ProxyCacheConfig {
 }
 
 func parseConfig(json gjson.Result, config *ProxyCacheConfig, log wrapper.Log) error {
+	// create default config
 	config = NewDefaultProxyCache()
+
+	// get cache ttl
 	if json.Get("cache_ttl").Exists() {
 		cacheTTL := json.Get("cache_ttl").String()
 		cacheTTL = strings.Replace(cacheTTL, " ", "", -1)
 		config.CacheTTL = cacheTTL
 	}
+	// get cache method
 	if json.Get("cache_method").Exists() {
 		cacheMethodArray := json.Get("cache_method").Array()
 		for _, item := range cacheMethodArray {
@@ -103,24 +119,29 @@ func parseConfig(json gjson.Result, config *ProxyCacheConfig, log wrapper.Log) e
 			config.CacheMethod = append(config.CacheMethod, cacheMethod)
 		}
 	}
+	// get cache key
 	if json.Get("cache_key").Exists() {
 		cacheKeyArray := json.Get("cache_key").Array()
 		for _, item := range cacheKeyArray {
 			config.CacheKey = append(config.CacheKey, item.String())
 		}
 	}
+	// get cache http status codes
 	if json.Get("cache_http_status_codes").Exists() {
 		cacheHttpStatusCodesArray := json.Get("cache_http_status_codes").Array()
 		for _, item := range cacheHttpStatusCodesArray {
 			config.CacheHttpStatusCodes = append(config.CacheHttpStatusCodes, uint32(item.Int()))
 		}
 	}
+	// get cache strategy
 	if json.Get("cache_strategy").Exists() {
 		config.CacheStrategy = json.Get("cache_strategy").String()
 	}
+	// get memory size
 	if json.Get("memory_size").Exists() {
 		config.MemorySize = json.Get("memory_size").String()
 	}
+	// get disk size and disk path
 	if json.Get("disk_size").Exists() {
 		config.DiskSize = json.Get("disk_size").String()
 	}

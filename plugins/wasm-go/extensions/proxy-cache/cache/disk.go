@@ -16,8 +16,10 @@ package cache
 
 import (
 	"fmt"
-	"github.com/boltdb/bolt"
+	"path/filepath"
 	"time"
+
+	"github.com/boltdb/bolt"
 )
 
 const (
@@ -29,17 +31,23 @@ type diskCache struct {
 	ttl int
 }
 
+// DiskCacheOptions is the options for disk cache.
 type DiskCacheOptions struct {
-	RootDir     string
-	DiskLimit   int
+	// RootDir is the root directory for disk cache.
+	RootDir string
+	// DiskLimit is the disk limit for disk cache.
+	DiskLimit int
+	// MemoryLimit is the memory limit for disk cache.
 	MemoryLimit int
-	TTL         int
+	// TTL is the ttl for disk cache.
+	TTL int
 }
 
 func NewDiskCache(opt DiskCacheOptions) (Cache, error) {
 	options := bolt.DefaultOptions
 	options.Timeout = time.Duration(opt.TTL) * time.Second
-	db, err := bolt.Open(opt.RootDir, 0600, options)
+	file := filepath.Join(opt.RootDir, "cache.db")
+	db, err := bolt.Open(file, 0600, options)
 	if err != nil {
 		return nil, err
 	}

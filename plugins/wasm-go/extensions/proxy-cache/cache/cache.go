@@ -14,9 +14,14 @@
 
 package cache
 
+// Cache is the interface that wraps the basic Get, Set, Delete and Clean methods.
 type Cache interface {
+	// Get returns the value stored in the cache for a key, or nil if no value is present.
 	Get(key string) ([]byte, bool)
+	// Set stores a value for a key.
 	Set(key string, value []byte) error
+	// Delete deletes a value for a key.
 	Delete(key string) error
+	// Clean deletes all values in the cache.
 	Clean() error
 }
