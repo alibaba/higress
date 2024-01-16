@@ -146,7 +146,7 @@ func respString(args []interface{}) string {
 		arr = append(arr, resp.StringValue(fmt.Sprint(arg)))
 	}
 	wr.WriteArray(arr)
-	proxywasm.LogCriticalf("respString:\n%s", buf.String())
+	// proxywasm.LogCriticalf("respString:\n%s", buf.String())
 	return buf.String()
 }
 
