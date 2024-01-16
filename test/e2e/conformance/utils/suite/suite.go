@@ -24,6 +24,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	TestAreaAll   = "all"
+	TestAreaSetup = "setup"
+	TestAreaRun   = "run"
+)
+
 // ConformanceTestSuite defines the test suite used to run Gateway API
 // conformance tests.
 type ConformanceTestSuite struct {
@@ -127,14 +133,16 @@ func New(s Options) *ConformanceTestSuite {
 		}
 	}
 
-	suite.Applier.IngressClass = suite.IngressClassName
-
 	return suite
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
+	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
+
+	suite.Applier.IngressClass = suite.IngressClassName
+
 	t.Logf("📦 Test Setup: Applying base manifests")
 	for _, baseManifest := range suite.BaseManifests {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
@@ -165,12 +173,6 @@ func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 			test.Run(t, suite)
 		})
 	}
-}
-
-// Clean ensures that all resources created by the test suite are cleaned up.
-func (suite *ConformanceTestSuite) Clean(t *testing.T) {
-	t.Logf("🧹 Test Cleanup: Ensuring all resources are cleaned up")
-	suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, "base/manifests.yaml")
 }
 
 func globalConformanceTestsListInfo(tests []ConformanceTest) string {

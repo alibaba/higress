@@ -16,6 +16,7 @@ package test
 
 import (
 	"flag"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,75 +24,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
-func TestPrepareHigressConformanceTests(t *testing.T) {
+func TestHigressConformanceTests(t *testing.T) {
 	flag.Parse()
-
-	cfg, err := config.GetConfig()
-	require.NoError(t, err)
-
-	client, err := client.New(cfg, client.Options{})
-	require.NoError(t, err)
-
-	require.NoError(t, v1.AddToScheme(client.Scheme()))
-
-	cSuite := suite.New(suite.Options{
-		Client:               client,
-		IngressClassName:     *flags.IngressClassName,
-		Debug:                *flags.ShowDebug,
-		CleanupBaseResources: false,
-		WASMOptions: suite.WASMOptions{
-			IsWasmPluginTest: *flags.IsWasmPluginTest,
-			WasmPluginName:   *flags.WasmPluginName,
-			WasmPluginType:   *flags.WasmPluginType,
-		},
-		GatewayAddress:             "localhost",
-		EnableAllSupportedFeatures: true,
-		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
-	})
-
-	cSuite.Setup(t)
-}
-
-func TestRunHigressConformanceTests(t *testing.T) {
-	flag.Parse()
-
-	cfg, err := config.GetConfig()
-	require.NoError(t, err)
-
-	client, err := client.New(cfg, client.Options{})
-	require.NoError(t, err)
-
-	require.NoError(t, v1.AddToScheme(client.Scheme()))
-
-	cSuite := suite.New(suite.Options{
-		Client:               client,
-		IngressClassName:     *flags.IngressClassName,
-		Debug:                *flags.ShowDebug,
-		CleanupBaseResources: false,
-		WASMOptions: suite.WASMOptions{
-			IsWasmPluginTest: *flags.IsWasmPluginTest,
-			WasmPluginName:   *flags.WasmPluginName,
-			WasmPluginType:   *flags.WasmPluginType,
-		},
-		GatewayAddress:             "localhost",
-		EnableAllSupportedFeatures: true,
-		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
-	})
-
-	cSuite.Run(t, tests.ConformanceTests)
-}
-
-func TestCleanHigressConformanceTests(t *testing.T) {
-	flag.Parse()
-
-	if !*flags.CleanupBaseResources {
-		return
-	}
 
 	cfg, err := config.GetConfig()
 	require.NoError(t, err)
@@ -116,5 +54,15 @@ func TestCleanHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Clean(t)
+	testArea := *flags.TestArea
+	testArea = strings.ToLower(testArea)
+	switch testArea {
+	case suite.TestAreaAll:
+		cSuite.Setup(t)
+		cSuite.Run(t, suite.ConformanceTests{})
+	case suite.TestAreaRun:
+		cSuite.Run(t, suite.ConformanceTests{})
+	case suite.TestAreaSetup:
+		cSuite.Setup(t)
+	}
 }
