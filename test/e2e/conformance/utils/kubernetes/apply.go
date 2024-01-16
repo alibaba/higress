@@ -111,7 +111,7 @@ func (a Applier) MustApplyObjectsWithCleanup(t *testing.T, c client.Client, time
 				ctx, cancel = context.WithTimeout(context.Background(), timeoutConfig.DeleteTimeout)
 				defer cancel()
 				t.Logf("🚮 Deleting %s %s", resource.GetName(), resource.GetObjectKind().GroupVersionKind().Kind)
-				err := c.Delete(ctx, resource)
+				err = c.Delete(ctx, resource)
 				require.NoErrorf(t, err, "error deleting resource")
 			})
 		}

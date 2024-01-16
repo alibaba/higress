@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
@@ -59,9 +60,9 @@ func TestHigressConformanceTests(t *testing.T) {
 	switch testArea {
 	case suite.TestAreaAll:
 		cSuite.Setup(t)
-		cSuite.Run(t, suite.ConformanceTests{})
+		cSuite.Run(t, tests.ConformanceTests)
 	case suite.TestAreaRun:
-		cSuite.Run(t, suite.ConformanceTests{})
+		cSuite.Run(t, tests.ConformanceTests)
 	case suite.TestAreaSetup:
 		cSuite.Setup(t)
 	}

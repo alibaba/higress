@@ -56,7 +56,6 @@ type Options struct {
 	GatewayAddress             string
 	IngressClassName           string
 	Debug                      bool
-	Cleanup                    bool
 	RoundTripper               roundtripper.RoundTripper
 	BaseManifests              []string
 	NamespaceLabels            map[string]string
@@ -144,6 +143,7 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	suite.Applier.IngressClass = suite.IngressClassName
 
 	t.Logf("📦 Test Setup: Applying base manifests")
+
 	for _, baseManifest := range suite.BaseManifests {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
 	}
