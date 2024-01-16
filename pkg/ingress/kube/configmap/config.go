@@ -34,14 +34,21 @@ const (
 type ItemEventHandler = func(name string)
 
 type HigressConfig struct {
-	Tracing *Tracing `json:"tracing,omitempty"`
-	Gzip    *Gzip    `json:"gzip,omitempty"`
+	Tracing              *Tracing    `json:"tracing,omitempty"`
+	Gzip                 *Gzip       `json:"gzip,omitempty"`
+	Downstream           *Downstream `json:"downstream,omitempty"`
+	DisableXEnvoyHeaders bool        `json:"disableXEnvoyHeaders,omitempty"`
+	AddXRealIpHeader     bool        `json:"addXRealIpHeader,omitempty"`
 }
 
 func NewDefaultHigressConfig() *HigressConfig {
+	globalOption := NewDefaultGlobalOption()
 	higressConfig := &HigressConfig{
-		Tracing: NewDefaultTracing(),
-		Gzip:    NewDefaultGzip(),
+		Tracing:              NewDefaultTracing(),
+		Gzip:                 NewDefaultGzip(),
+		Downstream:           globalOption.Downstream,
+		DisableXEnvoyHeaders: globalOption.DisableXEnvoyHeaders,
+		AddXRealIpHeader:     globalOption.AddXRealIpHeader,
 	}
 	return higressConfig
 }

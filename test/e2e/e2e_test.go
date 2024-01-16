@@ -16,7 +16,6 @@ package test
 
 import (
 	"flag"
-	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/alibaba/higress/test/e2e/conformance/tests"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
@@ -40,9 +40,10 @@ func TestPrepareHigressConformanceTests(t *testing.T) {
 	require.NoError(t, v1.AddToScheme(client.Scheme()))
 
 	cSuite := suite.New(suite.Options{
-		Client:           client,
-		IngressClassName: *flags.IngressClassName,
-		Debug:            *flags.ShowDebug,
+		Client:               client,
+		IngressClassName:     *flags.IngressClassName,
+		Debug:                *flags.ShowDebug,
+		CleanupBaseResources: false,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -68,9 +69,10 @@ func TestRunHigressConformanceTests(t *testing.T) {
 	require.NoError(t, v1.AddToScheme(client.Scheme()))
 
 	cSuite := suite.New(suite.Options{
-		Client:           client,
-		IngressClassName: *flags.IngressClassName,
-		Debug:            *flags.ShowDebug,
+		Client:               client,
+		IngressClassName:     *flags.IngressClassName,
+		Debug:                *flags.ShowDebug,
+		CleanupBaseResources: false,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -87,6 +89,10 @@ func TestRunHigressConformanceTests(t *testing.T) {
 func TestCleanHigressConformanceTests(t *testing.T) {
 	flag.Parse()
 
+	if !*flags.CleanupBaseResources {
+		return
+	}
+
 	cfg, err := config.GetConfig()
 	require.NoError(t, err)
 
@@ -96,9 +102,10 @@ func TestCleanHigressConformanceTests(t *testing.T) {
 	require.NoError(t, v1.AddToScheme(client.Scheme()))
 
 	cSuite := suite.New(suite.Options{
-		Client:           client,
-		IngressClassName: *flags.IngressClassName,
-		Debug:            *flags.ShowDebug,
+		Client:               client,
+		IngressClassName:     *flags.IngressClassName,
+		Debug:                *flags.ShowDebug,
+		CleanupBaseResources: *flags.CleanupBaseResources,
 		WASMOptions: suite.WASMOptions{
 			IsWasmPluginTest: *flags.IsWasmPluginTest,
 			WasmPluginName:   *flags.WasmPluginName,
@@ -109,5 +116,5 @@ func TestCleanHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Cleanup(t)
+	cSuite.Clean(t)
 }

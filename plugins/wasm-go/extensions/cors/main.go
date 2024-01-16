@@ -17,6 +17,7 @@ package main
 import (
 	"cors/config"
 	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
@@ -93,7 +94,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if !httpCorsContext.IsValid {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(403, headers, []byte("Invalid CORS request"), -1)
+		proxywasm.SendHttpResponse(http.StatusForbidden, headers, []byte("Invalid CORS request"), -1)
 		return types.ActionPause
 	}
 
@@ -101,7 +102,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if httpCorsContext.IsPreFlight {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(200, headers, nil, -1)
+		proxywasm.SendHttpResponse(http.StatusOK, headers, nil, -1)
 		return types.ActionPause
 	}
 
