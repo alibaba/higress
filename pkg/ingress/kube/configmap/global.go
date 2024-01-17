@@ -428,8 +428,7 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 		initialStreamWindowSize := downstream.Http2.InitialStreamWindowSize
 		initialConnectionWindowSize := downstream.Http2.InitialConnectionWindowSize
 
-		if idleTimeout != 0 {
-			downstreamConfig = fmt.Sprintf(`
+		downstreamConfig = fmt.Sprintf(`
 		{
 			"name": "envoy.filters.network.http_connection_manager",
 			"typed_config": {
@@ -447,28 +446,11 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			}
 		}
 `, idleTimeout, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb, idleTimeout)
-		} else {
-			// if idleTimeout is 0, don't push it to envoy
-			downstreamConfig = fmt.Sprintf(`
-		{
-			"name": "envoy.filters.network.http_connection_manager",
-			"typed_config": {
-				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-				"http2_protocol_options": {
-					"maxConcurrentStreams": %d,
-					"initialStreamWindowSize": %d,
-					"initialConnectionWindowSize": %d
-				},
-				"maxRequestHeadersKb": %d
-			}
-		}
-`, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb)
-		}
+
 		return downstreamConfig
 	}
 
-	if idleTimeout != 0 {
-		downstreamConfig = fmt.Sprintf(`
+	downstreamConfig = fmt.Sprintf(`
 		{
 			"name": "envoy.filters.network.http_connection_manager",
 			"typed_config": {
@@ -481,18 +463,6 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			}
 		}
 `, idleTimeout, maxRequestHeadersKb, idleTimeout)
-	} else {
-		// if idleTimeout is 0, don't push it to envoy
-		downstreamConfig = fmt.Sprintf(`
-		{
-			"name": "envoy.filters.network.http_connection_manager",
-			"typed_config": {
-				"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-				"maxRequestHeadersKb": %d
-			}
-		}
-`, maxRequestHeadersKb)
-	}
 
 	return downstreamConfig
 }
