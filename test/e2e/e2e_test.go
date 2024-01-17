@@ -55,6 +55,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
+	// Run the test suite
 	testArea := *flags.TestArea
 	testArea = strings.ToLower(testArea)
 	switch testArea {
