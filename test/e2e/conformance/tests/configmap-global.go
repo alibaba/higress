@@ -610,23 +610,12 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						CheckType:       envoy.CheckTypeExist,
 						TargetNamespace: "higress-system",
 						ExpectEnvoyConfig: map[string]interface{}{
-							"http2_protocol_options": map[string]interface{}{
-								"max_concurrent_streams":         100,
-								"initial_stream_window_size":     65535,
-								"initial_connection_window_size": 1048576,
-							},
-							"max_request_headers_kb": 60,
-						},
-					},
-					{
-						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config",
-						CheckType:       envoy.CheckTypeNotExist,
-						TargetNamespace: "higress-system",
-						ExpectEnvoyConfig: map[string]interface{}{
-							"stream_idle_timeout": "180s",
-							"common_http_protocol_options": map[string]interface{}{
-								"idle_timeout": "180s",
-							},
+							"max_concurrent_streams":         100,
+							"initial_stream_window_size":     65535,
+							"initial_connection_window_size": 1048576,
+							"stream_idle_timeout":            "0s",
+							"max_request_headers_kb":         60,
+							"idle_timeout":                   "0s",
 						},
 					},
 				},

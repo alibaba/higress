@@ -446,7 +446,6 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 			}
 		}
 `, idleTimeout, maxConcurrentStreams, initialStreamWindowSize, initialConnectionWindowSize, maxRequestHeadersKb, idleTimeout)
-
 		return downstreamConfig
 	}
 
