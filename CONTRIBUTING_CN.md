@@ -73,6 +73,7 @@
 * [分支定义](#分支定义)
 * [提交规则](#提交规则)
 * [PR说明](#PR说明)
+* [开发前准备](#开发前准备)
 
 ### 工作区准备
 
@@ -167,6 +168,12 @@ git config --get user.email
 ### PR说明
 
 PR 是更改 Higress 项目文件的唯一方法。为了帮助审查人更好地理解你的目的，PR 描述不能太详细。我们鼓励贡献者遵循 [PR 模板](./.github/PULL_REQUEST_TEMPLATE.md) 来完成拉取请求。
+
+### 开发前准备
+
+```shell
+make prebuild && go mod tidy
+```
 
 ## 测试用例贡献
 
