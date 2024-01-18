@@ -1,0 +1,373 @@
+diff -Naur istio/pilot/pkg/model/push_context.go istio-new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2024-01-15 20:46:45.000000000 +0800
++++ istio-new/pilot/pkg/model/push_context.go	2024-01-15 19:20:45.000000000 +0800
+@@ -96,6 +96,9 @@
+ 	publicByGateway map[string][]config.Config
+ 	// root vs namespace/name ->delegate vs virtualservice gvk/namespace/name
+ 	delegates map[ConfigKey][]ConfigKey
++	// Added by ingress
++	byHost map[string][]config.Config
++	// End added by ingress
+ }
+ 
+ func newVirtualServiceIndex() virtualServiceIndex {
+@@ -104,6 +107,9 @@
+ 		privateByNamespaceAndGateway: map[string]map[string][]config.Config{},
+ 		exportedToNamespaceByGateway: map[string]map[string][]config.Config{},
+ 		delegates:                    map[ConfigKey][]ConfigKey{},
++		// Added by ingress
++		byHost: map[string][]config.Config{},
++		// End added by ingress
+ 	}
+ }
+ 
+@@ -857,6 +863,13 @@
+ 	return res
+ }
+ 
++// Added by ingress
++func (ps *PushContext) VirtualServicesForHost(proxy *Proxy, host string) []config.Config {
++	return ps.virtualServiceIndex.byHost[host]
++}
++
++// End added by ingress
++
+ // DelegateVirtualServicesConfigKey lists all the delegate virtual services configkeys associated with the provided virtual services
+ func (ps *PushContext) DelegateVirtualServicesConfigKey(vses []config.Config) []ConfigKey {
+ 	var out []ConfigKey
+@@ -1468,6 +1481,11 @@
+ 	for _, virtualService := range vservices {
+ 		ns := virtualService.Namespace
+ 		rule := virtualService.Spec.(*networking.VirtualService)
++		// Added by ingress
++		for _, host := range rule.Hosts {
++			ps.virtualServiceIndex.byHost[host] = append(ps.virtualServiceIndex.byHost[host], virtualService)
++		}
++		// End added by ingress
+ 		gwNames := getGatewayNames(rule)
+ 		if len(rule.ExportTo) == 0 {
+ 			// No exportTo in virtualService. Use the global default
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-15 20:46:45.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-15 20:04:05.000000000 +0800
+@@ -28,6 +28,7 @@
+ 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+ 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+ 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
++	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+ 	"github.com/hashicorp/go-multierror"
+ 
+ 	meshconfig "istio.io/api/mesh/v1alpha1"
+@@ -35,6 +36,7 @@
+ 	"istio.io/istio/pilot/pkg/features"
+ 	"istio.io/istio/pilot/pkg/model"
+ 	istionetworking "istio.io/istio/pilot/pkg/networking"
++	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/envoyfilter"
+ 	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/extension"
+ 	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
+ 	istio_route "istio.io/istio/pilot/pkg/networking/core/v1alpha3/route"
+@@ -423,8 +425,15 @@
+ 	gatewayName    string
+ }
+ 
+-func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(node *model.Proxy, push *model.PushContext,
+-	routeName string) *route.RouteConfiguration {
++func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(
++	node *model.Proxy,
++	req *model.PushRequest,
++	routeName string,
++	vsCache map[int][]virtualServiceContext,
++	efw *model.EnvoyFilterWrapper,
++	efKeys []string,
++) (*discovery.Resource, bool) {
++	push := req.Push
+ 	var (
+ 		hostRDSPort string
+ 		hostRDSHost string
+@@ -432,7 +441,7 @@
+ 	portAndHost := strings.SplitN(strings.TrimPrefix(routeName, constants.HigressHostRDSNamePrefix), ".", 2)
+ 	if len(portAndHost) != 2 {
+ 		log.Errorf("Invalid route %s when using Higress hostRDS", routeName)
+-		return nil
++		return nil, false
+ 	}
+ 	hostRDSPort = portAndHost[0]
+ 	hostRDSHost = portAndHost[1]
+@@ -441,10 +450,24 @@
+ 	rdsPort, err := strconv.Atoi(hostRDSPort)
+ 	if err != nil {
+ 		log.Errorf("Invalid port %s of route %s when using Higress hostRDS", hostRDSPort, routeName)
+-		return nil
++		return nil, false
++	}
++
++	routeCache := &istio_route.Cache{
++		RouteName:    routeName,
++		ProxyVersion: node.Metadata.IstioVersion,
++		ListenerPort: rdsPort,
++		// Use same host vs to cache, although the cache can be cleared when the port is different, this can be accepted
++		VirtualServices: push.VirtualServicesForHost(node, hostRDSHost),
++		EnvoyFilterKeys: efKeys,
++	}
++
++	resource, exist := configgen.Cache.Get(routeCache)
++	if exist {
++		return resource, true
+ 	}
++
+ 	listenerPort := uint32(rdsPort)
+-	globalHTTPFilters := mseingress.ExtractGlobalHTTPFilters(node, push)
+ 
+ 	isH3DiscoveryNeeded := false
+ 
+@@ -457,9 +480,9 @@
+ 			break
+ 		}
+ 	}
+-
+ 	gatewayRoutes := make(map[string]map[string][]*route.Route)
+ 	gatewayVirtualServices := make(map[string][]config.Config)
++	var listenerVirtualServices []virtualServiceContext
+ 	var selectedVirtualServices []virtualServiceContext
+ 	var vHost *route.VirtualHost
+ 	serverIterator := func(mergedServers map[model.ServerPort]*model.MergedServers) {
+@@ -478,31 +501,8 @@
+ 					gatewayVirtualServices[gatewayName] = virtualServices
+ 				}
+ 				for _, virtualService := range virtualServices {
+-					hostMatch := false
+-					var selectHost string
+-					virtualServiceHosts := host.NewNames(virtualService.Spec.(*networking.VirtualService).Hosts)
+-					for _, hostname := range virtualServiceHosts {
+-						// exact match
+-						if hostname == host.Name(hostRDSHost) {
+-							hostMatch = true
+-							selectHost = hostRDSHost
+-							break
+-						}
+-						if features.HostRDSMergeSubset {
+-							// subset match
+-							if host.Name(hostRDSHost).SubsetOf(hostname) {
+-								hostMatch = true
+-								selectHost = string(hostname)
+-							}
+-						}
+-					}
+-					if !hostMatch {
+-						continue
+-					}
+-					copiedVS := virtualService.DeepCopy()
+-					copiedVS.Spec.(*networking.VirtualService).Hosts = []string{selectHost}
+-					selectedVirtualServices = append(selectedVirtualServices, virtualServiceContext{
+-						virtualService: copiedVS,
++					listenerVirtualServices = append(listenerVirtualServices, virtualServiceContext{
++						virtualService: virtualService,
+ 						server:         server,
+ 						gatewayName:    gatewayName,
+ 					})
+@@ -510,15 +510,63 @@
+ 			}
+ 		}
+ 	}
+-	serverIterator(merged.MergedServers)
+-	serverIterator(merged.MergedQUICTransportServers)
+-	// Sort by subset
+-	// before: ["*.abc.com", "*.com", "www.abc.com"]
+-	// after: ["www.abc.com", "*.abc.com", "*.com"]
+-	sort.SliceStable(selectedVirtualServices, func(i, j int) bool {
+-		return host.Name(selectedVirtualServices[i].virtualService.Spec.(*networking.VirtualService).Hosts[0]).SubsetOf(
+-			host.Name(selectedVirtualServices[j].virtualService.Spec.(*networking.VirtualService).Hosts[0]))
+-	})
++	var vsExists bool
++	if listenerVirtualServices, vsExists = vsCache[rdsPort]; !vsExists {
++		serverIterator(merged.MergedServers)
++		serverIterator(merged.MergedQUICTransportServers)
++		vsCache[rdsPort] = listenerVirtualServices
++	}
++	for _, vsCtx := range listenerVirtualServices {
++		virtualService := vsCtx.virtualService
++		hostMatch := false
++		var selectHost string
++		for _, hostname := range virtualService.Spec.(*networking.VirtualService).Hosts {
++			// exact match
++			if hostname == hostRDSHost {
++				hostMatch = true
++				selectHost = hostRDSHost
++				break
++			}
++			if features.HostRDSMergeSubset {
++				// subset match
++				if host.Name(hostRDSHost).SubsetOf(host.Name(hostname)) {
++					hostMatch = true
++					selectHost = hostname
++				}
++			}
++		}
++		if !hostMatch {
++			continue
++		}
++		if len(virtualService.Spec.(*networking.VirtualService).Hosts) > 1 {
++			copiedVS := &networking.VirtualService{}
++			copiedVS = virtualService.Spec.(*networking.VirtualService)
++			copiedVS.Hosts = []string{selectHost}
++			selectedVirtualServices = append(selectedVirtualServices, virtualServiceContext{
++				virtualService: config.Config{
++					Meta:   virtualService.Meta,
++					Spec:   copiedVS,
++					Status: virtualService.Status,
++				},
++				server:      vsCtx.server,
++				gatewayName: vsCtx.gatewayName,
++			})
++		} else {
++			selectedVirtualServices = append(selectedVirtualServices, vsCtx)
++		}
++	}
++	if features.HostRDSMergeSubset {
++		// Sort by subset
++		// before: ["*.abc.com", "*.com", "www.abc.com"]
++		// after: ["www.abc.com", "*.abc.com", "*.com"]
++		sort.SliceStable(selectedVirtualServices, func(i, j int) bool {
++			return host.Name(selectedVirtualServices[i].virtualService.Spec.(*networking.VirtualService).Hosts[0]).SubsetOf(
++				host.Name(selectedVirtualServices[j].virtualService.Spec.(*networking.VirtualService).Hosts[0]))
++		})
++	}
++
++	globalHTTPFilters := mseingress.ExtractGlobalHTTPFilters(node, push)
++
+ 	port := int(listenerPort)
+ 	for _, ctx := range selectedVirtualServices {
+ 		virtualService := ctx.virtualService
+@@ -605,25 +653,42 @@
+ 		ValidateClusters: proto.BoolFalse,
+ 	}
+ 
+-	return routeCfg
++	routeCfg = envoyfilter.ApplyRouteConfigurationPatches(networking.EnvoyFilter_GATEWAY, node, efw, routeCfg)
++	resource = &discovery.Resource{
++		Name:     routeName,
++		Resource: util.MessageToAny(routeCfg),
++	}
++
++	if features.EnableRDSCaching {
++		configgen.Cache.Add(routeCache, req, resource)
++	}
++
++	return resource, false
+ }
+ 
+ // End added by ingress
+ 
+-func (configgen *ConfigGeneratorImpl) buildGatewayHTTPRouteConfig(node *model.Proxy, push *model.PushContext,
+-	routeName string) *route.RouteConfiguration {
++// Modifed by ingress
++func (configgen *ConfigGeneratorImpl) buildGatewayHTTPRouteConfig(
++	node *model.Proxy,
++	req *model.PushRequest,
++	routeName string,
++	vsCache map[int][]virtualServiceContext,
++	efw *model.EnvoyFilterWrapper,
++	efKeys []string,
++) (*discovery.Resource, bool) {
+ 	if node.MergedGateway == nil {
+ 		log.Warnf("buildGatewayRoutes: no gateways for router %v", node.ID)
+-		return &route.RouteConfiguration{
+-			Name:             routeName,
+-			VirtualHosts:     []*route.VirtualHost{},
+-			ValidateClusters: proto.BoolFalse,
+-		}
++		return nil, false
+ 	}
+-
+ 	// Added by ingress
++	push := req.Push
+ 	if strings.HasPrefix(routeName, constants.HigressHostRDSNamePrefix) {
+-		return configgen.buildHostRDSConfig(node, push, routeName)
++		resource, cacheHit := configgen.buildHostRDSConfig(node, req, routeName, vsCache, efw, efKeys)
++		if resource == nil {
++			return nil, false
++		}
++		return resource, cacheHit
+ 	}
+ 	// End added by ingress
+ 
+@@ -636,7 +701,7 @@
+ 
+ 		// This can happen when a gateway has recently been deleted. Envoy will still request route
+ 		// information due to the draining of listeners, so we should not return an error.
+-		return nil
++		return nil, false
+ 	}
+ 
+ 	servers := merged.ServersByRouteName[routeName]
+@@ -768,9 +833,16 @@
+ 		ValidateClusters: proto.BoolFalse,
+ 	}
+ 
+-	return routeCfg
++	routeCfg = envoyfilter.ApplyRouteConfigurationPatches(networking.EnvoyFilter_GATEWAY, node, efw, routeCfg)
++	resource := &discovery.Resource{
++		Name:     routeName,
++		Resource: util.MessageToAny(routeCfg),
++	}
++	return resource, false
+ }
+ 
++// End modified by ingress
++
+ // hashRouteList returns a hash of a list of pointers
+ func hashRouteList(r []*route.Route) uint64 {
+ 	hash := md5.New()
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/httproute.go istio-new/pilot/pkg/networking/core/v1alpha3/httproute.go
+--- istio/pilot/pkg/networking/core/v1alpha3/httproute.go	2024-01-15 20:46:41.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/httproute.go	2024-01-15 10:29:09.000000000 +0800
+@@ -78,17 +78,30 @@
+ 			routeConfigurations = append(routeConfigurations, rc)
+ 		}
+ 	case model.Router:
++		// Modified by ingress
++		vsCache := make(map[int][]virtualServiceContext)
++		envoyfilterKeys := efw.Keys()
+ 		for _, routeName := range routeNames {
+-			rc := configgen.buildGatewayHTTPRouteConfig(node, req.Push, routeName)
+-			if rc != nil {
+-				rc = envoyfilter.ApplyRouteConfigurationPatches(networking.EnvoyFilter_GATEWAY, node, efw, rc)
+-				resource := &discovery.Resource{
++			rc, cached := configgen.buildGatewayHTTPRouteConfig(node, req, routeName, vsCache, efw, envoyfilterKeys)
++			if cached && !features.EnableUnsafeAssertions {
++				hit++
++			} else {
++				miss++
++			}
++			if rc == nil {
++				emptyRoute := &route.RouteConfiguration{
++					Name:             routeName,
++					VirtualHosts:     []*route.VirtualHost{},
++					ValidateClusters: proto.BoolFalse,
++				}
++				rc = &discovery.Resource{
+ 					Name:     routeName,
+-					Resource: util.MessageToAny(rc),
++					Resource: util.MessageToAny(emptyRoute),
+ 				}
+-				routeConfigurations = append(routeConfigurations, resource)
+ 			}
++			routeConfigurations = append(routeConfigurations, rc)
+ 		}
++		// End modified by ingress
+ 	}
+ 	if !features.EnableRDSCaching {
+ 		return routeConfigurations, model.DefaultXdsLogDetails
+diff -Naur istio/pilot/pkg/xds/discovery.go istio-new/pilot/pkg/xds/discovery.go
+--- istio/pilot/pkg/xds/discovery.go	2024-01-15 20:46:45.000000000 +0800
++++ istio-new/pilot/pkg/xds/discovery.go	2024-01-12 19:56:02.000000000 +0800
+@@ -392,6 +392,9 @@
+ // ConfigUpdate implements ConfigUpdater interface, used to request pushes.
+ // It replaces the 'clear cache' from v1.
+ func (s *DiscoveryServer) ConfigUpdate(req *model.PushRequest) {
++	if req.Full {
++		log.Infof("full push happen, reason:%v", req.Reason)
++	}
+ 	inboundConfigUpdates.Increment()
+ 	s.InboundUpdates.Inc()
+ 	s.pushChannel <- req
