@@ -17,6 +17,8 @@ package main
 import (
 	"cors/config"
 	"fmt"
+	"net/http"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
@@ -28,8 +30,6 @@ func main() {
 		"cors",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 	)
 }
@@ -94,7 +94,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if !httpCorsContext.IsValid {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(403, headers, []byte("Invalid CORS request"), -1)
+		proxywasm.SendHttpResponse(http.StatusForbidden, headers, []byte("Invalid CORS request"), -1)
 		return types.ActionPause
 	}
 
@@ -102,15 +102,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if httpCorsContext.IsPreFlight {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(200, headers, nil, -1)
+		proxywasm.SendHttpResponse(http.StatusOK, headers, nil, -1)
 		return types.ActionPause
 	}
 
-	return types.ActionContinue
-}
-
-func onHttpRequestBody(ctx wrapper.HttpContext, corsConfig config.CorsConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debug("onHttpRequestBody()")
 	return types.ActionContinue
 }
 
@@ -160,10 +155,5 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig
 		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlMaxAge, fmt.Sprintf("%d", httpCorsContext.MaxAge))
 	}
 
-	return types.ActionContinue
-}
-
-func onHttpResponseBody(ctx wrapper.HttpContext, corsConfig config.CorsConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debug("onHttpResponseBody()")
 	return types.ActionContinue
 }

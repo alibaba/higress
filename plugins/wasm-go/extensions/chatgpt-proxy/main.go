@@ -92,20 +92,20 @@ const bodyTemplate string = `
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log wrapper.Log) types.Action {
 	pairs := strings.SplitN(ctx.Path(), "?", 2)
-	
+
 	if len(pairs) < 2 {
-		proxywasm.SendHttpResponse(400, nil, []byte("1-need prompt param"), -1)
+		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("1-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	querys, err := url.ParseQuery(pairs[1])
 	if err != nil {
-		proxywasm.SendHttpResponse(400, nil, []byte("2-need prompt param"), -1)
+		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("2-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	var prompt []string
 	var ok bool
 	if prompt, ok = querys[config.PromptParam]; !ok || len(prompt) == 0 {
-		proxywasm.SendHttpResponse(400, nil, []byte("3-need prompt param"), -1)
+		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("3-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	body := fmt.Sprintf(bodyTemplate, config.Model, prompt[0], config.HumainId, config.AIId)
@@ -121,7 +121,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 			proxywasm.SendHttpResponse(uint32(statusCode), headers, responseBody, -1)
 		}, 10000)
 	if err != nil {
-		proxywasm.SendHttpResponse(500, nil, []byte("Internel Error: "+err.Error()), -1)
+		proxywasm.SendHttpResponse(http.StatusInternalServerError, nil, []byte("Internel Error: "+err.Error()), -1)
 		return types.ActionContinue
 	}
 	return types.ActionPause

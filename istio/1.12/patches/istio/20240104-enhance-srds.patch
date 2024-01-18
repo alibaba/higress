@@ -1,0 +1,633 @@
+diff -Naur istio/pilot/pkg/features/pilot.go istio-new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pilot/pkg/features/pilot.go	2024-01-04 21:20:00.000000000 +0800
+@@ -569,6 +569,12 @@
+ 	// Added by ingress
+ 	CustomCACertConfigMapName = env.RegisterStringVar("CUSTOM_CA_CERT_NAME", "",
+ 		"Defines the configmap's name of  istio's root ca certificate").Get()
++	HostRDSMergeSubset = env.RegisterBoolVar("HOST_RDS_MERGE_SUBSET", true,
++		"If enabled, if host A is a subset of B, then we merge B's routes into A's hostRDS").Get()
++	EnableScopedRDS = env.RegisterBoolVar("ENBALE_SCOPED_RDS", true,
++		"If enabled, each host in virtualservice will have an independent RDS, which is used with SRDS").Get()
++	OnDemandRDS = env.RegisterBoolVar("ON_DEMAND_RDS", false,
++		"If enabled, the on demand filter will be added to the HCM filters").Get()
+ 	// End added by ingress
+ )
+ 
+diff -Naur istio/pilot/pkg/networking/core/configgen.go istio-new/pilot/pkg/networking/core/configgen.go
+--- istio/pilot/pkg/networking/core/configgen.go	2024-01-05 17:58:02.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/configgen.go	2024-01-04 21:20:00.000000000 +0800
+@@ -17,6 +17,7 @@
+ import (
+ 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+ 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
++	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+ 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+ 
+ 	meshconfig "istio.io/api/mesh/v1alpha1"
+@@ -44,6 +45,10 @@
+ 	// BuildHTTPRoutes returns the list of HTTP routes for the given proxy. This is the RDS output
+ 	BuildHTTPRoutes(node *model.Proxy, req *model.PushRequest, routeNames []string) ([]*discovery.Resource, model.XdsLogDetails)
+ 
++	// Added by ingress
++	BuildScopedRoutes(node *model.Proxy, push *model.PushContext) []*route.ScopedRouteConfiguration
++	// End added by ingress
++
+ 	// BuildNameTable returns list of hostnames and the associated IPs
+ 	BuildNameTable(node *model.Proxy, push *model.PushContext) *dnsProto.NameTable
+ 
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-01-05 11:19:54.000000000 +0800
+@@ -41,7 +41,9 @@
+ 	"istio.io/istio/pilot/pkg/networking/plugin"
+ 	"istio.io/istio/pilot/pkg/networking/util"
+ 	authn_model "istio.io/istio/pilot/pkg/security/model"
++	"istio.io/istio/pilot/pkg/util/sets"
+ 	"istio.io/istio/pkg/config"
++	"istio.io/istio/pkg/config/constants"
+ 	"istio.io/istio/pkg/config/gateway"
+ 	"istio.io/istio/pkg/config/host"
+ 	"istio.io/istio/pkg/config/protocol"
+@@ -104,10 +106,15 @@
+ 			// We can also have QUIC on a given port along with HTTPS/TLS on a given port. It does not
+ 			// cause port-conflict as they use different transport protocols
+ 			opts := &buildListenerOpts{
+-				push:       builder.push,
+-				proxy:      builder.node,
+-				bind:       bind,
+-				port:       &model.Port{Port: int(port.Number)},
++				push:  builder.push,
++				proxy: builder.node,
++				bind:  bind,
++				port: &model.Port{
++					Port: int(port.Number),
++					// Added by ingress
++					Protocol: protocol.Parse(port.Protocol),
++					// End added by ingress
++				},
+ 				bindToPort: true,
+ 				class:      istionetworking.ListenerClassGateway,
+ 				transport:  transport,
+@@ -340,6 +347,269 @@
+ 	return nameToServiceMap
+ }
+ 
++// Added by ingress
++func (configgen *ConfigGeneratorImpl) BuildScopedRoutes(node *model.Proxy, push *model.PushContext) []*route.ScopedRouteConfiguration {
++	if node.MergedGateway == nil {
++		log.Warnf("buildScopedRoutes: no gateways for router %v", node.ID)
++		return nil
++	}
++	merged := node.MergedGateway
++	var out []*route.ScopedRouteConfiguration
++	gatewayVirtualServices := make(map[string][]config.Config)
++	serverIterator := func(listenerPort int, mergedServers map[model.ServerPort]*model.MergedServers) sets.Set {
++		hostSet := sets.NewSet()
++		for port, servers := range mergedServers {
++			if port.Number != uint32(listenerPort) {
++				continue
++			}
++			for _, server := range servers.Servers {
++				gatewayName := merged.GatewayNameForServer[server]
++
++				var virtualServices []config.Config
++				var exists bool
++
++				if virtualServices, exists = gatewayVirtualServices[gatewayName]; !exists {
++					virtualServices = push.VirtualServicesForGateway(node, gatewayName)
++					gatewayVirtualServices[gatewayName] = virtualServices
++				}
++				for _, virtualService := range virtualServices {
++					for _, host := range virtualService.Spec.(*networking.VirtualService).Hosts {
++						hostSet.Insert(host)
++					}
++				}
++			}
++		}
++		return hostSet
++	}
++	buildPortHostScopedRoute := func(listenerPort model.ServerPort) {
++		p := protocol.Parse(listenerPort.Protocol)
++		if !p.IsHTTP() && p != protocol.HTTPS {
++			return
++		}
++		port := strconv.Itoa(int(listenerPort.Number))
++		hostSet := serverIterator(int(listenerPort.Number), merged.MergedServers).
++			Union(serverIterator(int(listenerPort.Number), merged.MergedQUICTransportServers))
++		for host, _ := range hostSet {
++			portKey := &route.ScopedRouteConfiguration_Key_Fragment{
++				Type: &route.ScopedRouteConfiguration_Key_Fragment_StringKey{
++					StringKey: port,
++				},
++			}
++			hostKey := &route.ScopedRouteConfiguration_Key_Fragment{
++				Type: &route.ScopedRouteConfiguration_Key_Fragment_StringKey{
++					StringKey: host,
++				},
++			}
++			name := strings.Join([]string{port, host}, ".")
++			out = append(out, &route.ScopedRouteConfiguration{
++				OnDemand:               features.OnDemandRDS,
++				Name:                   name,
++				RouteConfigurationName: constants.HigressHostRDSNamePrefix + name,
++				Key: &route.ScopedRouteConfiguration_Key{
++					Fragments: []*route.ScopedRouteConfiguration_Key_Fragment{portKey, hostKey},
++				},
++			})
++		}
++	}
++	for _, port := range merged.ServerPorts {
++		buildPortHostScopedRoute(port)
++	}
++	return out
++}
++
++type virtualServiceContext struct {
++	virtualService config.Config
++	server         *networking.Server
++	gatewayName    string
++}
++
++func (configgen *ConfigGeneratorImpl) buildHostRDSConfig(node *model.Proxy, push *model.PushContext,
++	routeName string) *route.RouteConfiguration {
++	var (
++		hostRDSPort string
++		hostRDSHost string
++	)
++	portAndHost := strings.SplitN(strings.TrimPrefix(routeName, constants.HigressHostRDSNamePrefix), ".", 2)
++	if len(portAndHost) != 2 {
++		log.Errorf("Invalid route %s when using Higress hostRDS", routeName)
++		return nil
++	}
++	hostRDSPort = portAndHost[0]
++	hostRDSHost = portAndHost[1]
++	merged := node.MergedGateway
++	log.Debugf("buildGatewayRoutes: gateways after merging: %v", merged)
++	rdsPort, err := strconv.Atoi(hostRDSPort)
++	if err != nil {
++		log.Errorf("Invalid port %s of route %s when using Higress hostRDS", hostRDSPort, routeName)
++		return nil
++	}
++	listenerPort := uint32(rdsPort)
++	globalHTTPFilters := mseingress.ExtractGlobalHTTPFilters(node, push)
++
++	isH3DiscoveryNeeded := false
++
++	// When this is true, we add alt-svc header to the response to tell the client
++	// that HTTP/3 over QUIC is available on the same port for this host. This is
++	// very important for discovering HTTP/3 services
++	for port, servers := range merged.MergedQUICTransportServers {
++		if port.Number == listenerPort && len(servers.Servers) > 0 {
++			isH3DiscoveryNeeded = true
++			break
++		}
++	}
++
++	gatewayRoutes := make(map[string]map[string][]*route.Route)
++	gatewayVirtualServices := make(map[string][]config.Config)
++	var selectedVirtualServices []virtualServiceContext
++	var vHost *route.VirtualHost
++	serverIterator := func(mergedServers map[model.ServerPort]*model.MergedServers) {
++		for port, servers := range mergedServers {
++			if port.Number != listenerPort {
++				continue
++			}
++			for _, server := range servers.Servers {
++				gatewayName := merged.GatewayNameForServer[server]
++
++				var virtualServices []config.Config
++				var exists bool
++
++				if virtualServices, exists = gatewayVirtualServices[gatewayName]; !exists {
++					virtualServices = push.VirtualServicesForGateway(node, gatewayName)
++					gatewayVirtualServices[gatewayName] = virtualServices
++				}
++				for _, virtualService := range virtualServices {
++					hostMatch := false
++					var selectHost string
++					virtualServiceHosts := host.NewNames(virtualService.Spec.(*networking.VirtualService).Hosts)
++					for _, hostname := range virtualServiceHosts {
++						// exact match
++						if hostname == host.Name(hostRDSHost) {
++							hostMatch = true
++							selectHost = hostRDSHost
++							break
++						}
++						if features.HostRDSMergeSubset {
++							// subset match
++							if host.Name(hostRDSHost).SubsetOf(hostname) {
++								hostMatch = true
++								selectHost = string(hostname)
++							}
++						}
++					}
++					if !hostMatch {
++						continue
++					}
++					copiedVS := virtualService.DeepCopy()
++					copiedVS.Spec.(*networking.VirtualService).Hosts = []string{selectHost}
++					selectedVirtualServices = append(selectedVirtualServices, virtualServiceContext{
++						virtualService: copiedVS,
++						server:         server,
++						gatewayName:    gatewayName,
++					})
++				}
++			}
++		}
++	}
++	serverIterator(merged.MergedServers)
++	serverIterator(merged.MergedQUICTransportServers)
++	// Sort by subset
++	// before: ["*.abc.com", "*.com", "www.abc.com"]
++	// after: ["www.abc.com", "*.abc.com", "*.com"]
++	sort.SliceStable(selectedVirtualServices, func(i, j int) bool {
++		return host.Name(selectedVirtualServices[i].virtualService.Spec.(*networking.VirtualService).Hosts[0]).SubsetOf(
++			host.Name(selectedVirtualServices[j].virtualService.Spec.(*networking.VirtualService).Hosts[0]))
++	})
++	port := int(listenerPort)
++	for _, ctx := range selectedVirtualServices {
++		virtualService := ctx.virtualService
++		server := ctx.server
++		gatewayName := ctx.gatewayName
++		// Make sure we can obtain services which are visible to this virtualService as much as possible.
++		nameToServiceMap := buildNameToServiceMapForHTTPRoutes(node, push, virtualService)
++
++		var routes []*route.Route
++		var exists bool
++		var err error
++		if _, exists = gatewayRoutes[gatewayName]; !exists {
++			gatewayRoutes[gatewayName] = make(map[string][]*route.Route)
++		}
++
++		vskey := virtualService.Name + "/" + virtualService.Namespace
++
++		if routes, exists = gatewayRoutes[gatewayName][vskey]; !exists {
++			hashByDestination := istio_route.GetConsistentHashForVirtualService(push, node, virtualService, nameToServiceMap)
++			routes, err = istio_route.BuildHTTPRoutesForVirtualServiceWithHTTPFilters(node, virtualService, nameToServiceMap,
++				hashByDestination, port, map[string]bool{gatewayName: true}, isH3DiscoveryNeeded, push.Mesh, globalHTTPFilters)
++			if err != nil {
++				log.Debugf("%s omitting routes for virtual service %v/%v due to error: %v", node.ID, virtualService.Namespace, virtualService.Name, err)
++				continue
++			}
++			gatewayRoutes[gatewayName][vskey] = routes
++		}
++
++		if vHost != nil {
++			vHost.Routes = append(vHost.Routes, routes...)
++			if server.Tls != nil && server.Tls.HttpsRedirect {
++				vHost.RequireTls = route.VirtualHost_ALL
++			}
++		} else {
++			vHost = &route.VirtualHost{
++				Name:                       util.DomainName(hostRDSHost, port),
++				Domains:                    buildGatewayVirtualHostDomains(hostRDSHost, port),
++				Routes:                     routes,
++				IncludeRequestAttemptCount: true,
++				TypedPerFilterConfig:       mseingress.ConstructTypedPerFilterConfigForVHost(globalHTTPFilters, virtualService),
++			}
++			if server.Tls != nil && server.Tls.HttpsRedirect {
++				vHost.RequireTls = route.VirtualHost_ALL
++			}
++		}
++
++		// check all hostname if is not exist with HttpsRedirect set to true
++		// create VirtualHost to redirect
++		for _, hostname := range server.Hosts {
++			if !server.GetTls().GetHttpsRedirect() {
++				continue
++			}
++			if vHost != nil && host.Name(hostname) == host.Name(hostRDSHost) {
++				vHost.RequireTls = route.VirtualHost_ALL
++				continue
++			}
++			vHost = &route.VirtualHost{
++				Name:                       util.DomainName(hostname, port),
++				Domains:                    buildGatewayVirtualHostDomains(hostname, port),
++				IncludeRequestAttemptCount: true,
++				RequireTls:                 route.VirtualHost_ALL,
++			}
++		}
++
++	}
++	var virtualHosts []*route.VirtualHost
++	if vHost == nil {
++		log.Warnf("constructed http route config for route %s on port %d with no vhosts; Setting up a default 404 vhost", routeName, port)
++		virtualHosts = []*route.VirtualHost{{
++			Name:    util.DomainName("blackhole", port),
++			Domains: []string{"*"},
++			// Empty route list will cause Envoy to 404 NR any requests
++			Routes: []*route.Route{},
++		}}
++	} else {
++		vHost.Routes = istio_route.CombineVHostRoutes(vHost.Routes)
++		virtualHosts = append(virtualHosts, vHost)
++	}
++
++	routeCfg := &route.RouteConfiguration{
++		// Retain the routeName as its used by EnvoyFilter patching logic
++		Name:             routeName,
++		VirtualHosts:     virtualHosts,
++		ValidateClusters: proto.BoolFalse,
++	}
++
++	return routeCfg
++}
++
++// End added by ingress
++
+ func (configgen *ConfigGeneratorImpl) buildGatewayHTTPRouteConfig(node *model.Proxy, push *model.PushContext,
+ 	routeName string) *route.RouteConfiguration {
+ 	if node.MergedGateway == nil {
+@@ -351,6 +621,12 @@
+ 		}
+ 	}
+ 
++	// Added by ingress
++	if strings.HasPrefix(routeName, constants.HigressHostRDSNamePrefix) {
++		return configgen.buildHostRDSConfig(node, push, routeName)
++	}
++	// End added by ingress
++
+ 	merged := node.MergedGateway
+ 	log.Debugf("buildGatewayRoutes: gateways after merging: %v", merged)
+ 
+@@ -670,7 +946,9 @@
+ // TLS mode      | Mesh-wide SDS | Ingress SDS | Resulting Configuration
+ // SIMPLE/MUTUAL |    ENABLED    |   ENABLED   | support SDS at ingress gateway to terminate SSL communication outside the mesh
+ // ISTIO_MUTUAL  |    ENABLED    |   DISABLED  | support SDS at gateway to terminate workload mTLS, with internal workloads
+-// 											   | for egress or with another trusted cluster for ingress)
++//
++//	| for egress or with another trusted cluster for ingress)
++//
+ // ISTIO_MUTUAL  |    DISABLED   |   DISABLED  | use file-mounted secret paths to terminate workload mTLS from gateway
+ //
+ // Note that ISTIO_MUTUAL TLS mode and ingressSds should not be used simultaneously on the same ingress gateway.
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/listener.go istio-new/pilot/pkg/networking/core/v1alpha3/listener.go
+--- istio/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/listener.go	2024-01-05 17:31:10.000000000 +0800
+@@ -1279,8 +1279,48 @@
+ 
+ 	notimeout := durationpb.New(0 * time.Second)
+ 	connectionManager.StreamIdleTimeout = notimeout
+-
+-	if httpOpts.rds != "" {
++	// Added by ingress
++	enableSRDS := false
++	if features.EnableScopedRDS &&
++		(listenerOpts.port.Protocol.IsHTTP() || (listenerOpts.port.Protocol == protocol.HTTPS)) {
++		enableSRDS = true
++		portFragment := &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{
++			Type: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor_{
++				LocalPortValueExtractor: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor{},
++			}}
++		hostFragment := &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{
++			Type: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor_{
++				HostValueExtractor: &hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor{},
++			}}
++		scopedRoutes := &hcm.HttpConnectionManager_ScopedRoutes{
++			ScopedRoutes: &hcm.ScopedRoutes{
++				Name: constants.DefaultScopedRouteName,
++				ScopeKeyBuilder: &hcm.ScopedRoutes_ScopeKeyBuilder{
++					Fragments: []*hcm.ScopedRoutes_ScopeKeyBuilder_FragmentBuilder{portFragment, hostFragment},
++				},
++				RdsConfigSource: &core.ConfigSource{
++					ConfigSourceSpecifier: &core.ConfigSource_Ads{
++						Ads: &core.AggregatedConfigSource{},
++					},
++					InitialFetchTimeout: durationpb.New(0),
++					ResourceApiVersion:  core.ApiVersion_V3,
++				},
++				ConfigSpecifier: &hcm.ScopedRoutes_ScopedRds{
++					ScopedRds: &hcm.ScopedRds{
++						ScopedRdsConfigSource: &core.ConfigSource{
++							ConfigSourceSpecifier: &core.ConfigSource_Ads{
++								Ads: &core.AggregatedConfigSource{},
++							},
++							InitialFetchTimeout: durationpb.New(0),
++							ResourceApiVersion:  core.ApiVersion_V3,
++						},
++					},
++				},
++			},
++		}
++		connectionManager.RouteSpecifier = scopedRoutes
++	} else if httpOpts.rds != "" {
++		// End added by ingress
+ 		rds := &hcm.HttpConnectionManager_Rds{
+ 			Rds: &hcm.Rds{
+ 				ConfigSource: &core.ConfigSource{
+@@ -1304,8 +1344,15 @@
+ 
+ 	filters := make([]*hcm.HttpFilter, len(httpFilters))
+ 	copy(filters, httpFilters)
+-	// Make sure cors filter always in the first.
+-	filters = append([]*hcm.HttpFilter{xdsfilters.Cors}, filters...)
++	// Added by ingress
++	// Now only support onDemandRDS when enable SRDS
++	if features.OnDemandRDS && enableSRDS {
++		filters = append([]*hcm.HttpFilter{xdsfilters.OnDemand, xdsfilters.Cors}, filters...)
++	} else {
++		// End added by ingress
++		// Make sure cors filter always in the first.
++		filters = append([]*hcm.HttpFilter{xdsfilters.Cors}, filters...)
++	}
+ 
+ 	if features.MetadataExchange {
+ 		filters = append(filters, xdsfilters.HTTPMx)
+diff -Naur istio/pilot/pkg/xds/ads.go istio-new/pilot/pkg/xds/ads.go
+--- istio/pilot/pkg/xds/ads.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pilot/pkg/xds/ads.go	2024-01-05 17:31:44.000000000 +0800
+@@ -797,15 +797,18 @@
+ 
+ // PushOrder defines the order that updates will be pushed in. Any types not listed here will be pushed in random
+ // order after the types listed here
+-var PushOrder = []string{v3.ClusterType, v3.EndpointType, v3.ListenerType, v3.RouteType, v3.SecretType}
++var PushOrder = []string{v3.ClusterType, v3.EndpointType, v3.ListenerType, v3.ScopedRouteType, v3.RouteType, v3.SecretType}
+ 
+ // KnownOrderedTypeUrls has typeUrls for which we know the order of push.
+ var KnownOrderedTypeUrls = map[string]struct{}{
+ 	v3.ClusterType:  {},
+ 	v3.EndpointType: {},
+ 	v3.ListenerType: {},
+-	v3.RouteType:    {},
+-	v3.SecretType:   {},
++	// Added by ingress
++	v3.ScopedRouteType: {},
++	// End added by ingress
++	v3.RouteType:  {},
++	v3.SecretType: {},
+ }
+ 
+ // orderWatchedResources orders the resources in accordance with known push order.
+diff -Naur istio/pilot/pkg/xds/discovery.go istio-new/pilot/pkg/xds/discovery.go
+--- istio/pilot/pkg/xds/discovery.go	2024-01-05 17:58:07.000000000 +0800
++++ istio-new/pilot/pkg/xds/discovery.go	2024-01-04 21:20:00.000000000 +0800
+@@ -589,6 +589,9 @@
+ 	s.Generators[v3.ClusterType] = &CdsGenerator{Server: s}
+ 	s.Generators[v3.ListenerType] = &LdsGenerator{Server: s}
+ 	s.Generators[v3.RouteType] = &RdsGenerator{Server: s}
++	// Added by ingress
++	s.Generators[v3.ScopedRouteType] = &SrdsGenerator{Server: s}
++	// End added by ingress
+ 	s.Generators[v3.EndpointType] = edsGen
+ 	s.Generators[v3.NameTableType] = &NdsGenerator{Server: s}
+ 	s.Generators[v3.ExtensionConfigurationType] = &EcdsGenerator{Server: s}
+diff -Naur istio/pilot/pkg/xds/filters/filters.go istio-new/pilot/pkg/xds/filters/filters.go
+--- istio/pilot/pkg/xds/filters/filters.go	2024-01-05 17:58:03.000000000 +0800
++++ istio-new/pilot/pkg/xds/filters/filters.go	2024-01-04 21:20:00.000000000 +0800
+@@ -21,6 +21,7 @@
+ 	fault "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/fault/v3"
+ 	grpcstats "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/grpc_stats/v3"
+ 	grpcweb "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/grpc_web/v3"
++	ondemand "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/on_demand/v3"
+ 	router "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
+ 	httpwasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
+ 	httpinspector "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/http_inspector/v3"
+@@ -54,6 +55,14 @@
+ // Define static filters to be reused across the codebase. This avoids duplicate marshaling/unmarshaling
+ // This should not be used for filters that will be mutated
+ var (
++	// Added by ingress
++	OnDemand = &hcm.HttpFilter{
++		Name: "envoy.filters.http.on_demand.v3.OnDemand",
++		ConfigType: &hcm.HttpFilter_TypedConfig{
++			TypedConfig: util.MessageToAny(&ondemand.OnDemand{}),
++		},
++	}
++	// End added by ingress
+ 	Cors = &hcm.HttpFilter{
+ 		Name: wellknown.CORS,
+ 		ConfigType: &hcm.HttpFilter_TypedConfig{
+diff -Naur istio/pilot/pkg/xds/srds.go istio-new/pilot/pkg/xds/srds.go
+--- istio/pilot/pkg/xds/srds.go	1970-01-01 08:00:00.000000000 +0800
++++ istio-new/pilot/pkg/xds/srds.go	2024-01-05 13:45:49.000000000 +0800
+@@ -0,0 +1,79 @@
++// Copyright Istio Authors
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package xds
++
++import (
++	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
++	"istio.io/istio/pilot/pkg/features"
++	"istio.io/istio/pilot/pkg/model"
++	"istio.io/istio/pilot/pkg/networking/util"
++	"istio.io/istio/pkg/config"
++	"istio.io/istio/pkg/config/schema/gvk"
++)
++
++type SrdsGenerator struct {
++	Server *DiscoveryServer
++}
++
++var _ model.XdsResourceGenerator = &SrdsGenerator{}
++
++// Map of all configs that do not impact SRDS
++var skippedSrdsConfigs = map[config.GroupVersionKind]struct{}{
++	gvk.WorkloadEntry:         {},
++	gvk.WorkloadGroup:         {},
++	gvk.RequestAuthentication: {},
++	gvk.PeerAuthentication:    {},
++	gvk.Secret:                {},
++}
++
++func srdsNeedsPush(req *model.PushRequest) bool {
++	if !features.EnableScopedRDS {
++		return false
++	}
++	if req == nil {
++		return true
++	}
++	if !req.Full {
++		// SRDS only handles full push
++		return false
++	}
++	// If none set, we will always push
++	if len(req.ConfigsUpdated) == 0 {
++		return true
++	}
++	for config := range req.ConfigsUpdated {
++		if _, f := skippedSrdsConfigs[config.Kind]; !f {
++			return true
++		}
++	}
++	return false
++}
++
++func (s SrdsGenerator) Generate(proxy *model.Proxy, push *model.PushContext, w *model.WatchedResource,
++	req *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
++	if !srdsNeedsPush(req) {
++		return nil, model.DefaultXdsLogDetails, nil
++	}
++
++	scopedRoutes := s.Server.ConfigGenerator.BuildScopedRoutes(proxy, push)
++	resources := model.Resources{}
++	for _, sr := range scopedRoutes {
++		resources = append(resources, &discovery.Resource{
++			Name:     sr.Name,
++			Resource: util.MessageToAny(sr),
++		})
++	}
++	return resources, model.DefaultXdsLogDetails, nil
++}
+diff -Naur istio/pilot/pkg/xds/v3/model.go istio-new/pilot/pkg/xds/v3/model.go
+--- istio/pilot/pkg/xds/v3/model.go	2024-01-05 17:58:03.000000000 +0800
++++ istio-new/pilot/pkg/xds/v3/model.go	2024-01-05 16:55:49.000000000 +0800
+@@ -31,6 +31,10 @@
+ 	SecretType                 = resource.SecretType
+ 	ExtensionConfigurationType = resource.ExtensionConfigType
+ 
++	// Added by ingress
++	ScopedRouteType = apiTypePrefix + "envoy.config.route.v3.ScopedRouteConfiguration"
++	// End added by ingress
++
+ 	NameTableType   = apiTypePrefix + "istio.networking.nds.v1.NameTable"
+ 	HealthInfoType  = apiTypePrefix + "istio.v1.HealthInformation"
+ 	ProxyConfigType = apiTypePrefix + "istio.mesh.v1alpha1.ProxyConfig"
+@@ -61,6 +65,10 @@
+ 		return "PCDS"
+ 	case ExtensionConfigurationType:
+ 		return "ECDS"
++	// Added by ingress
++	case ScopedRouteType:
++		return "SRDS"
++	// End added by ingress
+ 	default:
+ 		return typeURL
+ 	}
+@@ -87,6 +95,10 @@
+ 		return "ecds"
+ 	case BootstrapType:
+ 		return "bds"
++	// Added by ingress
++	case ScopedRouteType:
++		return "srds"
++	// End added by ingress
+ 	default:
+ 		return typeURL
+ 	}
+diff -Naur istio/pkg/config/constants/constants.go istio-new/pkg/config/constants/constants.go
+--- istio/pkg/config/constants/constants.go	2024-01-05 17:58:08.000000000 +0800
++++ istio-new/pkg/config/constants/constants.go	2024-01-04 21:20:00.000000000 +0800
+@@ -143,4 +143,9 @@
+ 	// CertProviderNone does not create any certificates for the control plane. It is assumed that some external
+ 	// load balancer, such as an Istio Gateway, is terminating the TLS.
+ 	CertProviderNone = "none"
++
++	// Added by ingress
++	HigressHostRDSNamePrefix = "higress-rds-"
++	DefaultScopedRouteName   = "scoped-route"
++	// End added by ingress
+ )
