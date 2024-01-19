@@ -13,6 +13,9 @@ FROM ${HUB}/base:${BASE_VERSION}
 ARG TARGETARCH
 
 COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
+COPY tools/hack/wait-for-apiserver.sh /usr/local/bin/wait-for-apiserver.sh
+
+RUN chmod +x /usr/local/bin/wait-for-apiserver.sh && /usr/local/bin/wait-for-apiserver.sh
 
 USER 1337:1337
 
