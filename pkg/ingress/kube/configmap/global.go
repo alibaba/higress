@@ -57,7 +57,7 @@ type Global struct {
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
-	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
+	IdleTimeout uint32 `json:"idleTimeout"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
 	MaxRequestHeadersKb uint32 `json:"maxRequestHeadersKb,omitempty"`
 	// ConnectionBufferLimits configures the buffer size limits for connections.
