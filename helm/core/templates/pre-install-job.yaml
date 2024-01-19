@@ -1,0 +1,28 @@
+{{-if .Values.nacos.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "controller.name" }}-pre-install
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: {{ include "controller.name" }}-pre-install
+      labels:
+        app: {{ include "controller.name" }}
+        chart: {{ include "controller.chart" }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: {{ include "controller.name" }}-pre-install
+          command:
+            - '/bin/sh'
+            - '-c'
+            - {{ .Files.Get "scripts/pre-install.sh" | quote }}
+{{- end }}

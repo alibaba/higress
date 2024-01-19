@@ -611,6 +611,16 @@ pilot:
 
   # Additional labels to apply on the pod level for monitoring and logging configuration.
   podLabels: {}
+## Higress ApiServer Storage Settings
+## Todo simplify this
+apiserver:
+  name: "higress-apiserver"
+nacos:
+  enabled: false
+  addr: http://127.0.0.1:8848
+  username:
+  password:
+  namespaceId:
 
 
 # Skywalking config settings

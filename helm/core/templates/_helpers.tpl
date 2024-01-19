@@ -51,6 +51,10 @@ higress: {{ .Release.Namespace }}-{{ include "gateway.name" . }}
 {{- .Values.controller.name | default "higress-controller" -}}
 {{- end }}
 
+{{- define "apiserver.name" -}}
+{{- .Values.apiserver.name | default "higress-apiserver" -}}
+{{- end }}
+
 {{- define "controller.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}

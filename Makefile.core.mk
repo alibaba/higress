@@ -169,6 +169,10 @@ build-wasmplugins:
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
 
+pre-install-nacos:
+	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
+
+
 define create_ns
    kubectl get namespace | grep $(1) || kubectl create namespace $(1)
 endef
@@ -182,6 +186,8 @@ ISTIO_LATEST_IMAGE_TAG ?= sha-2d5d9c0
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
+install-dev-nacos: pre-install-nacos
+
 install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
 
