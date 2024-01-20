@@ -1,0 +1,49 @@
+diff -Naur envoy/source/common/router/BUILD envoy-new/source/common/router/BUILD
+--- envoy/source/common/router/BUILD	2024-01-10 20:10:14.505600746 +0800
++++ envoy-new/source/common/router/BUILD	2024-01-10 20:07:25.960379955 +0800
+@@ -212,6 +212,7 @@
+         "//envoy/router:rds_interface",
+         "//envoy/router:scopes_interface",
+         "//envoy/thread_local:thread_local_interface",
++        "//source/common/http:header_utility_lib",
+         "@envoy_api//envoy/config/route/v3:pkg_cc_proto",
+         "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
+     ],
+diff -Naur envoy/source/common/router/scoped_config_impl.cc envoy-new/source/common/router/scoped_config_impl.cc
+--- envoy/source/common/router/scoped_config_impl.cc	2024-01-10 20:10:14.529600924 +0800
++++ envoy-new/source/common/router/scoped_config_impl.cc	2024-01-10 20:09:50.161422411 +0800
+@@ -3,6 +3,8 @@
+ #include "envoy/config/route/v3/scoped_route.pb.h"
+ #include "envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.h"
+ 
++#include "source/common/http/header_utility.h"
++
+ namespace Envoy {
+ namespace Router {
+ 
+@@ -74,18 +76,20 @@
+ HostValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
+                                         const StreamInfo::StreamInfo&,
+                                         ReComputeCbPtr& recompute) const {
+-  auto fragment = computeFragment(headers);
+   auto host = static_cast<const Http::RequestHeaderMap&>(headers).getHostValue();
++  auto port_start = Http::HeaderUtility::getPortStart(host);
++  if (port_start != absl::string_view::npos) {
++    host = host.substr(0, port_start);
++  }
+   *recompute = [this, host, recompute]() mutable -> std::unique_ptr<ScopeKeyFragmentBase> {
+     return reComputeHelper(std::string(host), recompute, 0);
+   };
+-  return fragment;
++  return std::make_unique<StringKeyFragment>(host);
+ }
+ 
+ std::unique_ptr<ScopeKeyFragmentBase>
+-HostValueExtractorImpl::computeFragment(const Http::HeaderMap& headers) const {
+-  return std::make_unique<StringKeyFragment>(
+-      static_cast<const Http::RequestHeaderMap&>(headers).getHostValue());
++HostValueExtractorImpl::computeFragment(const Http::HeaderMap&) const {
++  return nullptr;
+ }
+ 
+ std::unique_ptr<ScopeKeyFragmentBase>
