@@ -169,10 +169,6 @@ build-wasmplugins:
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
 
-pre-install-nacos:
-	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
-
-
 define create_ns
    kubectl get namespace | grep $(1) || kubectl create namespace $(1)
 endef
@@ -184,10 +180,11 @@ install: pre-install
 ENVOY_LATEST_IMAGE_TAG ?= sha-2d5d9c0
 ISTIO_LATEST_IMAGE_TAG ?= sha-2d5d9c0
 
+install-dev-nacos: pre-install
+	tools/hack/gen-keys.sh
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr=http://192.168.2.120:8848' --set 'apiserver.namespaceID=00c93bb1-c28e-4f78-8c1f-f70574fbddb3'
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
-install-dev-nacos: pre-install-nacos
-
 install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true'
 

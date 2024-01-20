@@ -1,7 +1,6 @@
-RSA_KEY_LENGTH=4096
+RSA_KEY_LENGTH="${RSA_KEY_LENGTH:-4096}"
 
-# 获取当前目录
-VOLUMES_ROOT="../files"
+VOLUMES_ROOT="helm/core/files"
 
 initializeApiServer() {
   echo "Initializing API server configurations..."
@@ -42,39 +41,7 @@ initializeApiServer() {
   else
     echo "  Client certificate already exists.";
   fi
-
-  CLIENT_CERT=$(cat client.crt | base64 -w 0)
-  CLIENT_KEY=$(cat client.key | base64 -w 0)
-
-  cd ..
-
-  if [ ! -f "$VOLUMES_ROOT/kube/config" ]; then
-    echo "  Generating kubeconfig..."
-    mkdir -p "$VOLUMES_ROOT/kube"
-    cat <<EOF > $VOLUMES_ROOT/kube/config
-apiVersion: v1
-kind: Config
-clusters:
-  - name: higress
-    cluster:
-      server: https://higress-apiserver:8443
-      insecure-skip-tls-verify: true
-users:
-  - name: higress-admin
-    user:
-      client-certificate-data: ${CLIENT_CERT}
-      client-key-data: ${CLIENT_KEY}
-contexts:
-  - name: higress
-    context:
-      cluster: higress
-      user: higress-admin
-preferences: {}
-current-context: higress
-EOF
-  else
-    echo "  kubeconfig already exists."
-  fi
+  echo "  Done."
 }
 
 checkExitCode() {

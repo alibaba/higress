@@ -614,14 +614,26 @@ pilot:
 ## Higress ApiServer Storage Settings
 ## Todo simplify this
 apiserver:
-  name: "higress-apiserver"
-nacos:
   enabled: false
-  addr: http://127.0.0.1:8848
-  username:
-  password:
-  namespaceId:
+  name: "higress-apiserver"
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  tag: 0.0.10
+  image: apiserver
+  imagePullPolicy: IfNotPresent
+  securePort: 8443
+  clientCaFile: /etc/api/ca.crt
+  tlsCertFile: /etc/api/server.crt
+  tlsPrivateKeyFile: /etc/api/server.key
+  storage: nacos
+  serverAddr: http://127.0.0.1:8848
+  username: ""
+  password: ""
+  namespaceID: ""
+  encryptionKeyFile: /etc/api/nacos.key
+  rsaKeyLength: 4096
 
+scripts:
+  preInstall: files/scripts/pre-install.sh
 
 # Skywalking config settings
 skywalking:

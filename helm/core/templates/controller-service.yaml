@@ -26,3 +26,24 @@ spec:
     {{- end }}
   selector:
     {{- include "controller.selectorLabels" . | nindent 4 }}
+{{- if .Values.apiserver.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Values.apiserver.name }}
+    higress: {{ .Values.apiserver.name }}
+  name: {{ .Values.apiserver.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - name: https
+      port: {{ .Values.apiserver.securePort }}
+      protocol: TCP
+      targetPort: {{ .Values.apiserver.securePort }}
+  selector:
+    app: {{ .Values.apiserver.name }}
+    higress: {{ .Values.apiserver.name }}
+  type: ClusterIP
+{{- end }}
