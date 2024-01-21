@@ -51,13 +51,33 @@ spec:
                 name: infra-backend-v1
                 port:
                   number: 8080
-
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-  name: wasmplugin-transform-request-body
+  name: wasmplugin-transform-bothway-header-and-query
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo3.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080                  
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-request-arbitary-rule-order
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -77,12 +97,94 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-  name: wasmplugin-transform-response-body
+  name: wasmplugin-transform-response-arbitary-rule-order
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
   rules:
     - host: "foo5.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080                  
+---
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-request-map-from-querys-to-headers
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo6.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080                  
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-request-map-from-headers-to-querys
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo7.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080                  
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-request-body
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo8.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-transform-response-body
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo9.com"
       http:
         paths:
           - pathType: Prefix
@@ -189,6 +291,212 @@ spec:
             headers:
               - fromKey: X-add-append
                 toKey: X-map
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-bothway-header-and-query
+      configDisable: false
+      config:
+        reqRules:
+          - operate: remove
+            headers:
+              - key: X-remove
+            querys:
+              - key: k1
+          - operate: rename
+            headers:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+            querys:
+              - oldKey: k2
+                newKey: k2-new
+          - operate: replace
+            headers:
+              - key: X-replace
+                newValue: replaced
+            querys:
+              - key: k2-new
+                newValue: v2-new
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add
+            querys:
+              - key: k3
+                value: v31
+          - operate: append
+            headers:
+              - key: X-add-append
+                appendValue: append
+            querys:
+              - key: k3
+                appendValue: v32
+          - operate: map
+            headers:
+              - fromKey: X-add-append
+                toKey: X-map
+            querys:
+              - fromKey: k3
+                toKey: k4
+          - operate: dedupe
+            headers:
+              - key: X-dedupe-first
+                strategy: RETAIN_FIRST
+              - key: X-dedupe-last
+                strategy: RETAIN_LAST
+              - key: X-dedupe-unique
+                strategy: RETAIN_UNIQUE
+            querys:
+              - key: k4
+                strategy: RETAIN_FIRST
+
+        respRules:
+          - operate: remove
+            headers:
+              - key: X-remove
+          - operate: rename
+            headers:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+          - operate: replace
+            headers:
+              - key: X-replace
+                newValue: replace-$1
+                path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add-$1
+                host_pattern: ^(.*)\.com$
+          - operate: append
+            headers:
+              - key: X-add-append
+                appendValue: append-$1
+                path_pattern: ^\/get\/(.*)\.html(.*)$
+          - operate: map
+            headers:
+              - fromKey: X-add-append
+                toKey: X-map
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request-arbitary-rule-order
+      configDisable: false
+      config:
+        reqRules:
+          - operate: dedupe
+            headers:
+              - key: X-dedupe-first
+                strategy: RETAIN_FIRST
+              - key: X-dedupe-last
+                strategy: RETAIN_LAST
+              - key: X-dedupe-unique
+                strategy: RETAIN_UNIQUE
+            querys:
+              - key: k1
+                strategy: RETAIN_FIRST
+
+          - operate: map
+            headers:
+              - fromKey: X-dedupe-first
+                toKey: X-map-dedupe-first
+            querys:
+              - fromKey: k1
+                toKey: k2
+
+          - operate: append
+            headers:
+              - key: X-map-dedupe-first
+                appendValue: append
+            querys:
+              - key: k2
+                appendValue: v22
+
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add
+            querys:
+              - key: k3
+                value: v31
+
+          - operate: replace
+            headers:
+              - key: X-dedupe-last
+                newValue: X-dedupe-last-replaced
+                
+          - operate: rename
+            headers:
+              - oldKey: X-dedupe-unique
+                newKey: X-dedupe-unique-renamed
+            querys:
+              - oldKey: k3
+                newKey: k3-new
+
+          - operate: remove
+            headers:
+              - key: X-dedupe-first
+            querys:
+              - key: k1
+          
+
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-response-arbitary-rule-order
+      configDisable: false
+      config:
+        respRules:
+          - operate: remove
+            headers:
+              - key: X-remove
+          - operate: rename
+            headers:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+          - operate: replace
+            headers:
+              - key: X-replace
+                newValue: replace-$1
+                path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add-$1
+                host_pattern: ^(.*)\.com$
+          - operate: map
+            headers:
+              - fromKey: X-add-append
+                toKey: X-map
+          - operate: append
+            headers:
+              - key: X-add-append
+                appendValue: append-$1
+                path_pattern: ^\/get\/(.*)\.html$
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request-map-from-querys-to-headers
+      configDisable: false
+      config:
+          reqRules:
+            - operate: map
+              mapSource: querys
+              headers:
+                - fromKey: kmap
+                  toKey: X-map
+              querys:
+                - fromKey: k3
+                  toKey: k4
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request-map-from-headers-to-querys
+      configDisable: false
+      config:
+          reqRules:
+            - operate: map
+              mapSource: headers
+              querys:
+                # 映射来源为headers时，fromKey的匹配不区分大小写
+                - fromKey: X-map
+                  toKey: kmap
+
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-request-body
       configDisable: false
