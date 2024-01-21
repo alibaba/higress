@@ -5,7 +5,7 @@ coverage:
     patch: no
     project:
       default:
-        target: 50%
+        target: 100%
         threshold: 1%
         if_not_found: success
         if_ci_failed: error #success, failure, error, ignore
