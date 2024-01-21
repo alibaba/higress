@@ -5,9 +5,10 @@ coverage:
     patch: no
     project:
       default:
-        target: auto
+        target: 100%
         threshold: 1%
         if_not_found: success
+        if_ci_failed: error #success, failure, error, ignore
     changes: no
   precision: 2
   round: down
