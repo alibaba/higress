@@ -10,7 +10,7 @@ coverage:
         if_ci_failed: error # success, failure, error, ignore
     changes: no
   precision: 2
-  round: down
+  round: down 
   range: 50..100
 ignore:
   - "helm/**"
