@@ -105,7 +105,28 @@ metadata:
   labels:
     {{- include "gateway.labels" . | nindent 4 }}    
 data:
-
+  {{- if .Values.apiserver.enabled }}
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: {{ .Release.Namespace }}
+        cluster:
+          server: https://{{ .Values.apiserver.addr }}:{{ .Values.apiserver.securePort }}
+          insecure-skip-tls-verify: true
+    users:
+      - name: higress-admin
+        user:
+          client-certificate-data: {{ .Files.Get "files/api/client.crt" | b64enc }}
+          client-key-data: {{ .Files.Get "files/api/client.key" | b64enc }}
+    contexts:
+      - name: higress
+        context:
+          cluster: higress
+          user: higress-admin
+    preferences: {}
+    current-context: higress
+  {{- end }}
   # Configuration file for the mesh networks to be used by the Split Horizon EDS.
   meshNetworks: |-
   {{- if .Values.global.meshNetworks }}

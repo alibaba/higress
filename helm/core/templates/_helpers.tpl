@@ -101,3 +101,7 @@ higress: {{ include "controller.name" . }}
 true
 {{- end }}
 {{- end }}
+
+{{- define "apiserver.name" -}}
+{{- .Values.apiserver.name | default "higress-apiserver" -}}
+{{- end }}

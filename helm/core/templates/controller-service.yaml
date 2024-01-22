@@ -23,6 +23,12 @@ spec:
     - port: 15014
       name: http-monitoring # prometheus stats
       protocol: TCP
+    {{- if .Values.apiserver.enabled }}
+    - port: {{ .Values.apiserver.securePort }}
+      name: https-apiserver # mTLS with k8s-signed cert
+      protocol: TCP
+      targetPort: {{ .Values.apiserver.securePort }}
+    {{- end }}
     {{- end }}
   selector:
     {{- include "controller.selectorLabels" . | nindent 4 }}

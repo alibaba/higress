@@ -13,7 +13,12 @@ FROM ${HUB}/base:${BASE_VERSION}
 ARG TARGETARCH
 
 COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
+COPY wait-for-apiserver.sh /usr/local/bin/wait-for-apiserver.sh
+COPY run-higress.sh /usr/local/bin/run-higress.sh
+
+RUN chmod +x /usr/local/bin/wait-for-apiserver.sh
+RUN chmod +x /usr/local/bin/run-higress.sh
 
 USER 1337:1337
 
-ENTRYPOINT ["/usr/local/bin/higress"]
+ENTRYPOINT ["/usr/local/bin/run-higress.sh"]

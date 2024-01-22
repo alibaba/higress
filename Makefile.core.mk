@@ -184,6 +184,13 @@ install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
 install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
+install-dev-nacos: pre-install
+	kubectl apply -f tools/hack/conf/nacos.yaml
+	tools/hack/gen-keys.sh
+	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"'
+
+create-nacos:
+	kubectl apply -f tools/hack/conf/nacos.yaml
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -258,18 +265,18 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
-	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
-	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
-	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
-	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
-	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
-	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
-	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
-	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
-	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
-	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
+	#tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
+	#tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	#tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
+	#tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	#tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
+	#tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
+	#tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
+	#tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	#tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
+	#tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
+	#tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
+	#tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
 # run-higress-e2e-test starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test
 run-higress-e2e-test:
