@@ -16,8 +16,7 @@ COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
 COPY wait-for-apiserver.sh /usr/local/bin/wait-for-apiserver.sh
 COPY run-higress.sh /usr/local/bin/run-higress.sh
 
-RUN chmod +x /usr/local/bin/wait-for-apiserver.sh
-RUN chmod +x /usr/local/bin/run-higress.sh
+RUN chmod +x /usr/local/bin/*.sh
 
 USER 1337:1337
 
