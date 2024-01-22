@@ -35,6 +35,13 @@ It can be divided into below steps:
     2. Prepare resources and install them into cluster, like backend services/deployments.
     3. Load conformance tests we choose to open in `e2e_test.go` / `higressTests Slice`, and run them one by one, fail if it is not expected.
 
+> Note: You can use `TestArea` flag to control which area you want to run.
+>  - TestAreaAll: will prepare all resources and run all conformance tests.
+>  - TestAreaSetup: will only prepare resources.
+>  - TestAreaRun: will only run conformance tests.
+> 
+> When developing, you can use `TestAreaSetup` to prepare resources only once, and then use `TestAreaRun` to run conformance tests anywhere.
+
 ### How to write a test case
 
 To add a new test case, you firstly need to add `xxx.go` and `xxx.yaml` in `test/ingress/conformance/tests`. `xxx.yaml` is the Ingress resource you need to apply in the cluster, `xxx.go` defines the HigressConformanceTest.
