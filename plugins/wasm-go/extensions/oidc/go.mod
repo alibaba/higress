@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230807053545-d307d0e755f1
 	github.com/go-jose/go-jose/v3 v3.0.0
-	github.com/tetratelabs/proxy-wasm-go-sdk v0.19.1-0.20220822060051-f9d179a57f8c
+	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0
 	github.com/tidwall/gjson v1.14.3
 	golang.org/x/oauth2 v0.11.0
 )
