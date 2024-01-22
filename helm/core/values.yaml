@@ -632,7 +632,6 @@ apiserver:
   password: ""
   namespaceID: ""
   rsaKeyLength: 4096
-  serviceName: "higress-controller"
 
 # Skywalking config settings
 skywalking:
