@@ -543,6 +543,83 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				name: "close the setting of idle timeout",
+				higressConfig: &configmap.HigressConfig{
+					Downstream: &configmap.Downstream{
+						IdleTimeout:            0,
+						MaxRequestHeadersKb:    60,
+						ConnectionBufferLimits: 32768,
+						Http2: &configmap.Http2{
+							MaxConcurrentStreams:        100,
+							InitialStreamWindowSize:     65535,
+							InitialConnectionWindowSize: 1048576,
+						},
+					},
+					DisableXEnvoyHeaders: true,
+					AddXRealIpHeader:     true,
+				},
+				envoyAssertion: []envoy.Assertion{
+					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"request_headers_to_add": []interface{}{
+								map[string]interface{}{
+									"append": false,
+									"header": map[string]interface{}{
+										"key":   "x-real-ip",
+										"value": "%REQ(X-ENVOY-EXTERNAL-ADDRESS)%",
+									},
+								},
+							},
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"@type":       "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+							"stat_prefix": "outbound_0.0.0.0_80",
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config.http_filters",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"name": "envoy.filters.http.router",
+							"typed_config": map[string]interface{}{
+								"@type":                  "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
+								"suppress_envoy_headers": true,
+							},
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"per_connection_buffer_limit_bytes": 32768,
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"max_concurrent_streams":         100,
+							"initial_stream_window_size":     65535,
+							"initial_connection_window_size": 1048576,
+							"stream_idle_timeout":            "0s",
+							"max_request_headers_kb":         60,
+							"idle_timeout":                   "0s",
+						},
+					},
+				},
+			},
 		}
 
 		t.Run("ConfigMap Global Envoy", func(t *testing.T) {
