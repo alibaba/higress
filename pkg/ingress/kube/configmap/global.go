@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync/atomic"
@@ -58,7 +57,7 @@ type Global struct {
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
-	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
+	IdleTimeout uint32 `json:"idleTimeout"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
 	MaxRequestHeadersKb uint32 `json:"maxRequestHeadersKb,omitempty"`
 	// ConnectionBufferLimits configures the buffer size limits for connections.
@@ -139,12 +138,19 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
 	newGlobal := NewDefaultGlobalOption()
-	bytes, err := json.Marshal(global)
-	if err != nil {
-		return nil, err
+	if global.Downstream != nil {
+		newGlobal.Downstream.IdleTimeout = global.Downstream.IdleTimeout
+		newGlobal.Downstream.MaxRequestHeadersKb = global.Downstream.MaxRequestHeadersKb
+		newGlobal.Downstream.ConnectionBufferLimits = global.Downstream.ConnectionBufferLimits
+		if global.Downstream.Http2 != nil {
+			newGlobal.Downstream.Http2.MaxConcurrentStreams = global.Downstream.Http2.MaxConcurrentStreams
+			newGlobal.Downstream.Http2.InitialStreamWindowSize = global.Downstream.Http2.InitialStreamWindowSize
+			newGlobal.Downstream.Http2.InitialConnectionWindowSize = global.Downstream.Http2.InitialConnectionWindowSize
+		}
 	}
-	err = json.Unmarshal(bytes, newGlobal)
-	return newGlobal, err
+	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
+	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
+	return newGlobal, nil
 }
 
 // NewDefaultGlobalOption returns a default global config.
