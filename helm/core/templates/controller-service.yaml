@@ -25,7 +25,7 @@ spec:
       protocol: TCP
     {{- if .Values.apiserver.enabled }}
     - port: {{ .Values.apiserver.securePort }}
-      name: https-apiserver # mTLS with k8s-signed cert
+      name: https-apiserver
       protocol: TCP
       targetPort: {{ .Values.apiserver.securePort }}
     {{- end }}
