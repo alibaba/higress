@@ -38,7 +38,9 @@ metadata:
   namespace: higress-system
 spec:
   defaultConfig:
-    deny:
-      - 10.0.0.1
+    ip-source-type: header
+    ip-header-name: x-real-ip
+    allow:
       - 192.168.0.1/16
+      - 10.0.0.1
   url: file:///opt/plugins/wasm-go/extensions/ip-restriction/plugin.wasm

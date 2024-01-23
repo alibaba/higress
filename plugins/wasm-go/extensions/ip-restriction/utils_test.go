@@ -49,3 +49,58 @@ func Test_parseIPNets(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseIP(t *testing.T) {
+	type args struct {
+		source string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		// TODO: Add test cases.
+		{
+			name: "case 1",
+			args: args{
+				"127.0.0.1",
+			},
+			want: "127.0.0.1",
+		},
+		{
+			name: "case 2",
+			args: args{
+				"127.0.0.1:12",
+			},
+			want: "127.0.0.1",
+		},
+		{
+			name: "case 3",
+			args: args{
+				"fe80::14d5:8aff:fed9:2114",
+			},
+			want: "fe80::14d5:8aff:fed9:2114",
+		},
+		{
+			name: "case 4",
+			args: args{
+				"[fe80::14d5:8aff:fed9:2114]:123",
+			},
+			want: "fe80::14d5:8aff:fed9:2114",
+		},
+		{
+			name: "case 5",
+			args: args{
+				"127.0.0.1:12,[fe80::14d5:8aff:fed9:2114]:123",
+			},
+			want: "127.0.0.1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseIP(tt.args.source); got != tt.want {
+				t.Errorf("parseIP() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

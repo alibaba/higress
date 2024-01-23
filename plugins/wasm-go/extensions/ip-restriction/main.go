@@ -9,16 +9,22 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
 	"net"
+	"strings"
 )
 
 const (
-	DefaultRealIpHeader string = "X-Real-IP"
+	DefaultRealIpHeader string = "X-Forwarded-For"
 	DefaultDenyStatus   uint32 = 403
-	DefaultDenyMessage  string = "Your IP address is not allowed."
+	DefaultDenyMessage  string = "Your IP address is blocked."
+)
+const (
+	OriginSourceType = "origin-source"
+	HeaderSourceType = "header"
 )
 
 type RestrictionConfig struct {
-	RealIPHeader string         `json:"real_ip_header"` //真实IP头
+	IPSourceType string         `json:"ip-source-type"` //IP来源类型
+	IPHeaderName string         `json:"real-ip-header"` //真实IP头
 	Allow        *iptree.IPTree `json:"allow"`          //允许的IP
 	Deny         *iptree.IPTree `json:"deny"`           //拒绝的IP
 	Status       uint32         `json:"status"`         //被拒绝时返回的状态码
@@ -33,11 +39,24 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) error {
-	header := json.Get("real-ip-header")
-	if header.Exists() && header.String() != "" {
-		config.RealIPHeader = header.String()
+	sourceType := json.Get("ip-source-type")
+	if sourceType.Exists() && sourceType.String() != "" {
+		switch sourceType.String() {
+		case HeaderSourceType:
+			config.IPSourceType = HeaderSourceType
+		case OriginSourceType:
+		default:
+			config.IPSourceType = OriginSourceType
+		}
 	} else {
-		config.RealIPHeader = DefaultRealIpHeader
+		config.IPSourceType = OriginSourceType
+	}
+
+	header := json.Get("ip-header-name")
+	if header.Exists() && header.String() != "" {
+		config.IPHeaderName = header.String()
+	} else {
+		config.IPHeaderName = DefaultRealIpHeader
 	}
 	status := json.Get("status")
 	if status.Exists() && status.Uint() > 1 {
@@ -70,12 +89,38 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) 
 	return nil
 }
 
+func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
+	var (
+		s   string
+		err error
+	)
+
+	if config.IPSourceType == HeaderSourceType {
+		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
+		if err == nil {
+			s = strings.Split(strings.Trim(s, " "), ",")[0]
+		}
+	} else {
+		var bs []byte
+		bs, err = proxywasm.GetProperty([]string{"source", "address"})
+		s = string(bs)
+	}
+	if err != nil {
+		return nil, err
+	}
+	ip := parseIP(s)
+	realIP := net.ParseIP(ip)
+	if realIP == nil {
+		return nil, fmt.Errorf("invalid ip[%s]", ip)
+	}
+	return realIP, nil
+}
+
 func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log wrapper.Log) types.Action {
-	s, err := proxywasm.GetHttpRequestHeader(config.RealIPHeader)
+	realIp, err := getDownStreamIp(config)
 	if err != nil {
 		return deniedUnauthorized(config)
 	}
-	realIp := net.ParseIP(s)
 	allow := config.Allow
 	deny := config.Deny
 	if allow != nil {

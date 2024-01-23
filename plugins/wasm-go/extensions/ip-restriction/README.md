@@ -5,18 +5,27 @@
 
 # 配置说明
 
-| 配置项     | 类型     | 必填 | 默认值                             | 说明              |
-|---------|--------|----|---------------------------------|-----------------|
-| allow   | array  | 否  | []                              | 白名单列表           |
-| deny    | array  | 否  | []                              | 黑名单列表           |
-| status  | int    | 否  | 403                             | 拒绝访问时的 HTTP 状态码 |
-| message | string | 否  | Your IP address is not allowed. | 拒绝访问时的返回信息      |
+| 配置项            | 类型     | 必填 | 默认值                         | 说明                                       |
+|----------------|--------|----|-----------------------------|------------------------------------------|
+| ip-source-type | string | 否  | origin-source               | 源IP来源(envoy source.address 或者 自定义header) |
+| ip-header-name | string | 否  | X-Forwarded-For             | 自定义IP来源头                                 |
+| allow          | array  | 否  | []                          | 白名单列表                                    |
+| deny           | array  | 否  | []                          | 黑名单列表                                    |
+| status         | int    | 否  | 403                         | 拒绝访问时的 HTTP 状态码                          |
+| message        | string | 否  | Your IP address is blocked. | 拒绝访问时的返回信息                               |
+
 
 ```yaml
+ip-source-type: origin-source
 allow:
   - 10.0.0.1
   - 192.168.0.0/16
+```
+
+```yaml
+ip-source-type: header
+real-ip-header: X-Real-IP
 deny:
-  - 192.168.1.0/24
-  - 10.0.0.2
+  - 10.0.0.1
+  - 192.169.0.0/16   
 ```

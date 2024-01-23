@@ -42,32 +42,14 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "10.0.0.1"},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 403,
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/info",
-						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "10.0.0.2"},
+						Headers:          map[string]string{"X-REAL-IP": "10.0.0.1"},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 					},
+					ExpectedResponseNoRequest: true,
 				},
 			},
 			{
@@ -80,13 +62,14 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "192.168.5.0"},
+						Headers:          map[string]string{"X-REAL-IP": "10.0.0.2"},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
 					},
+					ExpectedResponseNoRequest: true,
 				},
 			},
 			{
@@ -99,13 +82,34 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Real-IP": "192.169.5.0"},
+						Headers:          map[string]string{"X-REAL-IP": "192.168.5.0"},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"X-REAL-IP": "192.169.5.0"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
 				},
 			},
 		}
