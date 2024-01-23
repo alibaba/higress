@@ -501,6 +501,11 @@ func sortHTTPRoutes(routes []*istio.HTTPRoute) {
 		} else if len(routes[j].Match) == 0 {
 			return true
 		}
+		if isCatchAllMatch(routes[i].Match[0]) {
+			return false
+		} else if isCatchAllMatch(routes[j].Match[0]) {
+			return true
+		}
 		// Only look at match[0], we always generate only one match
 		m1, m2 := routes[i].Match[0], routes[j].Match[0]
 		r1, r2 := getURIRank(m1), getURIRank(m2)
@@ -522,6 +527,34 @@ func sortHTTPRoutes(routes []*istio.HTTPRoute) {
 			return len(m1.QueryParams) > len(m2.QueryParams)
 		}
 	})
+}
+
+// isCatchAll returns true if HTTPMatchRequest is a catchall match otherwise
+// false. Note - this may not be exactly "catch all" as we don't know the full
+// class of possible inputs As such, this is used only for optimization.
+func isCatchAllMatch(m *istio.HTTPMatchRequest) bool {
+	catchall := false
+	if m.Uri != nil {
+		switch m := m.Uri.MatchType.(type) {
+		case *istio.StringMatch_Prefix:
+			catchall = m.Prefix == "/"
+		case *istio.StringMatch_Regex:
+			catchall = m.Regex == "*"
+		}
+	}
+	// A Match is catch all if and only if it has no match set
+	// and URI has a prefix / or regex *.
+	return catchall &&
+		len(m.Headers) == 0 &&
+		len(m.QueryParams) == 0 &&
+		len(m.SourceLabels) == 0 &&
+		len(m.WithoutHeaders) == 0 &&
+		len(m.Gateways) == 0 &&
+		m.Method == nil &&
+		m.Scheme == nil &&
+		m.Port == 0 &&
+		m.Authority == nil &&
+		m.SourceNamespace == ""
 }
 
 // getURIRank ranks a URI match type. Exact > Prefix > Regex
