@@ -244,15 +244,6 @@ replace istio.io/istio => ./external/istio
 replace github.com/alibaba/higress/hgctl => ./hgctl
 
 replace (
-	github.com/cucumber/godog => github.com/laurazard/godog v0.0.0-20220922095256-4c4b17abdae7
-	github.com/docker/buildx => github.com/docker/buildx v0.11.2
-	github.com/docker/cli => github.com/docker/cli v24.0.6+incompatible
-	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.20.2
-	github.com/docker/docker => github.com/docker/docker v24.0.6+incompatible
 	github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
-	github.com/moby/buildkit => github.com/moby/buildkit v0.12.2
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.42.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrac => go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.42.0
 	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
-	oras.land/oras-go => oras.land/oras-go v1.2.4
 )
