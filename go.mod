@@ -1,8 +1,6 @@
 module github.com/alibaba/higress
 
-go 1.21
-
-toolchain go1.21.5
+go 1.20
 
 replace github.com/spf13/viper => github.com/istio/viper v1.3.3-0.20190515210538-2789fed3109c
 
@@ -19,7 +17,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/agiledragon/gomonkey/v2 v2.9.0
 	github.com/avast/retry-go/v4 v4.3.4
-	github.com/compose-spec/compose-go v1.20.2
+	github.com/compose-spec/compose-go v1.17.0
 	github.com/docker/cli v24.0.7+incompatible
 	github.com/docker/compose/v2 v2.23.3
 	github.com/docker/docker v24.0.7+incompatible
@@ -121,7 +119,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/clbanning/mxj v1.8.4 // indirect
-	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20230607035331-e9ce68804cb4 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/containerd/containerd v1.7.7 // indirect
@@ -134,7 +131,6 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/distribution/distribution/v3 v3.0.0-20230601133803-97b1d649c493 // indirect
-	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/buildx v0.12.0 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
@@ -284,6 +280,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/yl2chen/cidranger v1.0.2 // indirect
+	github.com/zmap/zlint/v3 v3.1.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.40.0 // indirect
@@ -352,7 +349,7 @@ replace (
 	github.com/cucumber/godog => github.com/laurazard/godog v0.0.0-20220922095256-4c4b17abdae7
 	github.com/docker/buildx => github.com/docker/buildx v0.11.2
 	github.com/docker/cli => github.com/docker/cli v24.0.6+incompatible
-	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.23.0
+	github.com/docker/compose/v2 => github.com/docker/compose/v2 v2.20.2
 	github.com/docker/docker => github.com/docker/docker v24.0.6+incompatible
 	github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
 	github.com/moby/buildkit => github.com/moby/buildkit v0.12.2
