@@ -110,7 +110,7 @@ data:
     apiVersion: v1
     kind: Config
     clusters:
-      - name: {{ .Release.Namespace }}
+      - name: {{ .Values.clusterName | default "higress" }}
         cluster:
           server: https://{{ .Values.apiserver.addr }}:{{ .Values.apiserver.securePort }}
           insecure-skip-tls-verify: true
