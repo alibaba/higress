@@ -135,9 +135,6 @@ jobs:
     - name: "Run Higress E2E Conformance Tests"
       run: GOPROXY="https://proxy.golang.org,direct" make higress-conformance-test
 
-
-
-
   higress-conformance-test-nacos:
     runs-on: ubuntu-latest
     needs: [ build ]
