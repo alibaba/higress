@@ -15,11 +15,14 @@ package suite
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
+	"github.com/stretchr/testify/require"
 	"istio.io/istio/pilot/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -38,6 +41,9 @@ type ConformanceTestSuite struct {
 	SkipTests         sets.Set
 	TimeoutConfig     config.TimeoutConfig
 	SupportedFeatures sets.Set
+	EnableApiServer   bool
+	Storage           string
+	ConfigCenter      cc.Storage
 }
 
 // Options can be used to initialize a ConformanceTestSuite.
@@ -63,6 +69,9 @@ type Options struct {
 
 	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
 	IsEnvoyConfigTest bool
+
+	EnableApiServer bool
+	Storage         string
 }
 
 type WASMOptions struct {
@@ -112,7 +121,9 @@ func New(s Options) *ConformanceTestSuite {
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
-		TimeoutConfig: s.TimeoutConfig,
+		TimeoutConfig:   s.TimeoutConfig,
+		EnableApiServer: s.EnableApiServer,
+		Storage:         s.Storage,
 	}
 
 	// apply defaults
@@ -132,6 +143,14 @@ func New(s Options) *ConformanceTestSuite {
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
+	if suite.EnableApiServer {
+		t.Logf("📦 Test Setup: Ensuring ApiServer Storage has been accepted")
+		configClient, err := nacos.NewClient(suite.Storage)
+		require.NoError(t, err)
+		require.NotNil(t, configClient)
+		suite.ConfigCenter = configClient
+	}
+
 	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
 
 	suite.Applier.IngressClass = suite.IngressClassName
@@ -220,9 +239,16 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 		suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
 	}
 
-	for _, manifestLocation := range test.Manifests {
-		t.Logf("🧳 Applying Manifests: %s", manifestLocation)
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)
+	if suite.EnableApiServer {
+		for _, manifestLocation := range test.Manifests {
+			t.Logf("🧳 Applying ApiServer Storage Manifests")
+			suite.Applier.MustPublishConfig(t, suite.TimeoutConfig, manifestLocation, !test.NotCleanup, suite.ConfigCenter)
+		}
+	} else {
+		for _, manifestLocation := range test.Manifests {
+			t.Logf("🧳 Applying Manifests: %s", manifestLocation)
+			suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)
+		}
 	}
 
 	test.Test(t, suite)

@@ -245,6 +245,14 @@ higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-bui
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
 
+# higress-conformance-test-nacos runs ingress nacos tests.
+.PHONY: higress-conformance-test-nacos
+higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward run-higress-e2e-test-nacos delete-cluster
+
+.PHONY: port-forward
+port-forward:
+	kubectl port-forward -n higress-system svc/nacos-service 8848:8848 &
+
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
 create-cluster: $(tools/kind)
@@ -269,7 +277,7 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
 	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/kind-load-image.sh docker.io/swsk33/nacos-standalone 2.2.302
+	tools/hack/kind-load-image.sh docker.io/swsk33/nacos-standalone 2.2.3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
@@ -293,3 +301,12 @@ run-higress-e2e-test-wasmplugin:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true
+
+.PHONY: run-higress-e2e-test-nacos
+run-higress-e2e-test-nacos:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --enableApiServer=true

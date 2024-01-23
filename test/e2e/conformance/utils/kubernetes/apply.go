@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	ingress "github.com/alibaba/higress/test/e2e/conformance"
+	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -248,4 +249,38 @@ func getContentsFromPathOrURL(location string, timeoutConfig config.TimeoutConfi
 		return nil, err
 	}
 	return bytes.NewBuffer(b), nil
+}
+
+// MustPublishConfig publish config to config center
+func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutConfig, location string, cleanup bool, cc cc.Storage) {
+	data, err := getContentsFromPathOrURL(location, timeoutConfig)
+	require.NoError(t, err)
+
+	decoder := yaml.NewYAMLOrJSONDecoder(data, 4096)
+
+	resources, err := a.prepareResources(t, decoder)
+	if err != nil {
+		t.Logf("🧳 Manifest: %s", data.String())
+		require.NoErrorf(t, err, "error parsing manifest")
+	}
+
+	for _, r := range resources {
+		// TODO: Maybe add s or es
+		dataId := r.GetKind() + "es"
+		group := r.GetNamespace()
+		// convert r to string
+		var content []byte
+		content, err = r.MarshalJSON()
+		require.NoError(t, err)
+		// publish
+		err = cc.PublishConfig(dataId, group, string(content))
+		require.NoError(t, err)
+		if cleanup {
+			t.Cleanup(func() {
+				// delete
+				err = cc.DeleteConfig(dataId, group)
+				require.NoError(t, err)
+			})
+		}
+	}
 }
