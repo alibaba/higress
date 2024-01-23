@@ -14,12 +14,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-RSA_KEY_LENGTH="${RSA_KEY_LENGTH:-4096}"
-
-VOLUMES_ROOT="helm/core/files"
+VOLUMES_ROOT="/tmp/higress-apiserver"
+RSA_KEY_LENGTH=4096
+NAMESPACE="${NAMESPACE:-higress-system}"
+CLUSTER_NAME="${CLUSTER_NAME:-higress}"
+APISERVER_ADDRESS="${APISERVER_ADDRESS:-https://127.0.0.1:8443}"
 
 initializeApiServer() {
   echo "Initializing API server configurations..."
+
   mkdir -p "$VOLUMES_ROOT/api" && cd "$_"
   checkExitCode "Creating volume for API server fails with $?"
 
@@ -59,7 +62,64 @@ initializeApiServer() {
   else
     echo "  Client certificate already exists.";
   fi
-  echo "  Done."
+}
+
+applySecretConfigmap() {
+  # create namespace if not exists
+  kubectl get namespace $NAMESPACE > /dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo "Creating namespace $NAMESPACE..."
+    kubectl create namespace $NAMESPACE
+    checkExitCode "Creating namespace fails with $?"
+  fi
+
+  echo "Applying secret $NAMESPACE/higress-apiserver..."
+  kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: higress-apiserver
+  namespace: higress-system
+data:
+  ca.crt: $(cat $VOLUMES_ROOT/api/ca.crt | base64 -w 0)
+  ca.key: $(cat $VOLUMES_ROOT/api/ca.key | base64 -w 0)
+  server.crt: $(cat $VOLUMES_ROOT/api/server.crt | base64 -w 0)
+  server.key: $(cat $VOLUMES_ROOT/api/server.key | base64 -w 0)
+  client.key: $(cat $VOLUMES_ROOT/api/client.crt | base64 -w 0)
+  nacos.key: $(cat $VOLUMES_ROOT/api/nacos.key | base64 -w 0)
+EOF
+
+  echo "Applying configmap $NAMESPACE/higress-config..."
+  kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: higress-config
+  namespace: $NAMESPACE
+data:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: $CLUSTER_NAME
+        cluster:
+          server: $APISERVER_ADDRESS
+          insecure-skip-tls-verify: true
+    users:
+      - name: higress-admin
+        user:
+          client-certificate-data: $(cat $VOLUMES_ROOT/api/client.crt | base64 -w 0)
+          client-key-data: $(cat $VOLUMES_ROOT/api/client.key | base64 -w 0)
+    contexts:
+      - name: higress
+        context:
+          cluster: $CLUSTER_NAME
+          user: higress-admin
+    preferences: {}
+    current-context: higress
+EOF
+
+    echo "Successfully applied secret and configmap. Now you can start higress-api-server."
 }
 
 checkExitCode() {
@@ -72,3 +132,4 @@ checkExitCode() {
 }
 
 initializeApiServer
+applySecretConfigmap
