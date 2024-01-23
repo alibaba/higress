@@ -912,7 +912,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
-				t.Logf("Checking Envoy config for test case %s", testcase.name)
+				t.Logf("Test Case %s", testcase.name)
 				for _, assertion := range testcase.envoyAssertion {
 					envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, assertion)
 				}
