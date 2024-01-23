@@ -15,11 +15,11 @@ package suite
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/stretchr/testify/require"
