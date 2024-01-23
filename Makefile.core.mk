@@ -247,10 +247,10 @@ higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-buil
 
 # higress-conformance-test-nacos runs ingress nacos tests.
 .PHONY: higress-conformance-test-nacos
-higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward run-higress-e2e-test-nacos delete-cluster
+higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward-nacos run-higress-e2e-test-nacos delete-cluster
 
-.PHONY: port-forward
-port-forward:
+.PHONY: port-forward-nacos
+port-forward-nacos:
 	kubectl port-forward -n higress-system svc/nacos-service 8848:8848 &
 
 # create-cluster creates a kube cluster with kind.
