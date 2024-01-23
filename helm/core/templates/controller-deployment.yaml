@@ -361,8 +361,18 @@ spec:
       {{- end }}
       {{- if not .Values.global.enableHigressIstio }}
       - name: config
+        {{- if not .Values.apiserver.enabled }}
         configMap:
           name: higress-config
+        {{- end }}
+        {{- if .Values.apiserver.enabled }}
+        projected:
+          sources:
+          - configMap:
+              name: higress-config
+          - configMap:
+              name: higress-apiserver
+        {{- end }}
       # Technically not needed on this pod - but it helps debugging/testing SDS
       # Should be removed after everything works.
       - emptyDir:

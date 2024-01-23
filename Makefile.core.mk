@@ -186,8 +186,8 @@ install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 install-dev-nacos: pre-install
 	kubectl apply -f tools/hack/conf/nacos.yaml
-	tools/hack/gen-keys.sh
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"'
+	tools/hack/gen-secret-configmap.sh
+	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"'
 
 uninstall:
 	helm uninstall higress -n higress-system

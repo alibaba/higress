@@ -19,6 +19,7 @@ RSA_KEY_LENGTH=4096
 NAMESPACE="${NAMESPACE:-higress-system}"
 CLUSTER_NAME="${CLUSTER_NAME:-higress}"
 APISERVER_ADDRESS="${APISERVER_ADDRESS:-https://127.0.0.1:8443}"
+SECRET_NAME="${SECRET_NAME:-higress-apiserver}"
 
 initializeApiServer() {
   echo "Initializing API server configurations..."
@@ -78,8 +79,8 @@ applySecretConfigmap() {
 apiVersion: v1
 kind: Secret
 metadata:
-  name: higress-apiserver
-  namespace: higress-system
+  name: $SECRET_NAME
+  namespace: $NAMESPACE
 data:
   ca.crt: $(cat $VOLUMES_ROOT/api/ca.crt | base64 -w 0)
   ca.key: $(cat $VOLUMES_ROOT/api/ca.key | base64 -w 0)
@@ -94,7 +95,7 @@ EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: higress-config
+  name: higress-apiserver
   namespace: $NAMESPACE
 data:
   kubeconfig: |
