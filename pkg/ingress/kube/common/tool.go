@@ -39,7 +39,6 @@ func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 	if resource == nil || resource.APIGroup == nil ||
 		*resource.APIGroup != netv1.SchemeGroupVersion.Group ||
 		resource.Kind != "McpBridge" || resource.Name != "default" {
-		IngressLog.Warnf("invalid mcpbridge resource: %v", resource)
 		return false
 	}
 	return true

@@ -32,11 +32,9 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |-
-            envoy
-            istio
             .git/modules
-        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules-new
+        key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-cache
     
     - run: git stash # restore patch
 
@@ -80,11 +78,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |-
-            envoy
-            istio
             .git/modules
-          key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-new
+          key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-submodules-cache
 
       - run: git stash # restore patch
 
@@ -128,11 +124,9 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |-
-            envoy
-            istio
             .git/modules
-        key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules-new
+        key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
+        restore-keys: ${{ runner.os }}-submodules-cache
           
     - run: git stash # restore patch
 

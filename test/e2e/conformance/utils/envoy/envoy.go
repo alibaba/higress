@@ -57,7 +57,40 @@ type Assertion struct {
 func AssertEnvoyConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig, expected Assertion) {
 	options := config.NewDefaultGetEnvoyConfigOptions()
 	options.PodNamespace = expected.TargetNamespace
+	convertEnvoyConfig := convertNumbersToFloat64(expected.ExpectEnvoyConfig)
+	if _, ok := convertEnvoyConfig.(map[string]interface{}); !ok {
+		t.Errorf("failed to convert envoy config number to float64")
+		return
+	}
+	expected.ExpectEnvoyConfig = convertEnvoyConfig.(map[string]interface{})
 	waitForEnvoyConfig(t, timeoutConfig, options, expected)
+}
+
+func convertNumbersToFloat64(data interface{}) interface{} {
+	switch val := data.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, v := range val {
+			result[key] = convertNumbersToFloat64(v)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, v := range val {
+			result[i] = convertNumbersToFloat64(v)
+		}
+		return result
+	case float64:
+		return val
+	case int:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case float32:
+		return float64(val)
+	default:
+		return data
+	}
 }
 
 // waitForEnvoyConfig waits for the Envoy config to be ready and asserts it.
@@ -245,7 +278,7 @@ func findKey(actual interface{}, key string, expectValue interface{}) bool {
 	case reflect.Map:
 		actualValueMap := actual.(map[string]interface{})
 		for actualKey, actualValue := range actualValueMap {
-			if actualKey == key && reflect.DeepEqual(convertType(actualValue, expectValue), expectValue) {
+			if actualKey == key && reflect.DeepEqual(actualValue, expectValue) {
 				return true
 			}
 			if findKey(actualValue, key, expectValue) {
@@ -254,34 +287,9 @@ func findKey(actual interface{}, key string, expectValue interface{}) bool {
 		}
 		return false
 	default:
-		if reflectValue.String() == key && reflect.DeepEqual(convertType(actual, expectValue), expectValue) {
+		if reflectValue.String() == key && reflect.DeepEqual(actual, expectValue) {
 			return true
 		}
 		return false
 	}
-}
-
-// convertType converts the type of the given value to the type of the given target value.
-func convertType(value interface{}, targetType interface{}) interface{} {
-	targetTypeValue := reflect.ValueOf(targetType)
-	targetTypeKind := targetTypeValue.Kind()
-
-	switch targetTypeKind {
-	case reflect.Int:
-		switch value.(type) {
-		case int:
-			return value
-		case float64:
-			return int(value.(float64))
-		}
-	case reflect.Float64:
-		switch value.(type) {
-		case int:
-			return float64(value.(int))
-		case float64:
-			return value
-		}
-	}
-
-	return value
 }

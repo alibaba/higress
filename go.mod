@@ -14,7 +14,7 @@ replace github.com/docker/distribution => github.com/docker/distribution v0.0.0-
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
-	github.com/agiledragon/gomonkey/v2 v2.9.0
+	github.com/agiledragon/gomonkey/v2 v2.11.0
 	github.com/alibaba/higress/hgctl v0.0.0-00010101000000-000000000000
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/dubbogo/go-zookeeper v1.0.4-0.20211212162352-f9d2183d89d5
@@ -38,7 +38,6 @@ require (
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	istio.io/api v1.19.0-rc.0.0.20230828012244-464da4944bb2
-	istio.io/client-go v1.19.0-rc.0
 	istio.io/gogo-genproto v0.0.0-20211115195057-0e34bdd2be67
 	istio.io/istio v0.0.0
 	istio.io/pkg v0.0.0-20211115195056-e379f31ee62a
@@ -218,6 +217,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.0 // indirect
+	istio.io/client-go v1.19.0-rc.0 // indirect
 	k8s.io/apiserver v0.28.3 // indirect
 	k8s.io/component-base v0.28.3 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect

@@ -65,7 +65,12 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 	}
 
 	defer func() {
-		config.UpstreamTLS = upstreamTLSConfig
+		if upstreamTLSConfig.BackendProtocol == defaultBackendProtocol {
+			// no need destination rule when use HTTP protocol
+			config.UpstreamTLS = nil
+		} else {
+			config.UpstreamTLS = upstreamTLSConfig
+		}
 	}()
 
 	if proto, err := annotations.ParseStringASAP(backendProtocol); err == nil {

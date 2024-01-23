@@ -35,6 +35,12 @@ func TestUpstreamTLSParse(t *testing.T) {
 		},
 		{
 			input: Annotations{
+				buildNginxAnnotationKey(backendProtocol): "HTTP",
+			},
+			expect: nil,
+		},
+		{
+			input: Annotations{
 				buildNginxAnnotationKey(proxySSLSecret):     "",
 				buildNginxAnnotationKey(backendProtocol):    "HTTP2",
 				buildNginxAnnotationKey(proxySSLSecret):     "namespace/SSLSecret",
