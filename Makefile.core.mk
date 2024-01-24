@@ -249,6 +249,10 @@ higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-buil
 .PHONY: higress-conformance-test-nacos
 higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward-nacos run-higress-e2e-test-nacos delete-cluster
 
+# higress-wasmplugin-test-nacos runs ingress wasmplugin nacos tests.
+.PHONY: higress-wasmplugin-test-nacos
+higress-wasmplugin-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward-nacos run-higress-e2e-test-wasmplugin-nacos delete-cluster
+
 .PHONY: port-forward-nacos
 port-forward-nacos:
 	kubectl wait --timeout=10m -n higress-system deploy/nacos --for=condition=Available
@@ -311,3 +315,12 @@ run-higress-e2e-test-nacos:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --enableApiServer=true
+
+.PHONY: run-higress-e2e-test-wasmplugin-nacos
+run-higress-e2e-test-wasmplugin-nacos:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=GO -wasmPluginName=request-block --ingress-class=higress --enableApiServer=true
