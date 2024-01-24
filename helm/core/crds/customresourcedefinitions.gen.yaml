@@ -154,11 +154,6 @@ spec:
                           type: array
                         httpPath:
                           type: string
-                        paramFromEntireBody:
-                          properties:
-                            paramType:
-                              type: string
-                          type: object
                         params:
                           items:
                             properties:
