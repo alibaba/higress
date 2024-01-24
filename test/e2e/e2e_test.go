@@ -65,6 +65,9 @@ func TestHigressConformanceTests(t *testing.T) {
 	case suite.TestAreaRun:
 		cSuite.Run(t, tests.ConformanceTests)
 	case suite.TestAreaSetup:
+		cSuite.Cleanup = false
 		cSuite.Setup(t)
+	case suite.TessAreaClean:
+		cSuite.Clean(t)
 	}
 }

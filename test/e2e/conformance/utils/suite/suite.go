@@ -28,6 +28,7 @@ const (
 	TestAreaAll   = "all"
 	TestAreaSetup = "setup"
 	TestAreaRun   = "run"
+	TessAreaClean = "clean"
 )
 
 // ConformanceTestSuite defines the test suite used to run Gateway API
@@ -172,6 +173,17 @@ func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
 		})
+	}
+}
+
+// Clean cleans up the base resources installed by Setup.
+func (suite *ConformanceTestSuite) Clean(t *testing.T) {
+	if suite.Cleanup {
+		t.Logf("🧹 Test Cleanup: Ensuring base resources have been cleaned up")
+
+		for _, baseManifest := range suite.BaseManifests {
+			suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, baseManifest)
+		}
 	}
 }
 
