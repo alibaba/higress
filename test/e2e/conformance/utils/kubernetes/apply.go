@@ -285,6 +285,25 @@ func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutCon
 	}
 }
 
+// MustDeleteConfig delete config from config center
+func (a Applier) MustDeleteConfig(t *testing.T, timeoutConfig config.TimeoutConfig, location string, cc cc.Storage) {
+	data, err := getContentsFromPathOrURL(location, timeoutConfig)
+	require.NoError(t, err)
+
+	decoder := yaml.NewYAMLOrJSONDecoder(data, 4096)
+
+	resources, err := a.prepareResources(t, decoder)
+	if err != nil {
+		t.Logf("🧳 Manifest: %s", data.String())
+		require.NoErrorf(t, err, "error parsing manifest")
+	}
+
+	for _, r := range resources {
+		err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
+		require.NoError(t, err)
+	}
+}
+
 // MustApplyConfigmapDataWithYaml apply configmap data with yaml
 func (a Applier) MustApplyConfigmapDataWithYaml(t *testing.T, cc cc.Storage, c client.Client, namespace string, name string, key string, val any, enableApiServer bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

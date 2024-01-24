@@ -234,17 +234,22 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 
 	t.Logf("🔥 Running Conformance Test: %s", test.ShortName)
 
-	for _, manifestLocation := range test.PreDeleteRs {
-		t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
-		suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
-	}
-
 	if suite.EnableApiServer {
+		for _, manifestLocation := range test.PreDeleteRs {
+			t.Logf("🧳 Applying PreDeleteRs ApiServer Storage Manifests: %s", manifestLocation)
+			suite.Applier.MustDeleteConfig(t, suite.TimeoutConfig, manifestLocation, suite.ConfigCenter)
+		}
+
 		for _, manifestLocation := range test.Manifests {
-			t.Logf("🧳 Applying ApiServer Storage Manifests")
+			t.Logf("🧳 Applying ApiServer Storage Manifests: %s", manifestLocation)
 			suite.Applier.MustPublishConfig(t, suite.TimeoutConfig, manifestLocation, !test.NotCleanup, suite.ConfigCenter)
 		}
 	} else {
+		for _, manifestLocation := range test.PreDeleteRs {
+			t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
+			suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
+		}
+
 		for _, manifestLocation := range test.Manifests {
 			t.Logf("🧳 Applying Manifests: %s", manifestLocation)
 			suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)

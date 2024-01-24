@@ -24,6 +24,4 @@ done
 
 echo "starting higress..."
 
-/usr/local/bin/higress "$@"
-
-echo "higress started."
+exec /usr/local/bin/higress "$@"
