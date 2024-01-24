@@ -327,15 +327,15 @@ run-higress-e2e-test-clean:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=clean
 
-# run-higress-e2e-test-wasmplugin-prepares starts to prepare ingress e2e tests.
-.PHONY: run-higress-e2e-test-wasmplugin-prepares
-run-higress-e2e-test-wasmplugin-prepares:
+# run-higress-e2e-test-wasmplugin-setup starts to prepare ingress e2e tests.
+.PHONY: run-higress-e2e-test-wasmplugin-setup
+run-higress-e2e-test-wasmplugin-setup:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=prepare
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=setup
 
 # run-higress-e2e-test-wasmplugin starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test-wasmplugin
