@@ -15,15 +15,15 @@ package suite
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
-	"istio.io/pkg/log"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
