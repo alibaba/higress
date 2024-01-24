@@ -15,14 +15,14 @@ package suite
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
+	"istio.io/pkg/log"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
-	"github.com/stretchr/testify/require"
 	"istio.io/istio/pilot/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -137,20 +137,20 @@ func New(s Options) *ConformanceTestSuite {
 		}
 	}
 
+	if suite.EnableApiServer {
+		configClient, err := nacos.NewClient(suite.Storage)
+		if err != nil {
+			log.Fatalf("🚨 Failed to create config client: %v", err)
+		}
+		suite.ConfigCenter = configClient
+	}
+
 	return suite
 }
 
 // Setup ensures the base resources required for conformance tests are installed
 // in the cluster. It also ensures that all relevant resources are ready.
 func (suite *ConformanceTestSuite) Setup(t *testing.T) {
-	if suite.EnableApiServer {
-		t.Logf("📦 Test Setup: Ensuring ApiServer Storage has been accepted")
-		configClient, err := nacos.NewClient(suite.Storage)
-		require.NoError(t, err)
-		require.NotNil(t, configClient)
-		suite.ConfigCenter = configClient
-	}
-
 	t.Logf("📦 Test Setup: Ensuring IngressClass has been accepted")
 
 	suite.Applier.IngressClass = suite.IngressClassName

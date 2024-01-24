@@ -14,7 +14,32 @@
 
 package cc
 
+import "strings"
+
 type Storage interface {
-	PublishConfig(dataId, group, content string) error
-	DeleteConfig(dataId, group string) error
+	PublishConfig(kind, name, namespace, content string) error
+	DeleteConfig(kind, name, namespace string) error
+}
+
+func GetDataId(kind, name string) string {
+	switch strings.ToLower(kind) {
+	case "configmap":
+		kind = "configmaps"
+	case "secret":
+		kind = "secrets"
+	case "ingress":
+		kind = "ingresses"
+	case "service":
+		kind = "services"
+	case "ingressclass":
+		kind = "ingressclasses"
+	case "mcpbridge":
+		kind = "mcpbridges"
+	case "wasmplugin":
+		kind = "wasmplugins"
+	case "http2rpc":
+		kind = "http2rpcs"
+	default:
+	}
+	return kind + "." + name
 }

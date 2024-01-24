@@ -27,7 +27,7 @@ var (
 	WasmPluginType       = flag.String("wasmPluginType", "GO", "Define wasm plugin type, currently supports GO, CPP")
 	WasmPluginName       = flag.String("wasmPluginName", "", "Define wasm plugin name")
 	IsEnvoyConfigTest    = flag.Bool("isEnvoyConfigTest", false, "Determine if run envoy config conformance test")
-	EnableApiServer      = flag.Bool("enableApiServer", false, "Determine if enable api server")
+	EnableApiServer      = flag.Bool("enableApiServer", true, "Determine if enable api server")
 	// TODO when apiserver support other mode, we can use string field like: nacos://username:password@ip:port/namespace
 	Storage = flag.String("storage", "http://127.0.0.1:8848", "Define storage")
 )

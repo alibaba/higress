@@ -25,18 +25,27 @@ kind: Namespace
 metadata:
   name: higress-system
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: nacos
   namespace: higress-system
   labels:
     name: nacos
 spec:
-  containers:
-    - name: nacos
-      image: swsk33/nacos-standalone:2.2.3
-      ports:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: nacos
+  template:
+    metadata:
+      labels:
+        name: nacos
+    spec:
+      containers:
+      - name: nacos
+        image: swsk33/nacos-standalone:2.2.3
+        ports:
         - containerPort: 8848
         - containerPort: 9848
 ---

@@ -19,9 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	v1 "k8s.io/api/core/v1"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	ingress "github.com/alibaba/higress/test/e2e/conformance"
 	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
@@ -31,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	yamlFormK8s "sigs.k8s.io/yaml"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 )
@@ -266,21 +269,52 @@ func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutCon
 
 	for _, r := range resources {
 		// TODO: Maybe add s or es
-		dataId := r.GetKind() + "es"
-		group := r.GetNamespace()
-		// convert r to string
 		var content []byte
 		content, err = r.MarshalJSON()
 		require.NoError(t, err)
 		// publish
-		err = cc.PublishConfig(dataId, group, string(content))
+		err = cc.PublishConfig(r.GetKind(), r.GetName(), r.GetNamespace(), string(content))
 		require.NoError(t, err)
 		if cleanup {
 			t.Cleanup(func() {
 				// delete
-				err = cc.DeleteConfig(dataId, group)
+				err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
 				require.NoError(t, err)
 			})
 		}
 	}
+}
+
+// MustApplyConfigmapDataWithYaml apply configmap data with yaml
+func (a Applier) MustApplyConfigmapDataWithYaml(t *testing.T, cc cc.Storage, c client.Client, namespace string, name string, key string, val any, enableApiServer bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cm := &v1.ConfigMap{}
+	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
+	require.NoError(t, err)
+
+	y, err := yamlFormK8s.Marshal(val)
+	require.NoError(t, err)
+	data := string(y)
+
+	if cm.Data == nil {
+		cm.Data = make(map[string]string, 0)
+	}
+	cm.Data[key] = data
+
+	t.Logf("🏗 Updating %s %s", name, namespace)
+
+	if enableApiServer {
+		marshal, err := yamlFormK8s.Marshal(cm)
+		require.NoError(t, err)
+		err = cc.PublishConfig("configmap", cm.GetName(), cm.GetNamespace(), string(marshal))
+		require.NoError(t, err)
+		return
+	}
+
+	if err := c.Update(ctx, cm); err != nil {
+		require.NoError(t, err)
+	}
+
 }

@@ -90,7 +90,7 @@ data:
   nacos.key: $(cat $VOLUMES_ROOT/api/nacos.key | base64 -w 0)
 EOF
 
-  echo "Applying configmap $NAMESPACE/higress-config..."
+  echo "Applying configmap $NAMESPACE/higress-apiserver..."
   kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap

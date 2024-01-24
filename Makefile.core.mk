@@ -251,7 +251,8 @@ higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster dock
 
 .PHONY: port-forward-nacos
 port-forward-nacos:
-	kubectl port-forward -n higress-system svc/nacos-service 8848:8848 &
+	kubectl wait --timeout=10m -n higress-system deploy/nacos --for=condition=Available
+	kubectl port-forward -n higress-system svc/nacos-service 8848:8848 9848:9848 &
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster

@@ -56,6 +56,6 @@ func TestHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t)
+	//cSuite.Setup(t)
 	cSuite.Run(t, tests.ConformanceTests)
 }

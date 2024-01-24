@@ -79,7 +79,9 @@ func NewClient(addr string) (cc.Storage, error) {
 	}, nil
 }
 
-func (s storage) PublishConfig(dataId, group, content string) error {
+func (s storage) PublishConfig(kind, name, namespace, content string) error {
+	dataId := cc.GetDataId(kind, name)
+	group := namespace
 	_, err := s.client.PublishConfig(vo.ConfigParam{
 		DataId:  dataId,
 		Group:   group,
@@ -88,7 +90,9 @@ func (s storage) PublishConfig(dataId, group, content string) error {
 	return err
 }
 
-func (s storage) DeleteConfig(dataId, group string) error {
+func (s storage) DeleteConfig(kind, name, namespace string) error {
+	dataId := cc.GetDataId(kind, name)
+	group := namespace
 	_, err := s.client.DeleteConfig(vo.ConfigParam{
 		DataId: dataId,
 		Group:  group,
