@@ -27,5 +27,5 @@ var (
 	WasmPluginType       = flag.String("wasmPluginType", "GO", "Define wasm plugin type, currently supports GO, CPP")
 	WasmPluginName       = flag.String("wasmPluginName", "", "Define wasm plugin name")
 	IsEnvoyConfigTest    = flag.Bool("isEnvoyConfigTest", false, "Determine if run envoy config conformance test")
-	TestArea             = flag.String("test-area", "all", "Test area to run, like all to run setup/run/clean, setup to run setup only, run to run run only, clean to run clean only")
+	TestArea             = flag.String("test-area", "all", "Test area to run, like all to run setup/run/clean, setup to prepare test environment, run to run test cases, clean to clean test environment")
 )
