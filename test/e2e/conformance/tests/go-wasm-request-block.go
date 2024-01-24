@@ -30,6 +30,7 @@ var WasmPluginsRequestBlock = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the request-block wasmplugins.",
 	Manifests:   []string{"tests/go-wasm-request-block.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	PluginName:  "request-block",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

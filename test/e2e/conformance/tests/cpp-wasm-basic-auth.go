@@ -29,6 +29,7 @@ var CPPWasmPluginsBasicAuth = suite.ConformanceTest{
 	ShortName:   "CPPWasmPluginsBasicAuth",
 	Description: "The Ingress in the higress-conformance-infra namespace test the CPP basic-auth WASM plugin.",
 	Manifests:   []string{"tests/cpp-wasm-basic-auth.yaml"},
+	PluginName:  "basic-auth",
 	Features:    []suite.SupportedFeature{suite.WASMCPPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

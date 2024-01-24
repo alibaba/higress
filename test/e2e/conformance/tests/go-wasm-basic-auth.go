@@ -30,6 +30,7 @@ var WasmPluginsBasicAuth = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the basic-auth WASM plugin.",
 	Manifests:   []string{"tests/go-wasm-basic-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	PluginName:  "basic-auth",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

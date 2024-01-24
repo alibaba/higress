@@ -44,6 +44,7 @@ type ConformanceTestSuite struct {
 	EnableApiServer   bool
 	Storage           string
 	ConfigCenter      cc.Storage
+	WASMOptions
 }
 
 // Options can be used to initialize a ConformanceTestSuite.
@@ -124,6 +125,7 @@ func New(s Options) *ConformanceTestSuite {
 		TimeoutConfig:   s.TimeoutConfig,
 		EnableApiServer: s.EnableApiServer,
 		Storage:         s.Storage,
+		WASMOptions:     s.WASMOptions,
 	}
 
 	// apply defaults
@@ -210,6 +212,7 @@ type ConformanceTest struct {
 	Description string
 	PreDeleteRs []string
 	Manifests   []string
+	PluginName  string
 	Features    []SupportedFeature
 	Slow        bool
 	Parallel    bool
@@ -235,6 +238,13 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 	// check that the test should not be skipped
 	if suite.SkipTests.Contains(test.ShortName) {
 		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
+	}
+
+	// Skip wasm plugin name test
+	if suite.IsWasmPluginTest {
+		if suite.WasmPluginName != "all" && suite.WasmPluginName != test.PluginName {
+			t.Skipf("🏊🏼 Skipping %s: wasm plugin name not match", test.ShortName)
+		}
 	}
 
 	t.Logf("🔥 Running Conformance Test: %s", test.ShortName)

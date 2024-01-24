@@ -31,6 +31,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the transformer WASM plugin.",
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Manifests:   []string{"tests/go-wasm-transformer.yaml"},
+	PluginName:  "transformer",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

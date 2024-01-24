@@ -33,6 +33,7 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the sni-misdirect wasmplugins.",
 	Manifests:   []string{"tests/go-wasm-sni-misdirect.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	PluginName:  "sni-misdirect",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		// Prepare certificates and secrets for testcases
 		caCertOut, _, caCert, caKey := cert.MustGenerateCaCert(t)

@@ -25,7 +25,7 @@ var (
 	ExemptFeatures       = flag.String("exempt-features", "", "Exempt Features excluded from conformance tests suites")
 	IsWasmPluginTest     = flag.Bool("isWasmPluginTest", false, "Determine if run wasm plugin conformance test")
 	WasmPluginType       = flag.String("wasmPluginType", "GO", "Define wasm plugin type, currently supports GO, CPP")
-	WasmPluginName       = flag.String("wasmPluginName", "", "Define wasm plugin name")
+	WasmPluginName       = flag.String("wasmPluginName", "all", "Define wasm plugin name")
 	IsEnvoyConfigTest    = flag.Bool("isEnvoyConfigTest", false, "Determine if run envoy config conformance test")
 	EnableApiServer      = flag.Bool("enableApiServer", false, "Determine if enable api server")
 	// TODO when apiserver support other mode, we can use string field like: nacos://username:password@ip:port/namespace
