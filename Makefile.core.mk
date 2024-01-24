@@ -188,6 +188,10 @@ install-dev-nacos: pre-install
 	kubectl apply -f tools/hack/conf/nacos.yaml
 	tools/hack/gen-secret-configmap.sh
 	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"'
+install-dev-wasmplugin-nacos: build-wasmplugins pre-install
+	kubectl apply -f tools/hack/conf/nacos.yaml
+	tools/hack/gen-secret-configmap.sh
+	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"' --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -251,7 +255,7 @@ higress-conformance-test-nacos: $(tools/kind) delete-cluster create-cluster dock
 
 # higress-wasmplugin-test-nacos runs ingress wasmplugin nacos tests.
 .PHONY: higress-wasmplugin-test-nacos
-higress-wasmplugin-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-nacos port-forward-nacos run-higress-e2e-test-wasmplugin-nacos delete-cluster
+higress-wasmplugin-test-nacos: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin-nacos port-forward-nacos run-higress-e2e-test-wasmplugin-nacos delete-cluster
 
 .PHONY: port-forward-nacos
 port-forward-nacos:
@@ -323,4 +327,4 @@ run-higress-e2e-test-wasmplugin-nacos:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=GO -wasmPluginName=request-block --ingress-class=higress --enableApiServer=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --enableApiServer=true
