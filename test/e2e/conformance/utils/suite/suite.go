@@ -161,6 +161,11 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
 	}
 
+	if suite.EnableApiServer {
+		t.Logf("📦 Test Setup: Applying ApiServer Storage Manifests")
+		suite.Applier.MustPublishConfig(t, suite.TimeoutConfig, "base/service.yaml", suite.Cleanup, suite.ConfigCenter)
+	}
+
 	t.Logf("📦 Test Setup: Applying programmatic resources")
 	secret := kubernetes.MustCreateSelfSignedCertSecret(t, "higress-conformance-web-backend", "certificate", []string{"*"})
 	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{secret}, suite.Cleanup)
