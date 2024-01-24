@@ -267,8 +267,8 @@ func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutCon
 		require.NoErrorf(t, err, "error parsing manifest")
 	}
 
-	for _, r := range resources {
-		// TODO: Maybe add s or es
+	for i := range resources {
+		r := resources[i]
 		var content []byte
 		content, err = r.MarshalJSON()
 		require.NoError(t, err)
@@ -278,6 +278,7 @@ func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutCon
 		if cleanup {
 			t.Cleanup(func() {
 				// delete
+				t.Logf("🚮 Deleting %s %s", r.GetName(), r.GetKind())
 				err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
 				require.NoError(t, err)
 			})
@@ -298,7 +299,9 @@ func (a Applier) MustDeleteConfig(t *testing.T, timeoutConfig config.TimeoutConf
 		require.NoErrorf(t, err, "error parsing manifest")
 	}
 
-	for _, r := range resources {
+	for i := range resources {
+		r := resources[i]
+		t.Logf("🚮 Deleting %s %s", r.GetName(), r.GetKind())
 		err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
 		require.NoError(t, err)
 	}
