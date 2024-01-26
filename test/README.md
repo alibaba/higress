@@ -43,6 +43,26 @@ And after that, you should add your defined HigressConformanceTest to `e2e_test.
 
 You can understand it quickly just by looking at codes in `test/ingress/conformance/tests/httproute-simple-same-namespace.go` and `test/ingress/conformance/tests/httproute-simple-same-namespace.yaml`, and try to write one.
 
+### How to Implement Test Environment Reusability
+
+The test environment reusability is primarily achieved through the following targets in the Makefile:
+
+1. **make higress-conformance-test:** Used to run the entire Conformance testing process, including setting up the test environment, executing test cases, and cleaning up the test environment.
+   - **make higress-conformance-test-prepare:** Can be used to set up the environment for deployments such as higress-controller, higress-gateway, etc.
+   - **make run-higress-e2e-test:** Used to run the test cases.
+      - **make run-higress-e2e-test-setup:** Can be used to install the basic resources required for the test cases, such as nacos, dubbo, etc.
+      - **make run-higress-e2e-test-run:** Used to execute the test cases.
+      - **make run-higress-e2e-test-clean:** Can be used to clean up the basic resources installed during the setup phase of the test cases.
+   - **make higress-conformance-test-clean:** Used to clean up the test environment for deployments like higress-controller, higress-gateway, etc.
+
+2. **make higress-wasmplugin-test:** Used to run the entire WasmPlugin testing process, including setting up the test environment, compiling WasmPlugin plugins, executing test cases, and cleaning up the test environment.
+   - **make higress-wasmplugin-test-prepare:** Can be used to set up the environment for deployments such as higress-controller, higress-gateway, and compile WasmPlugin plugins.
+   - **make run-higress-e2e-test-wasmplugin:** Used to run the test cases.
+      - **make run-higress-e2e-test-wasmplugin-setup:** Can be used to install the basic resources required for the test cases, such as nacos, dubbo, etc.
+      - **make run-higress-e2e-test-wasmplugin-run:** Used to execute the test cases.
+      - **make run-higress-e2e-test-wasmplugin-clean:** Can be used to clean up the basic resources installed during the setup phase of the test cases.
+   - **make higress-wasmplugin-test-clean:** Used to clean up the test environment for deployments like higress-controller, higress-gateway, etc.
+
 ## Gateway APIs Conformance Tests
 
 Gateway API Conformance tests are based on the suite provided by `kubernetes-sig/gateway-api`, we can reuse that,
