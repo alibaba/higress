@@ -131,7 +131,6 @@ export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
 export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/alibaba/higress/releases/download/v1.3.0/envoy-ARCH.tar.gz
-export ENVOY_VERSION ?= v1.3.0
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
