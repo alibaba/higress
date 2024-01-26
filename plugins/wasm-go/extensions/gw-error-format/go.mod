@@ -5,7 +5,7 @@ go 1.18
 replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
-	github.com/tetratelabs/proxy-wasm-go-sdk v0.19.1-0.20220822060051-f9d179a57f8c
+	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0
 	github.com/tidwall/gjson v1.14.3
 )
 
