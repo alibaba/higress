@@ -52,6 +52,7 @@ $(OUT):
 
 submodule:
 	git submodule update --init
+	git submodule update --remote istio/istio
 
 .PHONY: prebuild
 prebuild: submodule
