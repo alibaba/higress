@@ -43,7 +43,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 						Host:    "foo.com",
 						Path:    "/foo",
 						Headers: map[string]string{"User-Agent": "BaiduMobaider/1.1.0"},
-					}
+					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
@@ -61,7 +61,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 					ActualRequest: http.Request{
 						Host: "foo.com",
 						Path: "/foo",
-						Headers: map[string]string{"User-Agent":"Mozilla/5.0"}
+						Headers: map[string]string{"User-Agent":"Mozilla/5.0"},
 					},
 				},
 				Response: http.AssertionResponse{
