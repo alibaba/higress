@@ -118,7 +118,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 					ActualRequest: http.Request{
 						Host:    "foo.com",
 						Path:    "/foo",
-						Headers: map[string]string{},
+						Headers: map[string]string{"User-Agent": ""},
 					},
 				},
 				Response: http.AssertionResponse{
