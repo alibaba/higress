@@ -130,6 +130,7 @@ func New(s Options) *ConformanceTestSuite {
 			"base/eureka.yaml",
 			"base/nacos.yaml",
 			"base/dubbo.yaml",
+			"base/opa.yaml",
 		}
 	}
 
