@@ -59,9 +59,9 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host: "foo.com",
-						Path: "/foo",
-						Headers: map[string]string{"User-Agent":"Mozilla/5.0"},
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"User-Agent": "Mozilla/5.0"},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -104,7 +104,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 403,
+						StatusCode: 401,
 					},
 				},
 			},
@@ -123,7 +123,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 403,
+						StatusCode: 401,
 					},
 				},
 			},
