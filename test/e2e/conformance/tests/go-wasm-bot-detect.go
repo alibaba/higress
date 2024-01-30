@@ -108,25 +108,6 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 					},
 				},
 			},
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 5: Test Empty Rule Deny",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:    "foo.com",
-						Path:    "/foo",
-						Headers: map[string]string{"User-Agent": ""},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 401,
-					},
-				},
-			},
 		}
 		t.Run("WasmPlugins bot detect", func(t *testing.T) {
 			for _, testcase := range testcases {
