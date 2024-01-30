@@ -57,21 +57,21 @@ curl http://example.com -H 'User-Agent: spd-tools/1.1'
 curl http://exmaple.com -H 'User-Agent: spd-tools'
 ```
 
-## Only Enabled for Specific Routes or Domains
+## Only Enabled for Specific Routes
 ```yaml
-# Use _rules_ field for fine-grained rule configurations 
-_rules_:
-# Rule 1: Match by route name
-- _match_route_:
-  - route-a
-  - route-b
-# Rule 2: Match by domain
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  allow:
-  - ".*Go-http-client.*"
+# Use matchRules field for fine-grained rule configurations 
+matchRules:
+#  Rule 1: Match by route name
+- matchRules:
+  - config:
+      configDisable: false
+      ingress:
+        - route-a
+        - route-b
+      allow:
+        - ".*Go-http-client.*"
+      blocked_code: 401
+      blocked_message: deny by bot detect
 ```
-In the rule sample of `_match_route_`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
-In the rule sample of `_match_domain_`, `*.example.com` and `test.com` are the domain names used for request matching. When the current domain name matches the configuration, the rule following shall be applied.
-All rules shall be checked following the order of items in the `_rules_` field, The first matched rule will be applied. All remained will be ignored.
+
+In the rule sample of `matchRules.config`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
