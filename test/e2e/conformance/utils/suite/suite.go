@@ -24,6 +24,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	TestAreaAll   = "all"
+	TestAreaSetup = "setup"
+	TestAreaRun   = "run"
+	TessAreaClean = "clean"
+)
+
 // ConformanceTestSuite defines the test suite used to run Gateway API
 // conformance tests.
 type ConformanceTestSuite struct {
@@ -159,13 +166,24 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 	t.Logf("🌱 Supported Features: %+v", suite.SupportedFeatures.UnsortedList())
 }
 
-// RunWithTests runs the provided set of conformance tests.
+// Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
 	for _, test := range tests {
 		t.Run(test.ShortName, func(t *testing.T) {
 			test.Run(t, suite)
 		})
+	}
+}
+
+// Clean cleans up the base resources installed by Setup.
+func (suite *ConformanceTestSuite) Clean(t *testing.T) {
+	if suite.Cleanup {
+		t.Logf("🧹 Test Cleanup: Ensuring base resources have been cleaned up")
+
+		for _, baseManifest := range suite.BaseManifests {
+			suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, baseManifest)
+		}
 	}
 }
 

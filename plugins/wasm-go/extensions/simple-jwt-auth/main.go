@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
@@ -39,19 +41,19 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
 	var res Res
 	if config.TokenHeaders == "" || config.TokenSecretKey == "" {
-		res.Code = 401
-		res.Msg = "参数不足"
+		res.Code = http.StatusBadRequest
+		res.Msg = "token or secret 不允许为空"
 		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
 		return types.ActionContinue
 	}
 
 	token, err := proxywasm.GetHttpRequestHeader(config.TokenHeaders)
 	if err != nil {
-		res.Code = 401
+		res.Code = http.StatusUnauthorized
 		res.Msg = "认证失败"
 		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
 		return types.ActionContinue
 	}
 	valid := ParseTokenValid(token, config.TokenSecretKey)
@@ -59,10 +61,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		_ = proxywasm.ResumeHttpRequest()
 		return types.ActionPause
 	} else {
-		res.Code = 401
+		res.Code = http.StatusUnauthorized
 		res.Msg = "认证失败"
 		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(401, nil, data, -1)
+		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
 		return types.ActionContinue
 	}
 }

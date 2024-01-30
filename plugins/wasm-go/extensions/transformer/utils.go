@@ -59,6 +59,15 @@ func isValidOperation(op string) bool {
 	}
 }
 
+func isValidMapSource(source string) bool {
+	switch source {
+	case "headers", "querys", "body":
+		return true
+	default:
+		return false
+	}
+}
+
 func parseQueryByPath(path string) (map[string][]string, error) {
 	u, err := url.Parse(path)
 	if err != nil {

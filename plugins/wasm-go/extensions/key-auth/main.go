@@ -17,6 +17,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -74,9 +75,11 @@ type Consumer struct {
 //     credential: token1
 //   - name: consumer2
 //     credential: token2
+//
 // keys:
 //   - x-api-key
 //   - token
+//
 // in_query: true
 // @End
 type KeyAuthConfig struct {
@@ -319,19 +322,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 }
 
 func deniedMutiKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. Muti Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedNoKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. No Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedUnauthorizedConsumer() types.Action {
-	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponse(http.StatusForbidden, WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. Unauthorized consumer."), -1)
 	return types.ActionContinue
 }

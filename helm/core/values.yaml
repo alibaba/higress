@@ -1,5 +1,8 @@
 revision: ""
 global:
+  enableSRDS: false
+  onDemandRDS: false
+  hostRDSMergeSubset: false
   onlyPushRouteCluster: true
   # IngressClass filters which ingress resources the higress controller watches.
   # The default ingress class is higress.
