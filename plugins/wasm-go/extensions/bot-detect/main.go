@@ -83,7 +83,11 @@ func parseConfig(json gjson.Result, botDetectConfig *config.BotDetectConfig, log
 func onHttpRequestHeaders(ctx wrapper.HttpContext, botDetectConfig config.BotDetectConfig, log wrapper.Log) types.Action {
 	log.Debug("onHttpRequestHeaders()")
 	//// Get user-agent header
-	ua, _ := proxywasm.GetHttpRequestHeader("user-agent")
+	ua, err := proxywasm.GetHttpRequestHeader("user-agent")
+	if err != nil {
+		log.Warnf("failed to get user-agent: %v", err)
+		return types.ActionPause
+	}
 	host := ctx.Host()
 	scheme := ctx.Scheme()
 	path := ctx.Path()
