@@ -109,7 +109,7 @@ var WasmPluginsBotDetect = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("WasmPlugins bot detect ", func(t *testing.T) {
+		t.Run("WasmPlugins bot detect", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
