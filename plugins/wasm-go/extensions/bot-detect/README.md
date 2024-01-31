@@ -56,23 +56,3 @@ deny:
 curl http://example.com -H 'User-Agent: spd-tools/1.1'
 curl http://exmaple.com -H 'User-Agent: spd-tools'
 ```
-
-## 对特定路由或域名开启
-```yaml
-# 使用 _rules_ 字段进行细粒度规则配置
-matchRules:
-# 规则一：按路由名称匹配生效
-- matchRules:
-  - config:
-      configDisable: false
-      ingress:
-        - route-a
-        - route-b
-      allow:
-        - ".*Go-http-client.*"
-      blocked_code: 401
-      blocked_message: deny by bot detect
-```
-此例 `matchRules.config` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将使用此段配置；
-
-

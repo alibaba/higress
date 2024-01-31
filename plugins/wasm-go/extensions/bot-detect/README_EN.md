@@ -56,22 +56,3 @@ According to this configuration, the following requests will be denied:
 curl http://example.com -H 'User-Agent: spd-tools/1.1'
 curl http://exmaple.com -H 'User-Agent: spd-tools'
 ```
-
-## Only Enabled for Specific Routes
-```yaml
-# Use matchRules field for fine-grained rule configurations 
-matchRules:
-#  Rule 1: Match by route name
-- matchRules:
-  - config:
-      configDisable: false
-      ingress:
-        - route-a
-        - route-b
-      allow:
-        - ".*Go-http-client.*"
-      blocked_code: 401
-      blocked_message: deny by bot detect
-```
-
-In the rule sample of `matchRules.config`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
