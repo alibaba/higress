@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -119,3 +121,4 @@ func FindPodConditionInList(t *testing.T, conditions []v1.PodCondition, condName
 	t.Logf("⌛️ %s was not in conditions list", condName)
 	return false
 }
+

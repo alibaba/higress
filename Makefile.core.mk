@@ -15,7 +15,7 @@ GO_LDFLAGS += -X $(VERSION_PACKAGE).higressVersion=$(shell cat VERSION) \
 
 GO ?= go
 
-export GOPROXY ?= https://proxy.golang.com.cn,direct
+export GOPROXY ?= https://proxy.golang.org,direct
 
 TARGET_ARCH ?= amd64
 
