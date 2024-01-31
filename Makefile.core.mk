@@ -15,7 +15,7 @@ GO_LDFLAGS += -X $(VERSION_PACKAGE).higressVersion=$(shell cat VERSION) \
 
 GO ?= go
 
-export GOPROXY ?= https://proxy.golang.com.cn,direct
+export GOPROXY ?= https://proxy.golang.org,direct
 
 TARGET_ARCH ?= amd64
 
@@ -233,13 +233,29 @@ include tools/lint.mk
 .PHONY: gateway-conformance-test
 gateway-conformance-test:
 
+# higress-conformance-test-prepare prepares the environment for higress conformance tests.
+.PHONY: higress-conformance-test-prepare
+higress-conformance-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev
+
 # higress-conformance-test runs ingress api conformance tests.
 .PHONY: higress-conformance-test
 higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-higress-e2e-test delete-cluster
 
+# higress-conformance-test-clean cleans the environment for higress conformance tests.
+.PHONY: higress-conformance-test-clean
+higress-conformance-test-clean: $(tools/kind) delete-cluster
+
+# higress-wasmplugin-test-prepare prepares the environment for higress wasmplugin tests.
+.PHONY: higress-wasmplugin-test-prepare
+higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
+
 # higress-wasmplugin-test runs ingress wasmplugin tests.
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
+
+# higress-wasmplugin-test-clean cleans the environment for higress wasmplugin tests.
+.PHONY: higress-wasmplugin-test-clean
+higress-wasmplugin-test-clean: $(tools/kind) delete-cluster
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
@@ -270,6 +286,17 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
+
+# run-higress-e2e-test-setup starts to setup ingress e2e tests.
+.PHONT: run-higress-e2e-test-setup
+run-higress-e2e-test-setup:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=setup
+
 # run-higress-e2e-test starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test
 run-higress-e2e-test:
@@ -278,9 +305,39 @@ run-higress-e2e-test:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=all
 
-# run-higress-e2e-test starts to run ingress e2e tests.
+# run-higress-e2e-test-run starts to run ingress e2e conformance tests.
+.PHONY: run-higress-e2e-test-run
+run-higress-e2e-test-run:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=run
+
+# run-higress-e2e-test-clean starts to clean ingress e2e tests.
+.PHONY: run-higress-e2e-test-clean
+run-higress-e2e-test-clean:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=clean
+
+# run-higress-e2e-test-wasmplugin-setup starts to prepare ingress e2e tests.
+.PHONY: run-higress-e2e-test-wasmplugin-setup
+run-higress-e2e-test-wasmplugin-setup:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=setup
+
+# run-higress-e2e-test-wasmplugin starts to run ingress e2e tests.
 .PHONY: run-higress-e2e-test-wasmplugin
 run-higress-e2e-test-wasmplugin:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
@@ -288,4 +345,24 @@ run-higress-e2e-test-wasmplugin:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=all
+
+# run-higress-e2e-test-wasmplugin-run starts to run ingress e2e conformance tests.
+.PHONY: run-higress-e2e-test-wasmplugin-run
+run-higress-e2e-test-wasmplugin-run:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=run
+
+# run-higress-e2e-test-wasmplugin-clean starts to clean ingress e2e tests.
+.PHONY: run-higress-e2e-test-wasmplugin-clean
+run-higress-e2e-test-wasmplugin-clean:
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
+	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
+	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=clean

@@ -70,6 +70,15 @@ func TestNeedRegexMatch(t *testing.T) {
 		{
 			input: &Ingress{
 				Rewrite: &RewriteConfig{
+					UseRegex: false,
+				},
+			},
+			inputPath: "/.",
+			expect:    false,
+		},
+		{
+			input: &Ingress{
+				Rewrite: &RewriteConfig{
 					UseRegex:      false,
 					RewriteTarget: "/",
 				},

@@ -41,6 +41,7 @@ func Test_validGlobal(t *testing.T) {
 			name: "downstream nil",
 			global: &Global{
 				Downstream:           nil,
+				Upstream:             NewDefaultUpStream(),
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
 			},
@@ -136,6 +137,9 @@ func Test_deepCopyGlobal(t *testing.T) {
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),
 				},
+				Upstream: &Upstream{
+					IdleTimeout: 10,
+				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
 			},
@@ -145,6 +149,9 @@ func Test_deepCopyGlobal(t *testing.T) {
 					MaxRequestHeadersKb:    9600,
 					ConnectionBufferLimits: 4096,
 					Http2:                  NewDefaultHttp2(),
+				},
+				Upstream: &Upstream{
+					IdleTimeout: 10,
 				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
@@ -194,6 +201,9 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 					ConnectionBufferLimits: defaultConnectionBufferLimits,
 					Http2:                  NewDefaultHttp2(),
 				},
+				Upstream: &Upstream{
+					IdleTimeout: 10,
+				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
 			},
@@ -206,6 +216,9 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 					ConnectionBufferLimits: defaultConnectionBufferLimits,
 					Http2:                  NewDefaultHttp2(),
 				},
+				Upstream: &Upstream{
+					IdleTimeout: 10,
+				},
 				AddXRealIpHeader:     true,
 				DisableXEnvoyHeaders: true,
 			},
@@ -214,6 +227,7 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			name: "delete and push",
 			old: &HigressConfig{
 				Downstream:           NewDefaultDownstream(),
+				Upstream:             NewDefaultUpStream(),
 				AddXRealIpHeader:     defaultAddXRealIpHeader,
 				DisableXEnvoyHeaders: defaultDisableXEnvoyHeaders,
 			},
@@ -222,6 +236,7 @@ func Test_AddOrUpdateHigressConfig(t *testing.T) {
 			wantEventPush: "push",
 			wantGlobal: &Global{
 				Downstream:           NewDefaultDownstream(),
+				Upstream:             NewDefaultUpStream(),
 				AddXRealIpHeader:     defaultAddXRealIpHeader,
 				DisableXEnvoyHeaders: defaultDisableXEnvoyHeaders,
 			},
