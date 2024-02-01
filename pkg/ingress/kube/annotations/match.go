@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	exact       = "exact"
-	regex       = "regex"
-	prefix      = "prefix"
-	MatchMethod = "match-method"
-	MatchQuery  = "match-query"
-	MatchHeader = "match-header"
-	sep         = " "
+	exact             = "exact"
+	regex             = "regex"
+	prefix            = "prefix"
+	MatchMethod       = "match-method"
+	MatchQuery        = "match-query"
+	MatchHeader       = "match-header"
+	MatchPseudoHeader = "match-pseudo-header"
+	sep               = " "
 )
 
 var (
@@ -54,6 +55,24 @@ func (m match) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 
 	if config.Match.Headers, err = m.matchByHeaderOrQueryParma(annotations, MatchHeader, config.Match.Headers); err != nil {
 		IngressLog.Errorf("parse headers error %v within ingress %s/%s", err, config.Namespace, config.Name)
+	}
+
+	var pseudoHeaderMatches map[string]map[string]string
+	if pseudoHeaderMatches, err = m.matchByHeaderOrQueryParma(annotations, MatchPseudoHeader, pseudoHeaderMatches); err != nil {
+		IngressLog.Errorf("parse headers error %v within ingress %s/%s", err, config.Namespace, config.Name)
+	}
+	if pseudoHeaderMatches != nil && len(pseudoHeaderMatches) > 0 {
+		if config.Match.Headers == nil {
+			config.Match.Headers = make(map[string]map[string]string)
+		}
+		for typ, mmap := range pseudoHeaderMatches {
+			if config.Match.Headers[typ] == nil {
+				config.Match.Headers[typ] = make(map[string]string)
+			}
+			for k, v := range mmap {
+				config.Match.Headers[typ][":"+k] = v
+			}
+		}
 	}
 
 	if config.Match.QueryParams, err = m.matchByHeaderOrQueryParma(annotations, MatchQuery, config.Match.QueryParams); err != nil {

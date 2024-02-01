@@ -1,0 +1,73 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opa
+  namespace: higress-conformance-app-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opa
+  template:
+    metadata:
+      labels:
+        app: opa
+    spec:
+      containers:
+        - name: opa
+          image: openpolicyagent/opa:latest
+          ports:
+            - containerPort: 8181
+          command: [ "opa", "run", "-s" ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa
+  namespace: higress-conformance-app-backend
+spec:
+  selector:
+    app: opa
+  ports:
+    - protocol: TCP
+      port: 8181
+      targetPort: 8181
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-opa
+  namespace: higress-conformance-app-backend
+spec:
+  containers:
+    - name: opa-test
+      image: curlimages/curl:latest
+      command:
+        - sh
+        - -c
+        - |
+          curl -X PUT 'http://opa:8181/v1/policies/example1' \
+            -H 'Content-Type: text/plain' \
+            -d 'package example1
+            import input.request
+            default allow = false
+            allow {
+            # HTTP method must GET
+            request.method == "GET"
+            }'
+  restartPolicy: OnFailure
