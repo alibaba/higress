@@ -10,7 +10,6 @@
 
 # 配置示例
 
-## 屏蔽请求 url 路径
 ```yaml
 suffix: jpg|png|jpeg
 maxAge: 3600
