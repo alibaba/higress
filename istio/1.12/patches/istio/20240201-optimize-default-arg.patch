@@ -1,0 +1,60 @@
+diff -Naur istio/pilot/cmd/pilot-agent/status/util/stats.go istio-new/pilot/cmd/pilot-agent/status/util/stats.go
+--- istio/pilot/cmd/pilot-agent/status/util/stats.go	2024-02-01 10:20:13.000000000 +0800
++++ istio-new/pilot/cmd/pilot-agent/status/util/stats.go	2024-01-31 22:44:53.000000000 +0800
+@@ -73,7 +73,7 @@
+ 		localHostAddr = "localhost"
+ 	}
+ 
+-	readinessURL := fmt.Sprintf("http://%s:%d/stats?usedonly&filter=%s", localHostAddr, adminPort, readyStatsRegex)
++	readinessURL := fmt.Sprintf("http://%s:%d/stats?usedonly", localHostAddr, adminPort)
+ 	stats, err := http.DoHTTPGetWithTimeout(readinessURL, readinessTimeout)
+ 	if err != nil {
+ 		return nil, false, err
+@@ -105,7 +105,7 @@
+ 		localHostAddr = "localhost"
+ 	}
+ 
+-	stats, err := http.DoHTTPGet(fmt.Sprintf("http://%s:%d/stats?usedonly&filter=%s", localHostAddr, adminPort, updateStatsRegex))
++	stats, err := http.DoHTTPGet(fmt.Sprintf("http://%s:%d/stats?usedonly", localHostAddr, adminPort))
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff -Naur istio/pilot/pkg/features/pilot.go istio-new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2024-02-01 10:20:17.000000000 +0800
++++ istio-new/pilot/pkg/features/pilot.go	2024-02-01 10:16:18.000000000 +0800
+@@ -575,6 +575,8 @@
+ 		"If enabled, each host in virtualservice will have an independent RDS, which is used with SRDS").Get()
+ 	OnDemandRDS = env.RegisterBoolVar("ON_DEMAND_RDS", false,
+ 		"If enabled, the on demand filter will be added to the HCM filters").Get()
++	DefaultUpstreamConcurrencyThreshold = env.RegisterIntVar("DEFAULT_UPSTREAM_CONCURRENCY_THRESHOLD", 1000000,
++		"The default threshold of max_requests/max_pending_requests/max_connections of circuit breaker").Get()
+ 	// End added by ingress
+ )
+ 
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/cluster.go istio-new/pilot/pkg/networking/core/v1alpha3/cluster.go
+--- istio/pilot/pkg/networking/core/v1alpha3/cluster.go	2024-02-01 10:20:17.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/cluster.go	2024-02-01 10:16:05.000000000 +0800
+@@ -61,6 +61,7 @@
+ 
+ // getDefaultCircuitBreakerThresholds returns a copy of the default circuit breaker thresholds for the given traffic direction.
+ func getDefaultCircuitBreakerThresholds() *cluster.CircuitBreakers_Thresholds {
++	// Modified by ingress
+ 	return &cluster.CircuitBreakers_Thresholds{
+ 		// DefaultMaxRetries specifies the default for the Envoy circuit breaker parameter max_retries. This
+ 		// defines the maximum number of parallel retries a given Envoy will allow to the upstream cluster. Envoy defaults
+@@ -68,11 +69,12 @@
+ 		// where multiple endpoints in a cluster are terminated. In these scenarios the circuit breaker can kick
+ 		// in before Pilot is able to deliver an updated endpoint list to Envoy, leading to client-facing 503s.
+ 		MaxRetries:         &wrappers.UInt32Value{Value: math.MaxUint32},
+-		MaxRequests:        &wrappers.UInt32Value{Value: math.MaxUint32},
+-		MaxConnections:     &wrappers.UInt32Value{Value: math.MaxUint32},
+-		MaxPendingRequests: &wrappers.UInt32Value{Value: math.MaxUint32},
++		MaxRequests:        &wrappers.UInt32Value{Value: uint32(features.DefaultUpstreamConcurrencyThreshold)},
++		MaxConnections:     &wrappers.UInt32Value{Value: uint32(features.DefaultUpstreamConcurrencyThreshold)},
++		MaxPendingRequests: &wrappers.UInt32Value{Value: uint32(features.DefaultUpstreamConcurrencyThreshold)},
+ 		TrackRemaining:     true,
+ 	}
++	// End modified by ingress
+ }
+ 
+ // BuildClusters returns the list of clusters for the given proxy. This is the CDS output
