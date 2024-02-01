@@ -15,7 +15,7 @@ global:
   # resources in the k8s cluster.
   ingressClass: "higress"
   watchNamespace: ""
-  disableAlpnH2: true
+  disableAlpnH2: false
   enableStatus: true
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
