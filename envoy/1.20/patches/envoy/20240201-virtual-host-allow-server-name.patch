@@ -1,8 +1,7 @@
-diff --git a/api/envoy/config/route/v3/route_components.proto b/api/envoy/config/route/v3/route_components.proto
-index 80da2bdcef..5fe7e7b8e6 100644
---- a/api/envoy/config/route/v3/route_components.proto
-+++ b/api/envoy/config/route/v3/route_components.proto
-@@ -187,6 +187,23 @@ message VirtualHost {
+diff -Naur envoy/api/envoy/config/route/v3/route_components.proto envoy-new/api/envoy/config/route/v3/route_components.proto
+--- envoy/api/envoy/config/route/v3/route_components.proto	2024-02-01 14:27:59.415352362 +0800
++++ envoy-new/api/envoy/config/route/v3/route_components.proto	2024-02-01 14:18:43.831341450 +0800
+@@ -187,6 +187,23 @@
    // If set and a route-specific limit is not set, the bytes actually buffered will be the minimum
    // value of this and the listener per_connection_buffer_limit_bytes.
    google.protobuf.UInt32Value per_request_buffer_limit_bytes = 18;
@@ -26,11 +25,10 @@ index 80da2bdcef..5fe7e7b8e6 100644
  }
  
  // A filter-defined action type.
-diff --git a/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto b/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto
-index 06e1395e5a..006212e63d 100644
---- a/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto
-+++ b/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto
-@@ -910,8 +910,11 @@ message ScopedRoutes {
+diff -Naur envoy/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto envoy-new/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto
+--- envoy/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto	2024-02-01 14:18:43.831341450 +0800
+@@ -910,8 +910,11 @@
          // Specifies how a header field's value should be extracted.
          HeaderValueExtractor header_value_extractor = 1;
  
@@ -42,11 +40,10 @@ index 06e1395e5a..006212e63d 100644
          LocalPortValueExtractor local_port_value_extractor = 102;
        }
      }
-diff --git a/envoy/router/scopes.h b/envoy/router/scopes.h
-index 77d9e9491d..a93abc810e 100644
---- a/envoy/router/scopes.h
-+++ b/envoy/router/scopes.h
-@@ -93,23 +93,25 @@ public:
+diff -Naur envoy/envoy/router/scopes.h envoy-new/envoy/router/scopes.h
+--- envoy/envoy/router/scopes.h	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/envoy/router/scopes.h	2024-02-01 14:18:43.831341450 +0800
+@@ -93,23 +93,25 @@
     * @return ConfigConstSharedPtr the router's Config matching the request headers.
     */
  #if defined ALIMESH
@@ -79,11 +76,10 @@ index 77d9e9491d..a93abc810e 100644
  #endif
  };
  
-diff --git a/source/common/http/conn_manager_impl.cc b/source/common/http/conn_manager_impl.cc
-index ef8793f6db..c28d69d9cf 100644
---- a/source/common/http/conn_manager_impl.cc
-+++ b/source/common/http/conn_manager_impl.cc
-@@ -656,7 +656,7 @@ void ConnectionManagerImpl::RdsRouteConfigUpdateRequester::requestRouteConfigUpd
+diff -Naur envoy/source/common/http/conn_manager_impl.cc envoy-new/source/common/http/conn_manager_impl.cc
+--- envoy/source/common/http/conn_manager_impl.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/http/conn_manager_impl.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -656,7 +656,7 @@
    } else if (parent_.snapped_scoped_routes_config_ != nullptr) {
  #if defined(ALIMESH)
      Router::ScopeKeyPtr scope_key = parent_.snapped_scoped_routes_config_->computeScopeKey(
@@ -92,7 +88,7 @@ index ef8793f6db..c28d69d9cf 100644
  #else
      Router::ScopeKeyPtr scope_key =
          parent_.snapped_scoped_routes_config_->computeScopeKey(*parent_.request_headers_);
-@@ -1295,7 +1295,7 @@ void ConnectionManagerImpl::ActiveStream::snapScopedRouteConfig() {
+@@ -1295,7 +1295,7 @@
    // returned, in that case we let it pass.
  #if defined(ALIMESH)
    snapped_route_config_ =
@@ -101,11 +97,10 @@ index ef8793f6db..c28d69d9cf 100644
  #else
    snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(*request_headers_);
  
-diff --git a/source/common/router/BUILD b/source/common/router/BUILD
-index 7fab7295b5..5c58501aed 100644
---- a/source/common/router/BUILD
-+++ b/source/common/router/BUILD
-@@ -212,10 +212,12 @@ envoy_cc_library(
+diff -Naur envoy/source/common/router/BUILD envoy-new/source/common/router/BUILD
+--- envoy/source/common/router/BUILD	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/source/common/router/BUILD	2024-02-01 14:18:43.831341450 +0800
+@@ -212,10 +212,12 @@
          "//envoy/router:rds_interface",
          "//envoy/router:scopes_interface",
          "//envoy/thread_local:thread_local_interface",
@@ -119,11 +114,10 @@ index 7fab7295b5..5c58501aed 100644
  )
  
  envoy_cc_library(
-diff --git a/source/common/router/config_impl.cc b/source/common/router/config_impl.cc
-index 5bdc137011..58f9d8671e 100644
---- a/source/common/router/config_impl.cc
-+++ b/source/common/router/config_impl.cc
-@@ -1484,6 +1484,22 @@ VirtualHostImpl::VirtualHostImpl(
+diff -Naur envoy/source/common/router/config_impl.cc envoy-new/source/common/router/config_impl.cc
+--- envoy/source/common/router/config_impl.cc	2024-02-01 14:27:59.447352362 +0800
++++ envoy-new/source/common/router/config_impl.cc	2024-02-01 14:23:12.935346735 +0800
+@@ -1487,6 +1487,22 @@
    if (virtual_host.has_cors()) {
      cors_policy_ = std::make_unique<CorsPolicyImpl>(virtual_host.cors(), factory_context.runtime());
    }
@@ -146,7 +140,7 @@ index 5bdc137011..58f9d8671e 100644
  }
  
  VirtualHostImpl::VirtualClusterEntry::VirtualClusterEntry(
-@@ -1588,13 +1604,43 @@ RouteConstSharedPtr VirtualHostImpl::getRouteFromEntries(const RouteCallback& cb
+@@ -1591,13 +1607,43 @@
    }
  
  #if defined(ALIMESH)
@@ -155,8 +149,8 @@ index 5bdc137011..58f9d8671e 100644
 +    goto SNI_CHECK_PASS;
 +  }
 +  if (stream_info.downstreamAddressProvider().sslConnection() == nullptr) {
-+    ENVOY_LOG(warn, "allow_server_names field is ignored, because it's not a ssl "
-+                    "connection.");
++    ENVOY_LOG_MISC(error, "allow_server_names field is ignored, because it's not a ssl "
++                          "connection.");
 +    goto SNI_CHECK_PASS;
 +  }
 +  {
@@ -191,7 +185,7 @@ index 5bdc137011..58f9d8671e 100644
    if (ssl_requirements_ == SslRequirements::All && scheme != "https") {
      return redirect_route;
    } else if (ssl_requirements_ == SslRequirements::ExternalOnly && scheme != "https" &&
-@@ -1706,6 +1752,14 @@ const std::shared_ptr<const SslRedirectRoute> VirtualHostImpl::SSL_REDIRECT_ROUT
+@@ -1709,6 +1755,14 @@
  const SslPermanentRedirector SslPermanentRedirectRoute::SSL_PERMANENT_REDIRECTOR;
  const std::shared_ptr<const SslPermanentRedirectRoute>
      VirtualHostImpl::SSL_PERMANENT_REDIRECT_ROUTE{new SslPermanentRedirectRoute};
@@ -206,11 +200,10 @@ index 5bdc137011..58f9d8671e 100644
  #endif
  
  const VirtualCluster*
-diff --git a/source/common/router/config_impl.h b/source/common/router/config_impl.h
-index 308d0ad83c..2a6e5958f8 100644
---- a/source/common/router/config_impl.h
-+++ b/source/common/router/config_impl.h
-@@ -161,6 +161,48 @@ public:
+diff -Naur envoy/source/common/router/config_impl.h envoy-new/source/common/router/config_impl.h
+--- envoy/source/common/router/config_impl.h	2024-02-01 14:27:59.447352362 +0800
++++ envoy-new/source/common/router/config_impl.h	2024-02-01 14:18:43.831341450 +0800
+@@ -161,6 +161,48 @@
  private:
    static const SslPermanentRedirector SSL_PERMANENT_REDIRECTOR;
  };
@@ -259,7 +252,7 @@ index 308d0ad83c..2a6e5958f8 100644
  #endif
  
  /**
-@@ -290,6 +332,7 @@ private:
+@@ -290,6 +332,7 @@
    static const std::shared_ptr<const SslRedirectRoute> SSL_REDIRECT_ROUTE;
  #if defined(ALIMESH)
    static const std::shared_ptr<const SslPermanentRedirectRoute> SSL_PERMANENT_REDIRECT_ROUTE;
@@ -267,7 +260,7 @@ index 308d0ad83c..2a6e5958f8 100644
  #endif
  
    const Stats::StatNameManagedStorage stat_name_storage_;
-@@ -310,6 +353,9 @@ private:
+@@ -310,6 +353,9 @@
    absl::optional<envoy::config::route::v3::RetryPolicy> retry_policy_;
    absl::optional<envoy::config::route::v3::HedgePolicy> hedge_policy_;
    const CatchAllVirtualCluster virtual_cluster_catch_all_;
@@ -277,10 +270,9 @@ index 308d0ad83c..2a6e5958f8 100644
  };
  
  using VirtualHostSharedPtr = std::shared_ptr<VirtualHostImpl>;
-diff --git a/source/common/router/scoped_config_impl.cc b/source/common/router/scoped_config_impl.cc
-index 44d524d87f..594d5714b3 100644
---- a/source/common/router/scoped_config_impl.cc
-+++ b/source/common/router/scoped_config_impl.cc
+diff -Naur envoy/source/common/router/scoped_config_impl.cc envoy-new/source/common/router/scoped_config_impl.cc
+--- envoy/source/common/router/scoped_config_impl.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/router/scoped_config_impl.cc	2024-02-01 14:18:43.831341450 +0800
 @@ -3,7 +3,9 @@
  #include "envoy/config/route/v3/scoped_route.pb.h"
  #include "envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.h"
@@ -291,7 +283,7 @@ index 44d524d87f..594d5714b3 100644
  
  namespace Envoy {
  namespace Router {
-@@ -21,7 +23,7 @@ std::string maskFirstDNSLabel(absl::string_view host) {
+@@ -21,7 +23,7 @@
    size_t start_pos = (host[0] == '*' && host[1] == '.') ? 2 : 0;
    size_t dot_pos = host.find('.', start_pos);
    if (dot_pos != absl::string_view::npos) {
@@ -300,7 +292,7 @@ index 44d524d87f..594d5714b3 100644
    }
    return "*";
  }
-@@ -37,8 +39,9 @@ LocalPortValueExtractorImpl::LocalPortValueExtractorImpl(
+@@ -37,8 +39,9 @@
  }
  
  std::unique_ptr<ScopeKeyFragmentBase> LocalPortValueExtractorImpl::computeFragment(
@@ -312,7 +304,7 @@ index 44d524d87f..594d5714b3 100644
    return std::make_unique<StringKeyFragment>(std::to_string(long(port)));
  }
  
-@@ -79,7 +82,7 @@ HostValueExtractorImpl::reComputeHelper(const std::string& host,
+@@ -79,7 +82,7 @@
  
  std::unique_ptr<ScopeKeyFragmentBase>
  HostValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
@@ -321,16 +313,15 @@ index 44d524d87f..594d5714b3 100644
                                          ReComputeCbPtr& recompute) const {
    auto host = static_cast<const Http::RequestHeaderMap&>(headers).getHostValue();
    auto port_start = Http::HeaderUtility::getPortStart(host);
-@@ -93,19 +96,14 @@ HostValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
-   return std::make_unique<StringKeyFragment>(host);
+@@ -94,18 +97,13 @@
  }
  
--std::unique_ptr<ScopeKeyFragmentBase>
+ std::unique_ptr<ScopeKeyFragmentBase>
 -HostValueExtractorImpl::computeFragment(const Http::HeaderMap&) const {
 -  return nullptr;
 -}
 -
- std::unique_ptr<ScopeKeyFragmentBase>
+-std::unique_ptr<ScopeKeyFragmentBase>
  HeaderValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
 -                                          const StreamInfo::StreamInfo&, ReComputeCbPtr&) const {
 +                                          const StreamInfo::StreamInfo*, ReComputeCbPtr&) const {
@@ -343,7 +334,7 @@ index 44d524d87f..594d5714b3 100644
                                                   std::function<ScopeKeyPtr()>& recompute) const {
    ScopeKey key;
    bool recomputeable = false;
-@@ -152,7 +150,7 @@ ScopeKeyPtr ScopeKeyBuilderImpl::computeScopeKey(const Http::HeaderMap& headers,
+@@ -152,7 +150,7 @@
  }
  
  ScopeKeyPtr ScopedConfigImpl::computeScopeKey(const Http::HeaderMap& headers,
@@ -352,7 +343,7 @@ index 44d524d87f..594d5714b3 100644
    std::function<Router::ScopeKeyPtr()> recompute;
    ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers, info, recompute);
    if (scope_key == nullptr) {
-@@ -283,7 +281,13 @@ ScopeKeyPtr ScopeKeyBuilderImpl::computeScopeKey(const Http::HeaderMap& headers)
+@@ -283,7 +281,13 @@
    ScopeKey key;
    for (const auto& builder : fragment_builders_) {
      // returns nullopt if a null fragment is found.
@@ -366,7 +357,7 @@ index 44d524d87f..594d5714b3 100644
      if (fragment == nullptr) {
        return nullptr;
      }
-@@ -319,7 +323,7 @@ void ScopedConfigImpl::removeRoutingScopes(const std::vector<std::string>& scope
+@@ -319,7 +323,7 @@
  Router::ConfigConstSharedPtr
  #if defined(ALIMESH)
  ScopedConfigImpl::getRouteConfig(const Http::HeaderMap& headers,
@@ -375,7 +366,7 @@ index 44d524d87f..594d5714b3 100644
    std::function<ScopeKeyPtr()> recompute;
    ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers, info, recompute);
    if (scope_key == nullptr) {
-@@ -347,7 +351,12 @@ ScopedConfigImpl::getRouteConfig(const Http::HeaderMap& headers) const {
+@@ -347,7 +351,12 @@
  }
  
  ScopeKeyPtr ScopedConfigImpl::computeScopeKey(const Http::HeaderMap& headers) const {
@@ -388,11 +379,10 @@ index 44d524d87f..594d5714b3 100644
    if (scope_key &&
        scoped_route_info_by_key_.find(scope_key->hash()) != scoped_route_info_by_key_.end()) {
      return scope_key;
-diff --git a/source/common/router/scoped_config_impl.h b/source/common/router/scoped_config_impl.h
-index 11cfbfabcf..9f6a1b2655 100644
---- a/source/common/router/scoped_config_impl.h
-+++ b/source/common/router/scoped_config_impl.h
-@@ -37,15 +37,15 @@ public:
+diff -Naur envoy/source/common/router/scoped_config_impl.h envoy-new/source/common/router/scoped_config_impl.h
+--- envoy/source/common/router/scoped_config_impl.h	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/router/scoped_config_impl.h	2024-02-01 14:18:43.831341450 +0800
+@@ -37,15 +37,15 @@
        : config_(std::move(config)) {}
    virtual ~FragmentBuilderBase() = default;
  
@@ -413,7 +403,7 @@ index 11cfbfabcf..9f6a1b2655 100644
  #endif
  
  protected:
-@@ -56,13 +56,15 @@ class HeaderValueExtractorImpl : public FragmentBuilderBase {
+@@ -56,13 +56,15 @@
  public:
    explicit HeaderValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
  
@@ -433,7 +423,7 @@ index 11cfbfabcf..9f6a1b2655 100644
  #endif
  
  private:
-@@ -75,11 +77,8 @@ class HostValueExtractorImpl : public FragmentBuilderBase {
+@@ -75,11 +77,8 @@
  public:
    explicit HostValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
  
@@ -446,7 +436,7 @@ index 11cfbfabcf..9f6a1b2655 100644
                                                          ReComputeCbPtr& recompute) const override;
  
  private:
-@@ -98,12 +97,8 @@ class LocalPortValueExtractorImpl : public FragmentBuilderBase {
+@@ -98,12 +97,8 @@
  public:
    explicit LocalPortValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
  
@@ -460,7 +450,7 @@ index 11cfbfabcf..9f6a1b2655 100644
                                                          ReComputeCbPtr& recompute) const override;
  };
  #endif
-@@ -116,13 +111,14 @@ public:
+@@ -116,13 +111,14 @@
        : config_(std::move(config)) {}
    virtual ~ScopeKeyBuilderBase() = default;
  
@@ -479,7 +469,7 @@ index 11cfbfabcf..9f6a1b2655 100644
  #endif
  
  protected:
-@@ -133,11 +129,13 @@ class ScopeKeyBuilderImpl : public ScopeKeyBuilderBase {
+@@ -133,11 +129,13 @@
  public:
    explicit ScopeKeyBuilderImpl(ScopedRoutes::ScopeKeyBuilder&& config);
  
@@ -496,7 +486,7 @@ index 11cfbfabcf..9f6a1b2655 100644
  #endif
  
  private:
-@@ -185,17 +183,21 @@ public:
+@@ -185,17 +183,21 @@
  
    // Envoy::Router::ScopedConfig
  #if defined(ALIMESH)
@@ -523,7 +513,7 @@ index 11cfbfabcf..9f6a1b2655 100644
  #endif
  
  private:
-@@ -213,7 +215,7 @@ class NullScopedConfigImpl : public ScopedConfig {
+@@ -213,7 +215,7 @@
  public:
  #if defined(ALIMESH)
    Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap&,
@@ -532,11 +522,10 @@ index 11cfbfabcf..9f6a1b2655 100644
      return std::make_shared<const NullConfigImpl>();
    }
  #else
-diff --git a/test/common/http/conn_manager_impl_test_2.cc b/test/common/http/conn_manager_impl_test_2.cc
-index 037c222a6a..098f6bc5f5 100644
---- a/test/common/http/conn_manager_impl_test_2.cc
-+++ b/test/common/http/conn_manager_impl_test_2.cc
-@@ -2429,7 +2429,11 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteNotFound) {
+diff -Naur envoy/test/common/http/conn_manager_impl_test_2.cc envoy-new/test/common/http/conn_manager_impl_test_2.cc
+--- envoy/test/common/http/conn_manager_impl_test_2.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/test/common/http/conn_manager_impl_test_2.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -2429,7 +2429,11 @@
  
    EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                    scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
@@ -548,7 +537,7 @@ index 037c222a6a..098f6bc5f5 100644
        .Times(2)
        .WillRepeatedly(Return(nullptr));
    EXPECT_CALL(*codec_, dispatch(_)).WillOnce(Invoke([&](Buffer::Instance& data) -> Http::Status {
-@@ -2461,7 +2465,11 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsUpdate) {
+@@ -2461,7 +2465,11 @@
  
    EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                    scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
@@ -560,7 +549,7 @@ index 037c222a6a..098f6bc5f5 100644
        .Times(3)
        .WillOnce(Return(nullptr))
        .WillOnce(Return(nullptr))        // refreshCachedRoute first time.
-@@ -2521,7 +2529,11 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsCrossScopeReroute) {
+@@ -2521,7 +2529,11 @@
    EXPECT_CALL(*route_config2, route(_, _, _, _)).WillRepeatedly(Return(route2));
    EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                    scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
@@ -572,7 +561,7 @@ index 037c222a6a..098f6bc5f5 100644
        // 1. Snap scoped route config;
        // 2. refreshCachedRoute (both in decodeHeaders(headers,end_stream);
        // 3. then refreshCachedRoute triggered by decoder_filters_[1]->callbacks_->route().
-@@ -2582,7 +2594,11 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteFound) {
+@@ -2582,7 +2594,11 @@
        std::make_shared<NiceMock<Upstream::MockThreadLocalCluster>>();
    EXPECT_CALL(cluster_manager_, getThreadLocalCluster(_)).WillOnce(Return(fake_cluster1.get()));
    EXPECT_CALL(*scopedRouteConfigProvider()->config<Router::MockScopedConfig>(),
@@ -584,11 +573,10 @@ index 037c222a6a..098f6bc5f5 100644
        // 1. decodeHeaders() snapping route config.
        // 2. refreshCachedRoute() later in the same decodeHeaders().
        .Times(2);
-diff --git a/test/common/router/BUILD b/test/common/router/BUILD
-index 0d6ca09fe0..aedf675728 100644
---- a/test/common/router/BUILD
-+++ b/test/common/router/BUILD
-@@ -142,6 +142,9 @@ envoy_cc_test(
+diff -Naur envoy/test/common/router/BUILD envoy-new/test/common/router/BUILD
+--- envoy/test/common/router/BUILD	2024-02-01 14:27:59.427352362 +0800
++++ envoy-new/test/common/router/BUILD	2024-02-01 14:18:43.831341450 +0800
+@@ -142,6 +142,9 @@
          "@envoy_api//envoy/config/route/v3:pkg_cc_proto",
          "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
      ],
@@ -598,7 +586,7 @@ index 0d6ca09fe0..aedf675728 100644
  )
  
  envoy_cc_test(
-@@ -173,6 +176,9 @@ envoy_cc_test(
+@@ -173,6 +176,9 @@
          "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
          "@envoy_api//envoy/service/discovery/v3:pkg_cc_proto",
      ],
@@ -608,11 +596,10 @@ index 0d6ca09fe0..aedf675728 100644
  )
  
  envoy_cc_test(
-diff --git a/test/common/router/config_impl_test.cc b/test/common/router/config_impl_test.cc
-index 7652fc001c..7da90b8beb 100644
---- a/test/common/router/config_impl_test.cc
-+++ b/test/common/router/config_impl_test.cc
-@@ -52,6 +52,9 @@ using ::testing::NiceMock;
+diff -Naur envoy/test/common/router/config_impl_test.cc envoy-new/test/common/router/config_impl_test.cc
+--- envoy/test/common/router/config_impl_test.cc	2024-02-01 14:27:59.427352362 +0800
++++ envoy-new/test/common/router/config_impl_test.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -52,6 +52,9 @@
  using ::testing::Pair;
  using ::testing::Return;
  using ::testing::ReturnRef;
@@ -622,7 +609,7 @@ index 7652fc001c..7da90b8beb 100644
  
  // Wrap ConfigImpl, the target of tests to allow us to regenerate the route_fuzz_test
  // corpus when run with:
-@@ -9209,6 +9212,228 @@ virtual_hosts:
+@@ -9209,6 +9212,228 @@
    EXPECT_NE(nullptr, dynamic_cast<const SslRedirectRoute*>(accepted_route.get()));
  }
  
@@ -851,10 +838,9 @@ index 7652fc001c..7da90b8beb 100644
  } // namespace
  } // namespace Router
  } // namespace Envoy
-diff --git a/test/common/router/scoped_config_impl_test.cc b/test/common/router/scoped_config_impl_test.cc
-index adc94be82b..f63f258323 100644
---- a/test/common/router/scoped_config_impl_test.cc
-+++ b/test/common/router/scoped_config_impl_test.cc
+diff -Naur envoy/test/common/router/scoped_config_impl_test.cc envoy-new/test/common/router/scoped_config_impl_test.cc
+--- envoy/test/common/router/scoped_config_impl_test.cc	2024-02-01 14:27:59.371352361 +0800
++++ envoy-new/test/common/router/scoped_config_impl_test.cc	2024-02-01 14:18:43.831341450 +0800
 @@ -6,6 +6,11 @@
  
  #include "source/common/router/scoped_config_impl.h"
@@ -867,7 +853,7 @@ index adc94be82b..f63f258323 100644
  #include "test/mocks/router/mocks.h"
  #include "test/test_common/utility.h"
  
-@@ -17,6 +22,9 @@ namespace {
+@@ -17,6 +22,9 @@
  
  using ::Envoy::Http::TestRequestHeaderMapImpl;
  using ::testing::NiceMock;
@@ -877,7 +863,7 @@ index adc94be82b..f63f258323 100644
  
  class FooFragment : public ScopeKeyFragmentBase {
  public:
-@@ -350,6 +358,68 @@ TEST(ScopeKeyBuilderImplTest, Parse) {
+@@ -350,6 +358,68 @@
    EXPECT_EQ(key, nullptr);
  }
  
@@ -946,10 +932,9 @@ index adc94be82b..f63f258323 100644
  class ScopedRouteInfoTest : public testing::Test {
  public:
    void SetUp() override {
-diff --git a/test/common/router/scoped_rds_test.cc b/test/common/router/scoped_rds_test.cc
-index f1cb48f1da..09b96a6484 100644
---- a/test/common/router/scoped_rds_test.cc
-+++ b/test/common/router/scoped_rds_test.cc
+diff -Naur envoy/test/common/router/scoped_rds_test.cc envoy-new/test/common/router/scoped_rds_test.cc
+--- envoy/test/common/router/scoped_rds_test.cc	2024-02-01 14:27:59.371352361 +0800
++++ envoy-new/test/common/router/scoped_rds_test.cc	2024-02-01 14:18:43.831341450 +0800
 @@ -17,6 +17,11 @@
  #include "source/common/protobuf/message_validator_impl.h"
  #include "source/common/router/scoped_rds.h"
@@ -962,7 +947,7 @@ index f1cb48f1da..09b96a6484 100644
  #include "test/mocks/config/mocks.h"
  #include "test/mocks/matcher/mocks.h"
  #include "test/mocks/protobuf/mocks.h"
-@@ -39,6 +44,9 @@ using testing::IsNull;
+@@ -39,6 +44,9 @@
  using testing::NiceMock;
  using testing::Return;
  using testing::ReturnRef;
@@ -972,7 +957,7 @@ index f1cb48f1da..09b96a6484 100644
  
  namespace Envoy {
  namespace Router {
-@@ -115,6 +123,76 @@ protected:
+@@ -115,6 +123,76 @@
  
  class ScopedRdsTest : public ScopedRoutesTestBase {
  protected:
@@ -1049,7 +1034,7 @@ index f1cb48f1da..09b96a6484 100644
    void setup(const OptionalHttpFilters optional_http_filters = OptionalHttpFilters()) {
      ON_CALL(server_factory_context_.cluster_manager_, adsMux())
          .WillByDefault(Return(std::make_shared<::Envoy::Config::NullGrpcMuxImpl>()));
-@@ -1504,6 +1582,259 @@ key:
+@@ -1504,6 +1582,259 @@
                                              std::move(route_config_updated_cb));
  }
  
@@ -1309,11 +1294,10 @@ index f1cb48f1da..09b96a6484 100644
  } // namespace
  } // namespace Router
  } // namespace Envoy
-diff --git a/test/mocks/router/mocks.cc b/test/mocks/router/mocks.cc
-index 635353158b..5e056d6d48 100644
---- a/test/mocks/router/mocks.cc
-+++ b/test/mocks/router/mocks.cc
-@@ -154,7 +154,11 @@ MockRouteConfigProviderManager::MockRouteConfigProviderManager() = default;
+diff -Naur envoy/test/mocks/router/mocks.cc envoy-new/test/mocks/router/mocks.cc
+--- envoy/test/mocks/router/mocks.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/test/mocks/router/mocks.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -154,7 +154,11 @@
  MockRouteConfigProviderManager::~MockRouteConfigProviderManager() = default;
  
  MockScopedConfig::MockScopedConfig() {
