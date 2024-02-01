@@ -371,7 +371,7 @@ run-higress-e2e-test-wasmplugin:
  # run-higress-e2e-test-wasmplugin-run starts to run ingress e2e conformance tests.
 .PHONY: run-higress-e2e-test-wasmplugin-run
 run-higress-e2e-test-wasmplugin-run:
-  @echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
+	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
 	@echo -e "\n\033[36mWaiting higress-controller to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
