@@ -50,6 +50,16 @@ spec:
                 name: infra-backend-v1
                 port:
                   number: 8080
+    - host: "qux.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -58,17 +68,49 @@ metadata:
   namespace: higress-system
 spec:
   defaultConfig:
-    status_code: 201
+    headers:
+      - key1=value1
+    "body": "{\"hello\":\"foo\"}"
+  matchRules:
+    - domain:
+        - bar.com
+      config:
+        headers:
+          - key2=value2
+        "body": "{\"hello\":\"bar\"}"
+    - domain:
+        - baz.com
+      config:
+        enable_on_status:
+          - 401
+        headers:
+          - key3=value3
+        "body": "{\"hello\":\"baz\"}"
+    - domain:
+        - qux.com
+      config:
+        status_code: 201
+        headers:
+          - key5=value5
+        "body": "{\"hello\":\"qux\"}"
+  url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm
+---
+# test enable_on_status 401
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: basic-auth
+  namespace: higress-system
+spec:
+  defaultConfig:
+    consumers:
+      - credential: admin:123456
+        name: consumer1
+    global_auth: false
   matchRules:
     - config:
-        status_code: 202
-      domain:
-        - bar.com
-    - config:
-        enable_on_status:
-          - 200
-          - 201
-        status_code: 203
+        allow:
+          - consumer1
       domain:
         - baz.com
-  url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm
+  url: file:///opt/plugins/wasm-go/extensions/basic-auth/plugin.wasm

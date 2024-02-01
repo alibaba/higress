@@ -25,8 +25,6 @@ func init() {
 	Register(WasmPluginsCustomResponse)
 }
 
-// Currently, the E2E test verifies request and response metadata (like headers and path) based on the echoserver's response.
-// Since the custom-response plugin mocks the response body, we can't verify the header and body.
 var WasmPluginsCustomResponse = suite.ConformanceTest{
 	ShortName:   "WasmPluginsCustomResponse",
 	Description: "The Ingress in the higress-conformance-infra namespace test the custom-response WASM plugin.",
@@ -36,9 +34,8 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: Match global config",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "case 1: Match global config",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -48,15 +45,19 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 201,
+						StatusCode: 200,
+						Headers: map[string]string{
+							"key1": "value1",
+						},
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte("{\"hello\":\"foo\"}"),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 2: Match rule config",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "case 2: Match rule config",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -66,15 +67,19 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 202,
+						StatusCode: 200,
+						Headers: map[string]string{
+							"key2": "value2",
+						},
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte("{\"hello\":\"bar\"}"),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 3: Match status code",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "case 3: Match enable_on_status",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -84,7 +89,63 @@ var WasmPluginsCustomResponse = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 203,
+						StatusCode: 200,
+						Headers: map[string]string{
+							"key3": "value3",
+						},
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte("{\"hello\":\"baz\"}"),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: Not match enable_on_status",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetRequest,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "baz.com",
+						Path:    "/",
+						Headers: map[string]string{"Authorization": "Basic YWRtaW46MTIzNDU2"}, // base64("admin:123456")
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "baz.com",
+							Path: "/",
+							Headers: map[string]string{
+								"X-Mse-Consumer": "consumer1",
+							},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "case 5: Change status code",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "qux.com",
+						Path: "/",
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 201,
+						Headers: map[string]string{
+							"key5": "value5",
+						},
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte("{\"hello\":\"qux\"}"),
 					},
 				},
 			},
