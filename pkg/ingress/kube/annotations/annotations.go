@@ -84,7 +84,7 @@ func (i *Ingress) NeedRegexMatch(path string) bool {
 	if i.Rewrite == nil {
 		return false
 	}
-	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
+	if i.Rewrite.RewriteTarget != "" && strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
 		return true
 	}
 	if strings.ContainsAny(i.Rewrite.RewriteTarget, `$\`) {

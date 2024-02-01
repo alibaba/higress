@@ -581,15 +581,18 @@ func TestCreateRuleKey(t *testing.T) {
 	}
 
 	annots := annotations.Annotations{
-		buildHigressAnnotationKey(annotations.MatchMethod):                         "GET PUT",
-		buildHigressAnnotationKey("exact-" + annotations.MatchHeader + "-abc"):     "123",
-		buildHigressAnnotationKey("prefix-" + annotations.MatchHeader + "-def"):    "456",
-		buildHigressAnnotationKey("exact-" + annotations.MatchQuery + "-region"):   "beijing",
-		buildHigressAnnotationKey("prefix-" + annotations.MatchQuery + "-user-id"): "user-",
+		buildHigressAnnotationKey(annotations.MatchMethod):                                 "GET PUT",
+		buildHigressAnnotationKey("exact-" + annotations.MatchHeader + "-abc"):             "123",
+		buildHigressAnnotationKey("prefix-" + annotations.MatchHeader + "-def"):            "456",
+		buildHigressAnnotationKey("exact-" + annotations.MatchPseudoHeader + "-authority"): "foo.bar.com",
+		buildHigressAnnotationKey("prefix-" + annotations.MatchPseudoHeader + "-scheme"):   "htt",
+		buildHigressAnnotationKey("exact-" + annotations.MatchQuery + "-region"):           "beijing",
+		buildHigressAnnotationKey("prefix-" + annotations.MatchQuery + "-user-id"):         "user-",
 	}
 	expect := "higress.com-prefix-/foo" + sep + //host-pathType-path
 		"GET PUT" + sep + // method
-		"exact-abc\t123" + "\n" + "prefix-def\t456" + sep + // header
+		"exact-:authority\tfoo.bar.com" + "\n" + "exact-abc\t123" + "\n" +
+		"prefix-:scheme\thtt" + "\n" + "prefix-def\t456" + sep + // header
 		"exact-region\tbeijing" + "\n" + "prefix-user-id\tuser-" + sep // params
 
 	key := createRuleKey(annots, wrapperHttpRoute.PathFormat())

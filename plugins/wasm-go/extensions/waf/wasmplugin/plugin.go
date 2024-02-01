@@ -2,12 +2,12 @@ package wasmplugin
 
 import (
 	"errors"
-	"github.com/corazawaf/coraza/v3/debuglog"
 	"strconv"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/corazawaf/coraza/v3"
+	"github.com/corazawaf/coraza/v3/debuglog"
 	ctypes "github.com/corazawaf/coraza/v3/types"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
@@ -76,6 +76,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 
+	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
+	if err != nil {
+		// TODO(anuraaga): HTTP protocol is commonly required in WAF rules, we should probably
+		// fail fast here, but proxytest does not support properties yet.
+		protocol = []byte("HTTP/2.0")
+	}
+
+	ctx.SetContext("httpProtocol", string(protocol))
+
 	// Note the pseudo-header :path includes the query.
 	// See https://httpwg.org/specs/rfc9113.html#rfc.section.8.3.1
 	uri, err := proxywasm.GetHttpRequestHeader(":path")
@@ -102,15 +111,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 		log.Error("Failed to get :method")
 		return types.ActionContinue
 	}
-
-	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
-	if err != nil {
-		// TODO(anuraaga): HTTP protocol is commonly required in WAF rules, we should probably
-		// fail fast here, but proxytest does not support properties yet.
-		protocol = []byte("HTTP/2.0")
-	}
-
-	ctx.SetContext("httpProtocol", string(protocol))
 
 	tx.ProcessURI(uri, method, string(protocol))
 

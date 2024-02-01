@@ -20,6 +20,7 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
@@ -205,7 +206,7 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 	expected.Request.ActualRequest.Method = strings.ToUpper(expected.Request.ActualRequest.Method)
 
 	if expected.Response.ExpectedResponse.StatusCode == 0 {
-		expected.Response.ExpectedResponse.StatusCode = 200
+		expected.Response.ExpectedResponse.StatusCode = http.StatusOK
 	}
 
 	t.Logf("Making %s request to %s://%s%s", expected.Request.ActualRequest.Method, scheme, gwAddr, expected.Request.ActualRequest.Path)
@@ -233,7 +234,7 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 		}
 	}
 
-	backendSetHeaders := []string{}
+	backendSetHeaders := make([]string, 0, len(expected.Response.AdditionalResponseHeaders))
 	for name, val := range expected.Response.AdditionalResponseHeaders {
 		backendSetHeaders = append(backendSetHeaders, name+":"+val)
 	}
@@ -298,12 +299,12 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				return false
 			}
 
-			if cRes.StatusCode == 200 && !expected.Response.ExpectedResponseNoRequest && cReq.Host == "" && cReq.Path == "" && cReq.Headers == nil && cReq.Body == nil {
+			if cRes.StatusCode == http.StatusOK && !expected.Response.ExpectedResponseNoRequest && cReq.Host == "" && cReq.Path == "" && cReq.Headers == nil && cReq.Body == nil {
 				t.Logf(`decoding client's response failed. Maybe you have chosen a wrong backend.
 				Choose echo-server if you want to check expected request header&body instead of response header&body.`)
 				return false
 			}
-			if err := CompareRequest(&req, cReq, cRes, expected); err != nil {
+			if err = CompareRequest(&req, cReq, cRes, expected); err != nil {
 				t.Logf("request expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
 				return false
 			}
@@ -313,12 +314,12 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				You can only choose one to compare between Response and Request.`)
 				return false
 			}
-			if err := CompareResponse(cRes, expected); err != nil {
+			if err = CompareResponse(cRes, expected); err != nil {
 				t.Logf("Response expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
 				return false
 			}
 		} else {
-			t.Logf("invalid CompareTarget: %v  please set it CompareTargetRequest or CompareTargetResponse", expected.Meta.CompareTarget)
+			t.Logf("invalid CompareTarget: %v please set it CompareTargetRequest or CompareTargetResponse", expected.Meta.CompareTarget)
 			return false
 		}
 
@@ -331,7 +332,7 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 	if expected.Response.ExpectedResponse.StatusCode != cRes.StatusCode {
 		return fmt.Errorf("expected status code to be %d, got %d", expected.Response.ExpectedResponse.StatusCode, cRes.StatusCode)
 	}
-	if cRes.StatusCode == 200 && !expected.Response.ExpectedResponseNoRequest {
+	if cRes.StatusCode == http.StatusOK && !expected.Response.ExpectedResponseNoRequest {
 		// The request expected to arrive at the backend is
 		// the same as the request made, unless otherwise
 		// specified.
