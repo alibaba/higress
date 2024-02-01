@@ -1201,6 +1201,16 @@ func buildDestination(ctx configContext, to k8s.BackendRef, ns string, enforceRe
 			Port: &istio.PortSelector{Number: uint32(*to.Port)},
 		}, invalidBackendErr
 	}
+	if equal((*string)(to.Group), "networking.higress.io") && nilOrEqual((*string)(to.Kind), "Service") {
+		var port *istio.PortSelector
+		if to.Port != nil {
+			port = &istio.PortSelector{Number: uint32(*to.Port)}
+		}
+		return &istio.Destination{
+			Host: string(to.Name),
+			Port: port,
+		}, nil
+	}
 	return &istio.Destination{}, &ConfigError{
 		Reason:  InvalidDestinationKind,
 		Message: fmt.Sprintf("referencing unsupported backendRef: group %q kind %q", ptr.OrEmpty(to.Group), ptr.OrEmpty(to.Kind)),
@@ -2117,6 +2127,10 @@ func namespacesFromSelector(localNamespace string, r GatewayResources, lr *k8s.A
 	// Ensure stable order
 	sort.Strings(namespaces)
 	return namespaces
+}
+
+func equal(have *string, expected string) bool {
+	return have != nil && *have == expected
 }
 
 func nilOrEqual(have *string, expected string) bool {
