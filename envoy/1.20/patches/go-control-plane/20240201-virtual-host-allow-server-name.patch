@@ -1,0 +1,66 @@
+diff -Naur go-control-plane/envoy/config/route/v3/route_components.pb.go go-control-plane-new/envoy/config/route/v3/route_components.pb.go
+--- go-control-plane/envoy/config/route/v3/route_components.pb.go	2024-01-30 20:59:20.000000000 +0800
++++ go-control-plane-new/envoy/config/route/v3/route_components.pb.go	2024-01-30 20:59:06.000000000 +0800
+@@ -456,6 +456,22 @@
+ 	// If set and a route-specific limit is not set, the bytes actually buffered will be the minimum
+ 	// value of this and the listener per_connection_buffer_limit_bytes.
+ 	PerRequestBufferLimitBytes *wrappers.UInt32Value `protobuf:"bytes,18,opt,name=per_request_buffer_limit_bytes,json=perRequestBufferLimitBytes,proto3" json:"per_request_buffer_limit_bytes,omitempty"`
++	// If non-empty, a list of server names (such as SNI for the TLS protocol) is used to determine
++	// whether this request is allowed to access this VirutalHost. If not allowed, 421 Misdirected Request will be returned.
++	//
++	// The server name can be matched whith wildcard domains, i.e. ``www.example.com`` can be matched with
++	// ``www.example.com``, ``*.example.com`` and ``*.com``.
++	//
++	// Note that partial wildcards are not supported, and values like ``*w.example.com`` are invalid.
++	//
++	// This is useful when expose all virtual hosts to arbitrary HCM filters (such as using SRDS), and you want to make
++	// mTLS-protected routes invisible to requests with different SNIs.
++	//
++	// .. attention::
++	//
++	//   See the :ref:`FAQ entry <faq_how_to_setup_sni>` on how to configure SNI for more
++	//   information.
++	AllowServerNames []string `protobuf:"bytes,101,rep,name=allow_server_names,json=allowServerNames,proto3" json:"allow_server_names,omitempty"`
+ }
+ 
+ func (x *VirtualHost) Reset() {
+@@ -616,6 +632,13 @@
+ 	return nil
+ }
+ 
++func (x *VirtualHost) GetAllowServerNames() []string {
++	if x != nil {
++		return x.AllowServerNames
++	}
++	return nil
++}
++
+ // A filter-defined action type.
+ type FilterAction struct {
+ 	state         protoimpl.MessageState
+@@ -6275,7 +6298,7 @@
+ 	0x2f, 0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x2f, 0x76, 0x65, 0x72,
+ 	0x73, 0x69, 0x6f, 0x6e, 0x69, 0x6e, 0x67, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x17, 0x76,
+ 	0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x65, 0x2f, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x65,
+-	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xd4, 0x0c, 0x0a, 0x0b, 0x56, 0x69, 0x72, 0x74, 0x75,
++	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x82, 0x0d, 0x0a, 0x0b, 0x56, 0x69, 0x72, 0x74, 0x75,
+ 	0x61, 0x6c, 0x48, 0x6f, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
+ 	0x20, 0x01, 0x28, 0x09, 0x42, 0x07, 0xfa, 0x42, 0x04, 0x72, 0x02, 0x10, 0x01, 0x52, 0x04, 0x6e,
+ 	0x61, 0x6d, 0x65, 0x12, 0x2c, 0x0a, 0x07, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x18, 0x02,
+diff -Naur go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.go go-control-plane-new/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.go
+--- go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.go	2024-01-30 20:59:20.000000000 +0800
++++ go-control-plane-new/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.go	2024-01-30 20:59:07.000000000 +0800
+@@ -2361,10 +2361,13 @@
+ }
+ 
+ type ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor_ struct {
++	// Extract the fragemnt value from the :authority header, and support recompute with the wildcard domains,
++	// i.e. ``www.example.com`` can be recomputed with ``*.example.com``, then ``*.com``, then ``*``.
+ 	HostValueExtractor *ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HostValueExtractor `protobuf:"bytes,101,opt,name=host_value_extractor,json=hostValueExtractor,proto3,oneof"`
+ }
+ 
+ type ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor_ struct {
++	// Extract the fragment value from local port of the connection.
+ 	LocalPortValueExtractor *ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_LocalPortValueExtractor `protobuf:"bytes,102,opt,name=local_port_value_extractor,json=localPortValueExtractor,proto3,oneof"`
+ }
+ 

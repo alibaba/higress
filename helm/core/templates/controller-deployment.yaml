@@ -70,6 +70,8 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: ISTIO_GPRC_MAXRECVMSGSIZE
+            value: "{{ .Values.global.xdsMaxRecvMsgSize }}"
           - name: ENBALE_SCOPED_RDS
             value: "{{ .Values.global.enableSRDS }}"
           - name: ON_DEMAND_RDS

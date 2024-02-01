@@ -1,6 +1,7 @@
 revision: ""
 global:
-  enableSRDS: false
+  xdsMaxRecvMsgSize: 104857600
+  enableSRDS: true
   onDemandRDS: false
   hostRDSMergeSubset: false
   onlyPushRouteCluster: true
