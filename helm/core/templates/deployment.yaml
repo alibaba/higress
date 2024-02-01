@@ -175,15 +175,15 @@ spec:
             protocol: TCP
           {{- end }}
           readinessProbe:
-            failureThreshold: 30
+            failureThreshold: {{ .Values.gateway.readinessFailureThreshold }}
             httpGet:
               path: /healthz/ready
               port: 15021
               scheme: HTTP
-            initialDelaySeconds: 1
-            periodSeconds: 2
-            successThreshold: 1
-            timeoutSeconds: 3
+            initialDelaySeconds: {{ .Values.gateway.readinessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.gateway.readinessPeriodSeconds }}
+            successThreshold: {{ .Values.gateway.readinessSuccessThreshold }}
+            timeoutSeconds: {{ .Values.gateway.readinessTimeoutSeconds }}
           {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
