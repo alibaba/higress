@@ -1,0 +1,1311 @@
+diff -Naur envoy/api/envoy/config/route/v3/route_components.proto envoy-new/api/envoy/config/route/v3/route_components.proto
+--- envoy/api/envoy/config/route/v3/route_components.proto	2024-02-01 14:27:59.415352362 +0800
++++ envoy-new/api/envoy/config/route/v3/route_components.proto	2024-02-01 14:18:43.831341450 +0800
+@@ -187,6 +187,23 @@
+   // If set and a route-specific limit is not set, the bytes actually buffered will be the minimum
+   // value of this and the listener per_connection_buffer_limit_bytes.
+   google.protobuf.UInt32Value per_request_buffer_limit_bytes = 18;
++
++  // If non-empty, a list of server names (such as SNI for the TLS protocol) is used to determine
++  // whether this request is allowed to access this VirutalHost. If not allowed, 421 Misdirected Request will be returned.
++  //
++  // The server name can be matched whith wildcard domains, i.e. ``www.example.com`` can be matched with
++  // ``www.example.com``, ``*.example.com`` and ``*.com``.
++  //
++  // Note that partial wildcards are not supported, and values like ``*w.example.com`` are invalid.
++  //
++  // This is useful when expose all virtual hosts to arbitrary HCM filters (such as using SRDS), and you want to make
++  // mTLS-protected routes invisible to requests with different SNIs.
++  //
++  // .. attention::
++  //
++  //   See the :ref:`FAQ entry <faq_how_to_setup_sni>` on how to configure SNI for more
++  //   information.
++  repeated string allow_server_names = 101;
+ }
+ 
+ // A filter-defined action type.
+diff -Naur envoy/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto envoy-new/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto
+--- envoy/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/api/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.proto	2024-02-01 14:18:43.831341450 +0800
+@@ -910,8 +910,11 @@
+         // Specifies how a header field's value should be extracted.
+         HeaderValueExtractor header_value_extractor = 1;
+ 
++        // Extract the fragemnt value from the :authority header, and support recompute with the wildcard domains,
++        // i.e. ``www.example.com`` can be recomputed with ``*.example.com``, then ``*.com``, then ``*``.
+         HostValueExtractor host_value_extractor = 101;
+ 
++        // Extract the fragment value from local port of the connection.
+         LocalPortValueExtractor local_port_value_extractor = 102;
+       }
+     }
+diff -Naur envoy/envoy/router/scopes.h envoy-new/envoy/router/scopes.h
+--- envoy/envoy/router/scopes.h	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/envoy/router/scopes.h	2024-02-01 14:18:43.831341450 +0800
+@@ -93,23 +93,25 @@
+    * @return ConfigConstSharedPtr the router's Config matching the request headers.
+    */
+ #if defined ALIMESH
+-  virtual ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers,
+-                                              const StreamInfo::StreamInfo& info) const PURE;
++  virtual ConfigConstSharedPtr
++  getRouteConfig(const Http::HeaderMap& headers,
++                 const StreamInfo::StreamInfo* info = nullptr) const PURE;
+ #else
+   virtual ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers) const PURE;
+ #endif
+ 
++#if defined(ALIMESH)
++  virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap&,
++                                      const StreamInfo::StreamInfo* = nullptr) const {
++    return {};
++  };
++#else
+   /**
+    * Based on the incoming HTTP request headers, returns the hash value of its scope key.
+    * @param headers the request headers to match the scoped routing configuration against.
+    * @return unique_ptr of the scope key computed from header.
+    */
+   virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap&) const { return {}; }
+-
+-#if defined(ALIMESH)
+-  virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap&, const StreamInfo::StreamInfo&) const {
+-    return {};
+-  };
+ #endif
+ };
+ 
+diff -Naur envoy/source/common/http/conn_manager_impl.cc envoy-new/source/common/http/conn_manager_impl.cc
+--- envoy/source/common/http/conn_manager_impl.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/http/conn_manager_impl.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -656,7 +656,7 @@
+   } else if (parent_.snapped_scoped_routes_config_ != nullptr) {
+ #if defined(ALIMESH)
+     Router::ScopeKeyPtr scope_key = parent_.snapped_scoped_routes_config_->computeScopeKey(
+-        *parent_.request_headers_, parent_.connection()->streamInfo());
++        *parent_.request_headers_, &parent_.connection()->streamInfo());
+ #else
+     Router::ScopeKeyPtr scope_key =
+         parent_.snapped_scoped_routes_config_->computeScopeKey(*parent_.request_headers_);
+@@ -1295,7 +1295,7 @@
+   // returned, in that case we let it pass.
+ #if defined(ALIMESH)
+   snapped_route_config_ =
+-      snapped_scoped_routes_config_->getRouteConfig(*request_headers_, connection()->streamInfo());
++      snapped_scoped_routes_config_->getRouteConfig(*request_headers_, &connection()->streamInfo());
+ #else
+   snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(*request_headers_);
+ 
+diff -Naur envoy/source/common/router/BUILD envoy-new/source/common/router/BUILD
+--- envoy/source/common/router/BUILD	2024-02-01 14:27:59.451352362 +0800
++++ envoy-new/source/common/router/BUILD	2024-02-01 14:18:43.831341450 +0800
+@@ -212,10 +212,12 @@
+         "//envoy/router:rds_interface",
+         "//envoy/router:scopes_interface",
+         "//envoy/thread_local:thread_local_interface",
+-        "//source/common/http:header_utility_lib",
+         "@envoy_api//envoy/config/route/v3:pkg_cc_proto",
+         "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
+     ],
++    alimesh_deps = [
++        "//source/common/http:header_utility_lib",
++    ],
+ )
+ 
+ envoy_cc_library(
+diff -Naur envoy/source/common/router/config_impl.cc envoy-new/source/common/router/config_impl.cc
+--- envoy/source/common/router/config_impl.cc	2024-02-01 14:27:59.447352362 +0800
++++ envoy-new/source/common/router/config_impl.cc	2024-02-01 14:23:12.935346735 +0800
+@@ -1487,6 +1487,22 @@
+   if (virtual_host.has_cors()) {
+     cors_policy_ = std::make_unique<CorsPolicyImpl>(virtual_host.cors(), factory_context.runtime());
+   }
++
++#if defined(ALIMESH)
++  for (const auto& server_name : virtual_host.allow_server_names()) {
++    auto isWildcardServerName = absl::StartsWith(server_name, "*.");
++    if (absl::StrContains(server_name, '*') && !isWildcardServerName) {
++      throw EnvoyException(
++          fmt::format("partial wildcards are not supported in \"allow_server_names\""));
++    }
++    if (isWildcardServerName) {
++      // Add for the wildcard domain, i.e. ".example.com" for "*.example.com".
++      allow_server_names_.push_back(server_name.substr(1));
++    } else {
++      allow_server_names_.push_back(server_name);
++    }
++  }
++#endif
+ }
+ 
+ VirtualHostImpl::VirtualClusterEntry::VirtualClusterEntry(
+@@ -1591,13 +1607,43 @@
+   }
+ 
+ #if defined(ALIMESH)
++  // First check for sni redirect.
++  if (allow_server_names_.empty()) {
++    goto SNI_CHECK_PASS;
++  }
++  if (stream_info.downstreamAddressProvider().sslConnection() == nullptr) {
++    ENVOY_LOG_MISC(error, "allow_server_names field is ignored, because it's not a ssl "
++                          "connection.");
++    goto SNI_CHECK_PASS;
++  }
++  {
++    auto server_name = stream_info.downstreamAddressProvider().requestedServerName();
++    auto it = std::find(allow_server_names_.begin(), allow_server_names_.end(), server_name);
++    if (it != allow_server_names_.end()) {
++      goto SNI_CHECK_PASS;
++    } else {
++      // Match on all wildcard domains, i.e. ".example.com" and ".com" for "www.example.com".
++      size_t pos = server_name.find('.', 1);
++      while (pos < server_name.size() - 1 && pos != absl::string_view::npos) {
++        auto wildcard = server_name.substr(pos);
++        auto it = std::find(allow_server_names_.begin(), allow_server_names_.end(), wildcard);
++        if (it != allow_server_names_.end()) {
++          goto SNI_CHECK_PASS;
++        }
++        pos = server_name.find('.', pos + 1);
++      }
++    }
++  }
++  return SNI_REDIRECT_ROUTE;
++
++SNI_CHECK_PASS:
++  // Second check for ssl redirect
+   RouteConstSharedPtr redirect_route = SSL_PERMANENT_REDIRECT_ROUTE;
+   // only return 301 when http method is GET or HEAD
+   if (headers.Method() && (headers.Method()->value() == Http::Headers::get().MethodValues.Get ||
+                            headers.Method()->value() == Http::Headers::get().MethodValues.Head)) {
+     redirect_route = SSL_REDIRECT_ROUTE;
+   }
+-  // First check for ssl redirect.
+   if (ssl_requirements_ == SslRequirements::All && scheme != "https") {
+     return redirect_route;
+   } else if (ssl_requirements_ == SslRequirements::ExternalOnly && scheme != "https" &&
+@@ -1709,6 +1755,14 @@
+ const SslPermanentRedirector SslPermanentRedirectRoute::SSL_PERMANENT_REDIRECTOR;
+ const std::shared_ptr<const SslPermanentRedirectRoute>
+     VirtualHostImpl::SSL_PERMANENT_REDIRECT_ROUTE{new SslPermanentRedirectRoute};
++
++const SNIRedirector SNIRedirectRoute::SNI_REDIRECTOR;
++const envoy::config::core::v3::Metadata SNIRedirectRoute::metadata_;
++const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
++    SNIRedirectRoute::typed_metadata_({});
++
++const std::shared_ptr<const SNIRedirectRoute> VirtualHostImpl::SNI_REDIRECT_ROUTE{
++    new SNIRedirectRoute()};
+ #endif
+ 
+ const VirtualCluster*
+diff -Naur envoy/source/common/router/config_impl.h envoy-new/source/common/router/config_impl.h
+--- envoy/source/common/router/config_impl.h	2024-02-01 14:27:59.447352362 +0800
++++ envoy-new/source/common/router/config_impl.h	2024-02-01 14:18:43.831341450 +0800
+@@ -161,6 +161,48 @@
+ private:
+   static const SslPermanentRedirector SSL_PERMANENT_REDIRECTOR;
+ };
++
++class SNIRedirector : public DirectResponseEntry {
++public:
++  // Router::DirectResponseEntry
++  void finalizeResponseHeaders(Http::ResponseHeaderMap&,
++                               const StreamInfo::StreamInfo&) const override {}
++  Http::HeaderTransforms responseHeaderTransforms(const StreamInfo::StreamInfo&,
++                                                  bool) const override {
++    return {};
++  }
++  std::string newPath(const Http::RequestHeaderMap&) const override { return ""; };
++  void rewritePathHeader(Http::RequestHeaderMap&, bool) const override {}
++  Http::Code responseCode() const override { return Http::Code::MisdirectedRequest; }
++  const std::string& responseBody() const override { return EMPTY_STRING; }
++  const std::string& routeName() const override { return route_name_; }
++
++private:
++  const std::string route_name_;
++};
++
++class SNIRedirectRoute : public Route {
++public:
++  // Router::Route
++  const DirectResponseEntry* directResponseEntry() const override { return &SNI_REDIRECTOR; }
++  const RouteEntry* routeEntry() const override { return nullptr; }
++  const Decorator* decorator() const override { return nullptr; }
++  const RouteTracing* tracingConfig() const override { return nullptr; }
++  const RouteSpecificFilterConfig* mostSpecificPerFilterConfig(const std::string&) const override {
++    return nullptr;
++  }
++  void traversePerFilterConfig(
++      const std::string&,
++      std::function<void(const Router::RouteSpecificFilterConfig&)>) const override {}
++  const envoy::config::core::v3::Metadata& metadata() const override { return metadata_; }
++  const Envoy::Config::TypedMetadata& typedMetadata() const override { return typed_metadata_; }
++
++private:
++  static const SNIRedirector SNI_REDIRECTOR;
++  static const envoy::config::core::v3::Metadata metadata_;
++  static const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
++      typed_metadata_;
++};
+ #endif
+ 
+ /**
+@@ -290,6 +332,7 @@
+   static const std::shared_ptr<const SslRedirectRoute> SSL_REDIRECT_ROUTE;
+ #if defined(ALIMESH)
+   static const std::shared_ptr<const SslPermanentRedirectRoute> SSL_PERMANENT_REDIRECT_ROUTE;
++  static const std::shared_ptr<const SNIRedirectRoute> SNI_REDIRECT_ROUTE;
+ #endif
+ 
+   const Stats::StatNameManagedStorage stat_name_storage_;
+@@ -310,6 +353,9 @@
+   absl::optional<envoy::config::route::v3::RetryPolicy> retry_policy_;
+   absl::optional<envoy::config::route::v3::HedgePolicy> hedge_policy_;
+   const CatchAllVirtualCluster virtual_cluster_catch_all_;
++#if defined(ALIMESH)
++  std::vector<std::string> allow_server_names_;
++#endif
+ };
+ 
+ using VirtualHostSharedPtr = std::shared_ptr<VirtualHostImpl>;
+diff -Naur envoy/source/common/router/scoped_config_impl.cc envoy-new/source/common/router/scoped_config_impl.cc
+--- envoy/source/common/router/scoped_config_impl.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/router/scoped_config_impl.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -3,7 +3,9 @@
+ #include "envoy/config/route/v3/scoped_route.pb.h"
+ #include "envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.h"
+ 
++#if defined(ALIMESH)
+ #include "source/common/http/header_utility.h"
++#endif
+ 
+ namespace Envoy {
+ namespace Router {
+@@ -21,7 +23,7 @@
+   size_t start_pos = (host[0] == '*' && host[1] == '.') ? 2 : 0;
+   size_t dot_pos = host.find('.', start_pos);
+   if (dot_pos != absl::string_view::npos) {
+-    return absl::StrCat("*", absl::string_view(host.data() + dot_pos, host.size() - dot_pos));
++    return absl::StrCat("*", host.substr(dot_pos));
+   }
+   return "*";
+ }
+@@ -37,8 +39,9 @@
+ }
+ 
+ std::unique_ptr<ScopeKeyFragmentBase> LocalPortValueExtractorImpl::computeFragment(
+-    const Http::HeaderMap&, const StreamInfo::StreamInfo& info, ReComputeCbPtr&) const {
+-  auto port = info.downstreamAddressProvider().localAddress()->ip()->port();
++    const Http::HeaderMap&, const StreamInfo::StreamInfo* info, ReComputeCbPtr&) const {
++  ASSERT(info != nullptr, "streamInfo is nullptr.");
++  auto port = info->downstreamAddressProvider().localAddress()->ip()->port();
+   return std::make_unique<StringKeyFragment>(std::to_string(long(port)));
+ }
+ 
+@@ -79,7 +82,7 @@
+ 
+ std::unique_ptr<ScopeKeyFragmentBase>
+ HostValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
+-                                        const StreamInfo::StreamInfo&,
++                                        const StreamInfo::StreamInfo*,
+                                         ReComputeCbPtr& recompute) const {
+   auto host = static_cast<const Http::RequestHeaderMap&>(headers).getHostValue();
+   auto port_start = Http::HeaderUtility::getPortStart(host);
+@@ -94,18 +97,13 @@
+ }
+ 
+ std::unique_ptr<ScopeKeyFragmentBase>
+-HostValueExtractorImpl::computeFragment(const Http::HeaderMap&) const {
+-  return nullptr;
+-}
+-
+-std::unique_ptr<ScopeKeyFragmentBase>
+ HeaderValueExtractorImpl::computeFragment(const Http::HeaderMap& headers,
+-                                          const StreamInfo::StreamInfo&, ReComputeCbPtr&) const {
++                                          const StreamInfo::StreamInfo*, ReComputeCbPtr&) const {
+   return computeFragment(headers);
+ }
+ 
+ ScopeKeyPtr ScopeKeyBuilderImpl::computeScopeKey(const Http::HeaderMap& headers,
+-                                                 const StreamInfo::StreamInfo& info,
++                                                 const StreamInfo::StreamInfo* info,
+                                                  std::function<ScopeKeyPtr()>& recompute) const {
+   ScopeKey key;
+   bool recomputeable = false;
+@@ -152,7 +150,7 @@
+ }
+ 
+ ScopeKeyPtr ScopedConfigImpl::computeScopeKey(const Http::HeaderMap& headers,
+-                                              const StreamInfo::StreamInfo& info) const {
++                                              const StreamInfo::StreamInfo* info) const {
+   std::function<Router::ScopeKeyPtr()> recompute;
+   ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers, info, recompute);
+   if (scope_key == nullptr) {
+@@ -283,7 +281,13 @@
+   ScopeKey key;
+   for (const auto& builder : fragment_builders_) {
+     // returns nullopt if a null fragment is found.
++#if defined(ALIMESH)
++    ReComputeCbPtr recompute_fragment_cb = std::make_shared<ReComputeCb>();
++    std::unique_ptr<ScopeKeyFragmentBase> fragment =
++        builder->computeFragment(headers, nullptr, recompute_fragment_cb);
++#else
+     std::unique_ptr<ScopeKeyFragmentBase> fragment = builder->computeFragment(headers);
++#endif
+     if (fragment == nullptr) {
+       return nullptr;
+     }
+@@ -319,7 +323,7 @@
+ Router::ConfigConstSharedPtr
+ #if defined(ALIMESH)
+ ScopedConfigImpl::getRouteConfig(const Http::HeaderMap& headers,
+-                                 const StreamInfo::StreamInfo& info) const {
++                                 const StreamInfo::StreamInfo* info) const {
+   std::function<ScopeKeyPtr()> recompute;
+   ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers, info, recompute);
+   if (scope_key == nullptr) {
+@@ -347,7 +351,12 @@
+ }
+ 
+ ScopeKeyPtr ScopedConfigImpl::computeScopeKey(const Http::HeaderMap& headers) const {
++#if defined(ALIEMSH)
++  std::function<ScopeKeyPtr()> recompute;
++  ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers, nullptr, recompute);
++#else
+   ScopeKeyPtr scope_key = scope_key_builder_.computeScopeKey(headers);
++#endif
+   if (scope_key &&
+       scoped_route_info_by_key_.find(scope_key->hash()) != scoped_route_info_by_key_.end()) {
+     return scope_key;
+diff -Naur envoy/source/common/router/scoped_config_impl.h envoy-new/source/common/router/scoped_config_impl.h
+--- envoy/source/common/router/scoped_config_impl.h	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/source/common/router/scoped_config_impl.h	2024-02-01 14:18:43.831341450 +0800
+@@ -37,15 +37,15 @@
+       : config_(std::move(config)) {}
+   virtual ~FragmentBuilderBase() = default;
+ 
++#if defined(ALIMESH)
++  virtual std::unique_ptr<ScopeKeyFragmentBase>
++  computeFragment(const Http::HeaderMap& headers, const StreamInfo::StreamInfo* info,
++                  ReComputeCbPtr& recompute) const PURE;
++#else
+   // Returns a fragment if the fragment rule applies, a nullptr indicates no fragment could be
+   // generated from the headers.
+   virtual std::unique_ptr<ScopeKeyFragmentBase>
+   computeFragment(const Http::HeaderMap& headers) const PURE;
+-
+-#if defined(ALIMESH)
+-  virtual std::unique_ptr<ScopeKeyFragmentBase>
+-  computeFragment(const Http::HeaderMap& headers, const StreamInfo::StreamInfo& info,
+-                  ReComputeCbPtr& recompute) const PURE;
+ #endif
+ 
+ protected:
+@@ -56,13 +56,15 @@
+ public:
+   explicit HeaderValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
+ 
+-  std::unique_ptr<ScopeKeyFragmentBase>
+-  computeFragment(const Http::HeaderMap& headers) const override;
+-
+ #if defined(ALIMESH)
+   std::unique_ptr<ScopeKeyFragmentBase> computeFragment(const Http::HeaderMap& headers,
+-                                                        const StreamInfo::StreamInfo& info,
++                                                        const StreamInfo::StreamInfo* info,
+                                                         ReComputeCbPtr& recompute) const override;
++  std::unique_ptr<ScopeKeyFragmentBase> computeFragment(const Http::HeaderMap& headers) const;
++#else
++  std::unique_ptr<ScopeKeyFragmentBase>
++  computeFragment(const Http::HeaderMap& headers) const override;
++
+ #endif
+ 
+ private:
+@@ -75,11 +77,8 @@
+ public:
+   explicit HostValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
+ 
+-  std::unique_ptr<ScopeKeyFragmentBase>
+-  computeFragment(const Http::HeaderMap& headers) const override;
+-
+   std::unique_ptr<ScopeKeyFragmentBase> computeFragment(const Http::HeaderMap& headers,
+-                                                        const StreamInfo::StreamInfo& info,
++                                                        const StreamInfo::StreamInfo* info,
+                                                         ReComputeCbPtr& recompute) const override;
+ 
+ private:
+@@ -98,12 +97,8 @@
+ public:
+   explicit LocalPortValueExtractorImpl(ScopedRoutes::ScopeKeyBuilder::FragmentBuilder&& config);
+ 
+-  std::unique_ptr<ScopeKeyFragmentBase> computeFragment(const Http::HeaderMap&) const override {
+-    return nullptr;
+-  };
+-
+   std::unique_ptr<ScopeKeyFragmentBase> computeFragment(const Http::HeaderMap& headers,
+-                                                        const StreamInfo::StreamInfo& info,
++                                                        const StreamInfo::StreamInfo* info,
+                                                         ReComputeCbPtr& recompute) const override;
+ };
+ #endif
+@@ -116,13 +111,14 @@
+       : config_(std::move(config)) {}
+   virtual ~ScopeKeyBuilderBase() = default;
+ 
+-  // Computes scope key for given headers, returns nullptr if a key can't be computed.
+-  virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const PURE;
+-
+ #if defined(ALIMESH)
+   virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers,
+-                                      const StreamInfo::StreamInfo& info,
++                                      const StreamInfo::StreamInfo* info,
+                                       std::function<ScopeKeyPtr()>& recompute) const PURE;
++#else
++  // Computes scope key for given headers, returns nullptr if a key can't be computed.
++  virtual ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const PURE;
++
+ #endif
+ 
+ protected:
+@@ -133,11 +129,13 @@
+ public:
+   explicit ScopeKeyBuilderImpl(ScopedRoutes::ScopeKeyBuilder&& config);
+ 
+-  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const override;
+-
+ #if defined(ALIMESH)
+-  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers, const StreamInfo::StreamInfo& info,
++  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers, const StreamInfo::StreamInfo* info,
+                               std::function<ScopeKeyPtr()>& recompute) const override;
++  // only for test
++  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const;
++#else
++  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const override;
+ #endif
+ 
+ private:
+@@ -185,17 +183,21 @@
+ 
+   // Envoy::Router::ScopedConfig
+ #if defined(ALIMESH)
+-  Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers,
+-                                              const StreamInfo::StreamInfo& info) const override;
++  Router::ConfigConstSharedPtr
++  getRouteConfig(const Http::HeaderMap& headers,
++                 const StreamInfo::StreamInfo* info = nullptr) const override;
+ #else
+   Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap& headers) const override;
+ #endif
+-  // The return value is not null only if the scope corresponding to the header exists.
+-  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const override;
+ 
+ #if defined(ALIMESH)
+   ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers,
+-                              const StreamInfo::StreamInfo& info) const override;
++                              const StreamInfo::StreamInfo* info) const override;
++  // only for test
++  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const;
++#else
++  // The return value is not null only if the scope corresponding to the header exists.
++  ScopeKeyPtr computeScopeKey(const Http::HeaderMap& headers) const override;
+ #endif
+ 
+ private:
+@@ -213,7 +215,7 @@
+ public:
+ #if defined(ALIMESH)
+   Router::ConfigConstSharedPtr getRouteConfig(const Http::HeaderMap&,
+-                                              const StreamInfo::StreamInfo&) const override {
++                                              const StreamInfo::StreamInfo*) const override {
+     return std::make_shared<const NullConfigImpl>();
+   }
+ #else
+diff -Naur envoy/test/common/http/conn_manager_impl_test_2.cc envoy-new/test/common/http/conn_manager_impl_test_2.cc
+--- envoy/test/common/http/conn_manager_impl_test_2.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/test/common/http/conn_manager_impl_test_2.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -2429,7 +2429,11 @@
+ 
+   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
+                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
++#if defined(ALIMESH)
+               getRouteConfig(_, _))
++#else
++              getRouteConfig(_))
++#endif
+       .Times(2)
+       .WillRepeatedly(Return(nullptr));
+   EXPECT_CALL(*codec_, dispatch(_)).WillOnce(Invoke([&](Buffer::Instance& data) -> Http::Status {
+@@ -2461,7 +2465,11 @@
+ 
+   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
+                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
++#if defined(ALIMESH)
+               getRouteConfig(_, _))
++#else
++              getRouteConfig(_))
++#endif
+       .Times(3)
+       .WillOnce(Return(nullptr))
+       .WillOnce(Return(nullptr))        // refreshCachedRoute first time.
+@@ -2521,7 +2529,11 @@
+   EXPECT_CALL(*route_config2, route(_, _, _, _)).WillRepeatedly(Return(route2));
+   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
+                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
++#if defined(ALIMESH)
+               getRouteConfig(_, _))
++#else
++              getRouteConfig(_))
++#endif
+       // 1. Snap scoped route config;
+       // 2. refreshCachedRoute (both in decodeHeaders(headers,end_stream);
+       // 3. then refreshCachedRoute triggered by decoder_filters_[1]->callbacks_->route().
+@@ -2582,7 +2594,11 @@
+       std::make_shared<NiceMock<Upstream::MockThreadLocalCluster>>();
+   EXPECT_CALL(cluster_manager_, getThreadLocalCluster(_)).WillOnce(Return(fake_cluster1.get()));
+   EXPECT_CALL(*scopedRouteConfigProvider()->config<Router::MockScopedConfig>(),
++#if defined(ALIMESH)
+               getRouteConfig(_, _))
++#else
++              getRouteConfig(_))
++#endif
+       // 1. decodeHeaders() snapping route config.
+       // 2. refreshCachedRoute() later in the same decodeHeaders().
+       .Times(2);
+diff -Naur envoy/test/common/router/BUILD envoy-new/test/common/router/BUILD
+--- envoy/test/common/router/BUILD	2024-02-01 14:27:59.427352362 +0800
++++ envoy-new/test/common/router/BUILD	2024-02-01 14:18:43.831341450 +0800
+@@ -142,6 +142,9 @@
+         "@envoy_api//envoy/config/route/v3:pkg_cc_proto",
+         "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
+     ],
++    alimesh_deps = [
++        "//test/mocks/stream_info:stream_info_mocks",
++    ],
+ )
+ 
+ envoy_cc_test(
+@@ -173,6 +176,9 @@
+         "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
+         "@envoy_api//envoy/service/discovery/v3:pkg_cc_proto",
+     ],
++    alimesh_deps = [
++        "//test/mocks/stream_info:stream_info_mocks",
++    ],
+ )
+ 
+ envoy_cc_test(
+diff -Naur envoy/test/common/router/config_impl_test.cc envoy-new/test/common/router/config_impl_test.cc
+--- envoy/test/common/router/config_impl_test.cc	2024-02-01 14:27:59.427352362 +0800
++++ envoy-new/test/common/router/config_impl_test.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -52,6 +52,9 @@
+ using ::testing::Pair;
+ using ::testing::Return;
+ using ::testing::ReturnRef;
++#if defined(ALIMESH)
++using ::testing::ReturnPointee;
++#endif
+ 
+ // Wrap ConfigImpl, the target of tests to allow us to regenerate the route_fuzz_test
+ // corpus when run with:
+@@ -9209,6 +9212,228 @@
+   EXPECT_NE(nullptr, dynamic_cast<const SslRedirectRoute*>(accepted_route.get()));
+ }
+ 
++#if defined(ALIMESH)
++TEST_F(RouteMatchOverrideTest, NullRouteOnExactAllowServerNames) {
++  const std::string yaml = R"EOF(
++virtual_hosts:
++  - name: bar
++    domains: ["*"]
++    routes:
++      - match: { prefix: "/foo/bar/baz" }
++        route:
++          cluster: foo_bar_baz
++      - match: { prefix: "/foo/bar" }
++        route:
++          cluster: foo_bar
++      - match: { prefix: "/" }
++        route:
++          cluster: default
++    allow_server_names: ["www.example.com"]
++)EOF";
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  downstream_connection_info_provider->setSslConnection(
++      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
++  downstream_connection_info_provider->setRequestedServerName("test.example.com");
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
++  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
++  RouteConstSharedPtr accepted_route = config.route(
++      [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
++        ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
++                         "route to override";
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/", "GET"), stream_info, 0);
++  EXPECT_NE(nullptr, dynamic_cast<const SNIRedirectRoute*>(accepted_route.get()));
++  EXPECT_EQ(Http::Code::MisdirectedRequest,
++            dynamic_cast<const SNIRedirectRoute*>(accepted_route.get())
++                ->directResponseEntry()
++                ->responseCode());
++  downstream_connection_info_provider->setRequestedServerName("www.example.com");
++  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
++  accepted_route = config.route(
++      [&clusters](RouteConstSharedPtr route,
++                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
++        EXPECT_FALSE(clusters.empty());
++        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
++        clusters.pop_back();
++
++        if (clusters.empty()) {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
++        } else {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
++        }
++        // Returning continue when no more routes are available will be ignored by
++        // ConfigImpl::route
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
++  EXPECT_EQ(accepted_route, nullptr);
++}
++
++TEST_F(RouteMatchOverrideTest, NullRouteOnWildcardAllowServerNames) {
++  const std::string yaml = R"EOF(
++virtual_hosts:
++  - name: bar
++    domains: ["*"]
++    routes:
++      - match: { prefix: "/foo/bar/baz" }
++        route:
++          cluster: foo_bar_baz
++      - match: { prefix: "/foo/bar" }
++        route:
++          cluster: foo_bar
++      - match: { prefix: "/" }
++        route:
++          cluster: default
++    allow_server_names: ["www.example.com", "*.example.com"]
++)EOF";
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  downstream_connection_info_provider->setSslConnection(
++      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
++  downstream_connection_info_provider->setRequestedServerName("example.com");
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
++  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
++  RouteConstSharedPtr accepted_route = config.route(
++      [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
++        ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
++                         "route to override";
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/", "GET"), stream_info, 0);
++  EXPECT_NE(nullptr, dynamic_cast<const SNIRedirectRoute*>(accepted_route.get()));
++  EXPECT_EQ(Http::Code::MisdirectedRequest,
++            dynamic_cast<const SNIRedirectRoute*>(accepted_route.get())
++                ->directResponseEntry()
++                ->responseCode());
++  downstream_connection_info_provider->setRequestedServerName("test.example.com");
++  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
++  accepted_route = config.route(
++      [&clusters](RouteConstSharedPtr route,
++                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
++        EXPECT_FALSE(clusters.empty());
++        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
++        clusters.pop_back();
++
++        if (clusters.empty()) {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
++        } else {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
++        }
++        // Returning continue when no more routes are available will be ignored by
++        // ConfigImpl::route
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
++  EXPECT_EQ(accepted_route, nullptr);
++}
++
++TEST_F(RouteMatchOverrideTest, NullRouteOnEmptyAllowServerNames) {
++  const std::string yaml = R"EOF(
++virtual_hosts:
++  - name: bar
++    domains: ["*"]
++    routes:
++      - match: { prefix: "/foo/bar/baz" }
++        route:
++          cluster: foo_bar_baz
++      - match: { prefix: "/foo/bar" }
++        route:
++          cluster: foo_bar
++      - match: { prefix: "/" }
++        route:
++          cluster: default
++    allow_server_names: []
++)EOF";
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  downstream_connection_info_provider->setSslConnection(
++      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
++  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
++  downstream_connection_info_provider->setRequestedServerName("example.com");
++  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
++  RouteConstSharedPtr accepted_route = config.route(
++      [&clusters](RouteConstSharedPtr route,
++                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
++        EXPECT_FALSE(clusters.empty());
++        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
++        clusters.pop_back();
++
++        if (clusters.empty()) {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
++        } else {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
++        }
++        // Returning continue when no more routes are available will be ignored by
++        // ConfigImpl::route
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
++  EXPECT_EQ(accepted_route, nullptr);
++}
++
++TEST_F(RouteMatchOverrideTest, NullRouteOnAllowServerNamesWithoutSsl) {
++  const std::string yaml = R"EOF(
++virtual_hosts:
++  - name: bar
++    domains: ["*"]
++    routes:
++      - match: { prefix: "/foo/bar/baz" }
++        route:
++          cluster: foo_bar_baz
++      - match: { prefix: "/foo/bar" }
++        route:
++          cluster: foo_bar
++      - match: { prefix: "/" }
++        route:
++          cluster: default
++    allow_server_names: ["www.example.com"]
++)EOF";
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
++  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
++  downstream_connection_info_provider->setRequestedServerName("example.com");
++  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
++  RouteConstSharedPtr accepted_route = config.route(
++      [&clusters](RouteConstSharedPtr route,
++                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
++        EXPECT_FALSE(clusters.empty());
++        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
++        clusters.pop_back();
++
++        if (clusters.empty()) {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
++        } else {
++          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
++        }
++        // Returning continue when no more routes are available will be ignored by
++        // ConfigImpl::route
++        return RouteMatchStatus::Continue;
++      },
++      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
++  EXPECT_EQ(accepted_route, nullptr);
++}
++#endif
++
+ } // namespace
+ } // namespace Router
+ } // namespace Envoy
+diff -Naur envoy/test/common/router/scoped_config_impl_test.cc envoy-new/test/common/router/scoped_config_impl_test.cc
+--- envoy/test/common/router/scoped_config_impl_test.cc	2024-02-01 14:27:59.371352361 +0800
++++ envoy-new/test/common/router/scoped_config_impl_test.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -6,6 +6,11 @@
+ 
+ #include "source/common/router/scoped_config_impl.h"
+ 
++#if defined(ALIMESH)
++#include "source/common/network/address_impl.h"
++#include "test/mocks/stream_info/mocks.h"
++#endif
++
+ #include "test/mocks/router/mocks.h"
+ #include "test/test_common/utility.h"
+ 
+@@ -17,6 +22,9 @@
+ 
+ using ::Envoy::Http::TestRequestHeaderMapImpl;
+ using ::testing::NiceMock;
++#if defined(ALIMESH)
++using ::testing::ReturnPointee;
++#endif
+ 
+ class FooFragment : public ScopeKeyFragmentBase {
+ public:
+@@ -350,6 +358,68 @@
+   EXPECT_EQ(key, nullptr);
+ }
+ 
++#if defined(ALIMESH)
++TEST(ScopeKeyBuilderImplTest, ParseHostAndPort) {
++  std::string yaml_plain = R"EOF(
++  fragments:
++  - local_port_value_extractor: {}
++  - host_value_extractor:
++      max_recompute_num: 3
++)EOF";
++
++  ScopedRoutes::ScopeKeyBuilder config;
++  TestUtility::loadFromYaml(yaml_plain, config);
++  ScopeKeyBuilderImpl key_builder(std::move(config));
++
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++  {
++    std::function<Router::ScopeKeyPtr()> recompute;
++    ScopeKeyPtr key = key_builder.computeScopeKey(
++        TestRequestHeaderMapImpl{
++            {":authority", "www.example.com"},
++        },
++        &stream_info, recompute);
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "www.example.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*.example.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*"}));
++  }
++  {
++    std::function<Router::ScopeKeyPtr()> recompute;
++    ScopeKeyPtr key = key_builder.computeScopeKey(
++        TestRequestHeaderMapImpl{
++            {":authority", "www.test.example.com"},
++        },
++        &stream_info, recompute);
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "www.test.example.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*.test.example.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*.example.com"}));
++    key = recompute();
++    EXPECT_NE(key, nullptr);
++    EXPECT_EQ(*key, makeKey({"80", "*.com"}));
++    key = recompute();
++    EXPECT_EQ(key, nullptr);
++  }
++}
++#endif
++
+ class ScopedRouteInfoTest : public testing::Test {
+ public:
+   void SetUp() override {
+diff -Naur envoy/test/common/router/scoped_rds_test.cc envoy-new/test/common/router/scoped_rds_test.cc
+--- envoy/test/common/router/scoped_rds_test.cc	2024-02-01 14:27:59.371352361 +0800
++++ envoy-new/test/common/router/scoped_rds_test.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -17,6 +17,11 @@
+ #include "source/common/protobuf/message_validator_impl.h"
+ #include "source/common/router/scoped_rds.h"
+ 
++#if defined(ALIMESH)
++#include "source/common/network/address_impl.h"
++#include "test/mocks/stream_info/mocks.h"
++#endif
++
+ #include "test/mocks/config/mocks.h"
+ #include "test/mocks/matcher/mocks.h"
+ #include "test/mocks/protobuf/mocks.h"
+@@ -39,6 +44,9 @@
+ using testing::NiceMock;
+ using testing::Return;
+ using testing::ReturnRef;
++#if defined(ALIMESH)
++using testing::ReturnPointee;
++#endif
+ 
+ namespace Envoy {
+ namespace Router {
+@@ -115,6 +123,76 @@
+ 
+ class ScopedRdsTest : public ScopedRoutesTestBase {
+ protected:
++#if defined(ALIMESH)
++  void setupHostScope(const OptionalHttpFilters optional_http_filters = OptionalHttpFilters()) {
++    ON_CALL(server_factory_context_.cluster_manager_, adsMux())
++        .WillByDefault(Return(std::make_shared<::Envoy::Config::NullGrpcMuxImpl>()));
++
++    InSequence s;
++    // Since server_factory_context_.cluster_manager_.subscription_factory_.callbacks_ is taken by
++    // the SRDS subscription. We need to return a different MockSubscription here for each RDS
++    // subscription. To build the map from RDS route_config_name to the RDS subscription, we need to
++    // get the route_config_name by mocking start() on the Config::Subscription.
++
++    // srds subscription
++    EXPECT_CALL(server_factory_context_.cluster_manager_.subscription_factory_,
++                subscriptionFromConfigSource(_, _, _, _, _, _))
++        .Times(AnyNumber());
++    // rds subscription
++    EXPECT_CALL(
++        server_factory_context_.cluster_manager_.subscription_factory_,
++        subscriptionFromConfigSource(
++            _,
++            Eq(Grpc::Common::typeUrl(
++                envoy::config::route::v3::RouteConfiguration().GetDescriptor()->full_name())),
++            _, _, _, _))
++        .Times(AnyNumber())
++        .WillRepeatedly(
++            Invoke([this](const envoy::config::core::v3::ConfigSource&, absl::string_view,
++                          Stats::Scope&, Envoy::Config::SubscriptionCallbacks& callbacks,
++                          Envoy::Config::OpaqueResourceDecoder&,
++                          const Envoy::Config::SubscriptionOptions&) {
++              auto ret = std::make_unique<NiceMock<Envoy::Config::MockSubscription>>();
++              rds_subscription_by_config_subscription_[ret.get()] = &callbacks;
++              EXPECT_CALL(*ret, start(_))
++                  .WillOnce(Invoke([this, config_sub_addr = ret.get()](
++                                       const absl::flat_hash_set<std::string>& resource_names) {
++                    EXPECT_EQ(resource_names.size(), 1);
++                    auto iter = rds_subscription_by_config_subscription_.find(config_sub_addr);
++                    EXPECT_NE(iter, rds_subscription_by_config_subscription_.end());
++                    rds_subscription_by_name_[*resource_names.begin()] = iter->second;
++                  }));
++              return ret;
++            }));
++
++    ON_CALL(context_init_manager_, add(_)).WillByDefault(Invoke([this](const Init::Target& target) {
++      target_handles_.push_back(target.createHandle("test"));
++    }));
++    ON_CALL(context_init_manager_, initialize(_))
++        .WillByDefault(Invoke([this](const Init::Watcher& watcher) {
++          for (auto& handle_ : target_handles_) {
++            handle_->initialize(watcher);
++          }
++        }));
++
++    const std::string config_yaml = R"EOF(
++name: foo_scoped_routes
++scope_key_builder:
++  fragments:
++  - local_port_value_extractor: {}
++  - host_value_extractor: {}
++)EOF";
++    envoy::extensions::filters::network::http_connection_manager::v3::ScopedRoutes
++        scoped_routes_config;
++    TestUtility::loadFromYaml(config_yaml, scoped_routes_config);
++    provider_ = config_provider_manager_->createXdsConfigProvider(
++        scoped_routes_config.scoped_rds(), server_factory_context_, context_init_manager_, "foo.",
++        ScopedRoutesConfigProviderManagerOptArg(
++            scoped_routes_config.name(), scoped_routes_config.rds_config_source(),
++            scoped_routes_config.scope_key_builder(), optional_http_filters));
++    srds_subscription_ = server_factory_context_.cluster_manager_.subscription_factory_.callbacks_;
++  }
++#endif
+   void setup(const OptionalHttpFilters optional_http_filters = OptionalHttpFilters()) {
+     ON_CALL(server_factory_context_.cluster_manager_, adsMux())
+         .WillByDefault(Return(std::make_shared<::Envoy::Config::NullGrpcMuxImpl>()));
+@@ -1504,6 +1582,259 @@
+                                             std::move(route_config_updated_cb));
+ }
+ 
++#if defined(ALIMESH)
++TEST_F(ScopedRdsTest, HostScopeMultipleResourcesSotw) {
++  setupHostScope();
++
++  const std::string config_yaml = R"EOF(
++name: foo_scope
++route_configuration_name: foo_routes
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: www.example.com
++)EOF";
++  const auto resource = parseScopedRouteConfigurationFromYaml(config_yaml);
++  const std::string config_yaml2 = R"EOF(
++name: foo_scope2
++route_configuration_name: foo_routes_wildcard
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: "*.com"
++)EOF";
++  const auto resource_2 = parseScopedRouteConfigurationFromYaml(config_yaml2);
++  init_watcher_.expectReady(); // Only the SRDS parent_init_target_.
++  context_init_manager_.initialize(init_watcher_);
++  const auto decoded_resources = TestUtility::decodeResources({resource, resource_2});
++  EXPECT_NO_THROW(srds_subscription_->onConfigUpdate(decoded_resources.refvec_, "1"));
++  EXPECT_EQ(1UL,
++            server_factory_context_.scope_.counter("foo.scoped_rds.foo_scoped_routes.config_reload")
++                .value());
++  EXPECT_EQ(2UL, all_scopes_.value());
++  EXPECT_EQ(2UL, active_scopes_.value());
++
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++
++  // Verify the config is a ScopedConfigImpl instance, both scopes point to "" as RDS hasn't
++  // kicked in yet(NullConfigImpl returned).
++  ASSERT_THAT(getScopedRdsProvider(), Not(IsNull()));
++  ASSERT_THAT(getScopedRdsProvider()->config<ScopedConfigImpl>(), Not(IsNull()));
++  EXPECT_EQ(getScopedRdsProvider()
++                ->config<ScopedConfigImpl>()
++                ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                 &stream_info)
++                ->name(),
++            "");
++  EXPECT_EQ(
++      getScopedRdsProvider()
++          ->config<ScopedConfigImpl>()
++          ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info)
++          ->name(),
++      "");
++  // RDS updates foo_routes.
++  pushRdsConfig({"foo_routes"}, "111");
++  pushRdsConfig({"foo_routes_wildcard"}, "111");
++  EXPECT_EQ(getScopedRdsProvider()
++                ->config<ScopedConfigImpl>()
++                ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                 &stream_info)
++                ->name(),
++            "foo_routes");
++  EXPECT_EQ(
++      getScopedRdsProvider()
++          ->config<ScopedConfigImpl>()
++          ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info)
++          ->name(),
++      "foo_routes_wildcard");
++
++  // Delete foo_scope2.
++  const auto decoded_resources_2 = TestUtility::decodeResources({resource_2});
++  EXPECT_NO_THROW(srds_subscription_->onConfigUpdate(decoded_resources_2.refvec_, "3"));
++  EXPECT_EQ(1UL, all_scopes_.value());
++  EXPECT_EQ(getScopedRouteMap().count("foo_scope"), 0);
++  EXPECT_EQ(getScopedRouteMap().count("foo_scope2"), 1);
++  EXPECT_EQ(2UL,
++            server_factory_context_.scope_.counter("foo.scoped_rds.foo_scoped_routes.config_reload")
++                .value());
++  EXPECT_TRUE(server_factory_context_.scope_.findGaugeByString(
++      "foo.scoped_rds.foo_scoped_routes.config_reload_time_ms"));
++
++  // now scope key "x-bar-key" points to nowhere.
++  EXPECT_THAT(getScopedRdsProvider()
++                  ->config<ScopedConfigImpl>()
++                  ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                   &stream_info)
++                  ->name(),
++              "foo_routes_wildcard");
++  EXPECT_EQ(
++      getScopedRdsProvider()
++          ->config<ScopedConfigImpl>()
++          ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info)
++          ->name(),
++      "foo_routes_wildcard");
++}
++
++// Push Rds update after on demand request, route configuration should be initialized.
++TEST_F(ScopedRdsTest, HostScopePushRdsAfterOndemandRequest) {
++  setupHostScope();
++  init_watcher_.expectReady();
++  context_init_manager_.initialize(init_watcher_);
++  // Scope should be loaded eagerly by default.
++  const std::string eager_resource = R"EOF(
++name: foo_scope
++route_configuration_name: foo_routes
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: www.example.com
++)EOF";
++
++  // On demand scope should be loaded lazily.
++  const std::string lazy_resource = R"EOF(
++name: foo_scope2
++route_configuration_name: foo_routes_wildcard
++on_demand: true
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: "*.com"
++)EOF";
++
++  srdsUpdateWithYaml({eager_resource, lazy_resource}, "1");
++  EXPECT_EQ(1UL,
++            server_factory_context_.scope_.counter("foo.scoped_rds.foo_scoped_routes.config_reload")
++                .value());
++  EXPECT_EQ(2UL, all_scopes_.value());
++
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++
++  // Verify the config is a ScopedConfigImpl instance, both scopes point to "" as RDS hasn't kicked
++  // in yet(NullConfigImpl returned).
++  ASSERT_THAT(getScopedRdsProvider(), Not(IsNull()));
++  ASSERT_THAT(getScopedRdsProvider()->config<ScopedConfigImpl>(), Not(IsNull()));
++  pushRdsConfig({"foo_routes"}, "111");
++  EXPECT_EQ(getScopedRdsProvider()
++                ->config<ScopedConfigImpl>()
++                ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                 &stream_info)
++                ->name(),
++            "foo_routes");
++  EXPECT_THAT(getScopedRdsProvider()->config<ScopedConfigImpl>()->getRouteConfig(
++                  TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info),
++              IsNull());
++
++  EXPECT_EQ(1UL, active_scopes_.value());
++
++  ScopeKeyPtr scope_key = getScopedRdsProvider()->config<ScopedConfigImpl>()->computeScopeKey(
++      TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info);
++  EXPECT_CALL(event_dispatcher_, post(_));
++  std::function<void(bool)> route_config_updated_cb = [](bool route_exist) {
++    EXPECT_EQ(true, route_exist);
++  };
++  getScopedRdsProvider()->onDemandRdsUpdate(std::move(scope_key), event_dispatcher_,
++                                            std::move(route_config_updated_cb));
++  // After on demand request, push rds update, both scopes should find the route configuration.
++  pushRdsConfig({"foo_routes_wildcard"}, "111");
++  EXPECT_EQ(getScopedRdsProvider()
++                ->config<ScopedConfigImpl>()
++                ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                 &stream_info)
++                ->name(),
++            "foo_routes");
++  EXPECT_EQ(
++      getScopedRdsProvider()
++          ->config<ScopedConfigImpl>()
++          ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info)
++          ->name(),
++      "foo_routes_wildcard");
++  // Now we have 1 active on demand scope and 1 eager loading scope.
++  EXPECT_EQ(2UL, all_scopes_.value());
++  EXPECT_EQ(2UL, active_scopes_.value());
++  EXPECT_EQ(1UL, on_demand_scopes_.value());
++}
++
++TEST_F(ScopedRdsTest, HostScopePushRdsBeforeOndemandRequest) {
++  setupHostScope();
++  init_watcher_.expectReady();
++  context_init_manager_.initialize(init_watcher_);
++  // Scope should be loaded eagerly by default.
++  const std::string eager_resource = R"EOF(
++name: foo_scope
++route_configuration_name: foo_routes
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: www.example.com
++)EOF";
++
++  // On demand scope should be loaded lazily.
++  const std::string lazy_resource = R"EOF(
++name: foo_scope2
++route_configuration_name: foo_routes
++on_demand: true
++key:
++  fragments:
++    - string_key: "80"
++    - string_key: "*.com"
++)EOF";
++
++  srdsUpdateWithYaml({eager_resource, lazy_resource}, "1");
++  EXPECT_EQ(1UL,
++            server_factory_context_.scope_.counter("foo.scoped_rds.foo_scoped_routes.config_reload")
++                .value());
++  EXPECT_EQ(2UL, all_scopes_.value());
++
++  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
++  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
++      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
++  ON_CALL(stream_info, downstreamAddressProvider())
++      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
++
++  // Verify the config is a ScopedConfigImpl instance, both scopes point to "" as RDS hasn't kicked
++  // in yet(NullConfigImpl returned).
++  ASSERT_THAT(getScopedRdsProvider(), Not(IsNull()));
++  ASSERT_THAT(getScopedRdsProvider()->config<ScopedConfigImpl>(), Not(IsNull()));
++  // Push rds update before on demand srds request.
++  pushRdsConfig({"foo_routes"}, "111");
++  EXPECT_EQ(getScopedRdsProvider()
++                ->config<ScopedConfigImpl>()
++                ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.example.com"}},
++                                 &stream_info)
++                ->name(),
++            "foo_routes");
++  EXPECT_THAT(getScopedRdsProvider()->config<ScopedConfigImpl>()->getRouteConfig(
++                  TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info),
++              IsNull());
++  ScopeKeyPtr scope_key = getScopedRdsProvider()->config<ScopedConfigImpl>()->computeScopeKey(
++      TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info);
++  EXPECT_CALL(server_factory_context_.dispatcher_, post(_));
++  EXPECT_CALL(event_dispatcher_, post(_));
++  std::function<void(bool)> route_config_updated_cb = [](bool route_exist) {
++    EXPECT_EQ(true, route_exist);
++  };
++  getScopedRdsProvider()->onDemandRdsUpdate(std::move(scope_key), event_dispatcher_,
++                                            std::move(route_config_updated_cb));
++  EXPECT_EQ(
++      getScopedRdsProvider()
++          ->config<ScopedConfigImpl>()
++          ->getRouteConfig(TestRequestHeaderMapImpl{{":authority", "www.test.com"}}, &stream_info)
++          ->name(),
++      "foo_routes");
++}
++#endif
++
+ } // namespace
+ } // namespace Router
+ } // namespace Envoy
+diff -Naur envoy/test/mocks/router/mocks.cc envoy-new/test/mocks/router/mocks.cc
+--- envoy/test/mocks/router/mocks.cc	2024-02-01 14:27:59.455352362 +0800
++++ envoy-new/test/mocks/router/mocks.cc	2024-02-01 14:18:43.831341450 +0800
+@@ -154,7 +154,11 @@
+ MockRouteConfigProviderManager::~MockRouteConfigProviderManager() = default;
+ 
+ MockScopedConfig::MockScopedConfig() {
++#if defined(ALIMESH)
+   ON_CALL(*this, getRouteConfig(_, _)).WillByDefault(Return(route_config_));
++#else
++  ON_CALL(*this, getRouteConfig(_)).WillByDefault(Return(route_config_));
++#endif
+ }
+ MockScopedConfig::~MockScopedConfig() = default;
+ 
