@@ -1477,9 +1477,9 @@ func (m *IngressConfig) Run(stop <-chan struct{}) {
 		_ = remoteGatewayController.SetWatchErrorHandler(m.watchErrorHandler)
 		go remoteGatewayController.Run(stop)
 	}
-	//go m.mcpbridgeController.Run(stop)
-	//go m.wasmPluginController.Run(stop)
-	//go m.http2rpcController.Run(stop)
+	go m.mcpbridgeController.Run(stop)
+	go m.wasmPluginController.Run(stop)
+	go m.http2rpcController.Run(stop)
 	go m.configmapMgr.HigressConfigController.Run(stop)
 }
 
