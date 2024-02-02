@@ -37,6 +37,7 @@ type HigressConfig struct {
 	Tracing              *Tracing    `json:"tracing,omitempty"`
 	Gzip                 *Gzip       `json:"gzip,omitempty"`
 	Downstream           *Downstream `json:"downstream,omitempty"`
+	Upstream             *Upstream   `json:"upstream,omitempty"`
 	DisableXEnvoyHeaders bool        `json:"disableXEnvoyHeaders,omitempty"`
 	AddXRealIpHeader     bool        `json:"addXRealIpHeader,omitempty"`
 }
@@ -47,6 +48,7 @@ func NewDefaultHigressConfig() *HigressConfig {
 		Tracing:              NewDefaultTracing(),
 		Gzip:                 NewDefaultGzip(),
 		Downstream:           globalOption.Downstream,
+		Upstream:             globalOption.Upstream,
 		DisableXEnvoyHeaders: globalOption.DisableXEnvoyHeaders,
 		AddXRealIpHeader:     globalOption.AddXRealIpHeader,
 	}

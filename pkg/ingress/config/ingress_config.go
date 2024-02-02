@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -474,9 +475,6 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		gateways := []string{m.namespace + "/" +
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
-		if host != "*" {
-			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, common.CleanHost("*")))
-		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {
@@ -673,6 +671,18 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 
 	out := make([]config.Config, 0, len(destinationRules))
 	for _, dr := range destinationRules {
+		sort.SliceStable(dr.DestinationRule.TrafficPolicy.PortLevelSettings, func(i, j int) bool {
+			portI := dr.DestinationRule.TrafficPolicy.PortLevelSettings[i].Port
+			portJ := dr.DestinationRule.TrafficPolicy.PortLevelSettings[j].Port
+			if portI == nil && portJ == nil {
+				return true
+			} else if portI == nil {
+				return true
+			} else if portJ == nil {
+				return false
+			}
+			return portI.Number < portJ.Number
+		})
 		drName := util.CreateDestinationRuleName(m.clusterId, dr.ServiceKey.Namespace, dr.ServiceKey.Name)
 		out = append(out, config.Config{
 			Meta: config.Meta{

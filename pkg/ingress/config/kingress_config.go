@@ -314,9 +314,6 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		gateways := []string{m.namespace + "/" +
 			common.CreateConvertedName(m.clusterId, cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
-		if host != "*" {
-			gateways = append(gateways, m.namespace+"/"+common.CreateConvertedName(m.clusterId, common.CleanHost("*")))
-		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {

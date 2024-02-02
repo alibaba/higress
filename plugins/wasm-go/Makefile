@@ -60,3 +60,16 @@ builder:
 			.
 	@echo ""
 	@echo "image: ${BUILDER}"
+
+local-build:
+	tinygo build -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' \
+		-o extensions/${PLUGIN_NAME}/main.wasm \
+		extensions/${PLUGIN_NAME}/main.go
+	@echo ""
+	@echo "wasm: extensions/${PLUGIN_NAME}/main.wasm"
+
+local-run:
+	python3 .devcontainer/gen_config.py ${PLUGIN_NAME}
+	envoy -c extensions/${PLUGIN_NAME}/config.yaml --concurrency 0 --log-level info --component-log-level wasm:debug
+
+local-all: local-build local-run

@@ -15,7 +15,6 @@
 package configmap
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync/atomic"
@@ -39,6 +38,7 @@ const (
 	maxInitialConnectionWindowSize = 2147483647
 
 	defaultIdleTimeout                 = 180
+	defaultUpStreamIdleTimeout         = 10
 	defaultMaxRequestHeadersKb         = 60
 	defaultConnectionBufferLimits      = 32768
 	defaultMaxConcurrentStreams        = 100
@@ -51,6 +51,7 @@ const (
 // Global configures the behavior of the downstream connection, x-real-ip header and x-envoy headers.
 type Global struct {
 	Downstream           *Downstream `json:"downstream,omitempty"`
+	Upstream             *Upstream   `json:"upstream,omitempty"`
 	AddXRealIpHeader     bool        `json:"addXRealIpHeader,omitempty"`
 	DisableXEnvoyHeaders bool        `json:"disableXEnvoyHeaders,omitempty"`
 }
@@ -58,13 +59,19 @@ type Global struct {
 // Downstream configures the behavior of the downstream connection.
 type Downstream struct {
 	// IdleTimeout limits the time that a connection may be idle and stream idle.
-	IdleTimeout uint32 `json:"idleTimeout,omitempty"`
+	IdleTimeout uint32 `json:"idleTimeout"`
 	// MaxRequestHeadersKb limits the size of request headers allowed.
 	MaxRequestHeadersKb uint32 `json:"maxRequestHeadersKb,omitempty"`
 	// ConnectionBufferLimits configures the buffer size limits for connections.
 	ConnectionBufferLimits uint32 `json:"connectionBufferLimits,omitempty"`
 	// Http2 configures HTTP/2 specific options.
 	Http2 *Http2 `json:"http2,omitempty"`
+}
+
+// Upstream configures the behavior of the upstream connection.
+type Upstream struct {
+	// IdleTimeout limits the time that a connection may be idle on the upstream.
+	IdleTimeout uint32 `json:"idleTimeout"`
 }
 
 // Http2 configures HTTP/2 specific options.
@@ -125,7 +132,7 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 		return ResultDelete, nil
 	}
 
-	if new.Downstream == nil && !new.AddXRealIpHeader && !new.DisableXEnvoyHeaders {
+	if new.Downstream == nil && new.Upstream == nil && !new.AddXRealIpHeader && !new.DisableXEnvoyHeaders {
 		return ResultDelete, nil
 	}
 
@@ -139,18 +146,29 @@ func compareGlobal(old *Global, new *Global) (Result, error) {
 // deepCopyGlobal deep copies the global option.
 func deepCopyGlobal(global *Global) (*Global, error) {
 	newGlobal := NewDefaultGlobalOption()
-	bytes, err := json.Marshal(global)
-	if err != nil {
-		return nil, err
+	if global.Downstream != nil {
+		newGlobal.Downstream.IdleTimeout = global.Downstream.IdleTimeout
+		newGlobal.Downstream.MaxRequestHeadersKb = global.Downstream.MaxRequestHeadersKb
+		newGlobal.Downstream.ConnectionBufferLimits = global.Downstream.ConnectionBufferLimits
+		if global.Downstream.Http2 != nil {
+			newGlobal.Downstream.Http2.MaxConcurrentStreams = global.Downstream.Http2.MaxConcurrentStreams
+			newGlobal.Downstream.Http2.InitialStreamWindowSize = global.Downstream.Http2.InitialStreamWindowSize
+			newGlobal.Downstream.Http2.InitialConnectionWindowSize = global.Downstream.Http2.InitialConnectionWindowSize
+		}
 	}
-	err = json.Unmarshal(bytes, newGlobal)
-	return newGlobal, err
+	if global.Upstream != nil {
+		newGlobal.Upstream.IdleTimeout = global.Upstream.IdleTimeout
+	}
+	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
+	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
+	return newGlobal, nil
 }
 
 // NewDefaultGlobalOption returns a default global config.
 func NewDefaultGlobalOption() *Global {
 	return &Global{
 		Downstream:           NewDefaultDownstream(),
+		Upstream:             NewDefaultUpStream(),
 		AddXRealIpHeader:     defaultAddXRealIpHeader,
 		DisableXEnvoyHeaders: defaultDisableXEnvoyHeaders,
 	}
@@ -163,6 +181,13 @@ func NewDefaultDownstream() *Downstream {
 		MaxRequestHeadersKb:    defaultMaxRequestHeadersKb,
 		ConnectionBufferLimits: defaultConnectionBufferLimits,
 		Http2:                  NewDefaultHttp2(),
+	}
+}
+
+// NewDefaultUpStream returns a default upstream config.
+func NewDefaultUpStream() *Upstream {
+	return &Upstream{
+		IdleTimeout: defaultUpStreamIdleTimeout,
 	}
 }
 
@@ -215,12 +240,14 @@ func (g *GlobalOptionController) GetName() string {
 func (g *GlobalOptionController) AddOrUpdateHigressConfig(name util.ClusterNamespacedName, old *HigressConfig, new *HigressConfig) error {
 	newGlobal := &Global{
 		Downstream:           new.Downstream,
+		Upstream:             new.Upstream,
 		AddXRealIpHeader:     new.AddXRealIpHeader,
 		DisableXEnvoyHeaders: new.DisableXEnvoyHeaders,
 	}
 
 	oldGlobal := &Global{
 		Downstream:           old.Downstream,
+		Upstream:             old.Upstream,
 		AddXRealIpHeader:     old.AddXRealIpHeader,
 		DisableXEnvoyHeaders: old.DisableXEnvoyHeaders,
 	}
@@ -264,6 +291,7 @@ func (g *GlobalOptionController) ValidHigressConfig(higressConfig *HigressConfig
 
 	global := &Global{
 		Downstream:           higressConfig.Downstream,
+		Upstream:             higressConfig.Upstream,
 		AddXRealIpHeader:     higressConfig.AddXRealIpHeader,
 		DisableXEnvoyHeaders: higressConfig.DisableXEnvoyHeaders,
 	}
@@ -305,6 +333,17 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 
 	downstreamConfig := g.generateDownstreamEnvoyFilter(downstreamStruct, bufferLimitStruct, namespace)
 	configPatch = append(configPatch, downstreamConfig...)
+
+	if global.Upstream == nil {
+		return generateEnvoyFilter(namespace, configPatch), nil
+	}
+
+	upstreamStruct := g.constructUpstream(global.Upstream)
+	if len(upstreamStruct) == 0 {
+		return generateEnvoyFilter(namespace, configPatch), nil
+	}
+	upstreamConfig := g.generateUpstreamEnvoyFilter(upstreamStruct, namespace)
+	configPatch = append(configPatch, upstreamConfig...)
 
 	return generateEnvoyFilter(namespace, configPatch), nil
 }
@@ -363,6 +402,22 @@ func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueSt
 		},
 	}
 	return downstreamConfig
+}
+
+func (g *GlobalOptionController) generateUpstreamEnvoyFilter(upstreamValueStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	upstreamConfig := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_CLUSTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(upstreamValueStruct),
+			},
+		},
+	}
+	return upstreamConfig
 }
 
 // generateAddXRealIpHeaderEnvoyFilter generates the add x-real-ip header envoy filter.
@@ -458,6 +513,22 @@ func (g *GlobalOptionController) constructDownstream(downstream *Downstream) str
 `, idleTimeout, maxRequestHeadersKb, idleTimeout)
 
 	return downstreamConfig
+}
+
+// constructUpstream constructs the upstream config.
+func (g *GlobalOptionController) constructUpstream(upstream *Upstream) string {
+	upstreamConfig := ""
+	idleTimeout := upstream.IdleTimeout
+
+	upstreamConfig = fmt.Sprintf(`
+		{
+			"common_http_protocol_options": {
+					"idleTimeout": "%ds"
+            }
+		}
+`, idleTimeout)
+
+	return upstreamConfig
 }
 
 // constructAddXRealIpHeader constructs the add x-real-ip header config.
