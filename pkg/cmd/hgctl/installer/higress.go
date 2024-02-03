@@ -52,7 +52,7 @@ func (h *HigressComponent) Run() error {
 	// Parse latest version
 	if h.opts.Version == helm.RepoLatestVersion {
 
-		latestVersion, err := helm.ParseLatestVersion(h.opts.RepoURL, h.opts.Version)
+		latestVersion, err := helm.ParseLatestVersion(h.opts.RepoURL, h.opts.Version, h.opts.Devel)
 		if err != nil {
 			return err
 		}
