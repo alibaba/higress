@@ -52,6 +52,8 @@ type InstallArgs struct {
 	Set []string
 	// ManifestsPath is a path to a ManifestsPath and profiles directory in the local filesystem with a release tgz.
 	ManifestsPath string
+	// Devel if set true when version is latest, it will get latest version, otherwise it will get latest stable version
+	Devel bool
 }
 
 func (a *InstallArgs) String() string {
@@ -67,6 +69,7 @@ func addInstallFlags(cmd *cobra.Command, args *InstallArgs) {
 	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
+	cmd.PersistentFlags().BoolVar(&args.Devel, "devel", false, "use development versions (alpha, beta, and release candidate releases), If version is set, this is ignored")
 }
 
 // --manifests is an alias for --set installPackagePath=
@@ -141,7 +144,7 @@ func install(writer io.Writer, iArgs *InstallArgs) error {
 		return err
 	}
 
-	err = installManifests(profile, writer)
+	err = installManifests(profile, writer, iArgs.Devel)
 	if err != nil {
 		return fmt.Errorf("failed to install manifests: %v", err)
 	}
@@ -192,8 +195,8 @@ func promptProfileName(writer io.Writer) string {
 
 }
 
-func installManifests(profile *helm.Profile, writer io.Writer) error {
-	installer, err := installer.NewInstaller(profile, writer, false)
+func installManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
+	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.InstallInstallerMode)
 	if err != nil {
 		return err
 	}

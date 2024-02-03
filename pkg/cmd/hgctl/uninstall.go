@@ -126,7 +126,7 @@ func promptUninstall(writer io.Writer) bool {
 }
 
 func uninstallManifests(profile *helm.Profile, writer io.Writer, uiArgs *uninstallArgs) error {
-	installer, err := installer.NewInstaller(profile, writer, false)
+	installer, err := installer.NewInstaller(profile, writer, false, false, installer.UninstallInstallerMode)
 	if err != nil {
 		return err
 	}
