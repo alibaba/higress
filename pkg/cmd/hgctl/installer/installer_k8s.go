@@ -254,7 +254,7 @@ func (o *K8sInstaller) isNamespacedObject(obj *object.K8sObject) bool {
 	return false
 }
 
-func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer, quiet bool) (*K8sInstaller, error) {
+func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.Writer, quiet bool, devel bool, installerMode InstallerMode) (*K8sInstaller, error) {
 	if profile == nil {
 		return nil, errors.New("install profile is empty")
 	}
@@ -267,14 +267,20 @@ func NewK8sInstaller(profile *helm.Profile, cli kubernetes.CLIClient, writer io.
 	}
 	fmt.Fprintf(writer, "%s\n", capabilities.KubeVersion.Version)
 	// initialize components
+	higressVersion := profile.Charts.Higress.Version
+	if installerMode == UninstallInstallerMode {
+		// uninstall
+		higressVersion = profile.HigressVersion
+	}
 	components := make(map[ComponentName]Component)
 	opts := []ComponentOption{
 		WithComponentNamespace(profile.Global.Namespace),
 		WithComponentChartPath(profile.InstallPackagePath),
-		WithComponentVersion(profile.Charts.Higress.Version),
+		WithComponentVersion(higressVersion),
 		WithComponentRepoURL(profile.Charts.Higress.Url),
 		WithComponentChartName(profile.Charts.Higress.Name),
 		WithComponentCapabilities(capabilities),
+		WithDevel(devel),
 	}
 	if quiet {
 		opts = append(opts, WithQuiet())
