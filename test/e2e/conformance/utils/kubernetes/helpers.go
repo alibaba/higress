@@ -15,10 +15,11 @@ package kubernetes
 
 import (
 	"context"
-	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 	"time"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -141,10 +142,5 @@ func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string,
 	cm.Data[key] = data
 
 	t.Logf("🏗 Updating %s %s", name, namespace)
-
-	if err := c.Update(ctx, cm); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Update(ctx, cm)
 }

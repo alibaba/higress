@@ -16,6 +16,7 @@ package test
 
 import (
 	"flag"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,19 @@ func TestHigressConformanceTests(t *testing.T) {
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 
-	cSuite.Setup(t)
-	cSuite.Run(t, tests.ConformanceTests)
+	// Run the test suite
+	testArea := *flags.TestArea
+	testArea = strings.ToLower(testArea)
+	switch testArea {
+	case suite.TestAreaAll:
+		cSuite.Setup(t)
+		cSuite.Run(t, tests.ConformanceTests)
+	case suite.TestAreaRun:
+		cSuite.Run(t, tests.ConformanceTests)
+	case suite.TestAreaSetup:
+		cSuite.Cleanup = false
+		cSuite.Setup(t)
+	case suite.TessAreaClean:
+		cSuite.Clean(t)
+	}
 }

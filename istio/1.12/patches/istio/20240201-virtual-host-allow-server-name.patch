@@ -1,0 +1,88 @@
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-02-01 13:53:17.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-02-01 13:52:11.000000000 +0800
+@@ -501,6 +501,16 @@
+ 					gatewayVirtualServices[gatewayName] = virtualServices
+ 				}
+ 				for _, virtualService := range virtualServices {
++					virtualServiceHosts := host.NewNames(virtualService.Spec.(*networking.VirtualService).Hosts)
++					serverHosts := host.NamesForNamespace(server.Hosts, virtualService.Namespace)
++
++					// We have two cases here:
++					// 1. virtualService hosts are 1.foo.com, 2.foo.com, 3.foo.com and server hosts are ns/*.foo.com
++					// 2. virtualService hosts are *.foo.com, and server hosts are ns/1.foo.com, ns/2.foo.com, ns/3.foo.com
++					intersectingHosts := serverHosts.Intersection(virtualServiceHosts)
++					if len(intersectingHosts) == 0 {
++						continue
++					}
+ 					listenerVirtualServices = append(listenerVirtualServices, virtualServiceContext{
+ 						virtualService: virtualService,
+ 						server:         server,
+@@ -615,22 +625,24 @@
+ 
+ 		// check all hostname if is not exist with HttpsRedirect set to true
+ 		// create VirtualHost to redirect
+-		for _, hostname := range server.Hosts {
+-			if !server.GetTls().GetHttpsRedirect() {
+-				continue
+-			}
+-			if vHost != nil && host.Name(hostname) == host.Name(hostRDSHost) {
++		if server.GetTls().GetHttpsRedirect() {
++			if vHost != nil {
+ 				vHost.RequireTls = route.VirtualHost_ALL
+-				continue
++			} else {
++				vHost = &route.VirtualHost{
++					Name:                       util.DomainName(hostRDSHost, port),
++					Domains:                    buildGatewayVirtualHostDomains(hostRDSHost, port),
++					IncludeRequestAttemptCount: true,
++					RequireTls:                 route.VirtualHost_ALL,
++				}
+ 			}
+-			vHost = &route.VirtualHost{
+-				Name:                       util.DomainName(hostname, port),
+-				Domains:                    buildGatewayVirtualHostDomains(hostname, port),
+-				IncludeRequestAttemptCount: true,
+-				RequireTls:                 route.VirtualHost_ALL,
++		} else if vHost != nil {
++			mode := server.GetTls().GetMode()
++			if mode == networking.ServerTLSSettings_MUTUAL ||
++				mode == networking.ServerTLSSettings_ISTIO_MUTUAL {
++				vHost.AllowServerNames = append(vHost.AllowServerNames, server.Hosts...)
+ 			}
+ 		}
+-
+ 	}
+ 	var virtualHosts []*route.VirtualHost
+ 	if vHost == nil {
+@@ -642,6 +654,30 @@
+ 			Routes: []*route.Route{},
+ 		}}
+ 	} else {
++		sort.SliceStable(vHost.AllowServerNames, func(i, j int) bool {
++			hostI := vHost.AllowServerNames[i]
++			hostJ := vHost.AllowServerNames[j]
++			if host.Name(hostI).SubsetOf(host.Name(hostJ)) {
++				return true
++			}
++			return hostI < hostJ
++		})
++		var uniqueServerNames []string
++		hasAllCatch := false
++		for i, name := range vHost.AllowServerNames {
++			if name == "*" {
++				hasAllCatch = true
++				break
++			}
++			if i == 0 || vHost.AllowServerNames[i-1] != name {
++				uniqueServerNames = append(uniqueServerNames, name)
++			}
++		}
++		if hasAllCatch {
++			vHost.AllowServerNames = nil
++		} else {
++			vHost.AllowServerNames = uniqueServerNames
++		}
+ 		vHost.Routes = istio_route.CombineVHostRoutes(vHost.Routes)
+ 		virtualHosts = append(virtualHosts, vHost)
+ 	}
