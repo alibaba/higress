@@ -24,11 +24,11 @@ jobs:
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
-          android: false
-          dotnet: false
-          haskell: false
-          large-packages: false
-          swap-storage: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
 
       - name: "Setup Go"
         uses: actions/setup-go@v3
@@ -100,11 +100,11 @@ jobs:
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
-          android: false
-          dotnet: false
-          haskell: false
-          large-packages: false
-          swap-storage: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
 
       - name: "Setup Go"
         uses: actions/setup-go@v3
@@ -177,10 +177,10 @@ jobs:
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
-          android: false
-          dotnet: false
-          haskell: false
-          large-packages: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
           swap-storage: false          
 
       - name: "Setup Go"
