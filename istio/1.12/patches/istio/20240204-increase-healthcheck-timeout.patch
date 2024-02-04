@@ -1,0 +1,21 @@
+diff -Naur istio/pilot/cmd/pilot-agent/status/util/stats.go istio-new/pilot/cmd/pilot-agent/status/util/stats.go
+--- istio/pilot/cmd/pilot-agent/status/util/stats.go	2024-02-04 18:48:18.000000000 +0800
++++ istio-new/pilot/cmd/pilot-agent/status/util/stats.go	2024-02-04 09:35:42.000000000 +0800
+@@ -37,7 +37,7 @@
+ 	updateStatsRegex   = "^(cluster_manager\\.cds|listener_manager\\.lds)\\.(update_success|update_rejected)$"
+ )
+ 
+-var readinessTimeout = time.Second * 3 // Default Readiness timeout. It is set the same in helm charts.
++var readinessTimeout = time.Second * 60 // Default Readiness timeout. It is set the same in helm charts.
+ 
+ type stat struct {
+ 	name  string
+@@ -105,7 +105,7 @@
+ 		localHostAddr = "localhost"
+ 	}
+ 
+-	stats, err := http.DoHTTPGet(fmt.Sprintf("http://%s:%d/stats?usedonly", localHostAddr, adminPort))
++	stats, err := http.DoHTTPGetWithTimeout(fmt.Sprintf("http://%s:%d/stats?usedonly", localHostAddr, adminPort), readinessTimeout)
+ 	if err != nil {
+ 		return nil, err
+ 	}
