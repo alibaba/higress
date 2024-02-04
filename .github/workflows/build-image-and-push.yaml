@@ -181,7 +181,7 @@ jobs:
           dotnet: true
           haskell: true
           large-packages: true
-          swap-storage: false          
+          swap-storage: true
 
       - name: "Setup Go"
         uses: actions/setup-go@v3
