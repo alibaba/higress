@@ -26,6 +26,8 @@ import (
 	"net/url"
 	"regexp"
 
+	"golang.org/x/net/http2"
+
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 )
 
@@ -109,6 +111,20 @@ type DefaultRoundTripper struct {
 	TimeoutConfig config.TimeoutConfig
 }
 
+func (d *DefaultRoundTripper) initProtocol(client *http.Client, protocol string) {
+	switch protocol {
+	case "HTTP/2.0":
+		tr := &http2.Transport{}
+		prevTr, ok := client.Transport.(*http.Transport)
+		if ok {
+			// other TLS fields are not existed in HTTP2
+			tr.TLSClientConfig = prevTr.TLSClientConfig
+		}
+		client.Transport = tr
+	default: // HTTP1
+	}
+}
+
 // CaptureRoundTrip makes a request with the provided parameters and returns the
 // captured request and response from echoserver. An error will be returned if
 // there is an error running the function but not if an HTTP error status code
@@ -151,6 +167,8 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			},
 		}
 	}
+
+	d.initProtocol(client, request.Protocol)
 
 	method := "GET"
 	if request.Method != "" {
