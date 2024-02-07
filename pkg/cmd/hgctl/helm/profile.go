@@ -17,6 +17,7 @@ package helm
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"istio.io/istio/operator/pkg/util"
@@ -84,9 +85,10 @@ func (p ProfileGlobal) Validate(install InstallMode) []error {
 }
 
 type ProfileConsole struct {
-	Port        uint32 `json:"port,omitempty"`
-	Replicas    uint32 `json:"replicas,omitempty"`
-	O11yEnabled bool   `json:"o11YEnabled,omitempty"`
+	Port        uint32   `json:"port,omitempty"`
+	Replicas    uint32   `json:"replicas,omitempty"`
+	O11yEnabled bool     `json:"o11YEnabled,omitempty"`
+	Resources   Resource `json:"resources,omitempty"`
 }
 
 func (p ProfileConsole) SetFlags(install InstallMode) ([]string, error) {
@@ -112,14 +114,17 @@ func (p ProfileConsole) Validate(install InstallMode) []error {
 		}
 	}
 
+	errs = append(errs, p.Resources.Validate()...)
+
 	return errs
 }
 
 type ProfileGateway struct {
-	Replicas    uint32 `json:"replicas,omitempty"`
-	HttpPort    uint32 `json:"httpPort,omitempty"`
-	HttpsPort   uint32 `json:"httpsPort,omitempty"`
-	MetricsPort uint32 `json:"metricsPort,omitempty"`
+	Replicas    uint32   `json:"replicas,omitempty"`
+	HttpPort    uint32   `json:"httpPort,omitempty"`
+	HttpsPort   uint32   `json:"httpsPort,omitempty"`
+	MetricsPort uint32   `json:"metricsPort,omitempty"`
+	Resources   Resource `json:"resources,omitempty"`
 }
 
 func (p ProfileGateway) SetFlags(install InstallMode) ([]string, error) {
@@ -149,11 +154,15 @@ func (p ProfileGateway) Validate(install InstallMode) []error {
 			errs = append(errs, errors.New("gateway.MetricsPort need be large than zero"))
 		}
 	}
+
+	errs = append(errs, p.Resources.Validate()...)
+
 	return errs
 }
 
 type ProfileController struct {
-	Replicas uint32 `json:"replicas,omitempty"`
+	Replicas  uint32   `json:"replicas,omitempty"`
+	Resources Resource `json:"resources,omitempty"`
 }
 
 func (p ProfileController) SetFlags(install InstallMode) ([]string, error) {
@@ -171,6 +180,9 @@ func (p ProfileController) Validate(install InstallMode) []error {
 			errs = append(errs, errors.New("controller.replica need be large than zero"))
 		}
 	}
+
+	errs = append(errs, p.Resources.Validate()...)
+
 	return errs
 }
 
@@ -248,13 +260,52 @@ func (p *Profile) ValuesYaml() (string, error) {
 	setFlags = append(setFlags, controllerFlags...)
 
 	valueOverlayYAML := ""
-	if p.Values != nil {
-		out, err := yaml.Marshal(p.Values)
-		if err != nil {
-			return "", err
-		}
-		valueOverlayYAML = string(out)
+	if p.Values == nil {
+		p.Values = make(map[string]interface{})
 	}
+	p.Values["higress-core"] = map[string]interface{}{
+		"controller": map[string]interface{}{
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"cpu":    p.Controller.Resources.Requests.CPU,
+					"memory": p.Controller.Resources.Requests.Memory,
+				},
+				"limits": map[string]interface{}{
+					"cpu":    p.Controller.Resources.Limits.CPU,
+					"memory": p.Controller.Resources.Limits.Memory,
+				},
+			},
+		},
+		"gateway": map[string]interface{}{
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"cpu":    p.Gateway.Resources.Requests.CPU,
+					"memory": p.Gateway.Resources.Requests.Memory,
+				},
+				"limits": map[string]interface{}{
+					"cpu":    p.Gateway.Resources.Limits.CPU,
+					"memory": p.Gateway.Resources.Limits.Memory,
+				},
+			},
+		},
+	}
+	p.Values["higress-console"] = map[string]interface{}{
+		"resources": map[string]interface{}{
+			"requests": map[string]interface{}{
+				"cpu":    p.Console.Resources.Requests.CPU,
+				"memory": p.Console.Resources.Requests.Memory,
+			},
+			"limits": map[string]interface{}{
+				"cpu":    p.Console.Resources.Limits.CPU,
+				"memory": p.Console.Resources.Limits.Memory,
+			},
+		},
+	}
+	out, err := yaml.Marshal(p.Values)
+	if err != nil {
+		return "", err
+	}
+	valueOverlayYAML = string(out)
 
 	flagsYAML, err := overlaySetFlagValues("", setFlags)
 	if err != nil {
@@ -342,4 +393,55 @@ func ToString(errors []error, separator string) string {
 		out += e.Error()
 	}
 	return out
+}
+
+type Resource struct {
+	Requests Requests `json:"requests,omitempty"`
+	Limits   Limits   `json:"limits,omitempty"`
+}
+
+type Requests struct {
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
+}
+
+type Limits struct {
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
+}
+
+func (r Resource) Validate() []error {
+	errs := make([]error, 0)
+
+	r.Requests.CPU = strings.ReplaceAll(r.Requests.CPU, " ", "")
+	r.Requests.Memory = strings.ReplaceAll(r.Requests.Memory, " ", "")
+	r.Limits.CPU = strings.ReplaceAll(r.Limits.CPU, " ", "")
+	r.Limits.Memory = strings.ReplaceAll(r.Limits.Memory, " ", "")
+
+	if !isValidK8SResourceFormat(r.Requests.CPU) {
+		errs = append(errs, fmt.Errorf("requests CPU has invalid format"))
+	}
+	if !isValidK8SResourceFormat(r.Requests.Memory) {
+		errs = append(errs, fmt.Errorf("requests memory has invalid format"))
+	}
+	if !isValidK8SResourceFormat(r.Limits.CPU) {
+		errs = append(errs, fmt.Errorf("limits CPU has invalid format"))
+	}
+	if !isValidK8SResourceFormat(r.Limits.Memory) {
+		errs = append(errs, fmt.Errorf("limits memory has invalid format"))
+	}
+	return errs
+}
+
+func isValidK8SResourceFormat(resource string) bool {
+	pattern := `^\d+((n|u|m|k|Ki|M|Mi|G|Gi|T|Ti|P|Pi|E|Ei)?)$`
+	match, _ := regexp.MatchString(pattern, resource)
+	if !match {
+		return false
+	}
+
+	if len(resource) == 0 || resource[0] == '-' || resource[0] == '0' {
+		return false
+	}
+	return true
 }
