@@ -196,7 +196,7 @@ func promptProfileName(writer io.Writer) string {
 }
 
 func installManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
-	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.InstallInstallerMode)
+	installer, err := installer.NewInstaller(profile, writer, false, devel, false, installer.InstallInstallerMode)
 	if err != nil {
 		return err
 	}

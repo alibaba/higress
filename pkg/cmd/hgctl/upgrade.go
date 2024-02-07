@@ -31,6 +31,8 @@ import (
 
 type upgradeArgs struct {
 	*InstallArgs
+	// FromHelm if set true, it will convert helm chart to higress profile
+	FromHelm bool
 }
 
 func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
@@ -38,12 +40,14 @@ func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
 	cmd.PersistentFlags().BoolVar(&args.Devel, "devel", false, "use development versions (alpha, beta, and release candidate releases), If version is set, this is ignored")
+	cmd.PersistentFlags().BoolVar(&args.FromHelm, "from-helm", false, "upgrade by read helm release")
 }
 
 // newUpgradeCmd upgrades Istio control plane in-place with eligibility checks.
 func newUpgradeCmd() *cobra.Command {
 	upgradeArgs := &upgradeArgs{
 		InstallArgs: &InstallArgs{},
+		FromHelm:    false,
 	}
 	upgradeCmd := &cobra.Command{
 		Use:   "upgrade",
@@ -51,7 +55,7 @@ func newUpgradeCmd() *cobra.Command {
 		Long: "The upgrade command is an alias for the install command" +
 			" that performs additional upgrade-related checks.",
 		RunE: func(cmd *cobra.Command, args []string) (e error) {
-			return upgrade(cmd.OutOrStdout(), upgradeArgs.InstallArgs)
+			return upgrade(cmd.OutOrStdout(), upgradeArgs)
 		},
 	}
 	addUpgradeFlags(upgradeCmd, upgradeArgs)
@@ -61,7 +65,7 @@ func newUpgradeCmd() *cobra.Command {
 }
 
 // upgrade upgrade higress resources from the cluster.
-func upgrade(writer io.Writer, iArgs *InstallArgs) error {
+func upgrade(writer io.Writer, iArgs *upgradeArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
 	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
 	profileContexts, _ := getAllProfiles()
@@ -92,7 +96,7 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 		return nil
 	}
 
-	err = upgradeManifests(profile, writer, iArgs.Devel)
+	err = upgradeManifests(profile, writer, iArgs.Devel, iArgs.FromHelm)
 	if err != nil {
 		return err
 	}
@@ -121,8 +125,8 @@ func promptUpgrade(writer io.Writer) bool {
 	}
 }
 
-func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
-	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.UpgradeInstallerMode)
+func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool, fromHelm bool) error {
+	installer, err := installer.NewInstaller(profile, writer, false, devel, fromHelm, installer.UpgradeInstallerMode)
 	if err != nil {
 		return err
 	}
