@@ -89,6 +89,64 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 3: https/2.0 request with sni and same with host",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Protocol: "HTTP/2.0",
+						Host:     "foo.com",
+						Path:     "/foo",
+						TLSConfig: &http.TLSConfig{
+							SNI: "foo.com",
+							Certificates: http.Certificates{
+								CACerts: [][]byte{caCertOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{{
+									ClientCert: cliCertOut.Bytes(),
+									ClientKey:  cliKeyOut.Bytes()},
+								},
+							},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 4: https/2.0 request with sni and not same with host",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Protocol: "HTTP/2.0",
+						Host:     "bar.com",
+						Path:     "/foo",
+						TLSConfig: &http.TLSConfig{
+							SNI: "foo.com",
+							Certificates: http.Certificates{
+								CACerts: [][]byte{caCertOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{{
+									ClientCert: cliCertOut.Bytes(),
+									ClientKey:  cliKeyOut.Bytes()},
+								},
+							},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 421,
+					},
+				},
+			},
 		}
 
 		t.Run("WasmPlugin sni-misdirect", func(t *testing.T) {

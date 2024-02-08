@@ -111,18 +111,51 @@ type DefaultRoundTripper struct {
 	TimeoutConfig config.TimeoutConfig
 }
 
-func (d *DefaultRoundTripper) initProtocol(client *http.Client, protocol string) {
+func (d *DefaultRoundTripper) initTransport(client *http.Client, protocol string, tlsConfig *TLSConfig) error {
+	var tlsClientConfig *tls.Config
+	if tlsConfig != nil {
+		pool := x509.NewCertPool()
+		for _, caCert := range tlsConfig.Certificates.CACert {
+			pool.AppendCertsFromPEM(caCert)
+		}
+		var clientCerts []tls.Certificate
+		for _, keyPair := range tlsConfig.Certificates.ClientKeyPairs {
+			newClientCert, err := tls.X509KeyPair(keyPair.ClientCert, keyPair.ClientKey)
+			if err != nil {
+				return fmt.Errorf("failed to load client key pair: %w", err)
+			}
+			clientCerts = append(clientCerts, newClientCert)
+		}
+
+		tlsClientConfig = &tls.Config{
+			MinVersion:         tlsConfig.MinVersion,
+			MaxVersion:         tlsConfig.MaxVersion,
+			ServerName:         tlsConfig.SNI,
+			CipherSuites:       tlsConfig.CipherSuites,
+			RootCAs:            pool,
+			Certificates:       clientCerts,
+			InsecureSkipVerify: true,
+		}
+	}
+
 	switch protocol {
 	case "HTTP/2.0":
 		tr := &http2.Transport{}
-		prevTr, ok := client.Transport.(*http.Transport)
-		if ok {
-			// other TLS fields are not existed in HTTP2
-			tr.TLSClientConfig = prevTr.TLSClientConfig
+		if tlsClientConfig != nil {
+			tr.TLSClientConfig = tlsClientConfig
 		}
 		client.Transport = tr
 	default: // HTTP1
+		if tlsClientConfig != nil {
+			client.Transport = &http.Transport{
+				TLSHandshakeTimeout: d.TimeoutConfig.TLSHandshakeTimeout,
+				DisableKeepAlives:   true,
+				TLSClientConfig:     tlsClientConfig,
+			}
+		}
 	}
+
+	return nil
 }
 
 // CaptureRoundTrip makes a request with the provided parameters and returns the
@@ -168,7 +201,7 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 		}
 	}
 
-	d.initProtocol(client, request.Protocol)
+	d.initTransport(client, request.Protocol, request.TLSConfig)
 
 	method := "GET"
 	if request.Method != "" {

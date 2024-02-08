@@ -16,6 +16,7 @@ package roundtripper
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"testing"
 
@@ -23,7 +24,7 @@ import (
 	"golang.org/x/net/http2"
 )
 
-func TestProtocol(t *testing.T) {
+func TestTransport(t *testing.T) {
 	req := Request{
 		Protocol: "HTTP/2.0",
 	}
@@ -31,6 +32,7 @@ func TestProtocol(t *testing.T) {
 		name          string
 		req           Request
 		prevTransport http.RoundTripper
+		tlsConfig     *TLSConfig
 		transport     http.RoundTripper
 	}{
 		{
@@ -51,15 +53,13 @@ func TestProtocol(t *testing.T) {
 		{
 			name: "https",
 			req:  req,
-			prevTransport: &http.Transport{
-				TLSHandshakeTimeout: 10,
-				DisableKeepAlives:   true,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
+			tlsConfig: &TLSConfig{
+				SNI: "www.example.com",
 			},
 			transport: &http2.Transport{
 				TLSClientConfig: &tls.Config{
+					RootCAs:            x509.NewCertPool(),
+					ServerName:         "www.example.com",
 					InsecureSkipVerify: true,
 				},
 			},
@@ -70,8 +70,7 @@ func TestProtocol(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			d := DefaultRoundTripper{}
 			c := http.Client{}
-			c.Transport = tt.prevTransport
-			d.initProtocol(&c, tt.req.Protocol)
+			d.initTransport(&c, tt.req.Protocol, tt.tlsConfig)
 			assert.Equal(t, tt.transport, c.Transport)
 		})
 	}
