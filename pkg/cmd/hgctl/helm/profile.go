@@ -114,6 +114,20 @@ func (p ProfileConsole) Validate(install InstallMode) []error {
 		}
 	}
 
+	// set default value
+	if p.Resources.Requests.CPU == "" {
+		p.Resources.Requests.CPU = "250m"
+	}
+	if p.Resources.Requests.Memory == "" {
+		p.Resources.Requests.Memory = "512Mi"
+	}
+	if p.Resources.Limits.CPU == "" {
+		p.Resources.Limits.CPU = "2000m"
+	}
+	if p.Resources.Limits.Memory == "" {
+		p.Resources.Limits.Memory = "2048Mi"
+	}
+
 	errs = append(errs, p.Resources.Validate()...)
 
 	return errs
@@ -155,6 +169,20 @@ func (p ProfileGateway) Validate(install InstallMode) []error {
 		}
 	}
 
+	// set default value
+	if p.Resources.Requests.CPU == "" {
+		p.Resources.Requests.CPU = "2000m"
+	}
+	if p.Resources.Requests.Memory == "" {
+		p.Resources.Requests.Memory = "2048Mi"
+	}
+	if p.Resources.Limits.CPU == "" {
+		p.Resources.Limits.CPU = "2000m"
+	}
+	if p.Resources.Limits.Memory == "" {
+		p.Resources.Limits.Memory = "2048Mi"
+	}
+
 	errs = append(errs, p.Resources.Validate()...)
 
 	return errs
@@ -179,6 +207,20 @@ func (p ProfileController) Validate(install InstallMode) []error {
 		if p.Replicas <= 0 {
 			errs = append(errs, errors.New("controller.replica need be large than zero"))
 		}
+	}
+
+	// set default value
+	if p.Resources.Requests.CPU == "" {
+		p.Resources.Requests.CPU = "500m"
+	}
+	if p.Resources.Requests.Memory == "" {
+		p.Resources.Requests.Memory = "2048Mi"
+	}
+	if p.Resources.Limits.CPU == "" {
+		p.Resources.Limits.CPU = "1000m"
+	}
+	if p.Resources.Limits.Memory == "" {
+		p.Resources.Limits.Memory = "2048Mi"
 	}
 
 	errs = append(errs, p.Resources.Validate()...)
@@ -261,7 +303,7 @@ func (p *Profile) ValuesYaml() (string, error) {
 
 	valueOverlayYAML := ""
 	if p.Values == nil {
-		p.Values = make(map[string]interface{})
+		p.Values = make(map[string]any)
 	}
 
 	resourceMap := make(map[string]any)
