@@ -263,7 +263,9 @@ func (p *Profile) ValuesYaml() (string, error) {
 	if p.Values == nil {
 		p.Values = make(map[string]interface{})
 	}
-	p.Values["higress-core"] = map[string]interface{}{
+
+	resourceMap := make(map[string]any)
+	resourceMap["higress-core"] = map[string]interface{}{
 		"controller": map[string]interface{}{
 			"resources": map[string]interface{}{
 				"requests": map[string]interface{}{
@@ -289,7 +291,7 @@ func (p *Profile) ValuesYaml() (string, error) {
 			},
 		},
 	}
-	p.Values["higress-console"] = map[string]interface{}{
+	resourceMap["higress-console"] = map[string]interface{}{
 		"resources": map[string]interface{}{
 			"requests": map[string]interface{}{
 				"cpu":    p.Console.Resources.Requests.CPU,
@@ -301,6 +303,17 @@ func (p *Profile) ValuesYaml() (string, error) {
 			},
 		},
 	}
+
+	resourceYAML, err := yaml.Marshal(resourceMap)
+	if err != nil {
+		return "", err
+	}
+
+	err = yaml.Unmarshal(resourceYAML, &p.Values)
+	if err != nil {
+		return "", err
+	}
+
 	out, err := yaml.Marshal(p.Values)
 	if err != nil {
 		return "", err
