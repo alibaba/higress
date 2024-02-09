@@ -106,7 +106,7 @@ func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper
 		log.Errorf("client opa fail %v", err)
 		return types.ActionPause
 	}
-	return types.ActionPause
+	return types.ActionContinue
 }
 
 func rspCall(statusCode int, _ http.Header, responseBody []byte) {
