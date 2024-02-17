@@ -67,6 +67,7 @@ metadata:
   name: custom-response
   namespace: higress-system
 spec:
+  priority: 200 # ensure custom-response plugin is applied before basic-auth plugin
   defaultConfig:
     headers:
       - key1=value1
@@ -102,6 +103,7 @@ metadata:
   name: basic-auth
   namespace: higress-system
 spec:
+  priority: 100
   defaultConfig:
     consumers:
       - credential: admin:123456
