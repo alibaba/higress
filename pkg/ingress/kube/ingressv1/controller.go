@@ -17,9 +17,11 @@ package ingressv1
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -356,7 +358,16 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		common.IncrementInvalidIngress(c.options.ClusterId, common.EmptyRule)
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
-
+	gatewayHttpPort, err := strconv.ParseUint(os.Getenv("GATEWAY_HTTP_PORT"), 10, 32)
+	if err != nil {
+		common.IncrementInvalidIngress(c.options.ClusterId, common.Unknown)
+		return fmt.Errorf("gateway http port is invalid in cluster %s", c.options.ClusterId)
+	}
+	gatewayHttpsPort, err := strconv.ParseUint(os.Getenv("GATEWAY_HTTPS_PORT"), 10, 32)
+	if err != nil {
+		common.IncrementInvalidIngress(c.options.ClusterId, common.Unknown)
+		return fmt.Errorf("gateway https port is invalid in cluster %s", c.options.ClusterId)
+	}
 	for _, rule := range ingressV1.Rules {
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
@@ -383,9 +394,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
-					Number:   80,
+					Number:   uint32(gatewayHttpPort),
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId),
+					Name:     common.CreateConvertedName("http-"+strconv.FormatUint(gatewayHttpPort, 10)+"-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -428,9 +439,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		// Append https server
 		wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 			Port: &networking.Port{
-				Number:   443,
+				Number:   uint32(gatewayHttpsPort),
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId),
+				Name:     common.CreateConvertedName("https-"+strconv.FormatUint(gatewayHttpsPort, 10)+"-ingress", c.options.ClusterId),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{

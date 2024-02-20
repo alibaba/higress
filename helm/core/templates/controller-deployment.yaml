@@ -220,6 +220,10 @@ spec:
                 fieldPath: spec.serviceAccountName
           - name: DOMAIN_SUFFIX
             value: {{ .Values.global.proxy.clusterDomain }}
+          - name: GATEWAY_HTTP_PORT
+            value: "{{ .Values.gateway.httpPort }}"
+          - name: GATEWAY_HTTPS_PORT
+            value: "{{ .Values.gateway.httpsPort }}"
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
