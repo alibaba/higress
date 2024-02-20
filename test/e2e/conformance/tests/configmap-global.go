@@ -51,7 +51,8 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					Upstream: &configmap.Upstream{
-						IdleTimeout: 10,
+						IdleTimeout:            10,
+						ConnectionBufferLimits: 10485760,
 					},
 					DisableXEnvoyHeaders: true,
 					AddXRealIpHeader:     true,
@@ -127,6 +128,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -145,7 +147,8 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					Upstream: &configmap.Upstream{
-						IdleTimeout: 10,
+						IdleTimeout:            10,
+						ConnectionBufferLimits: 10485760,
 					},
 					DisableXEnvoyHeaders: true,
 				},
@@ -213,6 +216,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -231,7 +235,8 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					Upstream: &configmap.Upstream{
-						IdleTimeout: 10,
+						IdleTimeout:            10,
+						ConnectionBufferLimits: 10485760,
 					},
 					AddXRealIpHeader: true,
 				},
@@ -304,6 +309,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -322,7 +328,8 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					Upstream: &configmap.Upstream{
-						IdleTimeout: 10,
+						IdleTimeout:            10,
+						ConnectionBufferLimits: 10485760,
 					},
 				},
 				envoyAssertion: []envoy.Assertion{
@@ -387,6 +394,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -558,6 +566,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -804,6 +813,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "10s",
 							},
+							"per_connection_buffer_limit_bytes": 10485760,
 						},
 					},
 				},
@@ -822,7 +832,8 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					Upstream: &configmap.Upstream{
-						IdleTimeout: 0,
+						IdleTimeout:            0,
+						ConnectionBufferLimits: 32768,
 					},
 					DisableXEnvoyHeaders: true,
 					AddXRealIpHeader:     true,
@@ -898,6 +909,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "0s",
 							},
+							"per_connection_buffer_limit_bytes": 32768,
 						},
 					},
 				},
