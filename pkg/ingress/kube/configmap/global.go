@@ -37,15 +37,16 @@ const (
 	minInitialConnectionWindowSize = 65535
 	maxInitialConnectionWindowSize = 2147483647
 
-	defaultIdleTimeout                 = 180
-	defaultUpStreamIdleTimeout         = 10
-	defaultMaxRequestHeadersKb         = 60
-	defaultConnectionBufferLimits      = 32768
-	defaultMaxConcurrentStreams        = 100
-	defaultInitialStreamWindowSize     = 65535
-	defaultInitialConnectionWindowSize = 1048576
-	defaultAddXRealIpHeader            = false
-	defaultDisableXEnvoyHeaders        = false
+	defaultIdleTimeout                    = 180
+	defaultUpStreamIdleTimeout            = 10
+	defaultUpStreamConnectionBufferLimits = 10485760
+	defaultMaxRequestHeadersKb            = 60
+	defaultConnectionBufferLimits         = 32768
+	defaultMaxConcurrentStreams           = 100
+	defaultInitialStreamWindowSize        = 65535
+	defaultInitialConnectionWindowSize    = 1048576
+	defaultAddXRealIpHeader               = false
+	defaultDisableXEnvoyHeaders           = false
 )
 
 // Global configures the behavior of the downstream connection, x-real-ip header and x-envoy headers.
@@ -72,6 +73,8 @@ type Downstream struct {
 type Upstream struct {
 	// IdleTimeout limits the time that a connection may be idle on the upstream.
 	IdleTimeout uint32 `json:"idleTimeout"`
+	// ConnectionBufferLimits configures the buffer size limits for connections.
+	ConnectionBufferLimits uint32 `json:"connectionBufferLimits,omitempty"`
 }
 
 // Http2 configures HTTP/2 specific options.
@@ -158,6 +161,7 @@ func deepCopyGlobal(global *Global) (*Global, error) {
 	}
 	if global.Upstream != nil {
 		newGlobal.Upstream.IdleTimeout = global.Upstream.IdleTimeout
+		newGlobal.Upstream.ConnectionBufferLimits = global.Upstream.ConnectionBufferLimits
 	}
 	newGlobal.AddXRealIpHeader = global.AddXRealIpHeader
 	newGlobal.DisableXEnvoyHeaders = global.DisableXEnvoyHeaders
@@ -187,7 +191,8 @@ func NewDefaultDownstream() *Downstream {
 // NewDefaultUpStream returns a default upstream config.
 func NewDefaultUpStream() *Upstream {
 	return &Upstream{
-		IdleTimeout: defaultUpStreamIdleTimeout,
+		IdleTimeout:            defaultUpStreamIdleTimeout,
+		ConnectionBufferLimits: defaultUpStreamConnectionBufferLimits,
 	}
 }
 
@@ -339,10 +344,11 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 	}
 
 	upstreamStruct := g.constructUpstream(global.Upstream)
+	bufferLimitStruct = g.constructUpstreamBufferLimit(global.Upstream)
 	if len(upstreamStruct) == 0 {
 		return generateEnvoyFilter(namespace, configPatch), nil
 	}
-	upstreamConfig := g.generateUpstreamEnvoyFilter(upstreamStruct, namespace)
+	upstreamConfig := g.generateUpstreamEnvoyFilter(upstreamStruct, bufferLimitStruct, namespace)
 	configPatch = append(configPatch, upstreamConfig...)
 
 	return generateEnvoyFilter(namespace, configPatch), nil
@@ -404,7 +410,7 @@ func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueSt
 	return downstreamConfig
 }
 
-func (g *GlobalOptionController) generateUpstreamEnvoyFilter(upstreamValueStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+func (g *GlobalOptionController) generateUpstreamEnvoyFilter(upstreamValueStruct string, bufferLimit string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
 	upstreamConfig := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
 		{
 			ApplyTo: networking.EnvoyFilter_CLUSTER,
@@ -414,6 +420,16 @@ func (g *GlobalOptionController) generateUpstreamEnvoyFilter(upstreamValueStruct
 			Patch: &networking.EnvoyFilter_Patch{
 				Operation: networking.EnvoyFilter_Patch_MERGE,
 				Value:     util.BuildPatchStruct(upstreamValueStruct),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_CLUSTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(bufferLimit),
 			},
 		},
 	}
@@ -529,6 +545,16 @@ func (g *GlobalOptionController) constructUpstream(upstream *Upstream) string {
 `, idleTimeout)
 
 	return upstreamConfig
+}
+
+// constructUpstreamBufferLimit constructs the upstream buffer limit config.
+func (g *GlobalOptionController) constructUpstreamBufferLimit(upstream *Upstream) string {
+	upstreamBufferLimitStruct := fmt.Sprintf(`
+		{
+			"per_connection_buffer_limit_bytes": %d
+		}
+	`, upstream.ConnectionBufferLimits)
+	return upstreamBufferLimitStruct
 }
 
 // constructAddXRealIpHeader constructs the add x-real-ip header config.
