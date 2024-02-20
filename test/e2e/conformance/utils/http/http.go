@@ -88,6 +88,7 @@ const (
 // values can be provided, as a comma-separated value.
 type Request struct {
 	Host             string
+	Protocol         string
 	Method           string
 	Path             string
 	Headers          map[string]string
@@ -162,12 +163,10 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 
 	var (
 		scheme    = "http"
-		protocol  = "HTTP"
 		tlsConfig *roundtripper.TLSConfig
 	)
 	if expected.Request.ActualRequest.TLSConfig != nil {
 		scheme = "https"
-		protocol = "HTTPS"
 		clientKeyPairs := make([]roundtripper.ClientKeyPair, 0, len(expected.Request.ActualRequest.TLSConfig.Certificates.ClientKeyPairs))
 		for _, keyPair := range expected.Request.ActualRequest.TLSConfig.Certificates.ClientKeyPairs {
 			clientKeyPairs = append(clientKeyPairs, roundtripper.ClientKeyPair{
@@ -212,6 +211,11 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 	t.Logf("Making %s request to %s://%s%s", expected.Request.ActualRequest.Method, scheme, gwAddr, expected.Request.ActualRequest.Path)
 
 	path, query, _ := strings.Cut(expected.Request.ActualRequest.Path, "?")
+
+	protocol := "HTTP/1.1"
+	if expected.Request.ActualRequest.Protocol != "" {
+		protocol = expected.Request.ActualRequest.Protocol
+	}
 
 	req := roundtripper.Request{
 		Method:           expected.Request.ActualRequest.Method,
