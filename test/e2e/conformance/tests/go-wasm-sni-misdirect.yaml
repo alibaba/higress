@@ -23,10 +23,10 @@ spec:
   ingressClassName: higress
   tls:
     - hosts:
-        - "foo.com"
+        - "*.com"
       secretName: foo-secret
   rules:
-    - host: "foo.com"
+    - host: "*.com"
       http:
         paths:
           - pathType: Exact
