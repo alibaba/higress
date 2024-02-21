@@ -17,7 +17,6 @@ package ingressv1
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"reflect"
 	"sort"
@@ -359,25 +358,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
 
-	// If no ports setting in yaml env(port is parsed as 0), take 80&443 as default.
-	gatewayHttpPort, err := strconv.ParseUint(os.Getenv("GATEWAY_HTTP_PORT"), 10, 32)
-	if gatewayHttpPort == 0 {
-		gatewayHttpPort = 80
-	} else {
-		if err != nil {
-			common.IncrementInvalidIngress(c.options.ClusterId, common.Unknown)
-			return fmt.Errorf("gateway http port is invalid in cluster %s", c.options.ClusterId)
-		}
-	}
-	gatewayHttpsPort, err := strconv.ParseUint(os.Getenv("GATEWAY_HTTPS_PORT"), 10, 32)
-	if gatewayHttpsPort == 0 {
-		gatewayHttpsPort = 443
-	} else {
-		if err != nil {
-			common.IncrementInvalidIngress(c.options.ClusterId, common.Unknown)
-			return fmt.Errorf("gateway https port is invalid in cluster %s", c.options.ClusterId)
-		}
-	}
 
 	for _, rule := range ingressV1.Rules {
 		// Need create builder for every rule.
@@ -405,9 +385,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
-					Number:   uint32(gatewayHttpPort),
+					Number:   c.options.GatewayHttpPort,
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-"+strconv.FormatUint(gatewayHttpPort, 10)+"-ingress", c.options.ClusterId),
+					Name:     common.CreateConvertedName("http-"+strconv.FormatUint(uint64(c.options.GatewayHttpPort), 10)+"-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -450,9 +430,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		// Append https server
 		wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 			Port: &networking.Port{
-				Number:   uint32(gatewayHttpsPort),
+				Number:   uint32(c.options.GatewayHttpsPort),
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-"+strconv.FormatUint(gatewayHttpsPort, 10)+"-ingress", c.options.ClusterId),
+				Name:     common.CreateConvertedName("https-"+strconv.FormatUint(uint64(c.options.GatewayHttpsPort), 10)+"-ingress", c.options.ClusterId),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
