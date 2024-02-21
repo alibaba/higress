@@ -40,7 +40,6 @@ namespace custom_response {
 struct CustomResponseConfigRule {
   std::vector<std::string> enable_on_status;
   std::vector<std::pair<std::string, std::string>> headers;
-  std::string content_type;
   int32_t status_code = 200;
   std::string body;
 };
