@@ -74,9 +74,7 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
             }
             if (absl::AsciiStrToLower(pair[0]) ==
                 Wasm::Common::Http::Header::ContentType) {
-              rule.content_type = pair[1];
               has_content_type = true;
-              return true;
             }
             rule.headers.emplace_back(pair[0], pair[1]);
             return true;
@@ -105,13 +103,11 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
   if (!rule.body.empty() && !has_content_type) {
     auto try_decode_json = Wasm::Common::JsonParse(rule.body);
     if (try_decode_json.has_value()) {
-      rule.content_type = "application/json; charset=utf-8";
-      //      rule.headers.emplace_back(Wasm::Common::Http::Header::ContentType,
-      //                                "application/json; charset=utf-8");
+      rule.headers.emplace_back(Wasm::Common::Http::Header::ContentType,
+                                "application/json; charset=utf-8");
     } else {
-      rule.content_type = "text/plain; charset=utf-8";
-      //      rule.headers.emplace_back(Wasm::Common::Http::Header::ContentType,
-      //                                "text/plain; charset=utf-8");
+      rule.headers.emplace_back(Wasm::Common::Http::Header::ContentType,
+                                "text/plain; charset=utf-8");
     }
   }
   return true;
@@ -139,8 +135,6 @@ FilterHeadersStatus PluginRootContext::onResponse(
   if (!hit) {
     return FilterHeadersStatus::Continue;
   }
-  replaceResponseHeader(Wasm::Common::Http::Header::ContentType,
-                        rule.content_type);
   sendLocalResponse(rule.status_code, "", rule.body, rule.headers);
   return FilterHeadersStatus::StopIteration;
 }
