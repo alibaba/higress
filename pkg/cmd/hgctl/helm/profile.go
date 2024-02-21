@@ -351,16 +351,12 @@ func (p *Profile) ValuesYaml() (string, error) {
 		return "", err
 	}
 
-	err = yaml.Unmarshal(resourceYAML, &p.Values)
-	if err != nil {
-		return "", err
-	}
-
 	out, err := yaml.Marshal(p.Values)
 	if err != nil {
 		return "", err
 	}
-	valueOverlayYAML = string(out)
+
+	valueOverlayYAML, err = util.OverlayYAML(string(resourceYAML), string(out))
 
 	flagsYAML, err := overlaySetFlagValues("", setFlags)
 	if err != nil {
