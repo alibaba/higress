@@ -2,6 +2,8 @@ module oidc
 
 go 1.19
 
+replace github.com/tetratelabs/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240105034322-9a6ac242c3dd
+
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230807053545-d307d0e755f1
 	github.com/go-jose/go-jose/v3 v3.0.0
