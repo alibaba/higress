@@ -20,6 +20,7 @@ import (
 	"path"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -357,6 +358,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
 
+
 	for _, rule := range ingressV1.Rules {
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
@@ -383,9 +385,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
-					Number:   80,
+					Number:   c.options.GatewayHttpPort,
 					Protocol: string(protocol.HTTP),
-					Name:     common.CreateConvertedName("http-80-ingress", c.options.ClusterId),
+					Name:     common.CreateConvertedName("http-"+strconv.FormatUint(uint64(c.options.GatewayHttpPort), 10)+"-ingress", c.options.ClusterId),
 				},
 				Hosts: []string{rule.Host},
 			})
@@ -428,9 +430,9 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		// Append https server
 		wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 			Port: &networking.Port{
-				Number:   443,
+				Number:   uint32(c.options.GatewayHttpsPort),
 				Protocol: string(protocol.HTTPS),
-				Name:     common.CreateConvertedName("https-443-ingress", c.options.ClusterId),
+				Name:     common.CreateConvertedName("https-"+strconv.FormatUint(uint64(c.options.GatewayHttpsPort), 10)+"-ingress", c.options.ClusterId),
 			},
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
