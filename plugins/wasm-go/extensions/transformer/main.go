@@ -20,9 +20,9 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/pkg/errors"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -251,7 +251,7 @@ func constructParam(item *gjson.Result, op, valueType string) Param {
 	p := Param{
 		valueType: valueType,
 	}
-	
+
 	switch op {
 	case "remove":
 		p.removeParam.key = item.Get("key").String()
