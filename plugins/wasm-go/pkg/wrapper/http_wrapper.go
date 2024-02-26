@@ -19,7 +19,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 type ResponseCallback func(statusCode int, responseHeaders http.Header, responseBody []byte)
