@@ -17,7 +17,7 @@ package wrapper
 import (
 	"fmt"
 
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 type LogLevel uint32
