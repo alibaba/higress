@@ -33,6 +33,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Free Up GitHub Actions Ubuntu Runner Disk Space 🔧
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true      
+
       - name: "Setup Go"
         uses: actions/setup-go@v3
         with:
