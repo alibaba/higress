@@ -129,7 +129,7 @@ func genManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
 
-	op, err := installer.NewK8sInstaller(profile, cliClient, writer, true, devel, false, installer.InstallInstallerMode)
+	op, err := installer.NewK8sInstaller(profile, cliClient, writer, true, devel, installer.InstallInstallerMode)
 	if err != nil {
 		return err
 	}

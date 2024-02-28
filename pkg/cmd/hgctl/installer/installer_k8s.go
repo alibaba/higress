@@ -20,13 +20,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/yaml"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
+	"sigs.k8s.io/yaml"
 )
 
 type K8sInstaller struct {
