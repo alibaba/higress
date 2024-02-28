@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"sigs.k8s.io/yaml"
 	"strings"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm"
 	"github.com/alibaba/higress/pkg/cmd/options"
+	"sigs.k8s.io/yaml"
 )
 
 type HelmRelease struct {
