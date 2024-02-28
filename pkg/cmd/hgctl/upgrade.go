@@ -67,27 +67,44 @@ func newUpgradeCmd() *cobra.Command {
 // upgrade upgrade higress resources from the cluster.
 func upgrade(writer io.Writer, iArgs *upgradeArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
-	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
-	profileContexts, _ := getAllProfiles()
-	if len(profileContexts) == 0 {
-		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
-		return nil
+
+	var profile *helm.Profile
+
+	if !iArgs.FromHelm {
+		fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
+		profileContexts, _ := getAllProfiles()
+		if len(profileContexts) == 0 {
+			fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
+			return nil
+		}
+
+		valuesOverlay, err := helm.GetValuesOverylayFromFiles(iArgs.InFilenames)
+		if err != nil {
+			return err
+		}
+
+		profileContext := promptProfileContexts(writer, profileContexts)
+
+		_, profile, err = helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
+	} else {
+		helmAgent := installer.NewHelmAgent(nil, writer, false)
+		installed, _, err := helmAgent.GetHigressInformance()
+		if err != nil {
+			return err
+		}
+		if !installed {
+			fmt.Fprintf(writer, "\nHigress hasn't been installed by helm yet!\n")
+			return nil
+		}
+		// TODO: convert helm values to higress profile
 	}
 
-	valuesOverlay, err := helm.GetValuesOverylayFromFiles(iArgs.InFilenames)
-	if err != nil {
-		return err
-	}
-
-	profileContext := promptProfileContexts(writer, profileContexts)
-
-	_, profile, err := helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
-	err = profile.Validate()
+	err := profile.Validate()
 	if err != nil {
 		return err
 	}
@@ -96,7 +113,7 @@ func upgrade(writer io.Writer, iArgs *upgradeArgs) error {
 		return nil
 	}
 
-	err = upgradeManifests(profile, writer, iArgs.Devel, iArgs.FromHelm)
+	err = upgradeManifests(profile, writer, iArgs.Devel)
 	if err != nil {
 		return err
 	}
@@ -125,8 +142,8 @@ func promptUpgrade(writer io.Writer) bool {
 	}
 }
 
-func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool, fromHelm bool) error {
-	installer, err := installer.NewInstaller(profile, writer, false, devel, fromHelm, installer.UpgradeInstallerMode)
+func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
+	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.UpgradeInstallerMode)
 	if err != nil {
 		return err
 	}

@@ -51,14 +51,14 @@ type Installer interface {
 	Upgrade() error
 }
 
-func NewInstaller(profile *helm.Profile, writer io.Writer, quiet bool, devel bool, fromHelm bool, installerMode InstallerMode) (Installer, error) {
+func NewInstaller(profile *helm.Profile, writer io.Writer, quiet bool, devel bool, installerMode InstallerMode) (Installer, error) {
 	switch profile.Global.Install {
 	case helm.InstallK8s, helm.InstallLocalK8s:
 		cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 		if err != nil {
 			return nil, fmt.Errorf("failed to build kubernetes client: %w", err)
 		}
-		installer, err := NewK8sInstaller(profile, cliClient, writer, quiet, devel, fromHelm, installerMode)
+		installer, err := NewK8sInstaller(profile, cliClient, writer, quiet, devel, installerMode)
 		return installer, err
 	case helm.InstallLocalDocker:
 		installer, err := NewDockerInstaller(profile, writer, quiet)
