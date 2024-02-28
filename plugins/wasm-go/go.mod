@@ -5,9 +5,10 @@ go 1.19
 require (
 	github.com/google/uuid v1.3.0
 	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520
-	github.com/stretchr/testify v1.8.0
-	github.com/tetratelabs/proxy-wasm-go-sdk v0.19.1-0.20220822060051-f9d179a57f8c
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240226064518-b3dc4646a35a
+	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.14.3
+	github.com/tidwall/resp v0.1.1
 )
 
 require (

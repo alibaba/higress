@@ -417,7 +417,8 @@ gateway:
 
   # Pod environment variables
   env: {}
-
+  httpPort: 80
+  httpsPort: 443
   hostNetwork: false
 
   # Labels to apply to all resources

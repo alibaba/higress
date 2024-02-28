@@ -17,15 +17,16 @@ package oc
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tidwall/gjson"
-	"golang.org/x/oauth2"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/go-jose/go-jose/v3"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/tidwall/gjson"
+	"golang.org/x/oauth2"
 )
 
 var re = regexp.MustCompile("<[^>]*>")
