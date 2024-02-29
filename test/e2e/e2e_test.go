@@ -53,7 +53,7 @@ func TestHigressConformanceTests(t *testing.T) {
 		GatewayAddress:             "localhost",
 		EnableAllSupportedFeatures: true,
 		EnableApiServer:            *flags.EnableApiServer,
-		Storage:                    *flags.Storage,
+		ApiServerStorage:           *flags.ApiServerStorage,
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
 	})
 

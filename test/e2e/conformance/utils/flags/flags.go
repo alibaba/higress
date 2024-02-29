@@ -30,5 +30,5 @@ var (
 	TestArea             = flag.String("test-area", "all", "Test area to run, like all to run setup/run/clean, setup to prepare test environment, run to run test cases, clean to clean test environment")
 	EnableApiServer      = flag.Bool("enableApiServer", false, "Determine if enable api server")
 	// TODO when apiserver support other mode, we can use string field like: nacos://username:password@ip:port/namespace
-	Storage              = flag.String("storage", "http://127.0.0.1:8848", "Define storage")
+	ApiServerStorage = flag.String("storage", "http://127.0.0.1:8848", "Define storage")
 )

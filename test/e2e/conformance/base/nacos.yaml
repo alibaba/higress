@@ -34,7 +34,6 @@ spec:
     image: registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
     ports:
     - containerPort: 8848
-    - containerPort: 9848
 ---
 apiVersion: v1
 kind: Service
@@ -48,5 +47,3 @@ spec:
   ports:
   - name: foo # name is not required for single-port Services
     port: 8848
-  - name: bar
-    port: 9848

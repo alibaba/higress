@@ -49,7 +49,7 @@ type ConformanceTestSuite struct {
 	TimeoutConfig     config.TimeoutConfig
 	SupportedFeatures sets.Set
 	EnableApiServer   bool
-	Storage           string
+	ApiServerStorage  string
 	ConfigCenter      cc.Storage
 	WASMOptions
 }
@@ -78,8 +78,8 @@ type Options struct {
 	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
 	IsEnvoyConfigTest bool
 
-	EnableApiServer bool
-	Storage         string
+	EnableApiServer  bool
+	ApiServerStorage string
 }
 
 type WASMOptions struct {
@@ -129,10 +129,10 @@ func New(s Options) *ConformanceTestSuite {
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
-		TimeoutConfig:   s.TimeoutConfig,
-		EnableApiServer: s.EnableApiServer,
-		Storage:         s.Storage,
-		WASMOptions:     s.WASMOptions,
+		TimeoutConfig:    s.TimeoutConfig,
+		EnableApiServer:  s.EnableApiServer,
+		ApiServerStorage: s.ApiServerStorage,
+		WASMOptions:      s.WASMOptions,
 	}
 
 	// apply defaults
@@ -148,7 +148,7 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	if suite.EnableApiServer {
-		configClient, err := nacos.NewClient(suite.Storage)
+		configClient, err := nacos.NewClient(suite.ApiServerStorage)
 		if err != nil {
 			log.Fatalf("🚨 Failed to create config client: %v", err)
 		}
