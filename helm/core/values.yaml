@@ -651,7 +651,7 @@ apiserver:
   imagePullPolicy: IfNotPresent
   securePort: 8443
   storage: nacos
-  serverAddr: http://127.0.0.1:8848
+  serverAddr: http://higress-nacos-service.higress-system.svc.cluster.local:8848
   username: ""
   password: ""
   namespaceID: ""
@@ -663,3 +663,35 @@ skywalking:
   service:
     address: ~
     port: 11800
+
+# nacos config settings
+nacos:
+  name: "higress-nacos"
+  enabled: false
+  hub: nacos/nacos-server
+  tag: latest
+  pullPolicy: IfNotPresent
+  replica: 1
+  podManagementPolicy: Parallel
+  nodeSelector: { }
+  affinity: { }
+  tolerations: [ ]
+  persistence:
+    enabled: false
+    data:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: manual
+      resources:
+        requests:
+          storage: 5Gi
+  service:
+    port: 8848
+    type: NodePort
+    nodePort: 30000
+  annotations: {}
+  preferHostMode: hostname
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi

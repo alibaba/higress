@@ -1,0 +1,30 @@
+{{- if .Values.nacos.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nacos.name }}-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.nacos.service.type }}
+  ports:
+    - port: {{ .Values.nacos.service.port }}
+      targetPort: {{ .Values.nacos.service.port }}
+      protocol: TCP
+      name: http
+    - port: {{ add .Values.nacos.service.port 1000}}
+      name: client-rpc
+      targetPort: {{add .Values.nacos.service.port 1000}}
+    - port: {{add .Values.nacos.service.port 1001}}
+      name: raft-rpc
+      targetPort: {{add .Values.nacos.service.port 1001}}
+    - port: 7848
+      name: old-raft-rpc
+      targetPort: 7848
+      protocol: TCP
+      {{- if eq .Values.nacos.service.type "NodePort" }}
+      nodePort: {{ .Values.nacos.service.nodePort }}
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ .Values.nacos.name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end}}

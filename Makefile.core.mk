@@ -185,13 +185,11 @@ install-dev: pre-install
 install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 install-dev-nacos: pre-install
-	kubectl apply -f tools/hack/conf/nacos.yaml
 	tools/hack/gen-secret-configmap.sh
-	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"'
+	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'nacos.enabled=true'
 install-dev-wasmplugin-nacos: build-wasmplugins pre-install
-	kubectl apply -f tools/hack/conf/nacos.yaml
 	tools/hack/gen-secret-configmap.sh
-	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'apiserver.serverAddr="http://nacos-service.higress-system.svc.cluster.local:8848"' --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
+	helm install higress helm/core -n higress-system --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'apiserver.enabled=true' --set 'nacos.enabled=true' --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -275,8 +273,8 @@ higress-wasmplugin-test-nacos: $(tools/kind) delete-cluster create-cluster docke
 
 .PHONY: port-forward-nacos
 port-forward-nacos:
-	kubectl wait --timeout=10m -n higress-system deploy/nacos --for=condition=Available
-	kubectl port-forward -n higress-system svc/nacos-service 8848:8848 9848:9848 &
+	kubectl wait --timeout=10m -n higress-system --for=condition=Ready pod -l app.kubernetes.io/name=higress-nacos,app.kubernetes.io/instance=higress
+	kubectl port-forward -n higress-system svc/higress-nacos-service 8848:8848 9848:9848 &
 
 # create-cluster creates a kube cluster with kind.
 .PHONY: create-cluster
@@ -296,13 +294,13 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/docker-pull-image.sh docker.io/swsk33/nacos-standalone 2.2.3
+	tools/hack/docker-pull-image.sh docker.io/nacos/nacos-server latest
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
 	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/kind-load-image.sh docker.io/swsk33/nacos-standalone 2.2.3
+	tools/hack/kind-load-image.sh docker.io/nacos/nacos-server latest
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
@@ -367,8 +365,8 @@ run-higress-e2e-test-wasmplugin:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=all
-  
- # run-higress-e2e-test-wasmplugin-run starts to run ingress e2e conformance tests.
+
+# run-higress-e2e-test-wasmplugin-run starts to run ingress e2e conformance tests.
 .PHONY: run-higress-e2e-test-wasmplugin-run
 run-higress-e2e-test-wasmplugin-run:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
@@ -377,8 +375,8 @@ run-higress-e2e-test-wasmplugin-run:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=run
-  
- # run-higress-e2e-test-wasmplugin-clean starts to clean ingress e2e tests.
+
+# run-higress-e2e-test-wasmplugin-clean starts to clean ingress e2e tests.
 .PHONY: run-higress-e2e-test-wasmplugin-clean
 run-higress-e2e-test-wasmplugin-clean:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
@@ -387,7 +385,7 @@ run-higress-e2e-test-wasmplugin-clean:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=clean
-  
+
 .PHONY: run-higress-e2e-test-nacos
 run-higress-e2e-test-nacos:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"
@@ -396,7 +394,7 @@ run-higress-e2e-test-nacos:
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
 	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --enableApiServer=true
-	
+
 .PHONY: run-higress-e2e-test-wasmplugin-nacos
 run-higress-e2e-test-wasmplugin-nacos:
 	@echo -e "\n\033[36mRunning higress conformance tests...\033[0m"

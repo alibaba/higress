@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	yamlFormK8s "sigs.k8s.io/yaml"
+	yamlFromK8s "sigs.k8s.io/yaml"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 )
@@ -316,7 +316,7 @@ func (a Applier) MustApplyConfigmapDataWithYaml(t *testing.T, cc cc.Storage, c c
 	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
 	require.NoError(t, err)
 
-	y, err := yamlFormK8s.Marshal(val)
+	y, err := yamlFromK8s.Marshal(val)
 	require.NoError(t, err)
 	data := string(y)
 
@@ -328,7 +328,7 @@ func (a Applier) MustApplyConfigmapDataWithYaml(t *testing.T, cc cc.Storage, c c
 	t.Logf("🏗 Updating %s %s", name, namespace)
 
 	if enableApiServer {
-		marshal, err := yamlFormK8s.Marshal(cm)
+		marshal, err := yamlFromK8s.Marshal(cm)
 		require.NoError(t, err)
 		err = cc.PublishConfig("configmap", cm.GetName(), cm.GetNamespace(), string(marshal))
 		require.NoError(t, err)

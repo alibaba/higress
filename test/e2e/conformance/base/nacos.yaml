@@ -31,7 +31,7 @@ metadata:
 spec:
   containers:
   - name: nacos-standlone-rc3
-    image: swsk33/nacos-standalone:2.2.3
+    image: registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
     ports:
     - containerPort: 8848
     - containerPort: 9848
