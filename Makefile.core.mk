@@ -301,7 +301,7 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
 	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/nacos/nacos-server latest
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
