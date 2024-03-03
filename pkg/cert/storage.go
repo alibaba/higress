@@ -18,8 +18,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"io/fs"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+)
+
+const (
+	CertificatesPrefix              = "/certificates"
+	ConfigmapStoreCertficatesPrefix = "higress-cert-store-certificates-"
+	ConfigmapStoreDefaultName       = "higress-cert-store-default"
 )
 
 var _ certmagic.Storage = (*ConfigmapStorage)(nil)
@@ -64,7 +70,7 @@ func (s *ConfigmapStorage) Exists(_ context.Context, key string) bool {
 		return false
 	}
 
-	hashKey := s.fastHash([]byte(key))
+	hashKey := fastHash([]byte(key))
 	if _, ok := cm.Data[hashKey]; ok {
 		return true
 	}
@@ -83,7 +89,7 @@ func (s *ConfigmapStorage) Store(_ context.Context, key string, value []byte) er
 		cm.Data = make(map[string]string, 0)
 	}
 
-	hashKey := s.fastHash([]byte(key))
+	hashKey := fastHash([]byte(key))
 	hashV := &HashValue{
 		K: key,
 		V: value,
@@ -109,7 +115,7 @@ func (s *ConfigmapStorage) Load(_ context.Context, key string) ([]byte, error) {
 		return value, fs.ErrNotExist
 	}
 
-	hashKey := s.fastHash([]byte(key))
+	hashKey := fastHash([]byte(key))
 	if v, ok := cm.Data[hashKey]; ok {
 		hV := &HashValue{}
 		err = json.Unmarshal([]byte(v), hV)
@@ -132,53 +138,97 @@ func (s *ConfigmapStorage) Delete(_ context.Context, key string) error {
 	if cm.Data == nil {
 		cm.Data = make(map[string]string, 0)
 	}
-	hashKey := s.fastHash([]byte(key))
+	hashKey := fastHash([]byte(key))
 	delete(cm.Data, hashKey)
 	return s.updateConfigmap(cm)
 }
 
-// List returns all keys that match prefix.
+// List returns all keys that match the prefix.
+// If the prefix is "/certificates", it retrieves all ConfigMaps, otherwise only one.
 func (s *ConfigmapStorage) List(ctx context.Context, prefix string, recursive bool) ([]string, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	var keys []string
-
-	// Get the ConfigMap containing the keys
-	cm, err := s.getConfigmapStoreByKey(prefix)
-	if err != nil {
-		return keys, err
-	}
+	var configmapKeys []string
+	visitedDirs := make(map[string]struct{})
 
 	// Check if the prefix corresponds to a specific key
-	hashPrefix := s.fastHash([]byte(prefix))
-	if _, ok := cm.Data[hashPrefix]; ok {
-		// The prefix corresponds to a specific key, add it to the list
-		keys = append(keys, prefix)
-	} else {
-		// The prefix is considered a directory
-		for _, v := range cm.Data {
-			// Unmarshal the value into hashValue struct
-			var hv HashValue
-			if err := json.Unmarshal([]byte(v), &hv); err != nil {
-				return nil, err
+	hashPrefix := fastHash([]byte(prefix))
+	if strings.HasPrefix(prefix, CertificatesPrefix) {
+		// If the prefix is "/certificates", get all ConfigMaps and traverse each one
+		// List all ConfigMaps in the namespace with label higress.io/cert-https=true
+		configmaps, err := s.client.CoreV1().ConfigMaps(s.namespace).List(ctx, metav1.ListOptions{FieldSelector: "metadata.annotations['higress.io/cert-https'] == 'true'"})
+		if err != nil {
+			return keys, err
+		}
+
+		for _, cm := range configmaps.Items {
+			// Check if the ConfigMap name starts with the expected prefix
+			if strings.HasPrefix(cm.Name, ConfigmapStoreCertficatesPrefix) {
+				// Add the keys from Data field to the list
+				for _, v := range cm.Data {
+					// Unmarshal the value into hashValue struct
+					var hv HashValue
+					if err := json.Unmarshal([]byte(v), &hv); err != nil {
+						return nil, err
+					}
+					// Check if the key starts with the specified prefix
+					if strings.HasPrefix(hv.K, prefix) {
+						// Add the key to the list
+						configmapKeys = append(configmapKeys, hv.K)
+					}
+				}
 			}
-			// Check if the key starts with the specified prefix
-			if strings.HasPrefix(hv.K, prefix) {
-				// Add the key to the list
-				keys = append(keys, hv.K)
+		}
+	} else {
+		// If not starting with "/certificates", get the specific ConfigMap
+		cm, err := s.getConfigmapStoreByKey(prefix)
+		if err != nil {
+			return keys, err
+		}
+
+		if _, ok := cm.Data[hashPrefix]; ok {
+			// The prefix corresponds to a specific key, add it to the list
+			configmapKeys = append(configmapKeys, prefix)
+		} else {
+			// The prefix is considered a directory
+			for _, v := range cm.Data {
+				// Unmarshal the value into hashValue struct
+				var hv HashValue
+				if err := json.Unmarshal([]byte(v), &hv); err != nil {
+					return nil, err
+				}
+				// Check if the key starts with the specified prefix
+				if strings.HasPrefix(hv.K, prefix) {
+					// Add the key to the list
+					configmapKeys = append(configmapKeys, hv.K)
+				}
 			}
 		}
 	}
 
-	// If the prefix corresponds to a directory and recursive is false, return an error
-	if !recursive && len(keys) > 1 {
-		return nil, fmt.Errorf("prefix '%s' is a directory, but recursive is false", prefix)
+	// return all
+	if recursive {
+		return configmapKeys, nil
+	}
+
+	// only return sub dirs
+	for _, key := range configmapKeys {
+		subPath := strings.TrimPrefix(strings.ReplaceAll(key, prefix, ""), "/")
+		paths := strings.Split(subPath, "/")
+		if len(paths) > 0 {
+			subDir := path.Join(prefix, paths[0])
+			if _, ok := visitedDirs[subDir]; !ok {
+				keys = append(keys, subDir)
+			}
+			visitedDirs[subDir] = struct{}{}
+		}
 	}
 
 	return keys, nil
 }
 
-// Stat returns information about key.
+// Stat returns information about key. only support for no certificates path
 func (s *ConfigmapStorage) Stat(_ context.Context, key string) (certmagic.KeyInfo, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -192,7 +242,7 @@ func (s *ConfigmapStorage) Stat(_ context.Context, key string) (certmagic.KeyInf
 	}
 
 	// Check if the key exists in the ConfigMap
-	hashKey := s.fastHash([]byte(key))
+	hashKey := fastHash([]byte(key))
 	if data, ok := cm.Data[hashKey]; ok {
 		// The key exists, populate the KeyInfo struct
 		info.Key = key
@@ -240,7 +290,15 @@ func (s *ConfigmapStorage) String() string {
 }
 
 func (s *ConfigmapStorage) getConfigmapStoreNameByKey(key string) string {
-	return "higress-cert-store"
+	parts := strings.SplitN(key, "/", 10)
+	if len(parts) >= 4 && parts[1] == "certificates" {
+		domain := strings.TrimSuffix(parts[3], ".crt")
+		domain = strings.TrimSuffix(domain, ".key")
+		domain = strings.TrimSuffix(domain, ".json")
+		issuerKey := parts[2]
+		return ConfigmapStoreCertficatesPrefix + fastHash([]byte(issuerKey+domain))
+	}
+	return ConfigmapStoreDefaultName
 }
 
 func (s *ConfigmapStorage) getConfigmapStoreByKey(key string) (*v1.ConfigMap, error) {
@@ -248,11 +306,12 @@ func (s *ConfigmapStorage) getConfigmapStoreByKey(key string) (*v1.ConfigMap, er
 	cm, err := s.client.CoreV1().ConfigMaps(s.namespace).Get(context.Background(), configmapName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// save default configmap
+			// Save default ConfigMap
 			cm = &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: s.namespace,
-					Name:      configmapName,
+					Namespace:   s.namespace,
+					Name:        configmapName,
+					Annotations: map[string]string{"higress.io/cert-https": "true"},
 				},
 			}
 			_, err = s.client.CoreV1().ConfigMaps(s.namespace).Create(context.Background(), cm, metav1.CreateOptions{})
@@ -266,15 +325,13 @@ func (s *ConfigmapStorage) getConfigmapStoreByKey(key string) (*v1.ConfigMap, er
 	return cm, nil
 }
 
+// updateConfigmap adds or updates the annotation higress.io/cert-https to true.
 func (s *ConfigmapStorage) updateConfigmap(configmap *v1.ConfigMap) error {
+	if configmap.ObjectMeta.Annotations == nil {
+		configmap.ObjectMeta.Annotations = make(map[string]string)
+	}
+	configmap.ObjectMeta.Annotations["higress.io/cert-https"] = "true"
+
 	_, err := s.client.CoreV1().ConfigMaps(configmap.Namespace).Update(context.Background(), configmap, metav1.UpdateOptions{})
 	return err
-}
-
-// fastHash hashes input using a hashing algorithm that
-// is fast, and returns the hash as a hex-encoded string.
-func (s *ConfigmapStorage) fastHash(input []byte) string {
-	h := fnv.New32a()
-	h.Write(input)
-	return fmt.Sprintf("%x", h.Sum32())
 }

@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"net"
 	"regexp"
@@ -87,4 +88,10 @@ func ValidateEmail(email string) bool {
 	} else {
 		return false
 	}
+}
+
+func fastHash(input []byte) string {
+	h := fnv.New32a()
+	h.Write(input)
+	return fmt.Sprintf("%x", h.Sum32())
 }
