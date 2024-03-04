@@ -22,13 +22,14 @@ import (
 )
 
 func init() {
-	Register(WasmPluginsIpRestriction)
+	Register(WasmPluginsIPRestrictionAllow)
+	Register(WasmPluginsIPRestrictionDeny)
 }
 
-var WasmPluginsIpRestriction = suite.ConformanceTest{
-	ShortName:   "WasmPluginsIpRestriction",
+var WasmPluginsIPRestrictionAllow = suite.ConformanceTest{
+	ShortName:   "WasmPluginsIPRestrictionAllow",
 	Description: "The Ingress in the higress-conformance-infra namespace test the ip-restriction wasmplugins.",
-	Manifests:   []string{"tests/go-wasm-ip-restriction.yaml"},
+	Manifests:   []string{"tests/go-wasm-ip-restriction-allow.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
@@ -108,6 +109,102 @@ var WasmPluginsIpRestriction = suite.ConformanceTest{
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+		}
+		t.Run("WasmPlugins ip-restriction", func(t *testing.T) {
+			for _, testcase := range testcases {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsIPRestrictionDeny = suite.ConformanceTest{
+	ShortName:   "WasmPluginsIPRestrictionDeny",
+	Description: "The Ingress in the higress-conformance-infra namespace test the ip-restriction wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-ip-restriction-allow.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"X-REAL-IP": "10.0.0.1"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"X-REAL-IP": "10.0.0.2"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"X-REAL-IP": "192.168.5.0"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"X-REAL-IP": "192.169.5.0"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
 					},
 					ExpectedResponseNoRequest: true,
 				},

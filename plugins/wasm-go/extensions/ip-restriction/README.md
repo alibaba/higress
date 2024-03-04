@@ -7,8 +7,8 @@
 
 | 配置项            | 类型     | 必填 | 默认值                         | 说明                                       |
 |----------------|--------|----|-----------------------------|------------------------------------------|
-| ip-source-type | string | 否  | origin-source               | 源IP来源(envoy source.address 或者 自定义header) |
-| ip-header-name | string | 否  | X-Forwarded-For             | 自定义IP来源头                                 |
+| ip_source_type | string | 否  | origin-source               | 源IP来源(envoy source.address 或者 自定义header) |
+| ip_header_name | string | 否  | X-Forwarded-For             | 自定义IP来源头                                 |
 | allow          | array  | 否  | []                          | 白名单列表                                    |
 | deny           | array  | 否  | []                          | 黑名单列表                                    |
 | status         | int    | 否  | 403                         | 拒绝访问时的 HTTP 状态码                          |
@@ -16,7 +16,7 @@
 
 
 ```yaml
-ip-source-type: origin-source
+ip_source_type: origin-source
 allow:
   - 10.0.0.1
   - 192.168.0.0/16
@@ -24,7 +24,7 @@ allow:
 
 ```yaml
 ip-source-type: header
-real-ip-header: X-Real-IP
+ip_header_name: X-Real-IP
 deny:
   - 10.0.0.1
   - 192.169.0.0/16   

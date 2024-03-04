@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
 	"net"
@@ -23,8 +23,8 @@ const (
 )
 
 type RestrictionConfig struct {
-	IPSourceType string         `json:"ip-source-type"` //IP来源类型
-	IPHeaderName string         `json:"real-ip-header"` //真实IP头
+	IPSourceType string         `json:"ip_source_type"` //IP来源类型
+	IPHeaderName string         `json:"ip_header_name"` //真实IP头
 	Allow        *iptree.IPTree `json:"allow"`          //允许的IP
 	Deny         *iptree.IPTree `json:"deny"`           //拒绝的IP
 	Status       uint32         `json:"status"`         //被拒绝时返回的状态码
@@ -39,7 +39,7 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) error {
-	sourceType := json.Get("ip-source-type")
+	sourceType := json.Get("ip_source_type")
 	if sourceType.Exists() && sourceType.String() != "" {
 		switch sourceType.String() {
 		case HeaderSourceType:
@@ -52,7 +52,7 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) 
 		config.IPSourceType = OriginSourceType
 	}
 
-	header := json.Get("ip-header-name")
+	header := json.Get("ip_header_name")
 	if header.Exists() && header.String() != "" {
 		config.IPHeaderName = header.String()
 	} else {
@@ -83,6 +83,10 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) 
 	if allowNets != nil && denyNets != nil {
 		log.Warn("allow and deny cannot be set at the same time")
 		return fmt.Errorf("allow and deny cannot be set at the same time")
+	}
+	if allowNets == nil && denyNets == nil {
+		log.Warn("allow and deny cannot be empty at the same time")
+		return fmt.Errorf("allow and deny cannot be empty at the same time")
 	}
 	config.Allow = allowNets
 	config.Deny = denyNets

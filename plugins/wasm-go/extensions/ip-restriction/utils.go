@@ -9,7 +9,6 @@ import (
 
 // parseIPNets 解析Ip段配置
 func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
-
 	if len(array) == 0 {
 		return nil, nil
 	} else {
