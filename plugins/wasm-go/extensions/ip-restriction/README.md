@@ -23,7 +23,7 @@ allow:
 ```
 
 ```yaml
-ip-source-type: header
+ip_source_type: header
 ip_header_name: X-Real-IP
 deny:
   - 10.0.0.1

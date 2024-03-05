@@ -34,12 +34,12 @@ spec:
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: ip-restriction
+  name: ip-restriction-allow
   namespace: higress-system
 spec:
   defaultConfig:
-    ip-source-type: header
-    ip-header-name: x-real-ip
+    ip_source_type: header
+    ip_header_name: x-real-ip
     allow:
       - 192.168.0.1/16
       - 10.0.0.1

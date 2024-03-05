@@ -125,7 +125,7 @@ var WasmPluginsIPRestrictionAllow = suite.ConformanceTest{
 var WasmPluginsIPRestrictionDeny = suite.ConformanceTest{
 	ShortName:   "WasmPluginsIPRestrictionDeny",
 	Description: "The Ingress in the higress-conformance-infra namespace test the ip-restriction wasmplugins.",
-	Manifests:   []string{"tests/go-wasm-ip-restriction-allow.yaml"},
+	Manifests:   []string{"tests/go-wasm-ip-restriction-deny.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
