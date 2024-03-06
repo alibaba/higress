@@ -128,23 +128,27 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 		respQuery,
 		func(status int, responseSize int) {
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
+			var responseValue resp.Value
 			if RedisCallStatus(status) != OK {
 				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
-			}
-			if err != nil {
-				proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
-				callback(RedisCallStatus(status), resp.ErrorValue(err))
+				responseValue = resp.ErrorValue(fmt.Errorf("cannot connect to redis cluster"))
 			} else {
-				rd := resp.NewReader(bytes.NewReader(response))
-				v, _, err := rd.ReadValue()
-				if err != nil && err != io.EOF {
-					proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
-					callback(RedisCallStatus(status), resp.ErrorValue(err))
+				if err != nil {
+					proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
+					responseValue = resp.ErrorValue(fmt.Errorf("cannot get redis response"))
 				} else {
-					proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
-					callback(RedisCallStatus(status), v)
+					rd := resp.NewReader(bytes.NewReader(response))
+					value, _, err := rd.ReadValue()
+					if err != nil && err != io.EOF {
+						proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
+						responseValue = resp.ErrorValue(fmt.Errorf("cannot read redis response"))
+					} else {
+						proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
+						responseValue = value
+					}
 				}
 			}
+			callback(RedisCallStatus(status), responseValue)
 		})
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
