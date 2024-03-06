@@ -165,25 +165,25 @@ spec:
             protocol: TCP
             name: http-envoy-prom
           {{- if or .Values.global.local .Values.global.kind }}
-          - containerPort: 80
-            hostPort: 80
+          - containerPort: {{ .Values.gateway.httpPort }}
+            hostPort:  {{ .Values.gateway.httpPort }}
             name: http
             protocol: TCP
-          - containerPort: 443
-            hostPort: 443
+          - containerPort:  {{ .Values.gateway.httpsPort }}
+            hostPort:  {{ .Values.gateway.httpsPort }}
             name: https
             protocol: TCP
           {{- end }}
           readinessProbe:
-            failureThreshold: 30
+            failureThreshold: {{ .Values.gateway.readinessFailureThreshold }}
             httpGet:
               path: /healthz/ready
               port: 15021
               scheme: HTTP
-            initialDelaySeconds: 1
-            periodSeconds: 2
-            successThreshold: 1
-            timeoutSeconds: 3
+            initialDelaySeconds: {{ .Values.gateway.readinessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.gateway.readinessPeriodSeconds }}
+            successThreshold: {{ .Values.gateway.readinessSuccessThreshold }}
+            timeoutSeconds: {{ .Values.gateway.readinessTimeoutSeconds }}
           {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}

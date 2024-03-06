@@ -9,12 +9,33 @@ global:
 console:
   replicas: 1
   o11yEnabled: false
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
 
 gateway:
   replicas: 2
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 2048Mi
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
 
 controller:
   replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2048Mi
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
 
 # values passed through to helm
 values:

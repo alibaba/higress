@@ -584,7 +584,7 @@ func locateChart(cpOpts *action.ChartPathOptions, name string, settings *cli.Env
 	return fileAbsPath, nil
 }
 
-func ParseLatestVersion(repoUrl string, version string) (string, error) {
+func ParseLatestVersion(repoUrl string, version string, devel bool) (string, error) {
 
 	cpOpts := &action.ChartPathOptions{
 		RepoURL: repoUrl,
@@ -632,7 +632,16 @@ func ParseLatestVersion(repoUrl string, version string) (string, error) {
 
 	// get higress helm chart latest version
 	if entries, ok := indexFile.Entries[RepoChartIndexYamlHigressIndex]; ok {
-		return entries[0].AppVersion, nil
+		if devel {
+			return entries[0].AppVersion, nil
+		}
+
+		if chatVersion, err := indexFile.Get(RepoChartIndexYamlHigressIndex, ""); err != nil {
+			return "", errors.New("can't find higress latest version")
+		} else {
+			return chatVersion.Version, nil
+		}
+
 	}
 
 	return "", errors.New("can't find higress latest version")

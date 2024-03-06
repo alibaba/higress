@@ -1,6 +1,8 @@
 revision: ""
 global:
-  enableSRDS: false
+  xdsMaxRecvMsgSize: 104857600
+  defaultUpstreamConcurrencyThreshold: 10000
+  enableSRDS: true
   onDemandRDS: false
   hostRDSMergeSubset: false
   onlyPushRouteCluster: true
@@ -13,7 +15,7 @@ global:
   # resources in the k8s cluster.
   ingressClass: "higress"
   watchNamespace: ""
-  disableAlpnH2: true
+  disableAlpnH2: false
   enableStatus: true
   # whether to use autoscaling/v2 template for HPA settings
   # for internal usage only, not to be configured by users.
@@ -151,11 +153,17 @@ global:
     # The number of successive failed probes before indicating readiness failure.
     readinessFailureThreshold: 30
 
+    # The number of successive successed probes before indicating readiness success.
+    readinessSuccessThreshold: 30
+
     # The initial delay for readiness probes in seconds.
     readinessInitialDelaySeconds: 1
 
     # The period between readiness probes.
     readinessPeriodSeconds: 2
+
+    # The readiness timeout seconds
+    readinessTimeoutSeconds: 3
 
     # Resources for the sidecar.
     resources:
@@ -373,6 +381,21 @@ gateway:
   replicas: 2
   image: gateway
 
+  # The number of successive failed probes before indicating readiness failure.
+  readinessFailureThreshold: 30
+
+  # The number of successive successed probes before indicating readiness success.
+  readinessSuccessThreshold: 1
+
+  # The initial delay for readiness probes in seconds.
+  readinessInitialDelaySeconds: 1
+
+  # The period between readiness probes.
+  readinessPeriodSeconds: 2
+
+  # The readiness timeout seconds
+  readinessTimeoutSeconds: 3
+
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   # revision declares which revision this gateway is a part of
@@ -394,7 +417,8 @@ gateway:
 
   # Pod environment variables
   env: {}
-
+  httpPort: 80
+  httpsPort: 443
   hostNetwork: false
 
   # Labels to apply to all resources
