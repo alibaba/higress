@@ -25,13 +25,6 @@ import (
 	"github.com/tidwall/resp"
 )
 
-type RedisCallStatus int
-
-const (
-	OK    RedisCallStatus = 0
-	ERROR RedisCallStatus = 1
-)
-
 type RedisResponseCallback func(response resp.Value)
 
 type RedisClient interface {
@@ -129,7 +122,7 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 		func(status int, responseSize int) {
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
 			var responseValue resp.Value
-			if RedisCallStatus(status) != OK {
+			if status != 0 {
 				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
 				responseValue = resp.ErrorValue(fmt.Errorf("cannot connect to redis cluster"))
 			} else {
