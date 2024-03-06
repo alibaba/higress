@@ -175,13 +175,13 @@ func (c RedisClusterClient[C]) Command(cmds []interface{}, callback RedisRespons
 }
 
 func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error {
-	args := make([]interface{}, 0)
-	args = append(args, "eval")
-	args = append(args, script)
-	args = append(args, numkeys)
-	args = append(args, keys...)
-	args = append(args, params...)
-	return RedisCall(c.cluster, respString(args), callback)
+	params := make([]interface{}, 0)
+	params = append(params, "eval")
+	params = append(params, script)
+	params = append(params, numkeys)
+	params = append(params, keys...)
+	params = append(params, args...)
+	return RedisCall(c.cluster, respString(params), callback)
 }
 
 // Key
