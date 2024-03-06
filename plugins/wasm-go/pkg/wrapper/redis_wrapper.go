@@ -31,7 +31,7 @@ type RedisClient interface {
 	Init(username, password string, timeout int64) error
 	// with this function, you can call redis as if you are using redis-cli
 	Command(cmds []interface{}, callback RedisResponseCallback) error
-	Eval(script string, numkeys int, keys, params []interface{}, callback RedisResponseCallback) error
+	Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error
 
 	// Key
 	Del(key string, callback RedisResponseCallback) error
@@ -174,7 +174,7 @@ func (c RedisClusterClient[C]) Command(cmds []interface{}, callback RedisRespons
 	return RedisCall(c.cluster, respString(cmds), callback)
 }
 
-func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, params []interface{}, callback RedisResponseCallback) error {
+func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
 	args = append(args, "eval")
 	args = append(args, script)
