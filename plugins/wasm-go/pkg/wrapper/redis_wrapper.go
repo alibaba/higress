@@ -27,9 +27,9 @@ type RedisResponseCallback func(status int, response resp.Value)
 
 type RedisClient interface {
 	Init(username, password string, timeout int64) error
+	// with this function, you can call redis as if you are using redis-cli
 	Command(cmds []interface{}, callback RedisResponseCallback) error
-	// BatchCommands(cmds [][]interface{}, callback func(status int, response []resp.Value)) error
-	Eval(script string, params []interface{}, callback RedisResponseCallback) error
+	Eval(script string, numkeys int, keys, params []interface{}, callback RedisResponseCallback) error
 
 	// Key
 	Del(key string, callback RedisResponseCallback) error
@@ -117,19 +117,20 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 		cluster.ClusterName(),
 		respQuery,
 		func(status, responseSize int) {
-			// proxywasm.LogCriticalf("[rinfx log] responseSize is: %d", responseSize)
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
 			if err != nil {
 				proxywasm.LogCriticalf("failed to get redis response body: %v", err)
+				callback(status, resp.ErrorValue(err))
+			} else {
+				rd := resp.NewReader(bytes.NewReader(response))
+				v, _, err := rd.ReadValue()
+				if err != nil && err != io.EOF {
+					proxywasm.LogCriticalf("failed to read redis response body: %v", err)
+					callback(status, resp.ErrorValue(err))
+				} else {
+					callback(status, v)
+				}
 			}
-			rd := resp.NewReader(bytes.NewReader(response))
-			v, _, err := rd.ReadValue()
-			if err != nil && err != io.EOF {
-				proxywasm.LogCriticalf("failed to read redis response body: %v", err)
-			}
-			// log.Infof("value: %s", v.String())
-			// callback(status, v.String())
-			callback(status, v)
 		})
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed: %v", err)
@@ -142,11 +143,9 @@ func respString(args []interface{}) string {
 	wr := resp.NewWriter(&buf)
 	arr := make([]resp.Value, 0)
 	for _, arg := range args {
-		// arr = append(arr, resp.AnyValue(arg))
 		arr = append(arr, resp.StringValue(fmt.Sprint(arg)))
 	}
 	wr.WriteArray(arr)
-	// proxywasm.LogCriticalf("respString:\n%s", buf.String())
 	return buf.String()
 }
 
@@ -159,14 +158,15 @@ func (c RedisClusterClient[C]) Init(username, password string, timeout int64) er
 }
 
 func (c RedisClusterClient[C]) Command(cmds []interface{}, callback RedisResponseCallback) error {
-	RedisCall(c.cluster, respString(cmds), callback)
-	return nil
+	return RedisCall(c.cluster, respString(cmds), callback)
 }
 
-func (c RedisClusterClient[C]) Eval(script string, params []interface{}, callback RedisResponseCallback) error {
+func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, params []interface{}, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
 	args = append(args, "eval")
 	args = append(args, script)
+	args = append(args, numkeys)
+	args = append(args, keys...)
 	args = append(args, params...)
 	return RedisCall(c.cluster, respString(args), callback)
 }
@@ -214,8 +214,7 @@ func (c RedisClusterClient[C]) Set(key string, value interface{}, callback Redis
 	args = append(args, "set")
 	args = append(args, key)
 	args = append(args, value)
-	RedisCall(c.cluster, respString(args), callback)
-	return nil
+	return RedisCall(c.cluster, respString(args), callback)
 }
 
 func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, callback RedisResponseCallback) error {
@@ -224,8 +223,7 @@ func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, cal
 	args = append(args, key)
 	args = append(args, ttl)
 	args = append(args, value)
-	RedisCall(c.cluster, respString(args), callback)
-	return nil
+	return RedisCall(c.cluster, respString(args), callback)
 }
 
 func (c RedisClusterClient[C]) MGet(keys []string, callback RedisResponseCallback) error {
@@ -234,8 +232,7 @@ func (c RedisClusterClient[C]) MGet(keys []string, callback RedisResponseCallbac
 	for _, k := range keys {
 		args = append(args, k)
 	}
-	RedisCall(c.cluster, respString(args), callback)
-	return nil
+	return RedisCall(c.cluster, respString(args), callback)
 }
 
 func (c RedisClusterClient[C]) MSet(kvMap map[string]interface{}, callback RedisResponseCallback) error {
