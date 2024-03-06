@@ -138,7 +138,7 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 					} else {
 						responseValue = value
 						proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s, respValue: %s",
-							requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)), base64.StdEncoding.EncodeToString([]byte(responseValue.String())))
+							requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)), base64.StdEncoding.EncodeToString(response))
 					}
 				}
 			}
