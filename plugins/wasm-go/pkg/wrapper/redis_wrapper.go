@@ -16,9 +16,11 @@ package wrapper
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/resp"
 )
@@ -113,27 +115,31 @@ func RedisInit(cluster Cluster, username, password string, timeout uint32) error
 }
 
 func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback) error {
+	requestID := uuid.New().String()
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
 		respQuery,
 		func(status, responseSize int) {
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
 			if err != nil {
-				proxywasm.LogCriticalf("failed to get redis response body: %v", err)
+				proxywasm.LogCriticalf("failed to get redis response body, id: %s, error: %v", requestID, err)
 				callback(status, resp.ErrorValue(err))
 			} else {
 				rd := resp.NewReader(bytes.NewReader(response))
 				v, _, err := rd.ReadValue()
 				if err != nil && err != io.EOF {
-					proxywasm.LogCriticalf("failed to read redis response body: %v", err)
+					proxywasm.LogCriticalf("failed to read redis response body, id: %s, error: %v", requestID, err)
 					callback(status, resp.ErrorValue(err))
 				} else {
+					proxywasm.LogDebugf("redis call end, id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
 					callback(status, v)
 				}
 			}
 		})
 	if err != nil {
-		proxywasm.LogCriticalf("redis call failed: %v", err)
+		proxywasm.LogCriticalf("redis call failed, id: %s, error: %v", requestID, err)
+	} else {
+		proxywasm.LogDebugf("redis call start, id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
 	}
 	return err
 }
