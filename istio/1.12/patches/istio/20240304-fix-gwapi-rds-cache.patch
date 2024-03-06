@@ -1,0 +1,132 @@
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion.go istio-new/pilot/pkg/config/kube/gateway/conversion.go
+--- istio/pilot/pkg/config/kube/gateway/conversion.go	2024-03-04 17:35:34.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conversion.go	2024-03-04 16:58:26.000000000 +0800
+@@ -450,7 +450,7 @@
+ 		name = fmt.Sprintf("%s/%s/%s.%s", obj.GroupVersionKind.Kind, obj.Name, *sectionName, obj.Namespace)
+ 	}
+ 	return map[string]string{
+-		constants.InternalParentName: name,
++		constants.InternalParentNames: name,
+ 	}
+ }
+ 
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-03-04 17:35:34.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-03-04 17:23:10.000000000 +0800
+@@ -49,6 +49,7 @@
+ 	"istio.io/istio/pkg/config/gateway"
+ 	"istio.io/istio/pkg/config/host"
+ 	"istio.io/istio/pkg/config/protocol"
++	"istio.io/istio/pkg/config/schema/gvk"
+ 	"istio.io/istio/pkg/config/security"
+ 	"istio.io/istio/pkg/proto"
+ 	"istio.io/istio/pkg/util/istiomultierror"
+@@ -453,12 +454,43 @@
+ 		return nil, false
+ 	}
+ 
++	hostVs := push.VirtualServicesForHost(node, hostRDSHost)
++
++	var httpRoutes []config.Config
++
++	for _, vs := range hostVs {
++		if len(vs.Annotations) == 0 {
++			continue
++		}
++		if parents, ok := vs.Annotations[constants.InternalParentNames]; ok {
++			typeNames := strings.Split(parents, ",")
++			for _, typeName := range typeNames {
++				if !strings.HasPrefix(typeName, "HTTPRoute/") {
++					continue
++				}
++				nsNameStr := strings.TrimPrefix(typeName, "HTTPRoute/")
++				nsName := strings.SplitN(nsNameStr, ".", 2)
++				if len(nsName) != 2 {
++					continue
++				}
++				httpRoutes = append(httpRoutes, config.Config{
++					Meta: config.Meta{
++						GroupVersionKind: gvk.HTTPRoute,
++						Name:             nsName[0],
++						Namespace:        nsName[1],
++					},
++				})
++			}
++		}
++	}
++
+ 	routeCache := &istio_route.Cache{
+ 		RouteName:    routeName,
+ 		ProxyVersion: node.Metadata.IstioVersion,
+ 		ListenerPort: rdsPort,
+ 		// Use same host vs to cache, although the cache can be cleared when the port is different, this can be accepted
+-		VirtualServices: push.VirtualServicesForHost(node, hostRDSHost),
++		VirtualServices: hostVs,
++		HTTPRoutes:      httpRoutes,
+ 		EnvoyFilterKeys: efKeys,
+ 	}
+ 
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/route/route_cache.go istio-new/pilot/pkg/networking/core/v1alpha3/route/route_cache.go
+--- istio/pilot/pkg/networking/core/v1alpha3/route/route_cache.go	2024-03-04 17:35:30.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/route/route_cache.go	2024-03-04 17:24:19.000000000 +0800
+@@ -43,9 +43,12 @@
+ 	// This depends on DNSCapture.
+ 	DNSAutoAllocate bool
+ 
+-	ListenerPort     int
+-	Services         []*model.Service
+-	VirtualServices  []config.Config
++	ListenerPort    int
++	Services        []*model.Service
++	VirtualServices []config.Config
++	// Added by ingress
++	HTTPRoutes []config.Config
++	// End added by ingress
+ 	DestinationRules []*config.Config
+ 	EnvoyFilterKeys  []string
+ }
+@@ -81,6 +84,11 @@
+ 	for _, vs := range r.VirtualServices {
+ 		configs = append(configs, model.ConfigKey{Kind: gvk.VirtualService, Name: vs.Name, Namespace: vs.Namespace})
+ 	}
++	// Added by ingress
++	for _, route := range r.HTTPRoutes {
++		configs = append(configs, model.ConfigKey{Kind: gvk.HTTPRoute, Name: route.Name, Namespace: route.Namespace})
++	}
++	// End added by ingress
+ 	for _, dr := range r.DestinationRules {
+ 		configs = append(configs, model.ConfigKey{Kind: gvk.DestinationRule, Name: dr.Name, Namespace: dr.Namespace})
+ 	}
+@@ -107,6 +115,11 @@
+ 	for _, vs := range r.VirtualServices {
+ 		params = append(params, vs.Name+"/"+vs.Namespace)
+ 	}
++	// Added by ingress
++	for _, route := range r.HTTPRoutes {
++		params = append(params, route.Name+"/"+route.Namespace)
++	}
++	// End added by ingress
+ 	for _, dr := range r.DestinationRules {
+ 		params = append(params, dr.Name+"/"+dr.Namespace)
+ 	}
+diff -Naur istio/pkg/config/constants/constants.go istio-new/pkg/config/constants/constants.go
+--- istio/pkg/config/constants/constants.go	2024-03-04 17:35:34.000000000 +0800
++++ istio-new/pkg/config/constants/constants.go	2024-03-04 16:58:05.000000000 +0800
+@@ -15,8 +15,6 @@
+ package constants
+ 
+ const (
+-	InternalParentNames = "internal.istio.io/parents"
+-
+ 	InternalRouteSemantics = "internal.istio.io/route-semantics"
+ 
+ 	RouteSemanticsGateway = "gateway"
+@@ -129,7 +127,7 @@
+ 	AlwaysPushLabel = "internal.istio.io/always-push"
+ 
+ 	// InternalParentName declares the original resource of an internally-generate config. This is used by the gateway-api.
+-	InternalParentName = "internal.istio.io/parent"
++	InternalParentNames = "internal.istio.io/parents"
+ 
+ 	// TrustworthyJWTPath is the default 3P token to authenticate with third party services
+ 	TrustworthyJWTPath = "./var/run/secrets/tokens/istio-token"
