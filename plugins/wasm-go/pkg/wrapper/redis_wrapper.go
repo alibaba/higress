@@ -126,23 +126,23 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
 		respQuery,
-		func(status RedisCallStatus, responseSize int) {
+		func(status int, responseSize int) {
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
-			if status != OK {
+			if RedisCallStatus(status) != OK {
 				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
 			}
 			if err != nil {
 				proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
-				callback(status, resp.ErrorValue(err))
+				callback(RedisCallStatus(status), resp.ErrorValue(err))
 			} else {
 				rd := resp.NewReader(bytes.NewReader(response))
 				v, _, err := rd.ReadValue()
 				if err != nil && err != io.EOF {
 					proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
-					callback(status, resp.ErrorValue(err))
+					callback(RedisCallStatus(status), resp.ErrorValue(err))
 				} else {
 					proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
-					callback(status, v)
+					callback(RedisCallStatus(status), v)
 				}
 			}
 		})
