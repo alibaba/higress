@@ -25,7 +25,14 @@ import (
 	"github.com/tidwall/resp"
 )
 
-type RedisResponseCallback func(status int, response resp.Value)
+type RedisCallStatus int
+
+const (
+	OK    RedisCallStatus = 0
+	ERROR RedisCallStatus = 1
+)
+
+type RedisResponseCallback func(status RedisCallStatus, response resp.Value)
 
 type RedisClient interface {
 	Init(username, password string, timeout int64) error
@@ -119,27 +126,30 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
 		respQuery,
-		func(status, responseSize int) {
+		func(status RedisCallStatus, responseSize int) {
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
+			if status != OK {
+				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
+			}
 			if err != nil {
-				proxywasm.LogCriticalf("failed to get redis response body, id: %s, error: %v", requestID, err)
+				proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
 				callback(status, resp.ErrorValue(err))
 			} else {
 				rd := resp.NewReader(bytes.NewReader(response))
 				v, _, err := rd.ReadValue()
 				if err != nil && err != io.EOF {
-					proxywasm.LogCriticalf("failed to read redis response body, id: %s, error: %v", requestID, err)
+					proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
 					callback(status, resp.ErrorValue(err))
 				} else {
-					proxywasm.LogDebugf("redis call end, id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
+					proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
 					callback(status, v)
 				}
 			}
 		})
 	if err != nil {
-		proxywasm.LogCriticalf("redis call failed, id: %s, error: %v", requestID, err)
+		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
 	} else {
-		proxywasm.LogDebugf("redis call start, id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
+		proxywasm.LogDebugf("redis call start, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
 	}
 	return err
 }
