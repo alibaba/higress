@@ -136,8 +136,9 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 						proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
 						responseValue = resp.ErrorValue(fmt.Errorf("cannot read redis response"))
 					} else {
-						proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
 						responseValue = value
+						proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s, respValue: %s",
+							requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)), base64.StdEncoding.EncodeToString([]byte(responseValue.String())))
 					}
 				}
 			}
