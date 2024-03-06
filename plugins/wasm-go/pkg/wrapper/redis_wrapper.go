@@ -32,7 +32,7 @@ const (
 	ERROR RedisCallStatus = 1
 )
 
-type RedisResponseCallback func(status RedisCallStatus, response resp.Value)
+type RedisResponseCallback func(response resp.Value)
 
 type RedisClient interface {
 	Init(username, password string, timeout int64) error
@@ -148,7 +148,7 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 					}
 				}
 			}
-			callback(RedisCallStatus(status), responseValue)
+			callback(responseValue)
 		})
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
