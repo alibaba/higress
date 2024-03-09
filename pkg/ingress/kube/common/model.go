@@ -104,6 +104,8 @@ type Options struct {
 	SystemNamespace      string
 	GatewaySelectorKey   string
 	GatewaySelectorValue string
+	GatewayHttpPort      uint32
+	GatewayHttpsPort     uint32
 }
 
 type BasicAuthRules struct {

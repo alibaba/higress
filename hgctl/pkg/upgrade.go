@@ -37,6 +37,7 @@ func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
 	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
+	cmd.PersistentFlags().BoolVar(&args.Devel, "devel", false, "use development versions (alpha, beta, and release candidate releases), If version is set, this is ignored")
 }
 
 // newUpgradeCmd upgrades Istio control plane in-place with eligibility checks.
@@ -91,7 +92,7 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 		return nil
 	}
 
-	err = upgradeManifests(profile, writer)
+	err = upgradeManifests(profile, writer, iArgs.Devel)
 	if err != nil {
 		return err
 	}
@@ -120,8 +121,8 @@ func promptUpgrade(writer io.Writer) bool {
 	}
 }
 
-func upgradeManifests(profile *helm.Profile, writer io.Writer) error {
-	installer, err := installer.NewInstaller(profile, writer, false)
+func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
+	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.UpgradeInstallerMode)
 	if err != nil {
 		return err
 	}

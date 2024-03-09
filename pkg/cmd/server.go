@@ -128,6 +128,10 @@ func getServerCommand() *cobra.Command {
 
 	serveCmd.PersistentFlags().IntVar(&serverArgs.RegistryOptions.KubeOptions.KubernetesAPIBurst, "kubernetesApiBurst", 160,
 		"Maximum burst for throttle when communicating with the kubernetes API")
+	serveCmd.PersistentFlags().Uint32Var(&serverArgs.GatewayHttpPort, "gatewayHttpPort", 80,
+		"Http listening port of gateway pod")
+	serveCmd.PersistentFlags().Uint32Var(&serverArgs.GatewayHttpsPort, "gatewayHttpsPort", 443,
+		"Https listening port of gateway pod")
 
 	loggingOptions.AttachCobraFlags(serveCmd)
 	serverArgs.GrpcKeepAliveOptions.AttachCobraFlags(serveCmd)

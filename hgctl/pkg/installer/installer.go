@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+type InstallerMode int32
+
 const (
 	HgctlHomeDirPath           = ".hgctl"
 	StandaloneInstalledPath    = "higress-standalone"
@@ -37,20 +39,26 @@ const (
 	DefaultIstioNamespace      = "istio-system"
 )
 
+const (
+	InstallInstallerMode InstallerMode = iota
+	UpgradeInstallerMode
+	UninstallInstallerMode
+)
+
 type Installer interface {
 	Install() error
 	UnInstall() error
 	Upgrade() error
 }
 
-func NewInstaller(profile *helm.Profile, writer io.Writer, quiet bool) (Installer, error) {
+func NewInstaller(profile *helm.Profile, writer io.Writer, quiet bool, devel bool, installerMode InstallerMode) (Installer, error) {
 	switch profile.Global.Install {
 	case helm.InstallK8s, helm.InstallLocalK8s:
 		cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 		if err != nil {
 			return nil, fmt.Errorf("failed to build kubernetes client: %w", err)
 		}
-		installer, err := NewK8sInstaller(profile, cliClient, writer, quiet)
+		installer, err := NewK8sInstaller(profile, cliClient, writer, quiet, devel, installerMode)
 		return installer, err
 	case helm.InstallLocalDocker:
 		installer, err := NewDockerInstaller(profile, writer, quiet)

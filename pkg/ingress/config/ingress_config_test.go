@@ -112,14 +112,18 @@ func TestNormalizeWeightedCluster(t *testing.T) {
 func TestConvertGatewaysForIngress(t *testing.T) {
 	fake := kube.NewFakeClient()
 	v1Beta1Options := common.Options{
-		Enable:       true,
-		ClusterId:    "ingress-v1beta1",
-		RawClusterId: "ingress-v1beta1__",
+		Enable:           true,
+		ClusterId:        "ingress-v1beta1",
+		RawClusterId:     "ingress-v1beta1__",
+		GatewayHttpPort:  80,
+		GatewayHttpsPort: 443,
 	}
 	v1Options := common.Options{
-		Enable:       true,
-		ClusterId:    "ingress-v1",
-		RawClusterId: "ingress-v1__",
+		Enable:           true,
+		ClusterId:        "ingress-v1",
+		RawClusterId:     "ingress-v1__",
+		GatewayHttpPort:  80,
+		GatewayHttpsPort: 443,
 	}
 	ingressV1Beta1Controller := controllerv1beta1.NewController(fake, fake, v1Beta1Options, nil)
 	ingressV1Controller := controllerv1.NewController(fake, fake, v1Options, nil)

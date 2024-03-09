@@ -121,6 +121,8 @@ type ServerArgs struct {
 	KeepStaleWhenEmpty   bool
 	GatewaySelectorKey   string
 	GatewaySelectorValue string
+	GatewayHttpPort      uint32
+	GatewayHttpsPort     uint32
 }
 
 type readinessProbe func() (bool, error)
@@ -231,6 +233,8 @@ func (s *Server) initConfigController() error {
 		SystemNamespace:      ns,
 		GatewaySelectorKey:   s.GatewaySelectorKey,
 		GatewaySelectorValue: s.GatewaySelectorValue,
+		GatewayHttpPort:      s.GatewayHttpPort,
+		GatewayHttpsPort:     s.GatewayHttpsPort,
 	}
 	if options.ClusterId == "Kubernetes" {
 		options.ClusterId = ""

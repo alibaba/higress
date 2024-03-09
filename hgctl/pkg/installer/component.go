@@ -52,6 +52,8 @@ type ComponentOptions struct {
 	Quiet     bool
 	// Capabilities
 	Capabilities *chartutil.Capabilities
+	// devel
+	Devel bool
 }
 
 type ComponentOption func(*ComponentOptions)
@@ -95,6 +97,12 @@ func WithComponentCapabilities(capabilities *chartutil.Capabilities) ComponentOp
 func WithQuiet() ComponentOption {
 	return func(opts *ComponentOptions) {
 		opts.Quiet = true
+	}
+}
+
+func WithDevel(devel bool) ComponentOption {
+	return func(opts *ComponentOptions) {
+		opts.Devel = devel
 	}
 }
 

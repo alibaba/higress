@@ -502,9 +502,6 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		gateways := []string{m.namespace + "/" +
 			common.CreateConvertedName(m.clusterId.String(), cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
-		if host != "*" {
-			gateways = append(gateways, m.globalGatewayName)
-		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {
@@ -850,7 +847,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				continue
 			}
 			if rule.Config == nil {
-				return nil, errors.New("invalid rule has no config")
+				rule.Config = &types.Struct{
+					Fields: map[string]*types.Value{},
+				}
 			}
 			v := &_struct.Value_StructValue{
 				StructValue: rule.Config,

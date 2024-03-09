@@ -37,6 +37,8 @@ type ManifestArgs struct {
 	Set []string
 	// ManifestsPath is a path to a ManifestsPath and profiles directory in the local filesystem with a release tgz.
 	ManifestsPath string
+	// Devel if set true when version is latest, it will get latest version, otherwise it will get latest stable version
+	Devel bool
 }
 
 func (a *ManifestArgs) String() string {
@@ -70,6 +72,7 @@ func addManifestFlags(cmd *cobra.Command, args *ManifestArgs) {
 	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
+	cmd.PersistentFlags().BoolVar(&args.Devel, "devel", false, "use development versions (alpha, beta, and release candidate releases), If version is set, this is ignored")
 }
 
 // newManifestGenerateCmd generates a higress install manifest and applies it to a cluster
@@ -113,20 +116,20 @@ func generate(writer io.Writer, iArgs *ManifestArgs) error {
 		return err
 	}
 
-	err = genManifests(profile, writer)
+	err = genManifests(profile, writer, iArgs.Devel)
 	if err != nil {
 		return fmt.Errorf("failed to install manifests: %v", err)
 	}
 	return nil
 }
 
-func genManifests(profile *helm.Profile, writer io.Writer) error {
+func genManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
 	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client: %w", err)
 	}
 
-	op, err := installer.NewK8sInstaller(profile, cliClient, writer, true)
+	op, err := installer.NewK8sInstaller(profile, cliClient, writer, true, devel, installer.InstallInstallerMode)
 	if err != nil {
 		return err
 	}
