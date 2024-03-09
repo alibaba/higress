@@ -847,8 +847,8 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				continue
 			}
 			if rule.Config == nil {
-				rule.Config = &types.Struct{
-					Fields: map[string]*types.Value{},
+				rule.Config = &_struct.Struct{
+					Fields: map[string]*_struct.Value{},
 				}
 			}
 			v := &_struct.Value_StructValue{
