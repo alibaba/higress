@@ -1579,9 +1579,10 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 		// Start - Updated by Higress
 		// Extract the addresses. A gateway will bind to a specific Service
 		gatewayServices, useDefaultService, err := extractGatewayServices(r.GatewayResources, kgw, obj)
+		var gatewaySelector map[string]string = nil
 		if len(gatewayServices) == 0 && !useDefaultService && err != nil {
 			// Short circuit if it's a hard failure
-			reportGatewayStatus(r, obj, gatewayServices, servers, err)
+			reportGatewayStatus(r, obj, gatewayServices, gatewaySelector, servers, err)
 			continue
 		}
 		// End - Updated by Higress
@@ -1597,12 +1598,11 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 				// Waypoint doesn't actually convert the routes to VirtualServices
 				continue
 			}
-			var selector map[string]string
 			meta := parentMeta(obj, &l.Name)
 			if len(gatewayServices) != 0 {
 				meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
 			} else if useDefaultService {
-				selector = r.GatewayResources.DefaultGatewaySelector
+				gatewaySelector = r.GatewayResources.DefaultGatewaySelector
 			} else {
 				// Protective programming. This shouldn't happen.
 				continue
@@ -1621,7 +1621,7 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 				Spec: &istio.Gateway{
 					Servers: []*istio.Server{server},
 					// Start - Added by Higress
-					Selector: selector,
+					Selector: gatewaySelector,
 					// End - Added by Higress
 				},
 			}
@@ -1669,7 +1669,7 @@ func convertGateways(r configContext) ([]config.Config, map[parentKey][]*parentI
 			gwMap[ref] = gwMap[alias]
 		}
 
-		reportGatewayStatus(r, obj, gatewayServices, servers, err)
+		reportGatewayStatus(r, obj, gatewayServices, gatewaySelector, servers, err)
 	}
 	// Insert a parent for Mesh references.
 	gwMap[meshParentKey] = []*parentInfo{
@@ -1712,11 +1712,16 @@ func reportGatewayStatus(
 	r configContext,
 	obj config.Config,
 	gatewayServices []string,
+	// Start - Updated by Higress
+	gatewaySelector map[string]string,
+	// End - Updated by Higress
 	servers []*istio.Server,
 	gatewayErr *ConfigError,
 ) {
 	// TODO: we lose address if servers is empty due to an error
-	internal, external, pending, warnings := r.Context.ResolveGatewayInstances(obj.Namespace, gatewayServices, servers)
+	// Start - Updated by Higress
+	internal, external, pending, warnings := r.Context.ResolveGatewayInstances(obj.Namespace, gatewayServices, gatewaySelector, servers)
+	// End - Updated by Higress
 
 	// Setup initial conditions to the success state. If we encounter errors, we will update this.
 	// We have two status
@@ -1743,7 +1748,9 @@ func reportGatewayStatus(
 		gatewayConditions[string(k8sbeta.GatewayReasonProgrammed)].message = msg
 	}
 
-	if len(gatewayServices) == 0 {
+	// Start - Updated by Higress
+	if len(gatewayServices) == 0 && (gatewaySelector == nil || len(gatewayConditions) == 0) {
+		// End - Updated by Higress
 		gatewayConditions[string(k8sbeta.GatewayReasonProgrammed)].error = &ConfigError{
 			Reason:  InvalidAddress,
 			Message: "Failed to assign to any requested addresses",
