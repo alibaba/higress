@@ -114,7 +114,7 @@ func RedisInit(cluster Cluster, username, password string, timeout uint32) error
 	return proxywasm.RedisInit(cluster.ClusterName(), username, password, timeout)
 }
 
-func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback) error {
+func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback) error {
 	requestID := uuid.New().String()
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
@@ -152,7 +152,7 @@ func RedisCall(cluster Cluster, respQuery string, callback RedisResponseCallback
 	return err
 }
 
-func respString(args []interface{}) string {
+func respString(args []interface{}) []byte {
 	var buf bytes.Buffer
 	wr := resp.NewWriter(&buf)
 	arr := make([]resp.Value, 0)
@@ -160,7 +160,7 @@ func respString(args []interface{}) string {
 		arr = append(arr, resp.StringValue(fmt.Sprint(arg)))
 	}
 	wr.WriteArray(arr)
-	return buf.String()
+	return buf.Bytes()
 }
 
 func (c RedisClusterClient[C]) Init(username, password string, timeout int64) error {
