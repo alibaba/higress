@@ -1,3 +1,4 @@
+{{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
     {{- $kernelVersion := $node.status.nodeInfo.kernelVersion }}
@@ -67,6 +68,40 @@ spec:
           value: "0"
       {{- end }}
       containers:
+        {{- if $o11y.enabled }}
+          {{- $config := $o11y.promtail }}
+        - name: promtail
+          image: {{ $config.image.repository }}:{{ $config.image.tag }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          env:
+            - name: 'HOSTNAME'
+              valueFrom:
+                fieldRef:
+                  fieldPath: 'spec.nodeName'
+          ports:
+            - containerPort: {{ $config.port }}
+              name: http-metrics
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ready
+              port: {{ $config.port }}
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: promtail-config
+              mountPath: "/etc/promtail"
+            - name: log
+              mountPath: /var/log/proxy
+            - name: tmp
+              mountPath: /tmp
+        {{- end }}
         - name: higress-gateway
           image: "{{ .Values.gateway.hub | default .Values.global.hub }}/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
           args:
@@ -212,6 +247,10 @@ spec:
           - mountPath: /opt/plugins
             name: local-wasmplugins-volume
           {{- end }}
+          {{- if $o11y.enabled }}
+          - mountPath: /var/log/proxy
+            name: log
+          {{- end }}
       {{- if .Values.gateway.hostNetwork }}
       hostNetwork: {{ .Values.gateway.hostNetwork }}
       dnsPolicy: ClusterFirstWithHostNet
@@ -258,6 +297,15 @@ spec:
         emptyDir: {}
       - name: proxy-socket
         emptyDir: {}
+      {{- if $o11y.enabled }}
+      - name: log
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      - name: promtail-config
+        configMap:
+          name: higress-promtail
+      {{- end }}
       - name: podinfo
         downwardAPI:
           defaultMode: 420
