@@ -1,0 +1,37 @@
+name: Release hgctl to GitHub
+
+on:
+  push:
+    tags:
+    - "v*.*.*"
+  workflow_dispatch: ~
+
+jobs:
+  release-hgctl:
+    runs-on: ubuntu-latest
+    env:
+      HGCTL_VERSION: ${{github.ref_name}}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build hgctl latest multiarch binaries
+      run: |
+        GOPROXY="https://proxy.golang.org,direct" make build-hgctl-multiarch
+        tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_linux_amd64.tar.gz out/linux_amd64/
+        tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_linux_arm64.tar.gz out/linux_arm64/
+        tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_darwin_amd64.tar.gz out/darwin_amd64/
+        tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_darwin_arm64.tar.gz out/darwin_arm64/
+        zip -q -r hgctl_${{ env.HGCTL_VERSION }}_windows_amd64.zip out/windows_amd64/
+        zip -q -r hgctl_${{ env.HGCTL_VERSION }}_windows_arm64.zip out/windows_arm64/
+
+    - name: Upload hgctl packages to the GitHub release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          hgctl_${{ env.HGCTL_VERSION }}_linux_amd64.tar.gz
+          hgctl_${{ env.HGCTL_VERSION }}_linux_arm64.tar.gz
+          hgctl_${{ env.HGCTL_VERSION }}_darwin_amd64.tar.gz
+          hgctl_${{ env.HGCTL_VERSION }}_darwin_arm64.tar.gz
+          hgctl_${{ env.HGCTL_VERSION }}_windows_amd64.zip
+          hgctl_${{ env.HGCTL_VERSION }}_windows_arm64.zip
