@@ -1,0 +1,56 @@
+diff -Naur istio/pilot/pkg/config/kube/gateway/conversion.go istio-new/pilot/pkg/config/kube/gateway/conversion.go
+--- istio/pilot/pkg/config/kube/gateway/conversion.go	2024-03-08 17:23:49.000000000 +0800
++++ istio-new/pilot/pkg/config/kube/gateway/conversion.go	2024-03-08 17:02:50.000000000 +0800
+@@ -16,6 +16,7 @@
+ 
+ import (
+ 	"fmt"
++	"path"
+ 	"regexp"
+ 	"sort"
+ 	"strconv"
+@@ -28,6 +29,7 @@
+ 	gatewayapiV1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+ 
+ 	istio "istio.io/api/networking/v1alpha3"
++	"istio.io/istio/pilot/pkg/features"
+ 	"istio.io/istio/pilot/pkg/model"
+ 	"istio.io/istio/pilot/pkg/model/credentials"
+ 	"istio.io/istio/pilot/pkg/model/kstatus"
+@@ -290,6 +292,16 @@
+ 	return ret
+ }
+ 
++// Added by ingress
++func generateRouteName(obj config.Config) string {
++	if obj.Namespace == features.HigressSystemNs {
++		return obj.Name
++	}
++	return path.Join(obj.Namespace, obj.Name)
++}
++
++// End added by ingress
++
+ func buildHTTPVirtualServices(ctx *KubernetesResources, obj config.Config, gateways map[parentKey]map[gatewayapiV1beta1.SectionName]*parentInfo, gatewayRoutes map[string]map[string]*config.Config, domain string) {
+ 	route := obj.Spec.(*gatewayapiV1beta1.HTTPRouteSpec)
+ 
+@@ -307,7 +319,7 @@
+ 	for _, r := range route.Rules {
+ 		// TODO: implement rewrite, timeout, mirror, corspolicy, retries
+ 		vs := &istio.HTTPRoute{
+-			Name: obj.Name,
++			Name: generateRouteName(obj),
+ 		}
+ 		for _, match := range r.Matches {
+ 			uri, err := createURIMatch(match)
+diff -Naur istio/pilot/pkg/features/pilot.go istio-new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2024-03-08 17:23:49.000000000 +0800
++++ istio-new/pilot/pkg/features/pilot.go	2024-03-08 17:00:05.000000000 +0800
+@@ -577,6 +577,7 @@
+ 		"If enabled, the on demand filter will be added to the HCM filters").Get()
+ 	DefaultUpstreamConcurrencyThreshold = env.RegisterIntVar("DEFAULT_UPSTREAM_CONCURRENCY_THRESHOLD", 1000000,
+ 		"The default threshold of max_requests/max_pending_requests/max_connections of circuit breaker").Get()
++	HigressSystemNs = env.RegisterStringVar("HIGRESS_SYSTEM_NS", "higress-system", "The system namespace of Higress").Get()
+ 	// End added by ingress
+ )
+ 
