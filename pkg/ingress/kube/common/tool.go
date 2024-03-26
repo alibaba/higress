@@ -48,13 +48,15 @@ func V1Available(client kube.Client) bool {
 
 	serverVersion, err := client.GetKubernetesVersion()
 	if err != nil {
-		return false
+		// Consider the new ingress package is available as default
+		return true
 	}
 
 	runningVersion, err := version.ParseGeneric(serverVersion.String())
 	if err != nil {
+		// Consider the new ingress package is available as default
 		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
-		return false
+		return true
 	}
 
 	return runningVersion.AtLeast(version119)
