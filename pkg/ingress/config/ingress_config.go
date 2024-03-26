@@ -798,7 +798,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		PluginConfig:    obj.PluginConfig,
 		PluginName:      obj.PluginName,
 		Phase:           extensions.PluginPhase(obj.Phase),
-		Priority:        obj.Priority,
+		Priority:        &types.Int64Value{Value: int64(obj.GetPriority().Value)},
 	}
 	if result.PluginConfig != nil {
 		return result, nil
