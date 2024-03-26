@@ -15,6 +15,7 @@
 package annotations
 
 import (
+	"github.com/golang/protobuf/ptypes/duration"
 	"reflect"
 	"testing"
 
@@ -104,7 +105,7 @@ func TestTimeoutApplyRoute(t *testing.T) {
 			},
 			input: &networking.HTTPRoute{},
 			expect: &networking.HTTPRoute{
-				Timeout: &types.Duration{
+				Timeout: &duration.Duration{
 					Seconds: 10,
 				},
 			},

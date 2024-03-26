@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/xds"
@@ -127,7 +128,7 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 	ingressV1Beta1Controller := controllerv1beta1.NewController(fake, fake, v1Beta1Options, nil)
 	ingressV1Controller := controllerv1.NewController(fake, fake, v1Options, nil)
 	m := NewIngressConfig(fake, nil, "wakanda", "gw-123-istio")
-	m.remoteIngressControllers = map[string]common.IngressController{
+	m.remoteIngressControllers = map[cluster.ID]common.IngressController{
 		"ingress-v1beta1": ingressV1Beta1Controller,
 		"ingress-v1":      ingressV1Controller,
 	}

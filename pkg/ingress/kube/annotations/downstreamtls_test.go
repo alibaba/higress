@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var parser = downstreamTLS{}
@@ -45,7 +45,7 @@ func TestParse(t *testing.T) {
 				buildNginxAnnotationKey(sslCipher):     "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
 			},
 			expect: &DownstreamTLSConfig{
-				CASecretName: model.NamespacedName{
+				CASecretName: types.NamespacedName{
 					Namespace: "foo",
 					Name:      "test",
 				},
@@ -59,7 +59,7 @@ func TestParse(t *testing.T) {
 				DefaultAnnotationsPrefix + "/" + sslCipher: "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
 			},
 			expect: &DownstreamTLSConfig{
-				CASecretName: model.NamespacedName{
+				CASecretName: types.NamespacedName{
 					Namespace: "test",
 					Name:      "foo",
 				},
@@ -138,7 +138,7 @@ func TestApplyGateway(t *testing.T) {
 			},
 			config: &Ingress{
 				DownstreamTLS: &DownstreamTLSConfig{
-					CASecretName: model.NamespacedName{
+					CASecretName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar",
 					},
@@ -177,7 +177,7 @@ func TestApplyGateway(t *testing.T) {
 			},
 			config: &Ingress{
 				DownstreamTLS: &DownstreamTLSConfig{
-					CASecretName: model.NamespacedName{
+					CASecretName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar-cacert",
 					},
@@ -216,7 +216,7 @@ func TestApplyGateway(t *testing.T) {
 			},
 			config: &Ingress{
 				DownstreamTLS: &DownstreamTLSConfig{
-					CASecretName: model.NamespacedName{
+					CASecretName: types.NamespacedName{
 						Namespace: "bar",
 						Name:      "foo",
 					},

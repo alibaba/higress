@@ -1,4 +1,3 @@
-external
 out
 *.out
 *.tgz
@@ -11,6 +10,7 @@ bazel-bin
 bazel-out
 bazel-testlogs
 bazel-wasm-cpp
+external/
 tools/bin/
 helm/**/charts/**.tgz
 target/

@@ -15,6 +15,7 @@
 package mcpbridge
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -25,7 +26,7 @@ import (
 
 type McpBridgeController controller.Controller[listersv1.McpBridgeLister]
 
-func NewController(client kubeclient.Client, clusterId string) McpBridgeController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) McpBridgeController {
 	informer := client.HigressInformer().Networking().V1().McpBridges().Informer()
 	return controller.NewCommonController("mcpbridge", client.HigressInformer().Networking().V1().McpBridges().Lister(),
 		informer, GetMcpBridge, clusterId)

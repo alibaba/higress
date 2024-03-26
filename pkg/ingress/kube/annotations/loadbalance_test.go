@@ -18,7 +18,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/duration"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -35,10 +35,11 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(affinityMode): "balanced",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				cookie: &consistentHashByCookie{
 					name: defaultAffinityCookieName,
 					path: defaultAffinityCookiePath,
-					age:  &types.Duration{},
+					age:  &duration.Duration{},
 				},
 			},
 		},
@@ -51,10 +52,11 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(sessionCookieMaxAge): "100",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				cookie: &consistentHashByCookie{
 					name: "test",
 					path: "/test",
-					age: &types.Duration{
+					age: &duration.Duration{
 						Seconds: 100,
 					},
 				},
@@ -68,10 +70,11 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(sessionCookieExpires): "10",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				cookie: &consistentHashByCookie{
 					name: "test",
 					path: defaultAffinityCookiePath,
-					age: &types.Duration{
+					age: &duration.Duration{
 						Seconds: 10,
 					},
 				},
@@ -82,6 +85,7 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(upstreamHashBy): "$request_uri",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
 					header: ":path",
 				},
@@ -92,6 +96,7 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(upstreamHashBy): "$host",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
 					header: ":authority",
 				},
@@ -102,6 +107,7 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(upstreamHashBy): "$remote_addr",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
 					header: "x-envoy-external-address",
 				},
@@ -112,6 +118,7 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(upstreamHashBy): "$http_test",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
 					header: "test",
 				},
@@ -122,6 +129,7 @@ func TestLoadBalanceParse(t *testing.T) {
 				buildNginxAnnotationKey(upstreamHashBy): "$arg_query",
 			},
 			expect: &LoadBalanceConfig{
+				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
 					queryParam: "query",
 				},
@@ -158,7 +166,7 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 					cookie: &consistentHashByCookie{
 						name: "test",
 						path: "/",
-						age: &types.Duration{
+						age: &duration.Duration{
 							Seconds: 100,
 						},
 					},
@@ -173,7 +181,7 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 								HttpCookie: &networking.LoadBalancerSettings_ConsistentHashLB_HTTPCookie{
 									Name: "test",
 									Path: "/",
-									Ttl: &types.Duration{
+									Ttl: &duration.Duration{
 										Seconds: 100,
 									},
 								},

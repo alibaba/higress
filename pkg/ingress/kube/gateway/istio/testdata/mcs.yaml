@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: higress-system
+spec:
+  addresses:
+  - value: higress-gateway
+    type: Hostname
+  gatewayClassName: higress
+  listeners:
+  - name: default
+    port: 34000
+    protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: tcp
+  namespace: higress-system
+spec:
+  parentRefs:
+  - name: gateway
+    namespace: higress-system
+  rules:
+  - backendRefs:
+    - group: multicluster.x-k8s.io
+      kind: ServiceImport
+      name: echo
+      port: 80

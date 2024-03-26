@@ -18,7 +18,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/duration"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -125,10 +126,10 @@ func (c cors) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		AllowMethods:  corsConfig.AllowMethods,
 		AllowHeaders:  corsConfig.AllowHeaders,
 		ExposeHeaders: corsConfig.ExposeHeaders,
-		AllowCredentials: &types.BoolValue{
+		AllowCredentials: &wrappers.BoolValue{
 			Value: corsConfig.AllowCredentials,
 		},
-		MaxAge: &types.Duration{
+		MaxAge: &duration.Duration{
 			Seconds: int64(corsConfig.MaxAge),
 		},
 	}

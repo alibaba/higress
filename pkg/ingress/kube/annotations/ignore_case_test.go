@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -82,11 +82,17 @@ func TestIgnoreCaseMatching_ApplyRoute(t *testing.T) {
 		},
 	}
 
+	unexportedIgnoredTypes := []interface{}{
+		networking.HTTPRoute{},
+		networking.HTTPMatchRequest{},
+		networking.StringMatch{},
+	}
+
 	t.Run("", func(t *testing.T) {
 		for _, tt := range testCases {
 			handler.ApplyRoute(tt.input, tt.config)
 
-			if diff := cmp.Diff(tt.expect, tt.input); diff != "" {
+			if diff := cmp.Diff(tt.expect, tt.input, cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
 				t.Fatalf("TestIgnoreCaseMatching_ApplyRoute() mismatch(-want +got): \n%s", diff)
 			}
 		}

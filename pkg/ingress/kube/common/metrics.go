@@ -14,7 +14,10 @@
 
 package common
 
-import "istio.io/pkg/monitoring"
+import (
+	"istio.io/istio/pkg/cluster"
+	"istio.io/pkg/monitoring"
+)
 
 type Event string
 
@@ -59,10 +62,10 @@ func init() {
 	monitoring.MustRegister(totalInvalidIngress)
 }
 
-func RecordIngressNumber(cluster string, number int) {
-	totalIngresses.With(clusterTag.Value(cluster)).Record(float64(number))
+func RecordIngressNumber(cluster cluster.ID, number int) {
+	totalIngresses.With(clusterTag.Value(cluster.String())).Record(float64(number))
 }
 
-func IncrementInvalidIngress(cluster string, event Event) {
-	totalInvalidIngress.With(clusterTag.Value(cluster), invalidType.Value(string(event))).Increment()
+func IncrementInvalidIngress(cluster cluster.ID, event Event) {
+	totalInvalidIngress.With(clusterTag.Value(cluster.String()), invalidType.Value(string(event))).Increment()
 }

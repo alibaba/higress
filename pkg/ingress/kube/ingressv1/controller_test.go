@@ -17,12 +17,12 @@ package ingressv1
 import (
 	"testing"
 
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
 	v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
 )
 
 func TestShouldProcessIngressUpdate(t *testing.T) {
@@ -104,10 +104,15 @@ func TestGenerateHttpMatches(t *testing.T) {
 		},
 	}
 
+	unexportedIgnoredTypes := []interface{}{
+		networking.HTTPMatchRequest{},
+		networking.StringMatch{},
+	}
+
 	for _, testcase := range tt {
 		httpMatches := c.generateHttpMatches(testcase.pathType, testcase.path, nil)
 		for idx, httpMatch := range httpMatches {
-			if diff := cmp.Diff(httpMatch, testcase.expect[idx]); diff != "" {
+			if diff := cmp.Diff(httpMatch, testcase.expect[idx], cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
 				t.Errorf("generateHttpMatches() mismatch (-want +got):\n%s", diff)
 			}
 		}

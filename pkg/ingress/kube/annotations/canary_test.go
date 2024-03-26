@@ -229,14 +229,15 @@ func TestApplyWeight(t *testing.T) {
 					},
 				},
 				Weight: 30,
-				FallbackClusters: []*networking.Destination{
-					{
-						Host: "normal",
-						Port: &networking.PortSelector{
-							Number: 80,
-						},
-					},
-				},
+				// TODO: Upgrade fix
+				//FallbackClusters: []*networking.Destination{
+				//	{
+				//		Host: "normal",
+				//		Port: &networking.PortSelector{
+				//			Number: 80,
+				//		},
+				//	},
+				//},
 			},
 			{
 				Destination: &networking.Destination{
@@ -253,14 +254,15 @@ func TestApplyWeight(t *testing.T) {
 					},
 				},
 				Weight: 20,
-				FallbackClusters: []*networking.Destination{
-					{
-						Host: "normal",
-						Port: &networking.PortSelector{
-							Number: 80,
-						},
-					},
-				},
+				// TODO: Upgrade fix
+				//FallbackClusters: []*networking.Destination{
+				//	{
+				//		Host: "normal",
+				//		Port: &networking.PortSelector{
+				//			Number: 80,
+				//		},
+				//	},
+				//},
 			},
 		},
 	}

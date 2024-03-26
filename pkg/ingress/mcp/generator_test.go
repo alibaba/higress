@@ -18,114 +18,148 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"google.golang.org/protobuf/types/known/anypb"
 	extensions "istio.io/api/extensions/v1alpha1"
 	mcp "istio.io/api/mcp/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 )
 
 func TestGenerate(t *testing.T) {
 	tests := []struct {
 		name      string
-		fn        func() (*model.PushContext, any)
-		generator model.McpResourceGenerator
+		fn        func() config.Config
+		generator func(config.Config) model.XdsResourceGenerator
 		isErr     bool
 	}{
 		{
 			name: "VirtualService",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.VirtualService,
+					},
 					Spec: &networking.VirtualService{},
 				}
-				ctx.AllVirtualServices = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: VirtualServiceGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return VirtualServiceGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "Gateway",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.Gateway,
+					},
 					Spec: &networking.Gateway{},
 				}
-				ctx.AllGateways = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: GatewayGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return GatewayGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "EnvoyFilter",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.EnvoyFilter,
+					},
 					Spec: &networking.EnvoyFilter{},
 				}
-				ctx.AllEnvoyFilters = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: EnvoyFilterGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return EnvoyFilterGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "DestinationRule",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.DestinationRule,
+					},
 					Spec: &networking.DestinationRule{},
 				}
-				ctx.AllDestinationRules = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: DestinationRuleGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return DestinationRuleGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "WasmPlugin",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.WasmPlugin,
+					},
 					Spec: &extensions.WasmPlugin{},
 				}
-				ctx.AllWasmplugins = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: WasmpluginGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return WasmPluginGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "ServiceEntry",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.ServiceEntry,
+					},
 					Spec: &networking.ServiceEntry{},
 				}
-				ctx.AllServiceEntries = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: ServiceEntryGenerator{},
-			isErr:     false,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return ServiceEntryGenerator{Environment: env}
+			},
+			isErr: false,
 		},
 		{
 			name: "WasmPlugin with wrong config",
-			fn: func() (*model.PushContext, any) {
-				ctx := model.NewPushContext()
-				cfg := config.Config{
+			fn: func() config.Config {
+				return config.Config{
+					Meta: config.Meta{
+						GroupVersionKind: gvk.WasmPlugin,
+					},
 					Spec: "string",
 				}
-				ctx.AllWasmplugins = []config.Config{cfg}
-				return ctx, cfg.Spec
 			},
-			generator: WasmpluginGenerator{},
-			isErr:     true,
+			generator: func(c config.Config) model.XdsResourceGenerator {
+				env := model.NewEnvironment()
+				env.ConfigStore = model.NewFakeStore()
+				_, _ = env.ConfigStore.Create(c)
+				return WasmPluginGenerator{Environment: env}
+			},
+			isErr: true,
 		},
 	}
 
@@ -133,10 +167,10 @@ func TestGenerate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var (
 				err error
-				val []*anypb.Any
+				val model.Resources
 			)
 
-			pushCtx, spec := test.fn()
+			cfg := test.fn()
 			func() {
 				defer func() {
 					if err := recover(); err != nil && !test.isErr {
@@ -144,7 +178,7 @@ func TestGenerate(t *testing.T) {
 					}
 				}()
 
-				val, _, err = test.generator.Generate(nil, pushCtx, nil, nil)
+				val, _, err = test.generator(cfg).Generate(nil, nil, nil)
 				if (err != nil && !test.isErr) || (err == nil && test.isErr) {
 					t.Fatalf("Failed to generate config: %v", err)
 				}
@@ -155,22 +189,22 @@ func TestGenerate(t *testing.T) {
 			}
 
 			resource := &mcp.Resource{}
-			err = ptypes.UnmarshalAny(val[0], resource)
+			err = ptypes.UnmarshalAny(val[0].Resource, resource)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			specType := reflect.TypeOf(spec)
+			specType := reflect.TypeOf(cfg.Spec)
 			if specType.Kind() == reflect.Ptr {
 				specType = specType.Elem()
 			}
 
 			target := reflect.New(specType).Interface().(proto.Message)
-			if err = types.UnmarshalAny(resource.Body, target); err != nil {
+			if err = ptypes.UnmarshalAny(resource.Body, target); err != nil {
 				t.Fatal(err)
 			}
 
-			if !test.isErr && !proto.Equal(spec.(proto.Message), target) {
+			if !test.isErr && !proto.Equal(cfg.Spec.(proto.Message), target) {
 				t.Fatal("failed ")
 			}
 		})

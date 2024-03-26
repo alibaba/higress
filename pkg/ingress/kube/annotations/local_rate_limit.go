@@ -18,7 +18,7 @@ import (
 	types "github.com/gogo/protobuf/types"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
+	//"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
 )
 
 const (
@@ -89,19 +89,20 @@ func (l localRateLimit) ApplyRoute(route *networking.HTTPRoute, config *Ingress)
 		return
 	}
 
-	route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
-		Name: mseingress.LocalRateLimit,
-		Filter: &networking.HTTPFilter_LocalRateLimit{
-			LocalRateLimit: &networking.LocalRateLimit{
-				TokenBucket: &networking.TokenBucket{
-					MaxTokens:     localRateLimitConfig.MaxTokens,
-					TokensPefFill: localRateLimitConfig.TokensPerFill,
-					FillInterval:  localRateLimitConfig.FillInterval,
-				},
-				StatusCode: defaultStatusCode,
-			},
-		},
-	})
+	// TODO: Upgrade fix
+	//route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
+	//	Name: mseingress.LocalRateLimit,
+	//	Filter: &networking.HTTPFilter_LocalRateLimit{
+	//		LocalRateLimit: &networking.LocalRateLimit{
+	//			TokenBucket: &networking.TokenBucket{
+	//				MaxTokens:     localRateLimitConfig.MaxTokens,
+	//				TokensPefFill: localRateLimitConfig.TokensPerFill,
+	//				FillInterval:  localRateLimitConfig.FillInterval,
+	//			},
+	//			StatusCode: defaultStatusCode,
+	//		},
+	//	},
+	//})
 }
 
 func needLocalRateLimitConfig(annotations Annotations) bool {

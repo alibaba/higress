@@ -18,8 +18,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/duration"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -216,10 +216,10 @@ func TestCorsApplyRoute(t *testing.T) {
 					AllowMethods:  []string{"GET", "POST"},
 					AllowHeaders:  []string{"test", "unique"},
 					ExposeHeaders: []string{"hello", "bye"},
-					AllowCredentials: &types.BoolValue{
+					AllowCredentials: &wrappers.BoolValue{
 						Value: true,
 					},
-					MaxAge: &types.Duration{
+					MaxAge: &duration.Duration{
 						Seconds: defaultMaxAge,
 					},
 				},
@@ -260,10 +260,10 @@ func TestCorsApplyRoute(t *testing.T) {
 					AllowMethods:  []string{"GET", "POST"},
 					AllowHeaders:  []string{"test", "unique"},
 					ExposeHeaders: []string{"hello", "bye"},
-					AllowCredentials: &types.BoolValue{
+					AllowCredentials: &wrappers.BoolValue{
 						Value: true,
 					},
-					MaxAge: &types.Duration{
+					MaxAge: &duration.Duration{
 						Seconds: defaultMaxAge,
 					},
 				},
@@ -274,7 +274,7 @@ func TestCorsApplyRoute(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
 			cors.ApplyRoute(testCase.route, testCase.config)
-			if !proto.Equal(testCase.route, testCase.expect) {
+			if !reflect.DeepEqual(testCase.route, testCase.expect) {
 				t.Fatal("Must be equal.")
 			}
 		})

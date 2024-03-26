@@ -88,19 +88,19 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 	} else if rewriteConfig.RewriteTarget != "" {
 		uri := route.Match[0].Uri
 		if uri.GetExact() != "" {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetExact(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   uri.GetExact(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		} else if uri.GetPrefix() != "" {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetPrefix(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   uri.GetPrefix(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		} else {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetRegex(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   uri.GetRegex(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		}
 	}

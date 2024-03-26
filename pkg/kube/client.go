@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"istio.io/istio/pkg/cluster"
 	istiokube "istio.io/istio/pkg/kube"
 	apiExtensionsV1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,9 +134,9 @@ func NewFakeClient(objects ...runtime.Object) Client {
 	return c
 }
 
-func NewClient(clientConfig clientcmd.ClientConfig) (Client, error) {
+func NewClient(clientConfig clientcmd.ClientConfig, cluster cluster.ID) (Client, error) {
 	var c client
-	istioClient, err := istiokube.NewClient(clientConfig)
+	istioClient, err := istiokube.NewClient(clientConfig, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -261,4 +262,10 @@ func CheckKIngressCRDExist(config *rest.Config) bool {
 		}
 	}
 	return false
+}
+
+// EnableCrdWatcher enables the CRD watcher on the client.
+func EnableCrdWatcher(c Client) Client {
+	istiokube.EnableCrdWatcher(c.(*client).Client)
+	return c
 }

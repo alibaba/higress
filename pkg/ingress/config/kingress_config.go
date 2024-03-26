@@ -18,12 +18,14 @@ import (
 	"sync"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/util/sets"
+	istiomodel "istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/config/schema/kind"
+	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -34,44 +36,46 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/pkg/model"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
-	_ model.ConfigStoreCache = &KIngressConfig{}
-	_ model.IngressStore     = &KIngressConfig{}
+	_ istiomodel.ConfigStoreController = &KIngressConfig{}
+	_ model.IngressStore               = &KIngressConfig{}
 )
 
 type KIngressConfig struct {
-	// key: cluster id
-	remoteIngressControllers map[string]common.KIngressController
+	remoteIngressControllers map[cluster.ID]common.KIngressController
 	mutex                    sync.RWMutex
 
 	ingressRouteCache  model.IngressRouteCollection
 	ingressDomainCache model.IngressDomainCollection
 
 	localKubeClient        kube.Client
-	virtualServiceHandlers []model.EventHandler
-	gatewayHandlers        []model.EventHandler
-	envoyFilterHandlers    []model.EventHandler
-	WatchErrorHandler      cache.WatchErrorHandler
+	virtualServiceHandlers []istiomodel.EventHandler
+	gatewayHandlers        []istiomodel.EventHandler
+	envoyFilterHandlers    []istiomodel.EventHandler
+	watchErrorHandler      cache.WatchErrorHandler
 
 	cachedEnvoyFilters []config.Config
 
-	watchedSecretSet sets.Set
+	watchedSecretSet sets.Set[string]
 
 	RegistryReconciler *reconcile.Reconciler
 
-	XDSUpdater model.XDSUpdater
+	XDSUpdater istiomodel.XDSUpdater
 
 	annotationHandler annotations.AnnotationHandler
 
+	globalGatewayName string
+
 	namespace string
 
-	clusterId string
+	clusterId cluster.ID
 }
 
-func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *KIngressConfig {
+func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *KIngressConfig {
 	if localKubeClient.KIngressInformer() == nil {
 		return nil
 	}
@@ -79,19 +83,19 @@ func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater,
 		clusterId = ""
 	}
 	config := &KIngressConfig{
-		remoteIngressControllers: make(map[string]common.KIngressController),
+		remoteIngressControllers: make(map[cluster.ID]common.KIngressController),
 		localKubeClient:          localKubeClient,
 		XDSUpdater:               XDSUpdater,
 		annotationHandler:        annotations.NewAnnotationHandlerManager(),
 		clusterId:                clusterId,
-		watchedSecretSet:         sets.NewSet(),
+		globalGatewayName:        namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
+		watchedSecretSet:         sets.New[string](),
 		namespace:                namespace,
 	}
-
 	return config
 }
 
-func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
+func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
 	IngressLog.Infof("register resource %v", kind)
 	switch kind {
 	case gvk.VirtualService:
@@ -121,24 +125,18 @@ func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngress
 	return ingressController
 }
 
-func (m *KIngressConfig) InitializeCluster(ingressController common.KIngressController, stop <-chan struct{}) error {
-	_ = ingressController.SetWatchErrorHandler(m.WatchErrorHandler)
-	go ingressController.Run(stop)
-	return nil
-}
-
-func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]config.Config, error) {
+func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) []config.Config {
 	if typ == gvk.EnvoyFilter || typ == gvk.DestinationRule || typ == gvk.WasmPlugin || typ == gvk.ServiceEntry {
-		return nil, nil
+		return nil
 	}
 	if typ != gvk.Gateway && typ != gvk.VirtualService {
-		return nil, common.ErrUnsupportedOp
+		return nil
 	}
 
 	// Currently, only support list all namespaces gateways or virtualservices.
 	if namespace != "" {
 		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
-		return nil, common.ErrUnsupportedOp
+		return nil
 	}
 
 	var configs []config.Config
@@ -154,19 +152,19 @@ func (m *KIngressConfig) List(typ config.GroupVersionKind, namespace string) ([]
 	IngressLog.Infof("resource type %s, configs number %d", typ, len(wrapperConfigs))
 	switch typ {
 	case gvk.Gateway:
-		return m.convertGateways(wrapperConfigs), nil
+		return m.convertGateways(wrapperConfigs)
 	case gvk.VirtualService:
-		return m.convertVirtualService(wrapperConfigs), nil
+		return m.convertVirtualService(wrapperConfigs)
 	}
-	return nil, nil
+	return nil
 }
 
 func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
 	// Init global context
-	clusterSecretListers := map[string]listersv1.SecretLister{}
-	clusterServiceListers := map[string]listersv1.ServiceLister{}
+	clusterSecretListers := map[cluster.ID]listersv1.SecretLister{}
+	clusterServiceListers := map[cluster.ID]listersv1.ServiceLister{}
 	m.mutex.RLock()
 	for clusterId, controller := range m.remoteIngressControllers {
 		clusterSecretListers[clusterId] = controller.SecretLister()
@@ -174,7 +172,7 @@ func (m *KIngressConfig) createWrapperConfigs(configs []config.Config) []common.
 	}
 	m.mutex.RUnlock()
 	globalContext := &annotations.GlobalContext{
-		WatchedSecrets:      sets.NewSet(),
+		WatchedSecrets:      sets.New[string](),
 		ClusterSecretLister: clusterSecretListers,
 		ClusterServiceList:  clusterServiceListers,
 	}
@@ -240,7 +238,7 @@ func (m *KIngressConfig) convertGateways(configs []common.WrapperConfig) []confi
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: gateway.ClusterId,
+					common.ClusterIdAnnotation: gateway.ClusterId.String(),
 					common.HostAnnotation:      gateway.Host,
 				},
 			},
@@ -312,7 +310,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
 		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId, cleanHost),
+			common.CreateConvertedName(m.clusterId.String(), cleanHost),
 			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
@@ -333,7 +331,7 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, firstRoute.WrapperConfig.Config.Namespace, firstRoute.WrapperConfig.Config.Name, cleanHost),
 				Namespace:        m.namespace,
 				Annotations: map[string]string{
-					common.ClusterIdAnnotation: firstRoute.ClusterId,
+					common.ClusterIdAnnotation: firstRoute.ClusterId.String(),
 				},
 			},
 			Spec: vs,
@@ -403,55 +401,56 @@ func (m *KIngressConfig) applyInternalActiveRedirect(convertOptions *common.Conv
 		var tempRoutes []*common.WrapperHTTPRoute
 		for _, route := range routes {
 			tempRoutes = append(tempRoutes, route)
-			if route.HTTPRoute.InternalActiveRedirect != nil {
-				fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
-				if fallbackConfig == nil {
-					continue
-				}
-
-				typedNamespace := fallbackConfig.DefaultBackend
-				internalRedirectRoute := route.HTTPRoute.DeepCopy()
-				internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
-				internalRedirectRoute.InternalActiveRedirect = nil
-				internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
-					{
-						Uri: &networking.StringMatch{
-							MatchType: &networking.StringMatch_Exact{
-								Exact: "/",
-							},
-						},
-						Headers: map[string]*networking.StringMatch{
-							annotations.FallbackInjectHeaderRouteName: {
-								MatchType: &networking.StringMatch_Exact{
-									Exact: internalRedirectRoute.Name,
-								},
-							},
-							annotations.FallbackInjectFallbackService: {
-								MatchType: &networking.StringMatch_Exact{
-									Exact: typedNamespace.String(),
-								},
-							},
-						},
-					},
-				}
-				internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
-					{
-						Destination: &networking.Destination{
-							Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
-							Port: &networking.PortSelector{
-								Number: fallbackConfig.Port,
-							},
-						},
-						Weight: 100,
-					},
-				}
-
-				tempRoutes = append([]*common.WrapperHTTPRoute{{
-					HTTPRoute:     internalRedirectRoute,
-					WrapperConfig: route.WrapperConfig,
-					ClusterId:     route.ClusterId,
-				}}, tempRoutes...)
-			}
+			// TODO: Upgrade fix
+			//if route.HTTPRoute.InternalActiveRedirect != nil {
+			//	fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
+			//	if fallbackConfig == nil {
+			//		continue
+			//	}
+			//
+			//	typedNamespace := fallbackConfig.DefaultBackend
+			//	internalRedirectRoute := route.HTTPRoute.DeepCopy()
+			//	internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
+			//	internalRedirectRoute.InternalActiveRedirect = nil
+			//	internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
+			//		{
+			//			Uri: &networking.StringMatch{
+			//				MatchType: &networking.StringMatch_Exact{
+			//					Exact: "/",
+			//				},
+			//			},
+			//			Headers: map[string]*networking.StringMatch{
+			//				annotations.FallbackInjectHeaderRouteName: {
+			//					MatchType: &networking.StringMatch_Exact{
+			//						Exact: internalRedirectRoute.Name,
+			//					},
+			//				},
+			//				annotations.FallbackInjectFallbackService: {
+			//					MatchType: &networking.StringMatch_Exact{
+			//						Exact: typedNamespace.String(),
+			//					},
+			//				},
+			//			},
+			//		},
+			//	}
+			//	internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
+			//		{
+			//			Destination: &networking.Destination{
+			//				Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
+			//				Port: &networking.PortSelector{
+			//					Number: fallbackConfig.Port,
+			//				},
+			//			},
+			//			Weight: 100,
+			//		},
+			//	}
+			//
+			//	tempRoutes = append([]*common.WrapperHTTPRoute{{
+			//		HTTPRoute:     internalRedirectRoute,
+			//		WrapperConfig: route.WrapperConfig,
+			//		ClusterId:     route.ClusterId,
+			//	}}, tempRoutes...)
+			//}
 		}
 		convertOptions.HTTPRoutes[host] = tempRoutes
 	}
@@ -466,15 +465,15 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	m.mutex.RUnlock()
 
 	if hit {
-		push := func(kind config.GroupVersionKind) {
-			m.XDSUpdater.ConfigUpdate(&model.PushRequest{
+		push := func(gvk config.GroupVersionKind) {
+			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
-				ConfigsUpdated: map[model.ConfigKey]struct{}{{
-					Kind:      kind,
+				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
+					Kind:      kind.MustFromGVK(gvk),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
-				Reason: []model.TriggerReason{"auth-secret-change"},
+				Reason: istiomodel.NewReasonStats("auth-secret-change"),
 			})
 		}
 		push(gvk.VirtualService)
@@ -482,7 +481,12 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	}
 }
 
-func (m *KIngressConfig) Run(stop <-chan struct{}) {}
+func (m *KIngressConfig) Run(stop <-chan struct{}) {
+	for _, remoteIngressController := range m.remoteIngressControllers {
+		_ = remoteIngressController.SetWatchErrorHandler(m.watchErrorHandler)
+		go remoteIngressController.Run(stop)
+	}
+}
 
 func (m *KIngressConfig) HasSynced() bool {
 	IngressLog.Info("In Kingress Synced.")
@@ -500,7 +504,7 @@ func (m *KIngressConfig) HasSynced() bool {
 }
 
 func (m *KIngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
-	m.WatchErrorHandler = f
+	m.watchErrorHandler = f
 	return nil
 }
 

@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -119,11 +119,17 @@ func TestDestinationParse(t *testing.T) {
 		},
 	}
 
+	unexportedIgnoredTypes := []interface{}{
+		networking.HTTPRouteDestination{},
+		networking.Destination{},
+		networking.PortSelector{},
+	}
+
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
 			config := &Ingress{}
 			_ = parser.Parse(testCase.input, config, nil)
-			if diff := cmp.Diff(config.Destination, testCase.expect); diff != "" {
+			if diff := cmp.Diff(config.Destination, testCase.expect, cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
 				t.Fatalf("TestDestinationParse() mismatch: (-want +got)\n%s", diff)
 			}
 		})

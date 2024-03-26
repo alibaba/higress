@@ -1,12 +1,12 @@
 SHELL := /bin/bash -o pipefail
 
-export BASE_VERSION ?= 2022-10-27T19-02-22
+export HIGRESS_BASE_VERSION ?= 2023-07-20T20-50-43
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/version
+VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 
@@ -45,6 +45,7 @@ HIGRESS_DOCKER_BUILD_TOP:=${OUT_LINUX}/docker_build
 
 HIGRESS_BINARIES:=./cmd/higress
 
+HGCTL_PROJECT_DIR=./hgctl
 HGCTL_BINARIES:=./cmd/hgctl
 
 $(OUT):
@@ -52,6 +53,7 @@ $(OUT):
 
 submodule:
 	git submodule update --init
+	git submodule update --remote istio/istio
 
 .PHONY: prebuild
 prebuild: submodule
@@ -80,20 +82,20 @@ $(ARM64_OUT_LINUX)/higress:
 
 .PHONY: build-hgctl
 build-hgctl: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
 
 .PHONY: build-linux-hgctl
 build-linux-hgctl: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-multiarch
 build-hgctl-multiarch: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
@@ -128,40 +130,38 @@ docker-build: docker.higress ## Build and push docker images to registry defined
 
 docker-buildx-push: clean-env docker.higress-buildx
 
-docker-build-base:
-	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
-
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/alibaba/higress/releases/download/v1.3.4-rc.1/envoy-symbol-ARCH.tar.gz
+
+build-envoy: prebuild
+	./tools/hack/build-envoy.sh
 
 external/package/envoy-amd64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-amd64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.3.4-rc.1/envoy-symbol-amd64.tar.gz"
+	cd external/package; wget $(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})
 
 external/package/envoy-arm64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-arm64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.3.4-rc.1/envoy-symbol-arm64.tar.gz"
+	cd external/package; wget $(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})
 
-build-pilot:
-	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
-	cd external/istio; rm -rf out/linux_arm64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=arm64 BUILD_WITH_CONTAINER=1 make build-linux
+build-pilot: prebuild
+	TARGET_ARCH=amd64 ./tools/hack/build-istio-pilot.sh
+	TARGET_ARCH=arm64 ./tools/hack/build-istio-pilot.sh
 
-build-pilot-local:
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${GOARCH_LOCAL} BUILD_WITH_CONTAINER=1 make build-linux
+build-pilot-local: prebuild
+	TARGET_ARCH=${TARGET_ARCH} ./tools/hack/build-istio-pilot.sh
 
-build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+build-gateway: prebuild
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker.buildx
 
 build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh
 
-build-istio: prebuild build-pilot
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+build-istio: prebuild
+	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker.buildx
 
 build-istio-local: prebuild
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh
 
 build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh

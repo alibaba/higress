@@ -43,13 +43,14 @@ type statusSyncer struct {
 }
 
 // newStatusSyncer creates a new instance
-func newStatusSyncer(localKubeClient, client kube.Client, controller *controller, namespace string) *statusSyncer {
+func newStatusSyncer(localKubeClient, client kube.Client, controller *controller, namespace string,
+	serviceLister listerv1.ServiceLister) *statusSyncer {
 	return &statusSyncer{
 		client:           client.KIngress(),
 		controller:       controller,
 		watchedNamespace: namespace,
 		ingressLister:    client.KIngressInformer().Networking().V1alpha1().Ingresses().Lister(),
-		serviceLister: localKubeClient.KubeInformer().Core().V1().Services().Lister(),
+		serviceLister:    serviceLister,
 	}
 }
 

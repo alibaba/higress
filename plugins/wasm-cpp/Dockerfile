@@ -1,4 +1,4 @@
-ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools-proxy:release-1.12-2021-12-09T23-01-43
+ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools-proxy:release-1.19-04ab00931b61c082300832a7dd51634e5e3634ad
 FROM $BUILDER as builder
 
 ARG PLUGIN_NAME

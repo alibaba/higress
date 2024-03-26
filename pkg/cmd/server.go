@@ -16,14 +16,13 @@ package cmd
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/alibaba/higress/pkg/bootstrap"
 	innerconstants "github.com/alibaba/higress/pkg/config/constants"
 	"github.com/spf13/cobra"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/cmd"
 	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/keepalive"
 	"istio.io/pkg/log"
 )
@@ -39,6 +38,20 @@ var (
 	waitForMonitorSignal = func(stop chan struct{}) {
 		cmd.WaitSignal(stop)
 	}
+
+	keepConfigLabels = env.Register(
+		"CONTROLLER_KEEP_XDS_CONFIG_LABELS",
+		true,
+		"If enabled, Higress Controller will keep all the labels when converting configs to xDS resources."+
+			" By default this is enabled. So far, this feature only works for Gateway resource.",
+	).Get()
+
+	keepConfigAnnotations = env.Register(
+		"CONTROLLER_KEEP_XDS_CONFIG_ANNOTATIONS",
+		true,
+		"If enabled, Higress Controller will keep the annotations when converting configs to xDS resources."+
+			" By default this is enabled. So far, this feature only works for Gateway resource.",
+	).Get()
 )
 
 // getServerCommand returns the server cobra command to be executed.
@@ -79,9 +92,11 @@ func getServerCommand() *cobra.Command {
 		GrpcAddress:          ":15051",
 		GrpcKeepAliveOptions: keepalive.DefaultOption(),
 		XdsOptions: bootstrap.XdsOptions{
-			DebounceAfter:     features.DebounceAfter,
-			DebounceMax:       features.DebounceMax,
-			EnableEDSDebounce: features.EnableEDSDebounce,
+			DebounceAfter:         features.DebounceAfter,
+			DebounceMax:           features.DebounceMax,
+			EnableEDSDebounce:     features.EnableEDSDebounce,
+			KeepConfigLabels:      keepConfigLabels,
+			KeepConfigAnnotations: keepConfigAnnotations,
 		},
 	}
 
@@ -99,9 +114,10 @@ func getServerCommand() *cobra.Command {
 	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeConfig, "kubeconfig", "",
 		"Use a Kubernetes configuration file instead of in-cluster configuration")
 	// RegistryOptions Controller options
-	serveCmd.PersistentFlags().DurationVar(&serverArgs.RegistryOptions.KubeOptions.ResyncPeriod, "resync", 60*time.Second,
-		"Controller resync interval")
-	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeOptions.DomainSuffix, "domain", constants.DefaultKubernetesDomain,
+	// TODO: Upgrade fix https://github.com/istio/istio/pull/38443
+	//serveCmd.PersistentFlags().DurationVar(&serverArgs.RegistryOptions.KubeOptions.ResyncPeriod, "resync", 60*time.Second,
+	//	"Controller resync interval")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeOptions.DomainSuffix, "domain", constants.DefaultClusterLocalDomain,
 		"DNS domain suffix")
 	serveCmd.PersistentFlags().StringVar((*string)(&serverArgs.RegistryOptions.KubeOptions.ClusterID), "clusterID", "Kubernetes",
 		"The ID of the cluster that this instance resides")

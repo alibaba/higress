@@ -622,7 +622,7 @@ func (w *watcher) DubboChildToServiceEntry(serviceEntry map[string]InterfaceConf
 }
 
 func (w *watcher) generateServiceEntry(config InterfaceConfig) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range config.Endpoints {
@@ -631,7 +631,7 @@ func (w *watcher) generateServiceEntry(config InterfaceConfig) *v1alpha3.Service
 			protocol = common.ParseProtocol(service.Metadata[PROTOCOL])
 		}
 		portNumber, _ := strconv.Atoi(service.Port)
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(portNumber),
 			Protocol: protocol.String(),

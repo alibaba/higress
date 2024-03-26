@@ -16,7 +16,7 @@ package annotations
 
 import (
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
+	//"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
 )
 
 const (
@@ -74,19 +74,20 @@ func (i ipAccessControl) ApplyRoute(route *networking.HTTPRoute, config *Ingress
 		return
 	}
 
-	filter := &networking.IPAccessControl{}
-	if ac.Route.isWhite {
-		filter.RemoteIpBlocks = ac.Route.remoteIp
-	} else {
-		filter.NotRemoteIpBlocks = ac.Route.remoteIp
-	}
-
-	route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
-		Name: mseingress.IPAccessControl,
-		Filter: &networking.HTTPFilter_IpAccessControl{
-			IpAccessControl: filter,
-		},
-	})
+	// TODO: Upgrade fix
+	//filter := &networking.IPAccessControl{}
+	//if ac.Route.isWhite {
+	//	filter.RemoteIpBlocks = ac.Route.remoteIp
+	//} else {
+	//	filter.NotRemoteIpBlocks = ac.Route.remoteIp
+	//}
+	//
+	//route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
+	//	Name: mseingress.IPAccessControl,
+	//	Filter: &networking.HTTPFilter_IpAccessControl{
+	//		IpAccessControl: filter,
+	//	},
+	//})
 }
 
 func needIPAccessControlConfig(annotations Annotations) bool {

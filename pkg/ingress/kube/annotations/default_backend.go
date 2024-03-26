@@ -17,11 +17,10 @@ package annotations
 import (
 	"strconv"
 
-	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
-
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	networking "istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -40,7 +39,7 @@ var (
 )
 
 type FallbackConfig struct {
-	DefaultBackend   model.NamespacedName
+	DefaultBackend   types.NamespacedName
 	Port             uint32
 	customHTTPErrors []uint32
 }
@@ -114,36 +113,37 @@ func (f fallback) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		return
 	}
 
+	// TODO: Upgrade fix
 	// Add fallback svc
-	route.Route[0].FallbackClusters = []*networking.Destination{
-		{
-			Host: util.CreateServiceFQDN(fallback.DefaultBackend.Namespace, fallback.DefaultBackend.Name),
-			Port: &networking.PortSelector{
-				Number: fallback.Port,
-			},
-		},
-	}
+	//route.Route[0].FallbackClusters = []*networking.Destination{
+	//	{
+	//		Host: util.CreateServiceFQDN(fallback.DefaultBackend.Namespace, fallback.DefaultBackend.Name),
+	//		Port: &networking.PortSelector{
+	//			Number: fallback.Port,
+	//		},
+	//	},
+	//}
 
-	if len(fallback.customHTTPErrors) > 0 {
-		route.InternalActiveRedirect = &networking.HTTPInternalActiveRedirect{
-			MaxInternalRedirects:  1,
-			RedirectResponseCodes: fallback.customHTTPErrors,
-			AllowCrossScheme:      true,
-			Headers: &networking.Headers{
-				Request: &networking.Headers_HeaderOperations{
-					Add: map[string]string{
-						FallbackInjectHeaderRouteName: route.Name + FallbackRouteNameSuffix,
-						FallbackInjectFallbackService: fallback.DefaultBackend.String(),
-					},
-				},
-			},
-			RedirectUrlRewriteSpecifier: &networking.HTTPInternalActiveRedirect_RedirectUrl{
-				RedirectUrl: defaultRedirectUrl,
-			},
-			ForcedUseOriginalHost:             true,
-			ForcedAddHeaderBeforeRouteMatcher: true,
-		}
-	}
+	//if len(fallback.customHTTPErrors) > 0 {
+	//	route.InternalActiveRedirect = &networking.HTTPInternalActiveRedirect{
+	//		MaxInternalRedirects:  1,
+	//		RedirectResponseCodes: fallback.customHTTPErrors,
+	//		AllowCrossScheme:      true,
+	//		Headers: &networking.Headers{
+	//			Request: &networking.Headers_HeaderOperations{
+	//				Add: map[string]string{
+	//					FallbackInjectHeaderRouteName: route.Name + FallbackRouteNameSuffix,
+	//					FallbackInjectFallbackService: fallback.DefaultBackend.String(),
+	//				},
+	//			},
+	//		},
+	//		RedirectUrlRewriteSpecifier: &networking.HTTPInternalActiveRedirect_RedirectUrl{
+	//			RedirectUrl: defaultRedirectUrl,
+	//		},
+	//		ForcedUseOriginalHost:             true,
+	//		ForcedAddHeaderBeforeRouteMatcher: true,
+	//	}
+	//}
 }
 
 func needFallback(annotations Annotations) bool {
