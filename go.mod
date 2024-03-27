@@ -44,13 +44,13 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.8.3
-	go.uber.org/atomic v1.9.0
+	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	istio.io/api v0.0.0-20211122181927-8da52c66ff23
-	istio.io/client-go v1.12.0-rc.1.0.20211118171212-b744b6f111e4
+	istio.io/client-go v1.12.0-rc.1.0.20211118171212-b744b6f111e4 // indirect
 	istio.io/gogo-genproto v0.0.0-20211115195057-0e34bdd2be67
 	istio.io/istio v0.0.0
 	istio.io/pkg v0.0.0-20211115195056-e379f31ee62a
@@ -172,6 +172,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -185,6 +186,7 @@ require (
 	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/lib/pq v1.10.0 // indirect
+	github.com/libdns/libdns v0.2.1 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -194,7 +196,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
-	github.com/miekg/dns v1.1.43 // indirect
+	github.com/miekg/dns v1.1.55 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
@@ -248,20 +250,23 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	github.com/yl2chen/cidranger v1.0.2 // indirect
+	github.com/zeebo/blake3 v0.2.3 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.12.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
+	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
-	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/mod v0.11.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
-	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/term v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/sync v0.3.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
+	golang.org/x/tools v0.10.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/jsonpatch/v3 v3.0.1 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
@@ -276,8 +281,6 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/apiserver v0.22.5 // indirect
-	k8s.io/component-base v0.22.5 // indirect
-	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	oras.land/oras-go v0.4.0 // indirect
@@ -300,13 +303,19 @@ replace istio.io/client-go => ./external/client-go
 
 replace istio.io/istio => ./external/istio
 
+replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0.1
+
 require (
+	github.com/caddyserver/certmagic v0.20.0
 	github.com/evanphx/json-patch/v5 v5.6.0
 	github.com/google/yamlfmt v0.10.0
 	github.com/kylelemons/godebug v1.1.0
+	github.com/mholt/acmez v1.2.0
 	github.com/tidwall/gjson v1.17.0
 	helm.sh/helm/v3 v3.7.1
 	k8s.io/apiextensions-apiserver v0.25.4
+	k8s.io/component-base v0.22.5
+	k8s.io/klog/v2 v2.60.1
 	knative.dev/networking v0.0.0-20220302134042-e8b2eb995165
 	knative.dev/pkg v0.0.0-20220301181942-2fdd5f232e77
 )
