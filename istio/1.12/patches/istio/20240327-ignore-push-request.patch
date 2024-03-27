@@ -1,0 +1,161 @@
+diff -Naur istio/pilot/pkg/features/pilot.go istio_new/pilot/pkg/features/pilot.go
+--- istio/pilot/pkg/features/pilot.go	2024-03-27 17:13:47
++++ istio_new/pilot/pkg/features/pilot.go	2024-03-27 16:53:30
+@@ -578,6 +578,11 @@
+ 	DefaultUpstreamConcurrencyThreshold = env.RegisterIntVar("DEFAULT_UPSTREAM_CONCURRENCY_THRESHOLD", 1000000,
+ 		"The default threshold of max_requests/max_pending_requests/max_connections of circuit breaker").Get()
+ 	HigressSystemNs = env.RegisterStringVar("HIGRESS_SYSTEM_NS", "higress-system", "The system namespace of Higress").Get()
++
++	IgnorePushRequest = env.RegisterBoolVar(
++		"PILOT_IGNORE_PUSH_REQUEST",
++		false,
++		"Determines whether or not ignore the PushRequest to the xDS server.").Get()
+ 	// End added by ingress
+ )
+ 
+diff -Naur istio/pilot/pkg/model/push_context.go istio_new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2024-03-27 17:13:47
++++ istio_new/pilot/pkg/model/push_context.go	2024-03-27 17:12:46
+@@ -400,6 +400,8 @@
+ 	NamespaceUpdate TriggerReason = "namespace"
+ 	// ClusterUpdate describes a push triggered by a Cluster change
+ 	ClusterUpdate TriggerReason = "cluster"
++	// ignorePushRequestUpdate describes a push triggered after disable ignorePushRequest
++	IgnorePushRequestUpdate TriggerReason = "force push after disable ignorePushRequest"
+ )
+ 
+ // Merge two update requests together
+diff -Naur istio/pilot/pkg/xds/debug.go istio_new/pilot/pkg/xds/debug.go
+--- istio/pilot/pkg/xds/debug.go	2024-03-27 17:13:47
++++ istio_new/pilot/pkg/xds/debug.go	2024-03-27 17:01:58
+@@ -208,6 +208,9 @@
+ 	// Added by ingress
+ 	s.addDebugHandler(mux, internalMux, "/debug/ingressRoutez", "List all auto generated routes from ingress.", s.ingressRoutez)
+ 	s.addDebugHandler(mux, internalMux, "/debug/ingressDomainz", "List all auto generated gateway from ingress.", s.ingressDomainz)
++	s.addDebugHandler(mux, internalMux, "/debug/ignorePushRequest", "Ignore the PushRequest push to xDS server", s.ignorePushRequestHandler)
++	s.addDebugHandler(mux, internalMux, "/debug/ignorePushRequest?disable=true", "Not ignore the PushRequest push to xDS server", s.ignorePushRequestHandler)
++	s.addDebugHandler(mux, internalMux, "/debug/ignorePushRequest?disable=true&push=true", "Not ignore the PushRequest push to xDS server and force push once", s.ignorePushRequestHandler)
+ 	// End added by ingress
+ }
+ 
+@@ -1015,4 +1018,40 @@
+ 
+ func (s *DiscoveryServer) ingressDomainz(w http.ResponseWriter, _ *http.Request) {
+ 	writeJSON(w, s.Env.IngressStore.GetIngressDomains())
++}
++
++func (s *DiscoveryServer) ignorePushRequestHandler(w http.ResponseWriter, req *http.Request) {
++	if err := req.ParseForm(); err != nil {
++		w.WriteHeader(http.StatusBadRequest)
++		_, _ = w.Write([]byte("Failed to parse request\n"))
++		return
++	}
++
++	disable := req.Form.Get("disable")
++
++	if disable == "" || disable == "false" {
++		if req.Form.Get("push") != "" {
++			_, _ = w.Write([]byte("Not allow force push when ignoring PushRequest push to xDS server\n"))
++			return
++		}
++
++		s.ignorePushRequest.Store(true)
++		_, _ = w.Write([]byte("Ignore the PushRequest push to xDS server from now"))
++	} else if disable == "true" {
++		s.ignorePushRequest.Store(false)
++		describe := "Not ignore the PushRequest push to xDS server from now"
++		if req.Form.Get("push") != "" {
++			s.ConfigUpdate(&model.PushRequest{
++				Full:   true,
++				Reason: []model.TriggerReason{model.IgnorePushRequestUpdate},
++			})
++			describe += " and force push once"
++		}
++
++		_, _ = w.Write([]byte(describe))
++	} else {
++		_, _ = w.Write([]byte("Request qurey \"disable\" args value must be true or false\n"))
++	}
++
++	return
+ }
+diff -Naur istio/pilot/pkg/xds/discovery.go istio_new/pilot/pkg/xds/discovery.go
+--- istio/pilot/pkg/xds/discovery.go	2024-03-27 17:13:47
++++ istio_new/pilot/pkg/xds/discovery.go	2024-03-27 17:00:49
+@@ -166,6 +166,9 @@
+ 	// ClusterAliases are aliase names for cluster. When a proxy connects with a cluster ID
+ 	// and if it has a different alias we should use that a cluster ID for proxy.
+ 	ClusterAliases map[cluster.ID]cluster.ID
++
++	// Whether or not ignore the PushRequest to the xDS server
++	ignorePushRequest *atomic.Bool
+ }
+ 
+ // EndpointShards holds the set of endpoint shards of a service. Registries update
+@@ -212,8 +215,9 @@
+ 			debounceMax:       features.DebounceMax,
+ 			enableEDSDebounce: features.EnableEDSDebounce,
+ 		},
+-		Cache:      model.DisabledCache{},
+-		instanceID: instanceID,
++		Cache:             model.DisabledCache{},
++		instanceID:        instanceID,
++		ignorePushRequest: atomic.NewBool(features.IgnorePushRequest),
+ 	}
+ 
+ 	out.ClusterAliases = make(map[cluster.ID]cluster.ID)
+@@ -409,12 +413,14 @@
+ // ConfigUpdate implements ConfigUpdater interface, used to request pushes.
+ // It replaces the 'clear cache' from v1.
+ func (s *DiscoveryServer) ConfigUpdate(req *model.PushRequest) {
+-	if req.Full {
+-		log.Infof("full push happen, reason:%v", req.Reason)
++	if !s.ignorePushRequest.Load() {
++		if req.Full {
++			log.Infof("full push happen, reason:%v", req.Reason)
++		}
++		inboundConfigUpdates.Increment()
++		s.InboundUpdates.Inc()
++		s.pushChannel <- req
+ 	}
+-	inboundConfigUpdates.Increment()
+-	s.InboundUpdates.Inc()
+-	s.pushChannel <- req
+ }
+ 
+ // Debouncing and push request happens in a separate thread, it uses locks
+diff -Naur istio/pilot/pkg/xds/monitoring.go istio_new/pilot/pkg/xds/monitoring.go
+--- istio/pilot/pkg/xds/monitoring.go	2024-03-27 17:13:46
++++ istio_new/pilot/pkg/xds/monitoring.go	2024-03-27 17:18:35
+@@ -204,18 +204,19 @@
+ 
+ // triggerMetric is a precomputed monitoring.Metric for each trigger type. This saves on a lot of allocations
+ var triggerMetric = map[model.TriggerReason]monitoring.Metric{
+-	model.EndpointUpdate:  pushTriggers.With(typeTag.Value(string(model.EndpointUpdate))),
+-	model.ConfigUpdate:    pushTriggers.With(typeTag.Value(string(model.ConfigUpdate))),
+-	model.ServiceUpdate:   pushTriggers.With(typeTag.Value(string(model.ServiceUpdate))),
+-	model.ProxyUpdate:     pushTriggers.With(typeTag.Value(string(model.ProxyUpdate))),
+-	model.GlobalUpdate:    pushTriggers.With(typeTag.Value(string(model.GlobalUpdate))),
+-	model.UnknownTrigger:  pushTriggers.With(typeTag.Value(string(model.UnknownTrigger))),
+-	model.DebugTrigger:    pushTriggers.With(typeTag.Value(string(model.DebugTrigger))),
+-	model.SecretTrigger:   pushTriggers.With(typeTag.Value(string(model.SecretTrigger))),
+-	model.NetworksTrigger: pushTriggers.With(typeTag.Value(string(model.NetworksTrigger))),
+-	model.ProxyRequest:    pushTriggers.With(typeTag.Value(string(model.ProxyRequest))),
+-	model.NamespaceUpdate: pushTriggers.With(typeTag.Value(string(model.NamespaceUpdate))),
+-	model.ClusterUpdate:   pushTriggers.With(typeTag.Value(string(model.ClusterUpdate))),
++	model.EndpointUpdate:          pushTriggers.With(typeTag.Value(string(model.EndpointUpdate))),
++	model.ConfigUpdate:            pushTriggers.With(typeTag.Value(string(model.ConfigUpdate))),
++	model.ServiceUpdate:           pushTriggers.With(typeTag.Value(string(model.ServiceUpdate))),
++	model.ProxyUpdate:             pushTriggers.With(typeTag.Value(string(model.ProxyUpdate))),
++	model.GlobalUpdate:            pushTriggers.With(typeTag.Value(string(model.GlobalUpdate))),
++	model.UnknownTrigger:          pushTriggers.With(typeTag.Value(string(model.UnknownTrigger))),
++	model.DebugTrigger:            pushTriggers.With(typeTag.Value(string(model.DebugTrigger))),
++	model.SecretTrigger:           pushTriggers.With(typeTag.Value(string(model.SecretTrigger))),
++	model.NetworksTrigger:         pushTriggers.With(typeTag.Value(string(model.NetworksTrigger))),
++	model.ProxyRequest:            pushTriggers.With(typeTag.Value(string(model.ProxyRequest))),
++	model.NamespaceUpdate:         pushTriggers.With(typeTag.Value(string(model.NamespaceUpdate))),
++	model.ClusterUpdate:           pushTriggers.With(typeTag.Value(string(model.ClusterUpdate))),
++	model.IgnorePushRequestUpdate: pushTriggers.With(typeTag.Value(string(model.IgnorePushRequestUpdate))),
+ }
+ 
+ func recordPushTriggers(reasons ...model.TriggerReason) {
