@@ -963,7 +963,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"max_concurrent_streams":         100,
 							"initial_stream_window_size":     65535,
 							"initial_connection_window_size": 1048576,
-							"stream_idle_timeout":            "0s",
+							"stream_idle_timeout":            "180s",
 							"max_request_headers_kb":         60,
 							"idle_timeout":                   "180s",
 						},
