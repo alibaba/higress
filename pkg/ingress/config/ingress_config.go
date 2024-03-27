@@ -798,7 +798,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		PluginConfig:    obj.PluginConfig,
 		PluginName:      obj.PluginName,
 		Phase:           extensions.PluginPhase(obj.Phase),
-		Priority:        obj.Priority,
+		Priority:        &types.Int64Value{Value: int64(obj.GetPriority().Value)},
 	}
 	if result.PluginConfig != nil {
 		return result, nil
@@ -819,7 +819,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				continue
 			}
 			if rule.Config == nil {
-				return nil, errors.New("invalid rule has no config")
+				rule.Config = &types.Struct{
+					Fields: map[string]*types.Value{},
+				}
 			}
 			v := &types.Value_StructValue{
 				StructValue: rule.Config,
