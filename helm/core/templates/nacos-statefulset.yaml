@@ -1,0 +1,104 @@
+{{- if .Values.nacos.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.nacos.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+  {{- toYaml .Values.nacos.annotations | indent 4 }}
+spec:
+  serviceName: {{ .Values.nacos.name }}-service
+  replicas: {{ .Values.nacos.replica }}
+  {{- if .Values.nacos.podManagementPolicy }}
+  podManagementPolicy: {{ .Values.nacos.podManagementPolicy }}
+  {{- else}}
+  podManagementPolicy: OrderedReady
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nacos.name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nacos.name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.nacos.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nacos.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nacos.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.nacos.name }}
+          image: "{{ .Values.nacos.hub }}:{{ .Values.nacos.tag }}"
+          imagePullPolicy: {{ .Values.nacos.pullPolicy }}
+          startupProbe:
+            initialDelaySeconds: 180
+            periodSeconds: 5
+            timeoutSeconds: 10
+            httpGet:
+              scheme: HTTP
+              port: {{ .Values.nacos.service.port }}
+              path: /nacos/v1/console/health/readiness
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 10
+            httpGet:
+              scheme: HTTP
+              port: {{ .Values.nacos.service.port }}
+              path: /nacos/v1/console/health/liveness
+          ports:
+            - name: http
+              containerPort: {{ .Values.nacos.service.port }}
+              protocol: TCP
+            - containerPort: {{ add .Values.nacos.service.port 1000}}
+              name: client-rpc
+            - containerPort: {{ add .Values.nacos.service.port 1001 }}
+              name: raft-rpc
+            - containerPort: 7848
+              name: old-raft-rpc
+          resources:
+          {{- toYaml .Values.nacos.resources | nindent 12 }}
+          env:
+            - name: NACOS_SERVER_PORT
+              value: {{ .Values.nacos.service.port | quote }}
+            - name: NACOS_APPLICATION_PORT
+              value: {{ .Values.nacos.service.port | quote }}
+            - name: PREFER_HOST_MODE
+              value: {{ .Values.nacos.preferHostMode | quote }}
+            - name: MODE
+              value: "standalone"
+            - name: EMBEDDED_STORAGE
+              value: embedded
+          volumeMounts:
+            - name: data
+              mountPath: /home/nacos/plugins/peer-finder
+              subPath: peer-finder
+            - name: data
+              mountPath: /home/nacos/data
+              subPath: data
+            - name: data
+              mountPath: /home/nacos/logs
+              subPath: logs
+      {{- if not .Values.nacos.persistence.enabled  }}
+      volumes:
+        - name: data
+          emptyDir: { }
+  {{- end }}
+  {{- if .Values.nacos.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+  {{- toYaml .Values.nacos.persistence.data | nindent 8 }}
+  {{- end }}
+{{- end }}

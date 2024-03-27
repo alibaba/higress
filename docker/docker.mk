@@ -14,12 +14,16 @@
 
 docker.higress: BUILD_ARGS=--build-arg BASE_VERSION=${BASE_VERSION} --build-arg HUB=${HUB}
 docker.higress: $(OUT_LINUX)/higress
+docker.higress: docker/wait-for-apiserver.sh
+docker.higress: docker/run-higress.sh
 docker.higress: docker/Dockerfile.higress
 	$(HIGRESS_DOCKER_RULE)
 
 docker.higress-buildx: BUILD_ARGS=--build-arg BASE_VERSION=${BASE_VERSION} --build-arg HUB=${HUB}
 docker.higress-buildx: $(AMD64_OUT_LINUX)/higress
 docker.higress-buildx: $(ARM64_OUT_LINUX)/higress
+docker.higress: docker/wait-for-apiserver.sh
+docker.higress: docker/run-higress.sh
 docker.higress-buildx: docker/Dockerfile.higress
 	$(HIGRESS_DOCKER_BUILDX_RULE)
 

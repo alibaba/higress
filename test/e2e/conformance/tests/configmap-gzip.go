@@ -20,7 +20,6 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
@@ -296,10 +295,7 @@ var ConfigmapGzip = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("Configmap Gzip", func(t *testing.T) {
 			for _, testcase := range testCases {
-				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
-				if err != nil {
-					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
-				}
+				suite.Applier.MustApplyConfigmapDataWithYaml(t, suite.ConfigCenter, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig, suite.EnableApiServer)
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
 			}
 		})
@@ -315,10 +311,7 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
 			for _, testcase := range testCases {
 				// apply config
-				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
-				if err != nil {
-					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
-				}
+				suite.Applier.MustApplyConfigmapDataWithYaml(t, suite.ConfigCenter, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig, suite.EnableApiServer)
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
 			}
 		})

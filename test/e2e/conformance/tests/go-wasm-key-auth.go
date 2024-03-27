@@ -30,6 +30,7 @@ var WasmPluginsKeyAuth = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the key-auth WASM plugin.",
 	Manifests:   []string{"tests/go-wasm-key-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	PluginName:  "key-auth",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

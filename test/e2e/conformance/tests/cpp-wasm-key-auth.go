@@ -29,6 +29,7 @@ var CPPWasmPluginsKeyAuth = suite.ConformanceTest{
 	ShortName:   "CPPWasmPluginsKeyAuth",
 	Description: "The Ingress in the higress-conformance-infra namespace test the CPP key_auth wasmplugins.",
 	Manifests:   []string{"tests/cpp-wasm-key-auth.yaml"},
+	PluginName:  "key-auth",
 	Features:    []suite.SupportedFeature{suite.WASMCPPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{

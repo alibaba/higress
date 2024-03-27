@@ -22,14 +22,18 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	ingress "github.com/alibaba/higress/test/e2e/conformance"
+	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	yamlFromK8s "sigs.k8s.io/yaml"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 )
@@ -248,4 +252,91 @@ func getContentsFromPathOrURL(location string, timeoutConfig config.TimeoutConfi
 		return nil, err
 	}
 	return bytes.NewBuffer(b), nil
+}
+
+// MustPublishConfig publish config to config center
+func (a Applier) MustPublishConfig(t *testing.T, timeoutConfig config.TimeoutConfig, location string, cleanup bool, cc cc.Storage) {
+	data, err := getContentsFromPathOrURL(location, timeoutConfig)
+	require.NoError(t, err)
+
+	decoder := yaml.NewYAMLOrJSONDecoder(data, 4096)
+
+	resources, err := a.prepareResources(t, decoder)
+	if err != nil {
+		t.Logf("🧳 Manifest: %s", data.String())
+		require.NoErrorf(t, err, "error parsing manifest")
+	}
+
+	for i := range resources {
+		r := resources[i]
+		var content []byte
+		content, err = r.MarshalJSON()
+		require.NoError(t, err)
+		// publish
+		err = cc.PublishConfig(r.GetKind(), r.GetName(), r.GetNamespace(), string(content))
+		require.NoError(t, err)
+		if cleanup {
+			t.Cleanup(func() {
+				// delete
+				t.Logf("🚮 Deleting %s %s", r.GetName(), r.GetKind())
+				err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
+				require.NoError(t, err)
+			})
+		}
+	}
+}
+
+// MustDeleteConfig delete config from config center
+func (a Applier) MustDeleteConfig(t *testing.T, timeoutConfig config.TimeoutConfig, location string, cc cc.Storage) {
+	data, err := getContentsFromPathOrURL(location, timeoutConfig)
+	require.NoError(t, err)
+
+	decoder := yaml.NewYAMLOrJSONDecoder(data, 4096)
+
+	resources, err := a.prepareResources(t, decoder)
+	if err != nil {
+		t.Logf("🧳 Manifest: %s", data.String())
+		require.NoErrorf(t, err, "error parsing manifest")
+	}
+
+	for i := range resources {
+		r := resources[i]
+		t.Logf("🚮 Deleting %s %s", r.GetName(), r.GetKind())
+		err = cc.DeleteConfig(r.GetKind(), r.GetName(), r.GetNamespace())
+		require.NoError(t, err)
+	}
+}
+
+// MustApplyConfigmapDataWithYaml apply configmap data with yaml
+func (a Applier) MustApplyConfigmapDataWithYaml(t *testing.T, cc cc.Storage, c client.Client, namespace string, name string, key string, val any, enableApiServer bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cm := &v1.ConfigMap{}
+	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm)
+	require.NoError(t, err)
+
+	y, err := yamlFromK8s.Marshal(val)
+	require.NoError(t, err)
+	data := string(y)
+
+	if cm.Data == nil {
+		cm.Data = make(map[string]string, 0)
+	}
+	cm.Data[key] = data
+
+	t.Logf("🏗 Updating %s %s", name, namespace)
+
+	if enableApiServer {
+		marshal, err := yamlFromK8s.Marshal(cm)
+		require.NoError(t, err)
+		err = cc.PublishConfig("configmap", cm.GetName(), cm.GetNamespace(), string(marshal))
+		require.NoError(t, err)
+		return
+	}
+
+	if err := c.Update(ctx, cm); err != nil {
+		require.NoError(t, err)
+	}
+
 }
