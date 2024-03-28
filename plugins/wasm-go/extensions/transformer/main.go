@@ -243,6 +243,8 @@ func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) 
 		return errors.Wrapf(err, "failed to new transformer")
 	}
 
+	log.Infof("transform config is: reqRules:%+v, respRules:%+v", config.reqRules, config.respRules)
+
 	return nil
 }
 
@@ -312,11 +314,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	if hs["content-type"] != nil {
 		contentType = hs["content-type"][0]
 	}
-	if config.reqTrans.IsBodyChange() && isValidRequestContentType(contentType) {
+	ctx.SetContext("content-type", contentType)
+
+	isValidRequestContent := isValidRequestContentType(contentType)
+	isBodyChange := config.reqTrans.IsBodyChange()
+	needBodyMapSource := config.reqTrans.NeedBodyMapSource()
+
+	log.Debugf("contentType:%s, isValidRequestContent:%v, isBodyChange:%v, needBodyMapSource:%v",
+		contentType, isValidRequestContent, isBodyChange, needBodyMapSource)
+
+	if isBodyChange && isValidRequestContent {
 		delete(hs, "content-length")
-		ctx.SetContext("content-type", contentType)
-	} else {
-		ctx.DontReadRequestBody()
 	}
 
 	qs, err := parseQueryByPath(path)
@@ -328,26 +336,26 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	ctx.SetContext("headers", hs)
 	ctx.SetContext("querys", qs)
 
-	var mapSourceData MapSourceData
-	switch config.reqTrans.GetMapSource() {
-	case "headers":
-		mapSourceData.mapSourceType = "headers"
-		mapSourceData.kvs = hs
-	case "querys":
-		mapSourceData.mapSourceType = "querys"
-		mapSourceData.kvs = qs
-	case "self":
+	if !isValidRequestContent || (!isBodyChange && !needBodyMapSource) {
+		ctx.DontReadRequestBody()
+	} else if needBodyMapSource {
+		// we need do transform during body phase
+		ctx.SetContext("need_head_trans", struct{}{})
+		log.Debug("delay header's transform to body phase")
+		return types.HeaderStopIteration
+	}
 
-	default:
-		log.Warnf("invalid mapSource in request header: %v", config.reqTrans.GetMapSource())
-		return types.ActionContinue
+	mapSourceData := make(map[string]MapSourceData)
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+	mapSourceData["querys"] = MapSourceData{
+		mapSourceType: "querys",
+		kvs:           qs,
 	}
 
 	if config.reqTrans.IsHeaderChange() {
-		if config.reqTrans.GetMapSource() == "self" {
-			mapSourceData.mapSourceType = "headers"
-			mapSourceData.kvs = hs
-		}
 		if err = config.reqTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request headers: %v", err)
 			return types.ActionContinue
@@ -355,10 +363,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	}
 
 	if config.reqTrans.IsQueryChange() {
-		if config.reqTrans.GetMapSource() == "self" {
-			mapSourceData.mapSourceType = "querys"
-			mapSourceData.kvs = qs
-		}
 		if err = config.reqTrans.TransformQuerys(host, path, qs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request query params: %v", err)
 			return types.ActionContinue
@@ -381,7 +385,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
-	if config.reqTrans == nil || !config.reqTrans.IsBodyChange() {
+	if config.reqTrans == nil {
 		return types.ActionContinue
 	}
 
@@ -406,51 +410,80 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 		return types.ActionContinue
 	}
 
-	var mapSourceData MapSourceData
+	mapSourceData := make(map[string]MapSourceData)
 	var hs map[string][]string
 	var qs map[string][]string
-	switch config.reqTrans.GetMapSource() {
-	case "headers":
-		{
-			hs = ctx.GetContext("headers").(map[string][]string)
-			if hs == nil {
-				log.Warn("failed to get request headers")
+
+	hs = ctx.GetContext("headers").(map[string][]string)
+	if hs == nil {
+		log.Warn("failed to get request headers")
+		return types.ActionContinue
+	}
+	if hs[":authority"] == nil {
+		log.Warn(errGetRequestHost.Error())
+		return types.ActionContinue
+	}
+	if hs[":path"] == nil {
+		log.Warn(errGetRequestPath.Error())
+		return types.ActionContinue
+	}
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+
+	qs = ctx.GetContext("querys").(map[string][]string)
+	if qs == nil {
+		log.Warn("failed to get request querys")
+		return types.ActionContinue
+	}
+	mapSourceData["querys"] = MapSourceData{
+		mapSourceType: "querys",
+		kvs:           qs,
+	}
+
+	switch structuredBody.(type) {
+	case map[string]interface{}:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyJson",
+			json:          structuredBody.(map[string]interface{})["body"].([]byte),
+		}
+	case map[string][]string:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyKv",
+			kvs:           structuredBody.(map[string][]string),
+		}
+	}
+
+	if ctx.GetContext("need_head_trans") != nil {
+		if config.reqTrans.IsHeaderChange() {
+			if err = config.reqTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
+				log.Warnf("failed to transform request headers: %v", err)
 				return types.ActionContinue
 			}
-			if hs[":authority"] == nil {
-				log.Warn(errGetRequestHost.Error())
-				return types.ActionContinue
-			}
-			if hs[":path"] == nil {
-				log.Warn(errGetRequestPath.Error())
-				return types.ActionContinue
-			}
-			mapSourceData.mapSourceType = "headers"
-			mapSourceData.kvs = hs
 		}
 
-	case "querys":
-		{
-			qs = ctx.GetContext("querys").(map[string][]string)
-			if qs == nil {
-				log.Warn("failed to get request querys")
+		if config.reqTrans.IsQueryChange() {
+			if err = config.reqTrans.TransformQuerys(host, path, qs, mapSourceData); err != nil {
+				log.Warnf("failed to transform request query params: %v", err)
 				return types.ActionContinue
 			}
-			mapSourceData.mapSourceType = "querys"
-			mapSourceData.kvs = qs
+			path, err = constructPath(path, qs)
+			if err != nil {
+				log.Warnf("failed to construct path: %v", err)
+				return types.ActionContinue
+			}
+			hs[":path"] = []string{path}
 		}
 
-	case "body", "self":
-		switch structuredBody.(type) {
-		case map[string]interface{}:
-			mapSourceData.mapSourceType = "bodyJson"
-			mapSourceData.json = structuredBody.(map[string]interface{})["body"].([]byte)
-		case map[string][]string:
-			mapSourceData.mapSourceType = "bodyKv"
-			mapSourceData.kvs = structuredBody.(map[string][]string)
+		headers := reconvertHeaders(hs)
+		if err = proxywasm.ReplaceHttpRequestHeaders(headers); err != nil {
+			log.Warnf("failed to replace request headers: %v", err)
+			return types.ActionContinue
 		}
-	default:
-		log.Warnf("invalid mapSource in request body: %v", config.reqTrans.GetMapSource())
+	}
+
+	if !config.reqTrans.IsBodyChange() {
 		return types.ActionContinue
 	}
 
@@ -495,21 +528,28 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	if hs["content-type"] != nil {
 		contentType = hs["content-type"][0]
 	}
-	if config.respTrans.IsBodyChange() && isValidResponseContentType(contentType) {
+	ctx.SetContext("content-type", contentType)
+
+	isValidResponseContent := isValidResponseContentType(contentType)
+	isBodyChange := config.respTrans.IsBodyChange()
+	needBodyMapSource := config.respTrans.NeedBodyMapSource()
+
+	if isBodyChange && isValidResponseContent {
 		delete(hs, "content-length")
-		ctx.SetContext("content-type", contentType)
-	} else {
-		ctx.DontReadResponseBody()
 	}
 
-	var mapSourceData MapSourceData
-	switch config.respTrans.GetMapSource() {
-	case "headers", "self":
-		mapSourceData.mapSourceType = "headers"
-		mapSourceData.kvs = hs
-	default:
-		log.Warnf("invalid mapSource in response header: %v", config.respTrans.GetMapSource())
-		return types.ActionContinue
+	if !isValidResponseContent || (!isBodyChange && !needBodyMapSource) {
+		ctx.DontReadResponseBody()
+	} else if needBodyMapSource {
+		// we need do transform during body phase
+		ctx.SetContext("need_head_trans", struct{}{})
+		return types.HeaderStopIteration
+	}
+
+	mapSourceData := make(map[string]MapSourceData)
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
 	}
 
 	if config.respTrans.IsHeaderChange() {
@@ -529,7 +569,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
-	if config.respTrans == nil || !config.respTrans.IsBodyChange() {
+	if config.respTrans == nil {
 		return types.ActionContinue
 	}
 
@@ -554,30 +594,48 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 		return types.ActionContinue
 	}
 
-	var mapSourceData MapSourceData
-	switch config.respTrans.GetMapSource() {
-	case "headers":
-		{
-			hs := ctx.GetContext("headers").(map[string][]string)
-			if hs == nil {
-				log.Warn("failed to get response headers")
+	mapSourceData := make(map[string]MapSourceData)
+	var hs map[string][]string
+
+	hs = ctx.GetContext("headers").(map[string][]string)
+	if hs == nil {
+		log.Warn("failed to get response headers")
+		return types.ActionContinue
+	}
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+
+	switch structuredBody.(type) {
+	case map[string]interface{}:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyJson",
+			json:          structuredBody.(map[string]interface{})["body"].([]byte),
+		}
+	case map[string][]string:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyKv",
+			kvs:           structuredBody.(map[string][]string),
+		}
+	}
+
+	if ctx.GetContext("need_head_trans") != nil {
+		if config.respTrans.IsHeaderChange() {
+			if err = config.respTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
+				log.Warnf("failed to transform response headers: %v", err)
 				return types.ActionContinue
 			}
-			mapSourceData.mapSourceType = "headers"
-			mapSourceData.kvs = hs
 		}
 
-	case "body", "self":
-		switch structuredBody.(type) {
-		case map[string]interface{}:
-			mapSourceData.mapSourceType = "bodyJson"
-			mapSourceData.json = structuredBody.(map[string]interface{})["body"].([]byte)
-		case map[string][]string:
-			mapSourceData.mapSourceType = "bodyKv"
-			mapSourceData.kvs = structuredBody.(map[string][]string)
+		headers := reconvertHeaders(hs)
+		if err = proxywasm.ReplaceHttpResponseHeaders(headers); err != nil {
+			log.Warnf("failed to replace response headers: %v", err)
+			return types.ActionContinue
 		}
-	default:
-		log.Warnf("invalid mapSource in response body: %v", config.respTrans.GetMapSource())
+	}
+
+	if !config.respTrans.IsBodyChange() {
 		return types.ActionContinue
 	}
 
@@ -657,36 +715,34 @@ func newTransformRule(rules []gjson.Result) (res []TransformRule, err error) {
 }
 
 type Transformer interface {
-	TransformHeaders(host, path string, hs map[string][]string, mapSourceData MapSourceData) error
-	TransformQuerys(host, path string, qs map[string][]string, mapSourceData MapSourceData) error
-	TransformBody(host, path string, body interface{}, mapSourceData MapSourceData) error
+	TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error
+	TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error
+	TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error
 	IsHeaderChange() bool
 	IsQueryChange() bool
 	IsBodyChange() bool
-	GetMapSource() string
+	NeedBodyMapSource() bool
 }
 
 var _ Transformer = (*requestTransformer)(nil)
 var _ Transformer = (*responseTransformer)(nil)
 
 type requestTransformer struct {
-	headerHandler  *kvHandler
-	queryHandler   *kvHandler
-	bodyHandler    *requestBodyHandler
-	isHeaderChange bool
-	isQueryChange  bool
-	isBodyChange   bool
-	// 目前插件在对request做map转换的时候只支持最多一个映射来源
-	// 取值：headers，querys，body，self
-	mapSource string
+	headerHandler     *kvHandler
+	queryHandler      *kvHandler
+	bodyHandler       *requestBodyHandler
+	isHeaderChange    bool
+	isQueryChange     bool
+	isBodyChange      bool
+	needBodyMapSource bool
 }
 
 func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
-	headerKvtGroup, isHeaderChange, withHeaderMapKvt, err := newKvtGroup(config.reqRules, "headers")
+	headerKvtGroup, isHeaderChange, _, err := newKvtGroup(config.reqRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
-	queryKvtGroup, isQueryChange, withQueryMapKvt, err := newKvtGroup(config.reqRules, "querys")
+	queryKvtGroup, isQueryChange, _, err := newKvtGroup(config.reqRules, "querys")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for querys")
 	}
@@ -695,12 +751,7 @@ func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
 
-	mapSource := getMapSourceFromRule(config.reqRules)
-
-	// TODO: not support mapping headers or querys from body in requestTransformer before #582 is fixed
-	if mapSource == "body" && (withHeaderMapKvt || withQueryMapKvt) {
-		return nil, errors.Wrap(err, "not support mapping headers or querys from body in requestTransformer")
-	}
+	bodyMapSource := bodyMapSourceInRule(config.reqRules)
 
 	return &requestTransformer{
 		headerHandler: &kvHandler{headerKvtGroup},
@@ -709,22 +760,22 @@ func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
 			formDataHandler: &kvHandler{bodyKvtGroup},
 			jsonHandler:     &jsonHandler{bodyKvtGroup},
 		},
-		isHeaderChange: isHeaderChange,
-		isQueryChange:  isQueryChange,
-		isBodyChange:   isBodyChange,
-		mapSource:      mapSource,
+		isHeaderChange:    isHeaderChange,
+		isQueryChange:     isQueryChange,
+		isBodyChange:      isBodyChange,
+		needBodyMapSource: bodyMapSource,
 	}, nil
 }
 
-func (t requestTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData MapSourceData) error {
+func (t requestTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	return t.headerHandler.handle(host, path, hs, mapSourceData)
 }
 
-func (t requestTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData MapSourceData) error {
+func (t requestTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	return t.queryHandler.handle(host, path, qs, mapSourceData)
 }
 
-func (t requestTransformer) TransformBody(host, path string, body interface{}, mapSourceData MapSourceData) error {
+func (t requestTransformer) TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error {
 	switch body.(type) {
 	case map[string][]string:
 		return t.bodyHandler.formDataHandler.handle(host, path, body.(map[string][]string), mapSourceData)
@@ -744,23 +795,22 @@ func (t requestTransformer) TransformBody(host, path string, body interface{}, m
 	return nil
 }
 
-func (t requestTransformer) IsHeaderChange() bool { return t.isHeaderChange }
-func (t requestTransformer) IsQueryChange() bool  { return t.isQueryChange }
-func (t requestTransformer) IsBodyChange() bool   { return t.isBodyChange }
-func (t requestTransformer) GetMapSource() string { return t.mapSource }
+func (t requestTransformer) IsHeaderChange() bool    { return t.isHeaderChange }
+func (t requestTransformer) IsQueryChange() bool     { return t.isQueryChange }
+func (t requestTransformer) IsBodyChange() bool      { return t.isBodyChange }
+func (t requestTransformer) NeedBodyMapSource() bool { return t.needBodyMapSource }
 
 type responseTransformer struct {
-	headerHandler  *kvHandler
-	bodyHandler    *responseBodyHandler
-	isHeaderChange bool
-	isBodyChange   bool
-	// 目前插件在对response做map转换的时候只支持最多一个映射来源
-	mapSource string
+	headerHandler     *kvHandler
+	bodyHandler       *responseBodyHandler
+	isHeaderChange    bool
+	isBodyChange      bool
+	needBodyMapSource bool
 }
 
 func newResponseTransformer(config *TransformerConfig) (Transformer, error) {
 
-	headerKvtGroup, isHeaderChange, withHeaderMapKvt, err := newKvtGroup(config.respRules, "headers")
+	headerKvtGroup, isHeaderChange, _, err := newKvtGroup(config.respRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
@@ -768,30 +818,27 @@ func newResponseTransformer(config *TransformerConfig) (Transformer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
-	mapSource := getMapSourceFromRule(config.respRules)
-	// TODO: not support mapping headers from body in responseTransformer before #582 is fixed
-	if mapSource == "body" && withHeaderMapKvt {
-		return nil, errors.Wrap(err, "not support mapping headers from body in responseTransformer")
-	}
+	bodyMapSource := bodyMapSourceInRule(config.respRules)
+
 	return &responseTransformer{
-		headerHandler:  &kvHandler{headerKvtGroup},
-		bodyHandler:    &responseBodyHandler{&jsonHandler{bodyKvtGroup}},
-		isHeaderChange: isHeaderChange,
-		isBodyChange:   isBodyChange,
-		mapSource:      mapSource,
+		headerHandler:     &kvHandler{headerKvtGroup},
+		bodyHandler:       &responseBodyHandler{&jsonHandler{bodyKvtGroup}},
+		isHeaderChange:    isHeaderChange,
+		isBodyChange:      isBodyChange,
+		needBodyMapSource: bodyMapSource,
 	}, nil
 }
 
-func (t responseTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData MapSourceData) error {
+func (t responseTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	return t.headerHandler.handle(host, path, hs, mapSourceData)
 }
 
-func (t responseTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData MapSourceData) error {
+func (t responseTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	// the response does not need to transform the query params, always returns nil
 	return nil
 }
 
-func (t responseTransformer) TransformBody(host, path string, body interface{}, mapSourceData MapSourceData) error {
+func (t responseTransformer) TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error {
 	switch body.(type) {
 	case map[string]interface{}:
 		m := body.(map[string]interface{})
@@ -808,10 +855,10 @@ func (t responseTransformer) TransformBody(host, path string, body interface{}, 
 	return nil
 }
 
-func (t responseTransformer) IsHeaderChange() bool { return t.isHeaderChange }
-func (t responseTransformer) IsQueryChange() bool  { return false } // the response does not need to transform the query params, always returns false
-func (t responseTransformer) IsBodyChange() bool   { return t.isBodyChange }
-func (t responseTransformer) GetMapSource() string { return t.mapSource }
+func (t responseTransformer) IsHeaderChange() bool    { return t.isHeaderChange }
+func (t responseTransformer) IsQueryChange() bool     { return false } // the response does not need to transform the query params, always returns false
+func (t responseTransformer) IsBodyChange() bool      { return t.isBodyChange }
+func (t responseTransformer) NeedBodyMapSource() bool { return t.needBodyMapSource }
 
 type requestBodyHandler struct {
 	formDataHandler *kvHandler
@@ -830,7 +877,7 @@ type jsonHandler struct {
 	kvtOps []kvtOperation
 }
 
-func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceData MapSourceData) error {
+func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	// arbitary order. for example: remove → rename → replace → add → append → map → dedupe
 
 	for _, kvtOp := range h.kvtOps {
@@ -887,17 +934,29 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
 			for _, map_ := range kvtOp.mapKvtGroup {
 				fromKey, toKey := map_.fromKey, map_.toKey
-				if mapSourceData.mapSourceType == "headers" {
+				if kvtOp.mapSource == "headers" {
 					fromKey = strings.ToLower(fromKey)
 				}
-				if fromValue, ok := mapSourceData.search(fromKey); ok {
-					switch mapSourceData.mapSourceType {
+				source, exist := mapSourceData[kvtOp.mapSource]
+				if !exist {
+					proxywasm.LogWarnf("map key failed, source:%s not exists", kvtOp.mapSource)
+					continue
+				}
+				proxywasm.LogDebugf("search key:%s in source:%s", fromKey, kvtOp.mapSource)
+				if fromValue, ok := source.search(fromKey); ok {
+					switch source.mapSourceType {
 					case "headers", "querys", "bodyKv":
 						kvs[toKey] = fromValue.([]string)
-						// TODO: not support mapping headers or querys from body  before #582 is fixed
-						// case "bodyJson":
-						// 	kvs[toKey] = fromValue
-						// }
+						proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+
+					case "bodyJson":
+						if valueJson, ok := fromValue.(gjson.Result); ok {
+							valueStr := valueJson.String()
+							if valueStr != "" {
+								kvs[toKey] = []string{valueStr}
+								proxywasm.LogDebugf("map key:%s to key:%s success, values is:%s", fromKey, toKey, valueStr)
+							}
+						}
 					}
 				}
 			}
@@ -938,7 +997,7 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 }
 
 // only for body
-func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData MapSourceData) (data []byte, err error) {
+func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map[string]MapSourceData) (data []byte, err error) {
 	// arbitary order. for example: remove → rename → replace → add → append → map → dedupe
 	if !gjson.ValidBytes(oriData) {
 		return nil, errors.New("invalid json body")
@@ -1054,14 +1113,30 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData Map
 			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
 			for _, map_ := range kvtOp.mapKvtGroup {
 				fromKey, toKey := map_.fromKey, map_.toKey
-				if mapSourceData.mapSourceType == "headers" {
+				if kvtOp.mapSource == "headers" {
 					fromKey = strings.ToLower(fromKey)
 				}
-				if fromValue, ok := mapSourceData.search(fromKey); ok {
-					// search返回的类型为[]string或者gjson.Result.Value()
-					// sjson.SetBytes()能够直接处理[]byte，其他更复杂的数据类型均会json.Marshall化
-					if data, err = sjson.SetBytes(data, toKey, fromValue); err != nil {
-						return nil, errors.Wrap(err, errMap.Error())
+				source, exist := mapSourceData[kvtOp.mapSource]
+				if !exist {
+					proxywasm.LogWarnf("map key failed, source:%s not exists", kvtOp.mapSource)
+					continue
+				}
+
+				proxywasm.LogDebugf("search key:%s in source:%s", fromKey, kvtOp.mapSource)
+				if fromValue, ok := source.search(fromKey); ok {
+					switch source.mapSourceType {
+					case "headers", "querys", "bodyKv":
+						if data, err = sjson.SetBytes(data, toKey, fromValue); err != nil {
+							return nil, errors.Wrap(err, errMap.Error())
+						}
+						proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+					case "bodyJson":
+						if valueJson, ok := fromValue.(gjson.Result); ok {
+							if data, err = sjson.SetBytes(data, toKey, valueJson.Value()); err != nil {
+								return nil, errors.Wrap(err, errMap.Error())
+							}
+							proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+						}
 					}
 				}
 			}
@@ -1226,10 +1301,23 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 				kvtOp.renameKvtGroup = append(kvtOp.renameKvtGroup, renameKvt{p.renameParam.oldKey, p.renameParam.newKey, p.valueType})
 			case "map":
 				if typ == "headers" {
-					p.mapParam.fromKey = strings.ToLower(p.mapParam.fromKey)
 					p.mapParam.toKey = strings.ToLower(p.mapParam.toKey)
 				}
 				kvtOp.mapSource = r.mapSource
+				if kvtOp.mapSource != "" &&
+					kvtOp.mapSource != "headers" &&
+					kvtOp.mapSource != "querys" &&
+					kvtOp.mapSource != "body" {
+					return nil, false, false, errors.Errorf("invalid mapSource:%s", kvtOp.mapSource)
+				}
+				if kvtOp.mapSource == "" {
+					kvtOp.mapSource = typ
+					r.mapSource = typ
+				}
+				if kvtOp.mapSource == "headers" {
+					p.mapParam.fromKey = strings.ToLower(p.mapParam.fromKey)
+				}
+
 				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey, p.mapParam.toKey})
 			case "dedupe":
 				if typ == "headers" {
@@ -1301,20 +1389,19 @@ func (msdata MapSourceData) search(fromKey string) (interface{}, bool) {
 		if !fromValue.Exists() {
 			return nil, false
 		}
-		return fromValue.Value(), true
+		return fromValue, true
 	default:
 		return "", false
 	}
 }
 
-func getMapSourceFromRule(rules []TransformRule) string {
-	// 如果rules中不含map转换要求，则返回空字符串
+func bodyMapSourceInRule(rules []TransformRule) bool {
 	for _, r := range rules {
-		if r.operate == "map" {
-			return r.mapSource
+		if r.operate == "map" && r.mapSource == "body" {
+			return true
 		}
 	}
-	return ""
+	return false
 }
 
 type kvtReg struct {

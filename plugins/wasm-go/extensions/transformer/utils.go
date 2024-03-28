@@ -21,6 +21,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -263,5 +264,8 @@ func reconvertHeaders(hs map[string][]string) [][2]string {
 			ret = append(ret, [2]string{k, v})
 		}
 	}
+	sort.SliceStable(ret, func(i, j int) bool {
+		return ret[i][0] < ret[j][0]
+	})
 	return ret
 }
