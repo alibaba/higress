@@ -308,8 +308,7 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 	configPatch := make([]*networking.EnvoyFilter_EnvoyConfigObjectPatch, 0)
 	global := g.GetGlobal()
 	if global == nil {
-		configs := make([]*config.Config, 0)
-		return configs, nil
+		return []*config.Config{}, nil
 	}
 
 	namespace := g.Namespace
@@ -342,6 +341,10 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 		if upstreamConfig != nil {
 			configPatch = append(configPatch, upstreamConfig...)
 		}
+	}
+
+	if len(configPatch) == 0 {
+		return []*config.Config{}, nil
 	}
 
 	return generateEnvoyFilter(namespace, configPatch), nil
