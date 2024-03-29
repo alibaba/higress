@@ -29,7 +29,6 @@ build-image:
 	                            --build-arg BUILDER=${BUILDER}  \
 	                            --build-arg GOPROXY=$(GOPROXY) \
 	                            -t ${IMG} \
-	                            --load \
 	                            .
 	@echo ""
 	@echo "image:            ${IMG}"
