@@ -26,7 +26,6 @@ func main() {
 
 func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log) error {
 	config.FromJson(json)
-	log.Debugf("====> Config: %v", config)
 	if err := config.Validate(); err != nil {
 		return err
 	}

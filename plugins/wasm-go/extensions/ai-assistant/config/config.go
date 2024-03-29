@@ -10,22 +10,21 @@ import (
 // @Category custom
 // @Phase UNSPECIFIED_PHASE
 // @Priority 0
-// @Title zh-CN Hello World
-// @Description zh-CN This is a demo plugin
-// @IconUrl
+// @Title zh-CN AI助手
+// @Description zh-CN 通过AI助手提供智能对话服务
+// @IconUrl https://img.alicdn.com/imgextra/i1/O1CN018iKKih1iVx287RltL_!!6000000004419-2-tps-42-42.png
 // @Version 0.1.0
 //
-// @Contact.name
-// @Contact.url
-// @Contact.email
+// @Contact.name CH3CHO
+// @Contact.url https://github.com/CH3CHO
+// @Contact.email ch3cho@qq.com
 //
 // @Example
-// firstField: hello
-// secondField: world
+// {"provider": {"type": "moonshot", "domain": "api.moonshot.cn", "apiToken": "sk-1234567890", "model": "moonshot-v1-128k", "fileId": "abcd1234", "timeout": 1200000 } }
 // @End
 type PluginConfig struct {
-	// @Title 第一个字段，注解格式为 @Title [语言] [标题]，语言缺省值为 en-US
-	// @Description 字符串的前半部分，注解格式为 @Description [语言] [描述]，语言缺省值为 en-US
+	// @Title zh-CN AI服务提供商配置
+	// @Description zh-CN AI服务提供商配置，包含API接口、模型和知识库文件等信息
 	providerConfig provider.ProviderConfig `required:"true" yaml:"provider"`
 
 	provider provider.Provider `yaml:"-"`

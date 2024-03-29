@@ -26,12 +26,24 @@ type Provider interface {
 }
 
 type ProviderConfig struct {
-	typ      string `required:"true" yaml:"type" json:"type"`
-	domain   string `required:"false" yaml:"domain" json:"serviceDomain"`
+	// @Title zh-CN AI服务提供商
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"
+	typ string `required:"true" yaml:"type" json:"type"`
+	// @Title zh-CN AI服务域名
+	// @Description zh-CN AI服务提供商接口所使用的域名
+	domain string `required:"false" yaml:"domain" json:"serviceDomain"`
+	// @Title zh-CN API Token
+	// @Description zh-CN 在请求AI服务时用于认证的API Token。不同的AI服务提供商可能有不同的名称。例Moonshot AI的API Token称为API Key
 	apiToken string `required:"false" yaml:"apiToken" json:"apiToken"`
-	model    string `required:"false" yaml:"model" json:"model"`
-	fileId   string `required:"true" yaml:"fileId" json:"fileId"`
-	timeout  uint32 `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN 模型名称
+	// @Description zh-CN AI服务提供商的模型名称，用于指定使用的模型。具体取值请参考AI服务提供商的文档
+	model string `required:"false" yaml:"model" json:"model"`
+	// @Title zh-CN
+	// @Description zh-CN
+	fileId string `required:"true" yaml:"fileId" json:"fileId"`
+	// @Title zh-CN 请求超时
+	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
+	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
