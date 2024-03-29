@@ -502,3 +502,95 @@ $ curl -v -X POST console.higress.io/post \
   ...
 }
 ```
+# 特殊用法：实现基于Body参数路由
+
+**Note**
+
+> 需要数据面的proxy wasm版本大于0.2.100
+
+> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
+
+
+配置示例：
+
+```yaml
+reqRules:
+- operate: map
+  headers:
+  - fromKey: userId
+    toKey: x-user-id
+  mapSource: body
+```
+
+此规则将请求body中的`userId`解析出后，设置到请求Header`x-user-id`中，这样就可以基于Higress请求Header匹配路由的能力来实现基于Body参数的路由了。
+
+此配置同时支持`application/json`和`application/x-www-form-urlencoded`两种类型的请求Body。
+
+举例来说：
+
+**对于application/json类型的body**
+
+```bash
+curl localhost -d '{"userId":12, "userName":"johnlanni"}' -H 'content-type:application/json'
+```
+
+将从json中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
+
+因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
+
+
+**对于application/x-www-form-urlencoded类型的body**
+
+```bash
+curl localhost -d 'userId=12&userName=johnlanni'
+```
+
+将从`k1=v1&k2=v2`这样的表单格式中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
+
+因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
+
+## json path 支持
+
+可以根据 [GJSON Path 语法](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，从复杂的 json 中提取出字段。
+
+比较常用的操作举例，对于以下 json:
+
+```json
+{
+  "name": {"first": "Tom", "last": "Anderson"},
+  "age":37,
+  "children": ["Sara","Alex","Jack"],
+  "fav.movie": "Deer Hunter",
+  "friends": [
+    {"first": "Dale", "last": "Murphy", "age": 44, "nets": ["ig", "fb", "tw"]},
+    {"first": "Roger", "last": "Craig", "age": 68, "nets": ["fb", "tw"]},
+    {"first": "Jane", "last": "Murphy", "age": 47, "nets": ["ig", "tw"]}
+  ]
+}
+```
+
+可以实现这样的提取:
+
+```text
+name.last              "Anderson"
+name.first             "Tom"
+age                    37
+children               ["Sara","Alex","Jack"]
+children.0             "Sara"
+children.1             "Alex"
+friends.1              {"first": "Roger", "last": "Craig", "age": 68}
+friends.1.first        "Roger"
+```
+
+现在如果想从上面这个 json 格式的 body 中提取出 friends 中第二项的 first 字段，来设置到 Header `x-first-name` 中，同时抽取 last 字段，来设置到 Header `x-last-name` 中，则可以使用这份插件配置:
+
+```yaml
+reqRules:
+- operate: map
+  headers:
+  - fromKey: friends.1.first
+    toKey: x-first-name
+  - fromKey: friends.1.last
+    toKey: x-last-name
+  mapSource: body
+```
