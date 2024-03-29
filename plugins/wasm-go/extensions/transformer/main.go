@@ -1304,13 +1304,7 @@ func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange 
 					p.mapParam.toKey = strings.ToLower(p.mapParam.toKey)
 				}
 				kvtOp.mapSource = r.mapSource
-				if kvtOp.mapSource != "" &&
-					kvtOp.mapSource != "headers" &&
-					kvtOp.mapSource != "querys" &&
-					kvtOp.mapSource != "body" {
-					return nil, false, false, errors.Errorf("invalid mapSource:%s", kvtOp.mapSource)
-				}
-				if kvtOp.mapSource == "" {
+				if kvtOp.mapSource == "self" {
 					kvtOp.mapSource = typ
 					r.mapSource = typ
 				}
