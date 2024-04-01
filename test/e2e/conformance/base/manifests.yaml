@@ -224,6 +224,52 @@ spec:
             cpu: 10m
 ---
 apiVersion: v1
+kind: Service
+metadata:
+  name: infra-backend-echo-body-v2
+  namespace: higress-conformance-infra
+spec:
+  selector:
+    app: infra-backend-echo-body-v2
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infra-backend-echo-body-v2
+  namespace: higress-conformance-infra
+  labels:
+    app: infra-backend-echo-body-v2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: infra-backend-echo-body-v2
+  template:
+    metadata:
+      labels:
+        app: infra-backend-echo-body-v2
+    spec:
+      containers:
+        - name: infra-backend-echo-body-v2
+          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:v1.0
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 10m
+---
+apiVersion: v1
 kind: Namespace
 metadata:
   name: higress-conformance-app-backend
