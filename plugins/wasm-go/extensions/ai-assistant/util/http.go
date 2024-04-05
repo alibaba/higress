@@ -1,6 +1,6 @@
 package util
 
-import "github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+import "github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
 const (
 	HeaderContentType = "Content-Type"
