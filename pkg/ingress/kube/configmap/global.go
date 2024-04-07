@@ -38,6 +38,7 @@ const (
 	maxInitialConnectionWindowSize = 2147483647
 
 	defaultIdleTimeout                    = 180
+	defaultRouteTimeout                   = 0
 	defaultUpStreamIdleTimeout            = 10
 	defaultUpStreamConnectionBufferLimits = 10485760
 	defaultMaxRequestHeadersKb            = 60
@@ -67,6 +68,8 @@ type Downstream struct {
 	ConnectionBufferLimits uint32 `json:"connectionBufferLimits,omitempty"`
 	// Http2 configures HTTP/2 specific options.
 	Http2 *Http2 `json:"http2,omitempty"`
+	//RouteTimeout limits the time that timeout for the route.
+	RouteTimeout uint32 `json:"routeTimeout"`
 }
 
 // Upstream configures the behavior of the upstream connection.
@@ -158,6 +161,7 @@ func deepCopyGlobal(global *Global) (*Global, error) {
 			newGlobal.Downstream.Http2.InitialStreamWindowSize = global.Downstream.Http2.InitialStreamWindowSize
 			newGlobal.Downstream.Http2.InitialConnectionWindowSize = global.Downstream.Http2.InitialConnectionWindowSize
 		}
+		newGlobal.Downstream.RouteTimeout = global.Downstream.RouteTimeout
 	}
 	if global.Upstream != nil {
 		newGlobal.Upstream.IdleTimeout = global.Upstream.IdleTimeout
@@ -185,6 +189,7 @@ func NewDefaultDownstream() *Downstream {
 		MaxRequestHeadersKb:    defaultMaxRequestHeadersKb,
 		ConnectionBufferLimits: defaultConnectionBufferLimits,
 		Http2:                  NewDefaultHttp2(),
+		RouteTimeout:           defaultRouteTimeout,
 	}
 }
 
@@ -328,7 +333,8 @@ func (g *GlobalOptionController) ConstructEnvoyFilters() ([]*config.Config, erro
 	if global.Downstream != nil {
 		downstreamStruct := g.constructDownstream(global.Downstream)
 		bufferLimitStruct := g.constructBufferLimit(global.Downstream)
-		downstreamConfig := g.generateDownstreamEnvoyFilter(downstreamStruct, bufferLimitStruct, namespace)
+		routeTimeoutStruct := g.constructRouteTimeout(global.Downstream)
+		downstreamConfig := g.generateDownstreamEnvoyFilter(downstreamStruct, bufferLimitStruct, routeTimeoutStruct, namespace)
 		if downstreamConfig != nil {
 			configPatch = append(configPatch, downstreamConfig...)
 		}
@@ -371,7 +377,7 @@ func (g *GlobalOptionController) RegisterItemEventHandler(eventHandler ItemEvent
 }
 
 // generateDownstreamEnvoyFilter generates the downstream envoy filter.
-func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueStruct string, bufferLimitStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueStruct string, bufferLimitStruct string, routeTimeoutStruct string, namespace string) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
 	var downstreamConfig []*networking.EnvoyFilter_EnvoyConfigObjectPatch
 
 	if len(downstreamValueStruct) != 0 {
@@ -405,6 +411,28 @@ func (g *GlobalOptionController) generateDownstreamEnvoyFilter(downstreamValueSt
 			Patch: &networking.EnvoyFilter_Patch{
 				Operation: networking.EnvoyFilter_Patch_MERGE,
 				Value:     util.BuildPatchStruct(bufferLimitStruct),
+			},
+		})
+	}
+
+	if len(routeTimeoutStruct) != 0 {
+		downstreamConfig = append(downstreamConfig, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+			ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+					RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+						Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+							Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+								Action: networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch_ROUTE,
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(routeTimeoutStruct),
 			},
 		})
 	}
@@ -604,4 +632,15 @@ func (g *GlobalOptionController) constructBufferLimit(downstream *Downstream) st
 			"per_connection_buffer_limit_bytes": %d
 		}
 	`, downstream.ConnectionBufferLimits)
+}
+
+// constructRouteTimeout constructs the route timeout config.
+func (g *GlobalOptionController) constructRouteTimeout(downstream *Downstream) string {
+	return fmt.Sprintf(`
+	{
+		"route": {
+			"timeout": "%ds"
+		}
+	}
+	`, downstream.RouteTimeout)
 }
