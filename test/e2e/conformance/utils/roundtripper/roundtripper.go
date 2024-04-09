@@ -26,6 +26,8 @@ import (
 	"net/url"
 	"regexp"
 
+	"golang.org/x/net/http2"
+
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 )
 
@@ -109,6 +111,53 @@ type DefaultRoundTripper struct {
 	TimeoutConfig config.TimeoutConfig
 }
 
+func (d *DefaultRoundTripper) initTransport(client *http.Client, protocol string, tlsConfig *TLSConfig) error {
+	var tlsClientConfig *tls.Config
+	if tlsConfig != nil {
+		pool := x509.NewCertPool()
+		for _, caCert := range tlsConfig.Certificates.CACert {
+			pool.AppendCertsFromPEM(caCert)
+		}
+		var clientCerts []tls.Certificate
+		for _, keyPair := range tlsConfig.Certificates.ClientKeyPairs {
+			newClientCert, err := tls.X509KeyPair(keyPair.ClientCert, keyPair.ClientKey)
+			if err != nil {
+				return fmt.Errorf("failed to load client key pair: %w", err)
+			}
+			clientCerts = append(clientCerts, newClientCert)
+		}
+
+		tlsClientConfig = &tls.Config{
+			MinVersion:         tlsConfig.MinVersion,
+			MaxVersion:         tlsConfig.MaxVersion,
+			ServerName:         tlsConfig.SNI,
+			CipherSuites:       tlsConfig.CipherSuites,
+			RootCAs:            pool,
+			Certificates:       clientCerts,
+			InsecureSkipVerify: true,
+		}
+	}
+
+	switch protocol {
+	case "HTTP/2.0":
+		tr := &http2.Transport{}
+		if tlsClientConfig != nil {
+			tr.TLSClientConfig = tlsClientConfig
+		}
+		client.Transport = tr
+	default: // HTTP1
+		if tlsClientConfig != nil {
+			client.Transport = &http.Transport{
+				TLSHandshakeTimeout: d.TimeoutConfig.TLSHandshakeTimeout,
+				DisableKeepAlives:   true,
+				TLSClientConfig:     tlsClientConfig,
+			}
+		}
+	}
+
+	return nil
+}
+
 // CaptureRoundTrip makes a request with the provided parameters and returns the
 // captured request and response from echoserver. An error will be returned if
 // there is an error running the function but not if an HTTP error status code
@@ -151,6 +200,8 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			},
 		}
 	}
+
+	d.initTransport(client, request.Protocol, request.TLSConfig)
 
 	method := "GET"
 	if request.Method != "" {
@@ -238,6 +289,16 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			Host:   redirectURL.Hostname(),
 			Port:   redirectURL.Port(),
 			Path:   redirectURL.Path,
+		}
+	}
+	if len(cReq.Namespace) > 0 {
+		if _, ok := cRes.Headers["Namespace"]; !ok {
+			cRes.Headers["Namespace"] = []string{cReq.Namespace}
+		}
+	}
+	if len(cReq.Pod) > 0 {
+		if _, ok := cRes.Headers["Pod"]; !ok {
+			cRes.Headers["Pod"] = []string{cReq.Pod}
 		}
 	}
 

@@ -18,10 +18,13 @@ import (
 	"fmt"
 	"os"
 
+	"istio.io/pkg/log"
+
 	"github.com/alibaba/higress/pkg/cmd"
 )
 
 func main() {
+	log.EnableKlogWithCobra()
 	if err := cmd.GetRootCommand().Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
