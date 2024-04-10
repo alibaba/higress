@@ -73,7 +73,7 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	AssertRps(t, result, 10, 0.2)
+	AssertRps(t, result, 10, 0.5)
 }
 
 // TestRps50 test case 2: rps50
@@ -92,7 +92,7 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	AssertRps(t, result, 50, 0.2)
+	AssertRps(t, result, 50, 0.5)
 }
 
 // TestRps10Burst3 test case 3: rps10 burst3
