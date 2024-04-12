@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,18 +29,105 @@ import (
 )
 
 const (
-	ConfigmapCertName         = "higress-https"
-	ConfigmapCertConfigKey    = "cert"
-	DefaultRenewalWindowRatio = 0.5
+	ConfigmapCertName      = "higress-https"
+	ConfigmapCertConfigKey = "cert"
+	DefaultRenewBeforeDays = 30
+	RenewMaxDays           = 90
 )
 
+type IssuerName string
+
+const (
+	IssuerTypeAliyunSSL   IssuerName = "aliyunssl"
+	IssuerTypeLetsencrypt IssuerName = "letsencrypt"
+)
+
+// Config is the configuration of automatic https.
 type Config struct {
-	Email              string   `json:"email,omitempty"`
-	Domains            []string `json:"domains,omitempty"`
-	RenewalWindowRatio float64  `json:"renewalWindowRatio,omitempty"`
-	AutomaticHttps     bool     `json:"automaticHttps,omitempty"`
+	AutomaticHttps   bool              `json:"automaticHttps"`
+	RenewBeforeDays  int               `json:"renewBeforeDays"`
+	CredentialConfig []CredentialEntry `json:"credentialConfig"`
+	ACMEIssuer       []ACMEIssuerEntry `json:"acmeIssuer"`
+	Version          string            `json:"version"`
 }
 
+func (c *Config) GetIssuer(issuerName IssuerName) *ACMEIssuerEntry {
+	for _, issuer := range c.ACMEIssuer {
+		if issuer.Name == issuerName {
+			return &issuer
+		}
+	}
+	return nil
+}
+
+func (c *Config) GetSecretNameByDomain(issuerName IssuerName, domain string) string {
+	for _, credential := range c.CredentialConfig {
+		if credential.TLSIssuer == issuerName && strings.Contains(strings.Join(credential.Domains, ","), domain) {
+			return credential.TLSSecret
+		}
+	}
+	return ""
+}
+
+func (c *Config) Validate() error {
+	// check acmeIssuer
+	if len(c.ACMEIssuer) == 0 {
+		return fmt.Errorf("acmeIssuer is empty")
+	}
+	for _, issuer := range c.ACMEIssuer {
+		switch issuer.Name {
+		case IssuerTypeLetsencrypt:
+			if issuer.Email == "" {
+				return fmt.Errorf("acmeIssuer %s email is empty", issuer.Name)
+			}
+			if !ValidateEmail(issuer.Email) {
+				return fmt.Errorf("acmeIssuer %s email %s is invalid", issuer.Name, issuer.Email)
+			}
+		default:
+			return fmt.Errorf("acmeIssuer name %s is not supported", issuer.Name)
+		}
+	}
+	// check credentialConfig
+	for _, credential := range c.CredentialConfig {
+		if len(credential.Domains) == 0 {
+			return fmt.Errorf("credentialConfig domains is empty")
+		}
+		if credential.TLSSecret == "" {
+			return fmt.Errorf("credentialConfig tlsSecret is empty")
+		}
+		if credential.TLSIssuer == IssuerTypeLetsencrypt {
+			if len(credential.Domains) > 1 {
+				return fmt.Errorf("credentialConfig tlsIssuer %s only support one domain", credential.TLSIssuer)
+			}
+		}
+		if credential.TLSIssuer != IssuerTypeLetsencrypt && len(credential.TLSIssuer) > 0 {
+			return fmt.Errorf("credential tls issuer %s is not support", credential.TLSIssuer)
+		}
+	}
+
+	if c.RenewBeforeDays <= 0 {
+		return fmt.Errorf("RenewBeforeDays should be large than zero")
+	}
+
+	if c.RenewBeforeDays >= RenewMaxDays {
+		return fmt.Errorf("RenewBeforeDays should be less than %d", RenewMaxDays)
+	}
+	return nil
+}
+
+type CredentialEntry struct {
+	Domains      []string   `json:"domains"`
+	TLSIssuer    IssuerName `json:"tlsIssuer,omitempty"`
+	TLSSecret    string     `json:"tlsSecret,omitempty"`
+	CACertSecret string     `json:"cacertSecret,omitempty"`
+}
+
+type ACMEIssuerEntry struct {
+	Name  IssuerName `json:"name"`
+	Email string     `json:"email"`
+	AK    string     `json:"ak"` // Only applicable for certain issuers like 'aliyunssl'
+	SK    string     `json:"sk"` // Only applicable for certain issuers like 'aliyunssl'
+}
 type ConfigMgr struct {
 	client    kubernetes.Interface
 	config    atomic.Value
@@ -68,17 +156,13 @@ func (c *ConfigMgr) InitConfig(email string) (*Config, error) {
 			if len(strings.TrimSpace(email)) == 0 {
 				email = getRandEmail()
 			}
-			defaultConfig = &Config{
-				Email:              strings.TrimSpace(email),
-				RenewalWindowRatio: DefaultRenewalWindowRatio,
-				AutomaticHttps:     true,
-				Domains:            make([]string, 0),
-			}
+			defaultConfig = newDefaultConfig(email)
 			err2 := c.ApplyConfigmap(defaultConfig)
 			if err2 != nil {
 				return nil, err2
 			}
 		}
+		return nil, err
 	} else {
 		defaultConfig, err = c.ParseConfigFromConfigmap(cm)
 		if err != nil {
@@ -93,19 +177,14 @@ func (c *ConfigMgr) ParseConfigFromConfigmap(configmap *v1.ConfigMap) (*Config, 
 		return nil, fmt.Errorf("no cert key %s in configmap %s", ConfigmapCertConfigKey, configmap.Name)
 	}
 
-	config := newDefaultConfig()
+	config := newDefaultConfig("")
 	if err := yaml.Unmarshal([]byte(configmap.Data[ConfigmapCertConfigKey]), config); err != nil {
 		return nil, fmt.Errorf("data:%s,  convert to higress config error, error: %+v", configmap.Data[ConfigmapCertConfigKey], err)
 	}
-
-	if !ValidateEmail(config.Email) {
-		return nil, fmt.Errorf("%s is not valid email address", config.Email)
+	// validate config
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
-
-	if config.RenewalWindowRatio <= 0 || config.RenewalWindowRatio >= 1 {
-		return nil, fmt.Errorf("RenewalWindowRatio should be between 0 and 1")
-	}
-
 	return config, nil
 }
 
@@ -147,22 +226,37 @@ func (c *ConfigMgr) ApplyConfigmap(config *Config) error {
 	return nil
 }
 
-func NewConfigMgr(namespace string, client kubernetes.Interface) *ConfigMgr {
+func NewConfigMgr(namespace string, client kubernetes.Interface) (*ConfigMgr, error) {
 	configMgr := &ConfigMgr{
 		client:    client,
 		namespace: namespace,
 	}
-	return configMgr
+	return configMgr, nil
 }
 
-func newDefaultConfig() *Config {
-	config := &Config{
-		Email:              "", // blank email address represents init status
-		AutomaticHttps:     true,
-		RenewalWindowRatio: DefaultRenewalWindowRatio,
-		Domains:            make([]string, 0),
-	}
+func newDefaultConfig(email string) *Config {
 
+	defaultIssuer := []ACMEIssuerEntry{
+		{
+			Name:  IssuerTypeLetsencrypt,
+			Email: email,
+		},
+	}
+	defaultCredentialConfig := make([]CredentialEntry, 0)
+	//credentialEntry := CredentialEntry{
+	//	Domains:      []string{"example.com"},
+	//	TLSIssuer:    IssuerTypeLetsencrypt,
+	//	TLSSecret:    "default-example-com-tls",
+	//	CACertSecret: "",
+	//}
+	//defaultCredentialConfig = append(defaultCredentialConfig, credentialEntry)
+	config := &Config{
+		AutomaticHttps:   true,
+		RenewBeforeDays:  DefaultRenewBeforeDays,
+		ACMEIssuer:       defaultIssuer,
+		CredentialConfig: defaultCredentialConfig,
+		Version:          time.Now().Format("20060102030405"),
+	}
 	return config
 }
 

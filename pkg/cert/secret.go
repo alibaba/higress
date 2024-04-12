@@ -16,6 +16,7 @@ package cert
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -44,10 +45,9 @@ func NewSecretMgr(namespace string, client kubernetes.Interface) (*SecretMgr, er
 	return secretMgr, nil
 }
 
-func (s *SecretMgr) Update(domain string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) error {
-	secretName := s.getSecretName(domain)
+func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) error {
+	//secretName := s.getSecretName(domain)
 	secret := s.constructSecret(domain, privateKey, certificate, notBefore, notAfter, isRenew)
-
 	_, err := s.client.CoreV1().Secrets(s.namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -56,6 +56,10 @@ func (s *SecretMgr) Update(domain string, privateKey []byte, certificate []byte,
 			return err2
 		}
 		return err
+	}
+	// check secret annotations
+	if _, ok := secret.Annotations["higress.io/cert-domain"]; !ok {
+		return fmt.Errorf("the secret name %s is not automatic https secret name for the domain:%s, please rename it in config", secretName, domain)
 	}
 	_, err1 := s.client.CoreV1().Secrets(s.namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 	if err1 != nil {

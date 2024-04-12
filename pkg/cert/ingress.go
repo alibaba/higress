@@ -16,7 +16,6 @@ package cert
 
 import (
 	"context"
-	"k8s.io/klog/v2"
 	"strings"
 	"sync"
 	"time"
@@ -32,9 +31,10 @@ import (
 
 const (
 	IngressClassName   = "higress"
-	IngressServiceName = "higress-http-solver"
+	IngressServiceName = "higress-controller"
 	IngressNamePefix   = "higress-http-solver-"
 	IngressPathPrefix  = "/.well-known/acme-challenge/"
+	IngressServicePort = 8889
 )
 
 type IngressSolver struct {
@@ -45,7 +45,7 @@ type IngressSolver struct {
 	ingressDelay time.Duration
 }
 
-func NewIngressResolver(namespace string, client kubernetes.Interface, acmeIssuer *certmagic.ACMEIssuer) (acmez.Solver, error) {
+func NewIngressSolver(namespace string, client kubernetes.Interface, acmeIssuer *certmagic.ACMEIssuer) (acmez.Solver, error) {
 	solver := &IngressSolver{
 		namespace:    namespace,
 		client:       client,
@@ -56,12 +56,12 @@ func NewIngressResolver(namespace string, client kubernetes.Interface, acmeIssue
 }
 
 func (s *IngressSolver) Present(_ context.Context, challenge acme.Challenge) error {
-	klog.Infof("ingress solver present challenge:%+v", challenge)
+	CertLog.Infof("ingress solver present challenge:%+v", challenge)
 	s.solversMu.Lock()
 	defer s.solversMu.Unlock()
 	ingressName := s.getIngressName(challenge)
 	ingress := s.constructIngress(challenge)
-	klog.Infof("update ingress name:%s, ingress:%v", ingressName, ingress)
+	CertLog.Infof("update ingress name:%s, ingress:%v", ingressName, ingress)
 	_, err := s.client.NetworkingV1().Ingresses(s.namespace).Get(context.Background(), ingressName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -79,7 +79,7 @@ func (s *IngressSolver) Present(_ context.Context, challenge acme.Challenge) err
 }
 
 func (s *IngressSolver) Wait(ctx context.Context, challenge acme.Challenge) error {
-	klog.Infof("ingress solver wait challenge:%+v", challenge)
+	CertLog.Infof("ingress solver wait challenge:%+v", challenge)
 	// wait for ingress ready
 	if s.ingressDelay > 0 {
 		select {
@@ -88,16 +88,16 @@ func (s *IngressSolver) Wait(ctx context.Context, challenge acme.Challenge) erro
 			return ctx.Err()
 		}
 	}
-	klog.Infof("ingress solver wait challenge done")
+	CertLog.Infof("ingress solver wait challenge done")
 	return nil
 }
 
 func (s *IngressSolver) CleanUp(_ context.Context, challenge acme.Challenge) error {
-	klog.Infof("ingress solver cleanup challenge:%+v", challenge)
+	CertLog.Infof("ingress solver cleanup challenge:%+v", challenge)
 	s.solversMu.Lock()
 	defer s.solversMu.Unlock()
 	ingressName := s.getIngressName(challenge)
-	klog.Infof("cleanup ingress name:%s", ingressName)
+	CertLog.Infof("cleanup ingress name:%s", ingressName)
 	err := s.client.NetworkingV1().Ingresses(s.namespace).Delete(context.Background(), ingressName, metav1.DeleteOptions{})
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (s *IngressSolver) constructIngress(challenge acme.Challenge) *v1.Ingress {
 									Service: &v1.IngressServiceBackend{
 										Name: IngressServiceName,
 										Port: v1.ServiceBackendPort{
-											Number: 80,
+											Number: IngressServicePort,
 										},
 									},
 								},

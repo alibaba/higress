@@ -22,12 +22,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	informerV1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/informers"
+	v1informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -36,17 +35,18 @@ const (
 	configMapName = "higress-https"
 )
 
-type controller struct {
-	namespace       string
-	configmapLister v1.ConfigMapLister
-	configmapSynced cache.InformerSynced
-	client          kubernetes.Interface
-	queue           workqueue.RateLimitingInterface
-	configMgr       *ConfigMgr
-	server          *Server
+type Controller struct {
+	namespace         string
+	ConfigMapInformer v1informer.ConfigMapInformer
+	client            kubernetes.Interface
+	queue             workqueue.RateLimitingInterface
+	configMgr         *ConfigMgr
+	server            *Server
+	certMgr           *CertMgr
+	factory           informers.SharedInformerFactory
 }
 
-func (c *controller) addConfigmap(obj interface{}) {
+func (c *Controller) addConfigmap(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		return
@@ -58,7 +58,7 @@ func (c *controller) addConfigmap(obj interface{}) {
 	c.enqueue(name)
 
 }
-func (c *controller) updateConfigmap(oldObj interface{}, newObj interface{}) {
+func (c *Controller) updateConfigmap(oldObj interface{}, newObj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(oldObj)
 	if err != nil {
 		return
@@ -73,43 +73,48 @@ func (c *controller) updateConfigmap(oldObj interface{}, newObj interface{}) {
 	c.enqueue(name)
 }
 
-func (c *controller) enqueue(name string) {
+func (c *Controller) enqueue(name string) {
 	c.queue.Add(name)
 }
 
-func (c *controller) Run(stopCh <-chan struct{}) error {
+func (c *Controller) cachesSynced() bool {
+	return c.ConfigMapInformer.Informer().HasSynced()
+}
+
+func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()
-	klog.Info("Starting controller")
-	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.configmapSynced); !ok {
+	CertLog.Info("Waiting for informer caches to sync")
+	c.factory.Start(stopCh)
+	if ok := cache.WaitForCacheSync(stopCh, c.cachesSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
+	CertLog.Info("Starting controller")
 	// Launch one workers to process configmap resources
 	for i := 0; i < workNum; i++ {
 		go wait.Until(c.worker, time.Minute, stopCh)
 	}
-	klog.Info("Started workers")
+	CertLog.Info("Started workers")
 	<-stopCh
-	klog.Info("Shutting down workers")
+	CertLog.Info("Shutting down workers")
 
 	return nil
 }
 
-func (c *controller) worker() {
+func (c *Controller) worker() {
 	for c.processNextItem() {
 
 	}
 }
 
-func (c *controller) processNextItem() bool {
+func (c *Controller) processNextItem() bool {
 	item, shutdown := c.queue.Get()
 	if shutdown {
 		return false
 	}
 	defer c.queue.Done(item)
 	key := item.(string)
-	klog.Infof("controller process item:%s", key)
+	CertLog.Infof("controller process item:%s", key)
 	err := c.syncConfigmap(key)
 	if err != nil {
 		c.handleError(key, err)
@@ -117,8 +122,8 @@ func (c *controller) processNextItem() bool {
 	return true
 }
 
-func (c *controller) syncConfigmap(key string) error {
-	configmap, err := c.configmapLister.ConfigMaps(c.namespace).Get(key)
+func (c *Controller) syncConfigmap(key string) error {
+	configmap, err := c.ConfigMapInformer.Lister().ConfigMaps(c.namespace).Get(key)
 	if err != nil {
 		return err
 	}
@@ -128,35 +133,33 @@ func (c *controller) syncConfigmap(key string) error {
 	}
 	oldConfig := c.configMgr.GetConfig()
 	// reconcile old config and new config
-	return c.server.Reconcile(context.Background(), oldConfig, newConfig)
+	return c.certMgr.Reconcile(context.Background(), oldConfig, newConfig)
 }
 
-func (c *controller) handleError(key string, err error) {
-	//if c.queue.NumRequeues(key) <= maxRetry {
-	//	c.queue.AddRateLimited(key)
-	//	return
-	//}
+func (c *Controller) handleError(key string, err error) {
 	runtime.HandleError(err)
-	klog.Errorf("%+v", err)
+	CertLog.Errorf("%+v", err)
 	c.queue.Forget(key)
 }
 
-func NewController(server *Server, client kubernetes.Interface, namespace string, informer informerV1.ConfigMapInformer, configMgr *ConfigMgr) *controller {
-	c := &controller{
-		server:          server,
-		configMgr:       configMgr,
-		client:          client,
-		namespace:       namespace,
-		configmapLister: informer.Lister(),
-		configmapSynced: informer.Informer().HasSynced,
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ingressManage"),
+func NewController(client kubernetes.Interface, namespace string, certMgr *CertMgr, configMgr *ConfigMgr) (*Controller, error) {
+	kubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(client, 0, informers.WithNamespace(namespace))
+	configmapInformer := kubeInformerFactory.Core().V1().ConfigMaps()
+	c := &Controller{
+		certMgr:           certMgr,
+		configMgr:         configMgr,
+		client:            client,
+		namespace:         namespace,
+		factory:           kubeInformerFactory,
+		ConfigMapInformer: configmapInformer,
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ingressManage"),
 	}
 
-	klog.Info("Setting up configmap informer event handlers")
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	CertLog.Info("Setting up configmap informer event handlers")
+	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addConfigmap,
 		UpdateFunc: c.updateConfigmap,
 	})
 
-	return c
+	return c, nil
 }
