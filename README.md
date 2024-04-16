@@ -119,9 +119,13 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 如果没有 Envoy 和 Istio 的开源工作，Higress 就不可能实现，在这里向这两个项目献上最诚挚的敬意。
 
-### 联系我们
-
-社区交流群: 
+### 交流群
 
 ![image](https://img.alicdn.com/imgextra/i2/O1CN01qPd7Ix1uZPVEsWjWp_!!6000000006051-0-tps-720-405.jpg)
+
+### 技术分享
+
+微信公众号：
+
+![](https://img.alicdn.com/imgextra/i1/O1CN01WnQt0q1tcmqVDU73u_!!6000000005923-0-tps-258-258.jpg)
 
