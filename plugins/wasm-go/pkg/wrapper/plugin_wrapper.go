@@ -48,6 +48,7 @@ type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global Plugin
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
+type onTick[PluginConfig any] func()
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
@@ -61,6 +62,7 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
 	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
+	onTick                onTick[PluginConfig]
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
@@ -68,6 +70,12 @@ func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[Plugi
 }
 
 type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
+
+func ParseOnTickBy[PluginConfig any](f onTick[PluginConfig]) SetPluginFunc[PluginConfig] {
+	return func(ctx *CommonVmCtx[PluginConfig]) {
+		ctx.onTick = f
+	}
+}
 
 func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
 	return func(ctx *CommonVmCtx[PluginConfig]) {
@@ -151,6 +159,7 @@ type CommonPluginCtx[PluginConfig any] struct {
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStartStatus {
+	_ = proxywasm.SetTickPeriodMilliSeconds(1000)
 	data, err := proxywasm.GetPluginConfiguration()
 	if err != nil && err != types.ErrorStatusNotFound {
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
@@ -187,6 +196,13 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		return types.OnPluginStartStatusFailed
 	}
 	return types.OnPluginStartStatusOK
+}
+
+func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
+	proxywasm.LogInfo("wrapper onTick")
+	if ctx.vm.onTick != nil {
+		ctx.vm.onTick()
+	}
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types.HttpContext {
