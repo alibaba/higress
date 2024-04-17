@@ -48,7 +48,7 @@ type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global Plugin
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
-type onTick[PluginConfig any] func()
+type onTick func()
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
@@ -62,20 +62,14 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
 	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
-	onTick                onTick[PluginConfig]
+	onTick                onTick
 }
 
-func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
-	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, setFuncs...))
+func SetCtx[PluginConfig any](pluginName string, onTick onTick, setFuncs ...SetPluginFunc[PluginConfig]) {
+	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, onTick, setFuncs...))
 }
 
 type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
-
-func ParseOnTickBy[PluginConfig any](f onTick[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onTick = f
-	}
-}
 
 func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
 	return func(ctx *CommonVmCtx[PluginConfig]) {
@@ -124,12 +118,13 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 	return nil
 }
 
-func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
+func NewCommonVmCtx[PluginConfig any](pluginName string, onTick onTick, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
 		log:             Log{pluginName},
 		hasCustomConfig: true,
 	}
+	ctx.onTick = onTick
 	for _, set := range setFuncs {
 		set(ctx)
 	}
