@@ -40,6 +40,7 @@ import (
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/kind"
+	"istio.io/istio/pkg/config/security"
 	"istio.io/istio/pkg/ptr"
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/sets"
@@ -1978,7 +1979,7 @@ func buildTLS(ctx configContext, tls *k8s.GatewayTLSConfig, gw config.Config, is
 		return nil, nil
 	}
 	// Explicitly not supported: file mounted
-	// Not yet implemented: TLS mode, https redirect, max protocol version, SANs, CipherSuites, VerifyCertificate
+	// Not yet implemented: TLS mode, https redirect,  SANs, VerifyCertificate
 	out := &istio.ServerTLSSettings{
 		HttpsRedirect: false,
 	}
@@ -1990,9 +1991,40 @@ func buildTLS(ctx configContext, tls *k8s.GatewayTLSConfig, gw config.Config, is
 	switch mode {
 	case k8sbeta.TLSModeTerminate:
 		out.Mode = istio.ServerTLSSettings_SIMPLE
-		if tls.Options != nil && tls.Options[gatewayTLSTerminateModeKey] == "MUTUAL" {
-			out.Mode = istio.ServerTLSSettings_MUTUAL
+		if tls.Options != nil {
+			if tls.Options[gatewayTLSTerminateModeKey] == "MUTUAL" {
+				out.Mode = istio.ServerTLSSettings_MUTUAL
+			}
+
+			rawCipherList, ok := tls.Options[gatewaySSLCipherKey]
+			if ok {
+				var validCipherSuite []string
+				cipherList := strings.Split(string(rawCipherList), ":")
+				for _, cipher := range cipherList {
+					if security.IsValidCipherSuite(cipher) {
+						validCipherSuite = append(validCipherSuite, cipher)
+					}
+				}
+				out.CipherSuites = validCipherSuite
+			}
+
+			minVersion, ok := tls.Options[gatewayTLSMinProtocolVersionKey]
+			if ok {
+				pv, ok := istio.ServerTLSSettings_TLSProtocol_value[string(minVersion)]
+				if ok {
+					out.MinProtocolVersion = istio.ServerTLSSettings_TLSProtocol(pv)
+				}
+			}
+
+			maxVersion, ok := tls.Options[gatewayTLSMaxProtocolVersionKey]
+			if ok {
+				pv, ok := istio.ServerTLSSettings_TLSProtocol_value[string(maxVersion)]
+				if ok {
+					out.MaxProtocolVersion = istio.ServerTLSSettings_TLSProtocol(pv)
+				}
+			}
 		}
+
 		if len(tls.CertificateRefs) != 1 {
 			// This is required in the API, should be rejected in validation
 			return nil, &ConfigError{Reason: InvalidTLS, Message: "exactly 1 certificateRefs should be present for TLS termination"}
