@@ -17,6 +17,7 @@ package cert
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -58,6 +59,34 @@ func (c *Config) GetIssuer(issuerName IssuerName) *ACMEIssuerEntry {
 		}
 	}
 	return nil
+}
+
+func (c *Config) MatchSecretNameByDomain(domain string) string {
+	for _, credential := range c.CredentialConfig {
+		for _, credDomain := range credential.Domains {
+			// Check equal
+			if strings.ToLower(domain) == strings.ToLower(credDomain) {
+				return credential.TLSSecret
+			}
+			// Check *
+			if credDomain == "*" {
+				return credential.TLSSecret
+			}
+			// Check regex
+			pattern := convertWildcardToRegexPattern(credDomain)
+			compiledPattern := regexp.MustCompile("(?i)" + pattern)
+			if compiledPattern.MatchString(domain) {
+				return credential.TLSSecret
+			}
+		}
+	}
+	return ""
+}
+
+func convertWildcardToRegexPattern(wildcard string) string {
+	regexPattern := strings.ReplaceAll(wildcard, "*", ".*")
+	regexPattern = "^" + regexPattern + "$"
+	return regexPattern
 }
 
 func (c *Config) GetSecretNameByDomain(issuerName IssuerName, domain string) string {
@@ -188,6 +217,20 @@ func (c *ConfigMgr) ParseConfigFromConfigmap(configmap *v1.ConfigMap) (*Config, 
 	return config, nil
 }
 
+func (c *ConfigMgr) GetConfigFromConfigmap() (*Config, error) {
+	var config *Config
+	cm, err := c.GetConfigmap()
+	if err != nil {
+		return nil, err
+	} else {
+		config, err = c.ParseConfigFromConfigmap(cm)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return config, nil
+}
+
 func (c *ConfigMgr) GetConfigmap() (configmap *v1.ConfigMap, err error) {
 	configmapName := ConfigmapCertName
 	cm, err := c.client.CoreV1().ConfigMaps(c.namespace).Get(context.Background(), configmapName, metav1.GetOptions{})
@@ -243,13 +286,13 @@ func newDefaultConfig(email string) *Config {
 		},
 	}
 	defaultCredentialConfig := make([]CredentialEntry, 0)
-	//credentialEntry := CredentialEntry{
-	//	Domains:      []string{"example.com"},
-	//	TLSIssuer:    IssuerTypeLetsencrypt,
-	//	TLSSecret:    "default-example-com-tls",
-	//	CACertSecret: "",
-	//}
-	//defaultCredentialConfig = append(defaultCredentialConfig, credentialEntry)
+	credentialEntry := CredentialEntry{
+		Domains:      []string{"a.higress.io"},
+		TLSIssuer:    IssuerTypeLetsencrypt,
+		TLSSecret:    "default-example-com-tls",
+		CACertSecret: "",
+	}
+	defaultCredentialConfig = append(defaultCredentialConfig, credentialEntry)
 	config := &Config{
 		AutomaticHttps:   true,
 		RenewBeforeDays:  DefaultRenewBeforeDays,

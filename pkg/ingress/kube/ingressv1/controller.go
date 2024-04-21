@@ -17,6 +17,7 @@ package ingressv1
 import (
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/pkg/cert"
 	"path"
 	"reflect"
 	"sort"
@@ -84,6 +85,8 @@ type controller struct {
 	secretController secret.SecretController
 
 	statusSyncer *statusSyncer
+
+	configMgr *cert.ConfigMgr
 }
 
 // NewController creates a new Kubernetes controller
@@ -96,6 +99,7 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 	classes := client.KubeInformer().Networking().V1().IngressClasses()
 	classes.Informer()
 
+	configMgr, _ := cert.NewConfigMgr(options.SystemNamespace, client.Kube())
 	c := &controller{
 		options:          options,
 		queue:            q,
@@ -106,6 +110,7 @@ func NewController(localKubeClient, client kubeclient.Client, options common.Opt
 		serviceInformer:  serviceInformer.Informer(),
 		serviceLister:    serviceInformer.Lister(),
 		secretController: secretController,
+		configMgr:        configMgr,
 	}
 
 	handler := controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q))
@@ -358,7 +363,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
 
-
+	httpsCredentialConfig, _ := c.configMgr.GetConfigFromConfigmap()
 	for _, rule := range ingressV1.Rules {
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
@@ -409,6 +414,10 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 
 		// Get tls secret matching the rule host
 		secretName := extractTLSSecretName(rule.Host, ingressV1.TLS)
+		// If there is no matching secret, try to get it from configmap.
+		if secretName == "" && httpsCredentialConfig != nil {
+			secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+		}
 		if secretName == "" {
 			// There no matching secret, so just skip.
 			continue

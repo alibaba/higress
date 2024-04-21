@@ -530,7 +530,7 @@ controller:
       "targetPort": 8888,
     },
     {
-      "name": "http",
+      "name": "http-solver",
       "protocol": "TCP",
       "port": 8889,
       "targetPort": 8889,
