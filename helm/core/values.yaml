@@ -1,6 +1,6 @@
 revision: ""
 global:
-  xdsMaxRecvMsgSize: 104857600
+  xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
   enableSRDS: true
   onDemandRDS: false
