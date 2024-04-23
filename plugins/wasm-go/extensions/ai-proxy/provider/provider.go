@@ -67,9 +67,6 @@ type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
 	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"
 	typ string `required:"true" yaml:"type" json:"type"`
-	// @Title zh-CN AI服务域名
-	// @Description zh-CN AI服务提供商接口所使用的域名
-	domain string `required:"false" yaml:"domain" json:"serviceDomain"`
 	// @Title zh-CN API Token
 	// @Description zh-CN 在请求AI服务时用于认证的API Token。不同的AI服务提供商可能有不同的名称。例Moonshot AI的API Token称为API Key
 	apiToken string `required:"false" yaml:"apiToken" json:"apiToken"`
@@ -79,30 +76,22 @@ type ProviderConfig struct {
 	// @Title zh-CN Moonshot File ID
 	// @Description zh-CN 仅适用于Moonshot AI服务。Moonshot AI服务的文件 ID，其内容用于补充 AI 请求上下文
 	moonshotFileId string `required:"false" yaml:"moonshotFileId" json:"moonshotFileId"`
-	// @Title zh-CN Azure OpenAI Deployment ID
-	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的AI模型的部署ID
-	azureModelDeploymentName string `required:"false" yaml:"azureModelDeploymentName" json:"azureModelDeploymentName"`
-	// @Title zh-CN Azure OpenAI API Version
-	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的Azure OpenAI服务的API版本
-	azureApiVersion string `required:"false" yaml:"azureApiVersion" json:"azureApiVersion"`
+	// @Title zh-CN Azure OpenAI Service URL
+	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的OpenAI服务的完整URL，包含api-version等参数
+	azureServiceUrl string `required:"false" yaml:"azureServiceUrl" json:"azureServiceUrl"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
-	c.domain = json.Get("domain").String()
 	c.apiToken = json.Get("apiToken").String()
 	c.timeout = uint32(json.Get("timeout").Uint())
 	c.moonshotFileId = json.Get("moonshotFileId").String()
-	c.azureModelDeploymentName = json.Get("azureModelDeploymentName").String()
-	c.azureApiVersion = json.Get("azureApiVersion").String()
+	c.azureServiceUrl = json.Get("azureServiceUrl").String()
 }
 
 func (c *ProviderConfig) Validate() error {
 	if c.apiToken == "" {
 		return errors.New("missing apiToken in provider config")
-	}
-	if c.domain == "" {
-		return errors.New("missing domain in provider config")
 	}
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
@@ -124,12 +113,6 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
-}
-
-func createClient(config ProviderConfig) (wrapper.HttpClient, error) {
-	return wrapper.NewClusterClient(wrapper.RouteCluster{
-		Host: config.domain,
-	}), nil
 }
 
 func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) error {

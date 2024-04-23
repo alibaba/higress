@@ -19,6 +19,9 @@ const (
 	ctxKeyQwenModel = "qwenModel"
 
 	qwenResultFormatMessage = "message"
+
+	qwenDomain             = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
 )
 
 type qwenProviderInitializer struct {
@@ -46,8 +49,8 @@ func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath("/api/v1/services/aigc/text-generation/generation")
-	_ = util.OverwriteRequestHost(m.config.domain)
+	_ = util.OverwriteRequestPath(qwenChatCompletionPath)
+	_ = util.OverwriteRequestHost(qwenDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")

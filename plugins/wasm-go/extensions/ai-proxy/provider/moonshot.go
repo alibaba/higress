@@ -14,6 +14,11 @@ import (
 
 // moonshotProvider is the provider for Moonshot AI service.
 
+const (
+	moonshotDomain             = "api.moonshot.cn"
+	moonshotChatCompletionPath = "/v1/chat/completions"
+)
+
 type moonshotProviderInitializer struct {
 }
 
@@ -22,13 +27,11 @@ func (m *moonshotProviderInitializer) ValidateConfig(config ProviderConfig) erro
 }
 
 func (m *moonshotProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	client, err := createClient(config)
-	if err != nil {
-		return nil, err
-	}
 	return &moonshotProvider{
 		config: config,
-		client: client,
+		client: wrapper.NewClusterClient(wrapper.RouteCluster{
+			Host: moonshotDomain,
+		}),
 	}, nil
 }
 
@@ -50,8 +53,8 @@ func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName 
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath("/v1/chat/completions")
-	_ = util.OverwriteRequestHost(m.config.domain)
+	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
+	_ = util.OverwriteRequestHost(moonshotDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
 	if m.config.moonshotFileId != "" {
 		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")

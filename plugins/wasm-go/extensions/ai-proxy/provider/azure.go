@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -16,23 +17,32 @@ type azureProviderInitializer struct {
 }
 
 func (m *azureProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if config.azureModelDeploymentName == "" {
-		return errors.New("missing azureModelDeploymentName in provider config")
+	if config.azureServiceUrl == "" {
+		return errors.New("missing azureServiceUrl in provider config")
 	}
-	if config.azureApiVersion == "" {
-		return errors.New("missing azureApiVersion in provider config")
+	if _, err := url.Parse(config.azureServiceUrl); err != nil {
+		return fmt.Errorf("invalid azureServiceUrl: %w", err)
 	}
 	return nil
 }
 
 func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	var serviceUrl *url.URL
+	if u, err := url.Parse(config.azureServiceUrl); err != nil {
+		return nil, fmt.Errorf("invalid azureServiceUrl: %w", err)
+	} else {
+		serviceUrl = u
+	}
 	return &azureProvider{
-		config: config,
+		config:     config,
+		serviceUrl: serviceUrl,
 	}, nil
 }
 
 type azureProvider struct {
 	config ProviderConfig
+
+	serviceUrl *url.URL
 }
 
 func (m *azureProvider) GetPointcuts() map[Pointcut]interface{} {
@@ -43,9 +53,8 @@ func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	path := fmt.Sprintf("/openai/deployments/%s/chat/completions?api-version=%s", m.config.azureModelDeploymentName, m.config.azureApiVersion)
-	_ = util.OverwriteRequestPath(path)
-	_ = util.OverwriteRequestHost(m.config.domain)
+	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
+	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
 	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiToken)
 	return types.ActionContinue, nil
 }
