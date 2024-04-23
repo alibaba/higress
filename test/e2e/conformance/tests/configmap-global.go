@@ -49,6 +49,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 15,
 					},
 					Upstream: &configmap.Upstream{
 						IdleTimeout:            10,
@@ -121,6 +122,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "15s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -145,6 +154,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 15,
 					},
 					Upstream: &configmap.Upstream{
 						IdleTimeout:            10,
@@ -209,6 +219,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "15s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -233,6 +251,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 15,
 					},
 					Upstream: &configmap.Upstream{
 						IdleTimeout:            10,
@@ -302,6 +321,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "15s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -326,6 +353,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 15,
 					},
 					Upstream: &configmap.Upstream{
 						IdleTimeout:            10,
@@ -384,6 +412,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"common_http_protocol_options": map[string]interface{}{
 								"idle_timeout": "180s",
 							},
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "15s",
 						},
 					},
 					{
@@ -468,6 +504,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "0s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -491,6 +535,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 15,
 					},
 					DisableXEnvoyHeaders: true,
 					AddXRealIpHeader:     true,
@@ -559,6 +604,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "15s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -583,6 +636,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							InitialStreamWindowSize:     65535,
 							InitialConnectionWindowSize: 1048576,
 						},
+						RouteTimeout: 60,
 					},
 					DisableXEnvoyHeaders: true,
 					AddXRealIpHeader:     true,
@@ -651,6 +705,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "60s",
+						},
+					},
+					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -713,6 +775,14 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"stream_idle_timeout":            "180s",
 							"max_request_headers_kb":         60,
 							"idle_timeout":                   "180s",
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "0s",
 						},
 					},
 					{
@@ -803,6 +873,106 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"stream_idle_timeout":            "0s",
 							"max_request_headers_kb":         60,
 							"idle_timeout":                   "0s",
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_active_clusters.#.cluster",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"common_http_protocol_options": map[string]interface{}{
+								"idle_timeout": "10s",
+							},
+							"per_connection_buffer_limit_bytes": 10485760,
+						},
+					},
+				},
+			},
+			{
+				name: "close the setting of route timeout in downstream",
+				higressConfig: &configmap.HigressConfig{
+					Downstream: &configmap.Downstream{
+						IdleTimeout:            180,
+						MaxRequestHeadersKb:    60,
+						ConnectionBufferLimits: 32768,
+						Http2: &configmap.Http2{
+							MaxConcurrentStreams:        100,
+							InitialStreamWindowSize:     65535,
+							InitialConnectionWindowSize: 1048576,
+						},
+						RouteTimeout: 0,
+					},
+					Upstream: &configmap.Upstream{
+						IdleTimeout: 10,
+					},
+					DisableXEnvoyHeaders: true,
+					AddXRealIpHeader:     true,
+				},
+				envoyAssertion: []envoy.Assertion{
+					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"request_headers_to_add": []interface{}{
+								map[string]interface{}{
+									"append": false,
+									"header": map[string]interface{}{
+										"key":   "x-real-ip",
+										"value": "%REQ(X-ENVOY-EXTERNAL-ADDRESS)%",
+									},
+								},
+							},
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"@type":       "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+							"stat_prefix": "outbound_0.0.0.0_80",
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config.http_filters",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"name": "envoy.filters.http.router",
+							"typed_config": map[string]interface{}{
+								"@type":                  "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
+								"suppress_envoy_headers": true,
+							},
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"per_connection_buffer_limit_bytes": 32768,
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config",
+						CheckType:       envoy.CheckTypeExist,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"max_concurrent_streams":         100,
+							"initial_stream_window_size":     65535,
+							"initial_connection_window_size": 1048576,
+							"stream_idle_timeout":            "180s",
+							"max_request_headers_kb":         60,
+							"idle_timeout":                   "180s",
+						},
+					},
+					{
+						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
+						CheckType:       envoy.CheckTypeMatch,
+						TargetNamespace: "higress-system",
+						ExpectEnvoyConfig: map[string]interface{}{
+							"timeout": "0s",
 						},
 					},
 					{
