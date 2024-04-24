@@ -32,12 +32,15 @@ import (
 
 const (
 	// Start - Updated by Higress
-	defaultClassName             = constants.DefaultGatewayClass
-	gatewayAliasForAnnotationKey = "gateway.higress.io/alias-for"
-	gatewayTLSTerminateModeKey   = "gateway.higress.io/tls-terminate-mode"
-	gatewayNameOverride          = "gateway.higress.io/name-override"
-	gatewaySAOverride            = "gateway.higress.io/service-account"
-	serviceTypeOverride          = "networking.higress.io/service-type"
+	defaultClassName                = constants.DefaultGatewayClass
+	gatewayAliasForAnnotationKey    = "gateway.higress.io/alias-for"
+	gatewayTLSTerminateModeKey      = "gateway.higress.io/tls-terminate-mode"
+	gatewayNameOverride             = "gateway.higress.io/name-override"
+	gatewaySAOverride               = "gateway.higress.io/service-account"
+	serviceTypeOverride             = "networking.higress.io/service-type"
+	gatewaySSLCipherKey             = "gateway.higress.io/ssl-cipher"
+	gatewayTLSMinProtocolVersionKey = "gateway.higress.io/tls_min_protocol_version"
+	gatewayTLSMaxProtocolVersionKey = "gateway.higress.io/tls_max_protocol_version"
 	// End - Updated by Higress
 )
 
