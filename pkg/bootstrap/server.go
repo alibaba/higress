@@ -398,6 +398,7 @@ func (s *Server) initHttpServer() error {
 	}
 	s.xdsServer.AddDebugHandlers(s.httpMux, nil, true, nil)
 	s.httpMux.HandleFunc("/ready", s.readyHandler)
+	s.httpMux.HandleFunc("/registry/watcherStatus", s.registryWatcherStatusHandler)
 	return nil
 }
 
@@ -411,6 +412,43 @@ func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) registryWatcherStatusHandler(w http.ResponseWriter, _ *http.Request) {
+	ingressTranslation, ok := s.environment.IngressStore.(*translation.IngressTranslation)
+	if !ok {
+		http.Error(w, "IngressStore not found", http.StatusNotFound)
+		return
+	}
+
+	ingressConfig := ingressTranslation.GetIngressConfig()
+	if ingressConfig == nil {
+		http.Error(w, "IngressConfig not found", http.StatusNotFound)
+		return
+	}
+
+	registryReconciler := ingressConfig.RegistryReconciler
+	if registryReconciler == nil {
+		http.Error(w, "RegistryReconciler not found", http.StatusNotFound)
+		return
+	}
+
+	watcherStatusList := registryReconciler.GetRegistryWatcherStatusList()
+	writeJSON(w, watcherStatusList)
+}
+
+func writeJSON(w http.ResponseWriter, obj interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	b, err := config.ToJSON(obj)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 // cachesSynced checks whether caches have been synced.

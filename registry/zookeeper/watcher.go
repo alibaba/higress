@@ -678,7 +678,7 @@ func (w *watcher) Run() {
 		select {
 		case <-ticker.C:
 			var needNewFetch bool
-			if w.IsReady() {
+			if w.watcherReady() {
 				w.Ready(true)
 				needNewFetch = true
 			}
@@ -727,7 +727,7 @@ func (w *watcher) GetRegistryType() string {
 	return w.RegistryType.String()
 }
 
-func (w *watcher) IsReady() bool {
+func (w *watcher) watcherReady() bool {
 	if w.serviceRemaind == nil {
 		return true
 	}
