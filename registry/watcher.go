@@ -49,6 +49,7 @@ type Watcher interface {
 	Run()
 	Stop()
 	IsHealthy() bool
+	IsReady() bool
 	GetRegistryType() string
 	AppendServiceUpdateHandler(f func())
 	ReadyHandler(f func(bool))
@@ -57,17 +58,22 @@ type Watcher interface {
 type BaseWatcher struct {
 	UpdateService ServiceUpdateHandler
 	Ready         ReadyHandler
+	ReadyStatus   bool
 }
 
 func (w *BaseWatcher) Run()                    {}
 func (w *BaseWatcher) Stop()                   {}
 func (w *BaseWatcher) IsHealthy() bool         { return true }
+func (w *BaseWatcher) IsReady() bool           { return w.ReadyStatus }
 func (w *BaseWatcher) GetRegistryType() string { return "" }
 func (w *BaseWatcher) AppendServiceUpdateHandler(f func()) {
 	w.UpdateService = f
 }
-func (w *BaseWatcher) ReadyHandler(f func(bool)) {
-	w.Ready = f
+func (w *BaseWatcher) ReadyHandler(f func(isReady bool)) {
+	w.Ready = func(isReady bool) {
+		w.ReadyStatus = isReady
+		f(isReady)
+	}
 }
 
 type ServiceUpdateHandler func()
