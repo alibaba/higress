@@ -23,7 +23,7 @@ import (
 )
 
 func init() {
-	//Register(HTTPRouteEurekaRegistry)
+	Register(HTTPRouteEurekaRegistry)
 }
 
 var HTTPRouteEurekaRegistry = suite.ConformanceTest{

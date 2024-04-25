@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	//Register(HTTPRouteConsulHttpBin)
+	Register(HTTPRouteConsulHttpBin)
 }
 
 var HTTPRouteConsulHttpBin = suite.ConformanceTest{
