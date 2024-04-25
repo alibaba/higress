@@ -73,6 +73,10 @@ func (m *IngressTranslation) InitializeCluster(ingressController common.IngressC
 	return nil
 }
 
+func (m *IngressTranslation) GetIngressConfig() *ingressconfig.IngressConfig {
+	return m.ingressConfig
+}
+
 func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f model.EventHandler) {
 	m.ingressConfig.RegisterEventHandler(kind, f)
 	if m.kingressConfig != nil {
