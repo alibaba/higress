@@ -26,7 +26,7 @@ data:
       email: test@example.com
       name: letsencrypt
     credentialConfig:
-    - cacertSecret: foo-com-secret
+    - cacertSecret: foo-com-ca-secret
       domains:
       - foo.com
       - '*.foo.com'
