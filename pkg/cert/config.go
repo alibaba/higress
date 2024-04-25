@@ -286,13 +286,6 @@ func newDefaultConfig(email string) *Config {
 		},
 	}
 	defaultCredentialConfig := make([]CredentialEntry, 0)
-	credentialEntry := CredentialEntry{
-		Domains:      []string{"a.higress.io"},
-		TLSIssuer:    IssuerTypeLetsencrypt,
-		TLSSecret:    "default-example-com-tls",
-		CACertSecret: "",
-	}
-	defaultCredentialConfig = append(defaultCredentialConfig, credentialEntry)
 	config := &Config{
 		AutomaticHttps:   true,
 		RenewBeforeDays:  DefaultRenewBeforeDays,

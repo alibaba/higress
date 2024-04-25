@@ -427,9 +427,11 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 
 		// Get tls secret matching the rule host
 		secretName := extractTLSSecretName(rule.Host, ingressV1Beta.TLS)
+		secretNamespace := cfg.Namespace
 		// If there is no matching secret, try to get it from configmap.
 		if secretName == "" && httpsCredentialConfig != nil {
 			secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+			secretNamespace = c.options.SystemNamespace
 		}
 		if secretName == "" {
 			// There no matching secret, so just skip.
@@ -437,7 +439,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		}
 
 		domainBuilder.Protocol = common.HTTPS
-		domainBuilder.SecretName = path.Join(c.options.ClusterId, cfg.Namespace, secretName)
+		domainBuilder.SecretName = path.Join(c.options.ClusterId, secretNamespace, secretName)
 
 		// There is a matching secret and the gateway has already a tls secret.
 		// We should report the duplicated tls secret event.
@@ -459,7 +461,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
 				Mode:           networking.ServerTLSSettings_SIMPLE,
-				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, cfg.Namespace, secretName),
+				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, secretNamespace, secretName),
 			},
 		})
 
