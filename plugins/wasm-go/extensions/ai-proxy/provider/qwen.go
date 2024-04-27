@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +56,10 @@ func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	// Always use non-streaming mode for Qwen
+	// TODO: Support Qwen streaming
+	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
+	_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
 	return types.ActionContinue, nil
 }
 
@@ -82,23 +85,26 @@ func (m *qwenProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
+	ctx.SetContext(ctxKeyStreaming, request.Stream)
+
 	qwenRequest := m.buildQwenTextGenerationRequest(request)
 	return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
 }
 
 func (m *qwenProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
-	if err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to load content-type from response header: %v", err)
-	}
-	streaming := strings.HasPrefix(contentType, contentTypeTextEventStream)
-	ctx.SetContext(ctxKeyStreaming, streaming)
 	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
+	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
+	log.Debugf("=== response header streaming: %v", streaming)
+	if streaming {
+		_ = proxywasm.ReplaceHttpResponseHeader("Content-Type", "text/event-stream")
+	}
 	return types.ActionContinue, nil
 }
 
 func (m *qwenProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
+
+	log.Debugf("=== response body streaming: %v", streaming)
 
 	if !streaming {
 		qwenResponse := &qwenTextGenResponse{}
@@ -109,38 +115,51 @@ func (m *qwenProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, replaceJsonResponseBody(response, log)
 	}
 
-	lastNewLineIndex := len(body)
-	var lastEventData []byte = nil
-	keyword := []byte("data:")
-	for i := len(body) - len(keyword); i >= 0; i-- {
-		if body[i] != '\n' {
-			continue
-		}
-		if bytes.Equal(body[i+1:i+1+len(keyword)], keyword) {
-			lastEventData = body[i+1+len(keyword) : lastNewLineIndex]
-			break
-		} else {
-			lastNewLineIndex = i
-		}
-	}
-	if lastEventData == nil {
-		return types.ActionContinue, fmt.Errorf("no event received")
-	}
+	// TODO: Support Qwen streaming
+	//lastNewLineIndex := len(body)
+	//var lastEventData []byte = nil
+	//keyword := []byte("data:")
+	//for i := len(body) - len(keyword); i >= 0; i-- {
+	//	if body[i] != '\n' {
+	//		continue
+	//	}
+	//	if bytes.Equal(body[i+1:i+1+len(keyword)], keyword) {
+	//		lastEventData = body[i+1+len(keyword) : lastNewLineIndex]
+	//		break
+	//	} else {
+	//		lastNewLineIndex = i
+	//	}
+	//}
+	//if lastEventData == nil {
+	//	log.Debugf("=== no event received")
+	//	return types.ActionContinue, fmt.Errorf("no event received")
+	//}
+
+	log.Debugf("=== last event data: %s", body)
+	lastEventData := body
 	qwenResponse := &qwenTextGenResponse{}
 	if err := json.Unmarshal(lastEventData, qwenResponse); err != nil {
 		log.Errorf("unable to unmarshal Qwen response: %v", err)
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
-	response := m.buildChatCompletionResponse(ctx, qwenResponse)
-	response.Object = objectChatCompletionChunk
 
-	body, err := json.Marshal(response)
-	if err != nil {
-		log.Errorf("unable to marshal response: %v", err)
-		return types.ActionContinue, fmt.Errorf("unable to marshal response: %v", err)
+	var responseBuilder strings.Builder
+	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
+	for _, response := range responses {
+		responseBody, err := json.Marshal(response)
+		if err != nil {
+			log.Errorf("unable to marshal response: %v", err)
+			return types.ActionContinue, fmt.Errorf("unable to marshal response: %v", err)
+		}
+		responseBuilder.WriteString("data: ")
+		responseBuilder.Write(responseBody)
+		responseBuilder.WriteString("\n\n")
 	}
-	body = append(append([]byte("id:1\nevent:result\n:HTTP_STATUS/200\ndata:"), body...), '\n', '\n')
-	err = proxywasm.ReplaceHttpResponseBody(body)
+	responseBuilder.WriteString("data: [DONE]\n\n")
+
+	finalResponseBody := responseBuilder.String()
+	log.Debugf("=== response data: %s", finalResponseBody)
+	err := proxywasm.ReplaceHttpResponseBody([]byte(finalResponseBody))
 	if err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to replace the original response body: %v", err)
 	}
@@ -168,7 +187,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	choices := make([]chatCompletionChoice, 0, len(qwenResponse.Output.Choices))
 	for _, qwenChoice := range qwenResponse.Output.Choices {
 		choices = append(choices, chatCompletionChoice{
-			Message:      qwenChoice.Message,
+			Message:      &qwenChoice.Message,
 			FinishReason: qwenChoice.FinishReason,
 		})
 	}
@@ -184,6 +203,30 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
 		},
+	}
+}
+
+func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse) []*chatCompletionResponse {
+	baseMessage := chatCompletionResponse{
+		Id:                qwenResponse.RequestId,
+		Created:           time.Now().UnixMilli() / 1000,
+		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		SystemFingerprint: "",
+		Object:            objectChatCompletionChunk,
+	}
+	roleResponse := *&baseMessage
+	deltaResponse := *&baseMessage
+	finishResponse := *&baseMessage
+	for _, qwenChoice := range qwenResponse.Output.Choices {
+		message := qwenChoice.Message
+		roleResponse.Choices = append(roleResponse.Choices, chatCompletionChoice{Delta: &chatMessage{Role: message.Role}})
+		deltaResponse.Choices = append(deltaResponse.Choices, chatCompletionChoice{Delta: &chatMessage{Content: message.Content}})
+		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: finishReasonStop})
+	}
+	return []*chatCompletionResponse{
+		&roleResponse,
+		&deltaResponse,
+		&finishResponse,
 	}
 }
 

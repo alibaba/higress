@@ -25,9 +25,10 @@ type chatCompletionResponse struct {
 }
 
 type chatCompletionChoice struct {
-	Index        int         `json:"index"`
-	Message      chatMessage `json:"message,omitempty"`
-	FinishReason string      `json:"finish_reason,omitempty"`
+	Index        int          `json:"index"`
+	Message      *chatMessage `json:"message,omitempty"`
+	Delta        *chatMessage `json:"delta,omitempty"`
+	FinishReason string       `json:"finish_reason,omitempty"`
 }
 
 type chatCompletionUsage struct {

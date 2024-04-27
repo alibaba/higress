@@ -110,6 +110,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
+	log.Debugf("response body: %s", string(body))
 	pointcuts := pluginConfig.GetProvider().GetPointcuts()
 	if _, has := pointcuts[provider.PointcutOnResponseBody]; has {
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
