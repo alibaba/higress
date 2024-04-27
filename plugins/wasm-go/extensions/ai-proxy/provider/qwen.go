@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,8 +17,6 @@ import (
 // qwenProvider is the provider for Qwen service.
 
 const (
-	ctxKeyQwenModel = "qwenModel"
-
 	qwenResultFormatMessage = "message"
 
 	qwenDomain             = "dashscope.aliyuncs.com"
@@ -67,10 +66,20 @@ func (m *qwenProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		return types.ActionContinue, err
 	}
 
-	ctx.SetContext(ctxKeyQwenModel, request.Model)
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in chat completion request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
 	qwenRequest := m.buildQwenTextGenerationRequest(request)
-	return types.ActionContinue, replaceJsonRequestBody(qwenRequest)
+	return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
 }
 
 func (m *qwenProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -93,7 +102,7 @@ func (m *qwenProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiNam
 			return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 		}
 		response := m.buildChatCompletionResponse(ctx, qwenResponse)
-		return types.ActionContinue, replaceJsonResponseBody(response)
+		return types.ActionContinue, replaceJsonResponseBody(response, log)
 	}
 
 	lastNewLineIndex := len(body)
@@ -162,7 +171,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	return &chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyQwenModel).(string),
+		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,

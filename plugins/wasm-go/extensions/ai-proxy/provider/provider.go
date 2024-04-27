@@ -28,7 +28,9 @@ const (
 
 	roleSystem = "system"
 
-	ctxKeyStreaming = "streaming"
+	ctxKeyStreaming            = "streaming"
+	ctxKeyOriginalRequestModel = "originalRequestModel"
+	ctxKeyFinalRequestModel    = "finalRequestModel"
 
 	contentTypeTextEventStream = "text/event-stream"
 
@@ -36,6 +38,8 @@ const (
 	objectChatCompletionChunk = "chat.completion.chunk"
 
 	finishReasonStop = "stop"
+
+	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
 )
@@ -79,6 +83,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Azure OpenAI Service URL
 	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的OpenAI服务的完整URL，包含api-version等参数
 	azureServiceUrl string `required:"false" yaml:"azureServiceUrl" json:"azureServiceUrl"`
+	// @Title zh-CN 模型名称映射表
+	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
+	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -87,6 +94,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.timeout = uint32(json.Get("timeout").Uint())
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
+	c.modelMapping = make(map[string]string)
+	for k, v := range json.Get("modelMapping").Map() {
+		c.modelMapping[k] = v.String()
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -125,11 +136,12 @@ func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) er
 	return nil
 }
 
-func replaceJsonRequestBody(request interface{}) error {
+func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("unable to marshal request: %v", err)
 	}
+	log.Debugf("response body: %s", string(body))
 	err = proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
 		return fmt.Errorf("unable to replace the original request body: %v", err)
@@ -137,14 +149,30 @@ func replaceJsonRequestBody(request interface{}) error {
 	return err
 }
 
-func replaceJsonResponseBody(response interface{}) error {
+func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
 	body, err := json.Marshal(response)
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
 	}
+	log.Debugf("response body: %s", string(body))
 	err = proxywasm.ReplaceHttpResponseBody(body)
 	if err != nil {
 		return fmt.Errorf("unable to replace the original response body: %v", err)
 	}
 	return err
+}
+
+func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
+	if modelMapping == nil || len(modelMapping) == 0 {
+		return model
+	}
+	if v, ok := modelMapping[model]; ok && len(v) != 0 {
+		log.Debugf("model %s is mapped to %s explictly", model, v)
+		return v
+	}
+	if v, ok := modelMapping[wildcard]; ok {
+		log.Debugf("model %s is mapped to %s via wildcard", model, v)
+		return v
+	}
+	return model
 }

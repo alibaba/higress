@@ -43,10 +43,7 @@ type moonshotProvider struct {
 }
 
 func (m *moonshotProvider) GetPointcuts() map[Pointcut]interface{} {
-	if m.config.moonshotFileId != "" {
-		return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil}
-	}
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil}
+	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil}
 }
 
 func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -56,9 +53,7 @@ func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName 
 	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
 	_ = util.OverwriteRequestHost(moonshotDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
-	if m.config.moonshotFileId != "" {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 
@@ -67,13 +62,23 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 		return types.ActionContinue, errUnsupportedApiName
 	}
 
-	if m.config.moonshotFileId == "" {
-		return types.ActionContinue, nil
-	}
-
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
+	}
+
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in chat completion request")
+	}
+	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+
+	if m.config.moonshotFileId == "" {
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	}
 
 	if m.fileContent != "" {
@@ -89,7 +94,7 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 			responseString := string(responseBody)
 			if statusCode != http.StatusOK {
 				log.Errorf("failed to load knowledge base file from AI service, status: %d body: %s", statusCode, responseString)
-				_ = util.SendResponse(500, util.MimeTypeApplicationJson, fmt.Sprintf("failed to load knowledge base file from moonshot service, status: %d", statusCode))
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load knowledge base file from moonshot service, status: %d", statusCode))
 				_ = proxywasm.ResumeHttpRequest()
 				return
 			}
@@ -97,7 +102,7 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 			base := responseJson.Get("content").String()
 			err := m.performChatCompletion(ctx, base, request, log)
 			if err != nil {
-				_ = util.SendResponse(500, util.MimeTypeApplicationJson, fmt.Sprintf("failed to perform chat completion: %v", err))
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to perform chat completion: %v", err))
 			}
 			_ = proxywasm.ResumeHttpRequest()
 		})
@@ -124,7 +129,7 @@ func (m *moonshotProvider) performChatCompletion(ctx wrapper.HttpContext, fileCo
 	} else {
 		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
 	}
-	return replaceJsonRequestBody(request)
+	return replaceJsonRequestBody(request, log)
 }
 
 func (m *moonshotProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
