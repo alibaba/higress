@@ -25,6 +25,7 @@ const (
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
+	providerTypeOpenAI   = "openai"
 
 	roleSystem = "system"
 
@@ -56,6 +57,7 @@ var (
 		providerTypeMoonshot: &moonshotProviderInitializer{},
 		providerTypeAzure:    &azureProviderInitializer{},
 		providerTypeQwen:     &qwenProviderInitializer{},
+		providerTypeOpenAI:   &openaiProviderInitializer{},
 	}
 )
 
