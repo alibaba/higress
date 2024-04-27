@@ -87,7 +87,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil || status != "200" {
-		log.Errorf("unable to load :status header from response: %v", err)
+		if err != nil {
+			log.Errorf("unable to load :status header from response: %v", err)
+		}
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}

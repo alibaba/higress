@@ -141,7 +141,7 @@ func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 	if err != nil {
 		return fmt.Errorf("unable to marshal request: %v", err)
 	}
-	log.Debugf("response body: %s", string(body))
+	log.Debugf("request body: %s", string(body))
 	err = proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
 		return fmt.Errorf("unable to replace the original request body: %v", err)

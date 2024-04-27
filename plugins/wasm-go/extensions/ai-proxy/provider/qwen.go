@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -21,6 +22,9 @@ const (
 
 	qwenDomain             = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
+
+	qwenTopPMin = 0.000001
+	qwenTopPMax = 0.999999
 )
 
 type qwenProviderInitializer struct {
@@ -155,7 +159,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			N:            origRequest.N,
 			Seed:         origRequest.Seed,
 			Temperature:  origRequest.Temperature,
-			TopP:         origRequest.TopP,
+			TopP:         math.Max(qwenTopPMin, math.Min(origRequest.TopP, qwenTopPMax)),
 		},
 	}
 }
