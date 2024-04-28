@@ -17,11 +17,11 @@ package cert
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"istio.io/istio/pkg/config/host"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,18 +64,7 @@ func (c *Config) GetIssuer(issuerName IssuerName) *ACMEIssuerEntry {
 func (c *Config) MatchSecretNameByDomain(domain string) string {
 	for _, credential := range c.CredentialConfig {
 		for _, credDomain := range credential.Domains {
-			// Check equal
-			if strings.ToLower(domain) == strings.ToLower(credDomain) {
-				return credential.TLSSecret
-			}
-			// Check *
-			if credDomain == "*" {
-				return credential.TLSSecret
-			}
-			// Check regex
-			pattern := convertWildcardToRegexPattern(credDomain)
-			compiledPattern := regexp.MustCompile("(?i)" + pattern)
-			if compiledPattern.MatchString(domain) {
+			if host.Name(strings.ToLower(domain)).SubsetOf(host.Name(strings.ToLower(credDomain))) {
 				return credential.TLSSecret
 			}
 		}
@@ -83,16 +72,14 @@ func (c *Config) MatchSecretNameByDomain(domain string) string {
 	return ""
 }
 
-func convertWildcardToRegexPattern(wildcard string) string {
-	regexPattern := strings.ReplaceAll(wildcard, "*", ".*")
-	regexPattern = "^" + regexPattern + "$"
-	return regexPattern
-}
-
 func (c *Config) GetSecretNameByDomain(issuerName IssuerName, domain string) string {
 	for _, credential := range c.CredentialConfig {
-		if credential.TLSIssuer == issuerName && strings.Contains(strings.Join(credential.Domains, ","), domain) {
-			return credential.TLSSecret
+		if credential.TLSIssuer == issuerName {
+			for _, credDomain := range credential.Domains {
+				if host.Name(strings.ToLower(domain)).SubsetOf(host.Name(strings.ToLower(credDomain))) {
+					return credential.TLSSecret
+				}
+			}
 		}
 	}
 	return ""
