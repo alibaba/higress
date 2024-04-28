@@ -69,7 +69,7 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 2000, req, client)
+	result, err := ParallelRunner(10, 3000, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 2000, req, client)
+	result, err := ParallelRunner(10, 5000, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
