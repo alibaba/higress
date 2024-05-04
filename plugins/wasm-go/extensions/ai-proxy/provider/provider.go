@@ -1,12 +1,9 @@
 package provider
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
@@ -88,6 +85,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
+	// @Title zh-CN 模型对话上下文
+	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
+	context *ContextConfig `required:"false" yaml:"context" json:"context"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -100,6 +100,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	for k, v := range json.Get("modelMapping").Map() {
 		c.modelMapping[k] = v.String()
 	}
+	contextJson := json.Get("context")
+	if contextJson.Exists() {
+		c.context = &ContextConfig{}
+		c.context.FromJson(contextJson)
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -109,6 +114,11 @@ func (c *ProviderConfig) Validate() error {
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
 	}
+	if c.context != nil {
+		if err := c.context.Validate(); err != nil {
+			return err
+		}
+	}
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
@@ -117,7 +127,10 @@ func (c *ProviderConfig) Validate() error {
 	if !has {
 		return errors.New("unknown provider type: " + c.typ)
 	}
-	return initializer.ValidateConfig(*c)
+	if err := initializer.ValidateConfig(*c); err != nil {
+		return err
+	}
+	return nil
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {
@@ -126,42 +139,6 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
-}
-
-func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) error {
-	if err := json.Unmarshal(body, request); err != nil {
-		return fmt.Errorf("unable to unmarshal request: %v", err)
-	}
-	if request.Messages == nil || len(request.Messages) == 0 {
-		return errors.New("no message found in the request body")
-	}
-	return nil
-}
-
-func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
-	body, err := json.Marshal(request)
-	if err != nil {
-		return fmt.Errorf("unable to marshal request: %v", err)
-	}
-	log.Debugf("request body: %s", string(body))
-	err = proxywasm.ReplaceHttpRequestBody(body)
-	if err != nil {
-		return fmt.Errorf("unable to replace the original request body: %v", err)
-	}
-	return err
-}
-
-func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
-	body, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("unable to marshal response: %v", err)
-	}
-	log.Debugf("response body: %s", string(body))
-	err = proxywasm.ReplaceHttpResponseBody(body)
-	if err != nil {
-		return fmt.Errorf("unable to replace the original response body: %v", err)
-	}
-	return err
 }
 
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {

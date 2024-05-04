@@ -34,19 +34,21 @@ func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 		serviceUrl = u
 	}
 	return &azureProvider{
-		config:     config,
-		serviceUrl: serviceUrl,
+		config:       config,
+		serviceUrl:   serviceUrl,
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type azureProvider struct {
 	config ProviderConfig
 
-	serviceUrl *url.URL
+	contextCache *contextCache
+	serviceUrl   *url.URL
 }
 
 func (m *azureProvider) GetPointcuts() map[Pointcut]interface{} {
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil}
+	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil}
 }
 
 func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -56,11 +58,44 @@ func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
 	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiToken)
+
+	if m.contextCache == nil {
+		ctx.DontReadRequestBody()
+	} else {
+		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	}
+
 	return types.ActionContinue, nil
 }
 
 func (m *azureProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
+	if apiName != ApiNameChatCompletion {
+		return types.ActionContinue, errUnsupportedApiName
+	}
+	if m.contextCache == nil {
+		return types.ActionContinue, nil
+	}
+	request := &chatCompletionRequest{}
+	if err := decodeChatCompletionRequest(body, request); err != nil {
+		return types.ActionContinue, err
+	}
+	err := m.contextCache.GetContent(func(content string, err error) {
+		defer func() {
+			_ = proxywasm.ResumeHttpRequest()
+		}()
+		if err != nil {
+			log.Errorf("failed to load context file: %v", err)
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+		}
+		insertContextMessage(request, content)
+		if err := replaceJsonRequestBody(request, log); err != nil {
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+		}
+	}, log)
+	if err == nil {
+		return types.ActionPause, nil
+	}
+	return types.ActionContinue, err
 }
 
 func (m *azureProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {

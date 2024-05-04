@@ -35,12 +35,15 @@ func (m *qwenProviderInitializer) ValidateConfig(config ProviderConfig) error {
 
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &qwenProvider{
-		config: config,
+		config:       config,
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type qwenProvider struct {
 	config ProviderConfig
+
+	contextCache *contextCache
 }
 
 func (m *qwenProvider) GetPointcuts() map[Pointcut]interface{} {
@@ -56,10 +59,12 @@ func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+
 	// Always use non-streaming mode for Qwen
 	// TODO: Support Qwen streaming
 	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
 	_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
+
 	return types.ActionContinue, nil
 }
 
@@ -87,8 +92,29 @@ func (m *qwenProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 	ctx.SetContext(ctxKeyStreaming, request.Stream)
 
-	qwenRequest := m.buildQwenTextGenerationRequest(request)
-	return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
+	if m.config.context == nil {
+		qwenRequest := m.buildQwenTextGenerationRequest(request)
+		return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
+	}
+
+	err := m.contextCache.GetContent(func(content string, err error) {
+		defer func() {
+			_ = proxywasm.ResumeHttpRequest()
+		}()
+		if err != nil {
+			log.Errorf("failed to load context file: %v", err)
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+		}
+		insertContextMessage(request, content)
+		qwenRequest := m.buildQwenTextGenerationRequest(request)
+		if err := replaceJsonRequestBody(qwenRequest, log); err != nil {
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+		}
+	}, log)
+	if err == nil {
+		return types.ActionPause, nil
+	}
+	return types.ActionContinue, err
 }
 
 func (m *qwenProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {

@@ -23,6 +23,9 @@ type moonshotProviderInitializer struct {
 }
 
 func (m *moonshotProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.moonshotFileId != "" && config.context != nil {
+		return errors.New("moonshotFileId and context cannot be configured at the same time")
+	}
 	return nil
 }
 
@@ -32,14 +35,16 @@ func (m *moonshotProviderInitializer) CreateProvider(config ProviderConfig) (Pro
 		client: wrapper.NewClusterClient(wrapper.RouteCluster{
 			Host: moonshotDomain,
 		}),
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type moonshotProvider struct {
 	config ProviderConfig
 
-	client      wrapper.HttpClient
-	fileContent string
+	client       wrapper.HttpClient
+	fileContent  string
+	contextCache *contextCache
 }
 
 func (m *moonshotProvider) GetPointcuts() map[Pointcut]interface{} {
@@ -77,35 +82,24 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 	}
 	request.Model = mappedModel
 
-	if m.config.moonshotFileId == "" {
+	if m.config.moonshotFileId == "" && m.contextCache == nil {
 		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	}
 
-	if m.fileContent != "" {
-		err := m.performChatCompletion(ctx, m.fileContent, request, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
-
-	err := m.sendRequest(http.MethodGet, "/v1/files/"+m.config.moonshotFileId+"/content", "",
-		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			responseString := string(responseBody)
-			if statusCode != http.StatusOK {
-				log.Errorf("failed to load knowledge base file from AI service, status: %d body: %s", statusCode, responseString)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load knowledge base file from moonshot service, status: %d", statusCode))
-				_ = proxywasm.ResumeHttpRequest()
-				return
-			}
-			responseJson := gjson.Parse(responseString)
-			base := responseJson.Get("content").String()
-			err := m.performChatCompletion(ctx, base, request, log)
-			if err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to perform chat completion: %v", err))
-			}
+	err := m.getContextContent(func(content string, err error) {
+		defer func() {
 			_ = proxywasm.ResumeHttpRequest()
-		})
+		}()
+		if err != nil {
+			log.Errorf("failed to load context file: %v", err)
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			return
+		}
+		err = m.performChatCompletion(ctx, content, request, log)
+		if err != nil {
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to perform chat completion: %v", err))
+		}
+	}, log)
 	if err == nil {
 		return types.ActionPause, nil
 	}
@@ -113,22 +107,7 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 }
 
 func (m *moonshotProvider) performChatCompletion(ctx wrapper.HttpContext, fileContent string, request *chatCompletionRequest, log wrapper.Log) error {
-	fileMessage := chatMessage{
-		Role:    roleSystem,
-		Content: fileContent,
-	}
-	firstNonSystemMessageIndex := -1
-	for i, message := range request.Messages {
-		if message.Role != roleSystem {
-			firstNonSystemMessageIndex = i
-			break
-		}
-	}
-	if firstNonSystemMessageIndex == -1 {
-		request.Messages = append(request.Messages, fileMessage)
-	} else {
-		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
-	}
+	insertContextMessage(request, fileContent)
 	return replaceJsonRequestBody(request, log)
 }
 
@@ -138,6 +117,33 @@ func (m *moonshotProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName
 
 func (m *moonshotProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	return types.ActionContinue, nil
+}
+
+func (m *moonshotProvider) getContextContent(callback func(string, error), log wrapper.Log) error {
+	if m.config.moonshotFileId != "" {
+		if m.fileContent != "" {
+			callback(m.fileContent, nil)
+			return nil
+		}
+		return m.sendRequest(http.MethodGet, "/v1/files/"+m.config.moonshotFileId+"/content", "",
+			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+				responseString := string(responseBody)
+				if statusCode != http.StatusOK {
+					log.Errorf("failed to load knowledge base file from AI service, status: %d body: %s", statusCode, responseString)
+					callback("", fmt.Errorf("failed to load knowledge base file from moonshot service, status: %d", statusCode))
+					return
+				}
+				responseJson := gjson.Parse(responseString)
+				m.fileContent = responseJson.Get("content").String()
+				callback(m.fileContent, nil)
+			})
+	}
+
+	if m.contextCache != nil {
+		return m.contextCache.GetContent(callback, log)
+	}
+
+	return errors.New("both moonshotFileId and context are not configured")
 }
 
 func (m *moonshotProvider) sendRequest(method, path string, body string, callback wrapper.ResponseCallback) error {
