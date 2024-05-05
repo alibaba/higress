@@ -147,17 +147,13 @@ func (m *moonshotProvider) getContextContent(callback func(string, error), log w
 }
 
 func (m *moonshotProvider) sendRequest(method, path string, body string, callback wrapper.ResponseCallback) error {
-	timeout := m.config.timeout
-	if timeout == 0 {
-		timeout = defaultTimeout
-	}
 	switch method {
 	case http.MethodGet:
 		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.apiToken)
-		return m.client.Get(path, headers, callback, timeout)
+		return m.client.Get(path, headers, callback, m.config.timeout)
 	case http.MethodPost:
 		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.apiToken, "Content-Type", "application/json")
-		return m.client.Post(path, headers, []byte(body), callback, timeout)
+		return m.client.Post(path, headers, []byte(body), callback, m.config.timeout)
 	default:
 		return errors.New("unsupported method: " + method)
 	}

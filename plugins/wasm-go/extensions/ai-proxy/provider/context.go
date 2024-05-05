@@ -69,10 +69,6 @@ func (c *contextCache) GetContent(callback func(string, error), log wrapper.Log)
 	}
 
 	log.Infof("loading context file from %s", c.fileUrl.String())
-	timeout := c.timeout
-	if timeout == 0 {
-		timeout = defaultTimeout
-	}
 	return c.client.Get(c.fileUrl.Path, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if statusCode != http.StatusOK {
 			callback("", fmt.Errorf("failed to load context file, status: %d", statusCode))
@@ -82,7 +78,7 @@ func (c *contextCache) GetContent(callback func(string, error), log wrapper.Log)
 		c.loaded = true
 		log.Debugf("content: %s", c.content)
 		callback(c.content, nil)
-	}, timeout)
+	}, c.timeout)
 }
 
 func createContextCache(providerConfig *ProviderConfig) *contextCache {

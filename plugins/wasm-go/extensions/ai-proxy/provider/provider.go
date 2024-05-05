@@ -94,6 +94,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	c.apiToken = json.Get("apiToken").String()
 	c.timeout = uint32(json.Get("timeout").Uint())
+	if c.timeout == 0 {
+		c.timeout = defaultTimeout
+	}
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
 	c.modelMapping = make(map[string]string)
