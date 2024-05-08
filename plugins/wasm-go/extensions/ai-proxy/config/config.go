@@ -20,7 +20,7 @@ import (
 // @Contact.email ch3cho@qq.com
 //
 // @Example
-// {"provider": {"type": "moonshot", "domain": "api.moonshot.cn", "apiToken": "sk-1234567890", "model": "moonshot-v1-128k", "fileId": "abcd1234", "timeout": 1200000 } }
+// { "provider": { "type": "qwen", "apiToken": "YOUR_DASHSCOPE_API_TOKEN", "modelMapping": { "*": "qwen-turbo" } } }
 // @End
 type PluginConfig struct {
 	// @Title zh-CN AI服务提供商配置
