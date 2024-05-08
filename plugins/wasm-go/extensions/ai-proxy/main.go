@@ -46,6 +46,11 @@ func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapp
 }
 
 func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
+	if pluginConfig.GetProvider() == nil {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
+
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
@@ -71,6 +76,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
+	if pluginConfig.GetProvider() == nil {
+		return types.ActionContinue
+	}
+
 	pointcuts := pluginConfig.GetProvider().GetPointcuts()
 	if _, has := pointcuts[provider.PointcutOnRequestBody]; has {
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
@@ -85,6 +94,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
+	if pluginConfig.GetProvider() == nil {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil || status != "200" {
 		if err != nil {
@@ -110,6 +124,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
+	if pluginConfig.GetProvider() == nil {
+		return types.ActionContinue
+	}
+
 	log.Debugf("response body: %s", string(body))
 	pointcuts := pluginConfig.GetProvider().GetPointcuts()
 	if _, has := pointcuts[provider.PointcutOnResponseBody]; has {
