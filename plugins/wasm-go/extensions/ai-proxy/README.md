@@ -174,10 +174,10 @@ provider:
   - type: qwen
     apiToken: "YOUR_QWEN_API_TOKEN"
     modelMapping:
-      "gpt-3": "qwen-turbo"
-      "gpt-35-turbo": "qwen-plus"
-      "gpt-4-turbo": "qwen-max"
-      "*": "qwen-turbo"
+      'gpt-3': "qwen-turbo"
+      'gpt-35-turbo': "qwen-plus"
+      'gpt-4-turbo': "qwen-max"
+      '*': "qwen-turbo"
 ```
 
 **请求示例**
@@ -292,7 +292,7 @@ provider:
     apiToken:
     moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
     modelMapping:
-      "*": "moonshot-v1-32k"
+      '*': "moonshot-v1-32k"
 ```
 
 **请求示例**
