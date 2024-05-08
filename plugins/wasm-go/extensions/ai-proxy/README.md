@@ -163,6 +163,64 @@ provider:
 }
 ```
 
+### 使用基本的通义千问服务
+
+使用通义千问服务，并配置从 OpenAI 大模型到通义千问的模型映射关系。
+
+**配置信息**
+
+```yaml
+provider:
+  - type: qwen
+    apiToken: "YOUR_QWEN_API_TOKEN"
+    modelMapping:
+      "gpt-3": "qwen-turbo"
+      "gpt-35-turbo": "qwen-plus"
+      "gpt-4-turbo": "qwen-max"
+      "*": "qwen-turbo"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.3
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1715175072,
+    "model": "qwen-turbo",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 24,
+        "completion_tokens": 33,
+        "total_tokens": 57
+    }
+}
+```
+
 ### 使用通义千问配合纯文本上下文信息
 
 使用通义千问服务，同时配置纯文本上下文信息。
