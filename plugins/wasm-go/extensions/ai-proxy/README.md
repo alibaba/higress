@@ -66,7 +66,7 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 ## 用法示例
 
-### 使用基本的 Azure OpenAI 服务
+### 使用使用 OpenAI 协议代理 Azure OpenAI 服务
 
 使用最基本的 Azure OpenAI 服务，不配置任何上下文。
 
@@ -163,7 +163,7 @@ provider:
 }
 ```
 
-### 使用基本的通义千问服务
+### 使用 OpenAI 协议代理通义千问服务
 
 使用通义千问服务，并配置从 OpenAI 大模型到通义千问的模型映射关系。
 
