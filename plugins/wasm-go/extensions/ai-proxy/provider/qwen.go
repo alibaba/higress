@@ -56,7 +56,7 @@ func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	}
 	_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 

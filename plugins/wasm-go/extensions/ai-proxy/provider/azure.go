@@ -57,7 +57,7 @@ func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	}
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
-	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiToken)
+	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
 
 	if m.contextCache == nil {
 		ctx.DontReadRequestBody()

@@ -11,7 +11,6 @@ description: AI 代理插件配置参考
 
 ## 配置字段
 
-
 ### 基本配置
 
 | 名称         | 数据类型   | 填写要求 | 默认值 | 描述               |
@@ -20,14 +19,14 @@ description: AI 代理插件配置参考
 
 `provider`的配置字段说明如下：
 
-| 名称             | 数据类型                    | 填写要求 | 默认值 | 描述                                                             |
-|----------------|-------------------------|------|-----|----------------------------------------------------------------|
-| `id`           | string                  | 必填   | -   | AI 服务提供商的唯一标识                                                  |
-| `type`         | string                  | 必填   | -   | AI 服务提供商名称。目前支持以下值：openai, azure, moonshot, qwen               |
-| `token`        | string                  | 必填   | -   | 用于在访问 AI 服务时进行认证的令牌                                            |
-| `timeout`      | number                  | 非必填  | -   | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                         |
-| `modelMapping` | map of string to string | 非必填  | -   | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系 |
-| `context`      | object                  | 非必填  | -   | 配置 AI 对话上下文信息                                                  |
+| 名称             | 数据类型                    | 填写要求 | 默认值 | 描述                                                                    |
+|----------------|-------------------------|------|-----|-----------------------------------------------------------------------|
+| `id`           | string                  | 必填   | -   | AI 服务提供商的唯一标识                                                         |
+| `type`         | string                  | 必填   | -   | AI 服务提供商名称。目前支持以下值：openai, azure, moonshot, qwen                      |
+| `apiTokens`    | array of string         | 必填   | -   | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。 |
+| `timeout`      | number                  | 非必填  | -   | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                |
+| `modelMapping` | map of string to string | 非必填  | -   | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系        |
+| `context`      | object                  | 非必填  | -   | 配置 AI 对话上下文信息                                                         |
 
 `context`的配置字段说明如下：
 
@@ -52,6 +51,8 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 |-------------------|--------|------|-----|----------------------------------------------|
 | `azureServiceUrl` | string | 必填   | -   | Azure OpenAI 服务的 URL，须包含 `api-version` 查询参数。 |
 
+**注意：**Azure OpenAI 只支持配置一个 API Token。
+
 #### 月之暗面（Moonshot）
 
 月之暗面所对应的 `type` 为 `moonshot`。它特有的配置字段如下：
@@ -75,7 +76,8 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 ```yaml
 provider:
   - type: azure
-    apiToken: "YOUR_AZURE_OPENAI_API_TOKEN"
+    apiTokens:
+      - "YOUR_AZURE_OPENAI_API_TOKEN"
     azureServiceUrl: "https://higress-demo.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2024-02-15-preview",
 ```
 
@@ -172,7 +174,8 @@ provider:
 ```yaml
 provider:
   - type: qwen
-    apiToken: "YOUR_QWEN_API_TOKEN"
+    apiTokens:
+      - "YOUR_QWEN_API_TOKEN"
     modelMapping:
       'gpt-3': "qwen-turbo"
       'gpt-35-turbo': "qwen-plus"
@@ -199,25 +202,25 @@ provider:
 
 ```json
 {
-    "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1715175072,
-    "model": "qwen-turbo",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 24,
-        "completion_tokens": 33,
-        "total_tokens": 57
+  "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1715175072,
+  "model": "qwen-turbo",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 33,
+    "total_tokens": 57
+  }
 }
 ```
 
@@ -230,7 +233,8 @@ provider:
 ```yaml
 provider:
   - type: qwen
-    apiToken: "YOUR_QWEN_API_TOKEN"
+    apiTokens:
+      - "YOUR_QWEN_API_TOKEN"
     modelMapping:
       "*": "qwen-turbo"
     context:
@@ -289,7 +293,8 @@ provider:
 ```yaml
 provider:
   - type: moonshot
-    apiToken:
+    apiTokens:
+      - "YOUR_MOONSHOT_API_TOKEN"
     moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
     modelMapping:
       '*': "moonshot-v1-32k"

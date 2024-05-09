@@ -57,7 +57,7 @@ func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName 
 	}
 	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
 	_ = util.OverwriteRequestHost(moonshotDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
@@ -149,10 +149,10 @@ func (m *moonshotProvider) getContextContent(callback func(string, error), log w
 func (m *moonshotProvider) sendRequest(method, path string, body string, callback wrapper.ResponseCallback) error {
 	switch method {
 	case http.MethodGet:
-		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.apiToken)
+		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.GetRandomToken())
 		return m.client.Get(path, headers, callback, m.config.timeout)
 	case http.MethodPost:
-		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.apiToken, "Content-Type", "application/json")
+		headers := util.CreateHeaders("Authorization", "Bearer "+m.config.GetRandomToken(), "Content-Type", "application/json")
 		return m.client.Post(path, headers, []byte(body), callback, m.config.timeout)
 	default:
 		return errors.New("unsupported method: " + method)

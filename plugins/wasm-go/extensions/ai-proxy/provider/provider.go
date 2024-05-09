@@ -2,6 +2,7 @@ package provider
 
 import (
 	"errors"
+	"math/rand"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -70,9 +71,9 @@ type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
 	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"
 	typ string `required:"true" yaml:"type" json:"type"`
-	// @Title zh-CN API Token
-	// @Description zh-CN 在请求AI服务时用于认证的API Token。不同的AI服务提供商可能有不同的名称。例Moonshot AI的API Token称为API Key
-	apiToken string `required:"false" yaml:"apiToken" json:"apiToken"`
+	// @Title zh-CN API Tokens
+	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
+	apiTokens []string `required:"false" yaml:"apiToken" json:"apiTokens"`
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
@@ -92,7 +93,10 @@ type ProviderConfig struct {
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
-	c.apiToken = json.Get("apiToken").String()
+	c.apiTokens = make([]string, 0)
+	for _, token := range json.Get("apiTokens").Array() {
+		c.apiTokens = append(c.apiTokens, token.String())
+	}
 	c.timeout = uint32(json.Get("timeout").Uint())
 	if c.timeout == 0 {
 		c.timeout = defaultTimeout
@@ -111,8 +115,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 }
 
 func (c *ProviderConfig) Validate() error {
-	if c.apiToken == "" {
-		return errors.New("missing apiToken in provider config")
+	if c.apiTokens == nil || len(c.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
 	}
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
@@ -134,6 +138,19 @@ func (c *ProviderConfig) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (c *ProviderConfig) GetRandomToken() string {
+	apiTokens := c.apiTokens
+	count := len(apiTokens)
+	switch count {
+	case 0:
+		return ""
+	case 1:
+		return apiTokens[0]
+	default:
+		return apiTokens[rand.Intn(count)]
+	}
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {

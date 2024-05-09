@@ -59,7 +59,10 @@ static_resources:
                                 "provider": {
                                   "type": "moonshot",
                                   "domain": "api.moonshot.cn",
-                                  "apiToken": "****",
+                                  "apiTokens": [
+                                    "****",
+                                    "****"
+                                  ],
                                   "timeout": 1200000,
                                   "modelMapping": {
                                     "gpt-3": "moonshot-v1-8k",

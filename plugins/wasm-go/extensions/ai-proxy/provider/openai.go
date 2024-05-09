@@ -45,7 +45,7 @@ func (m *openaiProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Ap
 	}
 	_ = util.OverwriteRequestPath(openaiChatCompletionPath)
 	_ = util.OverwriteRequestHost(openaiDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.apiToken)
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
 	if m.contextCache == nil {
 		ctx.DontReadRequestBody()
