@@ -530,6 +530,12 @@ controller:
       "targetPort": 8888,
     },
     {
+      "name": "http-solver",
+      "protocol": "TCP",
+      "port": 8889,
+      "targetPort": 8889,
+    },
+    {
       "name": "grpc",
       "protocol": "TCP",
       "port": 15051,
@@ -567,6 +573,9 @@ controller:
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 80
+  automaticHttps:
+    enabled: false
+    email: ""
   
 ## Discovery Settings
 pilot:
