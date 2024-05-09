@@ -76,6 +76,7 @@ func getServerCommand() *cobra.Command {
 		Debug:                true,
 		NativeIstio:          true,
 		HttpAddress:          ":8888",
+		CertHttpAddress:      ":8889",
 		GrpcAddress:          ":15051",
 		GrpcKeepAliveOptions: keepalive.DefaultOption(),
 		XdsOptions: bootstrap.XdsOptions{
@@ -116,6 +117,10 @@ func getServerCommand() *cobra.Command {
 		"Http listening port of gateway pod")
 	serveCmd.PersistentFlags().Uint32Var(&serverArgs.GatewayHttpsPort, "gatewayHttpsPort", 443,
 		"Https listening port of gateway pod")
+
+	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableAutomaticHttps, "enableAutomaticHttps", false, "if true, enables automatic https")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.AutomaticHttpsEmail, "automaticHttpsEmail", "", "email for automatic https")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.CertHttpAddress, "certHttpAddress", serverArgs.CertHttpAddress, "the cert http address")
 
 	loggingOptions.AttachCobraFlags(serveCmd)
 	serverArgs.GrpcKeepAliveOptions.AttachCobraFlags(serveCmd)
