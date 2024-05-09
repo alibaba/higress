@@ -48,7 +48,6 @@ type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global Plugin
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
-type onTick func()
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
@@ -62,11 +61,27 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
 	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
-	onTick                onTick
+	onTickFuncs           map[uint32]func()
 }
 
-func SetCtx[PluginConfig any](pluginName string, onTick onTick, setFuncs ...SetPluginFunc[PluginConfig]) {
-	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, onTick, setFuncs...))
+var globalOnTickFuncs map[uint32]func() = map[uint32]func(){}
+var globalTickPeriod uint32 = 1000
+var globalTickPeriodCounter uint32 = 0
+
+func SetTickPeriod(tickPeriod uint32) {
+	if tickPeriod < 100 {
+		proxywasm.LogError("TickPeriod update failed because its value must be greater than 100ms, the value of TickPeriod is still 1000ms.")
+	} else {
+		globalTickPeriod = tickPeriod
+	}
+}
+
+func RegisteTickFunc(tickNum uint32, tickFunc func()) {
+	globalOnTickFuncs[tickNum] = tickFunc
+}
+
+func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
+	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, globalOnTickFuncs, setFuncs...))
 }
 
 type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
@@ -118,13 +133,13 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 	return nil
 }
 
-func NewCommonVmCtx[PluginConfig any](pluginName string, onTick onTick, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
+func NewCommonVmCtx[PluginConfig any](pluginName string, onTickFuncs map[uint32]func(), setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
 		log:             Log{pluginName},
 		hasCustomConfig: true,
 	}
-	ctx.onTick = onTick
+	ctx.onTickFuncs = onTickFuncs
 	for _, set := range setFuncs {
 		set(ctx)
 	}
@@ -154,7 +169,6 @@ type CommonPluginCtx[PluginConfig any] struct {
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStartStatus {
-	_ = proxywasm.SetTickPeriodMilliSeconds(1000)
 	data, err := proxywasm.GetPluginConfiguration()
 	if err != nil && err != types.ErrorStatusNotFound {
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
@@ -190,13 +204,18 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
+	if err := proxywasm.SetTickPeriodMilliSeconds(globalTickPeriod); err != nil {
+		proxywasm.LogError("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+	}
 	return types.OnPluginStartStatusOK
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
-	proxywasm.LogInfo("wrapper onTick")
-	if ctx.vm.onTick != nil {
-		ctx.vm.onTick()
+	globalTickPeriodCounter = (globalTickPeriodCounter + 1) % 1000
+	for tickNum, tickFunc := range ctx.vm.onTickFuncs {
+		if globalTickPeriodCounter%tickNum == 0 {
+			tickFunc()
+		}
 	}
 }
 
