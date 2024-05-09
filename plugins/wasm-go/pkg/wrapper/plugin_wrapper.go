@@ -73,12 +73,22 @@ type TickFuncEntry struct {
 
 var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 
+// Registe multiple onTick functions. Parameters include:
+// 1) tickPeriod: the execution period of tickFunc;
+// 2) tickFunc: the function to be executed
+// You should call this function in parseConfig phase, for example:
+//
+//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+//		wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
+//		wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
+//		return nil
+//	}
 func RegisteTickFunc(tickPeriod int64, tickFunc func()) {
 	globalOnTickFuncs = append(globalOnTickFuncs, TickFuncEntry{0, tickPeriod, tickFunc})
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
-	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, globalOnTickFuncs, setFuncs...))
+	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, setFuncs...))
 }
 
 type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
@@ -130,13 +140,12 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 	return nil
 }
 
-func NewCommonVmCtx[PluginConfig any](pluginName string, onTickFuncs []TickFuncEntry, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
+func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
 		log:             Log{pluginName},
 		hasCustomConfig: true,
 	}
-	ctx.onTickFuncs = onTickFuncs
 	for _, set := range setFuncs {
 		set(ctx)
 	}
@@ -167,6 +176,8 @@ type CommonPluginCtx[PluginConfig any] struct {
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStartStatus {
 	data, err := proxywasm.GetPluginConfiguration()
+	globalOnTickFuncs = nil
+	ctx.vm.onTickFuncs = nil
 	if err != nil && err != types.ErrorStatusNotFound {
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
 		return types.OnPluginStartStatusFailed
@@ -201,9 +212,12 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
-	if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
-		ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
-		return types.OnPluginStartStatusFailed
+	if globalOnTickFuncs != nil {
+		ctx.vm.onTickFuncs = globalOnTickFuncs
+		if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
+			ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+			return types.OnPluginStartStatusFailed
+		}
 	}
 	return types.OnPluginStartStatusOK
 }
