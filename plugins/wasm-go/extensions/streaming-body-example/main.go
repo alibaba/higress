@@ -39,8 +39,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, chunk []byte, log wrapper.Log) []byte {
-	log.Infof("recevie request body chunk:%s", chunk)
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	log.Infof("recevie request body chunk:%s, isLastChunk:%v", chunk, isLastChunk)
 	return []byte("test\n")
 }
 
@@ -49,7 +49,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.L
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, log wrapper.Log) []byte {
-	log.Infof("recevie response body chunk:%s", chunk)
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	log.Infof("recevie response body chunk:%s, isLastChunk:%v", chunk, isLastChunk)
 	return []byte("test\n")
 }

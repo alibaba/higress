@@ -41,13 +41,17 @@ type HttpContext interface {
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
 	DontReadResponseBody()
+	// If the onHttpStreamingRequestBody handle is not set, and the onHttpRequestBody handle is set, the request body will be buffed by default
+	BufferRequestBody()
+	// If the onHttpStreamingResponseBody handle is not set, and the onHttpResponseBody handle is set, the response body will be buffed by default
+	BufferResponseBody()
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
 type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log Log) error
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
-type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, log Log) []byte
+type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log Log) []byte
 type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
 
 type CommonVmCtx[PluginConfig any] struct {
@@ -150,13 +154,6 @@ func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFu
 		ctx.hasCustomConfig = false
 		ctx.parseConfig = parseEmptyPluginConfig[PluginConfig]
 	}
-	if ctx.onHttpStreamingRequestBody != nil && ctx.onHttpRequestBody != nil {
-		panic("only one of `ProcessRequestBodyBy` and `ProcessStreamingRequestBodyBy` can be set")
-
-	}
-	if ctx.onHttpStreamingResponseBody != nil && ctx.onHttpResponseBody != nil {
-		panic("only one of `ProcessResponseBodyBy` and `ProcessStreamingResponseBodyBy` can be set")
-	}
 	return ctx
 }
 
@@ -223,19 +220,28 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 	if ctx.vm.onHttpResponseBody != nil || ctx.vm.onHttpStreamingResponseBody != nil {
 		httpCtx.needResponseBody = true
 	}
+	if ctx.vm.onHttpStreamingRequestBody != nil {
+		httpCtx.streamingRequestBody = true
+	}
+	if ctx.vm.onHttpStreamingResponseBody != nil {
+		httpCtx.streamingResponseBody = true
+	}
+
 	return httpCtx
 }
 
 type CommonHttpCtx[PluginConfig any] struct {
 	types.DefaultHttpContext
-	plugin           *CommonPluginCtx[PluginConfig]
-	config           *PluginConfig
-	needRequestBody  bool
-	needResponseBody bool
-	requestBodySize  int
-	responseBodySize int
-	contextID        uint32
-	userContext      map[string]interface{}
+	plugin                *CommonPluginCtx[PluginConfig]
+	config                *PluginConfig
+	needRequestBody       bool
+	needResponseBody      bool
+	streamingRequestBody  bool
+	streamingResponseBody bool
+	requestBodySize       int
+	responseBodySize      int
+	contextID             uint32
+	userContext           map[string]interface{}
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {
@@ -274,6 +280,14 @@ func (ctx *CommonHttpCtx[PluginConfig]) DontReadResponseBody() {
 	ctx.needResponseBody = false
 }
 
+func (ctx *CommonHttpCtx[PluginConfig]) BufferRequestBody() {
+	ctx.streamingRequestBody = false
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) BufferResponseBody() {
+	ctx.streamingResponseBody = false
+}
+
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
 	config, err := ctx.plugin.GetMatchConfig()
 	if err != nil {
@@ -301,6 +315,16 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 	if !ctx.needRequestBody {
 		return types.ActionContinue
 	}
+	if ctx.plugin.vm.onHttpStreamingRequestBody != nil && ctx.streamingRequestBody {
+		chunk, _ := proxywasm.GetHttpRequestBody(0, bodySize)
+		modifiedChunk := ctx.plugin.vm.onHttpStreamingRequestBody(ctx, *ctx.config, chunk, endOfStream, ctx.plugin.vm.log)
+		err := proxywasm.ReplaceHttpRequestBody(modifiedChunk)
+		if err != nil {
+			ctx.plugin.vm.log.Warnf("replace request body chunk failed: %v", err)
+			return types.ActionContinue
+		}
+		return types.ActionContinue
+	}
 	if ctx.plugin.vm.onHttpRequestBody != nil {
 		ctx.requestBodySize += bodySize
 		if !endOfStream {
@@ -312,19 +336,6 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 			return types.ActionContinue
 		}
 		return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
-	}
-	if ctx.plugin.vm.onHttpStreamingRequestBody != nil {
-		chunk, err := proxywasm.GetHttpRequestBody(0, bodySize)
-		if err != nil {
-			ctx.plugin.vm.log.Warnf("get request body chunk failed: %v", err)
-			return types.ActionContinue
-		}
-		modifiedChunk := ctx.plugin.vm.onHttpStreamingRequestBody(ctx, *ctx.config, chunk, ctx.plugin.vm.log)
-		err = proxywasm.ReplaceHttpRequestBody(modifiedChunk)
-		if err != nil {
-			ctx.plugin.vm.log.Warnf("replace request body chunk failed: %v", err)
-			return types.ActionContinue
-		}
 	}
 	return types.ActionContinue
 }
@@ -350,6 +361,16 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 	if !ctx.needResponseBody {
 		return types.ActionContinue
 	}
+	if ctx.plugin.vm.onHttpStreamingResponseBody != nil && ctx.streamingResponseBody {
+		chunk, _ := proxywasm.GetHttpResponseBody(0, bodySize)
+		modifiedChunk := ctx.plugin.vm.onHttpStreamingResponseBody(ctx, *ctx.config, chunk, endOfStream, ctx.plugin.vm.log)
+		err := proxywasm.ReplaceHttpResponseBody(modifiedChunk)
+		if err != nil {
+			ctx.plugin.vm.log.Warnf("replace response body chunk failed: %v", err)
+			return types.ActionContinue
+		}
+		return types.ActionContinue
+	}
 	if ctx.plugin.vm.onHttpResponseBody != nil {
 		ctx.responseBodySize += bodySize
 		if !endOfStream {
@@ -361,19 +382,6 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 			return types.ActionContinue
 		}
 		return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
-	}
-	if ctx.plugin.vm.onHttpStreamingResponseBody != nil {
-		chunk, err := proxywasm.GetHttpResponseBody(0, bodySize)
-		if err != nil {
-			ctx.plugin.vm.log.Warnf("get response body chunk failed: %v", err)
-			return types.ActionContinue
-		}
-		modifiedChunk := ctx.plugin.vm.onHttpStreamingResponseBody(ctx, *ctx.config, chunk, ctx.plugin.vm.log)
-		err = proxywasm.ReplaceHttpResponseBody(modifiedChunk)
-		if err != nil {
-			ctx.plugin.vm.log.Warnf("replace response body chunk failed: %v", err)
-			return types.ActionContinue
-		}
 	}
 	return types.ActionContinue
 }
