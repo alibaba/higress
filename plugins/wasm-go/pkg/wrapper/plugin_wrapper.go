@@ -218,7 +218,8 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		return types.OnPluginStartStatusFailed
 	}
 	if err := proxywasm.SetTickPeriodMilliSeconds(globalTickPeriod); err != nil {
-		proxywasm.LogError("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+		ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+		return types.OnPluginStartStatusFailed
 	}
 	return types.OnPluginStartStatusOK
 }
