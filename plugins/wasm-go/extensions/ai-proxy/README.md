@@ -49,7 +49,7 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 |-------------------|--------|------|-----|----------------------------------------------|
 | `azureServiceUrl` | string | 必填   | -   | Azure OpenAI 服务的 URL，须包含 `api-version` 查询参数。 |
 
-**注意：**Azure OpenAI 只支持配置一个 API Token。
+**注意：** Azure OpenAI 只支持配置一个 API Token。
 
 #### 月之暗面（Moonshot）
 
@@ -76,7 +76,7 @@ provider:
   type: azure
   apiTokens:
     - "YOUR_AZURE_OPENAI_API_TOKEN"
-  azureServiceUrl: "https://higress-demo.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2024-02-15-preview",
+  azureServiceUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview",
 ```
 
 **请求示例**
