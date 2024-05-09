@@ -50,7 +50,7 @@ func IsObject(typ string) bool {
 
 var (
 	ErrInvalidModel     = errors.New("invalid model")
-	ErrInvalidFiledType = errors.New("invalid field type")
+	ErrInvalidFieldType = errors.New("invalid field type")
 )
 
 type ModelParser struct {
@@ -248,24 +248,24 @@ func (p *ModelParser) parseModelFields(model string) (fields []Model, err error)
 		if field.Tag != nil {
 			ignore, err := fd.setTag(field.Tag.Value)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to parse tag %q of the field %q", fd.Tag, fd.Name)
+				return nil, errors.Wrapf(err, "failed to parse tag %q of the field %q", field.Tag, fd.Name)
 			}
 			if ignore {
 				continue
 			}
 		}
-		fd.Type, err = p.parseFiledType(pkgName, field.Type)
+		fd.Type, err = p.parseFieldType(pkgName, field.Type)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to parse type %q of the field %q", field.Type, fd.Name)
 		}
 		if IsObject(fd.Type) {
 			subModel, err := p.getModelName(field.Type)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to get the sub-model name of the field %q with type %q", fd.Name, field.Type)
 			}
 			fd.Fields, err = p.parseModelFields(subModel)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to parse sub-model of the field %q with type %q", fd.Name, field.Type)
 			}
 		}
 		fields = append(fields, fd)
@@ -316,25 +316,25 @@ func (p *ModelParser) doGetModelName(pkgName string, typ ast.Expr) (string, erro
 	case *ast.SelectorExpr: // <pkg_name>.<field_name>
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
-			return "", ErrInvalidFiledType
+			return "", ErrInvalidFieldType
 		}
 		pName := pkg.Name + "."
 		return p.doGetModelName(pName, t.Sel)
 	case *ast.Ident:
 		return pkgName + t.Name, nil
 	default:
-		return "", ErrInvalidFiledType
+		return "", ErrInvalidFieldType
 	}
 }
 
-func (p *ModelParser) parseFiledType(pkgName string, typ ast.Expr) (string, error) {
+func (p *ModelParser) parseFieldType(pkgName string, typ ast.Expr) (string, error) {
 	switch t := typ.(type) {
 	case *ast.StructType: // nested struct
 		return string(JsonTypeObject), nil
 	case *ast.StarExpr: // *int -> int
-		return p.parseFiledType(pkgName, t.X)
+		return p.parseFieldType(pkgName, t.X)
 	case *ast.ArrayType: // slice or array
-		ret, err := p.parseFiledType(pkgName, t.Elt)
+		ret, err := p.parseFieldType(pkgName, t.Elt)
 		if err != nil {
 			return "", err
 		}
@@ -342,22 +342,22 @@ func (p *ModelParser) parseFiledType(pkgName string, typ ast.Expr) (string, erro
 	case *ast.SelectorExpr: // <pkg_name>.<field_name>
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
-			return "", ErrInvalidFiledType
+			return "", ErrInvalidFieldType
 		}
 		pName := pkg.Name + "."
-		return p.parseFiledType(pName, t.Sel)
+		return p.parseFieldType(pName, t.Sel)
 	case *ast.Ident:
 		fName := pkgName + t.Name
 		if _, ok := p.structs[fName]; ok {
 			return string(JsonTypeObject), nil
 		}
 		if alias, ok := p.alias[fName]; ok {
-			return p.parseFiledType(pkgName, alias.expr)
+			return p.parseFieldType(pkgName, alias.expr)
 		}
 		jsonType, err := convert2JsonType(t.Name)
 		return string(jsonType), err
 	default:
-		return "", ErrInvalidFiledType
+		return "", ErrInvalidFieldType
 	}
 }
 
@@ -375,7 +375,7 @@ func convert2JsonType(typ string) (JsonType, error) {
 	case "struct":
 		return JsonTypeObject, nil
 	default:
-		return "", ErrInvalidFiledType
+		return "", ErrInvalidFieldType
 	}
 }
 

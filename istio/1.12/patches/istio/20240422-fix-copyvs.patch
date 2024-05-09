@@ -1,0 +1,20 @@
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-04-22 18:08:26.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-04-22 18:07:46.000000000 +0800
+@@ -581,13 +581,13 @@
+ 			continue
+ 		}
+ 		if len(virtualService.Spec.(*networking.VirtualService).Hosts) > 1 {
+-			copiedVS := &networking.VirtualService{}
+-			copiedVS = virtualService.Spec.(*networking.VirtualService)
++			copiedVS := networking.VirtualService{}
++			copiedVS = *(virtualService.Spec.(*networking.VirtualService))
+ 			copiedVS.Hosts = []string{selectHost}
+ 			selectedVirtualServices = append(selectedVirtualServices, virtualServiceContext{
+ 				virtualService: config.Config{
+ 					Meta:   virtualService.Meta,
+-					Spec:   copiedVS,
++					Spec:   &copiedVS,
+ 					Status: virtualService.Status,
+ 				},
+ 				server:      vsCtx.server,

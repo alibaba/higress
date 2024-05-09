@@ -70,6 +70,8 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: HIGRESS_SYSTEM_NS
+            value: "{{ .Release.Namespace }}"
           - name: DEFAULT_UPSTREAM_CONCURRENCY_THRESHOLD
             value: "{{ .Values.global.defaultUpstreamConcurrencyThreshold }}"
           - name: ISTIO_GPRC_MAXRECVMSGSIZE
@@ -204,6 +206,8 @@ spec:
           {{- if .Values.global.watchNamespace }}
           - --watchNamespace={{ .Values.global.watchNamespace }}
           {{- end }}
+          - --enableAutomaticHttps={{ .Values.controller.automaticHttps.enabled }}
+          - --automaticHttpsEmail={{ .Values.controller.automaticHttps.email }}
           env:
           - name: POD_NAME
             valueFrom:

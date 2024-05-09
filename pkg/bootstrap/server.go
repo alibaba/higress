@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alibaba/higress/pkg/cert"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
 	"github.com/alibaba/higress/pkg/ingress/translation"
@@ -112,6 +113,9 @@ type ServerArgs struct {
 	GatewaySelectorValue string
 	GatewayHttpPort      uint32
 	GatewayHttpsPort     uint32
+	EnableAutomaticHttps bool
+	AutomaticHttpsEmail  string
+	CertHttpAddress      string
 }
 
 type readinessProbe func() (bool, error)
@@ -133,6 +137,7 @@ type Server struct {
 	xdsServer        *xds.DiscoveryServer
 	server           server.Instance
 	readinessProbes  map[string]readinessProbe
+	certServer       *cert.Server
 }
 
 var (
@@ -168,6 +173,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		s.initConfigController,
 		s.initRegistryEventHandlers,
 		s.initAuthenticators,
+		s.initAutomaticHttps,
 	}
 
 	for _, f := range initFuncList {
@@ -287,6 +293,15 @@ func (s *Server) Start(stop <-chan struct{}) error {
 		}
 	}()
 
+	if s.EnableAutomaticHttps {
+		go func() {
+			log.Infof("starting Automatic Cert HTTP service at %s", s.CertHttpAddress)
+			if err := s.certServer.Run(stop); err != nil {
+				log.Errorf("error serving Automatic Cert HTTP server: %v", err)
+			}
+		}()
+	}
+
 	s.waitForShutDown(stop)
 	return nil
 }
@@ -370,6 +385,26 @@ func (s *Server) initAuthenticators() error {
 	return nil
 }
 
+func (s *Server) initAutomaticHttps() error {
+	certOption := &cert.Option{
+		Namespace:     PodNamespace,
+		ServerAddress: s.CertHttpAddress,
+		Email:         s.AutomaticHttpsEmail,
+	}
+	certServer, err := cert.NewServer(s.kubeClient.Kube(), certOption)
+	if err != nil {
+		return err
+	}
+	s.certServer = certServer
+	log.Infof("init cert default config")
+	s.certServer.InitDefaultConfig()
+	if !s.EnableAutomaticHttps {
+		log.Info("automatic https is disabled")
+		return nil
+	}
+	return s.certServer.InitServer()
+}
+
 func (s *Server) initKubeClient() error {
 	if s.kubeClient != nil {
 		// Already initialized by startup arguments
@@ -398,6 +433,7 @@ func (s *Server) initHttpServer() error {
 	}
 	s.xdsServer.AddDebugHandlers(s.httpMux, nil, true, nil)
 	s.httpMux.HandleFunc("/ready", s.readyHandler)
+	s.httpMux.HandleFunc("/registry/watcherStatus", s.registryWatcherStatusHandler)
 	return nil
 }
 
@@ -411,6 +447,43 @@ func (s *Server) readyHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) registryWatcherStatusHandler(w http.ResponseWriter, _ *http.Request) {
+	ingressTranslation, ok := s.environment.IngressStore.(*translation.IngressTranslation)
+	if !ok {
+		http.Error(w, "IngressStore not found", http.StatusNotFound)
+		return
+	}
+
+	ingressConfig := ingressTranslation.GetIngressConfig()
+	if ingressConfig == nil {
+		http.Error(w, "IngressConfig not found", http.StatusNotFound)
+		return
+	}
+
+	registryReconciler := ingressConfig.RegistryReconciler
+	if registryReconciler == nil {
+		http.Error(w, "RegistryReconciler not found", http.StatusNotFound)
+		return
+	}
+
+	watcherStatusList := registryReconciler.GetRegistryWatcherStatusList()
+	writeJSON(w, watcherStatusList)
+}
+
+func writeJSON(w http.ResponseWriter, obj interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	b, err := config.ToJSON(obj)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 // cachesSynced checks whether caches have been synced.
