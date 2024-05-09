@@ -69,7 +69,6 @@ var globalTickPeriod uint32 = 1000
 var globalTickCounter uint32 = 0
 var globalTickLCM uint32 = 1
 
-// 计算最大公约数
 func gcd(a, b uint32) uint32 {
 	for b != 0 {
 		a, b = b, a%b
@@ -77,7 +76,6 @@ func gcd(a, b uint32) uint32 {
 	return a
 }
 
-// 计算最小公倍数
 func lcm(a, b uint32) uint32 {
 	return a * b / gcd(a, b)
 }
