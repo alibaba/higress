@@ -35,6 +35,8 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
+	log.Debugf("loading config: %s", json.String())
+
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
 		return err
@@ -46,7 +48,10 @@ func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapp
 }
 
 func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
-	if pluginConfig.GetProvider() == nil {
+	activeProvider := pluginConfig.GetProvider()
+
+	if activeProvider == nil {
+		log.Debugf("[onHttpRequestHeader] no active provider, skip processing")
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -55,14 +60,16 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
 	if apiName == "" {
+		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		_ = util.SendResponse(404, util.MimeTypeTextPlain, "API not found: "+path.Path)
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
 
-	pointcuts := pluginConfig.GetProvider().GetPointcuts()
+	pointcuts := activeProvider.GetPointcuts()
 	if _, has := pointcuts[provider.PointcutOnRequestHeaders]; has {
-		action, err := pluginConfig.GetProvider().OnApiRequestHeaders(ctx, apiName, log)
+		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
+		action, err := activeProvider.OnApiRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			return action
 		}
@@ -76,7 +83,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
-	if pluginConfig.GetProvider() == nil {
+	activeProvider := pluginConfig.GetProvider()
+
+	if activeProvider == nil {
+		log.Debugf("[onHttpRequestBody] no active provider, skip processing")
 		return types.ActionContinue
 	}
 
@@ -94,7 +104,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
-	if pluginConfig.GetProvider() == nil {
+	activeProvider := pluginConfig.GetProvider()
+
+	if activeProvider == nil {
+		log.Debugf("[onHttpResponseHeaders] no active provider, skip processing")
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
@@ -124,7 +137,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
-	if pluginConfig.GetProvider() == nil {
+	activeProvider := pluginConfig.GetProvider()
+
+	if activeProvider == nil {
+		log.Debugf("[onHttpResponseBody] no active provider, skip processing")
 		return types.ActionContinue
 	}
 
