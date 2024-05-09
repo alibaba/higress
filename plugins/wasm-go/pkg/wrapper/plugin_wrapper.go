@@ -66,7 +66,21 @@ type CommonVmCtx[PluginConfig any] struct {
 
 var globalOnTickFuncs map[uint32]func() = map[uint32]func(){}
 var globalTickPeriod uint32 = 1000
-var globalTickPeriodCounter uint32 = 0
+var globalTickCounter uint32 = 0
+var globalTickLCM uint32 = 1
+
+// 计算最大公约数
+func gcd(a, b uint32) uint32 {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
+// 计算最小公倍数
+func lcm(a, b uint32) uint32 {
+	return a * b / gcd(a, b)
+}
 
 func SetTickPeriod(tickPeriod uint32) {
 	if tickPeriod < 100 {
@@ -78,6 +92,7 @@ func SetTickPeriod(tickPeriod uint32) {
 
 func RegisteTickFunc(tickNum uint32, tickFunc func()) {
 	globalOnTickFuncs[tickNum] = tickFunc
+	globalTickLCM = lcm(tickNum, globalTickLCM)
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
@@ -211,9 +226,9 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
-	globalTickPeriodCounter = (globalTickPeriodCounter + 1) % 1000
+	globalTickCounter = (globalTickCounter + 1) % globalTickLCM
 	for tickNum, tickFunc := range ctx.vm.onTickFuncs {
-		if globalTickPeriodCounter%tickNum == 0 {
+		if globalTickCounter%tickNum == 0 {
 			tickFunc()
 		}
 	}
