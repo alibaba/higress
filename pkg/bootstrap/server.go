@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alibaba/higress/pkg/cert"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
 	"github.com/alibaba/higress/pkg/ingress/translation"
@@ -112,6 +113,9 @@ type ServerArgs struct {
 	GatewaySelectorValue string
 	GatewayHttpPort      uint32
 	GatewayHttpsPort     uint32
+	EnableAutomaticHttps bool
+	AutomaticHttpsEmail  string
+	CertHttpAddress      string
 }
 
 type readinessProbe func() (bool, error)
@@ -133,6 +137,7 @@ type Server struct {
 	xdsServer        *xds.DiscoveryServer
 	server           server.Instance
 	readinessProbes  map[string]readinessProbe
+	certServer       *cert.Server
 }
 
 var (
@@ -168,6 +173,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		s.initConfigController,
 		s.initRegistryEventHandlers,
 		s.initAuthenticators,
+		s.initAutomaticHttps,
 	}
 
 	for _, f := range initFuncList {
@@ -287,6 +293,15 @@ func (s *Server) Start(stop <-chan struct{}) error {
 		}
 	}()
 
+	if s.EnableAutomaticHttps {
+		go func() {
+			log.Infof("starting Automatic Cert HTTP service at %s", s.CertHttpAddress)
+			if err := s.certServer.Run(stop); err != nil {
+				log.Errorf("error serving Automatic Cert HTTP server: %v", err)
+			}
+		}()
+	}
+
 	s.waitForShutDown(stop)
 	return nil
 }
@@ -368,6 +383,26 @@ func (s *Server) initAuthenticators() error {
 		s.xdsServer.Authenticators = authenticators
 	}
 	return nil
+}
+
+func (s *Server) initAutomaticHttps() error {
+	certOption := &cert.Option{
+		Namespace:     PodNamespace,
+		ServerAddress: s.CertHttpAddress,
+		Email:         s.AutomaticHttpsEmail,
+	}
+	certServer, err := cert.NewServer(s.kubeClient.Kube(), certOption)
+	if err != nil {
+		return err
+	}
+	s.certServer = certServer
+	log.Infof("init cert default config")
+	s.certServer.InitDefaultConfig()
+	if !s.EnableAutomaticHttps {
+		log.Info("automatic https is disabled")
+		return nil
+	}
+	return s.certServer.InitServer()
 }
 
 func (s *Server) initKubeClient() error {
