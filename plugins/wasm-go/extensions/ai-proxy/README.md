@@ -75,10 +75,10 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 ```yaml
 provider:
-  - type: azure
-    apiTokens:
-      - "YOUR_AZURE_OPENAI_API_TOKEN"
-    azureServiceUrl: "https://higress-demo.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2024-02-15-preview",
+  type: azure
+  apiTokens:
+    - "YOUR_AZURE_OPENAI_API_TOKEN"
+  azureServiceUrl: "https://higress-demo.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2024-02-15-preview",
 ```
 
 **请求示例**
@@ -173,14 +173,14 @@ provider:
 
 ```yaml
 provider:
-  - type: qwen
-    apiTokens:
-      - "YOUR_QWEN_API_TOKEN"
-    modelMapping:
-      'gpt-3': "qwen-turbo"
-      'gpt-35-turbo': "qwen-plus"
-      'gpt-4-turbo': "qwen-max"
-      '*': "qwen-turbo"
+  type: qwen
+  apiTokens:
+    - "YOUR_QWEN_API_TOKEN"
+  modelMapping:
+    'gpt-3': "qwen-turbo"
+    'gpt-35-turbo': "qwen-plus"
+    'gpt-4-turbo': "qwen-max"
+    '*': "qwen-turbo"
 ```
 
 **请求示例**
@@ -232,15 +232,15 @@ provider:
 
 ```yaml
 provider:
-  - type: qwen
-    apiTokens:
-      - "YOUR_QWEN_API_TOKEN"
-    modelMapping:
-      "*": "qwen-turbo"
-    context:
-      - fileUrl: "http://file.default.svc.cluster.local/ai/context.txt",
-        serviceName: "file.dns",
-        servicePort: 80
+  type: qwen
+  apiTokens:
+    - "YOUR_QWEN_API_TOKEN"
+  modelMapping:
+    "*": "qwen-turbo"
+  context:
+    - fileUrl: "http://file.default.svc.cluster.local/ai/context.txt",
+      serviceName: "file.dns",
+      servicePort: 80
 ```
 
 **请求示例**
@@ -292,12 +292,12 @@ provider:
 
 ```yaml
 provider:
-  - type: moonshot
-    apiTokens:
-      - "YOUR_MOONSHOT_API_TOKEN"
-    moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
-    modelMapping:
-      '*': "moonshot-v1-32k"
+  type: moonshot
+  apiTokens:
+    - "YOUR_MOONSHOT_API_TOKEN"
+  moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
+  modelMapping:
+    '*': "moonshot-v1-32k"
 ```
 
 **请求示例**
