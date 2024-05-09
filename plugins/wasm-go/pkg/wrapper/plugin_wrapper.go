@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -61,36 +62,19 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
 	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
-	onTickFuncs           map[uint32]func()
+	onTickFuncs           []TickFuncEntry
 }
 
-var globalOnTickFuncs map[uint32]func() = map[uint32]func(){}
-var globalTickPeriod uint32 = 1000
-var globalTickCounter uint32 = 0
-var globalTickLCM uint32 = 1
-
-func gcd(a, b uint32) uint32 {
-	for b != 0 {
-		a, b = b, a%b
-	}
-	return a
+type TickFuncEntry struct {
+	lastExecuted int64
+	tickPeriod   int64
+	tickFunc     func()
 }
 
-func lcm(a, b uint32) uint32 {
-	return a * b / gcd(a, b)
-}
+var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 
-func SetTickPeriod(tickPeriod uint32) {
-	if tickPeriod < 100 {
-		proxywasm.LogError("TickPeriod update failed because its value must be greater than 100ms, the value of TickPeriod is still 1000ms.")
-	} else {
-		globalTickPeriod = tickPeriod
-	}
-}
-
-func RegisteTickFunc(tickNum uint32, tickFunc func()) {
-	globalOnTickFuncs[tickNum] = tickFunc
-	globalTickLCM = lcm(tickNum, globalTickLCM)
+func RegisteTickFunc(tickPeriod int64, tickFunc func()) {
+	globalOnTickFuncs = append(globalOnTickFuncs, TickFuncEntry{0, tickPeriod, tickFunc})
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
@@ -146,7 +130,7 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 	return nil
 }
 
-func NewCommonVmCtx[PluginConfig any](pluginName string, onTickFuncs map[uint32]func(), setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
+func NewCommonVmCtx[PluginConfig any](pluginName string, onTickFuncs []TickFuncEntry, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
 		log:             Log{pluginName},
@@ -217,7 +201,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
-	if err := proxywasm.SetTickPeriodMilliSeconds(globalTickPeriod); err != nil {
+	if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
 		ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
 		return types.OnPluginStartStatusFailed
 	}
@@ -225,10 +209,11 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
-	globalTickCounter = (globalTickCounter + 1) % globalTickLCM
-	for tickNum, tickFunc := range ctx.vm.onTickFuncs {
-		if globalTickCounter%tickNum == 0 {
-			tickFunc()
+	for i := range ctx.vm.onTickFuncs {
+		currentTimeStamp := time.Now().UnixMilli()
+		if currentTimeStamp-ctx.vm.onTickFuncs[i].lastExecuted >= ctx.vm.onTickFuncs[i].tickPeriod {
+			ctx.vm.onTickFuncs[i].tickFunc()
+			ctx.vm.onTickFuncs[i].lastExecuted = currentTimeStamp
 		}
 	}
 }
