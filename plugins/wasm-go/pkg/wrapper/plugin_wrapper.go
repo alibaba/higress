@@ -62,7 +62,6 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseHeaders onHttpHeadersFunc[PluginConfig]
 	onHttpResponseBody    onHttpBodyFunc[PluginConfig]
 	onHttpStreamDone      onHttpStreamDoneFunc[PluginConfig]
-	onTickFuncs           []TickFuncEntry
 }
 
 type TickFuncEntry struct {
@@ -171,13 +170,13 @@ func (ctx *CommonVmCtx[PluginConfig]) NewPluginContext(uint32) types.PluginConte
 type CommonPluginCtx[PluginConfig any] struct {
 	types.DefaultPluginContext
 	matcher.RuleMatcher[PluginConfig]
-	vm *CommonVmCtx[PluginConfig]
+	vm          *CommonVmCtx[PluginConfig]
+	onTickFuncs []TickFuncEntry
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStartStatus {
 	data, err := proxywasm.GetPluginConfiguration()
 	globalOnTickFuncs = nil
-	ctx.vm.onTickFuncs = nil
 	if err != nil && err != types.ErrorStatusNotFound {
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
 		return types.OnPluginStartStatusFailed
@@ -213,7 +212,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		return types.OnPluginStartStatusFailed
 	}
 	if globalOnTickFuncs != nil {
-		ctx.vm.onTickFuncs = globalOnTickFuncs
+		ctx.onTickFuncs = globalOnTickFuncs
 		if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
 			ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
 			return types.OnPluginStartStatusFailed
@@ -223,11 +222,11 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
-	for i := range ctx.vm.onTickFuncs {
+	for i := range ctx.onTickFuncs {
 		currentTimeStamp := time.Now().UnixMilli()
-		if currentTimeStamp-ctx.vm.onTickFuncs[i].lastExecuted >= ctx.vm.onTickFuncs[i].tickPeriod {
-			ctx.vm.onTickFuncs[i].tickFunc()
-			ctx.vm.onTickFuncs[i].lastExecuted = currentTimeStamp
+		if currentTimeStamp-ctx.onTickFuncs[i].lastExecuted >= ctx.onTickFuncs[i].tickPeriod {
+			ctx.onTickFuncs[i].tickFunc()
+			ctx.onTickFuncs[i].lastExecuted = currentTimeStamp
 		}
 	}
 }
