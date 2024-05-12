@@ -64,6 +64,12 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	_ = util.OverwriteRequestHost(qwenDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+
+	if m.config.protocol == protocolOriginal {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue, nil
+	}
+
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
@@ -131,6 +137,11 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 }
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+	if m.config.protocol == protocolOriginal {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue, nil
+	}
+
 	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
 	return types.ActionContinue, nil
 }

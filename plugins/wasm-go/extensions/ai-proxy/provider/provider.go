@@ -20,6 +20,9 @@ const (
 	providerTypeQwen     = "qwen"
 	providerTypeOpenAI   = "openai"
 
+	protocolOpenAI   = "openai"
+	protocolOriginal = "original"
+
 	roleSystem = "system"
 
 	ctxKeyStreamingBody        = "streamingBody"
@@ -95,6 +98,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
+	// @Title zh-CN 对外接口协议
+	// @Description zh-CN 通过本插件对外提供的AI服务接口协议。默认值为“openai”，即OpenAI的接口协议。如需保留原有接口协议，可配置为“original"
+	protocol string `required:"false" yaml:"protocol" json:"protocol"`
 	// @Title zh-CN 模型对话上下文
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
@@ -116,6 +122,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	for k, v := range json.Get("modelMapping").Map() {
 		c.modelMapping[k] = v.String()
 	}
+	c.protocol = json.Get("protocol").String()
+	if c.protocol == "" {
+		c.protocol = protocolOpenAI
+	}
 	contextJson := json.Get("context")
 	if contextJson.Exists() {
 		c.context = &ContextConfig{}
@@ -129,6 +139,9 @@ func (c *ProviderConfig) Validate() error {
 	}
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
+	}
+	if c.protocol != protocolOpenAI && c.protocol != protocolOriginal {
+		return errors.New("invalid protocol in config")
 	}
 	if c.context != nil {
 		if err := c.context.Validate(); err != nil {
