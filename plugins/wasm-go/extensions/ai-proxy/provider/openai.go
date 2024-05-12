@@ -35,11 +35,11 @@ type openaiProvider struct {
 	contextCache *contextCache
 }
 
-func (m *openaiProvider) GetPointcuts() map[Pointcut]interface{} {
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil}
+func (m *openaiProvider) GetProviderType() string {
+	return providerTypeOpenAI
 }
 
-func (m *openaiProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -56,7 +56,7 @@ func (m *openaiProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Ap
 	return types.ActionContinue, nil
 }
 
-func (m *openaiProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -84,16 +84,4 @@ func (m *openaiProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiNa
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
-}
-
-func (m *openaiProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
-}
-
-func (m *openaiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *openaiProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
 }

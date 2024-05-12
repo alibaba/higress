@@ -46,11 +46,11 @@ type qwenProvider struct {
 	contextCache *contextCache
 }
 
-func (m *qwenProvider) GetPointcuts() map[Pointcut]interface{} {
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil, PointcutOnResponseHeaders: nil, PointcutOnResponseBody: nil}
+func (m *qwenProvider) GetProviderType() string {
+	return providerTypeQwen
 }
 
-func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -68,7 +68,7 @@ func (m *qwenProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	return types.ActionContinue, nil
 }
 
-func (m *qwenProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -117,7 +117,7 @@ func (m *qwenProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	return types.ActionContinue, err
 }
 
-func (m *qwenProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
 	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
 	log.Debugf("=== response header streaming: %v", streaming)
@@ -131,7 +131,7 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 	return nil, nil
 }
 
-func (m *qwenProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
 
 	log.Debugf("=== response body streaming: %v", streaming)

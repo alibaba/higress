@@ -47,11 +47,11 @@ type moonshotProvider struct {
 	contextCache *contextCache
 }
 
-func (m *moonshotProvider) GetPointcuts() map[Pointcut]interface{} {
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil}
+func (m *moonshotProvider) GetProviderType() string {
+	return providerTypeMoonshot
 }
 
-func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -62,7 +62,7 @@ func (m *moonshotProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName 
 	return types.ActionContinue, nil
 }
 
-func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -109,18 +109,6 @@ func (m *moonshotProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName Api
 func (m *moonshotProvider) performChatCompletion(ctx wrapper.HttpContext, fileContent string, request *chatCompletionRequest, log wrapper.Log) error {
 	insertContextMessage(request, fileContent)
 	return replaceJsonRequestBody(request, log)
-}
-
-func (m *moonshotProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
-}
-
-func (m *moonshotProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *moonshotProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
 }
 
 func (m *moonshotProvider) getContextContent(callback func(string, error), log wrapper.Log) error {

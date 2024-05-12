@@ -47,11 +47,11 @@ type azureProvider struct {
 	serviceUrl   *url.URL
 }
 
-func (m *azureProvider) GetPointcuts() map[Pointcut]interface{} {
-	return map[Pointcut]interface{}{PointcutOnRequestHeaders: nil, PointcutOnRequestBody: nil}
+func (m *azureProvider) GetProviderType() string {
+	return providerTypeAzure
 }
 
-func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -68,7 +68,7 @@ func (m *azureProvider) OnApiRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	return types.ActionContinue, nil
 }
 
-func (m *azureProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -96,16 +96,4 @@ func (m *azureProvider) OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
-}
-
-func (m *azureProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
-}
-
-func (m *azureProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	return nil, nil
-}
-
-func (m *azureProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	return types.ActionContinue, nil
 }

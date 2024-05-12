@@ -15,12 +15,6 @@ type Pointcut string
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
 
-	PointcutOnRequestHeaders        Pointcut = "onRequestHeaders"
-	PointcutOnRequestBody           Pointcut = "onRequestBody"
-	PointcutOnResponseHeaders       Pointcut = "onResponseHeaders"
-	PointcutOnStreamingResponseBody Pointcut = "onStreamingResponseBody"
-	PointcutOnResponseBody          Pointcut = "onResponseBody"
-
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
@@ -61,12 +55,27 @@ var (
 )
 
 type Provider interface {
-	GetPointcuts() map[Pointcut]interface{}
-	OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
-	OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
-	OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+	GetProviderType() string
+}
+
+type RequestHeadersHandler interface {
+	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+}
+
+type RequestBodyHandler interface {
+	OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+type ResponseHeadersHandler interface {
+	OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+}
+
+type StreamingResponseBodyHandler interface {
 	OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error)
-	OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+type ResponseBodyHandler interface {
+	OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
 }
 
 type ProviderConfig struct {
