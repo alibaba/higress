@@ -145,11 +145,14 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 
 	defer func() {
 		if eventStartIndex != -1 {
+			// Just in case the received chunk is not a complete event.
 			ctx.SetContext(ctxKeyStreamingBody, receivedBody[eventStartIndex:])
 		} else {
 			ctx.SetContext(ctxKeyStreamingBody, nil)
 		}
 	}()
+
+	// Sample event response:
 
 	var responseBuilder strings.Builder
 	currentEventId, currentKey := "", ""
@@ -160,13 +163,11 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 			if lineStartIndex == -1 {
 				lineStartIndex = i
 				valueStartIndex = -1
-				log.Debugf("=== lineStartIndex: %d", lineStartIndex)
 			}
 			if valueStartIndex == -1 {
 				if ch == ':' {
 					valueStartIndex = i + 1
 					currentKey = string(receivedBody[lineStartIndex:valueStartIndex])
-					log.Debugf("=== key: [%s]", currentKey)
 				}
 			} else if valueStartIndex == i && ch == ' ' {
 				// Skip leading spaces in data.
@@ -215,9 +216,7 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 			return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 		}
 
-		log.Debugf("=== response: %v", qwenResponse)
 		responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
-		log.Debugf("=== response count: %d", len(responses))
 		for _, response := range responses {
 			responseBody, err := json.Marshal(response)
 			if err != nil {
