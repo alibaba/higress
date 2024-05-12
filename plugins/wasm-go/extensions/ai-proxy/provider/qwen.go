@@ -24,6 +24,9 @@ const (
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
+
+	streamDataKeyword    = "data: "
+	streamDataEndKeyword = "[DONE]"
 )
 
 type qwenProviderInitializer struct {
@@ -60,12 +63,12 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
-	// Always use non-streaming mode for Qwen
-	// TODO: Support Qwen streaming
-	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
-	_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
-
+	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+	_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
 	return types.ActionContinue, nil
+
+	// Delay the header processing to allow changing streaming mode in OnRequestBody
+	//return types.HeaderStopIteration, nil
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -90,7 +93,13 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
-	ctx.SetContext(ctxKeyStreaming, request.Stream)
+	//if request.Stream {
+	//	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+	//	_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+	//} else {
+	//	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
+	//	_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
+	//}
 
 	if m.config.context == nil {
 		qwenRequest := m.buildQwenTextGenerationRequest(request)
@@ -119,81 +128,85 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
-	log.Debugf("=== response header streaming: %v", streaming)
-	if streaming {
-		_ = proxywasm.ReplaceHttpResponseHeader("Content-Type", "text/event-stream")
-	}
 	return types.ActionContinue, nil
 }
 
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	return nil, nil
+	bufferedStreamingBody := ctx.GetContext(ctxKeyStreamingBody).([]byte)
+	receivedBody := append(bufferedStreamingBody, chunk...)
+
+	lineStartIndex := -1
+	skipCurrentLine := false
+	var responseBuilder strings.Builder
+	for i := 0; i < len(receivedBody); i++ {
+		ch := receivedBody[i]
+		if ch != '\n' {
+			if lineStartIndex == -1 {
+				lineStartIndex = i
+				skipCurrentLine = false
+			}
+			if ch == ':' {
+				if lineStartIndex == -1 {
+					// Leading colon. Skip the line.
+					skipCurrentLine = true
+				} else if string(receivedBody[lineStartIndex:i]) != streamDataKeyword {
+					// Not a data line. Skip it.
+					skipCurrentLine = true
+				}
+			}
+			continue
+		}
+
+		if lineStartIndex == -1 {
+			// Leading newline. Skip.
+			continue
+		}
+		if skipCurrentLine {
+			lineStartIndex = -1
+			skipCurrentLine = false
+			continue
+		}
+
+		data := receivedBody[lineStartIndex+len(streamDataKeyword) : i]
+		log.Debugf("=== event data: %s", data)
+
+		if string(data) == streamDataEndKeyword {
+			responseBuilder.WriteString(streamDataKeyword)
+			responseBuilder.WriteString(streamDataEndKeyword)
+			responseBuilder.WriteString("\n\n")
+			continue
+		}
+
+		qwenResponse := &qwenTextGenResponse{}
+		if err := json.Unmarshal(data, qwenResponse); err != nil {
+			log.Errorf("unable to unmarshal Qwen response: %v", err)
+			return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+		}
+
+		responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
+		for _, response := range responses {
+			responseBody, err := json.Marshal(response)
+			if err != nil {
+				log.Errorf("unable to marshal response: %v", err)
+				return nil, fmt.Errorf("unable to marshal response: %v", err)
+			}
+			responseBuilder.WriteString(streamDataKeyword)
+			responseBuilder.Write(responseBody)
+			responseBuilder.WriteString("\n\n")
+		}
+	}
+	modifiedResponseBody := responseBuilder.String()
+	log.Debugf("=== response data: %s", modifiedResponseBody)
+	return []byte(modifiedResponseBody), nil
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
-
-	log.Debugf("=== response body streaming: %v", streaming)
-
-	if !streaming {
-		qwenResponse := &qwenTextGenResponse{}
-		if err := json.Unmarshal(body, qwenResponse); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
-		}
-		response := m.buildChatCompletionResponse(ctx, qwenResponse)
-		return types.ActionContinue, replaceJsonResponseBody(response, log)
-	}
-
-	// TODO: Support Qwen streaming
-	//lastNewLineIndex := len(body)
-	//var lastEventData []byte = nil
-	//keyword := []byte("data:")
-	//for i := len(body) - len(keyword); i >= 0; i-- {
-	//	if body[i] != '\n' {
-	//		continue
-	//	}
-	//	if bytes.Equal(body[i+1:i+1+len(keyword)], keyword) {
-	//		lastEventData = body[i+1+len(keyword) : lastNewLineIndex]
-	//		break
-	//	} else {
-	//		lastNewLineIndex = i
-	//	}
-	//}
-	//if lastEventData == nil {
-	//	log.Debugf("=== no event received")
-	//	return types.ActionContinue, fmt.Errorf("no event received")
-	//}
-
-	log.Debugf("=== last event data: %s", body)
-	lastEventData := body
 	qwenResponse := &qwenTextGenResponse{}
-	if err := json.Unmarshal(lastEventData, qwenResponse); err != nil {
-		log.Errorf("unable to unmarshal Qwen response: %v", err)
+	if err := json.Unmarshal(body, qwenResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
-
-	var responseBuilder strings.Builder
-	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
-	for _, response := range responses {
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return types.ActionContinue, fmt.Errorf("unable to marshal response: %v", err)
-		}
-		responseBuilder.WriteString("data: ")
-		responseBuilder.Write(responseBody)
-		responseBuilder.WriteString("\n\n")
-	}
-	responseBuilder.WriteString("data: [DONE]\n\n")
-
-	finalResponseBody := responseBuilder.String()
-	log.Debugf("=== response data: %s", finalResponseBody)
-	err := proxywasm.ReplaceHttpResponseBody([]byte(finalResponseBody))
-	if err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to replace the original response body: %v", err)
-	}
-	return types.ActionContinue, nil
+	response := m.buildChatCompletionResponse(ctx, qwenResponse)
+	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
 func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletionRequest) *qwenTextGenRequest {

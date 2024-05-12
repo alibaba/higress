@@ -22,11 +22,9 @@ const (
 
 	roleSystem = "system"
 
-	ctxKeyStreaming            = "streaming"
+	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
-
-	contentTypeTextEventStream = "text/event-stream"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"

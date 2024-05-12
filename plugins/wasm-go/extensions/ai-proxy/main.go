@@ -30,12 +30,13 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeader),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
 }
 
 func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	log.Debugf("loading config: %s", json.String())
+	//log.Debugf("loading config: %s", json.String())
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
@@ -66,19 +67,20 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
 
-	pointcuts := activeProvider.GetPointcuts()
-	if _, has := pointcuts[provider.PointcutOnRequestHeaders]; has {
+	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		action, err := activeProvider.OnApiRequestHeaders(ctx, apiName, log)
+		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			return action
 		}
 		_ = util.SendResponse(404, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue
 	}
-	if _, has := pointcuts[provider.PointcutOnRequestBody]; !has {
+
+	if _, needHandleBody := activeProvider.(provider.RequestBodyHandler); needHandleBody {
 		ctx.DontReadRequestBody()
 	}
+
 	return types.ActionContinue
 }
 
@@ -90,10 +92,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		return types.ActionContinue
 	}
 
-	pointcuts := pluginConfig.GetProvider().GetPointcuts()
-	if _, has := pointcuts[provider.PointcutOnRequestBody]; has {
+	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
+
+	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
-		action, err := pluginConfig.GetProvider().OnApiRequestBody(ctx, apiName, body, log)
+		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
@@ -112,6 +115,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		return types.ActionContinue
 	}
 
+	log.Debugf("[onHttpResponseHeaders] provider=%s", activeProvider.GetProviderType())
+
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil || status != "200" {
 		if err != nil {
@@ -120,20 +125,48 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	pointcuts := pluginConfig.GetProvider().GetPointcuts()
-	if _, has := pointcuts[provider.PointcutOnResponseHeaders]; has {
+
+	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
-		action, err := pluginConfig.GetProvider().OnApiResponseHeaders(ctx, apiName, log)
+		action, err := handler.OnResponseHeaders(ctx, apiName, log)
 		if err == nil {
 			return action
 		}
 		_ = util.SendResponse(404, util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
 		return types.ActionContinue
 	}
-	if _, has := pointcuts[provider.PointcutOnResponseBody]; !has {
+
+	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
+	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
+	if !needHandleBody && !needHandleStreamingBody {
 		ctx.DontReadResponseBody()
+	} else if !needHandleStreamingBody {
+		ctx.BufferResponseBody()
 	}
+
 	return types.ActionContinue
+}
+
+func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	activeProvider := pluginConfig.GetProvider()
+
+	if activeProvider == nil {
+		log.Debugf("[onStreamingResponseBody] no active provider, skip processing")
+		return chunk
+	}
+
+	log.Debugf("[onStreamingResponseBody] provider=%s", activeProvider.GetProviderType())
+	log.Debugf("isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
+
+	if handler, ok := activeProvider.(provider.StreamingResponseBodyHandler); ok {
+		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk, log)
+		if err == nil && modifiedChunk != nil {
+			return modifiedChunk
+		}
+		return chunk
+	}
+	return chunk
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
@@ -144,11 +177,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		return types.ActionContinue
 	}
 
-	log.Debugf("response body: %s", string(body))
-	pointcuts := pluginConfig.GetProvider().GetPointcuts()
-	if _, has := pointcuts[provider.PointcutOnResponseBody]; has {
+	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
+	//log.Debugf("response body: %s", string(body))
+
+	if handler, ok := activeProvider.(provider.ResponseBodyHandler); ok {
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
-		action, err := pluginConfig.GetProvider().OnApiResponseBody(ctx, apiName, body, log)
+		action, err := handler.OnResponseBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
