@@ -206,6 +206,8 @@ spec:
           {{- if .Values.global.watchNamespace }}
           - --watchNamespace={{ .Values.global.watchNamespace }}
           {{- end }}
+          - --enableAutomaticHttps={{ .Values.controller.automaticHttps.enabled }}
+          - --automaticHttpsEmail={{ .Values.controller.automaticHttps.email }}
           env:
           - name: POD_NAME
             valueFrom:
