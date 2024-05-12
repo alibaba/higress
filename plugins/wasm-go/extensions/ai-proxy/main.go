@@ -68,7 +68,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	ctx.SetContext(ctxKeyApiName, apiName)
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
-		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			return action

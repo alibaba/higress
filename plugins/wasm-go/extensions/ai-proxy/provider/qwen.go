@@ -25,8 +25,12 @@ const (
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
 
-	streamDataKeyword    = "data: "
-	streamDataEndKeyword = "[DONE]"
+	ctxKeyPushedMessageContent = "pushedMessageContent"
+
+	streamIdItemKey    = "id:"
+	streamDataItemKey  = "data:"
+	streamEndDataValue = "[DONE]"
+	streamEventHeader  = "event: result\n:HTTP_STATUS/200\n"
 )
 
 type qwenProviderInitializer struct {
@@ -132,65 +136,99 @@ func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	bufferedStreamingBody := ctx.GetContext(ctxKeyStreamingBody).([]byte)
-	receivedBody := append(bufferedStreamingBody, chunk...)
+	receivedBody := chunk
+	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
+		receivedBody = append(bufferedStreamingBody, chunk...)
+	}
 
-	lineStartIndex := -1
-	skipCurrentLine := false
+	eventStartIndex, lineStartIndex, valueStartIndex := 0, -1, -1
+
+	defer func() {
+		if eventStartIndex != -1 {
+			ctx.SetContext(ctxKeyStreamingBody, receivedBody[eventStartIndex:])
+		} else {
+			ctx.SetContext(ctxKeyStreamingBody, nil)
+		}
+	}()
+
 	var responseBuilder strings.Builder
-	for i := 0; i < len(receivedBody); i++ {
+	currentEventId, currentKey := "", ""
+	i, length := 0, len(receivedBody)
+	for i = 0; i < length; i++ {
 		ch := receivedBody[i]
 		if ch != '\n' {
 			if lineStartIndex == -1 {
 				lineStartIndex = i
-				skipCurrentLine = false
+				valueStartIndex = -1
+				log.Debugf("=== lineStartIndex: %d", lineStartIndex)
 			}
-			if ch == ':' {
-				if lineStartIndex == -1 {
-					// Leading colon. Skip the line.
-					skipCurrentLine = true
-				} else if string(receivedBody[lineStartIndex:i]) != streamDataKeyword {
-					// Not a data line. Skip it.
-					skipCurrentLine = true
+			if valueStartIndex == -1 {
+				if ch == ':' {
+					valueStartIndex = i + 1
+					currentKey = string(receivedBody[lineStartIndex:valueStartIndex])
+					log.Debugf("=== key: [%s]", currentKey)
 				}
+			} else if valueStartIndex == i && ch == ' ' {
+				// Skip leading spaces in data.
+				valueStartIndex = i + 1
 			}
 			continue
 		}
 
 		if lineStartIndex == -1 {
-			// Leading newline. Skip.
-			continue
-		}
-		if skipCurrentLine {
-			lineStartIndex = -1
-			skipCurrentLine = false
+			// Extra new line, Should be an event separator.
+			eventStartIndex = i + 1
 			continue
 		}
 
-		data := receivedBody[lineStartIndex+len(streamDataKeyword) : i]
-		log.Debugf("=== event data: %s", data)
+		key := currentKey
+		value := receivedBody[valueStartIndex:i]
 
-		if string(data) == streamDataEndKeyword {
-			responseBuilder.WriteString(streamDataKeyword)
-			responseBuilder.WriteString(streamDataEndKeyword)
+		// Reset message parsing state.
+		eventStartIndex = -1
+		lineStartIndex = -1
+		valueStartIndex = -1
+		currentKey = ""
+
+		if key == streamIdItemKey {
+			currentEventId = string(value)
+			continue
+		}
+		if key != streamDataItemKey {
+			continue
+		}
+
+		if string(value) == streamEndDataValue {
+			responseBuilder.WriteString(streamIdItemKey)
+			responseBuilder.WriteString(currentEventId)
+			responseBuilder.WriteString("\n")
+			responseBuilder.WriteString(streamEventHeader)
+			responseBuilder.WriteString(streamDataItemKey)
+			responseBuilder.WriteString(streamEndDataValue)
 			responseBuilder.WriteString("\n\n")
 			continue
 		}
 
 		qwenResponse := &qwenTextGenResponse{}
-		if err := json.Unmarshal(data, qwenResponse); err != nil {
+		if err := json.Unmarshal(value, qwenResponse); err != nil {
 			log.Errorf("unable to unmarshal Qwen response: %v", err)
 			return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 		}
 
+		log.Debugf("=== response: %v", qwenResponse)
 		responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
+		log.Debugf("=== response count: %d", len(responses))
 		for _, response := range responses {
 			responseBody, err := json.Marshal(response)
 			if err != nil {
 				log.Errorf("unable to marshal response: %v", err)
 				return nil, fmt.Errorf("unable to marshal response: %v", err)
 			}
-			responseBuilder.WriteString(streamDataKeyword)
+			responseBuilder.WriteString(streamIdItemKey)
+			responseBuilder.WriteString(currentEventId)
+			responseBuilder.WriteString("\n")
+			responseBuilder.WriteString(streamEventHeader)
+			responseBuilder.WriteString(streamDataItemKey)
 			responseBuilder.Write(responseBody)
 			responseBuilder.WriteString("\n\n")
 		}
@@ -257,20 +295,33 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 	}
-	roleResponse := *&baseMessage
-	deltaResponse := *&baseMessage
-	finishResponse := *&baseMessage
-	for _, qwenChoice := range qwenResponse.Output.Choices {
-		message := qwenChoice.Message
-		roleResponse.Choices = append(roleResponse.Choices, chatCompletionChoice{Delta: &chatMessage{Role: message.Role}})
-		deltaResponse.Choices = append(deltaResponse.Choices, chatCompletionChoice{Delta: &chatMessage{Content: message.Content}})
-		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: finishReasonStop})
+
+	responses := make([]*chatCompletionResponse, 0)
+
+	qwenChoice := qwenResponse.Output.Choices[0]
+	message := qwenChoice.Message
+
+	content := message.Content
+	if rawPushedContent := ctx.GetContext(ctxKeyPushedMessageContent); rawPushedContent != nil {
+		if pushedContent := rawPushedContent.(string); pushedContent != "" && strings.HasPrefix(content, pushedContent) {
+			content = content[len(pushedContent):]
+		}
 	}
-	return []*chatCompletionResponse{
-		&roleResponse,
-		&deltaResponse,
-		&finishResponse,
+	if content != "" {
+		deltaResponse := *&baseMessage
+		deltaResponse.Choices = append(deltaResponse.Choices, chatCompletionChoice{Delta: &chatMessage{Role: message.Role, Content: content}})
+		responses = append(responses, &deltaResponse)
+		ctx.SetContext(ctxKeyPushedMessageContent, message.Content)
 	}
+
+	// Yes, Qwen uses a string "null" as null.
+	if qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null" {
+		finishResponse := *&baseMessage
+		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
+		responses = append(responses, &finishResponse)
+	}
+
+	return responses
 }
 
 type qwenTextGenRequest struct {
