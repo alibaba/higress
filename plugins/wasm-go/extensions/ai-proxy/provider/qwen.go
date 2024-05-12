@@ -127,6 +127,10 @@ func (m *qwenProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName Api
 	return types.ActionContinue, nil
 }
 
+func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	return nil, nil
+}
+
 func (m *qwenProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	streaming := ctx.GetContext(ctxKeyStreaming).(bool)
 

@@ -90,6 +90,10 @@ func (m *openaiProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName A
 	return types.ActionContinue, nil
 }
 
+func (m *openaiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	return nil, nil
+}
+
 func (m *openaiProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	return types.ActionContinue, nil
 }

@@ -115,6 +115,10 @@ func (m *moonshotProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName
 	return types.ActionContinue, nil
 }
 
+func (m *moonshotProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	return nil, nil
+}
+
 func (m *moonshotProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	return types.ActionContinue, nil
 }

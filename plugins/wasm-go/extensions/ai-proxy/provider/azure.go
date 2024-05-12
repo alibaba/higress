@@ -102,6 +102,10 @@ func (m *azureProvider) OnApiResponseHeaders(ctx wrapper.HttpContext, apiName Ap
 	return types.ActionContinue, nil
 }
 
+func (m *azureProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	return nil, nil
+}
+
 func (m *azureProvider) OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	return types.ActionContinue, nil
 }

@@ -15,10 +15,11 @@ type Pointcut string
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
 
-	PointcutOnRequestHeaders  Pointcut = "onRequestHeaders"
-	PointcutOnRequestBody     Pointcut = "onRequestBody"
-	PointcutOnResponseHeaders Pointcut = "onResponseHeaders"
-	PointcutOnResponseBody    Pointcut = "onResponseBody"
+	PointcutOnRequestHeaders        Pointcut = "onRequestHeaders"
+	PointcutOnRequestBody           Pointcut = "onRequestBody"
+	PointcutOnResponseHeaders       Pointcut = "onResponseHeaders"
+	PointcutOnStreamingResponseBody Pointcut = "onStreamingResponseBody"
+	PointcutOnResponseBody          Pointcut = "onResponseBody"
 
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
@@ -64,6 +65,7 @@ type Provider interface {
 	OnApiRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
 	OnApiRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
 	OnApiResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+	OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error)
 	OnApiResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
 }
 
