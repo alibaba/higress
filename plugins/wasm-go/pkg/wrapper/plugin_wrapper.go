@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -68,6 +69,29 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseBody          onHttpBodyFunc[PluginConfig]
 	onHttpStreamingResponseBody onHttpStreamingBodyFunc[PluginConfig]
 	onHttpStreamDone            onHttpStreamDoneFunc[PluginConfig]
+}
+
+type TickFuncEntry struct {
+	lastExecuted int64
+	tickPeriod   int64
+	tickFunc     func()
+}
+
+var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
+
+// Registe multiple onTick functions. Parameters include:
+// 1) tickPeriod: the execution period of tickFunc, this value should be a multiple of 100
+// 2) tickFunc: the function to be executed
+//
+// You should call this function in parseConfig phase, for example:
+//
+//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+//	  wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
+//		 wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
+//		 return nil
+//	}
+func RegisteTickFunc(tickPeriod int64, tickFunc func()) {
+	globalOnTickFuncs = append(globalOnTickFuncs, TickFuncEntry{0, tickPeriod, tickFunc})
 }
 
 func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
@@ -166,11 +190,13 @@ func (ctx *CommonVmCtx[PluginConfig]) NewPluginContext(uint32) types.PluginConte
 type CommonPluginCtx[PluginConfig any] struct {
 	types.DefaultPluginContext
 	matcher.RuleMatcher[PluginConfig]
-	vm *CommonVmCtx[PluginConfig]
+	vm          *CommonVmCtx[PluginConfig]
+	onTickFuncs []TickFuncEntry
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStartStatus {
 	data, err := proxywasm.GetPluginConfiguration()
+	globalOnTickFuncs = nil
 	if err != nil && err != types.ErrorStatusNotFound {
 		ctx.vm.log.Criticalf("error reading plugin configuration: %v", err)
 		return types.OnPluginStartStatusFailed
@@ -205,7 +231,24 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
+	if globalOnTickFuncs != nil {
+		ctx.onTickFuncs = globalOnTickFuncs
+		if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
+			ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+			return types.OnPluginStartStatusFailed
+		}
+	}
 	return types.OnPluginStartStatusOK
+}
+
+func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
+	for i := range ctx.onTickFuncs {
+		currentTimeStamp := time.Now().UnixMilli()
+		if currentTimeStamp-ctx.onTickFuncs[i].lastExecuted >= ctx.onTickFuncs[i].tickPeriod {
+			ctx.onTickFuncs[i].tickFunc()
+			ctx.onTickFuncs[i].lastExecuted = currentTimeStamp
+		}
+	}
 }
 
 func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types.HttpContext {
