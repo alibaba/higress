@@ -57,6 +57,10 @@ func (m *qwenProvider) GetProviderType() string {
 	return providerTypeQwen
 }
 
+const (
+	forceStreaming = true
+)
+
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
@@ -65,25 +69,57 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	_ = util.OverwriteRequestHost(qwenDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
-	if m.config.protocol == protocolOriginal {
+	if m.config.protocol == protocolOriginal && m.config.context == nil {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue, nil
 	}
 
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	if forceStreaming {
+		_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
-	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-	_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
-	return types.ActionContinue, nil
-
-	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	//return types.HeaderStopIteration, nil
+		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+		_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+		return types.ActionContinue, nil
+	} else {
+		// Delay the header processing to allow changing streaming mode in OnRequestBody
+		return types.HeaderStopIteration, nil
+	}
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
+	}
+
+	if m.config.protocol == protocolOriginal {
+		if m.config.context == nil {
+			return types.ActionContinue, nil
+		}
+
+		request := &qwenTextGenRequest{}
+		if err := json.Unmarshal(body, request); err != nil {
+			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+		}
+
+		err := m.contextCache.GetContent(func(content string, err error) {
+			defer func() {
+				_ = proxywasm.ResumeHttpRequest()
+			}()
+
+			if err != nil {
+				log.Errorf("failed to load context file: %v", err)
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			}
+			m.insertContextMessage(request, content)
+			if err := replaceJsonRequestBody(request, log); err != nil {
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			}
+		}, log)
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
 	}
 
 	request := &chatCompletionRequest{}
@@ -103,13 +139,15 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
-	//if request.Stream {
-	//	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-	//	_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
-	//} else {
-	//	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
-	//	_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
-	//}
+	if !forceStreaming {
+		if request.Stream {
+			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+			_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+		} else {
+			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
+			_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
+		}
+	}
 
 	if m.config.context == nil {
 		qwenRequest := m.buildQwenTextGenerationRequest(request)
@@ -138,7 +176,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if m.config.protocol == protocolOriginal {
-		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
 		return types.ActionContinue, nil
 	}
 
@@ -202,50 +240,23 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 		valueStartIndex = -1
 		currentKey = ""
 
-		if key == streamIdItemKey {
+		switch key {
+		case streamIdItemKey:
 			currentEventId = string(value)
-			continue
-		}
-		if key != streamDataItemKey {
-			continue
-		}
-
-		if string(value) == streamEndDataValue {
-			responseBuilder.WriteString(streamIdItemKey)
-			responseBuilder.WriteString(currentEventId)
-			responseBuilder.WriteString("\n")
-			responseBuilder.WriteString(streamEventHeader)
-			responseBuilder.WriteString(streamDataItemKey)
-			responseBuilder.WriteString(streamEndDataValue)
-			responseBuilder.WriteString("\n\n")
-			continue
-		}
-
-		qwenResponse := &qwenTextGenResponse{}
-		if err := json.Unmarshal(value, qwenResponse); err != nil {
-			log.Errorf("unable to unmarshal Qwen response: %v", err)
-			return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
-		}
-
-		responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
-		for _, response := range responses {
-			responseBody, err := json.Marshal(response)
-			if err != nil {
-				log.Errorf("unable to marshal response: %v", err)
-				return nil, fmt.Errorf("unable to marshal response: %v", err)
+			break
+		case streamDataItemKey:
+			if err := m.convertStreamEvent(ctx, &responseBuilder, currentEventId, value, log); err != nil {
+				return nil, err
 			}
-			responseBuilder.WriteString(streamIdItemKey)
-			responseBuilder.WriteString(currentEventId)
-			responseBuilder.WriteString("\n")
-			responseBuilder.WriteString(streamEventHeader)
-			responseBuilder.WriteString(streamDataItemKey)
-			responseBuilder.Write(responseBody)
-			responseBuilder.WriteString("\n\n")
+			break
+		default:
+			break
 		}
 	}
-	modifiedResponseBody := responseBuilder.String()
-	log.Debugf("=== response data: %s", modifiedResponseBody)
-	return []byte(modifiedResponseBody), nil
+
+	modifiedResponseChunk := responseBuilder.String()
+	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
+	return []byte(modifiedResponseChunk), nil
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -332,6 +343,65 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	}
 
 	return responses
+}
+
+func (m *qwenProvider) convertStreamEvent(ctx wrapper.HttpContext, responseBuilder *strings.Builder, eventId string, eventData []byte, log wrapper.Log) error {
+	if string(eventData) == streamEndDataValue {
+		responseBuilder.WriteString(streamIdItemKey)
+		responseBuilder.WriteString(eventId)
+		responseBuilder.WriteString("\n")
+		responseBuilder.WriteString(streamEventHeader)
+		responseBuilder.WriteString(streamDataItemKey)
+		responseBuilder.WriteString(streamEndDataValue)
+		responseBuilder.WriteString("\n\n")
+		return nil
+	}
+
+	qwenResponse := &qwenTextGenResponse{}
+	if err := json.Unmarshal(eventData, qwenResponse); err != nil {
+		log.Errorf("unable to unmarshal Qwen response: %v", err)
+		return fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+	}
+
+	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse)
+	for _, response := range responses {
+		responseBody, err := json.Marshal(response)
+		if err != nil {
+			log.Errorf("unable to marshal response: %v", err)
+			return fmt.Errorf("unable to marshal response: %v", err)
+		}
+		responseBuilder.WriteString(streamIdItemKey)
+		responseBuilder.WriteString(eventId)
+		responseBuilder.WriteString("\n")
+		responseBuilder.WriteString(streamEventHeader)
+		responseBuilder.WriteString(streamDataItemKey)
+		responseBuilder.Write(responseBody)
+		responseBuilder.WriteString("\n\n")
+	}
+
+	return nil
+}
+
+func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string) {
+	fileMessage := chatMessage{
+		Role:    roleSystem,
+		Content: content,
+	}
+	firstNonSystemMessageIndex := -1
+	messages := request.Input.Messages
+	if messages != nil {
+		for i, message := range request.Input.Messages {
+			if message.Role != roleSystem {
+				firstNonSystemMessageIndex = i
+				break
+			}
+		}
+	}
+	if firstNonSystemMessageIndex == -1 {
+		request.Input.Messages = append(request.Input.Messages, fileMessage)
+	} else {
+		request.Input.Messages = append(request.Input.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)...)
+	}
 }
 
 type qwenTextGenRequest struct {
