@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 func claimsToHeader(claims map[string]any, cth []cfg.ClaimsToHeader) {

@@ -21,10 +21,10 @@ import (
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 var protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: JWT realm=MSE Gateway
@@ -48,7 +48,13 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Lo
 	}
 
 	// 当前版本的higress暂不支持jwe，此处用ParseSigned
-	token, err := jwt.ParseSigned(tokenStr)
+	token, err := jwt.ParseSigned(tokenStr,
+		[]jose.SignatureAlgorithm{
+			jose.EdDSA,
+			// HMAC currently unprovided
+			// jose.HS256, jose.HS384, jose.HS512,
+			jose.RS256, jose.RS384, jose.RS512,
+			jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return &ErrDenied{
 			msg: fmt.Sprintf("jwt parse failed, consumer: %s, token: %s, reason: %s",

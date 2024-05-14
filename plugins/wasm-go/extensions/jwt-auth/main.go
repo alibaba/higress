@@ -20,6 +20,22 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
+// @Name jwt-proxy
+// @Category auth
+// @Phase UNSPECIFIED_PHASE
+// @Priority 0
+// @Title zh-CN jwt验证
+// @Description zh-CN 通过jwt进行验证
+// @Version 0.1.0
+//
+// @Contact.name Ink33
+// @Contact.url https://github.com/Ink-33
+// @Contact.email ink33@smlk.org
+//
+// @Example
+//{}
+// @End
+
 func main() {
 	wrapper.SetCtx(
 		// 插件名称

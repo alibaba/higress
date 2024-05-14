@@ -19,7 +19,7 @@ import (
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log wrapper.Log) types.Action {

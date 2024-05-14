@@ -20,7 +20,7 @@ import (
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 // extracToken 从三个来源中依次尝试抽取Token，若找不到Token则返回空字符串
