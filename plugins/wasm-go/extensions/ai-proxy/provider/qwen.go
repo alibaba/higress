@@ -193,7 +193,7 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 	eventStartIndex, lineStartIndex, valueStartIndex := 0, -1, -1
 
 	defer func() {
-		if eventStartIndex != -1 {
+		if eventStartIndex != -1 && eventStartIndex < len(receivedBody) {
 			// Just in case the received chunk is not a complete event.
 			ctx.SetContext(ctxKeyStreamingBody, receivedBody[eventStartIndex:])
 		} else {
