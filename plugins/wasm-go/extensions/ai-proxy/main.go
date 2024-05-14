@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"net/url"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
