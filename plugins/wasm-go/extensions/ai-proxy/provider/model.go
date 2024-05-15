@@ -1,5 +1,20 @@
 package provider
 
+import "strings"
+
+const (
+	streamEventIdItemKey        = "id:"
+	streamEventNameItemKey      = "event:"
+	streamBuiltInItemKey        = ":"
+	streamHttpStatusValuePrefix = "HTTP_STATUS/"
+	streamDataItemKey           = "data:"
+	streamEndDataValue          = "[DONE]"
+
+	eventResult = "result"
+
+	httpStatus200 = "200"
+)
+
 type chatCompletionRequest struct {
 	Model            string        `json:"model"`
 	Messages         []chatMessage `json:"messages"`
@@ -41,4 +56,26 @@ type chatMessage struct {
 	Name    string `json:"name,omitempty"`
 	Role    string `json:"role,omitempty"`
 	Content string `json:"content,omitempty"`
+}
+
+type streamEvent struct {
+	Id         string `json:"id"`
+	Event      string `json:"event"`
+	Data       string `json:"data"`
+	HttpStatus string `json:"http_status"`
+}
+
+func (e *streamEvent) setValue(key, value string) {
+	switch key {
+	case streamEventIdItemKey:
+		e.Id = value
+	case streamEventNameItemKey:
+		e.Event = value
+	case streamDataItemKey:
+		e.Data = value
+	case streamBuiltInItemKey:
+		if strings.HasPrefix(value, streamHttpStatusValuePrefix) {
+			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
+		}
+	}
 }
