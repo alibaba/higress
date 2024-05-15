@@ -21,8 +21,8 @@ import (
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -48,13 +48,7 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Lo
 	}
 
 	// 当前版本的higress暂不支持jwe，此处用ParseSigned
-	token, err := jwt.ParseSigned(tokenStr,
-		[]jose.SignatureAlgorithm{
-			jose.EdDSA,
-			// HMAC currently unprovided
-			// jose.HS256, jose.HS384, jose.HS512,
-			jose.RS256, jose.RS384, jose.RS512,
-			jose.ES256, jose.ES384, jose.ES512})
+	token, err := jwt.ParseSigned(tokenStr)
 	if err != nil {
 		return &ErrDenied{
 			msg: fmt.Sprintf("jwt parse failed, consumer: %s, token: %s, reason: %s",

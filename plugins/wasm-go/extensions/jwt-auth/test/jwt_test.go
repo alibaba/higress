@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 type keySet struct {
@@ -99,7 +99,7 @@ func genJWTs(keySets map[string]keySet) (jwts jwts) {
 
 	for k1, v1 := range sigs {
 		for k2, v2 := range claims {
-			raw, _ := jwt.Signed(v1).Claims(v2).Serialize()
+			raw, _ := jwt.Signed(v1).Claims(v2).CompactSerialize()
 			jwts.JWTs = append(jwts.JWTs, struct {
 				Algorithm string "json:\"alg\""
 				Token     string "json:\"token\""
