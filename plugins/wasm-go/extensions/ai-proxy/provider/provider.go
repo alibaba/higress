@@ -28,11 +28,10 @@ const (
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
+	ctxKeyPushedMessageContent = "pushedMessageContent"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
-
-	finishReasonStop = "stop"
 
 	wildcard = "*"
 
