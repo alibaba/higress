@@ -138,3 +138,34 @@ func logError(error ctypes.MatchedRule) {
 		proxywasm.LogDebug(msg)
 	}
 }
+
+func isWebSocketRequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Upgrade"); err == nil {
+		if value == "websocket" {
+			return true
+		}
+	}
+	return false
+}
+
+func isSSERequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Accept"); err == nil {
+		if value == "text/event-stream" {
+			return true
+		}
+	}
+	return false
+}
+
+func isGrpcRequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil {
+		if value == "application/grpc" {
+			return true
+		}
+	}
+	return false
+}
+
+func ignoreBody() bool {
+	return isWebSocketRequest() || isSSERequest() || isGrpcRequest()
+}
