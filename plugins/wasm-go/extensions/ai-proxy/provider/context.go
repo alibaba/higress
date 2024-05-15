@@ -19,7 +19,7 @@ type ContextConfig struct {
 	serviceName string `required:"true" yaml:"serviceName" json:"serviceName"`
 	// @Title zh-CN 上游服务端口
 	// @Description zh-CN 文件服务所对应的网关内上游服务名称
-	servicePort int64 `required:"true" yaml:"serviceName" json:"serviceName"`
+	servicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 
 	fileUrlObj *url.URL `yaml:"-"`
 }
