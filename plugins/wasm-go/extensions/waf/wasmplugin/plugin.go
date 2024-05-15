@@ -76,6 +76,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 
+	if ignoreBody() {
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+	}
+
 	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
 	if err != nil {
 		// TODO(anuraaga): HTTP protocol is commonly required in WAF rules, we should probably
