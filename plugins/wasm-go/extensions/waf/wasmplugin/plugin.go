@@ -69,17 +69,21 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+	ctx.SetContext("skipwaf", false)
+
+	if ignoreBody() {
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+		ctx.SetContext("skipwaf", true)
+		return types.ActionContinue
+	}
+
 	ctx.SetContext("interruptionHandled", false)
 	ctx.SetContext("processedRequestBody", false)
 	ctx.SetContext("processedResponseBody", false)
 	ctx.SetContext("tx", config.waf.NewTransaction())
 
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
-
-	if ignoreBody() {
-		ctx.DontReadRequestBody()
-		ctx.DontReadResponseBody()
-	}
 
 	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
 	if err != nil {
@@ -197,6 +201,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+	if ctx.GetContext("skipwaf").(bool) {
+		return types.ActionContinue
+	}
+
 	if ctx.GetContext("interruptionHandled").(bool) {
 		return types.ActionContinue
 	}
@@ -311,6 +319,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 }
 
 func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) {
+	if ctx.GetContext("skipwaf").(bool) {
+		return
+	}
+
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 
 	if !tx.IsRuleEngineOff() {
