@@ -30,6 +30,7 @@ import (
 
 const (
 	ArrayPrefix  = "array of "
+	MapPrefix    = "map of "
 	ObjectSuffix = "object"
 )
 
@@ -40,7 +41,23 @@ func IsArray(typ string) bool {
 
 // GetItemType returns the item type of array, e.g.: array of int -> int
 func GetItemType(typ string) string {
-	return strings.TrimPrefix(typ, ArrayPrefix)
+	if !IsArray(typ) {
+		return typ
+	}
+	return typ[len(ArrayPrefix):]
+}
+
+// IsMap returns true if the given type is a `map of <type>`
+func IsMap(typ string) bool {
+	return strings.HasPrefix(typ, MapPrefix)
+}
+
+// GetValueType returns the value type of map, e.g.: map of int -> int
+func GetValueType(typ string) string {
+	if !IsMap(typ) {
+		return typ
+	}
+	return typ[len(MapPrefix):]
 }
 
 // IsObject returns true if the given type is an `object` or an `array of object`
@@ -259,7 +276,7 @@ func (p *ModelParser) parseModelFields(model string) (fields []Model, err error)
 			return nil, errors.Wrapf(err, "failed to parse type %q of the field %q", field.Type, fd.Name)
 		}
 		if IsObject(fd.Type) {
-			subModel, err := p.getModelName(field.Type)
+			subModel, err := p.doGetModelName(pkgName, field.Type)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to get the sub-model name of the field %q with type %q", fd.Name, field.Type)
 			}
@@ -313,6 +330,8 @@ func (p *ModelParser) doGetModelName(pkgName string, typ ast.Expr) (string, erro
 		return p.doGetModelName(pkgName, t.X)
 	case *ast.ArrayType: // slice or array
 		return p.doGetModelName(pkgName, t.Elt)
+	case *ast.MapType:
+		return p.doGetModelName(pkgName, t.Value)
 	case *ast.SelectorExpr: // <pkg_name>.<field_name>
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
@@ -339,6 +358,16 @@ func (p *ModelParser) parseFieldType(pkgName string, typ ast.Expr) (string, erro
 			return "", err
 		}
 		return ArrayPrefix + ret, nil
+	case *ast.MapType:
+		if keyIdent, ok := t.Key.(*ast.Ident); !ok {
+			return "", ErrInvalidFieldType
+		} else if keyIdent.Name != "string" {
+			return "", ErrInvalidFieldType
+		} else if ret, err := p.parseFieldType(pkgName, t.Value); err != nil {
+			return "", err
+		} else {
+			return MapPrefix + ret, nil
+		}
 	case *ast.SelectorExpr: // <pkg_name>.<field_name>
 		pkg, ok := t.X.(*ast.Ident)
 		if !ok {
@@ -388,4 +417,5 @@ const (
 	JsonTypeString  JsonType = "string"
 	JsonTypeObject  JsonType = "object"
 	JsonTypeArray   JsonType = "array"
+	JsonTypeMap     JsonType = "map"
 )
