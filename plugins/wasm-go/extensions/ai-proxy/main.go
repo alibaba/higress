@@ -57,6 +57,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		return types.ActionContinue
 	}
 
+	log.Debugf("[onHttpRequestHeader] provider=%s", activeProvider.GetProviderType())
+
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
@@ -123,6 +125,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		}
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	}
+
+	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
+	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
+		if err != nil {
+			log.Errorf("unable to load content-type header from response: %v", err)
+		}
+		ctx.BufferResponseBody()
 	}
 
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {

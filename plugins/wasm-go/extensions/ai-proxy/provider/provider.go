@@ -28,10 +28,11 @@ const (
 
 	roleSystem = "system"
 
+	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
-	ctxKeyPushedMessageContent = "pushedMessageContent"
+	ctxKeyPushedMessage        = "pushedMessage"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
