@@ -9,42 +9,40 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
-// openaiProvider is the provider for OpenAI service.
-
+// groqProvider is the provider for Groq service.
 const (
-	openaiDomain             = "api.openai.com"
-	openaiChatCompletionPath = "/v1/chat/completions"
+	groqDomain             = "api.groq.com"
+	groqChatCompletionPath = "/openai/v1/chat/completions"
 )
 
-type openaiProviderInitializer struct {
-}
+type groqProviderInitializer struct{}
 
-func (m *openaiProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *groqProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	return nil
 }
 
-func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	return &openaiProvider{
+func (m *groqProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	return &groqProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
 	}, nil
 }
 
-type openaiProvider struct {
+type groqProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
 }
 
-func (m *openaiProvider) GetProviderType() string {
-	return providerTypeOpenAI
+func (m *groqProvider) GetProviderType() string {
+	return providerTypeGroq
 }
 
-func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(openaiChatCompletionPath)
-	_ = util.OverwriteRequestHost(openaiDomain)
+	_ = util.OverwriteRequestPath(groqChatCompletionPath)
+	_ = util.OverwriteRequestHost(groqDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
 	if m.contextCache == nil {
@@ -56,7 +54,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	return types.ActionContinue, nil
 }
 
-func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
