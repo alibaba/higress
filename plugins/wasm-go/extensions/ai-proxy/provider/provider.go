@@ -19,6 +19,7 @@ const (
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
 	providerTypeOpenAI   = "openai"
+	providerTypeGroq     = "groq"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -51,6 +52,7 @@ var (
 		providerTypeAzure:    &azureProviderInitializer{},
 		providerTypeQwen:     &qwenProviderInitializer{},
 		providerTypeOpenAI:   &openaiProviderInitializer{},
+		providerTypeGroq:     &groqProviderInitializer{},
 	}
 )
 
