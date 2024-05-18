@@ -25,6 +25,7 @@ const (
 	providerTypeDeepSeek = "deepseek"
 	providerTypeZhipuAi  = "zhipuai"
 	providerTypeOllama   = "ollama"
+	providerTypeClaude   = "claude"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -64,6 +65,7 @@ var (
 		providerTypeDeepSeek: &deepseekProviderInitializer{},
 		providerTypeZhipuAi:  &zhipuAiProviderInitializer{},
 		providerTypeOllama:   &ollamaProviderInitializer{},
+		providerTypeClaude:   &claudeProviderInitializer{},
 	}
 )
 
@@ -93,7 +95,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"、"claude"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -128,6 +130,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 模型对话上下文
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
+	// @Title zh-CN 版本
+	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
+	version string `required:"false" yaml:"version" json:"version"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -162,6 +167,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
+	c.version = json.Get("version").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -182,7 +188,7 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
-    
+
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
