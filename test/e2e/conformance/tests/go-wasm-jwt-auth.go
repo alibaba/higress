@@ -28,6 +28,12 @@ const (
 	RS256Expried string = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZm9vIiwiYmFyIl0sImV4cCI6MTcwNDA2NzIwMCwiaXNzIjoiaGlncmVzcy10ZXN0IiwibmJmIjoxNzA0MDY3MjAwLCJzdWIiOiJoaWdyZXNzLXRlc3QifQ.Y_zNhjb14XQXpZRJLG3rHzzkSAww_5rkM1b5BRIiGdJyNqoeUvIBcIekxqDUIWMCOU6dFmW0eG3xg1l5hOkebqJintAu0MlQG6BJ8eCMlUh4YVukPr419e9u1_8e7E1KpkbpbRIaaTb5OtOHLQk-qfTcYn-zTiiuyJ1MfpWuZaCkZyKfaKGtC4NOajw_FpOJ3VwC3Ts38IJBUVrr_OVzk386EKUdh11rmfEpupwFYUrxSekHiHGSSrQ372p30Wvg4JwC4sE0fmOB-bfXzDRLSxJsTXaxT-4MaHeBdJ394YG9uUhNO4ILX_9RafiM4bGkglZ4APzOA4-QxL8ZrVV9rA"
 )
 
+func init() {
+	Register(WasmPluginsJWTAuthAllow)
+	Register(WasmPluginsJWTAuthExpried)
+	Register(WasmPluginsJWTAuthDeny)
+}
+
 var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJWTAuth",
 	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
