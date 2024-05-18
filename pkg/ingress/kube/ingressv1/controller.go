@@ -955,7 +955,6 @@ func (c *controller) createDefaultRoute(wrapper *common.WrapperConfig, backend *
 		port := &networking.PortSelector{}
 		if service.Port.Number > 0 {
 			port.Number = uint32(service.Port.Number)
-
 		} else {
 			resolvedPort, err := resolveNamedPort(service, namespace, c.serviceLister)
 			if err != nil {
