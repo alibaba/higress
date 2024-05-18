@@ -891,15 +891,28 @@ func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, ba
 	}
 	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
 		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
+			portNumber := dest.Destination.GetPort().GetNumber()
 			serviceKey := common.ServiceKey{
 				Namespace:   "mcp",
 				Name:        dest.Destination.Host,
+				Port:        int32(portNumber),
 				ServiceFQDN: dest.Destination.Host,
 			}
 			if _, exist := store[serviceKey]; !exist {
-				store[serviceKey] = &common.WrapperTrafficPolicy{
-					TrafficPolicy: &networking.TrafficPolicy{},
-					WrapperConfig: wrapper,
+				if serviceKey.Port != 0 {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						PortTrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
+							Port: &networking.PortSelector{
+								Number: uint32(serviceKey.Port),
+							},
+						},
+						WrapperConfig: wrapper,
+					}
+				} else {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						TrafficPolicy: &networking.TrafficPolicy{},
+						WrapperConfig: wrapper,
+					}
 				}
 			}
 		}
@@ -942,6 +955,7 @@ func (c *controller) createDefaultRoute(wrapper *common.WrapperConfig, backend *
 		port := &networking.PortSelector{}
 		if service.Port.Number > 0 {
 			port.Number = uint32(service.Port.Number)
+
 		} else {
 			resolvedPort, err := resolveNamedPort(service, namespace, c.serviceLister)
 			if err != nil {
