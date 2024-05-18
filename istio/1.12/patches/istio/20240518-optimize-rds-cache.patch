@@ -1,0 +1,83 @@
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-05-18 19:09:14.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-05-18 18:08:30.000000000 +0800
+@@ -457,8 +457,46 @@
+ 	hostVs := push.VirtualServicesForHost(node, hostRDSHost)
+ 
+ 	var httpRoutes []config.Config
++	var vsDependent []config.Config
++
++	cacheable := true
+ 
+ 	for _, vs := range hostVs {
++		vsSpec := vs.Spec.(*networking.VirtualService)
++		for _, vsHttpRoute := range vsSpec.Http {
++			// check if dynamic port exists, we should not cache RDS
++			for _, vsRoute := range vsHttpRoute.Route {
++				if vsRoute.Destination.Port == nil {
++					cacheable = false
++				}
++				for _, fallbackDestination := range vsRoute.FallbackClusters {
++					if fallbackDestination.Port == nil {
++						cacheable = false
++					}
++				}
++			}
++			if vsHttpRoute.Mirror != nil && vsHttpRoute.Mirror.Port == nil {
++				cacheable = false
++			}
++			if vsHttpRoute.Delegate != nil {
++				vsDependent = append(vsDependent, config.Config{
++					Meta: config.Meta{
++						GroupVersionKind: gvk.VirtualService,
++						Name:             vsHttpRoute.Delegate.Name,
++						Namespace:        vsHttpRoute.Delegate.Namespace,
++					},
++					Spec: networking.VirtualService{},
++				})
++			}
++		}
++		vsDependent = append(vsDependent, config.Config{
++			Meta: config.Meta{
++				GroupVersionKind: gvk.VirtualService,
++				Name:             vs.Name,
++				Namespace:        vs.Namespace,
++			},
++			Spec: vs.Spec,
++		})
+ 		if len(vs.Annotations) == 0 {
+ 			continue
+ 		}
+@@ -489,14 +527,19 @@
+ 		ProxyVersion: node.Metadata.IstioVersion,
+ 		ListenerPort: rdsPort,
+ 		// Use same host vs to cache, although the cache can be cleared when the port is different, this can be accepted
+-		VirtualServices: hostVs,
++		VirtualServices: vsDependent,
+ 		HTTPRoutes:      httpRoutes,
+ 		EnvoyFilterKeys: efKeys,
+ 	}
+ 
+-	resource, exist := configgen.Cache.Get(routeCache)
+-	if exist {
+-		return resource, true
++	var resource *discovery.Resource
++	if cacheable {
++		resource, exist := configgen.Cache.Get(routeCache)
++		if exist {
++			return resource, true
++		}
++	} else {
++		log.Warnf("route cache is disabled for RDS:%s", routeName)
+ 	}
+ 
+ 	listenerPort := uint32(rdsPort)
+@@ -727,7 +770,7 @@
+ 		Resource: util.MessageToAny(routeCfg),
+ 	}
+ 
+-	if features.EnableRDSCaching {
++	if features.EnableRDSCaching && cacheable {
+ 		configgen.Cache.Add(routeCache, req, resource)
+ 	}
+ 
