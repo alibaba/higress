@@ -15,6 +15,8 @@ package suite
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
@@ -170,10 +172,27 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
+	
+	testNames := strings.Split(os.Getenv("TEST_SHORTNAME"), ",")
+	nameMap := map[string]struct{}{}
+	for i := range testNames {
+		nameMap[testNames[i]] = struct{}{}
+	}
+
 	for _, test := range tests {
-		t.Run(test.ShortName, func(t *testing.T) {
-			test.Run(t, suite)
-		})
+		if len(testNames) != 0 {
+			if _, ok := nameMap[test.ShortName]; ok {
+				t.Run(test.ShortName, func(t *testing.T) {
+					test.Run(t, suite)
+				})
+				continue
+			}
+			t.Logf("🏊🏼 Skipping %s: test is excluded", test.ShortName)
+		} else {
+			t.Run(test.ShortName, func(t *testing.T) {
+				test.Run(t, suite)
+			})
+		}
 	}
 }
 
