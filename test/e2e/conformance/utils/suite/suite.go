@@ -172,15 +172,17 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 // Run runs the provided set of conformance tests.
 func (suite *ConformanceTestSuite) Run(t *testing.T, tests []ConformanceTest) {
 	t.Logf("🚀 Start Running %d Test Cases: \n\n%s", len(tests), globalConformanceTestsListInfo(tests))
-	
+
 	testNames := strings.Split(os.Getenv("TEST_SHORTNAME"), ",")
 	nameMap := map[string]struct{}{}
 	for i := range testNames {
-		nameMap[testNames[i]] = struct{}{}
+		if testNames[i] != "" {
+			nameMap[testNames[i]] = struct{}{}
+		}
 	}
 
 	for _, test := range tests {
-		if len(testNames) != 0 {
+		if len(nameMap) != 0 {
 			if _, ok := nameMap[test.ShortName]; ok {
 				t.Run(test.ShortName, func(t *testing.T) {
 					test.Run(t, suite)
