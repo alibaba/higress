@@ -123,7 +123,10 @@ spec:
               - ALL
             allowPrivilegeEscalation: false
             privileged: false
+          # When enabling lite metrics, the configuration template files need to be replaced.
+          {{- if not .Values.global.liteMetrics }}
             readOnlyRootFilesystem: true
+          {{- end }}
             runAsUser: 1337
             runAsGroup: 1337
             runAsNonRoot: true
@@ -137,7 +140,6 @@ spec:
             runAsGroup: 1337
             runAsNonRoot: false
             allowPrivilegeEscalation: true
-            readOnlyRootFilesystem: true
           {{- end }}
           env:
           - name: NODE_NAME
@@ -183,6 +185,10 @@ spec:
             value: "{{ $.Values.clusterName | default `Kubernetes` }}"
           - name: INSTANCE_NAME
             value: "higress-gateway"
+          {{- if .Values.global.liteMetrics }}
+          - name: LITE_METRICS
+            value: "on"
+          {{- end }}
           {{- if include "skywalking.enabled" . }}
           - name: ISTIO_BOOTSTRAP_OVERRIDE
             value: /etc/istio/custom-bootstrap/custom_bootstrap.json
