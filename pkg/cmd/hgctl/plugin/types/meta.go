@@ -33,7 +33,7 @@ type WasmPluginMeta struct {
 	Spec       WasmPluginSpec `json:"spec" yaml:"spec"`
 }
 
-func defaultWsamPluginMeta() *WasmPluginMeta {
+func defaultWasmPluginMeta() *WasmPluginMeta {
 	return &WasmPluginMeta{
 		APIVersion: "1.0.0",
 		Info: WasmPluginInfo{
@@ -77,7 +77,7 @@ func ParseGoSrc(dir, model string) (*WasmPluginMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	meta := defaultWsamPluginMeta()
+	meta := defaultWasmPluginMeta()
 	meta.setByConfigModel(m)
 	return meta, nil
 }
@@ -96,24 +96,31 @@ func recursiveSetSchema(model *Model, parent *JSONSchemaProps) (string, *JSONSch
 	}
 	newName := cur.HandleFieldTags(model.Tag, parent, model.Name)
 	if IsArray(model.Type) {
-		item := NewJSONSchemaProps()
-		item.Type = GetItemType(cur.Type)
 		cur.Type = "array"
-		if IsObject(item.Type) {
-			item.Properties = make(map[string]JSONSchemaProps)
-			for _, field := range model.Fields {
-				name, child := recursiveSetSchema(&field, cur)
-				item.Properties[name] = *child
-			}
-		}
-		cur.Items = &JSONSchemaPropsOrArray{Schema: item}
+		itemModel := &*model
+		itemModel.Type = GetItemType(model.Type)
+		_, itemSchema := recursiveSetSchema(itemModel, nil)
+		cur.Items = &JSONSchemaPropsOrArray{Schema: itemSchema}
+	} else if IsMap(model.Type) {
+		cur.Type = "object"
+		valueModel := &*model
+		valueModel.Type = GetValueType(model.Type)
+		valueModel.Tag = ""
+		valueModel.Doc = ""
+		_, valueSchema := recursiveSetSchema(valueModel, nil)
+		cur.AdditionalProperties = &JSONSchemaPropsOrBool{Schema: valueSchema}
 	} else if IsObject(model.Type) { // type may be `array of object`, and it is handled in the first branch
-		for _, field := range model.Fields {
-			name, child := recursiveSetSchema(&field, cur)
-			cur.Properties[name] = *child
-		}
+		cur.Properties = make(map[string]JSONSchemaProps)
+		recursiveObjectProperties(cur, model)
 	}
 	return newName, cur
+}
+
+func recursiveObjectProperties(parent *JSONSchemaProps, model *Model) {
+	for _, field := range model.Fields {
+		name, child := recursiveSetSchema(&field, parent)
+		parent.Properties[name] = *child
+	}
 }
 
 func (meta *WasmPluginMeta) setModelAnnotations(comment string) {

@@ -15,11 +15,12 @@ type Pointcut string
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
 
+	providerTypeOpenAI   = "openai"
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
 	providerTypeBaidu    = "baidu"
-	providerTypeOpenAI   = "openai"
+	providerTypeGroq     = "groq"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -55,6 +56,7 @@ var (
 		providerTypeAzure:    &azureProviderInitializer{},
 		providerTypeQwen:     &qwenProviderInitializer{},
 		providerTypeOpenAI:   &openaiProviderInitializer{},
+		providerTypeGroq:     &groqProviderInitializer{},
 		providerTypeBaidu:    &baiduProviderInitializer{},
 	}
 )
