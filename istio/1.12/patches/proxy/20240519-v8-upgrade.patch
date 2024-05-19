@@ -1,0 +1,38 @@
+diff -Naur proxy/scripts/release-binary.sh proxy-new/scripts/release-binary.sh
+--- proxy/scripts/release-binary.sh     2024-05-19 12:33:33.254478650 +0800
++++ proxy-new/scripts/release-binary.sh 2024-05-19 12:31:11.714475870 +0800
+@@ -112,7 +112,7 @@
+ # k8-opt is the output directory for x86_64 optimized builds (-c opt, so --config=release-symbol and --config=release).
+ # k8-dbg is the output directory for -c dbg builds.
+ #for config in release release-symbol debug
+-for config in release
++for config in release release-symbol
+ do
+   case $config in
+     "release" )
+diff -Naur proxy/scripts/release-binary.sh proxy-new/scripts/release-binary.sh
+--- proxy/scripts/release-binary.sh	2024-05-19 12:27:51.030471929 +0800
++++ proxy-new/scripts/release-binary.sh	2024-05-19 12:04:55.738444918 +0800
+@@ -152,10 +152,6 @@
+   echo "Building ${config} proxy"
+   BINARY_NAME="${HOME}/package/${BINARY_BASE_NAME}.tar.gz"
+   SHA256_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}.sha256"
+-  # All cores are used by com_googlesource_chromium_v8:build within. 
+-  # Prebuild this target to avoid stacking this ram intensive task with others.
+-  # shellcheck disable=SC2086
+-  bazel build ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} @com_googlesource_chromium_v8//:build
+   # shellcheck disable=SC2086
+   bazel build ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} //src/envoy:envoy_tar
+   BAZEL_TARGET="${BAZEL_OUT}/src/envoy/envoy_tar.tar.gz"
+diff -Naur proxy/tools/deb/test/build_docker.sh proxy-new/tools/deb/test/build_docker.sh
+--- proxy/tools/deb/test/build_docker.sh	2024-05-19 12:27:51.030471929 +0800
++++ proxy-new/tools/deb/test/build_docker.sh	2024-05-19 12:05:07.978445159 +0800
+@@ -20,8 +20,6 @@
+ # Script requires a working docker on the test machine
+ # It is run in the proxy dir, will create a docker image with proxy deb installed
+ 
+-
+-bazel build @com_googlesource_chromium_v8//:build
+ bazel build tools/deb:istio-proxy
+ 
+ PROJECT="istio-testing"
