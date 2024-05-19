@@ -64,6 +64,14 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 通义千问所对应的 `type` 为 `qwen`。它并无特有的配置字段。
 
+#### 百度文心一言（ERNIE Bot）
+
+百度文心一言所对应的 `type` 为 `baidu`。它特有的配置字段如下：
+
+| 名称               | 数据类型 | 填写要求 | 默认值 | 描述                                                         |
+| ------------------ | -------- | -------- | ------ | ------------------------------------------------------------ |
+| `baiduRequestPath` | string   | 必填     | -      | 百度文心一言不同的模型请求路径不同，通过该配置区分调用哪个模型 |
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -339,3 +347,60 @@ provider:
   }
 }
 ```
+
+### 使用 OpenAI 协议代理百度文心一言服务
+
+使用最基本的百度文心一言服务，不配置任何上下文。
+
+**配置信息**
+
+```yaml
+provider:
+  type: baidu
+  apiTokens:
+    - "YOUR_BAIDU_API_TOKEN"
+  # 这里示例使用的百度文心一言ERNIE-4.0-8K模型，不同模型请求path不同
+  baiduRequestPath: "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-4-turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ]
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "as-jazizz4ev9",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "你好，我是文心一言，英文名是ERNIE Bot。我能够与人对话互动，回答问题，协助创作，高效便捷地帮助人们获取信息、知识和灵感。"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1716122668,
+    "model": "gpt-4-turbo",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 4,
+        "completion_tokens": 33,
+        "total_tokens": 37
+    }
+}
+```
+
+### 

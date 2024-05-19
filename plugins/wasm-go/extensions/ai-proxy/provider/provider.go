@@ -18,12 +18,16 @@ const (
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
+	providerTypeBaidu    = "baidu"
 	providerTypeOpenAI   = "openai"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
 
-	roleSystem = "system"
+	roleSystem    = "system"
+	roleAssistant = "assistant"
+
+	finishReasonStop = "stop"
 
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
@@ -51,6 +55,7 @@ var (
 		providerTypeAzure:    &azureProviderInitializer{},
 		providerTypeQwen:     &qwenProviderInitializer{},
 		providerTypeOpenAI:   &openaiProviderInitializer{},
+		providerTypeBaidu:    &baiduProviderInitializer{},
 	}
 )
 
@@ -80,7 +85,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、 "baidu"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -94,6 +99,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Azure OpenAI Service URL
 	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的OpenAI服务的完整URL，包含api-version等参数
 	azureServiceUrl string `required:"false" yaml:"azureServiceUrl" json:"azureServiceUrl"`
+	// @Title zh-CN Baidu ERNIE Bot Request Path
+	// @Description zh-CN 仅适用于百度文心一言服务。百度文心一言不同的模型请求路径不同，通过该配置区分调用哪个模型
+	baiduRequestPath string `required:"false" yaml:"baiduRequestPath" json:"baiduRequestPath"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
@@ -117,6 +125,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
+	c.baiduRequestPath = json.Get("baiduRequestPath").String()
 	c.modelMapping = make(map[string]string)
 	for k, v := range json.Get("modelMapping").Map() {
 		c.modelMapping[k] = v.String()
