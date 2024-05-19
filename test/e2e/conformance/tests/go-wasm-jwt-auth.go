@@ -37,7 +37,7 @@ func init() {
 var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJWTAuth",
 	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
-	Manifests:   []string{"test/go-wasm-jwt-auth-allow.yaml"},
+	Manifests:   []string{"tests/go-wasm-jwt-auth-allow.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
@@ -249,7 +249,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJWTAuthExpried",
 	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
-	Manifests:   []string{"test/go-wasm-jwt-auth-deny.yaml"},
+	Manifests:   []string{"tests/go-wasm-jwt-auth-deny.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
@@ -460,7 +460,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJWTAuthDeny",
 	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
-	Manifests:   []string{"test/go-wasm-jwt-auth-Deny.yaml"},
+	Manifests:   []string{"tests/go-wasm-jwt-auth-deny.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
