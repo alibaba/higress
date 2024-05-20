@@ -37,7 +37,7 @@ func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log wrapper.Log
 
 	consumerNames := map[string]struct{}{}
 	for _, v := range consumers.Array() {
-		c, err := parseConsumer(v, consumerNames)
+		c, err := ParseConsumer(v, consumerNames)
 		if err != nil {
 			log.Warn(err.Error())
 			continue
@@ -79,7 +79,7 @@ func ParseRuleConfig(json gjson.Result, global JWTAuthConfig, config *JWTAuthCon
 	return nil
 }
 
-func parseConsumer(consumer gjson.Result, names map[string]struct{}) (c *Consumer, err error) {
+func ParseConsumer(consumer gjson.Result, names map[string]struct{}) (c *Consumer, err error) {
 	c = &Consumer{}
 
 	// 从gjson中取得原始JSON字符串，并使用标准库反序列化，以降低代码复杂度。

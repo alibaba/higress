@@ -31,15 +31,16 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 
 	header := &proxywasmProvider{}
 
+	action := deniedUnauthorizedConsumer
 	// 匹配consumer
 	for i := range config.Consumers {
 		err := consumerVerify(config.Consumers[i], time.Now(), header, log)
 		if err != nil {
 			log.Warn(err.Error())
 			if v, ok := err.(*ErrDenied); ok {
-				return v.denied()
+				action = v.denied
 			}
-			break
+			continue
 		}
 
 		switch config.GlobalAuthCheck() {
@@ -57,7 +58,8 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 			if !contains(config.Consumers[i].Name, config.Allow) {
 				log.Warnf("jwt verify failed, consumer %q not allow",
 					config.Consumers[i].Name)
-				return deniedUnauthorizedConsumer()
+				action = deniedUnauthorizedConsumer
+				continue
 			}
 			log.Infof("consumer %q authenticated", config.Consumers[i].Name)
 			return authenticated(config.Consumers[i].Name)
@@ -65,7 +67,8 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 	}
 
 	// 拒绝兜底
-	return deniedUnauthorizedConsumer()
+	log.Warnf("all consumers verify failed")
+	return action()
 }
 
 func contains(str string, arr []string) bool {

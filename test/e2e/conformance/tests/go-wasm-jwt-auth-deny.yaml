@@ -25,7 +25,7 @@ spec:
       http:
         paths:
           - pathType: Prefix
-            path: "/foo"
+            path: "/"
             backend:
               service:
                 name: infra-backend-v1
