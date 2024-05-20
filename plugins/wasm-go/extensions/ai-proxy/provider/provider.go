@@ -20,9 +20,9 @@ const (
 	providerTypeQwen     = "qwen"
 	providerTypeOpenAI   = "openai"
 	providerTypeGroq     = "groq"
-
-	protocolOpenAI   = "openai"
-	protocolOriginal = "original"
+	providerTypeBaichuan = "baichuan"
+	protocolOpenAI       = "openai"
+	protocolOriginal     = "original"
 
 	roleSystem = "system"
 
@@ -53,6 +53,7 @@ var (
 		providerTypeQwen:     &qwenProviderInitializer{},
 		providerTypeOpenAI:   &openaiProviderInitializer{},
 		providerTypeGroq:     &groqProviderInitializer{},
+		providerTypeBaichuan: &baichuanProviderInitializer{},
 	}
 )
 
@@ -82,7 +83,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
