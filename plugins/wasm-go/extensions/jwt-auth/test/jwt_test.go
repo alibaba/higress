@@ -79,7 +79,7 @@ func genJWTs(keySets map[string]keySet) (jwts jwts) {
 	sigrsa, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
 		Key:       keySets["rsa"].PrivateKey,
-	}, (&jose.SignerOptions{}).WithType("JWT"))
+	}, (&jose.SignerOptions{}).WithType("JWT").WithHeader(jose.HeaderKey("kid"), "rsa"))
 	if err != nil {
 		panic(err)
 	}
@@ -87,7 +87,7 @@ func genJWTs(keySets map[string]keySet) (jwts jwts) {
 	sigp256, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
 		Key:       keySets["p256"].PrivateKey,
-	}, (&jose.SignerOptions{}).WithType("JWT"))
+	}, (&jose.SignerOptions{}).WithType("JWT").WithHeader(jose.HeaderKey("kid"), "p256"))
 	if err != nil {
 		panic(err)
 	}

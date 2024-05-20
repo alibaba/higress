@@ -29,9 +29,11 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 		return types.ActionContinue
 	}
 
+	header := &proxywasmProvider{}
+
 	// 匹配consumer
 	for i := range config.Consumers {
-		err := consumerVerify(config.Consumers[i], time.Now(), log)
+		err := consumerVerify(config.Consumers[i], time.Now(), header, log)
 		if err != nil {
 			log.Warn(err.Error())
 			if v, ok := err.(*ErrDenied); ok {

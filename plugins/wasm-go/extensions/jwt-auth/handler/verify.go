@@ -20,7 +20,6 @@ import (
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -34,12 +33,36 @@ type ErrDenied struct {
 	denied func() types.Action
 }
 
+type Logger interface {
+	Warnf(format string, args ...interface{})
+}
+
+type HeaderProvider interface {
+	GetHttpRequestHeader(key string) (string, error)
+	ReplaceHttpRequestHeader(key string, value string) error
+	RemoveHttpRequestHeader(key string) error
+}
+
+type proxywasmProvider struct{}
+
+func (p *proxywasmProvider) GetHttpRequestHeader(key string) (string, error) {
+	return proxywasm.GetHttpRequestHeader(key)
+}
+
+func (p *proxywasmProvider) ReplaceHttpRequestHeader(key string, value string) error {
+	return proxywasm.ReplaceHttpRequestHeader(key, value)
+}
+
+func (p *proxywasmProvider) RemoveHttpRequestHeader(key string) error {
+	return proxywasm.RemoveHttpRequestHeader(key)
+}
+
 func (e *ErrDenied) Error() string {
 	return e.msg
 }
 
-func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Log) error {
-	tokenStr := extractToken(*consumer.KeepToken, consumer, log)
+func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, header HeaderProvider, log Logger) error {
+	tokenStr := extractToken(*consumer.KeepToken, consumer, header, log)
 	if tokenStr == "" {
 		return &ErrDenied{
 			msg:    fmt.Sprintf("jwt is missing, consumer: %s", consumer.Name),
@@ -61,8 +84,8 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Lo
 	}
 
 	// 此处可以直接使用 JSON 反序列 jwks
-	keys := jose.JSONWebKeySet{}
-	err = json.Unmarshal([]byte(consumer.JWKs), &keys)
+	jwks := jose.JSONWebKeySet{}
+	err = json.Unmarshal([]byte(consumer.JWKs), &jwks)
 	if err != nil {
 		return &ErrDenied{
 			msg: fmt.Sprintf("jwt parse failed, consumer: %s, token: %s, reason: %s",
@@ -77,9 +100,30 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, log wrapper.Lo
 	out := jwt.Claims{}
 	rawClaims := map[string]any{}
 
-	// Claims 支持直接传入 jose 的 jwks 并自动选择合适的公钥
+	// 提前确认 kid 状态
+	var kid string
+	var key jose.JSONWebKey
+	for _, header := range token.Headers {
+		if header.KeyID != "" {
+			kid = header.KeyID
+			break
+		}
+	}
+	// 没有 kid 时选择第一个 key
+	if kid == "" {
+		key = jwks.Keys[0]
+	}
+
+	keys := jwks.Key(kid)
+	if len(keys) == 0 { // kid 不存在时选择第一个 key
+		key = jwks.Keys[0]
+	} else {
+		key = keys[0]
+	}
+
+	// Claims 支持直接传入 jose 的 jwk
 	// 无需额外调用verify，claims内部已进行验证
-	err = token.Claims(keys, &out)
+	err = token.Claims(key, &out)
 	if err != nil {
 		return &ErrDenied{
 			msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: %s",

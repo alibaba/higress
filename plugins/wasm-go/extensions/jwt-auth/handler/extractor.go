@@ -19,17 +19,15 @@ import (
 	"strings"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 // extracToken 从三个来源中依次尝试抽取Token，若找不到Token则返回空字符串
-func extractToken(keepToken bool, consumer *cfg.Consumer, log wrapper.Log) string {
+func extractToken(keepToken bool, consumer *cfg.Consumer, header HeaderProvider, log Logger) string {
 	token := ""
 
 	// 1. 从header中抽取token
 	if h := consumer.FromHeaders; h != nil {
-		token = extractFromHeader(keepToken, *h, log)
+		token = extractFromHeader(keepToken, *h, header, log)
 	}
 	if token != "" {
 		return token
@@ -37,7 +35,7 @@ func extractToken(keepToken bool, consumer *cfg.Consumer, log wrapper.Log) strin
 
 	// 2. 从params中抽取token
 	if p := consumer.FromParams; p != nil {
-		token = extractFromParams(keepToken, *p, log)
+		token = extractFromParams(keepToken, *p, header, log)
 	}
 	if token != "" {
 		return token
@@ -45,19 +43,19 @@ func extractToken(keepToken bool, consumer *cfg.Consumer, log wrapper.Log) strin
 
 	// 3. 从cookies中抽取token
 	if c := consumer.FromCookies; c != nil {
-		token = extractFromCookies(keepToken, *c, log)
+		token = extractFromCookies(keepToken, *c, header, log)
 	}
 
 	// 此处无需判空
 	return token
 }
 
-func extractFromHeader(keepToken bool, headers []cfg.FromHeader, log wrapper.Log) (token string) {
+func extractFromHeader(keepToken bool, headers []cfg.FromHeader, header HeaderProvider, log Logger) (token string) {
 	for i := range headers {
 
 		// proxywasm 获取到的 header name 均为小写，此处需做修改
 		lowerName := strings.ToLower(headers[i].Name)
-		token, err := proxywasm.GetHttpRequestHeader(lowerName)
+		token, err := header.GetHttpRequestHeader(lowerName)
 		if err != nil {
 			log.Warnf("failed to get authorization: %v", err)
 			continue
@@ -69,7 +67,7 @@ func extractFromHeader(keepToken bool, headers []cfg.FromHeader, log wrapper.Log
 				return ""
 			}
 			if !keepToken {
-				_ = proxywasm.RemoveHttpRequestHeader(lowerName)
+				_ = header.RemoveHttpRequestHeader(lowerName)
 			}
 			return strings.TrimPrefix(token, headers[i].ValuePrefix)
 		}
@@ -77,8 +75,8 @@ func extractFromHeader(keepToken bool, headers []cfg.FromHeader, log wrapper.Log
 	return ""
 }
 
-func extractFromParams(keepToken bool, params []string, log wrapper.Log) (token string) {
-	urlparams, err := proxywasm.GetHttpRequestHeader(":path")
+func extractFromParams(keepToken bool, params []string, header HeaderProvider, log Logger) (token string) {
+	urlparams, err := header.GetHttpRequestHeader(":path")
 	if err != nil {
 		log.Warnf("failed to get authorization: %v", err)
 		return ""
@@ -99,8 +97,8 @@ func extractFromParams(keepToken bool, params []string, log wrapper.Log) (token 
 	return ""
 }
 
-func extractFromCookies(keepToken bool, cookies []string, log wrapper.Log) (token string) {
-	requestCookies, err := proxywasm.GetHttpRequestHeader("cookie")
+func extractFromCookies(keepToken bool, cookies []string, header HeaderProvider, log Logger) (token string) {
+	requestCookies, err := header.GetHttpRequestHeader("cookie")
 	if err != nil {
 		log.Warnf("failed to get authorization: %v", err)
 		return ""
@@ -110,7 +108,7 @@ func extractFromCookies(keepToken bool, cookies []string, log wrapper.Log) (toke
 		token := findCookie(requestCookies, cookies[i])
 		if token != "" {
 			if !keepToken {
-				_ = proxywasm.ReplaceHttpRequestHeader("cookie", deleteCookie(requestCookies, cookies[i]))
+				_ = header.ReplaceHttpRequestHeader("cookie", deleteCookie(requestCookies, cookies[i]))
 			}
 			return token
 		}
