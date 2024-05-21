@@ -66,7 +66,12 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 #### 百川智能 (Baichuan AI)
 
-百川智能所对应的 `type` 为 `baichuan` 。它并无特有的配置字段
+百川智能所对应的 `type` 为 `baichuan` 。它并无特有的配置字段。
+
+#### 零一万物（Yi）
+
+零一万物所对应的 `type` 为 `yi`。它并无特有的配置字段。
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务

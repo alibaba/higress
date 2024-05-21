@@ -23,6 +23,10 @@ const (
 	providerTypeBaichuan = "baichuan"
 	protocolOpenAI       = "openai"
 	protocolOriginal     = "original"
+	providerTypeYi       = "yi"
+
+	protocolOpenAI   = "openai"
+	protocolOriginal = "original"
 
 	roleSystem = "system"
 
@@ -54,6 +58,7 @@ var (
 		providerTypeOpenAI:   &openaiProviderInitializer{},
 		providerTypeGroq:     &groqProviderInitializer{},
 		providerTypeBaichuan: &baichuanProviderInitializer{},
+		providerTypeYi:       &yiProviderInitializer{},
 	}
 )
 
