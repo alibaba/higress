@@ -25,8 +25,7 @@ const (
 	protocolOriginal     = "original"
 	providerTypeYi       = "yi"
 
-	protocolOpenAI   = "openai"
-	protocolOriginal = "original"
+
 
 	roleSystem = "system"
 
