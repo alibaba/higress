@@ -50,10 +50,6 @@ func (m *qwenProvider) GetProviderType() string {
 	return providerTypeQwen
 }
 
-const (
-	forceStreaming = true
-)
-
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
@@ -67,17 +63,11 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 		return types.ActionContinue, nil
 	}
 
-	if forceStreaming {
-		_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-		_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
-		return types.ActionContinue, nil
-	} else {
-		// Delay the header processing to allow changing streaming mode in OnRequestBody
-		return types.HeaderStopIteration, nil
-	}
+	// Delay the header processing to allow changing streaming mode in OnRequestBody
+	return types.HeaderStopIteration, nil
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -132,16 +122,13 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
-	streaming := forceStreaming
-	if !forceStreaming {
-		streaming = request.Stream
-		if request.Stream {
-			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-			_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
-		} else {
-			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
-			_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
-		}
+	streaming := request.Stream
+	if streaming {
+		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+		_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+	} else {
+		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
+		_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
 	}
 
 	if m.config.context == nil {
