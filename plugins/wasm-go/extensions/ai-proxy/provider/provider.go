@@ -26,7 +26,6 @@ const (
 	protocolOpenAI       = "openai"
 	protocolOriginal     = "original"
 
-
 	roleSystem = "system"
 
 	ctxKeyStreamingBody        = "streamingBody"
