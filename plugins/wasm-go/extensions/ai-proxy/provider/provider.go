@@ -21,10 +21,10 @@ const (
 	providerTypeOpenAI   = "openai"
 	providerTypeGroq     = "groq"
 	providerTypeBaichuan = "baichuan"
-	protocolOpenAI       = "openai"
-	protocolOriginal     = "original"
 	providerTypeYi       = "yi"
 
+	protocolOpenAI       = "openai"
+	protocolOriginal     = "original"
 
 
 	roleSystem = "system"
