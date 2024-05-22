@@ -24,12 +24,17 @@ const (
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
+
+	qwenDummySystemMessageContent = "You are a helpful assistant."
 )
 
 type qwenProviderInitializer struct {
 }
 
 func (m *qwenProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if len(config.qwenFileIds) != 0 && config.context != nil {
+		return errors.New("qwenFileIds and context cannot be configured at the same time")
+	}
 	return nil
 }
 
@@ -283,8 +288,24 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			Temperature:       origRequest.Temperature,
 			TopP:              math.Max(qwenTopPMin, math.Min(origRequest.TopP, qwenTopPMax)),
 			IncrementalOutput: streaming && (origRequest.Tools == nil || len(origRequest.Tools) == 0),
+			EnableSearch:      m.config.qwenEnableSearch,
 			Tools:             origRequest.Tools,
 		},
+	}
+	if len(m.config.qwenFileIds) != 0 {
+		builder := strings.Builder{}
+		for _, fileId := range m.config.qwenFileIds {
+			if builder.Len() != 0 {
+				builder.WriteRune(',')
+			}
+			builder.WriteString("fileid://")
+			builder.WriteString(fileId)
+		}
+		contextMessageId := m.insertContextMessage(request, builder.String())
+		if contextMessageId == 0 {
+			// The context message cannot come first. We need to add another dummy system message before it.
+			request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: qwenDummySystemMessageContent}}, request.Input.Messages...)
+		}
 	}
 	return request
 }
@@ -396,7 +417,7 @@ func (m *qwenProvider) convertStreamEvent(ctx wrapper.HttpContext, responseBuild
 	return nil
 }
 
-func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string) {
+func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string) int {
 	fileMessage := qwenMessage{
 		Role:    roleSystem,
 		Content: content,
@@ -412,9 +433,11 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 		}
 	}
 	if firstNonSystemMessageIndex == -1 {
-		request.Input.Messages = append(request.Input.Messages, fileMessage)
+		request.Input.Messages = append([]qwenMessage{fileMessage}, request.Input.Messages...)
+		return 0
 	} else {
 		request.Input.Messages = append(request.Input.Messages[:firstNonSystemMessageIndex], append([]qwenMessage{fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)...)
+		return firstNonSystemMessageIndex
 	}
 }
 
@@ -443,6 +466,7 @@ type qwenTextGenParameters struct {
 	Temperature       float64 `json:"temperature,omitempty"`
 	TopP              float64 `json:"top_p,omitempty"`
 	IncrementalOutput bool    `json:"incremental_output,omitempty"`
+	EnableSearch      bool    `json:"enable_search,omitempty"`
 	Tools             []tool  `json:"tools,omitempty"`
 }
 

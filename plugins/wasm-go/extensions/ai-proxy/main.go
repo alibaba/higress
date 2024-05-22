@@ -153,6 +153,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		ctx.BufferResponseBody()
 	}
 
+	// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
+	ctx.DisableReroute()
+
 	return types.ActionContinue
 }
 
