@@ -45,7 +45,7 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 		}
 	}
 	if firstNonSystemMessageIndex == -1 {
-		request.Messages = append(request.Messages, fileMessage)
+		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
 	} else {
 		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
 	}
