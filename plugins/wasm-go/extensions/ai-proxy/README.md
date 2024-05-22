@@ -72,6 +72,10 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 零一万物所对应的 `type` 为 `yi`。它并无特有的配置字段。
 
+#### DeepSeek（DeepSeek）
+
+DeepSeek所对应的 `type` 为 `deepseek`。它并无特有的配置字段。
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
