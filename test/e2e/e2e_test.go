@@ -50,6 +50,7 @@ func TestHigressConformanceTests(t *testing.T) {
 			WasmPluginName:   *flags.WasmPluginName,
 			WasmPluginType:   *flags.WasmPluginType,
 		},
+		ExecuteTests:               *flags.ExecuteTests,
 		GatewayAddress:             "localhost",
 		EnableAllSupportedFeatures: true,
 		IsEnvoyConfigTest:          *flags.IsEnvoyConfigTest,
