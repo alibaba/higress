@@ -446,7 +446,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 			}
 			builder.WriteString(message.Content)
 		}
-		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}}, append([]qwenMessage{fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)...)
+		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}, fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)
 		return 1
 	}
 }
