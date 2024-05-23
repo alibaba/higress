@@ -30,6 +30,7 @@ var WasmPluginsJwtAuth = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the simple-jwt-auth wasmplugins.",
 	Manifests:   []string{"tests/go-wasm-simple-jwt-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	PluginName:  "simple-jwt-auth",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{

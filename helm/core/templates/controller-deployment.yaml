@@ -197,6 +197,9 @@ spec:
           image: "{{ .Values.controller.hub | default .Values.global.hub }}/{{ .Values.controller.image | default "higress" }}:{{ .Values.controller.tag | default .Chart.AppVersion }}"
           args:
           - "serve"
+          {{- if .Values.apiserver.enabled }}
+          - --kubeconfig=/etc/istio/config/kubeconfig
+          {{- end }}
           - --gatewaySelectorKey=higress
           - --gatewaySelectorValue={{ .Release.Namespace }}-{{ include "gateway.name" . }}
           - --gatewayHttpPort={{ .Values.gateway.httpPort }}
@@ -211,6 +214,12 @@ spec:
           - --enableAutomaticHttps={{ .Values.controller.automaticHttps.enabled }}
           - --automaticHttpsEmail={{ .Values.controller.automaticHttps.email }}
           env:
+          {{- if .Values.apiserver.enabled }}
+          - name: HIGRESS_APISERVER_SVC
+            value: {{ .Values.apiserver.addr | quote }}
+          - name: HIGRESS_APISERVER_PORT
+            value: {{ .Values.apiserver.securePort | quote }}
+          {{- end }}
           - name: POD_NAME
             valueFrom:
               fieldRef:
@@ -249,6 +258,96 @@ spec:
           volumeMounts:
           - name: log
             mountPath: /var/log
+          {{- if .Values.apiserver.enabled }}
+          - name: config
+            mountPath: /etc/istio/config
+          {{- end }}
+        {{- if .Values.apiserver.enabled }}
+        - name: {{ .Values.apiserver.name }}
+          image: "{{ .Values.apiserver.hub | default .Values.global.hub }}/{{ .Values.apiserver.image }}:{{ .Values.apiserver.tag }}"
+          imagePullPolicy: {{ .Values.apiserver.imagePullPolicy }}
+          args:
+          - --secure-port
+          - {{ .Values.apiserver.securePort | quote }}
+          - --client-ca-file
+          - /etc/api/ca.crt
+          - --tls-cert-file
+          - /etc/api/server.crt
+          - --tls-private-key-file
+          - /etc/api/server.key
+          - --storage
+          - {{ .Values.apiserver.storage }}
+          - --{{ .Values.apiserver.storage }}-server
+          - {{ .Values.apiserver.serverAddr }}
+          - --{{ .Values.apiserver.storage }}-username
+          - {{ .Values.apiserver.username }}
+          - --{{ .Values.apiserver.storage }}-password
+          - {{ .Values.apiserver.password }}
+          - --{{ .Values.apiserver.storage }}-ns-id
+          - {{ .Values.apiserver.namespaceID }}
+          - --{{ .Values.apiserver.storage }}-encryption-key-file
+          - /etc/api/nacos.key
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+               fieldRef:
+                 apiVersion: v1
+                 fieldPath: metadata.namespace
+          - name: INSTANCE_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.hostIP
+          ports:
+          - containerPort: 8443
+            hostPort: 8443
+            name: https
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /readyz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            successThreshold: 1
+            timeoutSeconds: 3
+          resources: { }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1337
+            runAsNonRoot: true
+            runAsUser: 1337
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/api
+              name: cert-config
+              readOnly: true
+            - mountPath: /tmp/nacos
+              name: nacos-data
+        {{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -264,10 +363,28 @@ spec:
       volumes:
       - name: log
         emptyDir: {}
+      {{- if .Values.apiserver.enabled }}
+      - name: {{ .Values.apiserver.storage }}-data
+        emptyDir: {}
+      - name: cert-config
+        secret:
+          defaultMode: 420
+          secretName: higress-apiserver
+      {{- end }}
       {{- if not .Values.global.enableHigressIstio }}
       - name: config
+        {{- if not .Values.apiserver.enabled }}
         configMap:
           name: higress-config
+        {{- end }}
+        {{- if .Values.apiserver.enabled }}
+        projected:
+          sources:
+          - configMap:
+              name: higress-config
+          - configMap:
+              name: higress-apiserver
+        {{- end }}
       # Technically not needed on this pod - but it helps debugging/testing SDS
       # Should be removed after everything works.
       - emptyDir:

@@ -18,9 +18,12 @@ import (
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	cc "github.com/alibaba/higress/test/e2e/conformance/utils/configcenter"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/configcenter/nacos"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -45,6 +48,10 @@ type ConformanceTestSuite struct {
 	SkipTests         sets.Set
 	TimeoutConfig     config.TimeoutConfig
 	SupportedFeatures sets.Set
+	EnableApiServer   bool
+	ApiServerStorage  string
+	ConfigCenter      cc.Storage
+	WASMOptions
 }
 
 // Options can be used to initialize a ConformanceTestSuite.
@@ -70,6 +77,9 @@ type Options struct {
 
 	// IsEnvoyConfigTest indicates whether or not the test is for envoy config
 	IsEnvoyConfigTest bool
+
+	EnableApiServer  bool
+	ApiServerStorage string
 }
 
 type WASMOptions struct {
@@ -119,7 +129,10 @@ func New(s Options) *ConformanceTestSuite {
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
-		TimeoutConfig: s.TimeoutConfig,
+		TimeoutConfig:    s.TimeoutConfig,
+		EnableApiServer:  s.EnableApiServer,
+		ApiServerStorage: s.ApiServerStorage,
+		WASMOptions:      s.WASMOptions,
 	}
 
 	// apply defaults
@@ -132,6 +145,14 @@ func New(s Options) *ConformanceTestSuite {
 			"base/dubbo.yaml",
 			"base/opa.yaml",
 		}
+	}
+
+	if suite.EnableApiServer {
+		configClient, err := nacos.NewClient(suite.ApiServerStorage)
+		if err != nil {
+			log.Fatalf("🚨 Failed to create config client: %v", err)
+		}
+		suite.ConfigCenter = configClient
 	}
 
 	return suite
@@ -148,6 +169,11 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 
 	for _, baseManifest := range suite.BaseManifests {
 		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, baseManifest, suite.Cleanup)
+	}
+
+	if suite.EnableApiServer {
+		t.Logf("📦 Test Setup: Applying ApiServer Storage Manifests")
+		suite.Applier.MustPublishConfig(t, suite.TimeoutConfig, "base/service.yaml", suite.Cleanup, suite.ConfigCenter)
 	}
 
 	t.Logf("📦 Test Setup: Applying programmatic resources")
@@ -205,6 +231,7 @@ type ConformanceTest struct {
 	Description string
 	PreDeleteRs []string
 	Manifests   []string
+	PluginName  string
 	Features    []SupportedFeature
 	Slow        bool
 	Parallel    bool
@@ -232,16 +259,35 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
 	}
 
-	t.Logf("🔥 Running Conformance Test: %s", test.ShortName)
-
-	for _, manifestLocation := range test.PreDeleteRs {
-		t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
-		suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
+	// Skip wasm plugin name test
+	if suite.IsWasmPluginTest {
+		if suite.WasmPluginName != "all" && suite.WasmPluginName != test.PluginName {
+			t.Skipf("🏊🏼 Skipping %s: wasm plugin name not match", test.ShortName)
+		}
 	}
 
-	for _, manifestLocation := range test.Manifests {
-		t.Logf("🧳 Applying Manifests: %s", manifestLocation)
-		suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)
+	t.Logf("🔥 Running Conformance Test: %s", test.ShortName)
+
+	if suite.EnableApiServer {
+		for _, manifestLocation := range test.PreDeleteRs {
+			t.Logf("🧳 Applying PreDeleteRs ApiServer Storage Manifests: %s", manifestLocation)
+			suite.Applier.MustDeleteConfig(t, suite.TimeoutConfig, manifestLocation, suite.ConfigCenter)
+		}
+
+		for _, manifestLocation := range test.Manifests {
+			t.Logf("🧳 Applying ApiServer Storage Manifests: %s", manifestLocation)
+			suite.Applier.MustPublishConfig(t, suite.TimeoutConfig, manifestLocation, !test.NotCleanup, suite.ConfigCenter)
+		}
+	} else {
+		for _, manifestLocation := range test.PreDeleteRs {
+			t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
+			suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
+		}
+
+		for _, manifestLocation := range test.Manifests {
+			t.Logf("🧳 Applying Manifests: %s", manifestLocation)
+			suite.Applier.MustApplyWithCleanup(t, suite.Client, suite.TimeoutConfig, manifestLocation, !test.NotCleanup)
+		}
 	}
 
 	test.Test(t, suite)

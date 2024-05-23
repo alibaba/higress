@@ -663,6 +663,23 @@ pilot:
   # Additional labels to apply on the pod level for monitoring and logging configuration.
   podLabels: {}
 
+## Higress ApiServer Storage Settings
+## Todo simplify this
+apiserver:
+  addr: 127.0.0.1
+  enabled: false
+  name: "higress-apiserver"
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  tag: 0.0.10
+  image: api-server
+  imagePullPolicy: IfNotPresent
+  securePort: 8443
+  storage: nacos
+  serverAddr: http://higress-nacos-service.higress-system.svc.cluster.local:8848
+  username: ""
+  password: ""
+  namespaceID: ""
+  rsaKeyLength: 4096
 
 # Skywalking config settings
 skywalking:
@@ -670,3 +687,35 @@ skywalking:
   service:
     address: ~
     port: 11800
+
+# nacos config settings
+nacos:
+  name: "higress-nacos"
+  enabled: false
+  hub: nacos/nacos-server
+  tag: latest
+  pullPolicy: IfNotPresent
+  replica: 1
+  podManagementPolicy: Parallel
+  nodeSelector: { }
+  affinity: { }
+  tolerations: [ ]
+  persistence:
+    enabled: false
+    data:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: manual
+      resources:
+        requests:
+          storage: 5Gi
+  service:
+    port: 8848
+    type: NodePort
+    nodePort: 30000
+  annotations: {}
+  preferHostMode: hostname
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi

@@ -30,6 +30,7 @@ var CPPWasmPluginsRequestBlock = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace test the cpp request-block wasmplugins.",
 	Manifests:   []string{"tests/cpp-wasm-request-block.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMCPPConformanceFeature},
+	PluginName:  "request-block",
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
