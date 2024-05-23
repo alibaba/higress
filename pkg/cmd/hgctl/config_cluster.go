@@ -19,6 +19,7 @@ import (
 
 	"github.com/alibaba/higress/cmd/hgctl/config"
 	"github.com/spf13/cobra"
+	"istio.io/istio/istioctl/pkg/writer/envoy/configdump"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -49,17 +50,23 @@ func runClusterConfig(c *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		podName = args[0]
 	}
-	envoyConfig, err := config.GetEnvoyConfig(&config.GetEnvoyConfigOptions{
+	configWriter, err := config.GetEnvoyConfigWriter(&config.GetEnvoyConfigOptions{
 		PodName:         podName,
 		PodNamespace:    podNamespace,
 		BindAddress:     bindAddress,
 		Output:          output,
-		EnvoyConfigType: config.ClusterEnvoyConfigType,
+		EnvoyConfigType: config.RouteEnvoyConfigType,
 		IncludeEds:      true,
-	})
+	}, c.OutOrStdout())
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(c.OutOrStdout(), string(envoyConfig))
-	return err
+	switch output {
+	case summaryOutput:
+		return configWriter.PrintClusterSummary(configdump.ClusterFilter{})
+	case jsonOutput, yamlOutput:
+		return configWriter.PrintClusterDump(configdump.ClusterFilter{}, output)
+	default:
+		return fmt.Errorf("output format %q not supported", output)
+	}
 }
