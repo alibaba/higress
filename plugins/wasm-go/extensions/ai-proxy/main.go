@@ -70,6 +70,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	ctx.SetContext(ctxKeyApiName, apiName)
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
+		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
+		ctx.DisableReroute()
+
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			return action
@@ -152,9 +155,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	} else if !needHandleStreamingBody {
 		ctx.BufferResponseBody()
 	}
-
-	// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
-	ctx.DisableReroute()
 
 	return types.ActionContinue
 }

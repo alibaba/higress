@@ -22,6 +22,7 @@ const (
 	providerTypeGroq     = "groq"
 	providerTypeBaichuan = "baichuan"
 	providerTypeYi       = "yi"
+	providerTypeDeepSeek = "deepseek"
 	providerTypeOllama   = "ollama"
 
 	protocolOpenAI   = "openai"
@@ -59,6 +60,7 @@ var (
 		providerTypeGroq:     &groqProviderInitializer{},
 		providerTypeBaichuan: &baichuanProviderInitializer{},
 		providerTypeYi:       &yiProviderInitializer{},
+		providerTypeDeepSeek: &deepseekProviderInitializer{},
 		providerTypeOllama:   &ollamaProviderInitializer{},
 	}
 )
