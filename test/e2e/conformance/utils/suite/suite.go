@@ -15,6 +15,7 @@ package suite
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
@@ -43,6 +44,7 @@ type ConformanceTestSuite struct {
 	BaseManifests     []string
 	Applier           kubernetes.Applier
 	SkipTests         sets.Set
+	ExecuteTests      sets.Set
 	TimeoutConfig     config.TimeoutConfig
 	SupportedFeatures sets.Set
 }
@@ -51,6 +53,7 @@ type ConformanceTestSuite struct {
 type Options struct {
 	SupportedFeatures sets.Set
 	ExemptFeatures    sets.Set
+	ExecuteTests      string
 
 	EnableAllSupportedFeatures bool
 	Client                     client.Client
@@ -116,6 +119,7 @@ func New(s Options) *ConformanceTestSuite {
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
+		ExecuteTests:      sets.NewSet(),
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
@@ -131,6 +135,13 @@ func New(s Options) *ConformanceTestSuite {
 			"base/nacos.yaml",
 			"base/dubbo.yaml",
 			"base/opa.yaml",
+		}
+	}
+
+	testNames := strings.Split(s.ExecuteTests, ",")
+	for i := range testNames {
+		if testNames[i] != "" {
+			suite.ExecuteTests = suite.ExecuteTests.Insert(testNames[i])
 		}
 	}
 
@@ -229,6 +240,10 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 
 	// check that the test should not be skipped
 	if suite.SkipTests.Contains(test.ShortName) {
+		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
+	}
+
+	if len(suite.ExecuteTests) > 0 && !suite.ExecuteTests.Contains(test.ShortName) {
 		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
 	}
 

@@ -19,8 +19,11 @@ const (
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
 	providerTypeQwen     = "qwen"
-	providerTypeBaidu    = "baidu"
 	providerTypeGroq     = "groq"
+	providerTypeBaichuan = "baichuan"
+	providerTypeYi       = "yi"
+	providerTypeDeepSeek = "deepseek"
+	providerTypeBaidu    = "baidu"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -30,10 +33,11 @@ const (
 
 	finishReasonStop = "stop"
 
+	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
-	ctxKeyPushedMessageContent = "pushedMessageContent"
+	ctxKeyPushedMessage        = "pushedMessage"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -57,6 +61,9 @@ var (
 		providerTypeQwen:     &qwenProviderInitializer{},
 		providerTypeOpenAI:   &openaiProviderInitializer{},
 		providerTypeGroq:     &groqProviderInitializer{},
+		providerTypeBaichuan: &baichuanProviderInitializer{},
+		providerTypeYi:       &yiProviderInitializer{},
+		providerTypeDeepSeek: &deepseekProviderInitializer{},
 		providerTypeBaidu:    &baiduProviderInitializer{},
 	}
 )
@@ -87,7 +94,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、 "baidu"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、 "baidu"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -96,7 +103,7 @@ type ProviderConfig struct {
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
 	// @Title zh-CN Moonshot File ID
-	// @Description zh-CN 仅适用于Moonshot AI服务。Moonshot AI服务的文件 ID，其内容用于补充 AI 请求上下文
+	// @Description zh-CN 仅适用于Moonshot AI服务。Moonshot AI服务的文件ID，其内容用于补充AI请求上下文
 	moonshotFileId string `required:"false" yaml:"moonshotFileId" json:"moonshotFileId"`
 	// @Title zh-CN Azure OpenAI Service URL
 	// @Description zh-CN 仅适用于Azure OpenAI服务。要请求的OpenAI服务的完整URL，包含api-version等参数
@@ -104,6 +111,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Baidu ERNIE Bot Request Path
 	// @Description zh-CN 仅适用于百度文心一言服务。百度文心一言不同的模型请求路径不同，通过该配置区分调用哪个模型
 	baiduRequestPath string `required:"false" yaml:"baiduRequestPath" json:"baiduRequestPath"`
+	// @Title zh-CN 通义千问File ID
+	// @Description zh-CN 仅适用于通义千问服务。上传到Dashscope的文件ID，其内容用于补充AI请求上下文。仅支持qwen-long模型。
+	qwenFileIds []string `required:"false" yaml:"qwenFileIds" json:"qwenFileIds"`
+	// @Title zh-CN 启用通义千问搜索服务
+	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
+	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
@@ -127,6 +140,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
+	c.qwenFileIds = make([]string, 0)
+	for _, fileId := range json.Get("qwenFileIds").Array() {
+		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
+	}
+	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.baiduRequestPath = json.Get("baiduRequestPath").String()
 	c.modelMapping = make(map[string]string)
 	for k, v := range json.Get("modelMapping").Map() {

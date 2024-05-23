@@ -57,6 +57,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		return types.ActionContinue
 	}
 
+	log.Debugf("[onHttpRequestHeader] provider=%s", activeProvider.GetProviderType())
+
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
@@ -68,6 +70,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	ctx.SetContext(ctxKeyApiName, apiName)
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
+		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
+		ctx.DisableReroute()
+
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			return action
@@ -123,6 +128,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		}
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	}
+
+	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
+	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
+		if err != nil {
+			log.Errorf("unable to load content-type header from response: %v", err)
+		}
+		ctx.BufferResponseBody()
 	}
 
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {

@@ -249,7 +249,7 @@ func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) 
 }
 
 // TODO: 增加检查某些字段比如oldKey&newKey未同时存在时的提示信息
-func constructParam(item *gjson.Result, op, valueType string) Param {
+func constructParam(item gjson.Result, op, valueType string) Param {
 	p := Param{
 		valueType: valueType,
 	}
@@ -693,10 +693,10 @@ func newTransformRule(rules []gjson.Result) (res []TransformRule, err error) {
 		}
 
 		for _, h := range r.Get("headers").Array() {
-			tRule.headers = append(tRule.headers, constructParam(&h, tRule.operate, ""))
+			tRule.headers = append(tRule.headers, constructParam(h, tRule.operate, ""))
 		}
 		for _, q := range r.Get("querys").Array() {
-			tRule.querys = append(tRule.querys, constructParam(&q, tRule.operate, ""))
+			tRule.querys = append(tRule.querys, constructParam(q, tRule.operate, ""))
 		}
 		for _, b := range r.Get("body").Array() {
 			valueType := strings.ToLower(b.Get("value_type").String())
@@ -707,7 +707,7 @@ func newTransformRule(rules []gjson.Result) (res []TransformRule, err error) {
 				errors.Wrapf(err, "invalid body params type %q", valueType)
 				return
 			}
-			tRule.body = append(tRule.body, constructParam(&b, tRule.operate, valueType))
+			tRule.body = append(tRule.body, constructParam(b, tRule.operate, valueType))
 		}
 		res = append(res, tRule)
 	}
