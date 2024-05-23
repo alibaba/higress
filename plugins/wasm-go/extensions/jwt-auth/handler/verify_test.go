@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
+	"github.com/tidwall/gjson"
 )
 
 type testLogger struct {
@@ -44,23 +45,85 @@ const (
 	RS256Expried string = "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZm9vIiwiYmFyIl0sImV4cCI6MTcwNDA2NzIwMCwiaXNzIjoiaGlncmVzcy10ZXN0IiwibmJmIjoxNzA0MDY3MjAwLCJzdWIiOiJoaWdyZXNzLXRlc3QifQ.jqzlhBPk9mmvtTT5aCYf-_5uXXSEU5bQ32fx78XeboCnjR9K1CsI4KYUIkXEX3bk66XJQUeSes7lz3gA4Yzkd-v9oADHTgpKnIxzv_5mD0_afIwEFjcalqVbSvCmro4PessQZDnmU7AIzoo3RPSqbmq8xbPVYUH9I-OO8aUu2ATd1HozgxJH1XnRU8k9KMkVW8XhvJXLKZJmnqe3Tu6pCU_tawFlBfBC4fAhMf0yX2CGE0ABAHubcdiI6JXObQmQQ9Or2a-g2a8g_Bw697PoPOsAn0YpTrHst9GcyTpkbNTAq9X8fc5EM7hiDM1FGeMYcaQTdMnOh4HBhP0p4YEhvA"
 	JWKs         string = "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"p256\",\"crv\":\"P-256\",\"x\":\"GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU\",\"y\":\"5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ\"},{\"kty\":\"RSA\",\"kid\":\"rsa\",\"n\":\"pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q\",\"e\":\"AQAB\"}]}"
 )
+const (
+	consumers = `{
+		"consumers": [
+			{
+				"name": "consumer1",
+				"issuer": "higress-test",
+				"jwks": "{\n\"keys\": [\n{\n\"kty\": \"EC\",\n\"kid\": \"p256\",\n\"crv\": \"P-256\",\n\"x\": \"GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU\",\n\"y\": \"5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ\"\n},\n{\n\"kty\": \"RSA\",\n\"kid\": \"rsa\",\n\"n\": \"pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q\",\n\"e\": \"AQAB\"\n}\n]\n}"
+			},
+			{
+				"name": "consumer_hedaer",
+				"issuer": "higress-test",
+				"jwks": "{\n\"keys\": [\n{\n\"kty\": \"EC\",\n\"kid\": \"p256\",\n\"crv\": \"P-256\",\n\"x\": \"GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU\",\n\"y\": \"5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ\"\n},\n{\n\"kty\": \"RSA\",\n\"kid\": \"rsa\",\n\"n\": \"pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q\",\n\"e\": \"AQAB\"\n}\n]\n}",
+				"from_headers": [
+					{
+						"name": "jwt",
+						"value_prefix": "Bearer "
+					}
+				]
+			},
+			{
+				"name": "consumer_params",
+				"issuer": "higress-test",
+				"jwks": "{\n\"keys\": [\n{\n\"kty\": \"EC\",\n\"kid\": \"p256\",\n\"crv\": \"P-256\",\n\"x\": \"GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU\",\n\"y\": \"5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ\"\n},\n{\n\"kty\": \"RSA\",\n\"kid\": \"rsa\",\n\"n\": \"pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q\",\n\"e\": \"AQAB\"\n}\n]\n}",
+				"from_params": [
+					"jwt_token"
+				]
+			},
+			{
+				"name": "consumer_cookies",
+				"issuer": "higress-test",
+				"jwks": "{\n\"keys\": [\n{\n\"kty\": \"EC\",\n\"kid\": \"p256\",\n\"crv\": \"P-256\",\n\"x\": \"GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU\",\n\"y\": \"5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ\"\n},\n{\n\"kty\": \"RSA\",\n\"kid\": \"rsa\",\n\"n\": \"pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q\",\n\"e\": \"AQAB\"\n}\n]\n}",
+				"from_cookies": [
+					"jwt_token"
+				]
+			}
+		]
+	}`
+)
 
 func TestConsumerVerify(t *testing.T) {
 	log := &testLogger{
 		T: t,
 	}
-	header := &testProvider{headerMap: map[string]string{"authorization": "Bearer " + ES256Allow}}
+	cs := []*config.Consumer{}
+
+	c := gjson.Parse(consumers).Get("consumers")
+	if !c.IsArray() {
+		t.Error("failed to parse configuration for consumers: consumers is not a array")
+		return
+	}
+
+	consumerNames := map[string]struct{}{}
+	for _, v := range c.Array() {
+		c, err := config.ParseConsumer(v, consumerNames)
+		if err != nil {
+			t.Log(err.Error())
+			continue
+		}
+		cs = append(cs, c)
+	}
+	if len(cs) == 0 {
+		t.Error("at least one consumer should be configured for a rule")
+		return
+	}
+
+	header := &testProvider{headerMap: map[string]string{"jwt": "Bearer " + ES256Allow}}
 	err := consumerVerify(&config.Consumer{
 		Name:             "consumer1",
 		JWKs:             JWKs,
 		Issuer:           "higress-test",
 		ClaimsToHeaders:  &[]config.ClaimsToHeader{},
-		FromHeaders:      &config.DefaultFromHeader,
+		FromHeaders:      &[]config.FromHeader{{Name: "jwt", ValuePrefix: "Bearer "}},
 		ClockSkewSeconds: &config.DefaultClockSkewSeconds,
 		KeepToken:        &config.DefaultKeepToken,
 	}, time.Now(), header, log)
 
 	if err != nil {
-		t.Error(err)
+		if v, ok := err.(*ErrDenied); ok {
+			t.Error(v.msg)
+		}
 	}
 }

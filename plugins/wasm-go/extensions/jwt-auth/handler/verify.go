@@ -194,6 +194,12 @@ func deniedUnauthorizedConsumer() types.Action {
 	return types.ActionContinue
 }
 
+func deniedNotAllow() types.Action {
+	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
+		[]byte("Request denied by JWT Auth check. JWT token not allow."), -1)
+	return types.ActionContinue
+}
+
 func authenticated(name string) types.Action {
 	_ = proxywasm.AddHttpRequestHeader("X-Mse-Consumer", name)
 	return types.ActionContinue

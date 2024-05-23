@@ -32,6 +32,7 @@ func init() {
 	Register(WasmPluginsJWTAuthAllow)
 	Register(WasmPluginsJWTAuthExpried)
 	Register(WasmPluginsJWTAuthDeny)
+	Register(WasmPluginsJWTAuthSingleConsumer)
 }
 
 var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
@@ -45,6 +46,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "1. Default header with ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -65,6 +67,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "2. Default header with RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -85,6 +88,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "3. Default params with ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -104,6 +108,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "4. Default params with RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -123,6 +128,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "5. Custom header with ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -143,6 +149,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "6. Custom header with RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -163,6 +170,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "7. Custom params with ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -182,6 +190,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "8. Custom params with RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -201,6 +210,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "9. Custom cookies with ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -221,6 +231,7 @@ var WasmPluginsJWTAuthAllow = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "10. Custom cookies with RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -257,6 +268,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "1. Default header with expried ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -268,7 +280,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -277,6 +289,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "2. Default header with expried RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -288,7 +301,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -297,6 +310,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "3. Default params with expried ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -307,7 +321,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -316,6 +330,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "4. Default params with expried RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -326,7 +341,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -335,6 +350,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "5. Custom header with expried ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -346,7 +362,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -355,6 +371,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "6. Custom header with expried RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -366,7 +383,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -375,6 +392,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "7. Custom params with expried ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -385,7 +403,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -394,6 +412,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "8. Custom params with expried RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -404,7 +423,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -413,6 +432,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "9. Custom cookies with expried ES256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -424,7 +444,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -433,6 +453,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "10. Custom cookies with expried RS256",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -444,7 +465,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -457,6 +478,7 @@ var WasmPluginsJWTAuthExpried = suite.ConformanceTest{
 		})
 	},
 }
+
 var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 	ShortName:   "WasmPluginsJWTAuthDeny",
 	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
@@ -468,6 +490,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "1. Default header with RS256 but unauthorized consumer",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -488,6 +511,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "2. No token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -498,7 +522,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -507,6 +531,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "3. Default header with no token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -518,7 +543,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -527,6 +552,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "4. Default params with no token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -537,7 +563,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -546,6 +572,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "5. Custom header with no token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -557,7 +584,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -566,6 +593,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "6. Custom params with no token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -576,7 +604,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},
@@ -585,6 +613,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "7. Custom cookies with no token",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -596,6 +625,167 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "8. Default header with fake token",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"Authorization": "Bearer " + "faketoken"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "9. Default params with fake token",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info?access_token=" + "faketoken",
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "10. Custom header with fake token",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"jwt": "Bearer " + "faketoken"},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "11. Custom params with fake token",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info?jwt_token=" + "faketoken",
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "12. Custom cookies with fake token",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						Headers:          map[string]string{"Cookie": "jwt_token=" + "faketoken"},
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+		}
+		t.Run("WasmPlugins jwt-auth", func(t *testing.T) {
+			for _, testcase := range testcases {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsJWTAuthSingleConsumer = suite.ConformanceTest{
+	ShortName:   "WasmPluginsJWTAuthSingleConsumer",
+	Description: "The Ingress in the higress-conformance-infra namespace test the jwt-auth WASM plugin.",
+	Manifests:   []string{"tests/go-wasm-jwt-auth-single-consumer.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "1. Default hedaer with ES256 by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"Authorization": "Bearer " + ES256Allow},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "2. Default hedaer with expried ES256 by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"Authorization": "Bearer " + ES256Expried},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
 						StatusCode: 401,
 					},
 					ExpectedResponseNoRequest: true,
@@ -605,6 +795,7 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "3. Default hedaer with fake token by single consumer_EC",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -625,6 +816,88 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "4. No token by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "5. Default header with RS256 by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info",
+						UnfollowRedirect: true,
+						Headers:          map[string]string{"Authorization": "Bearer " + RS256Allow},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "6. Default params with ES256 by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info?access_token=" + ES256Allow,
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "7. Default params with expried ES256 by single consumer_EC",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/info?access_token=" + ES256Expried,
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+					ExpectedResponseNoRequest: true,
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "8. Default params with fake token by single consumer_EC",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -640,61 +913,23 @@ var WasmPluginsJWTAuthDeny = suite.ConformanceTest{
 					ExpectedResponseNoRequest: true,
 				},
 			},
+
 			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "9. Default params with RS256 by single consumer_EC",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/info",
-						UnfollowRedirect: true,
-						Headers:          map[string]string{"jwt": "Bearer " + "faketoken"},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 401,
-					},
-					ExpectedResponseNoRequest: true,
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/info?jwt_token=" + "faketoken",
+						Path:             "/info?access_token=" + RS256Allow,
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 401,
-					},
-					ExpectedResponseNoRequest: true,
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/info",
-						Headers:          map[string]string{"Cookie": "jwt_token=" + "faketoken"},
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 401,
+						StatusCode: 403,
 					},
 					ExpectedResponseNoRequest: true,
 				},

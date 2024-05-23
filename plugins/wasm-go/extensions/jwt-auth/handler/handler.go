@@ -30,15 +30,16 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 	}
 
 	header := &proxywasmProvider{}
-
-	action := deniedUnauthorizedConsumer
+	actionMap := map[string]func() types.Action{}
+	unAuthzConsumer := ""
+	
 	// 匹配consumer
 	for i := range config.Consumers {
 		err := consumerVerify(config.Consumers[i], time.Now(), header, log)
 		if err != nil {
 			log.Warn(err.Error())
 			if v, ok := err.(*ErrDenied); ok {
-				action = v.denied
+				actionMap[config.Consumers[i].Name] = v.denied
 			}
 			continue
 		}
@@ -58,7 +59,8 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 			if !contains(config.Consumers[i].Name, config.Allow) {
 				log.Warnf("jwt verify failed, consumer %q not allow",
 					config.Consumers[i].Name)
-				action = deniedUnauthorizedConsumer
+				actionMap[config.Consumers[i].Name] = deniedUnauthorizedConsumer
+				unAuthzConsumer = config.Consumers[i].Name
 				continue
 			}
 			log.Infof("consumer %q authenticated", config.Consumers[i].Name)
@@ -66,9 +68,20 @@ func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log
 		}
 	}
 
+	if len(config.Allow) == 1 {
+		if unAuthzConsumer != "" {
+			log.Warnf("consumer %q denied", unAuthzConsumer)
+			return deniedUnauthorizedConsumer()
+		}
+		if v, ok := actionMap[config.Allow[0]]; ok {
+			log.Warnf("consumer %q denied", config.Allow[0])
+			return v()
+		}
+	}
+
 	// 拒绝兜底
 	log.Warnf("all consumers verify failed")
-	return action()
+	return deniedNotAllow()
 }
 
 func contains(str string, arr []string) bool {
