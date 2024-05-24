@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -40,6 +41,7 @@ func (m *ollamaProvider) GetProviderType() string {
 }
 
 func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+	log.Debugf("[OnRequestHeaders] Called by ollama")
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -48,11 +50,7 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	log.Debugf("Request host overwritten to: %s", ollamaDomain)
 	// _ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
 	return types.ActionContinue, nil
 }
@@ -61,9 +59,7 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
+	
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
@@ -78,26 +74,40 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
 	}
 	request.Model = mappedModel
+	log.Debugf("Replace model by: %s", request.Model)
 
-	if m.config.moonshotFileId == "" && m.contextCache == nil {
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	}
-
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+	// if m.contextCache == nil {
+	// 	return types.ActionContinue, nil
+	// }
+	
+	var getcontenterr error
+	if m.contextCache != nil {
+		err := m.contextCache.GetContent(func(content string, err error) {
+			defer func() {
+				_ = proxywasm.ResumeHttpRequest()
+			}()
+			if err != nil {
+				log.Errorf("failed to load context file: %v", err)
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			}
+			insertContextMessage(request, content)
+			if err := replaceJsonRequestBody(request, log); err != nil {
+				log.Debugf("failed to replace json request body")
+				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			}
+		}, log)
+		if err == nil {
+			return types.ActionPause, nil
 		}
-		insertContextMessage(request, content)
+		getcontenterr = err
+	} else {
 		if err := replaceJsonRequestBody(request, log); err != nil {
+			log.Debugf("failed to replace json request body")
 			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
-	}, log)
-	if err == nil {
 		return types.ActionPause, nil
 	}
-	return types.ActionContinue, err
+	
+
+	return types.ActionContinue, getcontenterr
 }
