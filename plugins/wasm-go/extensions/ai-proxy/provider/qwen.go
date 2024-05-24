@@ -99,7 +99,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 				log.Errorf("failed to load context file: %v", err)
 				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
-			m.insertContextMessage(request, content)
+			m.insertContextMessage(request, content, false)
 			if err := replaceJsonRequestBody(request, log); err != nil {
 				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
@@ -301,7 +301,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			builder.WriteString("fileid://")
 			builder.WriteString(fileId)
 		}
-		contextMessageId := m.insertContextMessage(request, builder.String())
+		contextMessageId := m.insertContextMessage(request, builder.String(), true)
 		if contextMessageId == 0 {
 			// The context message cannot come first. We need to add another dummy system message before it.
 			request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: qwenDummySystemMessageContent}}, request.Input.Messages...)
@@ -417,7 +417,7 @@ func (m *qwenProvider) convertStreamEvent(ctx wrapper.HttpContext, responseBuild
 	return nil
 }
 
-func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string) int {
+func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string, onlyOneSystemBeforeFile bool) int {
 	fileMessage := qwenMessage{
 		Role:    roleSystem,
 		Content: content,
@@ -435,9 +435,19 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 	if firstNonSystemMessageIndex == -1 {
 		request.Input.Messages = append([]qwenMessage{fileMessage}, request.Input.Messages...)
 		return 0
-	} else {
+	} else if !onlyOneSystemBeforeFile {
 		request.Input.Messages = append(request.Input.Messages[:firstNonSystemMessageIndex], append([]qwenMessage{fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)...)
 		return firstNonSystemMessageIndex
+	} else {
+		builder := strings.Builder{}
+		for _, message := range request.Input.Messages[:firstNonSystemMessageIndex] {
+			if builder.Len() != 0 {
+				builder.WriteString("\n")
+			}
+			builder.WriteString(message.Content)
+		}
+		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}, fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)
+		return 1
 	}
 }
 
