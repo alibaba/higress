@@ -65,6 +65,7 @@ static_resources:
                                   ],
                                   "timeout": 1200000,
                                   "modelMapping": {
+                                    "gpt-4-turbo": "llama2",
                                     "*": "llama2"
                                   }
                                 }

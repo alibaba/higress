@@ -68,6 +68,21 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
+
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in chat completion request")
+	}
+	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+
+	if m.config.moonshotFileId == "" && m.contextCache == nil {
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
+	}
+
 	err := m.contextCache.GetContent(func(content string, err error) {
 		defer func() {
 			_ = proxywasm.ResumeHttpRequest()

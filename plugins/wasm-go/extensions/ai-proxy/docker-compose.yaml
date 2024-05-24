@@ -8,8 +8,7 @@ services:
     networks:
     - wasmtest
     ports:
-    - "8080:8080/tcp"
-    - "8001:8001/tcp"
+    - "10000:10000/tcp"
     volumes:
     - ./envoy.yaml:/etc/envoy/envoy.yaml
     - ./plugin.wasm:/etc/envoy/plugin.wasm
@@ -20,7 +19,7 @@ services:
       - CODE=20020806
       - OPENAI_API_KEY=unused
       - CUSTOM_MODELS=-all,+gpt-4o
-      - BASE_URL=http://higress:8080
+      - BASE_URL=http://envoy:10000
     networks:
       - wasmtest
     ports:
