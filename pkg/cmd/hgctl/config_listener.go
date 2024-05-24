@@ -55,7 +55,7 @@ func runListenerConfig(c *cobra.Command, args []string) error {
 		PodNamespace:    podNamespace,
 		BindAddress:     bindAddress,
 		Output:          output,
-		EnvoyConfigType: config.RouteEnvoyConfigType,
+		EnvoyConfigType: config.ListenerEnvoyConfigType,
 		IncludeEds:      true,
 	}, c.OutOrStdout())
 	if err != nil {

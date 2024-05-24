@@ -55,7 +55,7 @@ func runClusterConfig(c *cobra.Command, args []string) error {
 		PodNamespace:    podNamespace,
 		BindAddress:     bindAddress,
 		Output:          output,
-		EnvoyConfigType: config.RouteEnvoyConfigType,
+		EnvoyConfigType: config.ClusterEnvoyConfigType,
 		IncludeEds:      true,
 	}, c.OutOrStdout())
 	if err != nil {
