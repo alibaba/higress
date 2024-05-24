@@ -45,7 +45,8 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	}
 	_ = util.OverwriteRequestPath(ollamaChatCompletionPath)
 	_ = util.OverwriteRequestHost(ollamaDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	log.Debugf("Request host overwritten to: %s", ollamaDomain)
+	// _ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
 	if m.contextCache == nil {
 		ctx.DontReadRequestBody()
