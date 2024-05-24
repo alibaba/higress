@@ -59,6 +59,7 @@ static_resources:
                                 "provider": {
                                   "type": "ollama",
                                   "domain": "host.docker.internal:11434",
+                                  "apiToken": "ollama",
                                   "timeout": 1200000,
                                   "modelMapping": {
                                     "*": "llama2"
