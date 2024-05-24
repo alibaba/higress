@@ -424,7 +424,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := 0
+	var firstNonSystemMessageIndex int
 	messages := request.Input.Messages
 	if messages != nil {
 		for i, message := range request.Input.Messages {

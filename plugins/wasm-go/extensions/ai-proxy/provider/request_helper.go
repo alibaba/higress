@@ -37,7 +37,7 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := 0
+	var firstNonSystemMessageIndex int
 	for i, message := range request.Messages {
 		if message.Role != roleSystem {
 			firstNonSystemMessageIndex = i
