@@ -19,7 +19,7 @@ build:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
 	                            --build-arg GOPROXY=$(GOPROXY) \
-                                    --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
+	                            --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
 	                            -t ${IMG} \
 	                            --output extensions/${PLUGIN_NAME} \
 	                            .
@@ -30,7 +30,7 @@ build-image:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
 	                            --build-arg GOPROXY=$(GOPROXY) \
-                                    --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
+	                            --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
 	                            -t ${IMG} \
 	                            .
 	@echo ""
