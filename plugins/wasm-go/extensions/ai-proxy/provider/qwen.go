@@ -26,6 +26,8 @@ const (
 	qwenTopPMax = 0.999999
 
 	qwenDummySystemMessageContent = "You are a helpful assistant."
+
+	qwenLongModelName = "qwen-long"
 )
 
 type qwenProviderInitializer struct {
@@ -292,7 +294,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			Tools:             origRequest.Tools,
 		},
 	}
-	if len(m.config.qwenFileIds) != 0 {
+	if len(m.config.qwenFileIds) != 0 && origRequest.Model == qwenLongModelName {
 		builder := strings.Builder{}
 		for _, fileId := range m.config.qwenFileIds {
 			if builder.Len() != 0 {
@@ -422,7 +424,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := -1
+	firstNonSystemMessageIndex := 0
 	messages := request.Input.Messages
 	if messages != nil {
 		for i, message := range request.Input.Messages {
@@ -432,7 +434,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 			}
 		}
 	}
-	if firstNonSystemMessageIndex == -1 {
+	if firstNonSystemMessageIndex == 0 {
 		request.Input.Messages = append([]qwenMessage{fileMessage}, request.Input.Messages...)
 		return 0
 	} else if !onlyOneSystemBeforeFile {
