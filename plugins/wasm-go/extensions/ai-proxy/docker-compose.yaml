@@ -1,0 +1,35 @@
+version: '3.9'
+
+networks:
+  higress-net:
+    external: false
+
+services:
+  higress:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:1.3.6
+    environment:
+      - CONFIG_TEMPLATE=ai-proxy
+      - DEFAULT_AI_SERVICE=ollama
+    networks:
+      - higress-net
+    ports:
+      - "8080:8080/tcp"
+      - "8001:8001/tcp"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./wasm-filters:/etc/envoy/wasm-filters:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+  nextchat:
+    image: yidadaa/chatgpt-next-web
+    environment:
+      - CODE=20020806
+      - OPENAI_API_KEY=unused
+      - CUSTOM_MODELS=-all,+gpt-4o
+      - BASE_URL=http://higress:8080
+    networks:
+      - higress-net
+    ports:
+      - "3000:3000/tcp"
+    restart: always

@@ -43,8 +43,8 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(openaiChatCompletionPath)
-	_ = util.OverwriteRequestHost(openaiDomain)
+	_ = util.OverwriteRequestPath(ollamaChatCompletionPath)
+	_ = util.OverwriteRequestHost(ollamaDomain)
 	// _ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
 	if m.contextCache == nil {
