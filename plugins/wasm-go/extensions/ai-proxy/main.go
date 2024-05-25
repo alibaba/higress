@@ -89,7 +89,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debugf("[onHttpRequestBody] onHttpRequestBody called")
 	activeProvider := pluginConfig.GetProvider()
 
 	if activeProvider == nil {
@@ -103,7 +102,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
-			log.Debugf("[onHttpRequestBody] Request body: %s", string(body))
 			return action
 		}
 		_ = util.SendResponse(404, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
@@ -113,7 +111,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
-	log.Debugf("[onHttpResponseHeaders] onHttpResponseHeaders called")
 	activeProvider := pluginConfig.GetProvider()
 
 	if activeProvider == nil {
