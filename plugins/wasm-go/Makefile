@@ -1,4 +1,4 @@
-PLUGIN_NAME ?= ai-proxy
+PLUGIN_NAME ?= hello-world
 BUILDER_REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
 REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
 GO_VERSION ?= 1.19

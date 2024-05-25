@@ -116,7 +116,7 @@ type ProviderConfig struct {
 	ollamaServerIP string `required:"false" yaml:"ollamaServerIP" json:"ollamaServerIP"`
 	// @Title zh-CN Ollama Server Port
 	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的端口号。
-	ollamaServerPort string `required:"false" yaml:"ollamaServerPort" json:"ollamaServerPort"`
+	ollamaServerPort uint32 `required:"false" yaml:"ollamaServerPort" json:"ollamaServerPort"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
@@ -146,7 +146,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.ollamaServerIP = json.Get("ollamaServerIP").String()
-	c.ollamaServerPort = json.Get("ollamaServerPort").String()
+	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
 	for k, v := range json.Get("modelMapping").Map() {
 		c.modelMapping[k] = v.String()

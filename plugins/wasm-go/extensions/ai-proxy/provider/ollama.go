@@ -24,14 +24,15 @@ func (m *ollamaProviderInitializer) ValidateConfig(config ProviderConfig) error 
 	if config.ollamaServerIP == "" {
 		return errors.New("missing ollamaServerIP in provider config")
 	}
-	if config.ollamaServerPort == "" {
+	if config.ollamaServerPort == 0 {
 		return errors.New("missing ollamaServerPort in provider config")
 	}
 	return nil
 }
 
 func (m *ollamaProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	serviceDomain := config.ollamaServerIP + ":" + config.ollamaServerPort
+	serverPortStr := fmt.Sprintf("%d", config.ollamaServerPort)
+	serviceDomain := config.ollamaServerIP + ":" + serverPortStr
 	return &ollamaProvider{
 		config:        config,
 		serviceDomain: serviceDomain,
@@ -80,7 +81,6 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	}
 	request.Model = mappedModel
 	
-	var getcontenterr error
 	if m.contextCache != nil {
 		err := m.contextCache.GetContent(func(content string, err error) {
 			defer func() {
@@ -97,16 +97,15 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		}, log)
 		if err == nil {
 			return types.ActionPause, nil
+		} else {
+			return types.ActionContinue, err
 		}
-		getcontenterr = err
 	} else {
 		if err := replaceJsonRequestBody(request, log); err != nil {
 			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			return types.ActionContinue, err
 		}
 		_ = proxywasm.ResumeHttpRequest()
 		return types.ActionPause, nil
 	}
-	
-
-	return types.ActionContinue, getcontenterr
 }
