@@ -65,6 +65,10 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+
+	if m.config.modelMapping == nil && m.contextCache == nil {
+		return types.ActionContinue, nil
+	}
 	
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
