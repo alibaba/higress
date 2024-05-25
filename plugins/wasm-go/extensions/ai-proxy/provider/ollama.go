@@ -13,7 +13,7 @@ import (
 // ollamaProvider is the provider for Ollama service.
 
 const (
-	ollamaDomain             = "localhost:11434"
+	// ollamaDomain             = "localhost:11434"
 	ollamaChatCompletionPath = "/v1/chat/completions"
 )
 
@@ -21,19 +21,28 @@ type ollamaProviderInitializer struct {
 }
 
 func (m *ollamaProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.ollamaServerIP == "" {
+		return errors.New("missing ollamaServerIP in provider config")
+	}
+	if config.ollamaServerPort == "" {
+		return errors.New("missing ollamaServerPort in provider config")
+	}
 	return nil
 }
 
 func (m *ollamaProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	serviceDomain := config.ollamaServerIP + ":" + config.ollamaServerPort
 	return &ollamaProvider{
-		config:       config,
-		contextCache: createContextCache(&config),
+		config:        config,
+		serviceDomain: serviceDomain,
+		contextCache:  createContextCache(&config),
 	}, nil
 }
 
 type ollamaProvider struct {
-	config       ProviderConfig
-	contextCache *contextCache
+	config        ProviderConfig
+	serviceDomain string
+	contextCache  *contextCache
 }
 
 func (m *ollamaProvider) GetProviderType() string {
@@ -45,7 +54,7 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestPath(ollamaChatCompletionPath)
-	_ = util.OverwriteRequestHost(ollamaDomain)
+	_ = util.OverwriteRequestHost(m.serviceDomain)
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
 	return types.ActionContinue, nil

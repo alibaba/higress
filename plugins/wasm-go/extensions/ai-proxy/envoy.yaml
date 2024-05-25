@@ -37,7 +37,7 @@ static_resources:
                         - match:
                             prefix: "/"
                           route:
-                            cluster: ollama
+                            cluster: moonshot
                             timeout: 300s
                 http_filters:
                   - name: wasmtest
@@ -57,17 +57,19 @@ static_resources:
                             value: |
                               {
                                 "provider": {
-                                  "type": "ollama",
-                                  "domain": "host.docker.internal:11434",
+                                  "type": "moonshot",
+                                  "domain": "api.moonshot.cn",
                                   "apiTokens": [
                                     "****",
                                     "****"
                                   ],
                                   "timeout": 1200000,
                                   "modelMapping": {
-                                    "gpt-4-turbo": "llama2",
-                                    "*": "llama2"
-                                  }
+                                    "gpt-3": "moonshot-v1-8k",
+                                    "gpt-35-turbo": "moonshot-v1-32k",
+                                    "gpt-4-turbo": "moonshot-v1-128k",
+                                    "*": "moonshot-v1-8k"
+                                  },
                                 }
                               }
                   - name: envoy.filters.http.router
@@ -87,17 +89,22 @@ static_resources:
                     socket_address:
                       address: httpbin
                       port_value: 80
-    - name: ollama
+    - name: moonshot
       connect_timeout: 30s
       type: LOGICAL_DNS
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
-        cluster_name: ollama
+        cluster_name: moonshot
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
-                      address: host.docker.internal
-                      port_value: 11434
+                      address: api.moonshot.cn
+                      port_value: 443
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          "sni": "api.moonshot.cn"
