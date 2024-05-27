@@ -1,0 +1,69 @@
+diff -Naur istio/pilot/pkg/model/push_context.go istio-new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2024-05-27 23:03:09.000000000 +0800
++++ istio-new/pilot/pkg/model/push_context.go	2024-05-27 21:33:45.000000000 +0800
+@@ -1482,8 +1482,14 @@
+ 		ns := virtualService.Namespace
+ 		rule := virtualService.Spec.(*networking.VirtualService)
+ 		// Added by ingress
+-		for _, host := range rule.Hosts {
+-			ps.virtualServiceIndex.byHost[host] = append(ps.virtualServiceIndex.byHost[host], virtualService)
++		if len(rule.Gateways) > 0 {
++			if len(rule.Hosts) == 0 {
++				ps.virtualServiceIndex.byHost[constants.GlobalWildcardHost] = append(ps.virtualServiceIndex.byHost[constants.GlobalWildcardHost], virtualService)
++			} else {
++				for _, host := range rule.Hosts {
++					ps.virtualServiceIndex.byHost[host] = append(ps.virtualServiceIndex.byHost[host], virtualService)
++				}
++			}
+ 		}
+ 		// End added by ingress
+ 		gwNames := getGatewayNames(rule)
+diff -Naur istio/pilot/pkg/networking/core/v1alpha3/gateway.go istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go
+--- istio/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-05-27 23:03:09.000000000 +0800
++++ istio-new/pilot/pkg/networking/core/v1alpha3/gateway.go	2024-05-27 22:58:33.000000000 +0800
+@@ -376,8 +376,15 @@
+ 					gatewayVirtualServices[gatewayName] = virtualServices
+ 				}
+ 				for _, virtualService := range virtualServices {
+-					for _, host := range virtualService.Spec.(*networking.VirtualService).Hosts {
+-						hostSet.Insert(host)
++					rule := virtualService.Spec.(*networking.VirtualService)
++					if len(rule.Gateways) > 0 {
++						if len(rule.Hosts) == 0 {
++							hostSet.Insert(constants.GlobalWildcardHost)
++							break
++						}
++						for _, host := range rule.Hosts {
++							hostSet.Insert(host)
++						}
+ 					}
+ 				}
+ 			}
+@@ -689,7 +696,7 @@
+ 			vHost = &route.VirtualHost{
+ 				Name:                       util.DomainName(hostRDSHost, port),
+ 				Domains:                    buildGatewayVirtualHostDomains(hostRDSHost, port),
+-				Routes:                     routes,
++				Routes:                     append(routes[:0:0], routes...),
+ 				IncludeRequestAttemptCount: true,
+ 				TypedPerFilterConfig:       mseingress.ConstructTypedPerFilterConfigForVHost(globalHTTPFilters, virtualService),
+ 			}
+@@ -884,7 +891,7 @@
+ 					newVHost := &route.VirtualHost{
+ 						Name:                       util.DomainName(string(hostname), port),
+ 						Domains:                    buildGatewayVirtualHostDomains(string(hostname), port),
+-						Routes:                     routes,
++						Routes:                     append(routes[:0:0], routes...),
+ 						IncludeRequestAttemptCount: true,
+ 						TypedPerFilterConfig:       mseingress.ConstructTypedPerFilterConfigForVHost(globalHTTPFilters, virtualService),
+ 					}
+diff -Naur istio/pkg/config/constants/constants.go istio-new/pkg/config/constants/constants.go
+--- istio/pkg/config/constants/constants.go	2024-05-27 23:03:09.000000000 +0800
++++ istio-new/pkg/config/constants/constants.go	2024-05-27 21:31:58.000000000 +0800
+@@ -145,5 +145,6 @@
+ 	// Added by ingress
+ 	HigressHostRDSNamePrefix = "higress-rds-"
+ 	DefaultScopedRouteName   = "scoped-route"
++	GlobalWildcardHost       = "*"
+ 	// End added by ingress
+ )
