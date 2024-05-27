@@ -1,0 +1,25 @@
+diff -Naur envoy/bazel/repository_locations.bzl envoy-new/bazel/repository_locations.bzl
+--- envoy/bazel/repository_locations.bzl	2024-05-27 18:04:13.116443196 +0800
++++ envoy-new/bazel/repository_locations.bzl	2024-05-27 18:02:24.812441069 +0800
+@@ -1031,8 +1031,8 @@
+         project_name = "WebAssembly for Proxies (C++ host implementation)",
+         project_desc = "WebAssembly for Proxies (C++ host implementation)",
+         project_url = "https://github.com/higress-group/proxy-wasm-cpp-host",
+-        version = "cad2eb04d402dbf559101f3cb4f44da0d9c5b0b0",
+-        sha256 = "4efbcc97c58994fab92c9dc50c051ad16463647d4c0c6df36a7204d2984c1e63",
++        version = "28a33a5a3e6c1ff8f53128a74e89aeca47850f68",
++        sha256 = "1aaa5898c169aeff115eff2fedf58095b3509d2e59861ad498e661a990d78b3d",
+         strip_prefix = "proxy-wasm-cpp-host-{version}",
+         urls = ["https://github.com/higress-group/proxy-wasm-cpp-host/archive/{version}.tar.gz"],
+         use_category = ["dataplane_ext"],
+diff -Naur envoy/source/extensions/filters/http/wasm/wasm_filter.h envoy-new/source/extensions/filters/http/wasm/wasm_filter.h
+--- envoy/source/extensions/filters/http/wasm/wasm_filter.h	2024-05-27 18:04:13.112443196 +0800
++++ envoy-new/source/extensions/filters/http/wasm/wasm_filter.h	2024-05-27 18:03:25.360442258 +0800
+@@ -51,6 +51,7 @@
+       if (opt_ref->recover()) {
+         ENVOY_LOG(info, "wasm vm recover success");
+         wasm = opt_ref->handle()->wasmHandle()->wasm().get();
++        handle = opt_ref->handle();
+       } else {
+         ENVOY_LOG(info, "wasm vm recover failed");
+         failed = true;
