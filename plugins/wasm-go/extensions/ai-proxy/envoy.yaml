@@ -58,7 +58,7 @@ static_resources:
                               {
                                 "provider": {
                                   "type": "ollama",
-                                  "ollamaServerIP": "192.168.0.106",
+                                  "ollamaServerHost": "192.168.10.8",
                                   "ollamaServerPort": 11434,
                                   "apiTokens": [
                                     "****",
@@ -88,6 +88,25 @@ static_resources:
                     socket_address:
                       address: httpbin
                       port_value: 80
+    - name: moonshot
+      connect_timeout: 30s
+      type: LOGICAL_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: moonshot
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: api.moonshot.cn
+                      port_value: 443
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          "sni": "api.moonshot.cn"
     - name: ollama
       connect_timeout: 30s
       type: LOGICAL_DNS
@@ -100,5 +119,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: 192.168.0.106
+                      address: 192.168.10.8
                       port_value: 11434

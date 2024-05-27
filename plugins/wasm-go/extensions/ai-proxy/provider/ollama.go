@@ -13,7 +13,6 @@ import (
 // ollamaProvider is the provider for Ollama service.
 
 const (
-	// ollamaDomain             = "localhost:11434"
 	ollamaChatCompletionPath = "/v1/chat/completions"
 )
 
@@ -21,8 +20,8 @@ type ollamaProviderInitializer struct {
 }
 
 func (m *ollamaProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if config.ollamaServerIP == "" {
-		return errors.New("missing ollamaServerIP in provider config")
+	if config.ollamaServerHost == "" {
+		return errors.New("missing ollamaServerHost in provider config")
 	}
 	if config.ollamaServerPort == 0 {
 		return errors.New("missing ollamaServerPort in provider config")
@@ -32,7 +31,7 @@ func (m *ollamaProviderInitializer) ValidateConfig(config ProviderConfig) error 
 
 func (m *ollamaProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	serverPortStr := fmt.Sprintf("%d", config.ollamaServerPort)
-	serviceDomain := config.ollamaServerIP + ":" + serverPortStr
+	serviceDomain := config.ollamaServerHost + ":" + serverPortStr
 	return &ollamaProvider{
 		config:        config,
 		serviceDomain: serviceDomain,

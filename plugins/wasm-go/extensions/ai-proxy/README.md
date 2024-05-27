@@ -99,7 +99,7 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 
 | 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
 |-------------------|--------|------|-----|----------------------------------------------|
-| `ollamaServerIP` | string | 必填   | -   | Ollama 服务器的 IP 地址 |
+| `ollamaServerHost` | string | 必填   | -   | Ollama 服务器的主机地址 |
 | `ollamaServerPort` | number | 必填   | -   | Ollama 服务器的端口号，默认为11434 |
 
 ## 用法示例
