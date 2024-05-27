@@ -21,7 +21,7 @@ description: AI 代理插件配置参考
 
 | 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
 |----------------|-----------------|------|-----|----------------------------------------------------------------------------------|
-| `type`         | string          | 必填   | -   | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen                                |
+| `type`         | string          | 必填   | -   | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen, zhipuai                                |
 | `apiTokens`    | array of string | 必填   | -   | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。            |
 | `timeout`      | number          | 非必填  | -   | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                           |
 | `modelMapping` | map of string   | 非必填  | -   | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系                   |
@@ -76,6 +76,10 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 #### 零一万物（Yi）
 
 零一万物所对应的 `type` 为 `yi`。它并无特有的配置字段。
+
+#### 智谱AI（Zhipu AI）
+
+智谱AI所对应的 `type` 为 `zhipuai`。它并无特有的配置字段。
 
 #### DeepSeek（DeepSeek）
 
