@@ -97,6 +97,15 @@ Anthropic Claude 所对应的 `type` 为 `claude`。它特有的配置字段如�
 |-----------|--------|-----|-----|-------------------|
 | `version` | string | 必填  | -   | Claude 服务的 API 版本 |
 
+#### Ollama
+
+Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
+|-------------------|--------|------|-----|----------------------------------------------|
+| `ollamaServerHost` | string | 必填   | -   | Ollama 服务器的主机地址 |
+| `ollamaServerPort` | number | 必填   | -   | Ollama 服务器的端口号，默认为11434 |
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
