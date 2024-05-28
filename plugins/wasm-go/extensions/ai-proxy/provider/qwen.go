@@ -350,12 +350,16 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	qwenChoice := qwenResponse.Output.Choices[0]
 	message := qwenChoice.Message
 
-	deltaMessage := &chatMessage{Role: message.Role, Content: message.Content, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
+	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content}
+	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if !incrementalStreaming {
 		if pushedMessage, ok := ctx.GetContext(ctxKeyPushedMessage).(qwenMessage); ok {
-			deltaMessage.Content = util.StripPrefix(deltaMessage.Content, pushedMessage.Content)
-			if len(deltaMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
-				for i, tc := range deltaMessage.ToolCalls {
+			if message.Content == "" {
+				message.Content = pushedMessage.Content
+			}
+			deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.Content, pushedMessage.Content)
+			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
+				for i, tc := range deltaToolCallsMessage.ToolCalls {
 					if i >= len(pushedMessage.ToolCalls) {
 						break
 					}
@@ -363,23 +367,33 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 					tc.Function.Id = util.StripPrefix(tc.Function.Id, pushedFunction.Id)
 					tc.Function.Name = util.StripPrefix(tc.Function.Name, pushedFunction.Name)
 					tc.Function.Arguments = util.StripPrefix(tc.Function.Arguments, pushedFunction.Arguments)
-					deltaMessage.ToolCalls[i] = tc
+					deltaToolCallsMessage.ToolCalls[i] = tc
 				}
 			}
 		}
 		ctx.SetContext(ctxKeyPushedMessage, message)
 	}
 
-	if !deltaMessage.IsEmpty() {
-		deltaResponse := *&baseMessage
-		deltaResponse.Choices = append(deltaResponse.Choices, chatCompletionChoice{Delta: deltaMessage})
-		responses = append(responses, &deltaResponse)
+	if !deltaContentMessage.IsEmpty() {
+		response := *&baseMessage
+		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaContentMessage})
+		responses = append(responses, &response)
+	}
+	if !deltaToolCallsMessage.IsEmpty() {
+		response := *&baseMessage
+		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaToolCallsMessage})
+		responses = append(responses, &response)
 	}
 
 	// Yes, Qwen uses a string "null" as null.
 	if qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null" {
 		finishResponse := *&baseMessage
 		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
+		finishResponse.Usage = chatCompletionUsage{
+			PromptTokens:     qwenResponse.Usage.InputTokens,
+			CompletionTokens: qwenResponse.Usage.OutputTokens,
+			TotalTokens:      qwenResponse.Usage.TotalTokens,
+		}
 		responses = append(responses, &finishResponse)
 	}
 

@@ -102,14 +102,15 @@ func (m *chatMessage) IsEmpty() bool {
 }
 
 type toolCall struct {
+	Index    int          `json:"index"`
 	Id       string       `json:"id"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
 
