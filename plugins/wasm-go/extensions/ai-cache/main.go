@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	CacheKeyContextKey     = "cacheKey"
-	CacheContentContextKey = "cacheContent"
-	ToolCallsContextKey    = "toolCalls"
-	StreamContextKey       = "stream"
-	DefaultCacheKeyPrefix  = "higress-ai-cache:"
+	CacheKeyContextKey       = "cacheKey"
+	CacheContentContextKey   = "cacheContent"
+	PartialMessageContextKey = "partialMessage"
+	ToolCallsContextKey      = "toolCalls"
+	StreamContextKey         = "stream"
+	DefaultCacheKeyPrefix    = "higress-ai-cache:"
 )
 
 func main() {
@@ -149,7 +150,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	}
 	c.ReturnStreamResponseTemplate = json.Get("returnStreamResponseTemplate").String()
 	if c.ReturnStreamResponseTemplate == "" {
-		c.ReturnStreamResponseTemplate = `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
+		c.ReturnStreamResponseTemplate = `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` + "\n\n"
 	}
 	c.CacheKeyPrefix = json.Get("cacheKeyPrefix").String()
 	if c.CacheKeyPrefix == "" {
@@ -169,13 +170,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 		return types.ActionContinue
 	}
 	if !strings.Contains(contentType, "application/json") {
-		log.Warnf("content is not json, can't process", contentType)
+		log.Warnf("content is not json, can't process:%s", contentType)
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
 	return types.HeaderStopIteration
+}
+
+func TrimQuote(source string) string {
+	return strings.Trim(source, `"`)
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
@@ -186,9 +191,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		stream = true
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
-	key := bodyJson.Get(config.CacheKeyFrom.RequestBody).String()
+	key := TrimQuote(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw)
 	if key == "" {
-		log.Debugf("parse key from request body failed, body:%s", body)
+		log.Debug("parse key from request body failed")
 		return types.ActionContinue
 	}
 	ctx.SetContext(CacheKeyContextKey, key)
@@ -204,10 +209,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			return
 		}
 		log.Debugf("cache hit, key:%s", key)
+		ctx.SetContext(CacheKeyContextKey, nil)
 		if !stream {
 			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, response.String())), -1)
 		} else {
-			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(strings.ReplaceAll(fmt.Sprintf(config.ReturnStreamResponseTemplate, response.String()), "\n", `\n`)+"\n\n"), -1)
+			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnStreamResponseTemplate, response.String())), -1)
 		}
 	})
 	if err != nil {
@@ -217,10 +223,47 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	return types.ActionPause
 }
 
+func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log wrapper.Log) string {
+	subMessages := strings.Split(sseMessage, "\n")
+	var message string
+	for _, msg := range subMessages {
+		if strings.HasPrefix(msg, "data:") {
+			message = msg
+			break
+		}
+	}
+	if len(message) < 6 {
+		log.Errorf("invalid message:%s", message)
+		return ""
+	}
+	// skip the prefix "data:"
+	bodyJson := message[5:]
+	if gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Exists() {
+		tempContentI := ctx.GetContext(CacheContentContextKey)
+		if tempContentI == nil {
+			content := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
+			ctx.SetContext(CacheContentContextKey, content)
+			return content
+		}
+		append := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
+		content := tempContentI.(string) + append
+		ctx.SetContext(CacheContentContextKey, content)
+		return content
+	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
+		// TODO: compatible with other providers
+		ctx.SetContext(ToolCallsContextKey, struct{}{})
+		return ""
+	}
+	return ""
+}
+
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Debugf("receive chunk:%s", chunk)
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
+		return chunk
+	}
+	keyI := ctx.GetContext(CacheKeyContextKey)
+	if keyI == nil {
 		return chunk
 	}
 	if !isLastChunk {
@@ -235,36 +278,29 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 			tempContent = append(tempContent, chunk...)
 			ctx.SetContext(CacheContentContextKey, tempContent)
 		} else {
-			if len(chunk) < 6 {
-				log.Errorf("invalid chunk:%s", chunk)
-				return chunk
+			var partialMessage []byte
+			partialMessageI := ctx.GetContext(PartialMessageContextKey)
+			if partialMessageI != nil {
+				partialMessage = append(partialMessageI.([]byte), chunk...)
+			} else {
+				partialMessage = chunk
 			}
-			// skip the prefix "data:"
-			bodyJson := chunk[5:]
-			if gjson.GetBytes(bodyJson, config.CacheStreamValueFrom.ResponseBody).Exists() {
-				tempContentI := ctx.GetContext(CacheContentContextKey)
-				if tempContentI == nil {
-					content := gjson.GetBytes(bodyJson, config.CacheStreamValueFrom.ResponseBody).String()
-					ctx.SetContext(CacheContentContextKey, content)
-					return chunk
+			messages := strings.Split(string(partialMessage), "\n\n")
+			for i, msg := range messages {
+				if i < len(messages)-1 {
+					// process complete message
+					processSSEMessage(ctx, config, msg, log)
 				}
-				content := tempContentI.(string)
-				append := gjson.GetBytes(bodyJson, config.CacheStreamValueFrom.ResponseBody).String()
-				ctx.SetContext(CacheContentContextKey, content+append)
-			} else if gjson.GetBytes(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
-				// TODO: other provider tool call support
-				ctx.SetContext(ToolCallsContextKey, struct{}{})
-				return chunk
+			}
+			if !strings.HasSuffix(string(partialMessage), "\n\n") {
+				ctx.SetContext(PartialMessageContextKey, []byte(messages[len(messages)-1]))
+			} else {
+				ctx.SetContext(PartialMessageContextKey, nil)
 			}
 		}
 		return chunk
 	}
 	// last chunk
-	keyI := ctx.GetContext(CacheKeyContextKey)
-	if keyI == nil {
-		log.Debug("get cache key from context failed")
-		return chunk
-	}
 	key := keyI.(string)
 	stream := ctx.GetContext(StreamContextKey)
 	var value string
@@ -277,23 +313,28 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 			body = chunk
 		}
 		bodyJson := gjson.ParseBytes(body)
-		value = bodyJson.Get(config.CacheValueFrom.ResponseBody).String()
+
+		value = TrimQuote(bodyJson.Get(config.CacheValueFrom.ResponseBody).Raw)
 		if value == "" {
 			log.Warnf("parse value from response body failded, body:%s", body)
 			return chunk
 		}
 	} else {
 		if len(chunk) > 0 {
-			// skip the prefix "data:"
-			bodyJson := chunk[5:]
-			if !gjson.GetBytes(bodyJson, config.CacheStreamValueFrom.ResponseBody).Exists() {
+			var lastMessage []byte
+			partialMessageI := ctx.GetContext(PartialMessageContextKey)
+			if partialMessageI != nil {
+				lastMessage = append(partialMessageI.([]byte), chunk...)
+			} else {
+				lastMessage = chunk
+			}
+			if !strings.HasSuffix(string(lastMessage), "\n\n") {
+				log.Warnf("invalid lastMessage:%s", lastMessage)
 				return chunk
 			}
-			tempContentI := ctx.GetContext(CacheContentContextKey)
-			if tempContentI != nil {
-				value = tempContentI.(string)
-			}
-			value = value + gjson.GetBytes(bodyJson, config.CacheStreamValueFrom.ResponseBody).String()
+			// remove the last \n\n
+			lastMessage = lastMessage[:len(lastMessage)-2]
+			value = processSSEMessage(ctx, config, string(lastMessage), log)
 		} else {
 			tempContentI := ctx.GetContext(CacheContentContextKey)
 			if tempContentI == nil {
@@ -306,6 +347,5 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 	if config.CacheTTL != 0 {
 		config.redisClient.Expire(config.CacheKeyPrefix+key, config.CacheTTL, nil)
 	}
-	log.Debugf("redis set key:%s value:%s", key, value)
 	return chunk
 }

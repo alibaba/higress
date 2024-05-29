@@ -6,9 +6,7 @@
 
 > 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
 
-LLM 结果缓存插件
-
-默认配置方式可以直接用于 openai 协议的结果缓存
+LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的结果缓存，同时支持流式和非流式响应的缓存。
 
 ## 配置说明
 
@@ -25,7 +23,7 @@ LLM 结果缓存插件
 | redis.username                    | string   | optional    | -                                                                                                                                                                                                                                    | 登陆 redis 的用户名                                                                                        |
 | redis.password                    | string   | optional    | -                                                                                                                                                                                                                                    | 登陆 redis 的密码                                                                                          |
 | returnResponseTemplate            | string   | optional    | `{"id":"from-cache","choices":[%s],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`                                                                                  | 返回 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分                                              |
-| returnStreamResponseTemplate      | string   | optional    | `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` | 返回流式 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分                                          |
+| returnStreamResponseTemplate      | string   | optional    | `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}\n\n` | 返回流式 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分                                          |
 
 ## 配置示例
 
