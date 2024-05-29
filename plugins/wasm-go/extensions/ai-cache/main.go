@@ -150,7 +150,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	}
 	c.ReturnStreamResponseTemplate = json.Get("returnStreamResponseTemplate").String()
 	if c.ReturnStreamResponseTemplate == "" {
-		c.ReturnStreamResponseTemplate = `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` + "\n\n"
+		c.ReturnStreamResponseTemplate = `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` + "\n\ndata:[DONE]\n\n"
 	}
 	c.CacheKeyPrefix = json.Get("cacheKeyPrefix").String()
 	if c.CacheKeyPrefix == "" {
@@ -254,6 +254,7 @@ func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage 
 		ctx.SetContext(ToolCallsContextKey, struct{}{})
 		return ""
 	}
+	log.Debugf("unknown message:%s", bodyJson)
 	return ""
 }
 
