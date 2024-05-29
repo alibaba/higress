@@ -341,6 +341,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Choices:           make([]chatCompletionChoice, 0),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 	}
@@ -389,12 +390,15 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	if qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null" {
 		finishResponse := *&baseMessage
 		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
-		finishResponse.Usage = chatCompletionUsage{
+
+		usageResponse := *&baseMessage
+		usageResponse.Usage = chatCompletionUsage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
 		}
-		responses = append(responses, &finishResponse)
+
+		responses = append(responses, &finishResponse, &usageResponse)
 	}
 
 	return responses
