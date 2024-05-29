@@ -30,8 +30,6 @@ type AIStatisticsConfig struct {
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64) {
-	// TODO(jcchavezs): figure out if we are OK with dynamic creation of metrics
-	// or we generate the metrics on before hand.
 	counter, ok := config.metrics[metricName]
 	if !ok {
 		counter = proxywasm.DefineCounterMetric(metricName)
@@ -163,8 +161,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".input_token", uint64(input_token))
 	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(output_token))
 
-	proxywasm.SetProperty([]string{"metadata", "ai_statistic", "input_token"}, []byte(fmt.Sprint(input_token)))
-	proxywasm.SetProperty([]string{"metadata", "ai_statistic", "output_token"}, []byte(fmt.Sprint(output_token)))
+	proxywasm.SetProperty([]string{"model"}, []byte(model))
+	proxywasm.SetProperty([]string{"input_token"}, []byte(fmt.Sprint(input_token)))
+	proxywasm.SetProperty([]string{"output_token"}, []byte(fmt.Sprint(output_token)))
 
 	return types.ActionContinue
 }
