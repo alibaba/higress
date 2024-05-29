@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	regexp "github.com/wasilibs/go-re2"
 )
 
 func main() {
@@ -19,14 +22,11 @@ func main() {
 	)
 }
 
-var model2org map[string]string = map[string]string{
-	"gpt-3.5-turbo": "openai",
-	"qwen-turbo":    "qwen",
-}
-
 type AIStatisticsConfig struct {
-	client  wrapper.HttpClient
-	metrics map[string]proxywasm.MetricCounter
+	client     wrapper.HttpClient
+	metrics    map[string]proxywasm.MetricCounter
+	qwenRegExp *regexp.Regexp
+	gptRegExp  *regexp.Regexp
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64) {
@@ -42,6 +42,8 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 
 func parseConfig(json gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
 	config.metrics = make(map[string]proxywasm.MetricCounter)
+	config.qwenRegExp, _ = regexp.Compile("qwen.*")
+	config.gptRegExp, _ = regexp.Compile("gpt.*")
 	return nil
 }
 
@@ -59,12 +61,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	ctx.SetContext("model", model)
 	ctx.SetContext("skip", false)
 
-	switch model2org[model] {
-	case "openai":
+	if config.gptRegExp.MatchString(model) {
 		if gjson.GetBytes(body, "stream").Exists() && gjson.GetBytes(body, "stream").Bool() {
 			ctx.BufferResponseBody()
 		}
-	case "qwen":
+	} else if config.qwenRegExp.MatchString(model) {
 		x_dashscope_sse, _ := proxywasm.GetHttpRequestHeader("X-DashScope-SSE")
 		accept, _ := proxywasm.GetHttpRequestHeader("Accept")
 		if x_dashscope_sse != "enable" && accept != "text/event-stream" {
@@ -100,9 +101,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(output_token))
 	}
 
-	switch model2org[model] {
-	case "openai":
-		log.Infof("org is %s", model2org[model])
+	if config.gptRegExp.MatchString(model) {
 		usage := gjson.GetBytes(data, "usage")
 		if usage.Exists() {
 			input_token := usage.Get("prompt_tokens").Int()
@@ -111,8 +110,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 			ctx.SetContext("output_token", output_token)
 			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
 		}
-	case "qwen":
-		log.Infof("org is %s", model2org[model])
+	} else if config.qwenRegExp.MatchString(model) {
 		usage := gjson.GetBytes(data, "usage")
 		if usage.Exists() {
 			input_token := usage.Get("input_tokens").Int()
@@ -133,9 +131,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 
 	model := ctx.GetContext("model").(string)
 
-	switch model2org[model] {
-	case "openai":
-		log.Infof("org is %s", model2org[model])
+	if config.gptRegExp.MatchString(model) {
 		usage := gjson.GetBytes(body, "usage")
 		if usage.Exists() {
 			input_token := usage.Get("prompt_tokens").Int()
@@ -144,8 +140,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 			ctx.SetContext("output_token", output_token)
 			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
 		}
-	case "qwen":
-		log.Infof("org is %s", model2org[model])
+	} else if config.qwenRegExp.MatchString(model) {
 		usage := gjson.GetBytes(body, "usage")
 		if usage.Exists() {
 			input_token := usage.Get("input_tokens").Int()
@@ -167,6 +162,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	output_token := ctx.GetContext("output_token").(int64)
 	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".input_token", uint64(input_token))
 	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(output_token))
+
+	proxywasm.SetProperty([]string{"metadata", "ai_statistic", "input_token"}, []byte(fmt.Sprint(input_token)))
+	proxywasm.SetProperty([]string{"metadata", "ai_statistic", "output_token"}, []byte(fmt.Sprint(output_token)))
 
 	return types.ActionContinue
 }
