@@ -97,6 +97,9 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		output_token := ctx.GetContext("output_token").(int64)
 		config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".input_token", uint64(input_token))
 		config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(output_token))
+		proxywasm.SetProperty([]string{"model"}, []byte(model))
+		proxywasm.SetProperty([]string{"input_token"}, []byte(fmt.Sprint(input_token)))
+		proxywasm.SetProperty([]string{"output_token"}, []byte(fmt.Sprint(output_token)))
 	}
 
 	if config.gptRegExp.MatchString(model) {
