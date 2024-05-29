@@ -23,7 +23,7 @@ func main() {
 }
 
 type AIStatisticsConfig struct {
-	client     wrapper.HttpClient
+	enable     bool
 	metrics    map[string]proxywasm.MetricCounter
 	qwenRegExp *regexp.Regexp
 	gptRegExp  *regexp.Regexp
@@ -39,6 +39,7 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 }
 
 func parseConfig(json gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
+	config.enable = json.Get("enable").Bool()
 	config.metrics = make(map[string]proxywasm.MetricCounter)
 	config.qwenRegExp, _ = regexp.Compile("qwen.*")
 	config.gptRegExp, _ = regexp.Compile("gpt.*")
