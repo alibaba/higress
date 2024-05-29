@@ -1,0 +1,17 @@
+diff -Naur istio/pilot/pkg/model/push_context.go istio-new/pilot/pkg/model/push_context.go
+--- istio/pilot/pkg/model/push_context.go	2024-05-29 19:29:45.000000000 +0800
++++ istio-new/pilot/pkg/model/push_context.go	2024-05-29 19:11:03.000000000 +0800
+@@ -769,6 +769,13 @@
+ 	for _, s := range svcs {
+ 		svcHost := string(s.Hostname)
+ 
++		// Added by ingress
++		if s.Attributes.Namespace == "mcp" {
++			gwSvcs = append(gwSvcs, s)
++			continue
++		}
++		// End added by ingress
++
+ 		if _, ok := hostsFromGateways[svcHost]; ok {
+ 			gwSvcs = append(gwSvcs, s)
+ 		}
