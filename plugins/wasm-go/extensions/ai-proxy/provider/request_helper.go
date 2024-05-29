@@ -37,15 +37,15 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := -1
+	var firstNonSystemMessageIndex int
 	for i, message := range request.Messages {
 		if message.Role != roleSystem {
 			firstNonSystemMessageIndex = i
 			break
 		}
 	}
-	if firstNonSystemMessageIndex == -1 {
-		request.Messages = append(request.Messages, fileMessage)
+	if firstNonSystemMessageIndex == 0 {
+		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
 	} else {
 		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
 	}

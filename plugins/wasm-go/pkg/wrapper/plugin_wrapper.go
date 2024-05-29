@@ -46,6 +46,8 @@ type HttpContext interface {
 	BufferRequestBody()
 	// If the onHttpStreamingResponseBody handle is not set, and the onHttpResponseBody handle is set, the response body will be buffered by default
 	BufferResponseBody()
+	// If any request header is changed in onHttpRequestHeaders, envoy will re-calculate the route. Call this function to disable the re-routing.
+	DisableReroute()
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
@@ -329,6 +331,10 @@ func (ctx *CommonHttpCtx[PluginConfig]) BufferRequestBody() {
 
 func (ctx *CommonHttpCtx[PluginConfig]) BufferResponseBody() {
 	ctx.streamingResponseBody = false
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) DisableReroute() {
+	_ = proxywasm.SetProperty([]string{"clear_route_cache"}, []byte("off"))
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {

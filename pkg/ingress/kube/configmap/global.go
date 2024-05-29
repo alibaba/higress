@@ -636,6 +636,9 @@ func (g *GlobalOptionController) constructBufferLimit(downstream *Downstream) st
 
 // constructRouteTimeout constructs the route timeout config.
 func (g *GlobalOptionController) constructRouteTimeout(downstream *Downstream) string {
+	if downstream.RouteTimeout == 0 {
+		return ""
+	}
 	return fmt.Sprintf(`
 	{
 		"route": {

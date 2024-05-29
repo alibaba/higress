@@ -1,0 +1,14 @@
+diff -Naur envoy/bazel/repository_locations.bzl envoy-new/bazel/repository_locations.bzl
+--- envoy/bazel/repository_locations.bzl	2024-05-21 22:49:46.686598518 +0800
++++ envoy-new/bazel/repository_locations.bzl	2024-05-21 22:49:02.554597652 +0800
+@@ -1031,8 +1031,8 @@
+         project_name = "WebAssembly for Proxies (C++ host implementation)",
+         project_desc = "WebAssembly for Proxies (C++ host implementation)",
+         project_url = "https://github.com/higress-group/proxy-wasm-cpp-host",
+-        version = "f8b624dc6c37d4e0a3c1b332652746793e2031ad",
+-        sha256 = "ba20328101c91d0ae6383947ced99620cd9b4ea22ab2fda6b26f343b38c3be83",
++        version = "cad2eb04d402dbf559101f3cb4f44da0d9c5b0b0",
++        sha256 = "4efbcc97c58994fab92c9dc50c051ad16463647d4c0c6df36a7204d2984c1e63",
+         strip_prefix = "proxy-wasm-cpp-host-{version}",
+         urls = ["https://github.com/higress-group/proxy-wasm-cpp-host/archive/{version}.tar.gz"],
+         use_category = ["dataplane_ext"],
