@@ -174,6 +174,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
+	// compatiable with qwen
+	x_dashscope_sse, _ := proxywasm.GetHttpRequestHeader("X-DashScope-SSE")
+	accept, _ := proxywasm.GetHttpRequestHeader("Accept")
+	if x_dashscope_sse == "enable" || strings.Contains(accept, "text/event-stream") {
+		ctx.SetContext(StreamContextKey, struct{}{})
+	}
+	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
 	return types.HeaderStopIteration
@@ -190,6 +197,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	if bodyJson.Get("stream").Bool() {
 		stream = true
 		ctx.SetContext(StreamContextKey, struct{}{})
+	} else if ctx.GetContext(StreamContextKey) != nil {
+		stream = true
 	}
 	key := TrimQuote(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw)
 	if key == "" {
