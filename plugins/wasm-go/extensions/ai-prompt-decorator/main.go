@@ -58,43 +58,35 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, body []byte, log wrapper.Log) types.Action {
 	decoratorName := ctx.GetContext("decorator").(string)
 	decorator := config.decorators[decoratorName]
-	newMessage := "["
-	rawPrependMessage := gjson.Get(decorator, "prepend")
-	if rawPrependMessage.Exists() {
-		prependMessage, err := removeBrackets(rawPrependMessage.Raw)
-		if err != nil {
-			log.Errorf("%v", err)
-			return types.ActionContinue
+
+	messageJson := `{"messages":[]}`
+
+	prependMessage := gjson.Get(decorator, "prepend")
+	if prependMessage.Exists() {
+		for _, entry := range prependMessage.Array() {
+			messageJson, _ = sjson.SetRaw(messageJson, "messages.-1", entry.Raw)
 		}
-		newMessage += prependMessage + ","
 	}
+
 	rawMessage := gjson.GetBytes(body, "messages")
 	if rawMessage.Exists() {
-		message, err := removeBrackets(rawMessage.Raw)
-		if err != nil {
-			log.Errorf("%v", err)
-			return types.ActionContinue
+		for _, entry := range rawMessage.Array() {
+			messageJson, _ = sjson.SetRaw(messageJson, "messages.-1", entry.Raw)
 		}
-		newMessage += message
 	}
-	rawAppendMessage := gjson.Get(decorator, "append")
-	if rawAppendMessage.Exists() {
-		appendMessage, err := removeBrackets(rawAppendMessage.Raw)
-		if err != nil {
-			log.Errorf("%v", err)
-			return types.ActionContinue
+
+	appendMessage := gjson.Get(decorator, "append")
+	if appendMessage.Exists() {
+		for _, entry := range appendMessage.Array() {
+			messageJson, _ = sjson.SetRaw(messageJson, "messages.-1", entry.Raw)
 		}
-		newMessage += "," + appendMessage
 	}
-	newMessage += "]"
-	body, err := sjson.SetBytes(body, "messages", []byte(newMessage))
+
+	newbody, err := sjson.SetRaw(string(body), "messages", gjson.Get(messageJson, "messages").Raw)
 	if err != nil {
 		log.Error("modify body failed")
 	}
-	// var js json.RawMessage
-	// log.Infof("valid format: %d", json.Unmarshal(body, &js) == nil)
-	// log.Info(string(body))
-	if err = proxywasm.ReplaceHttpRequestBody(body); err != nil {
+	if err = proxywasm.ReplaceHttpRequestBody([]byte(newbody)); err != nil {
 		log.Error("rewrite body failed")
 	}
 
