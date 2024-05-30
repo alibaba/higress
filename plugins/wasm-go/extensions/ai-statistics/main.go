@@ -86,6 +86,24 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 
 	model := ctx.GetContext("model").(string)
 
+	if config.gptRegExp.MatchString(model) {
+		usage := gjson.GetBytes(data, "usage")
+		if usage.Exists() {
+			input_token := usage.Get("prompt_tokens").Int()
+			ctx.SetContext("input_token", input_token)
+			output_token := usage.Get("completion_tokens").Int()
+			ctx.SetContext("output_token", output_token)
+		}
+	} else if config.qwenRegExp.MatchString(model) {
+		usage := gjson.GetBytes(data, "usage")
+		if usage.Exists() {
+			input_token := usage.Get("input_tokens").Int()
+			ctx.SetContext("input_token", input_token)
+			output_token := usage.Get("output_tokens").Int()
+			ctx.SetContext("output_token", output_token)
+		}
+	}
+
 	if endOfStream {
 		var route, cluster string
 		if raw, err := proxywasm.GetProperty([]string{"route_name"}); err == nil {
@@ -101,26 +119,6 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		proxywasm.SetProperty([]string{"model"}, []byte(model))
 		proxywasm.SetProperty([]string{"input_token"}, []byte(fmt.Sprint(input_token)))
 		proxywasm.SetProperty([]string{"output_token"}, []byte(fmt.Sprint(output_token)))
-	}
-
-	if config.gptRegExp.MatchString(model) {
-		usage := gjson.GetBytes(data, "usage")
-		if usage.Exists() {
-			input_token := usage.Get("prompt_tokens").Int()
-			ctx.SetContext("input_token", input_token)
-			output_token := usage.Get("completion_tokens").Int()
-			ctx.SetContext("output_token", output_token)
-			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
-		}
-	} else if config.qwenRegExp.MatchString(model) {
-		usage := gjson.GetBytes(data, "usage")
-		if usage.Exists() {
-			input_token := usage.Get("input_tokens").Int()
-			ctx.SetContext("input_token", input_token)
-			output_token := usage.Get("output_tokens").Int()
-			ctx.SetContext("output_token", output_token)
-			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
-		}
 	}
 
 	return data
@@ -140,7 +138,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 			ctx.SetContext("input_token", input_token)
 			output_token := usage.Get("completion_tokens").Int()
 			ctx.SetContext("output_token", output_token)
-			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
 		}
 	} else if config.qwenRegExp.MatchString(model) {
 		usage := gjson.GetBytes(body, "usage")
@@ -149,7 +146,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 			ctx.SetContext("input_token", input_token)
 			output_token := usage.Get("output_tokens").Int()
 			ctx.SetContext("output_token", output_token)
-			log.Infof("input_token: %d, output_token: %d", input_token, output_token)
 		}
 	}
 
