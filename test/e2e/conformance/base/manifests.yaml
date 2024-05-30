@@ -209,7 +209,7 @@ spec:
       containers:
       - name: infra-backend-echo-body-v1
         # FROM https://github.com/higress-group/echo-body
-        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body:1.0.0
         env:
         - name: POD_NAME
           valueFrom:
