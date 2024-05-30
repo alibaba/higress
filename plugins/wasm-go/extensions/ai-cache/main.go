@@ -30,6 +30,7 @@ func main() {
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBodyBy(onHttpResponseBody),
 	)
 }
@@ -181,12 +182,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	// compatiable with qwen
-	x_dashscope_sse, _ := proxywasm.GetHttpRequestHeader("X-DashScope-SSE")
-	accept, _ := proxywasm.GetHttpRequestHeader("Accept")
-	if x_dashscope_sse == "enable" || strings.Contains(accept, "text/event-stream") {
-		ctx.SetContext(StreamContextKey, struct{}{})
-	}
 	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
@@ -272,6 +267,14 @@ func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage 
 	}
 	log.Debugf("unknown message:%s", bodyJson)
 	return ""
+}
+
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	if strings.Contains(contentType, "text/event-stream") {
+		ctx.SetContext(StreamContextKey, struct{}{})
+	}
+	return types.ActionContinue
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
