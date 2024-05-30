@@ -72,23 +72,21 @@ func parseConfig(json gjson.Result, config *TokenManageConfig, log wrapper.Log) 
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config TokenManageConfig, log wrapper.Log) types.Action {
+	config.incrementCounter("ai_token_ratelimit_request_total", 1)
 	err := config.client.Get(redisKey, func(response resp.Value) {
 		if response.Error() != nil {
 			log.Errorf("redisCall Get error: %v", response.Error())
-			config.incrementCounter("ai_token_ratelimit_pass", 1)
 			proxywasm.ResumeHttpRequest()
 		} else {
 			if !response.IsNull() && response.Integer() > config.tpm {
-				config.incrementCounter("ai_token_ratelimit_deny", 1)
+				config.incrementCounter("ai_token_ratelimit_request_deny", 1)
 				proxywasm.SendHttpResponse(429, nil, []byte("Too many requests\n"), -1)
 			} else {
-				config.incrementCounter("ai_token_ratelimit_pass", 1)
 				proxywasm.ResumeHttpRequest()
 			}
 		}
 	})
 	if err != nil {
-		config.incrementCounter("ai_token_ratelimit_pass", 1)
 		log.Errorf("Error occured while calling Get.")
 		return types.ActionContinue
 	} else {
