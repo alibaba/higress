@@ -59,7 +59,7 @@ func main() {
 //   responseBody: "choices.0.delta.content"
 // returnResponseTemplate: |
 //   {"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
-// ReturnStreamResponseTemplate: |
+// returnStreamResponseTemplate: |
 //   data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
 //
 //   data:[DONE]
