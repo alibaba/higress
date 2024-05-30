@@ -59,4 +59,30 @@ curl http://127.0.0.1:8080/v1/chat/completions \
       }
     ]
   }'
-  ```
+```
+
+```
+{
+  "id": "chatcmpl-9UYwQlEg6GwAswEZBDYXl41RU4gab",
+  "object": "chat.completion",
+  "created": 1717071182,
+  "model": "gpt-3.5-turbo-0125",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "杭州是一个美丽的城市，有着悠久的历史和富有特色的文化。这里风景优美，有西湖、雷峰塔等著名景点，吸引着许多游客前来观光。杭州人民热情好客，城市宁静安逸，是一个适合居住和旅游的地方。"
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 49,
+    "completion_tokens": 117,
+    "total_tokens": 166
+  },
+  "system_fingerprint": null
+}
+```
