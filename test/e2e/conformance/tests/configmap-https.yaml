@@ -20,6 +20,7 @@ data:
   cert: |
     automaticHttps: true
     renewBeforeDays: 30
+    fallbackForInvalidSecret: true
     acmeIssuer:
     - ak: test
       sk: test
@@ -34,27 +35,80 @@ data:
     version: test
 
 ---
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: httproute-configmap-https
+  name: httproute-bar-configmap-https
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
   tls:
     - hosts:
-        - "foo.com"
+        - "bar.com"
+      secretName: bar-com-secret
   rules:
-    - host: "foo.com"
+    - host: "bar.com"
       http:
         paths:
           - pathType: Exact
-            path: "/foohttps"
+            path: "/barhttps"
             backend:
               service:
                 name: infra-backend-v2
                 port:
                   number: 8080
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httproute-afoo-configmap-https
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "a.foo.com"
+  rules:
+    - host: "a.foo.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/afoohttps"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httproute-foo2-configmap-https
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "b.foo.com"
+      secretName: b-foo-com-secret
+  rules:
+    - host: "b.foo.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/bfoohttps"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+
 
 
 
