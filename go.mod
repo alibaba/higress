@@ -259,7 +259,6 @@ require (
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
@@ -281,6 +280,8 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/apiserver v0.22.5 // indirect
+	k8s.io/component-base v0.22.5 // indirect
+	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	oras.land/oras-go v0.4.0 // indirect
@@ -312,10 +313,9 @@ require (
 	github.com/kylelemons/godebug v1.1.0
 	github.com/mholt/acmez v1.2.0
 	github.com/tidwall/gjson v1.17.0
+	golang.org/x/net v0.17.0
 	helm.sh/helm/v3 v3.7.1
 	k8s.io/apiextensions-apiserver v0.25.4
-	k8s.io/component-base v0.22.5
-	k8s.io/klog/v2 v2.60.1
 	knative.dev/networking v0.0.0-20220302134042-e8b2eb995165
 	knative.dev/pkg v0.0.0-20220301181942-2fdd5f232e77
 )
