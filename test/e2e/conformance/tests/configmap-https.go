@@ -17,11 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/cert"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -34,17 +31,39 @@ var ConfigmapHttps = suite.ConformanceTest{
 	Manifests:   []string{"tests/configmap-https.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Prepare secrets for testcases
-		_, _, caCert, caKey := cert.MustGenerateCaCert(t)
-		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"*.foo.com"})
-		fooSecret := kubernetes.ConstructTLSSecret("higress-system", "foo-com-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
-		svcBarCertOut, svcBarKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"bar.com"})
-		barSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "bar-com-secret", svcBarCertOut.Bytes(), svcBarKeyOut.Bytes())
-		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, barSecret}, suite.Cleanup)
 
 		testCases := []struct {
 			httpAssert http.Assertion
 		}{
+			{
+				httpAssert: http.Assertion{
+					Meta: http.AssertionMeta{
+						TestCaseName:    "test configmap bar-com https",
+						TargetBackend:   "infra-backend-v2",
+						TargetNamespace: "higress-conformance-infra",
+					},
+					Request: http.AssertionRequest{
+						ActualRequest: http.Request{
+							Path: "/barhttps",
+							Host: "bar.com",
+							TLSConfig: &http.TLSConfig{
+								SNI: "bar.com",
+							},
+						},
+						ExpectedRequest: &http.ExpectedRequest{
+							Request: http.Request{
+								Path: "/barhttps",
+								Host: "bar.com",
+							},
+						},
+					},
+					Response: http.AssertionResponse{
+						ExpectedResponse: http.Response{
+							StatusCode: 200,
+						},
+					},
+				},
+			},
 			{
 				httpAssert: http.Assertion{
 					Meta: http.AssertionMeta{
@@ -93,35 +112,6 @@ var ConfigmapHttps = suite.ConformanceTest{
 							Request: http.Request{
 								Path: "/bfoohttps",
 								Host: "b.foo.com",
-							},
-						},
-					},
-					Response: http.AssertionResponse{
-						ExpectedResponse: http.Response{
-							StatusCode: 200,
-						},
-					},
-				},
-			},
-			{
-				httpAssert: http.Assertion{
-					Meta: http.AssertionMeta{
-						TestCaseName:    "test configmap bar-com https",
-						TargetBackend:   "infra-backend-v2",
-						TargetNamespace: "higress-conformance-infra",
-					},
-					Request: http.AssertionRequest{
-						ActualRequest: http.Request{
-							Path: "/barhttps",
-							Host: "bar.com",
-							TLSConfig: &http.TLSConfig{
-								SNI: "bar.com",
-							},
-						},
-						ExpectedRequest: &http.ExpectedRequest{
-							Request: http.Request{
-								Path: "/barhttps",
-								Host: "bar.com",
 							},
 						},
 					},
