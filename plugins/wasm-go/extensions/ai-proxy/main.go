@@ -36,7 +36,7 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	//log.Debugf("loading config: %s", json.String())
+	// log.Debugf("loading config: %s", json.String())
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {

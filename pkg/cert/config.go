@@ -45,11 +45,12 @@ const (
 
 // Config is the configuration of automatic https.
 type Config struct {
-	AutomaticHttps   bool              `json:"automaticHttps"`
-	RenewBeforeDays  int               `json:"renewBeforeDays"`
-	CredentialConfig []CredentialEntry `json:"credentialConfig"`
-	ACMEIssuer       []ACMEIssuerEntry `json:"acmeIssuer"`
-	Version          string            `json:"version"`
+	AutomaticHttps           bool              `json:"automaticHttps"`
+	FallbackForInvalidSecret bool              `json:"fallbackForInvalidSecret"`
+	RenewBeforeDays          int               `json:"renewBeforeDays"`
+	CredentialConfig         []CredentialEntry `json:"credentialConfig"`
+	ACMEIssuer               []ACMEIssuerEntry `json:"acmeIssuer"`
+	Version                  string            `json:"version"`
 }
 
 func (c *Config) GetIssuer(issuerName IssuerName) *ACMEIssuerEntry {
@@ -274,11 +275,12 @@ func newDefaultConfig(email string) *Config {
 	}
 	defaultCredentialConfig := make([]CredentialEntry, 0)
 	config := &Config{
-		AutomaticHttps:   true,
-		RenewBeforeDays:  DefaultRenewBeforeDays,
-		ACMEIssuer:       defaultIssuer,
-		CredentialConfig: defaultCredentialConfig,
-		Version:          time.Now().Format("20060102030405"),
+		AutomaticHttps:           true,
+		FallbackForInvalidSecret: false,
+		RenewBeforeDays:          DefaultRenewBeforeDays,
+		ACMEIssuer:               defaultIssuer,
+		CredentialConfig:         defaultCredentialConfig,
+		Version:                  time.Now().Format("20060102030405"),
 	}
 	return config
 }

@@ -26,6 +26,8 @@ const (
 	qwenTopPMax = 0.999999
 
 	qwenDummySystemMessageContent = "You are a helpful assistant."
+
+	qwenLongModelName = "qwen-long"
 )
 
 type qwenProviderInitializer struct {
@@ -99,7 +101,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 				log.Errorf("failed to load context file: %v", err)
 				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
-			m.insertContextMessage(request, content)
+			m.insertContextMessage(request, content, false)
 			if err := replaceJsonRequestBody(request, log); err != nil {
 				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
@@ -292,7 +294,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			Tools:             origRequest.Tools,
 		},
 	}
-	if len(m.config.qwenFileIds) != 0 {
+	if len(m.config.qwenFileIds) != 0 && origRequest.Model == qwenLongModelName {
 		builder := strings.Builder{}
 		for _, fileId := range m.config.qwenFileIds {
 			if builder.Len() != 0 {
@@ -301,7 +303,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(origRequest *chatCompletio
 			builder.WriteString("fileid://")
 			builder.WriteString(fileId)
 		}
-		contextMessageId := m.insertContextMessage(request, builder.String())
+		contextMessageId := m.insertContextMessage(request, builder.String(), true)
 		if contextMessageId == 0 {
 			// The context message cannot come first. We need to add another dummy system message before it.
 			request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: qwenDummySystemMessageContent}}, request.Input.Messages...)
@@ -339,6 +341,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Choices:           make([]chatCompletionChoice, 0),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 	}
@@ -348,12 +351,16 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	qwenChoice := qwenResponse.Output.Choices[0]
 	message := qwenChoice.Message
 
-	deltaMessage := &chatMessage{Role: message.Role, Content: message.Content, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
+	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content}
+	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if !incrementalStreaming {
 		if pushedMessage, ok := ctx.GetContext(ctxKeyPushedMessage).(qwenMessage); ok {
-			deltaMessage.Content = util.StripPrefix(deltaMessage.Content, pushedMessage.Content)
-			if len(deltaMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
-				for i, tc := range deltaMessage.ToolCalls {
+			if message.Content == "" {
+				message.Content = pushedMessage.Content
+			}
+			deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.Content, pushedMessage.Content)
+			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
+				for i, tc := range deltaToolCallsMessage.ToolCalls {
 					if i >= len(pushedMessage.ToolCalls) {
 						break
 					}
@@ -361,24 +368,37 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 					tc.Function.Id = util.StripPrefix(tc.Function.Id, pushedFunction.Id)
 					tc.Function.Name = util.StripPrefix(tc.Function.Name, pushedFunction.Name)
 					tc.Function.Arguments = util.StripPrefix(tc.Function.Arguments, pushedFunction.Arguments)
-					deltaMessage.ToolCalls[i] = tc
+					deltaToolCallsMessage.ToolCalls[i] = tc
 				}
 			}
 		}
 		ctx.SetContext(ctxKeyPushedMessage, message)
 	}
 
-	if !deltaMessage.IsEmpty() {
-		deltaResponse := *&baseMessage
-		deltaResponse.Choices = append(deltaResponse.Choices, chatCompletionChoice{Delta: deltaMessage})
-		responses = append(responses, &deltaResponse)
+	if !deltaContentMessage.IsEmpty() {
+		response := *&baseMessage
+		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaContentMessage})
+		responses = append(responses, &response)
+	}
+	if !deltaToolCallsMessage.IsEmpty() {
+		response := *&baseMessage
+		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaToolCallsMessage})
+		responses = append(responses, &response)
 	}
 
 	// Yes, Qwen uses a string "null" as null.
 	if qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null" {
 		finishResponse := *&baseMessage
 		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
-		responses = append(responses, &finishResponse)
+
+		usageResponse := *&baseMessage
+		usageResponse.Usage = chatCompletionUsage{
+			PromptTokens:     qwenResponse.Usage.InputTokens,
+			CompletionTokens: qwenResponse.Usage.OutputTokens,
+			TotalTokens:      qwenResponse.Usage.TotalTokens,
+		}
+
+		responses = append(responses, &finishResponse, &usageResponse)
 	}
 
 	return responses
@@ -417,12 +437,12 @@ func (m *qwenProvider) convertStreamEvent(ctx wrapper.HttpContext, responseBuild
 	return nil
 }
 
-func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string) int {
+func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string, onlyOneSystemBeforeFile bool) int {
 	fileMessage := qwenMessage{
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := -1
+	var firstNonSystemMessageIndex int
 	messages := request.Input.Messages
 	if messages != nil {
 		for i, message := range request.Input.Messages {
@@ -432,12 +452,22 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 			}
 		}
 	}
-	if firstNonSystemMessageIndex == -1 {
+	if firstNonSystemMessageIndex == 0 {
 		request.Input.Messages = append([]qwenMessage{fileMessage}, request.Input.Messages...)
 		return 0
-	} else {
+	} else if !onlyOneSystemBeforeFile {
 		request.Input.Messages = append(request.Input.Messages[:firstNonSystemMessageIndex], append([]qwenMessage{fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)...)
 		return firstNonSystemMessageIndex
+	} else {
+		builder := strings.Builder{}
+		for _, message := range request.Input.Messages[:firstNonSystemMessageIndex] {
+			if builder.Len() != 0 {
+				builder.WriteString("\n")
+			}
+			builder.WriteString(message.Content)
+		}
+		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}, fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)
+		return 1
 	}
 }
 

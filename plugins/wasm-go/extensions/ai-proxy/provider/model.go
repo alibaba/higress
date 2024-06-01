@@ -54,7 +54,7 @@ type toolChoice struct {
 
 type chatCompletionResponse struct {
 	Id                string                 `json:"id,omitempty"`
-	Choices           []chatCompletionChoice `json:"choices,omitempty"`
+	Choices           []chatCompletionChoice `json:"choices"`
 	Created           int64                  `json:"created,omitempty"`
 	Model             string                 `json:"model,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
@@ -102,14 +102,15 @@ func (m *chatMessage) IsEmpty() bool {
 }
 
 type toolCall struct {
+	Index    int          `json:"index"`
 	Id       string       `json:"id"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
+	Id        string `json:"id"`
+	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
 

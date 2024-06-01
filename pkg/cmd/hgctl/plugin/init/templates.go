@@ -31,8 +31,8 @@ package main
 
 import (
 	"github.com/tidwall/gjson"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
@@ -93,8 +93,8 @@ module {{ .Name }}
 go 1.19
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20231019123123-86b223bc75f1
-	github.com/tetratelabs/proxy-wasm-go-sdk v0.22.0
+	github.com/alibaba/higress/plugins/wasm-go main
+	github.com/higress-group/proxy-wasm-go-sdk main
 	github.com/tidwall/gjson v1.14.3
 )
 `
