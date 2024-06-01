@@ -25,11 +25,15 @@ const (
 	providerTypeDeepSeek = "deepseek"
 	providerTypeZhipuAi  = "zhipuai"
 	providerTypeOllama   = "ollama"
+	providerTypeBaidu    = "baidu"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
 
-	roleSystem = "system"
+	roleSystem    = "system"
+	roleAssistant = "assistant"
+
+	finishReasonStop = "stop"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
@@ -64,6 +68,7 @@ var (
 		providerTypeDeepSeek: &deepseekProviderInitializer{},
 		providerTypeZhipuAi:  &zhipuAiProviderInitializer{},
 		providerTypeOllama:   &ollamaProviderInitializer{},
+		providerTypeBaidu:    &baiduProviderInitializer{},
 	}
 )
 
@@ -93,7 +98,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"、"baidu"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -182,7 +187,7 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
-    
+
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
