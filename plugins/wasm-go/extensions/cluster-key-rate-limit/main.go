@@ -22,13 +22,14 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 )
 
 func main() {
 	wrapper.SetCtx(
-		"key-cluster-rate-limit",
+		"cluster-key-rate-limit",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
@@ -36,7 +37,7 @@ func main() {
 }
 
 const (
-	ClusterRateLimitFormat string = "higress:key_cluster_rate_limit:%s:%s"
+	ClusterRateLimitFormat string = "higress:cluster_key_rate_limit:%s:%s"
 	FixedWindowScript      string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
@@ -61,27 +62,27 @@ type LimitContext struct {
 	reset     int
 }
 
-func parseConfig(json gjson.Result, config *KeyClusterRateLimitConfig, log wrapper.Log) error {
-	err := initRedisClient(json, config, log)
+func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
+	err := initRedisClusterClient(json, config)
 	if err != nil {
 		return err
 	}
-	err = parseClusterRateLimitConfig(json, config, log)
+	err = parseClusterKeyRateLimitConfig(json, config, log)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyClusterRateLimitConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
 	// 判断是否命中限流规则
-	limitItem := hitRateLimitRule(config, log)
+	key, limitItem := hitRateLimitRule(ctx, config, log)
 	if limitItem == nil {
 		return types.ActionContinue
 	}
 
 	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, limitItem.key)
+	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, key)
 	keys := []interface{}{limitKey}
 	args := []interface{}{limitItem.count, limitItem.timeWindow}
 	// 执行限流逻辑
@@ -113,7 +114,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyClusterRateLimitCon
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config KeyClusterRateLimitConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
 	limitContext, ok := ctx.GetContext(LimitContextKey).(LimitContext)
 	if !ok {
 		return types.ActionContinue
@@ -125,28 +126,57 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config KeyClusterRateLimitCo
 	return types.ActionContinue
 }
 
-func hitRateLimitRule(config KeyClusterRateLimitConfig, log wrapper.Log) *LimitItem {
-	realIp, err := getDownStreamIp(config)
-	if err != nil {
-		log.Errorf("getDownStreamIp error: %v", err)
-		return nil
-	}
-	for _, item := range config.limitItems {
-		if _, found, _ := item.ipNet.Get(realIp); !found {
-			continue
+func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) (string, *LimitItem) {
+	switch config.limitType {
+	case limitByHeaderType:
+		headerVal, err := proxywasm.GetHttpRequestHeader(config.limitByHeader)
+		if err != nil {
+			log.Debugf("failed to get request header %s: %v", config.limitByHeader, err)
+			return "", nil
 		}
-		return &item
+		return headerVal, findMatchingItem(config.limitItems, headerVal)
+	case limitByParamType:
+		parse, _ := url.Parse(ctx.Path())
+		query, _ := url.ParseQuery(parse.RawQuery)
+		val, ok := query[config.limitByParam]
+		if !ok {
+			log.Debugf("request param %s is empty", config.limitByParam)
+			return "", nil
+		} else {
+			return val[0], findMatchingItem(config.limitItems, val[0])
+		}
+	case limitByPerIpType:
+		realIp, err := getDownStreamIp(config)
+		if err != nil {
+			log.Warnf("failed to get down stream ip: %v", err)
+			return "", nil
+		}
+		for _, item := range config.limitItems {
+			if _, found, _ := item.ipNet.Get(realIp); !found {
+				continue
+			}
+			return realIp.String(), &item
+		}
+	}
+	return "", nil
+}
+
+func findMatchingItem(items []LimitItem, key string) *LimitItem {
+	for _, item := range items {
+		if item.key == key {
+			return &item
+		}
 	}
 	return nil
 }
 
-func getDownStreamIp(config KeyClusterRateLimitConfig) (net.IP, error) {
+func getDownStreamIp(config ClusterKeyRateLimitConfig) (net.IP, error) {
 	var (
 		realIpStr string
 		err       error
 	)
-	if config.ipSourceType == HeaderSourceType {
-		realIpStr, err = proxywasm.GetHttpRequestHeader(config.ipHeaderName)
+	if config.limitByPerIp.sourceType == HeaderSourceType {
+		realIpStr, err = proxywasm.GetHttpRequestHeader(config.limitByPerIp.headerName)
 		if err == nil {
 			realIpStr = strings.Split(strings.Trim(realIpStr, " "), ",")[0]
 		}
@@ -166,7 +196,7 @@ func getDownStreamIp(config KeyClusterRateLimitConfig) (net.IP, error) {
 	return realIP, nil
 }
 
-func rejected(config KeyClusterRateLimitConfig, context LimitContext) {
+func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
 	if config.showLimitQuotaHeader {
