@@ -30,7 +30,8 @@ const (
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
 
-	roleSystem = "system"
+	roleSystem    = "system"
+	roleAssistant = "assistant"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
@@ -188,7 +189,6 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
-
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
