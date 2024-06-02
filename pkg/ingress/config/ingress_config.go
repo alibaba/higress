@@ -51,6 +51,7 @@ import (
 	higressv1 "github.com/alibaba/higress/api/networking/v1"
 	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
+	"github.com/alibaba/higress/pkg/cert"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
@@ -144,6 +145,8 @@ type IngressConfig struct {
 	namespace string
 
 	clusterId string
+
+	httpsConfigMgr *cert.ConfigMgr
 }
 
 func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, namespace, clusterId string) *IngressConfig {
@@ -179,6 +182,9 @@ func NewIngressConfig(localKubeClient kube.Client, XDSUpdater model.XDSUpdater, 
 
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
 	config.configmapMgr = configmap.NewConfigmapMgr(XDSUpdater, namespace, higressConfigController, higressConfigController.Lister())
+
+	httpsConfigMgr, _ := cert.NewConfigMgr(namespace, localKubeClient)
+	config.httpsConfigMgr = httpsConfigMgr
 
 	return config
 }
@@ -347,6 +353,10 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 		Gateways:           map[string]*common.WrapperGateway{},
 	}
 
+	httpsCredentialConfig, err := m.httpsConfigMgr.GetConfigFromConfigmap()
+	if err != nil {
+		IngressLog.Errorf("Get higress https configmap err %v", err)
+	}
 	for idx := range configs {
 		cfg := configs[idx]
 		clusterId := common.GetClusterId(cfg.Config.Annotations)
@@ -356,7 +366,7 @@ func (m *IngressConfig) convertGateways(configs []common.WrapperConfig) []config
 		if ingressController == nil {
 			continue
 		}
-		if err := ingressController.ConvertGateway(&convertOptions, &cfg); err != nil {
+		if err := ingressController.ConvertGateway(&convertOptions, &cfg, httpsCredentialConfig); err != nil {
 			IngressLog.Errorf("Convert ingress %s/%s to gateway fail in cluster %s, err %v", cfg.Config.Namespace, cfg.Config.Name, clusterId, err)
 		}
 	}

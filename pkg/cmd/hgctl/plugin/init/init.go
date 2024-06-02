@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/option"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/plugin/utils"
@@ -84,6 +85,12 @@ func runInit(w io.Writer, target string) (err error) {
 	}
 	if err = option.GenOptionYAML(dir); err != nil {
 		return errors.Wrap(err, "failed to create option.yaml")
+	}
+
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "failed to run go mod tidy")
 	}
 
 	fmt.Fprintf(w, "Initialized the project in %q\n", dir)

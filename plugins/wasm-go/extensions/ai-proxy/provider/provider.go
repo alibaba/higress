@@ -23,6 +23,8 @@ const (
 	providerTypeBaichuan = "baichuan"
 	providerTypeYi       = "yi"
 	providerTypeDeepSeek = "deepseek"
+	providerTypeZhipuAi  = "zhipuai"
+	providerTypeOllama   = "ollama"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -60,6 +62,8 @@ var (
 		providerTypeBaichuan: &baichuanProviderInitializer{},
 		providerTypeYi:       &yiProviderInitializer{},
 		providerTypeDeepSeek: &deepseekProviderInitializer{},
+		providerTypeZhipuAi:  &zhipuAiProviderInitializer{},
+		providerTypeOllama:   &ollamaProviderInitializer{},
 	}
 )
 
@@ -89,7 +93,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"
+	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -109,6 +113,12 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN Ollama Server IP/Domain
+	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的主机地址。
+	ollamaServerHost string `required:"false" yaml:"ollamaServerHost" json:"ollamaServerHost"`
+	// @Title zh-CN Ollama Server Port
+	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的端口号。
+	ollamaServerPort uint32 `required:"false" yaml:"ollamaServerPort" json:"ollamaServerPort"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
@@ -137,6 +147,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
+	c.ollamaServerHost = json.Get("ollamaServerHost").String()
+	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
 	for k, v := range json.Get("modelMapping").Map() {
 		c.modelMapping[k] = v.String()
@@ -170,6 +182,7 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
+    
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
