@@ -18,6 +18,17 @@ const (
 	baiduDomain = "aip.baidubce.com"
 )
 
+var modelToPathSuffixMap = map[string]string{
+	"ERNIE-4.0-8K":     "completions_pro",
+	"ERNIE-3.5-8K":     "completions",
+	"ERNIE-3.5-128K":   "ernie-3.5-128k",
+	"ERNIE-Speed-8K":   "ernie_speed",
+	"ERNIE-Speed-128K": "ernie-speed-128k",
+	"ERNIE-Tiny-8K":    "ernie-tiny-8k",
+	"ERNIE-Bot-8K":     "ernie_bot_8k",
+	"BLOOMZ-7B":        "bloomz_7b1",
+}
+
 type baiduProviderInitializer struct {
 }
 
@@ -213,63 +224,11 @@ type baiduTextGenRequest struct {
 
 func (b *baiduProvider) GetRequestPath(baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
-	suffix := "chat/"
-	if strings.HasPrefix(baiduModel, "Embedding") {
-		suffix = "embeddings/"
+	suffix, ok := modelToPathSuffixMap[baiduModel]
+	if !ok {
+		suffix = baiduModel
 	}
-	if strings.HasPrefix(baiduModel, "bge-large") {
-		suffix = "embeddings/"
-	}
-	if strings.HasPrefix(baiduModel, "tao-8k") {
-		suffix = "embeddings/"
-	}
-	switch baiduModel {
-	case "ERNIE-4.0":
-		suffix += "completions_pro"
-	case "ERNIE-Bot-4":
-		suffix += "completions_pro"
-	case "ERNIE-Bot":
-		suffix += "completions"
-	case "ERNIE-Bot-turbo":
-		suffix += "eb-instant"
-	case "ERNIE-Speed":
-		suffix += "ernie_speed"
-	case "ERNIE-4.0-8K":
-		suffix += "completions_pro"
-	case "ERNIE-3.5-8K":
-		suffix += "completions"
-	case "ERNIE-3.5-8K-0205":
-		suffix += "ernie-3.5-8k-0205"
-	case "ERNIE-3.5-8K-1222":
-		suffix += "ernie-3.5-8k-1222"
-	case "ERNIE-Bot-8K":
-		suffix += "ernie_bot_8k"
-	case "ERNIE-3.5-4K-0205":
-		suffix += "ernie-3.5-4k-0205"
-	case "ERNIE-Speed-8K":
-		suffix += "ernie_speed"
-	case "ERNIE-Speed-128K":
-		suffix += "ernie-speed-128k"
-	case "ERNIE-Lite-8K-0922":
-		suffix += "eb-instant"
-	case "ERNIE-Lite-8K-0308":
-		suffix += "ernie-lite-8k"
-	case "ERNIE-Tiny-8K":
-		suffix += "ernie-tiny-8k"
-	case "BLOOMZ-7B":
-		suffix += "bloomz_7b1"
-	case "Embedding-V1":
-		suffix += "embedding-v1"
-	case "bge-large-zh":
-		suffix += "bge_large_zh"
-	case "bge-large-en":
-		suffix += "bge_large_en"
-	case "tao-8k":
-		suffix += "tao_8k"
-	default:
-		suffix += strings.ToLower(baiduModel)
-	}
-	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/%s?access_token=%s", suffix, b.config.GetRandomToken())
+	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetRandomToken())
 }
 
 func (b *baiduProvider) setSystemContent(request *baiduTextGenRequest, content string) {

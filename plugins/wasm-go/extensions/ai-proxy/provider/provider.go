@@ -187,7 +187,6 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.typ == "" {
 		return errors.New("missing type in provider config")
-
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
