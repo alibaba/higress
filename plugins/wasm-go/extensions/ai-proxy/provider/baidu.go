@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
-	"time"
 )
 
 // baiduProvider is the provider for baidu ernie bot service.
@@ -18,7 +19,7 @@ const (
 	baiduDomain = "aip.baidubce.com"
 )
 
-var modelToPathSuffixMap = map[string]string{
+var baiduModelToPathSuffixMap = map[string]string{
 	"ERNIE-4.0-8K":     "completions_pro",
 	"ERNIE-3.5-8K":     "completions",
 	"ERNIE-3.5-128K":   "ernie-3.5-128k",
@@ -224,7 +225,7 @@ type baiduTextGenRequest struct {
 
 func (b *baiduProvider) GetRequestPath(baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
-	suffix, ok := modelToPathSuffixMap[baiduModel]
+	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
 	if !ok {
 		suffix = baiduModel
 	}
