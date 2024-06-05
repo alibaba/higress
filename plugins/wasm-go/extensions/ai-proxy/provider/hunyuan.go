@@ -2,6 +2,9 @@ package provider
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +35,9 @@ const (
 
 	ssePrefix            = "data: " // Server-Sent Events (SSE) 类型的流式响应的开始标记
 	hunyuanStreamEndMark = "stop"   // 混元的流式的finishReason为stop时，表示结束
+
+	hunyuanAuthKeyLen = 32
+	hunyuanAuthIdLen  = 36
 )
 
 type hunyuanProviderInitializer struct {
@@ -79,6 +85,10 @@ type hunyuanChatMessage struct {
 }
 
 func (m *hunyuanProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	// 校验hunyuan id 和 key的合法性
+	if len(config.hunyuanAuthId) != hunyuanAuthIdLen || len(config.hunyuanAuthKey) != hunyuanAuthKeyLen {
+		return errors.New("hunyuanAuthId / hunyuanAuthKey is illegal in config file")
+	}
 	return nil
 }
 
@@ -144,7 +154,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 		// 根据确定好的payload进行签名
 		hunyuanBody, _ := json.Marshal(request)
-		authorizedValueNew := util.GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
+		authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
 		_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
 		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
 		// log.Debugf("#debug nash5# OnRequestBody call hunyuan api using original api! signature computation done!")
@@ -167,7 +177,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 			// 因为手动插入了context内容，这里需要重新计算签名
 			hunyuanBody, _ := json.Marshal(request)
-			authorizedValueNew := util.GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
+			authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
 			_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
 
 			if err := replaceJsonRequestBody(request, log); err != nil {
@@ -216,7 +226,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 		// 根据确定好的payload进行签名：
 		body, _ := json.Marshal(hunyuanRequest)
-		authorizedValueNew := util.GetTC3Authorizationcode(
+		authorizedValueNew := GetTC3Authorizationcode(
 			m.config.hunyuanAuthId,
 			m.config.hunyuanAuthKey,
 			timestamp,
@@ -254,7 +264,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 		// 因为手动插入了context内容，这里需要重新计算签名
 		hunyuanBody, _ := json.Marshal(hunyuanRequest)
-		authorizedValueNew := util.GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
+		authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
 		_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
 
 		if err := replaceJsonRequestBody(hunyuanRequest, log); err != nil {
@@ -470,4 +480,84 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 			TotalTokens:      hunyuanResponse.Response.Usage.TotalTokens,
 		},
 	}
+}
+
+func Sha256hex(s string) string {
+	b := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(b[:])
+}
+
+func Hmacsha256(s, key string) string {
+	hashed := hmac.New(sha256.New, []byte(key))
+	hashed.Write([]byte(s))
+	return string(hashed.Sum(nil))
+}
+
+/**
+ * @param secretId 秘钥id
+ * @param secretKey 秘钥
+ * @param timestamp 时间戳
+ * @param host 目标域名
+ * @param action 请求动作
+ * @param payload 请求体
+ * @return 签名
+ */
+func GetTC3Authorizationcode(secretId string, secretKey string, timestamp int64, host string, action string, payload string) string {
+	algorithm := "TC3-HMAC-SHA256"
+	service := "hunyuan" // 注意，必须和域名中的产品名保持一致
+
+	// step 1: build canonical request string
+	httpRequestMethod := "POST"
+	canonicalURI := "/"
+	canonicalQueryString := ""
+	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-tc-action:%s\n",
+		"application/json", host, strings.ToLower(action))
+	signedHeaders := "content-type;host;x-tc-action"
+
+	// fmt.Println("payload is: %s", payload)
+	hashedRequestPayload := Sha256hex(payload)
+	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
+		httpRequestMethod,
+		canonicalURI,
+		canonicalQueryString,
+		canonicalHeaders,
+		signedHeaders,
+		hashedRequestPayload)
+	// fmt.Println(canonicalRequest)
+
+	// step 2: build string to sign
+	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
+	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
+	hashedCanonicalRequest := Sha256hex(canonicalRequest)
+	string2sign := fmt.Sprintf("%s\n%d\n%s\n%s",
+		algorithm,
+		timestamp,
+		credentialScope,
+		hashedCanonicalRequest)
+	// fmt.Println(string2sign)
+
+	// step 3: sign string
+	secretDate := Hmacsha256(date, "TC3"+secretKey)
+	secretService := Hmacsha256(service, secretDate)
+	secretSigning := Hmacsha256("tc3_request", secretService)
+	signature := hex.EncodeToString([]byte(Hmacsha256(string2sign, secretSigning)))
+	// fmt.Println(signature)
+
+	// step 4: build authorization
+	authorization := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
+		algorithm,
+		secretId,
+		credentialScope,
+		signedHeaders,
+		signature)
+
+	// curl := fmt.Sprintf(`curl -X POST https://%s \
+	// 	-H "Authorization: %s" \
+	// 	-H "Content-Type: application/json" \
+	// 	-H "Host: %s" -H "X-TC-Action: %s" \
+	// 	-H "X-TC-Timestamp: %d" \
+	// 	-H "X-TC-Version: 2023-09-01" \
+	// 	-d '%s'`, host, authorization, host, action, timestamp, payload)
+	// fmt.Println(curl)
+	return authorization
 }
