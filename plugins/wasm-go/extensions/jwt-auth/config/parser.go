@@ -23,13 +23,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// Enabled 插件是否至少在一个 domain 或 route 上生效
-var Enabled bool
+// RuleSet 插件是否至少在一个 domain 或 route 上生效
+var RuleSet bool
 
 // ParseGlobalConfig 从wrapper提供的配置中解析并转换到插件运行时需要使用的配置。
 // 此处解析的是全局配置，域名和路由级配置由 ParseRuleConfig 负责。
 func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log wrapper.Log) error {
-	Enabled = false
+	RuleSet = false
 	consumers := json.Get("consumers")
 	if !consumers.IsArray() {
 		return fmt.Errorf("failed to parse configuration for consumers: consumers is not a array")
@@ -46,11 +46,6 @@ func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log wrapper.Log
 	}
 	if len(config.Consumers) == 0 {
 		return fmt.Errorf("at least one consumer should be configured for a rule")
-	}
-
-	// GlobalAuth 为 true 时代表插件全局启用，需要标记 enabled 为 true
-	if config.GlobalAuth != nil && *config.GlobalAuth {
-		Enabled = true
 	}
 
 	return nil
@@ -75,7 +70,7 @@ func ParseRuleConfig(json gjson.Result, global JWTAuthConfig, config *JWTAuthCon
 		config.Allow = append(config.Allow, item.String())
 	}
 
-	Enabled = true
+	RuleSet = true
 	return nil
 }
 
