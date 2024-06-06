@@ -1,0 +1,128 @@
+# Copyright (c) 2024 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-jwt-auth
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: jwt-auth
+  namespace: higress-system
+spec:
+  defaultConfig:
+    consumers:
+      - name: consumerEC
+        issuer: higress-test
+        jwks: |-
+          {
+              "keys": [
+                  {
+                      "kty": "EC",
+                      "kid": "p256",
+                      "crv": "P-256",
+                      "x": "GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU",
+                      "y": "5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ"
+                  }
+              ]
+          }
+      - name: consumerRSA
+        issuer: higress-test
+        jwks: |-
+          {
+              "keys": [
+                  {
+                      "kty": "RSA",
+                      "kid": "rsa",
+                      "n": "pFKAKJ0V3vFwGTvBSHbPwrNdvPyr-zMTh7Y9IELFIMNUQfG9_d2D1wZcrX5CPvtEISHin3GdPyfqEX6NjPyqvCLFTuNh80-r5Mvld-A5CHwITZXz5krBdqY5Z0wu64smMbzst3HNxHbzLQvHUY-KS6hceOB84d9B4rhkIJEEAWxxIA7yPJYjYyIC_STpPddtJkkweVvoa0m0-_FQkDFsbRS0yGgMNG4-uc7qLIU4kSwMQWcw1Rwy39LUDP4zNzuZABbWsDDBsMlVUaszRdKIlk5AQ-Fkah3E247dYGUQjSQ0N3dFLlMDv_e62BT3IBXGLg7wvGosWFNT_LpIenIW6Q",
+                      "e": "AQAB"
+                  }
+              ]
+          }
+      - name: consumerEC_hedaer
+        issuer: higress-test
+        jwks: |-
+          {
+              "keys": [
+                  {
+                      "kty": "EC",
+                      "kid": "p256",
+                      "crv": "P-256",
+                      "x": "GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU",
+                      "y": "5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ"
+                  }
+              ]
+          }
+        from_headers:
+          - name: jwt
+            value_prefix: "Bearer "
+      - name: consumerEC_params
+        issuer: higress-test
+        jwks: |-
+          {
+              "keys": [
+                  {
+                      "kty": "EC",
+                      "kid": "p256",
+                      "crv": "P-256",
+                      "x": "GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU",
+                      "y": "5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ"
+                  }
+              ]
+          }
+        from_params:
+          - jwt_token
+      - name: consumerEC_cookies
+        issuer: higress-test
+        jwks: |-
+          {
+              "keys": [
+                  {
+                      "kty": "EC",
+                      "kid": "p256",
+                      "crv": "P-256",
+                      "x": "GWym652nfByDbs4EzNpGXCkdjG03qFZHulNDHTo3YJU",
+                      "y": "5uVg_n-flqRJ5Zhf_aEKS0ow9SddTDgxGduSCgpoAZQ"
+                  }
+              ]
+          }
+        from_cookies:
+          - jwt_token
+    global_auth: false
+  defaultConfigDisable: false
+  matchRules:
+    - config:
+        allow:
+          - consumerEC
+      configDisable: false
+      ingress:
+        - higress-conformance-infra/wasmplugin-jwt-auth
+  url: file:///opt/plugins/wasm-go/extensions/jwt-auth/plugin.wasm
