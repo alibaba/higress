@@ -185,12 +185,12 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			}
 		}, log)
 		if err == nil {
-			log.Debugf("#debug nash5# ctx file loaded! callback success!")
+			log.Debugf("#debug nash5# ctx file load success!")
 			return types.ActionPause, nil
 		}
 
-		log.Debugf("#debug nash5# ctx file loaded! callback failed!")
-		return types.ActionPause, replaceJsonRequestBody(request, log)
+		log.Debugf("#debug nash5# ctx file load failed!")
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	}
 
 	// 使用open ai接口协议
@@ -458,7 +458,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 	choices := make([]chatCompletionChoice, 0, len(hunyuanResponse.Response.Choices))
 	for _, choice := range hunyuanResponse.Response.Choices {
 		choices = append(choices, chatCompletionChoice{
-			Delta: &chatMessage{
+			Message: &chatMessage{
 				Name:      "",
 				Role:      choice.Message.Role,
 				Content:   choice.Message.Content,
