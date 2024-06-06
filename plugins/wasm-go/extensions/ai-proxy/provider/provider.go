@@ -36,7 +36,8 @@ const (
 	roleAssistant = "assistant"
 	roleUser      = "user"
 
-	finishReasonStop = "stop"
+	finishReasonStop   = "stop"
+	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyApiName              = "apiKey"

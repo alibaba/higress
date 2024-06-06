@@ -310,11 +310,11 @@ func stopReasonClaude2OpenAI(reason *string) string {
 	}
 	switch *reason {
 	case "end_turn":
-		return "stop"
+		return finishReasonStop
 	case "stop_sequence":
-		return "stop"
+		return finishReasonStop
 	case "max_tokens":
-		return "length"
+		return finishReasonLength
 	default:
 		return *reason
 	}
