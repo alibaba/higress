@@ -589,7 +589,7 @@ controller:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 80
   automaticHttps:
-    enabled: false
+    enabled: true
     email: ""
   
 ## Discovery Settings
