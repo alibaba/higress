@@ -110,6 +110,16 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 | `ollamaServerHost` | string | 必填   | -   | Ollama 服务器的主机地址 |
 | `ollamaServerPort` | number | 必填   | -   | Ollama 服务器的端口号，默认为11434 |
 
+#### 混元
+
+混元所对应的 `type` 为 `hunyuan`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
+|-------------------|--------|------|-----|----------------------------------------------|
+| `hunyuanAuthId` | string | 必填   | -   | 混元用于v3版本认证的id |
+| `hunyuanAuthKey` | string | 必填   | -   | 混元用于v3版本认证的key |
+
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -548,6 +558,70 @@ provider:
     }
   ],
   "stop_reason": "end_turn"
+}
+```
+### 使用 OpenAI 协议代理混元服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: "hunyuan"
+  hunyuanAuthKey: "<YOUR AUTH KEY>"
+  apiTokens:
+    - ""
+  hunyuanAuthId: "<YOUR AUTH ID>"
+  timeout: 1200000
+  modelMapping:
+    "*": "hunyuan-lite"
+```
+
+**请求示例**
+请求脚本：
+```sh
+
+curl --location 'http://<your higress domain>/v1/chat/completions' \
+--header 'Content-Type:  application/json' \
+--data '{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个名专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.3,
+  "stream": false
+}'
+```
+
+**响应示例**
+
+```json
+{
+    "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "content": "你好！我是一名专业的开发人员。"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1717493117,
+    "model": "hunyuan-lite",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 15,
+        "completion_tokens": 9,
+        "total_tokens": 24
+    }
 }
 ```
 
