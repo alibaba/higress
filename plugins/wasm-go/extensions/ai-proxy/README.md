@@ -21,7 +21,7 @@ description: AI 代理插件配置参考
 
 | 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
 |----------------|-----------------|------|-----|----------------------------------------------------------------------------------|
-| `type`         | string          | 必填   | -   | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen, zhipuai, claude               |
+| `type`         | string          | 必填   | -   | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen, zhipuai, baidu, claude                |
 | `apiTokens`    | array of string | 必填   | -   | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。            |
 | `timeout`      | number          | 非必填  | -   | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                           |
 | `modelMapping` | map of string   | 非必填  | -   | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系                   |
@@ -89,6 +89,10 @@ DeepSeek所对应的 `type` 为 `deepseek`。它并无特有的配置字段。
 
 Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
+#### 文心一言（Baidu）
+
+文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
+
 #### Anthropic Claude
 
 Anthropic Claude 所对应的 `type` 为 `claude`。它特有的配置字段如下：
@@ -105,6 +109,16 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 |-------------------|--------|------|-----|----------------------------------------------|
 | `ollamaServerHost` | string | 必填   | -   | Ollama 服务器的主机地址 |
 | `ollamaServerPort` | number | 必填   | -   | Ollama 服务器的端口号，默认为11434 |
+
+#### 混元
+
+混元所对应的 `type` 为 `hunyuan`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
+|-------------------|--------|------|-----|----------------------------------------------|
+| `hunyuanAuthId` | string | 必填   | -   | 混元用于v3版本认证的id |
+| `hunyuanAuthKey` | string | 必填   | -   | 混元用于v3版本认证的key |
+
 
 ## 用法示例
 
@@ -548,6 +562,125 @@ provider:
     "completion_tokens": 126,
     "total_tokens": 142
   }
+}
+```
+### 使用 OpenAI 协议代理混元服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: "hunyuan"
+  hunyuanAuthKey: "<YOUR AUTH KEY>"
+  apiTokens:
+    - ""
+  hunyuanAuthId: "<YOUR AUTH ID>"
+  timeout: 1200000
+  modelMapping:
+    "*": "hunyuan-lite"
+```
+
+**请求示例**
+请求脚本：
+```sh
+
+curl --location 'http://<your higress domain>/v1/chat/completions' \
+--header 'Content-Type:  application/json' \
+--data '{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个名专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.3,
+  "stream": false
+}'
+```
+
+**响应示例**
+
+```json
+{
+    "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "content": "你好！我是一名专业的开发人员。"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1717493117,
+    "model": "hunyuan-lite",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 15,
+        "completion_tokens": 9,
+        "total_tokens": 24
+    }
+}
+```
+
+### 使用 OpenAI 协议代理百度文心一言服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: baidu
+  apiTokens:
+    - "YOUR_BAIDU_API_TOKEN"
+  modelMapping:
+    'gpt-3': "ERNIE-4.0"
+    '*': "ERNIE-4.0"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-4-turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "as-e90yfg1pk1",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "你好，我是文心一言，英文名是ERNIE Bot。我能够与人对话互动，回答问题，协助创作，高效便捷地帮助人们获取信息、知识和灵感。"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1717251488,
+    "model": "ERNIE-4.0",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 4,
+        "completion_tokens": 33,
+        "total_tokens": 37
+    }
 }
 ```
 
