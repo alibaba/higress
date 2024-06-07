@@ -19,14 +19,14 @@ description: AI 代理插件配置参考
 
 `provider`的配置字段说明如下：
 
-| 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
-|----------------|-----------------|------|-----|----------------------------------------------------------------------------------|
-| `type`         | string          | 必填   | -   | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen, zhipuai, baidu                |
-| `apiTokens`    | array of string | 必填   | -   | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。            |
-| `timeout`      | number          | 非必填  | -   | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                           |
-| `modelMapping` | map of string   | 非必填  | -   | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系                   |
-| `protocol`     | string          | 非必填  | -   | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约） |
-| `context`      | object          | 非必填  | -   | 配置 AI 对话上下文信息                                                                    |
+| 名称           | 数据类型        | 填写要求 | 默认值 | 描述                                                         |
+| -------------- | --------------- | -------- | ------ | ------------------------------------------------------------ |
+| `type`         | string          | 必填     | -      | AI 服务提供商名称。目前支持以下取值：openai, azure, moonshot, qwen, zhipuai, baidu, minimax |
+| `apiTokens`    | array of string | 必填     | -      | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。 |
+| `timeout`      | number          | 非必填   | -      | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟 |
+| `modelMapping` | map of string   | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>可以使用 "*" 为键来配置通用兜底映射关系 |
+| `protocol`     | string          | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约） |
+| `context`      | object          | 非必填   | -      | 配置 AI 对话上下文信息                                       |
 
 `context`的配置字段说明如下：
 
@@ -92,6 +92,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
+
+#### MiniMax
+
+MiniMax所对应的 `type` 为 `minimax`。它并无特有的配置字段。
 
 #### Anthropic Claude
 
@@ -676,6 +680,67 @@ provider:
         "prompt_tokens": 4,
         "completion_tokens": 33,
         "total_tokens": 37
+    }
+}
+```
+
+### 使用 OpenAI 协议代理MiniMax服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: minimax
+  apiTokens:
+    - "YOUR_MINIMAX_API_TOKEN"
+  modelMapping:
+    'gpt-3': "abab6.5-chat"
+    '*': "abab6.5s-chat"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-4-turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "02b2251f8c6c09d68c1743f07c72afd7",
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+                "content": "你好！我是MM智能助理，一款由MiniMax自研的大型语言模型。我可以帮助你解答问题，提供信息，进行对话等。有什么可以帮助你的吗？",
+                "role": "assistant"
+            }
+        }
+    ],
+    "created": 1717760544,
+    "model": "abab6.5s-chat",
+    "object": "chat.completion",
+    "usage": {
+        "total_tokens": 106
+    },
+    "input_sensitive": false,
+    "output_sensitive": false,
+    "input_sensitive_type": 0,
+    "output_sensitive_type": 0,
+    "base_resp": {
+        "status_code": 0,
+        "status_msg": ""
     }
 }
 ```
