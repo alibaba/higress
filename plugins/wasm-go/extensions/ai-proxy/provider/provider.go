@@ -27,7 +27,7 @@ const (
 	providerTypeOllama   = "ollama"
 	providerTypeBaidu    = "baidu"
 	providerTypeHunyuan  = "hunyuan"
-  providerTypeStepfun  = "stepfun"
+	providerTypeStepfun  = "stepfun"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -74,7 +74,7 @@ var (
 		providerTypeOllama:   &ollamaProviderInitializer{},
 		providerTypeBaidu:    &baiduProviderInitializer{},
 		providerTypeHunyuan:  &hunyuanProviderInitializer{},
-    providerTypeStepfun:  &stepfunProviderInitializer{},
+		providerTypeStepfun:  &stepfunProviderInitializer{},
 	}
 )
 
