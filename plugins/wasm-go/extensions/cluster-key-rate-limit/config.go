@@ -2,28 +2,25 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
 	"strings"
 )
 
-const (
-	DnsRedisServiceSource string = "dns"
-	IpRedisServiceSource  string = "ip"
-	DefaultRedisPort      int64  = 6379
+// 限流规则类型
+type limitRuleType string
 
-	limitByHeaderType string = "limitByHeader"
-	limitByParamType  string = "limitByParam"
-	limitByPerIpType  string = "limitByPerIp"
+const (
+	limitByHeaderType limitRuleType = "limitByHeader"
+	limitByParamType  limitRuleType = "limitByParam"
+	limitByPerIpType  limitRuleType = "limitByPerIp"
 
 	RemoteAddrSourceType = "remote-addr"
 	HeaderSourceType     = "header"
 
 	DefaultRejectedCode uint32 = 429
 	DefaultRejectedMsg  string = "Too many requests"
-	DefaultRedisTimeout int64  = 1000
 
 	Second           int64 = 1
 	SecondsPerMinute       = 60 * Second
@@ -32,16 +29,16 @@ const (
 )
 
 type ClusterKeyRateLimitConfig struct {
-	ruleName             string       // 限流规则名称
-	limitType            string       // 限流类型
-	limitByHeader        string       // 根据http请求头限流
-	limitByParam         string       // 根据url参数限流
-	limitByPerIp         LimitByPerIp // 根据对端ip限流
-	limitItems           []LimitItem  // 限流配置 key为限流的ip地址或者ip段
-	showLimitQuotaHeader bool         // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
-	rejectedCode         uint32       // 当请求超过阈值被拒绝时,返回的HTTP状态码
-	rejectedMsg          string       // 当请求超过阈值被拒绝时,返回的响应体
-	client               wrapper.RedisClient
+	ruleName             string        // 限流规则名称
+	limitType            limitRuleType // 限流类型
+	limitByHeader        string        // 根据http请求头限流
+	limitByParam         string        // 根据url参数限流
+	limitByPerIp         LimitByPerIp  // 根据对端ip限流
+	limitItems           []LimitItem   // 限流配置 key为限流的ip地址或者ip段
+	showLimitQuotaHeader bool          // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
+	rejectedCode         uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
+	rejectedMsg          string        // 当请求超过阈值被拒绝时,返回的响应体
+	redisClient          wrapper.RedisClient
 }
 
 type LimitByPerIp struct {
@@ -61,60 +58,30 @@ func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig
 	if !redisConfig.Exists() {
 		return errors.New("missing redis in config")
 	}
-
 	serviceName := redisConfig.Get("service_name").String()
-	serviceHost := redisConfig.Get("service_host").String()
-	var servicePort int64
-	servicePortResult := redisConfig.Get("service_port")
-	if servicePortResult.Exists() {
-		servicePort = servicePortResult.Int()
-	} else {
-		servicePort = DefaultRedisPort
+	if serviceName == "" {
+		return errors.New("redis service name must not be empty")
 	}
-	if serviceName == "" || servicePort == 0 {
-		return errors.New("invalid redis service config")
-	}
-	var serviceSource string
-	serviceSourceResult := redisConfig.Get("service_source")
-	if serviceSourceResult.Exists() && serviceSourceResult.String() != "" {
-		serviceSource = serviceSourceResult.String()
-	} else {
-		serviceSource = DnsRedisServiceSource
-	}
-	switch serviceSource {
-	case IpRedisServiceSource:
-		config.client = wrapper.NewRedisClusterClient(&wrapper.StaticIpCluster{
-			ServiceName: serviceName,
-			Host:        serviceHost,
-			Port:        servicePort,
-		})
-	case DnsRedisServiceSource:
-		domain := json.Get("redis_service_domain").String()
-		if domain == "" {
-			return errors.New("missing redis_service_domain in config")
+	servicePort := int(redisConfig.Get("service_port").Int())
+	if servicePort == 0 {
+		if strings.HasSuffix(serviceName, ".static") {
+			// use default logic port which is 80 for static service
+			servicePort = 80
+		} else {
+			servicePort = 6379
 		}
-		config.client = wrapper.NewRedisClusterClient(&wrapper.DnsCluster{
-			ServiceName: serviceName,
-			Port:        servicePort,
-			Domain:      domain,
-		})
-	default:
-		return errors.New("unknown redis service source: " + serviceSource)
 	}
 	username := redisConfig.Get("username").String()
 	password := redisConfig.Get("password").String()
-	var timeout int64
-	redisTimeout := redisConfig.Get("timeout")
-	if redisTimeout.Exists() && redisTimeout.Int() > 0 {
-		timeout = redisTimeout.Int()
-	} else {
-		timeout = DefaultRedisTimeout
+	timeout := int(redisConfig.Get("timeout").Int())
+	if timeout == 0 {
+		timeout = 1000
 	}
-	err := config.client.Init(username, password, timeout)
-	if err != nil {
-		return errors.New(fmt.Sprintf("redisClient init error: %v", err))
-	}
-	return nil
+	config.redisClient = wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: int64(servicePort),
+	})
+	return config.redisClient.Init(username, password, int64(timeout))
 }
 
 func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
@@ -125,7 +92,7 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	config.ruleName = ruleName.String()
 
 	// 根据配置区分限流类型
-	var limitType string
+	var limitType limitRuleType
 	limitByHeader := json.Get("limit_by_header")
 	if limitByHeader.Exists() && limitByHeader.String() != "" {
 		config.limitByHeader = limitByHeader.String()

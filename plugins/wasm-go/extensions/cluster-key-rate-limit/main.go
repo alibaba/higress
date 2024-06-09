@@ -37,7 +37,7 @@ func main() {
 }
 
 const (
-	ClusterRateLimitFormat string = "higress:cluster_key_rate_limit:%s:%s"
+	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s"
 	FixedWindowScript      string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
@@ -86,7 +86,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	keys := []interface{}{limitKey}
 	args := []interface{}{limitItem.count, limitItem.timeWindow}
 	// 执行限流逻辑
-	err := config.client.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
+	err := config.redisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
 		defer func() {
 			_ = proxywasm.ResumeHttpRequest()
 		}()

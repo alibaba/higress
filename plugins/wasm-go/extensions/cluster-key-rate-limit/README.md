@@ -30,16 +30,13 @@
 
 `redis`中每一项的配置字段说明
 
-| 配置项         | 类型   | 必填 | 默认值 | 说明                                            |
-| -------------- | ------ | ---- | ------ | ----------------------------------------------- |
-| service_source | string | 必填 | -      | 类型为固定ip或者DNS，输入redis服务的注册来源    |
-| service_name   | string | 必填 | -      | 输入redis服务的注册名称                         |
-| service_port   | int    | 必填 | -      | 输入redis服务的服务端口                         |
-| service_host   | string | 必填 | -      | 当类型为固定ip时必须填写，输入redis服务的主机名 |
-| service_domain | string | 必填 | -      | 当类型为DNS时必须填写，输入redis服务的domain    |
-| username       | string | 否   | -      | redis用户名                                     |
-| password       | string | 否   | -      | redis密码                                       |
-| timeout        | int    | 否   | 1000   | redis连接超时时间，单位毫秒                     |
+| 配置项       | 类型   | 必填 | 默认值                                                     | 说明                        |
+| ------------ | ------ | ---- | ---------------------------------------------------------- | --------------------------- |
+| service_name | string | 必填 | -                                                          | 输入redis服务的注册名称     |
+| service_port | int    | 否   | 服务类型为固定地址（static service）默认值为80，其他为6379 | 输入redis服务的服务端口     |
+| username     | string | 否   | -                                                          | redis用户名                 |
+| password     | string | 否   | -                                                          | redis密码                   |
+| timeout      | int    | 否   | 1000                                                       | redis连接超时时间，单位毫秒 |
 
 
 
@@ -55,10 +52,7 @@ limit_keys:
 - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
   query_per_minute: 100
 redis:
-  service_name: redis
-  service_host: redis
-  service_port: 80
-  service_source: ip
+  service_name: redis.static
 show_limit_quota_header: true
 ```
 
@@ -72,10 +66,7 @@ limit_keys:
 - key: 308239
   query_per_hour: 10
 redis:
-  service_name: redis
-  service_host: redis
-  service_port: 80
-  service_source: ip
+  service_name: redis.static
 show_limit_quota_header: true  
 ```
 
@@ -95,10 +86,7 @@ limit_keys:
 - key: 0.0.0.0/0
   query_per_day: 1000
 redis:
-  service_name: redis
-  service_host: redis
-  service_port: 80
-  service_source: ip
+  service_name: redis.static
 show_limit_quota_header: true  
 ```
 
@@ -124,10 +112,7 @@ _rules_:
   - key: 0.0.0.0/0
     query_per_day: 1000
   redis:
-    service_name: redis
-    service_host: redis
-    service_port: 80
-    service_source: ip 
+  	service_name: redis.static
 # 规则二：按域名匹配生效
 - _match_domain_:
   - "*.example.com"
@@ -140,10 +125,7 @@ _rules_:
   - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
     query_per_minute: 100
   redis:
-    service_name: redis
-    service_host: redis
-    service_port: 80
-    service_source: ip
+  	service_name: redis.static
   show_limit_quota_header: true 
 ```
 此例 `_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将使用此段配置；
