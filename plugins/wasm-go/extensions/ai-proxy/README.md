@@ -95,7 +95,11 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 #### MiniMax
 
-MiniMax所对应的 `type` 为 `minimax`。它并无特有的配置字段。
+MiniMax所对应的 `type` 为 `minimax`。它特有的配置字段如下：
+
+| 名称             | 数据类型 | 填写要求                                                     | 默认值 | 描述                                                         |
+| ---------------- | -------- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
+| `minimaxGroupId` | string   | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时必填 | -      | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时会使用ChatCompletion Pro，需要设置groupID |
 
 #### Anthropic Claude
 
@@ -694,8 +698,10 @@ provider:
   apiTokens:
     - "YOUR_MINIMAX_API_TOKEN"
   modelMapping:
-    'gpt-3': "abab6.5-chat"
-    '*': "abab6.5s-chat"
+    "gpt-3": "abab6.5g-chat"
+    "gpt-4": "abab6.5-chat"
+    "*": "abab6.5g-chat"
+  minimaxGroupId: "YOUR_MINIMAX_GROUP_ID"
 ```
 
 **请求示例**
