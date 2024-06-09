@@ -334,7 +334,5 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 }
 
 func (b *baiduProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(streamDataItemKey)
-	responseBuilder.WriteString(responseBody)
-	responseBuilder.WriteString("\n\n")
+	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }
