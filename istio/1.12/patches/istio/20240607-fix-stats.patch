@@ -1,0 +1,21 @@
+diff -Naur istio/tools/packaging/common/envoy_bootstrap.json istio-new/tools/packaging/common/envoy_bootstrap.json
+--- istio/tools/packaging/common/envoy_bootstrap.json	2024-06-07 16:50:21.000000000 +0800
++++ istio-new/tools/packaging/common/envoy_bootstrap.json	2024-06-07 16:47:42.000000000 +0800
+@@ -38,7 +38,7 @@
+     "stats_tags": [
+       {
+         "tag_name": "cluster_name",
+-        "regex": "^cluster\\.((.+?(\\..+?\\.svc\\.cluster\\.local)?)\\.)"
++        "regex": "^cluster\\.((.*?)\\.)(http1\\.|http2\\.|health_check\\.|zone\\.|external\\.|circuit_breakers\\.|[^\\.]+$)"
+       },
+       {
+         "tag_name": "tcp_prefix",
+@@ -58,7 +58,7 @@
+       },
+       {
+         "tag_name": "http_conn_manager_prefix",
+-        "regex": "^http\\.(((?:[_.[:digit:]]*|[_\\[\\]aAbBcCdDeEfF[:digit:]]*))\\.)"
++        "regex": "^http\\.(((outbound_([0-9]{1,3}\\.{0,1}){4}_\\d{0,5})|([^\\.]+))\\.)"
+       },
+       {
+         "tag_name": "listener_address",
