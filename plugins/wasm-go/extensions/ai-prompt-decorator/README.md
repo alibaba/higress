@@ -1,49 +1,22 @@
-示例：
+# 简介
+AI提示词修饰插件，通过在与大模型发起的请求前后插入指定信息来调整大模型的输出。
 
+# 配置示例
 ```yaml
-http_filters:
-- name: test
-  typed_config:
-    "@type": type.googleapis.com/udpa.type.v1.TypedStruct
-    type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
-    value:
-      config:
-        name: wasmdemo
-        vm_config:
-          runtime: envoy.wasm.runtime.v8
-          code:
-            local:
-              filename: main.wasm
-        configuration:
-          "@type": "type.googleapis.com/google.protobuf.StringValue"
-          value: |
-            {
-              "decorators": [
-                {
-                  "name": "hangzhou-guide",
-                  "decorator": {
-                    "prepend": [
-                      {
-                        "role": "system",
-                        "content": "You will always respond in the Chinese language."
-                      },
-                      {
-                        "role": "user",
-                        "content": "Assume you are from Hangzhou."
-                      }
-                    ],
-                    "append": [
-                      {
-                        "role": "user",
-                        "content": "Don't introduce Hangzhou's food."
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
+decorators:
+- name: "hangzhou-guide"
+  decorator:
+    prepend:
+    - role: system
+      content: "You will always respond in the Chinese language."
+    - role: user
+      content: "Assume you are from Hangzhou."
+    append:
+    - role: user
+      content: "Don't introduce Hangzhou's food."
 ```
 
+使用以上配置发起请求：
 
 ```bash
 curl http://127.0.0.1:8080/v1/chat/completions \
@@ -60,6 +33,8 @@ curl http://127.0.0.1:8080/v1/chat/completions \
     ]
   }'
 ```
+
+响应如下：
 
 ```
 {
