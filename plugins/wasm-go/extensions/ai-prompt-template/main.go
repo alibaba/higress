@@ -12,18 +12,18 @@ import (
 
 func main() {
 	wrapper.SetCtx(
-		"hello-world",
+		"ai-prompt-template",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 	)
 }
 
-type HelloWorldConfig struct {
+type AIPromptTemplateConfig struct {
 	templates map[string]string
 }
 
-func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log wrapper.Log) error {
 	config.templates = make(map[string]string)
 	for _, v := range json.Get("templates").Array() {
 		config.templates[v.Get("name").String()] = v.Get("template").Raw
@@ -32,7 +32,7 @@ func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) e
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig, log wrapper.Log) types.Action {
 	templateEnable, _ := proxywasm.GetHttpRequestHeader("template-enable")
 	if templateEnable != "true" {
 		ctx.DontReadRequestBody()
@@ -42,7 +42,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log 
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config HelloWorldConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptTemplateConfig, body []byte, log wrapper.Log) types.Action {
 	if gjson.GetBytes(body, "template").Exists() && gjson.GetBytes(body, "properties").Exists() {
 		name := gjson.GetBytes(body, "template").String()
 		template := config.templates[name]
