@@ -228,15 +228,15 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		reqParams.Add("Signature", signature)
 		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-				log.Infof("get status: %d, request body: %s", statusCode, responseBody)
-				croAigcResponse := gjson.GetBytes(responseBody, "result").String()
-				if croAigcResponse != "" {
-					jsonValue := gjson.Parse(croAigcResponse)
-					if jsonValue.Get("code").String() == "SUCCESS" && jsonValue.Get("result").Int() > 0 {
+				respData := gjson.GetBytes(responseBody, "Data")
+				if respData.Exists() {
+					respAdvice := respData.Get("Advice")
+					respResult := respData.Get("Result")
+					if respAdvice.Exists() {
 						sr := StandardResponse{
 							Code:    403,
 							Phase:   "Request",
-							Message: jsonValue.Get("generateContent").Get("standardAnswer").String(),
+							Message: respAdvice.Array()[0].Get("Answer").String(),
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
@@ -244,9 +244,24 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						hdsMap[":status"] = []string{"403"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
+					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
+						sr := StandardResponse{
+							Code:    403,
+							Phase:   "Request",
+							Message: "risk detected",
+						}
+						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						hdsMap := ctx.GetContext("headers").(map[string][]string)
+						delete(hdsMap, "content-length")
+						hdsMap[":status"] = []string{"403"}
+						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
+						proxywasm.ReplaceHttpResponseBody(jsonData)
+					} else {
+						proxywasm.ResumeHttpResponse()
 					}
+				} else {
+					proxywasm.ResumeHttpResponse()
 				}
-				proxywasm.ResumeHttpResponse()
 			},
 		)
 		return types.ActionPause
