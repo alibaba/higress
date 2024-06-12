@@ -145,6 +145,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 							Message: respAdvice.Array()[0].Get("Answer").String(),
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SendHttpResponse(403, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						sr := StandardResponse{
@@ -153,6 +154,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 							Message: "risk detected",
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SendHttpResponse(403, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else {
 						proxywasm.ResumeHttpRequest()
@@ -228,6 +230,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		reqParams.Add("Signature", signature)
 		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+				defer proxywasm.ResumeHttpResponse()
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
@@ -235,7 +238,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					if respAdvice.Exists() {
 						sr := StandardResponse{
 							Code:    403,
-							Phase:   "Request",
+							Phase:   "Response",
 							Message: respAdvice.Array()[0].Get("Answer").String(),
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
@@ -244,10 +247,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						hdsMap[":status"] = []string{"403"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						sr := StandardResponse{
 							Code:    403,
-							Phase:   "Request",
+							Phase:   "Response",
 							Message: "risk detected",
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
@@ -256,11 +260,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						hdsMap[":status"] = []string{"403"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
-					} else {
-						proxywasm.ResumeHttpResponse()
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 					}
-				} else {
-					proxywasm.ResumeHttpResponse()
 				}
 			},
 		)
