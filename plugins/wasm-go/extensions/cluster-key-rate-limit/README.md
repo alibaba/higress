@@ -1,38 +1,38 @@
 # 功能说明
 
-`key-cluster-rate-limit`插件实现了基于特定键值实现集群限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称
+`key-cluster-rate-limit`插件实现了基于特定键值实现集群限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称、cookie中 key 名称
 
 
 
 # 配置说明
 
-| 配置项                  | 类型   | 必填 | 默认值 | 说明 |
-| ----------------------- | ------ | ---- | ------ | ---- |
-| rule_name               | string | 是 | - | 限流规则名称，根据限流类型+限流规则名称+限流key对应的实际值来拼装redis key |
-| limit_by_header         | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 http 请求头名称                       |
-| limit_by_param          | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 URL 参数名称                          |
-| limit_by_consumer | string | 否，`limit_by_*`中选填一项 | - | 无需添加实际值 |
-| limit_by_cookie | string | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 Cookie中 key 名称 |
-| limit_by_per_header | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 http 请求头名称，配置`limit_keys`时支持正则表达式或`*` |
-| limit_by_per_param | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*` |
-| limit_by_per_consumer | string | 否，`limit_by_*`中选填一项 | - | 无需添加实际值，配置`limit_keys`时支持正则表达式或`*` |
-| limit_by_per_cookie | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 Cookie中key名称，配置`limit_keys`时支持正则表达式或`*` |
+| 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                                                                          |
+| ----------------------- | ------ | ---- | ------ |-----------------------------------------------------------------------------------------------------------------------------|
+| rule_name               | string | 是 | - | 限流规则名称，根据限流类型+限流规则名称+限流key对应的实际值来拼装redis key                                                                                |
+| limit_by_header         | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 HTTP 请求头名称                                                                                                  |
+| limit_by_param          | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 URL 参数名称                                                                                                        |
+| limit_by_consumer | string | 否，`limit_by_*`中选填一项 | - | 根据 consumer 名称进行限流，无需添加实际值                                                                                       |
+| limit_by_cookie | string | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 Cookie中 key 名称                                                                                                  |
+| limit_by_per_header | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 HTTP 请求头名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
+| limit_by_per_param | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*`                                                                             |
+| limit_by_per_consumer | string | 否，`limit_by_*`中选填一项 | - | 根据 consumer 名称进行限流，无需添加实际值，配置`limit_keys`时支持正则表达式或`*`                                                                |
+| limit_by_per_cookie | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 Cookie中 key 名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
 | limit_by_per_ip         | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
-| limit_keys              | array of object | 是 | - | 配置匹配键值后的限流次数 |
-| show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数） |
-| rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码 |
-| rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体 |
-| redis                   | object          | 是                                                           | -                 | redis相关配置                                                |
+| limit_keys              | array of object | 是 | - | 配置匹配键值后的限流次数                                                                                                                |
+| show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数）                                                   |
+| rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                                                                           |
+| rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                                                                               |
+| redis                   | object          | 是                                                           | -                 | redis相关配置                                                                                                                   |
 
 `limit_keys`中每一项的配置字段说明
 
-| 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                                                                                                                                        |
-| ---------------- | ------ | ------------------------------------------------------------ | ------ |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| key              | string | 是                                                           | -      | 匹配的键值，针对`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串） |
-| query_per_second | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每秒请求次数                                                                                                                                                                  |
-| query_per_minute | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每分钟请求次数                                                                                                                                                                 |
-| query_per_hour   | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每小时请求次数                                                                                                                                                                 |
-| query_per_day    | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每天请求次数                                                                                                                                                                  |
+| 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                         |
+| ---------------- | ------ | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
+| key              | string | 是                                                           | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
+| query_per_second | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每秒请求次数                                             |
+| query_per_minute | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每分钟请求次数                                           |
+| query_per_hour   | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每小时请求次数                                           |
+| query_per_day    | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每天请求次数                                             |
 
 `redis`中每一项的配置字段说明
 

@@ -55,7 +55,7 @@ type ClusterKeyRateLimitConfig struct {
 	ruleName             string        // 限流规则名称
 	limitType            limitRuleType // 限流类型
 	limitByKey           string        // 根据limitType对应的键名:http头名称、url参数名称、cookie名称
-	limitByPerIp         LimitByPerIp  // 对端ip段
+	limitByPerIp         LimitByPerIp  // 对端ip地址或ip段
 	limitItems           []LimitItem   // 限流配置
 	showLimitQuotaHeader bool          // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
 	rejectedCode         uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
