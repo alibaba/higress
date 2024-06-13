@@ -130,23 +130,43 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCo
 
 func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) (string, *LimitItem) {
 	switch config.limitType {
-	case limitByHeaderType:
-		headerVal, err := proxywasm.GetHttpRequestHeader(config.limitByHeader)
+	case limitByHeaderType, limitByPerHeaderType:
+		val, err := proxywasm.GetHttpRequestHeader(config.limitByKey)
 		if err != nil {
-			log.Debugf("failed to get request header %s: %v", config.limitByHeader, err)
-			return "", nil
+			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", config.limitByKey, err)
 		}
-		return headerVal, findMatchingItem(config.limitItems, headerVal)
-	case limitByParamType:
-		parse, _ := url.Parse(ctx.Path())
-		query, _ := url.ParseQuery(parse.RawQuery)
-		val, ok := query[config.limitByParam]
+		return val, findMatchingItem(config.limitType, config.limitItems, val)
+	case limitByParamType, limitByPerParamType:
+		parse, err := url.Parse(ctx.Path())
+		if err != nil {
+			return logDebugAndReturnEmpty(log, "failed to parse request path: %v", err)
+		}
+		query, err := url.ParseQuery(parse.RawQuery)
+		if err != nil {
+			return logDebugAndReturnEmpty(log, "failed to parse query params: %v", err)
+		}
+		val, ok := query[config.limitByKey]
 		if !ok {
-			log.Debugf("request param %s is empty", config.limitByParam)
-			return "", nil
+			return logDebugAndReturnEmpty(log, "request param %s is empty", config.limitByKey)
 		} else {
-			return val[0], findMatchingItem(config.limitItems, val[0])
+			return val[0], findMatchingItem(config.limitType, config.limitItems, val[0])
 		}
+	case limitByConsumerType, limitByPerConsumerType:
+		val, err := proxywasm.GetHttpRequestHeader(LimitByConsumerHeader)
+		if err != nil {
+			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", LimitByConsumerHeader, err)
+		}
+		return val, findMatchingItem(config.limitType, config.limitItems, val)
+	case limitByCookieType, limitByPerCookieType:
+		cookie, err := proxywasm.GetHttpRequestHeader("cookie")
+		if err != nil {
+			return logDebugAndReturnEmpty(log, "failed to get request cookie : %v", err)
+		}
+		val := extractCookieValueByKey(cookie, config.limitByKey)
+		if val == "" {
+			return logDebugAndReturnEmpty(log, "cookie key '%s' extracted from cookie '%s' is empty.", config.limitByKey, cookie)
+		}
+		return val, findMatchingItem(config.limitType, config.limitItems, val)
 	case limitByPerIpType:
 		realIp, err := getDownStreamIp(config)
 		if err != nil {
@@ -159,28 +179,29 @@ func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig,
 			}
 			return realIp.String(), &item
 		}
-	case limitByConsumer:
-		headerVal, err := proxywasm.GetHttpRequestHeader(LimitByConsumerHeader)
-		if err != nil {
-			log.Debugf("failed to get request header %s: %v", LimitByConsumerHeader, err)
-			return "", nil
-		}
-		return headerVal, findMatchingItem(config.limitItems, headerVal)
 	}
 	return "", nil
 }
 
-func findMatchingItem(items []LimitItem, key string) *LimitItem {
+func logDebugAndReturnEmpty(log wrapper.Log, errMsg string, args ...interface{}) (string, *LimitItem) {
+	log.Debugf(errMsg, args...)
+	return "", nil
+}
+
+func findMatchingItem(limitType limitRuleType, items []LimitItem, key string) *LimitItem {
 	for _, item := range items {
-		switch item.itemType {
-		case exactType, allType:
-			if item.itemType == allType || item.key == key {
+		// per类型,检查allType和regexpType
+		if limitType == limitByPerHeaderType ||
+			limitType == limitByPerParamType ||
+			limitType == limitByPerConsumerType ||
+			limitType == limitByPerCookieType {
+			if item.itemType == allType || (item.itemType == regexpType && item.re.MatchString(key)) {
 				return &item
 			}
-		case regexpType:
-			if item.re.MatchString(key) {
-				return &item
-			}
+		}
+		// 其他类型,直接比较key
+		if item.key == key {
+			return &item
 		}
 	}
 	return nil

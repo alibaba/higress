@@ -17,10 +17,15 @@ type limitRuleType string
 type limitItemType string
 
 const (
-	limitByHeaderType limitRuleType = "limit_by_header"
-	limitByParamType  limitRuleType = "limit_by_param"
-	limitByPerIpType  limitRuleType = "limit_by_per_ip"
-	limitByConsumer   limitRuleType = "limit_by_consumer"
+	limitByHeaderType      limitRuleType = "limit_by_header"
+	limitByParamType       limitRuleType = "limit_by_param"
+	limitByConsumerType    limitRuleType = "limit_by_consumer"
+	limitByCookieType      limitRuleType = "limit_by_cookie"
+	limitByPerHeaderType   limitRuleType = "limit_by_per_header"
+	limitByPerParamType    limitRuleType = "limit_by_per_param"
+	limitByPerConsumerType limitRuleType = "limit_by_per_consumer"
+	limitByPerCookieType   limitRuleType = "limit_by_per_cookie"
+	limitByPerIpType       limitRuleType = "limit_by_per_ip"
 
 	exactType  limitItemType = "exact"  // 精确匹配
 	regexpType limitItemType = "regexp" // 正则表达式
@@ -49,10 +54,9 @@ var timeWindows = map[string]int64{
 type ClusterKeyRateLimitConfig struct {
 	ruleName             string        // 限流规则名称
 	limitType            limitRuleType // 限流类型
-	limitByHeader        string        // 根据http请求头限流
-	limitByParam         string        // 根据url参数限流
-	limitByPerIp         LimitByPerIp  // 根据对端ip限流
-	limitItems           []LimitItem   // 限流配置 key为限流的ip地址或者ip段
+	limitByKey           string        // 根据limitType对应的键名:http头名称、url参数名称、cookie名称
+	limitByPerIp         LimitByPerIp  // 对端ip段
+	limitItems           []LimitItem   // 限流配置
 	showLimitQuotaHeader bool          // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
 	rejectedCode         uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
 	rejectedMsg          string        // 当请求超过阈值被拒绝时,返回的响应体
@@ -113,16 +117,27 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 
 	// 根据配置区分限流类型
 	var limitType limitRuleType
-	limitByHeader := json.Get("limit_by_header")
-	if limitByHeader.Exists() && limitByHeader.String() != "" {
-		config.limitByHeader = limitByHeader.String()
-		limitType = limitByHeaderType
-	}
 
-	limitByParam := json.Get("limit_by_param")
-	if limitByParam.Exists() && limitByParam.String() != "" {
-		config.limitByParam = limitByParam.String()
-		limitType = limitByParamType
+	setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr limitRuleType) {
+		if field.Exists() && field.String() != "" {
+			config.limitByKey = field.String()
+			limitType = limitTypeStr
+		}
+	}
+	setLimitByKeyIfExists(json.Get("limit_by_header"), limitByHeaderType)
+	setLimitByKeyIfExists(json.Get("limit_by_param"), limitByParamType)
+	setLimitByKeyIfExists(json.Get("limit_by_cookie"), limitByCookieType)
+	setLimitByKeyIfExists(json.Get("limit_by_per_header"), limitByPerHeaderType)
+	setLimitByKeyIfExists(json.Get("limit_by_per_param"), limitByPerParamType)
+	setLimitByKeyIfExists(json.Get("limit_by_per_cookie"), limitByPerCookieType)
+
+	limitByConsumer := json.Get("limit_by_consumer")
+	if limitByConsumer.Exists() {
+		limitType = limitByConsumerType
+	}
+	limitByPerConsumer := json.Get("")
+	if limitByPerConsumer.Exists() {
+		limitType = limitByPerConsumerType
 	}
 
 	limitByPerIpResult := json.Get("limit_by_per_ip")
@@ -147,12 +162,9 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 		}
 		limitType = limitByPerIpType
 	}
-	limitByConsumerResult := json.Get("limit_by_consumer")
-	if limitByConsumerResult.Exists() {
-		limitType = limitByConsumer
-	}
+
 	if limitType == "" {
-		return errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_per_ip' and 'limit_by_consumer' can be set")
+		return errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_consumer' and 'limit_by_cookie' and 'limit_by_per_header' and 'limit_by_per_param' and 'limit_by_per_consumer' and 'limit_by_per_cookie' and 'limit_by_per_ip' can be set")
 	}
 	config.limitType = limitType
 
@@ -210,16 +222,23 @@ func initLimitItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error 
 				return fmt.Errorf("failed to parse IPNet for key '%s': %w", itemKey, err)
 			}
 			itemType = ipNetType
-		} else if itemKey == "*" {
-			itemType = allType
-		} else if strings.HasPrefix(itemKey, "regexp:") {
-			regexpStr := itemKey[len("regexp:"):]
-			var err error
-			re, err = regexp.Compile(regexpStr)
-			if err != nil {
-				return fmt.Errorf("failed to compile regex for key '%s': %w", itemKey, err)
+		} else if config.limitType == limitByPerHeaderType ||
+			config.limitType == limitByPerParamType ||
+			config.limitType == limitByPerConsumerType ||
+			config.limitType == limitByPerCookieType {
+			if itemKey == "*" {
+				itemType = allType
+			} else if strings.HasPrefix(itemKey, "regexp:") {
+				regexpStr := itemKey[len("regexp:"):]
+				var err error
+				re, err = regexp.Compile(regexpStr)
+				if err != nil {
+					return fmt.Errorf("failed to compile regex for key '%s': %w", itemKey, err)
+				}
+				itemType = regexpType
+			} else {
+				return fmt.Errorf("the '%s' restriction must start with 'regexp:' or be exactly '*'", config.limitType)
 			}
-			itemType = regexpType
 		} else {
 			itemType = exactType
 		}
