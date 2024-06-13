@@ -37,7 +37,7 @@ func main() {
 }
 
 const (
-	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s"
+	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%s"
 	FixedWindowScript      string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
@@ -50,6 +50,8 @@ const (
 
 const (
 	LimitContextKey string = "LimitContext" // 限流上下文信息
+
+	LimitByConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
 
 	RateLimitLimitHeader     string = "X-RateLimit-Limit"     // 限制的总请求数
 	RateLimitRemainingHeader string = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
@@ -67,7 +69,7 @@ func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapp
 	if err != nil {
 		return err
 	}
-	err = parseClusterKeyRateLimitConfig(json, config, log)
+	err = parseClusterKeyRateLimitConfig(json, config)
 	if err != nil {
 		return err
 	}
@@ -82,7 +84,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	}
 
 	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, key)
+	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.limitType, config.ruleName, key)
 	keys := []interface{}{limitKey}
 	args := []interface{}{limitItem.count, limitItem.timeWindow}
 	// 执行限流逻辑
@@ -157,14 +159,28 @@ func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig,
 			}
 			return realIp.String(), &item
 		}
+	case limitByConsumer:
+		headerVal, err := proxywasm.GetHttpRequestHeader(LimitByConsumerHeader)
+		if err != nil {
+			log.Debugf("failed to get request header %s: %v", LimitByConsumerHeader, err)
+			return "", nil
+		}
+		return headerVal, findMatchingItem(config.limitItems, headerVal)
 	}
 	return "", nil
 }
 
 func findMatchingItem(items []LimitItem, key string) *LimitItem {
 	for _, item := range items {
-		if item.key == key {
-			return &item
+		switch item.itemType {
+		case exactType, allType:
+			if item.itemType == allType || item.key == key {
+				return &item
+			}
+		case regexpType:
+			if item.re.MatchString(key) {
+				return &item
+			}
 		}
 	}
 	return nil
