@@ -144,7 +144,7 @@ show_limit_quota_header: true
 
 ```yaml
 rule_name: default_limit_by_consumer
-limit_by_consumer:
+limit_by_consumer: ''
 limit_keys:
   - key: consumer1
     query_per_second: 10
@@ -157,7 +157,7 @@ show_limit_quota_header: true
 
 ```yaml
 rule_name: default_limit_by_per_consumer
-limit_by_per_consumer:
+limit_by_per_consumer: ''
 limit_keys:
   # 正则表达式，匹配以a开头的所有字符串，每个consumer对应的请求10qds
   - key: "regexp:^a.*"

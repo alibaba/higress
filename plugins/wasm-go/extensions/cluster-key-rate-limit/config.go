@@ -135,7 +135,7 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	if limitByConsumer.Exists() {
 		limitType = limitByConsumerType
 	}
-	limitByPerConsumer := json.Get("")
+	limitByPerConsumer := json.Get("limit_by_per_consumer")
 	if limitByPerConsumer.Exists() {
 		limitType = limitByPerConsumerType
 	}
