@@ -13,11 +13,11 @@
 | limit_by_param          | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 URL 参数名称                                                                                                        |
 | limit_by_consumer | string | 否，`limit_by_*`中选填一项 | - | 根据 consumer 名称进行限流，无需添加实际值                                                                                       |
 | limit_by_cookie | string | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 Cookie中 key 名称                                                                                                  |
-| limit_by_per_header | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 HTTP 请求头名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
-| limit_by_per_param | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*`                                                                             |
-| limit_by_per_consumer | string | 否，`limit_by_*`中选填一项 | - | 根据 consumer 名称进行限流，无需添加实际值，配置`limit_keys`时支持正则表达式或`*`                                                                |
-| limit_by_per_cookie | string | 否，`limit_by_*`中选填一项 | - | 配置获取限流键值的来源 Cookie中 key 名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
-| limit_by_per_ip         | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
+| limit_by_per_header | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 HTTP 请求头，并对每个请求头分别计算限流，配置获取限流键值的来源 HTTP 请求头名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
+| limit_by_per_param | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 URL 参数，并对每个参数分别计算限流，配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*`                                                                             |
+| limit_by_per_consumer | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 consumer，并对每个 consumer 分别计算限流，根据 consumer 名称进行限流，无需添加实际值，配置`limit_keys`时支持正则表达式或`*`                                                                |
+| limit_by_per_cookie | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 Cookie，并对每个 Cookie 分别计算限流，配置获取限流键值的来源 Cookie中 key 名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
+| limit_by_per_ip         | string          | 否，`limit_by_*`中选填一项 | -                 | 按规则匹配特定 IP，并对每个 IP 分别计算限流，配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
 | limit_keys              | array of object | 是 | - | 配置匹配键值后的限流次数                                                                                                                |
 | show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数）                                                   |
 | rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                                                                           |
