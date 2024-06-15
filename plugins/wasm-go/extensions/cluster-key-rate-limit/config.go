@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	regexp "github.com/wasilibs/go-re2"
+	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
 	"strings"
 )
@@ -62,7 +62,7 @@ type ClusterKeyRateLimitConfig struct {
 
 type LimitRuleItem struct {
 	limitType    limitRuleItemType // 限流类型
-	limitByKey   string            // 根据limitType对应的键名:http头名称、url参数名称、cookie名称
+	key          string            // 根据该key值进行限流,limit_by_consumer和limit_by_per_consumer两种类型为ConsumerHeader,其他类型为对应的key值
 	limitByPerIp LimitByPerIp      // 对端ip地址或ip段
 	configItems  []LimitConfigItem // 限流配置项
 }
@@ -76,7 +76,7 @@ type LimitConfigItem struct {
 	configType limitConfigItemType // 限流配置项key类型
 	key        string              // 限流key
 	ipNet      *iptree.IPTree      // 限流key转换的ip地址或者ip段,仅用于itemType为ipNetType
-	re         *regexp.Regexp      // 正则表达式,仅用于itemType为regexpType
+	regexp     *re.Regexp          // 正则表达式,仅用于itemType为regexpType
 	count      int64               // 指定时间窗口内的总请求数量阈值
 	timeWindow int64               // 时间窗口大小
 }
@@ -161,7 +161,7 @@ func initRuleItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 		var limitType limitRuleItemType
 		setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr limitRuleItemType) {
 			if field.Exists() && field.String() != "" {
-				ruleItem.limitByKey = field.String()
+				ruleItem.key = field.String()
 				limitType = limitTypeStr
 			}
 		}
@@ -174,16 +174,19 @@ func initRuleItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 
 		limitByConsumer := item.Get("limit_by_consumer")
 		if limitByConsumer.Exists() {
+			ruleItem.key = ConsumerHeader
 			limitType = limitByConsumerType
 		}
 		limitByPerConsumer := item.Get("limit_by_per_consumer")
 		if limitByPerConsumer.Exists() {
+			ruleItem.key = ConsumerHeader
 			limitType = limitByPerConsumerType
 		}
 
 		limitByPerIpResult := item.Get("limit_by_per_ip")
 		if limitByPerIpResult.Exists() && limitByPerIpResult.String() != "" {
 			limitByPerIp := limitByPerIpResult.String()
+			ruleItem.key = limitByPerIp
 			if strings.HasPrefix(limitByPerIp, "from-header-") {
 				headerName := limitByPerIp[len("from-header-"):]
 				if headerName == "" {
@@ -240,7 +243,7 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 			itemKey  = key.String()
 			itemType limitConfigItemType
 			ipNet    *iptree.IPTree
-			re       *regexp.Regexp
+			regexp   *re.Regexp
 		)
 		if rule.limitType == limitByPerIpType {
 			var err error
@@ -258,7 +261,7 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 			} else if strings.HasPrefix(itemKey, "regexp:") {
 				regexpStr := itemKey[len("regexp:"):]
 				var err error
-				re, err = regexp.Compile(regexpStr)
+				regexp, err = re.Compile(regexpStr)
 				if err != nil {
 					return fmt.Errorf("failed to compile regex for key '%s': %w", itemKey, err)
 				}
@@ -270,7 +273,7 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 			itemType = exactType
 		}
 
-		if configItem, err := createConfigItemFromRate(item, itemType, itemKey, ipNet, re); err != nil {
+		if configItem, err := createConfigItemFromRate(item, itemType, itemKey, ipNet, regexp); err != nil {
 			return err
 		} else if configItem != nil {
 			configItems = append(configItems, *configItem)
@@ -280,7 +283,7 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 	return nil
 }
 
-func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, re *regexp.Regexp) (*LimitConfigItem, error) {
+func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
 		if q.Exists() && q.Int() > 0 {
@@ -288,7 +291,7 @@ func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, k
 				configType: itemType,
 				key:        key,
 				ipNet:      ipNet,
-				re:         re,
+				regexp:     regexp,
 				count:      q.Int(),
 				timeWindow: duration,
 			}, nil
