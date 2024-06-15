@@ -10,27 +10,27 @@ import (
 	"strings"
 )
 
-// 限流规则类型
-type limitRuleType string
+// 限流规则项类型
+type limitRuleItemType string
 
 // 限流配置项key类型
-type limitItemType string
+type limitConfigItemType string
 
 const (
-	limitByHeaderType      limitRuleType = "limit_by_header"
-	limitByParamType       limitRuleType = "limit_by_param"
-	limitByConsumerType    limitRuleType = "limit_by_consumer"
-	limitByCookieType      limitRuleType = "limit_by_cookie"
-	limitByPerHeaderType   limitRuleType = "limit_by_per_header"
-	limitByPerParamType    limitRuleType = "limit_by_per_param"
-	limitByPerConsumerType limitRuleType = "limit_by_per_consumer"
-	limitByPerCookieType   limitRuleType = "limit_by_per_cookie"
-	limitByPerIpType       limitRuleType = "limit_by_per_ip"
+	limitByHeaderType      limitRuleItemType = "limit_by_header"
+	limitByParamType       limitRuleItemType = "limit_by_param"
+	limitByConsumerType    limitRuleItemType = "limit_by_consumer"
+	limitByCookieType      limitRuleItemType = "limit_by_cookie"
+	limitByPerHeaderType   limitRuleItemType = "limit_by_per_header"
+	limitByPerParamType    limitRuleItemType = "limit_by_per_param"
+	limitByPerConsumerType limitRuleItemType = "limit_by_per_consumer"
+	limitByPerCookieType   limitRuleItemType = "limit_by_per_cookie"
+	limitByPerIpType       limitRuleItemType = "limit_by_per_ip"
 
-	exactType  limitItemType = "exact"  // 精确匹配
-	regexpType limitItemType = "regexp" // 正则表达式
-	allType    limitItemType = "*"      // 匹配所有情况
-	ipNetType  limitItemType = "ipNet"  // ip段
+	exactType  limitConfigItemType = "exact"  // 精确匹配
+	regexpType limitConfigItemType = "regexp" // 正则表达式
+	allType    limitConfigItemType = "*"      // 匹配所有情况
+	ipNetType  limitConfigItemType = "ipNet"  // ip段
 
 	RemoteAddrSourceType = "remote-addr"
 	HeaderSourceType     = "header"
@@ -52,15 +52,19 @@ var timeWindows = map[string]int64{
 }
 
 type ClusterKeyRateLimitConfig struct {
-	ruleName             string        // 限流规则名称
-	limitType            limitRuleType // 限流类型
-	limitByKey           string        // 根据limitType对应的键名:http头名称、url参数名称、cookie名称
-	limitByPerIp         LimitByPerIp  // 对端ip地址或ip段
-	limitItems           []LimitItem   // 限流配置
-	showLimitQuotaHeader bool          // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
-	rejectedCode         uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
-	rejectedMsg          string        // 当请求超过阈值被拒绝时,返回的响应体
+	ruleName             string          // 限流规则名称
+	ruleItems            []LimitRuleItem // 限流规则项
+	showLimitQuotaHeader bool            // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
+	rejectedCode         uint32          // 当请求超过阈值被拒绝时,返回的HTTP状态码
+	rejectedMsg          string          // 当请求超过阈值被拒绝时,返回的响应体
 	redisClient          wrapper.RedisClient
+}
+
+type LimitRuleItem struct {
+	limitType    limitRuleItemType // 限流类型
+	limitByKey   string            // 根据limitType对应的键名:http头名称、url参数名称、cookie名称
+	limitByPerIp LimitByPerIp      // 对端ip地址或ip段
+	configItems  []LimitConfigItem // 限流配置项
 }
 
 type LimitByPerIp struct {
@@ -68,13 +72,13 @@ type LimitByPerIp struct {
 	headerName string // 根据该请求头获取客户端ip
 }
 
-type LimitItem struct {
-	itemType   limitItemType  // 限流配置项key类型
-	key        string         // 限流key
-	ipNet      *iptree.IPTree // 限流key转换的ip地址或者ip段,仅用于itemType为ipNetType
-	re         *regexp.Regexp // 正则表达式,仅用于itemType为regexpType
-	count      int64          // 指定时间窗口内的总请求数量阈值
-	timeWindow int64          // 时间窗口大小
+type LimitConfigItem struct {
+	configType limitConfigItemType // 限流配置项key类型
+	key        string              // 限流key
+	ipNet      *iptree.IPTree      // 限流key转换的ip地址或者ip段,仅用于itemType为ipNetType
+	re         *regexp.Regexp      // 正则表达式,仅用于itemType为regexpType
+	count      int64               // 指定时间窗口内的总请求数量阈值
+	timeWindow int64               // 时间窗口大小
 }
 
 func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
@@ -115,61 +119,8 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	}
 	config.ruleName = ruleName.String()
 
-	// 根据配置区分限流类型
-	var limitType limitRuleType
-
-	setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr limitRuleType) {
-		if field.Exists() && field.String() != "" {
-			config.limitByKey = field.String()
-			limitType = limitTypeStr
-		}
-	}
-	setLimitByKeyIfExists(json.Get("limit_by_header"), limitByHeaderType)
-	setLimitByKeyIfExists(json.Get("limit_by_param"), limitByParamType)
-	setLimitByKeyIfExists(json.Get("limit_by_cookie"), limitByCookieType)
-	setLimitByKeyIfExists(json.Get("limit_by_per_header"), limitByPerHeaderType)
-	setLimitByKeyIfExists(json.Get("limit_by_per_param"), limitByPerParamType)
-	setLimitByKeyIfExists(json.Get("limit_by_per_cookie"), limitByPerCookieType)
-
-	limitByConsumer := json.Get("limit_by_consumer")
-	if limitByConsumer.Exists() {
-		limitType = limitByConsumerType
-	}
-	limitByPerConsumer := json.Get("limit_by_per_consumer")
-	if limitByPerConsumer.Exists() {
-		limitType = limitByPerConsumerType
-	}
-
-	limitByPerIpResult := json.Get("limit_by_per_ip")
-	if limitByPerIpResult.Exists() && limitByPerIpResult.String() != "" {
-		limitByPerIp := limitByPerIpResult.String()
-		if strings.HasPrefix(limitByPerIp, "from-header-") {
-			headerName := limitByPerIp[len("from-header-"):]
-			if headerName == "" {
-				return errors.New("limit_by_per_ip parse error: empty after 'from-header-'")
-			}
-			config.limitByPerIp = LimitByPerIp{
-				sourceType: HeaderSourceType,
-				headerName: headerName,
-			}
-		} else if limitByPerIp == "from-remote-addr" {
-			config.limitByPerIp = LimitByPerIp{
-				sourceType: RemoteAddrSourceType,
-				headerName: "",
-			}
-		} else {
-			return errors.New("the 'limit_by_per_ip' restriction must start with 'from-header-' or be exactly 'from-remote-addr'")
-		}
-		limitType = limitByPerIpType
-	}
-
-	if limitType == "" {
-		return errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_consumer' and 'limit_by_cookie' and 'limit_by_per_header' and 'limit_by_per_param' and 'limit_by_per_consumer' and 'limit_by_per_cookie' and 'limit_by_per_ip' can be set")
-	}
-	config.limitType = limitType
-
-	// 初始化LimitItem
-	err := initLimitItems(json, config)
+	// 初始化ruleItems
+	err := initRuleItems(json, config)
 	if err != nil {
 		return err
 	}
@@ -194,7 +145,83 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	return nil
 }
 
-func initLimitItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+func initRuleItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+	ruleItemsResult := json.Get("rule_items")
+	if !ruleItemsResult.Exists() {
+		return errors.New("missing rule_items in config")
+	}
+	if len(ruleItemsResult.Array()) == 0 {
+		return errors.New("config rule_items cannot be empty")
+	}
+	var ruleItems []LimitRuleItem
+	for _, item := range ruleItemsResult.Array() {
+		var ruleItem LimitRuleItem
+
+		// 根据配置区分限流类型
+		var limitType limitRuleItemType
+		setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr limitRuleItemType) {
+			if field.Exists() && field.String() != "" {
+				ruleItem.limitByKey = field.String()
+				limitType = limitTypeStr
+			}
+		}
+		setLimitByKeyIfExists(item.Get("limit_by_header"), limitByHeaderType)
+		setLimitByKeyIfExists(item.Get("limit_by_param"), limitByParamType)
+		setLimitByKeyIfExists(item.Get("limit_by_cookie"), limitByCookieType)
+		setLimitByKeyIfExists(item.Get("limit_by_per_header"), limitByPerHeaderType)
+		setLimitByKeyIfExists(item.Get("limit_by_per_param"), limitByPerParamType)
+		setLimitByKeyIfExists(item.Get("limit_by_per_cookie"), limitByPerCookieType)
+
+		limitByConsumer := item.Get("limit_by_consumer")
+		if limitByConsumer.Exists() {
+			limitType = limitByConsumerType
+		}
+		limitByPerConsumer := item.Get("limit_by_per_consumer")
+		if limitByPerConsumer.Exists() {
+			limitType = limitByPerConsumerType
+		}
+
+		limitByPerIpResult := item.Get("limit_by_per_ip")
+		if limitByPerIpResult.Exists() && limitByPerIpResult.String() != "" {
+			limitByPerIp := limitByPerIpResult.String()
+			if strings.HasPrefix(limitByPerIp, "from-header-") {
+				headerName := limitByPerIp[len("from-header-"):]
+				if headerName == "" {
+					return errors.New("limit_by_per_ip parse error: empty after 'from-header-'")
+				}
+				ruleItem.limitByPerIp = LimitByPerIp{
+					sourceType: HeaderSourceType,
+					headerName: headerName,
+				}
+			} else if limitByPerIp == "from-remote-addr" {
+				ruleItem.limitByPerIp = LimitByPerIp{
+					sourceType: RemoteAddrSourceType,
+					headerName: "",
+				}
+			} else {
+				return errors.New("the 'limit_by_per_ip' restriction must start with 'from-header-' or be exactly 'from-remote-addr'")
+			}
+			limitType = limitByPerIpType
+		}
+
+		if limitType == "" {
+			return errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_consumer' and 'limit_by_cookie' and 'limit_by_per_header' and 'limit_by_per_param' and 'limit_by_per_consumer' and 'limit_by_per_cookie' and 'limit_by_per_ip' can be set")
+		}
+		ruleItem.limitType = limitType
+
+		// 初始化configItems
+		err := initConfigItems(item, &ruleItem)
+		if err != nil {
+			return err
+		}
+
+		ruleItems = append(ruleItems, ruleItem)
+	}
+	config.ruleItems = ruleItems
+	return nil
+}
+
+func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 	limitKeys := json.Get("limit_keys")
 	if !limitKeys.Exists() {
 		return errors.New("missing limit_keys in config")
@@ -202,7 +229,7 @@ func initLimitItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error 
 	if len(limitKeys.Array()) == 0 {
 		return errors.New("config limit_keys cannot be empty")
 	}
-	var limitItems []LimitItem
+	var configItems []LimitConfigItem
 	for _, item := range limitKeys.Array() {
 		key := item.Get("key")
 		if !key.Exists() || key.String() == "" {
@@ -211,21 +238,21 @@ func initLimitItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error 
 
 		var (
 			itemKey  = key.String()
-			itemType limitItemType
+			itemType limitConfigItemType
 			ipNet    *iptree.IPTree
 			re       *regexp.Regexp
 		)
-		if config.limitType == limitByPerIpType {
+		if rule.limitType == limitByPerIpType {
 			var err error
 			ipNet, err = parseIPNet(itemKey)
 			if err != nil {
 				return fmt.Errorf("failed to parse IPNet for key '%s': %w", itemKey, err)
 			}
 			itemType = ipNetType
-		} else if config.limitType == limitByPerHeaderType ||
-			config.limitType == limitByPerParamType ||
-			config.limitType == limitByPerConsumerType ||
-			config.limitType == limitByPerCookieType {
+		} else if rule.limitType == limitByPerHeaderType ||
+			rule.limitType == limitByPerParamType ||
+			rule.limitType == limitByPerConsumerType ||
+			rule.limitType == limitByPerCookieType {
 			if itemKey == "*" {
 				itemType = allType
 			} else if strings.HasPrefix(itemKey, "regexp:") {
@@ -237,28 +264,28 @@ func initLimitItems(json gjson.Result, config *ClusterKeyRateLimitConfig) error 
 				}
 				itemType = regexpType
 			} else {
-				return fmt.Errorf("the '%s' restriction must start with 'regexp:' or be exactly '*'", config.limitType)
+				return fmt.Errorf("the '%s' restriction must start with 'regexp:' or be exactly '*'", rule.limitType)
 			}
 		} else {
 			itemType = exactType
 		}
 
-		if limitItem, err := createLimitItemFromRate(item, itemType, itemKey, ipNet, re); err != nil {
+		if configItem, err := createConfigItemFromRate(item, itemType, itemKey, ipNet, re); err != nil {
 			return err
-		} else if limitItem != nil {
-			limitItems = append(limitItems, *limitItem)
+		} else if configItem != nil {
+			configItems = append(configItems, *configItem)
 		}
 	}
-	config.limitItems = limitItems
+	rule.configItems = configItems
 	return nil
 }
 
-func createLimitItemFromRate(item gjson.Result, itemType limitItemType, key string, ipNet *iptree.IPTree, re *regexp.Regexp) (*LimitItem, error) {
+func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, re *regexp.Regexp) (*LimitConfigItem, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
 		if q.Exists() && q.Int() > 0 {
-			return &LimitItem{
-				itemType:   itemType,
+			return &LimitConfigItem{
+				configType: itemType,
 				key:        key,
 				ipNet:      ipNet,
 				re:         re,

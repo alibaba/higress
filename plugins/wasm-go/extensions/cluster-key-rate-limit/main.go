@@ -51,7 +51,8 @@ const (
 const (
 	LimitContextKey string = "LimitContext" // 限流上下文信息
 
-	LimitByConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
+	ConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
+	CookieHeader   string = "cookie"
 
 	RateLimitLimitHeader     string = "X-RateLimit-Limit"     // 限制的总请求数
 	RateLimitRemainingHeader string = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
@@ -78,15 +79,15 @@ func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapp
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
 	// 判断是否命中限流规则
-	key, limitItem := hitRateLimitRule(ctx, config, log)
-	if limitItem == nil {
+	key, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, config.ruleItems, log)
+	if ruleItem == nil || configItem == nil {
 		return types.ActionContinue
 	}
 
 	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.limitType, config.ruleName, key)
+	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, key)
 	keys := []interface{}{limitKey}
-	args := []interface{}{limitItem.count, limitItem.timeWindow}
+	args := []interface{}{configItem.count, configItem.timeWindow}
 	// 执行限流逻辑
 	err := config.redisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
 		defer func() {
@@ -128,14 +129,26 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCo
 	return types.ActionContinue
 }
 
-func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) (string, *LimitItem) {
-	switch config.limitType {
-	case limitByHeaderType, limitByPerHeaderType:
-		val, err := proxywasm.GetHttpRequestHeader(config.limitByKey)
-		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", config.limitByKey, err)
+func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {
+	for _, rule := range ruleItems {
+		key, ruleItem, configItem := hitRateRuleItem(ctx, rule, log)
+		if ruleItem != nil && configItem != nil {
+			return key, ruleItem, configItem
 		}
-		return val, findMatchingItem(config.limitType, config.limitItems, val)
+	}
+	return "", nil, nil
+}
+
+func hitRateRuleItem(ctx wrapper.HttpContext, rule LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {
+	switch rule.limitType {
+	// 根据HTTP请求头限流
+	case limitByHeaderType, limitByPerHeaderType:
+		val, err := proxywasm.GetHttpRequestHeader(rule.limitByKey)
+		if err != nil {
+			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", rule.limitByKey, err)
+		}
+		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+	// 根据HTTP请求参数限流
 	case limitByParamType, limitByPerParamType:
 		parse, err := url.Parse(ctx.Path())
 		if err != nil {
@@ -145,57 +158,59 @@ func hitRateLimitRule(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig,
 		if err != nil {
 			return logDebugAndReturnEmpty(log, "failed to parse query params: %v", err)
 		}
-		val, ok := query[config.limitByKey]
+		val, ok := query[rule.limitByKey]
 		if !ok {
-			return logDebugAndReturnEmpty(log, "request param %s is empty", config.limitByKey)
-		} else {
-			return val[0], findMatchingItem(config.limitType, config.limitItems, val[0])
+			return logDebugAndReturnEmpty(log, "request param %s is empty", rule.limitByKey)
 		}
+		return val[0], &rule, findMatchingItem(rule.limitType, rule.configItems, val[0])
+	// 根据consumer限流
 	case limitByConsumerType, limitByPerConsumerType:
-		val, err := proxywasm.GetHttpRequestHeader(LimitByConsumerHeader)
+		val, err := proxywasm.GetHttpRequestHeader(ConsumerHeader)
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", LimitByConsumerHeader, err)
+			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", ConsumerHeader, err)
 		}
-		return val, findMatchingItem(config.limitType, config.limitItems, val)
+		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+	// 根据cookie中key值限流
 	case limitByCookieType, limitByPerCookieType:
-		cookie, err := proxywasm.GetHttpRequestHeader("cookie")
+		cookie, err := proxywasm.GetHttpRequestHeader(CookieHeader)
 		if err != nil {
 			return logDebugAndReturnEmpty(log, "failed to get request cookie : %v", err)
 		}
-		val := extractCookieValueByKey(cookie, config.limitByKey)
+		val := extractCookieValueByKey(cookie, rule.limitByKey)
 		if val == "" {
-			return logDebugAndReturnEmpty(log, "cookie key '%s' extracted from cookie '%s' is empty.", config.limitByKey, cookie)
+			return logDebugAndReturnEmpty(log, "cookie key '%s' extracted from cookie '%s' is empty.", rule.limitByKey, cookie)
 		}
-		return val, findMatchingItem(config.limitType, config.limitItems, val)
+		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+	// 根据客户端IP限流
 	case limitByPerIpType:
-		realIp, err := getDownStreamIp(config)
+		realIp, err := getDownStreamIp(rule)
 		if err != nil {
 			log.Warnf("failed to get down stream ip: %v", err)
-			return "", nil
+			return "", &rule, nil
 		}
-		for _, item := range config.limitItems {
+		for _, item := range rule.configItems {
 			if _, found, _ := item.ipNet.Get(realIp); !found {
 				continue
 			}
-			return realIp.String(), &item
+			return realIp.String(), &rule, &item
 		}
 	}
-	return "", nil
+	return "", nil, nil
 }
 
-func logDebugAndReturnEmpty(log wrapper.Log, errMsg string, args ...interface{}) (string, *LimitItem) {
+func logDebugAndReturnEmpty(log wrapper.Log, errMsg string, args ...interface{}) (string, *LimitRuleItem, *LimitConfigItem) {
 	log.Debugf(errMsg, args...)
-	return "", nil
+	return "", nil, nil
 }
 
-func findMatchingItem(limitType limitRuleType, items []LimitItem, key string) *LimitItem {
+func findMatchingItem(limitType limitRuleItemType, items []LimitConfigItem, key string) *LimitConfigItem {
 	for _, item := range items {
 		// per类型,检查allType和regexpType
 		if limitType == limitByPerHeaderType ||
 			limitType == limitByPerParamType ||
 			limitType == limitByPerConsumerType ||
 			limitType == limitByPerCookieType {
-			if item.itemType == allType || (item.itemType == regexpType && item.re.MatchString(key)) {
+			if item.configType == allType || (item.configType == regexpType && item.re.MatchString(key)) {
 				return &item
 			}
 		}
@@ -207,13 +222,13 @@ func findMatchingItem(limitType limitRuleType, items []LimitItem, key string) *L
 	return nil
 }
 
-func getDownStreamIp(config ClusterKeyRateLimitConfig) (net.IP, error) {
+func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 	var (
 		realIpStr string
 		err       error
 	)
-	if config.limitByPerIp.sourceType == HeaderSourceType {
-		realIpStr, err = proxywasm.GetHttpRequestHeader(config.limitByPerIp.headerName)
+	if rule.limitByPerIp.sourceType == HeaderSourceType {
+		realIpStr, err = proxywasm.GetHttpRequestHeader(rule.limitByPerIp.headerName)
 		if err == nil {
 			realIpStr = strings.Split(strings.Trim(realIpStr, " "), ",")[0]
 		}

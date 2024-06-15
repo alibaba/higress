@@ -9,20 +9,26 @@
 | 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                                                                          |
 | ----------------------- | ------ | ---- | ------ |-----------------------------------------------------------------------------------------------------------------------------|
 | rule_name               | string | 是 | - | 限流规则名称，根据限流类型+限流规则名称+限流key对应的实际值来拼装redis key                                                                                |
-| limit_by_header         | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 HTTP 请求头名称                                                                                                  |
-| limit_by_param          | string          | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 URL 参数名称                                                                                                        |
-| limit_by_consumer | string | 否，`limit_by_*`中选填一项 | - | 根据 consumer 名称进行限流，无需添加实际值                                                                                       |
-| limit_by_cookie | string | 否，`limit_by_*`中选填一项 | -                 | 配置获取限流键值的来源 Cookie中 key 名称                                                                                                  |
-| limit_by_per_header | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 HTTP 请求头，并对每个请求头分别计算限流，配置获取限流键值的来源 HTTP 请求头名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
-| limit_by_per_param | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 URL 参数，并对每个参数分别计算限流，配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*`                                                                             |
-| limit_by_per_consumer | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 consumer，并对每个 consumer 分别计算限流，根据 consumer 名称进行限流，无需添加实际值，配置`limit_keys`时支持正则表达式或`*`                                                                |
-| limit_by_per_cookie | string | 否，`limit_by_*`中选填一项 | - | 按规则匹配特定 Cookie，并对每个 Cookie 分别计算限流，配置获取限流键值的来源 Cookie中 key 名称，配置`limit_keys`时支持正则表达式或`*`                                                                       |
-| limit_by_per_ip         | string          | 否，`limit_by_*`中选填一项 | -                 | 按规则匹配特定 IP，并对每个 IP 分别计算限流，配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
-| limit_keys              | array of object | 是 | - | 配置匹配键值后的限流次数                                                                                                                |
+| rule_items | array of object | 是   | -                 | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                                 |
 | show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数）                                                   |
 | rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                                                                           |
 | rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                                                                               |
 | redis                   | object          | 是                                                           | -                 | redis相关配置                                                                                                                   |
+
+`rule_items`中每一项的配置字段说明
+
+| 配置项                | 类型            | 必填                       | 默认值 | 说明                                                         |
+| --------------------- | --------------- | -------------------------- | ------ | ------------------------------------------------------------ |
+| limit_by_header       | string          | 否，`limit_by_*`中选填一项 | -      | 配置获取限流键值的来源 HTTP 请求头名称                       |
+| limit_by_param        | string          | 否，`limit_by_*`中选填一项 | -      | 配置获取限流键值的来源 URL 参数名称                          |
+| limit_by_consumer     | string          | 否，`limit_by_*`中选填一项 | -      | 根据 consumer 名称进行限流，无需添加实际值                   |
+| limit_by_cookie       | string          | 否，`limit_by_*`中选填一项 | -      | 配置获取限流键值的来源 Cookie中 key 名称                     |
+| limit_by_per_header   | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 HTTP 请求头，并对每个请求头分别计算限流，配置获取限流键值的来源 HTTP 请求头名称，配置`limit_keys`时支持正则表达式或`*` |
+| limit_by_per_param    | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 URL 参数，并对每个参数分别计算限流，配置获取限流键值的来源 URL 参数名称，配置`limit_keys`时支持正则表达式或`*` |
+| limit_by_per_consumer | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 consumer，并对每个 consumer 分别计算限流，根据 consumer 名称进行限流，无需添加实际值，配置`limit_keys`时支持正则表达式或`*` |
+| limit_by_per_cookie   | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 Cookie，并对每个 Cookie 分别计算限流，配置获取限流键值的来源 Cookie中 key 名称，配置`limit_keys`时支持正则表达式或`*` |
+| limit_by_per_ip       | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 IP，并对每个 IP 分别计算限流，配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
+| limit_keys            | array of object | 是                         | -      | 配置匹配键值后的限流次数                                     |
 
 `limit_keys`中每一项的配置字段说明
 
@@ -51,31 +57,25 @@
 ## 识别请求参数 apikey，进行区别限流
 
 ```yaml
-rule_name: default_limit_by_param_apikey
-limit_by_param: apikey
-limit_keys:
-  - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
-    query_per_second: 10
-  - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
-    query_per_minute: 100
-redis:
-  service_name: redis.static
-show_limit_quota_header: true
-```
-
-```yaml
-rule_name: default_limit_by_per_param_apikey
-limit_by_per_param: apikey
-limit_keys:
-  # 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
-  - key: "*"
-    query_per_hour: 1000
+rule_name: default_rule
+rule_items:
+	- limit_by_param: apikey
+    limit_keys:
+    	- key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        query_per_minute: 10
+      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+        query_per_hour: 100
+	- limit_by_per_param: apikey
+    limit_keys:
+    	# 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
+      - key: "regexp:^a.*"
+       	query_per_second: 10
+      # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
+      - key: "*"
+        query_per_hour: 1000
 redis:
   service_name: redis.static
 show_limit_quota_header: true
@@ -86,34 +86,28 @@ show_limit_quota_header: true
 ## 识别请求头 x-ca-key，进行区别限流
 
 ```yaml
-rule_name: default_limit_by_header_x-ca-key
-limit_by_header: x-ca-key
-limit_keys:
-  - key: 102234
-    query_per_second: 10
-  - key: 308239
-    query_per_hour: 10
+rule_name: default_rule
+rule_items:
+	- limit_by_header: x-ca-key
+    limit_keys:
+    	- key: 102234
+        query_per_minute: 10
+      - key: 308239
+        query_per_hour: 10
+	- limit_by_per_header: x-ca-key
+    limit_keys:
+    	# 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+     	# 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
+      - key: "*"
+        query_per_hour: 1000            
 redis:
-  service_name: redis.static
-show_limit_quota_header: true  
-```
-
-```yaml
-rule_name: default_limit_by_per_header_x-ca-key
-limit_by_per_header: x-ca-key
-limit_keys:
-  # 正则表达式，匹配以a开头的所有字符串，每个x-ca-key对应的请求10qds
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # 正则表达式，匹配以b开头的所有字符串，每个x-ca-key对应的请求100qd
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # 兜底用，匹配所有请求，每个x-ca-key对应的请求1000qdh
-  - key: "*"
-    query_per_hour: 1000
-redis:
-  service_name: redis.static
-show_limit_quota_header: true  
+	service_name: redis.static
+show_limit_quota_header: true
 ```
 
 
@@ -121,18 +115,19 @@ show_limit_quota_header: true
 ## 根据请求头 x-forwarded-for 获取对端IP，进行区别限流
 
 ```yaml
-rule_name: default_limit_by_per_ip_from-header-x-forwarded-for
-limit_by_per_ip: from-header-x-forwarded-for
-limit_keys:
-  # 精确ip
-  - key: 1.1.1.1
-    query_per_day: 10
-    # ip段，符合这个ip段的ip，每个ip 100qpd
-  - key: 1.1.1.0/24
-    query_per_day: 100
-    # 兜底用，即默认每个ip 1000qpd
-  - key: 0.0.0.0/0
-    query_per_day: 1000
+rule_name: default_rule
+rule_items:
+	- limit_by_per_ip: from-header-x-forwarded-for
+		limit_keys:
+			# 精确ip
+      - key: 1.1.1.1
+        query_per_day: 10
+      # ip段，符合这个ip段的ip，每个ip 100qpd
+      - key: 1.1.1.0/24
+        query_per_day: 100
+      # 兜底用，即默认每个ip 1000qpd
+      - key: 0.0.0.0/0
+        query_per_day: 1000
 redis:
   service_name: redis.static
 show_limit_quota_header: true  
@@ -143,34 +138,28 @@ show_limit_quota_header: true
 ## 识别consumer，进行区别限流
 
 ```yaml
-rule_name: default_limit_by_consumer
-limit_by_consumer: ''
-limit_keys:
-  - key: consumer1
-    query_per_second: 10
-  - key: consumer2
-    query_per_hour: 100
+rule_name: default_rule
+rule_items:
+	- limit_by_consumer: ''
+    limit_keys:
+    	- key: consumer1
+        query_per_second: 10
+      - key: consumer2
+        query_per_hour: 100
+	- limit_by_per_consumer: ''
+    limit_keys:
+    	# 正则表达式，匹配以a开头的所有字符串，每个consumer对应的请求10qds
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # 正则表达式，匹配以b开头的所有字符串，每个consumer对应的请求100qd
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # 兜底用，匹配所有请求，每个consumer对应的请求1000qdh
+      - key: "*"
+        query_per_hour: 1000     
 redis:
-  service_name: redis.static
-show_limit_quota_header: true
-```
-
-```yaml
-rule_name: default_limit_by_per_consumer
-limit_by_per_consumer: ''
-limit_keys:
-  # 正则表达式，匹配以a开头的所有字符串，每个consumer对应的请求10qds
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # 正则表达式，匹配以b开头的所有字符串，每个consumer对应的请求100qd
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # 兜底用，匹配所有请求，每个consumer对应的请求1000qdh
-  - key: "*"
-    query_per_hour: 1000
-redis:
-  service_name: redis.static
-show_limit_quota_header: true
+	service_name: redis.static
+show_limit_quota_header: true 
 ```
 
 
@@ -178,33 +167,29 @@ show_limit_quota_header: true
 ## 识别cookie中的键值对，进行区别限流
 
 ```yaml
-rule_name: default_limit_by_cookie
-limit_by_cookie: key1
-limit_keys:
-  - key: value1
-    query_per_second: 10
-  - key: value2
-    query_per_hour: 100
+rule_name: default_rule
+rule_items:
+	- limit_by_cookie: key1
+    limit_keys:
+      - key: value1
+        query_per_minute: 10
+      - key: value2
+        query_per_hour: 100
+	- limit_by_per_cookie: key1
+    limit_keys:
+    	# 正则表达式，匹配以a开头的所有字符串，每个cookie中的value对应的请求10qds
+    	- key: "regexp:^a.*"
+        query_per_second: 10
+    	# 正则表达式，匹配以b开头的所有字符串，每个cookie中的value对应的请求100qd
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # 兜底用，匹配所有请求，每个cookie中的value对应的请求1000qdh
+      - key: "*"
+        query_per_hour: 1000 
+rejected_code: 200
+rejected_msg: '{"code":-1,"msg":"Too many requests"}'
 redis:
-  service_name: redis.static
-show_limit_quota_header: true
-```
-
-```yaml
-rule_name: default_limit_by_per_cookie
-limit_by_per_cookie: key1
-limit_keys:
-  # 正则表达式，匹配以a开头的所有字符串，每个cookie中的value对应的请求10qds
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # 正则表达式，匹配以b开头的所有字符串，每个cookie中的value对应的请求100qd
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # 兜底用，匹配所有请求，每个cookie中的value对应的请求1000qdh
-  - key: "*"
-    query_per_hour: 1000
-redis:
-  service_name: redis.static
+	service_name: redis.static
 show_limit_quota_header: true
 ```
 
@@ -219,34 +204,54 @@ _rules_:
   - _match_route_:
       - route-a
       - route-b
-    rule_name: limit_rule1
-    limit_by_per_ip: from-header-x-forwarded-for
-    limit_keys:
-      # 精确ip
-      - key: 1.1.1.1
-        query_per_day: 10
-        # ip段，符合这个ip段的ip，每个ip 100qps
-      - key: 1.1.1.0/24
-        query_per_day: 100
-        # 兜底用，即默认每个ip 1000qps
-      - key: 0.0.0.0/0
-        query_per_day: 1000
+    rule_name: route-a_and_route-b_limit_rule
+    rule_items:
+      - limit_by_param: apikey
+        limit_keys:
+          - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+            query_per_minute: 10
+          - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+            query_per_hour: 100
+      - limit_by_per_param: apikey
+        limit_keys:
+          # 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
+          - key: "regexp:^a.*"
+            query_per_second: 10
+          # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
+          - key: "regexp:^b.*"
+            query_per_minute: 100
+          # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
+          - key: "*"
+            query_per_hour: 1000
     redis:
       service_name: redis.static
+    show_limit_quota_header: true      
   # 规则二：按域名匹配生效
   - _match_domain_:
       - "*.example.com"
       - test.com
-    rule_name: limit_rule2
-    limit_by_param: apikey
-    limit_keys:
-      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
-        query_per_second: 10
-      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
-        query_per_minute: 100
+    rule_name: "*.example.com_and_test.com_limit_rule"
+    rule_items:
+      - limit_by_header: x-ca-key
+        limit_keys:
+          - key: 102234
+            query_per_minute: 10
+          - key: 308239
+            query_per_hour: 10
+      - limit_by_per_header: x-ca-key
+        limit_keys:
+          # 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
+          - key: "regexp:^a.*"
+            query_per_second: 10
+          # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
+          - key: "regexp:^b.*"
+            query_per_minute: 100
+          # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
+          - key: "*"
+            query_per_hour: 1000            
     redis:
       service_name: redis.static
-    show_limit_quota_header: true 
+    show_limit_quota_header: true
 ```
 
 此例 `_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将使用此段配置；
