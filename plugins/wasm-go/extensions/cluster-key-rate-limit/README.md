@@ -6,14 +6,14 @@
 
 # 配置说明
 
-| 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                                                                          |
-| ----------------------- | ------ | ---- | ------ |-----------------------------------------------------------------------------------------------------------------------------|
-| rule_name               | string | 是 | - | 限流规则名称，根据限流类型+限流规则名称+限流key对应的实际值来拼装redis key                                                                                |
-| rule_items | array of object | 是   | -                 | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                                 |
-| show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数）                                                   |
-| rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                                                                           |
-| rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                                                                               |
-| redis                   | object          | 是                                                           | -                 | redis相关配置                                                                                                                   |
+| 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                        |
+| ----------------------- | ------ | ---- | ------ |---------------------------------------------------------------------------|
+| rule_name               | string | 是 | - | 限流规则名称，根据限流规则名称+限流类型+限流key对应的实际值来拼装redis key                                  |
+| rule_items | array of object | 是   | -                 | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                   |
+| show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数） |
+| rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                         |
+| rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                             |
+| redis                   | object          | 是                                                           | -                 | redis相关配置                                                                 |
 
 `rule_items`中每一项的配置字段说明
 
