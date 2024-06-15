@@ -37,8 +37,7 @@ func main() {
 }
 
 const (
-	// ClusterRateLimitFormat redis key生成规则为higress-cluster-key-rate-limit:ruleName:ruleItem.limitType:configItem.key:configItem.key对应的实际值
-	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%s:%s"
+	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%s:%s" // redis key为前缀:限流规则名称:限流类型:限流key名称:限流key对应的实际值
 	FixedWindowScript      string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
