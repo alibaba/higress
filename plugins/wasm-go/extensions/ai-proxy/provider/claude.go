@@ -106,10 +106,10 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	_ = util.OverwriteRequestHost(claudeDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("x-api-key", c.config.GetRandomToken())
 
-	if c.config.version == "" {
-		c.config.version = defaultVersion
+	if c.config.claudeVersion == "" {
+		c.config.claudeVersion = defaultVersion
 	}
-	_ = proxywasm.AddHttpRequestHeader("anthropic-version", c.config.version)
+	_ = proxywasm.AddHttpRequestHeader("anthropic-version", c.config.claudeVersion)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
@@ -354,16 +354,14 @@ func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, or
 
 func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextGenStreamResponse, choice chatCompletionChoice) *chatCompletionResponse {
 	return &chatCompletionResponse{
-		Id:                response.Message.Id,
-		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
-		SystemFingerprint: "",
-		Object:            objectChatCompletionChunk,
-		Choices:           []chatCompletionChoice{choice},
+		Id:      response.Message.Id,
+		Created: time.Now().UnixMilli() / 1000,
+		Model:   ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Object:  objectChatCompletionChunk,
+		Choices: []chatCompletionChoice{choice},
 	}
 }
 
 func (c *claudeProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(responseBody)
-	responseBuilder.WriteString("\n")
+	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }

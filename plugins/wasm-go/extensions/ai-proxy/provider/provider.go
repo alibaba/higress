@@ -153,7 +153,7 @@ type ProviderConfig struct {
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
 	// @Title zh-CN 版本
 	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
-	version string `required:"false" yaml:"version" json:"version"`
+	claudeVersion string `required:"false" yaml:"version" json:"version"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -188,7 +188,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
-	c.version = json.Get("version").String()
+	c.claudeVersion = json.Get("claudeVersion").String()
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
