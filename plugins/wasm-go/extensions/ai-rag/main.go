@@ -32,22 +32,18 @@ type AIRagConfig struct {
 }
 
 type Request struct {
-	Model     string    `json:"model"`
-	Input     Input     `json:"input"`
-	Parameter Parameter `json:"parameters"`
-}
-
-type Input struct {
-	Messages []Message `json:"messages"`
+	Model            string    `json:"model"`
+	Messages         []Message `json:"messages"`
+	FrequencyPenalty float64   `json:"frequency_penalty"`
+	PresencePenalty  float64   `json:"presence_penalty"`
+	Stream           bool      `json:"stream"`
+	Temperature      float64   `json:"temperature"`
+	Topp             int32     `json:"top_p"`
 }
 
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
-}
-
-type Parameter struct {
-	ResultFormat string `json:"result_format"`
 }
 
 func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error {
@@ -69,6 +65,11 @@ func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error 
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIRagConfig, log wrapper.Log) types.Action {
+	p, _ := proxywasm.GetHttpRequestHeader(":path")
+	if p != "/api/openai/v1/chat/completions" {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }
@@ -76,7 +77,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIRagConfig, log wrapp
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte, log wrapper.Log) types.Action {
 	var rawRequest Request
 	_ = json.Unmarshal(body, &rawRequest)
-	rawContent := rawRequest.Input.Messages[0].Content
+	messageLength := len(rawRequest.Messages)
+	rawContent := rawRequest.Messages[messageLength-1].Content
 	requestEmbedding := dashscope.Request{
 		Model: "text-embedding-v1",
 		Input: dashscope.Input{
@@ -110,7 +112,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte,
 					var response dashvector.Response
 					_ = json.Unmarshal(responseBody, &response)
 					doc := response.Output[0].Fields.Raw
-					rawRequest.Input.Messages[0].Content = fmt.Sprintf("%s\n参考以上信息，对以下问题做出回答：%s", doc, rawContent)
+					rawRequest.Messages[messageLength-1].Content = fmt.Sprintf("%s\n以上是一些可能有帮助的参考信息，你可以自行选择是否使用这些参考信息，现在请回答以下问题：\n%s", doc, rawContent)
 					newBody, _ := json.Marshal(rawRequest)
 					// log.Info(string(newBody))
 					proxywasm.ReplaceHttpRequestBody(newBody)
