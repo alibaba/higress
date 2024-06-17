@@ -1,4 +1,4 @@
-module myplugin
+module ai-transformer
 
 go 1.18
 
