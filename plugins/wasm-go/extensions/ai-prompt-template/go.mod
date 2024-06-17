@@ -1,4 +1,4 @@
-module myplugin
+module ai-prompt-template
 
 go 1.18
 
