@@ -30,16 +30,15 @@ const (
 )
 
 type ClusterKeyRateLimitConfig struct {
-	ruleName             string        // 限流规则名称
-	limitType            limitRuleType // 限流类型
-	limitByHeader        string        // 根据http请求头限流
-	limitByParam         string        // 根据url参数限流
-	limitByPerIp         LimitByPerIp  // 根据对端ip限流
-	limitItems           []LimitItem   // 限流配置 key为限流的ip地址或者ip段
-	showLimitQuotaHeader bool          // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
-	rejectedCode         uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
-	rejectedMsg          string        // 当请求超过阈值被拒绝时,返回的响应体
-	redisClient          wrapper.RedisClient
+	ruleName      string        // 限流规则名称
+	limitType     limitRuleType // 限流类型
+	limitByHeader string        // 根据http请求头限流
+	limitByParam  string        // 根据url参数限流
+	limitByPerIp  LimitByPerIp  // 根据对端ip限流
+	limitItems    []LimitItem   // 限流配置 key为限流的ip地址或者ip段
+	rejectedCode  uint32        // 当请求超过阈值被拒绝时,返回的HTTP状态码
+	rejectedMsg   string        // 当请求超过阈值被拒绝时,返回的响应体
+	redisClient   wrapper.RedisClient
 }
 
 type LimitByPerIp struct {
@@ -137,11 +136,6 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	err := initLimitItems(json, config, log)
 	if err != nil {
 		return err
-	}
-
-	showLimitQuotaHeader := json.Get("show_limit_quota_header")
-	if showLimitQuotaHeader.Exists() {
-		config.showLimitQuotaHeader = showLimitQuotaHeader.Bool()
 	}
 
 	rejectedCode := json.Get("rejected_code")

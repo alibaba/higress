@@ -33,26 +33,29 @@ func main() {
 		"ai-token-ratelimit",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
 	)
 }
 
 const (
-	ClusterRateLimitFormat string = "higress-token-ratelimit:%s:%s"
-	FixedWindowScript      string = `
+	LimitRedisContextKey          string = "LimitRedisContext"
+	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s"
+	RequestPhaseFixedWindowScript string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
-        	redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
-        	return {ARGV[1], ARGV[1] - 1, ARGV[2]}
+        	redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2])
+        	return {ARGV[1], ARGV[1], ARGV[2]}
     	end
-    	return {ARGV[1], redis.call('incrby', KEYS[1], -1), ttl}
+    	return {ARGV[1], redis.call('get', KEYS[1]), ttl}
 	`
-)
-
-const (
-	LimitContextKey string = "LimitContext" // 限流上下文信息
-
+	ResponsePhaseFixedWindowScript string = `
+    	local ttl = redis.call('ttl', KEYS[1])
+    	if ttl < 0 then
+        	redis.call('set', KEYS[1], ARGV[1]-ARGV[3], 'EX', ARGV[2])
+        	return {ARGV[1], ARGV[1]-ARGV[3], ARGV[2]}
+    	end
+    	return {ARGV[1], redis.call('decrby', KEYS[1], ARGV[3]), ttl}
+	`
 	RateLimitLimitHeader     string = "X-RateLimit-Limit"     // 限制的总请求数
 	RateLimitRemainingHeader string = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
 	RateLimitResetHeader     string = "X-RateLimit-Reset"     // 限流重置时间（触发限流时返回）
@@ -62,6 +65,12 @@ type LimitContext struct {
 	count     int
 	remaining int
 	reset     int
+}
+
+type LimitRedisContext struct {
+	key    string
+	count  int64
+	window int64
 }
 
 func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
@@ -87,11 +96,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, key)
 	keys := []interface{}{limitKey}
 	args := []interface{}{limitItem.count, limitItem.timeWindow}
+
+	limitRedisContext := LimitRedisContext{
+		key:    limitKey,
+		count:  limitItem.count,
+		window: limitItem.timeWindow,
+	}
+	ctx.SetContext(LimitRedisContextKey, limitRedisContext)
+
 	// 执行限流逻辑
-	err := config.redisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
+	err := config.redisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
+		defer proxywasm.ResumeHttpRequest()
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
@@ -105,8 +120,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		if context.remaining < 0 {
 			// 触发限流
 			rejected(config, context)
-		} else {
-			ctx.SetContext(LimitContextKey, context)
 		}
 	})
 	if err != nil {
@@ -116,42 +129,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	return types.ActionPause
 }
 
-// {
-// 	config.incrementCounter("ai_token_ratelimit_request_total", 1)
-// 	err := config.client.Get(redisKey, func(response resp.Value) {
-// 		if response.Error() != nil {
-// 			log.Errorf("redisCall Get error: %v", response.Error())
-// 			proxywasm.ResumeHttpRequest()
-// 		} else {
-// 			if !response.IsNull() && response.Integer() > config.tpm {
-// 				config.incrementCounter("ai_token_ratelimit_request_deny", 1)
-// 				proxywasm.SendHttpResponse(429, nil, []byte("Too many requests\n"), -1)
-// 			} else {
-// 				proxywasm.ResumeHttpRequest()
-// 			}
-// 		}
-// 	})
-// 	if err != nil {
-// 		log.Errorf("Error occured while calling Get.")
-// 		return types.ActionContinue
-// 	} else {
-// 		return types.ActionPause
-// 	}
-// }
-
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
-	limitContext, ok := ctx.GetContext(LimitContextKey).(LimitContext)
-	if !ok {
-		return types.ActionContinue
-	}
-	if config.showLimitQuotaHeader {
-		_ = proxywasm.ReplaceHttpResponseHeader(RateLimitLimitHeader, strconv.Itoa(limitContext.count))
-		_ = proxywasm.ReplaceHttpResponseHeader(RateLimitRemainingHeader, strconv.Itoa(limitContext.remaining))
-	}
-	return types.ActionContinue
-}
-
-func onHttpStreamingBody(ctx wrapper.HttpContext, config TokenManageConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
 	if !endOfStream {
 		return data
 	}
@@ -163,26 +141,29 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config TokenManageConfig, data
 	if err != nil {
 		return data
 	}
-
 	inputToken, err := strconv.Atoi(string(inputTokenStr))
 	if err != nil {
 		return data
 	}
-
 	outputToken, err := strconv.Atoi(string(outputTokenStr))
 	if err != nil {
 		return data
 	}
+	limitRedisContext, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
+	if !ok {
+		return data
+	}
+	keys := []interface{}{limitRedisContext.key}
+	args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
 
-	script := "local current = redis.call('incrby', KEYS[1], ARGV[1]) if tonumber(current) == tonumber(ARGV[1]) then redis.call('expire', KEYS[1], ARGV[2]) end return current"
-	err = config.client.Eval(script, 1, []interface{}{redisKey}, []interface{}{inputToken + outputToken, 60}, func(response resp.Value) {
+	err = config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
 		if response.Error() != nil {
 			log.Errorf("call Eval error: %v", response.Error())
 		}
 		proxywasm.ResumeHttpResponse()
 	})
 	if err != nil {
-		log.Errorf("Error occured while calling IncrBy.")
+		log.Errorf("redis call failed: %v", err)
 		return data
 	} else {
 		return data
@@ -262,10 +243,6 @@ func getDownStreamIp(config ClusterKeyRateLimitConfig) (net.IP, error) {
 func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
-	if config.showLimitQuotaHeader {
-		headers[RateLimitLimitHeader] = []string{strconv.Itoa(context.count)}
-		headers[RateLimitRemainingHeader] = []string{strconv.Itoa(0)}
-	}
 	_ = proxywasm.SendHttpResponse(
 		config.rejectedCode, reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
 }
