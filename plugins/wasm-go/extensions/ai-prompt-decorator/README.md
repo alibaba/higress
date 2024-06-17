@@ -1,7 +1,30 @@
 # 简介
 AI提示词修饰插件，通过在与大模型发起的请求前后插入指定信息来调整大模型的输出。
 
-# 配置示例
+# 配置说明
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|----------------|-----------------|------|-----|----------------------------------|
+| `decorators` | array of object | 必填 | - | 修饰设置 |
+
+template object 配置说明：
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|----------------|-----------------|------|-----|----------------------------------|
+| `name` | string | 必填 | - | 修饰名称 |
+| `decorator.prepend` | array of message object | 必填 | - | 在初始输入之前插入的语句 |
+| `decorator.append` | array of message object | 必填 | - | 在初始输入之后插入的语句 |
+
+message object 配置说明：
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|----------------|-----------------|------|-----|----------------------------------|
+| `role` | string | 必填 | - | 角色 |
+| `content` | string | 必填 | - | 消息 |
+
+# 示例
+
+配置示例如下：
+
 ```yaml
 decorators:
 - name: "hangzhou-guide"
@@ -19,19 +42,15 @@ decorators:
 使用以上配置发起请求：
 
 ```bash
-curl http://127.0.0.1:8080/v1/chat/completions \
-  -H "Host: api.openai.com" \
-  -H "Decorator: hangzhou-guide" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Please introduce your home."
-      }
-    ]
-  }'
+{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please introduce your home."
+    }
+  ]
+}
 ```
 
 响应如下：

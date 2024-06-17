@@ -1,4 +1,4 @@
-module myplugin
+module ai-prompt-decorator
 
 go 1.18
 
