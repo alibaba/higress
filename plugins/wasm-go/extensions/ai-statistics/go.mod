@@ -1,4 +1,4 @@
-module myplugin
+module ai-statistics
 
 go 1.18
 
