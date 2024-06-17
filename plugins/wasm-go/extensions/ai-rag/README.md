@@ -3,7 +3,34 @@
 
 ![](https://img.alicdn.com/imgextra/i1/O1CN01LuRVs41KhoeuzakeF_!!6000000001196-0-tps-1926-1316.jpg)
 
+# 配置说明
+| 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
+|----------------|-----------------|------|-----|----------------------------------------------------------------------------------|
+| `dashscope.apiKey` | string | 必填 | - | 用于在访问通义千问服务时进行认证的令牌。 |
+| `dashscope.serviceName` | string | 必填 | - | 通义千问服务名 |
+| `dashscope.servicePort` | int | 必填 | - | 通义千问服务端口 |
+| `dashscope.domain` | string | 必填 | - | 访问通义千问服务时域名 |
+| `dashvector.apiKey` | string | 必填 | - | 用于在访问阿里云向量检索服务时进行认证的令牌。 |
+| `dashvector.serviceName` | string | 必填 | - | 阿里云向量检索服务名 |
+| `dashvector.servicePort` | int | 必填 | - | 阿里云向量检索服务端口 |
+| `dashvector.domain` | string | 必填 | - | 访问阿里云向量检索服务时域名 |
+
 # 示例
+
+```yaml
+dashscope:
+    apiKey: xxxxxxxxxxxxxxx
+    serviceName: dashscope
+    servicePort: 443
+    domain: dashscope.aliyuncs.com
+dashvector:
+    apiKey: xxxxxxxxxxxxxxxxxxxx
+    serviceName: dashvector
+    servicePort: 443
+    domain: vrs-cn-xxxxxxxxxxxxxxx.dashvector.cn-hangzhou.aliyuncs.com
+    collection: xxxxxxxxxxxxxxx
+```
+
 [CEC-Corpus](https://github.com/shijiebei2009/CEC-Corpus) 数据集包含 332 篇突发事件的新闻报道的语料和标注数据，提取其原始的新闻稿文本，将其向量化后添加到阿里云向量检索服务。文本向量化的教程可以参考[《基于向量检索服务与灵积实现语义搜索》](https://help.aliyun.com/document_detail/2510234.html)。
 
 以下为使用RAG进行增强的例子，原始请求为：

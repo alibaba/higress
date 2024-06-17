@@ -1,4 +1,4 @@
-module myplugin
+module ai-rag
 
 go 1.18
 
