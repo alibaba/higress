@@ -26,7 +26,6 @@ type AIStatisticsConfig struct {
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64, log wrapper.Log) {
-	log.Infof("metric: %s add %d", metricName, inc)
 	counter, ok := config.metrics[metricName]
 	if !ok {
 		counter = proxywasm.DefineCounterMetric(metricName)
@@ -65,12 +64,9 @@ func getLastChunk(data []byte) []byte {
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
 	lastChunk := getLastChunk(data)
-	// log.Info(string(data))
-	// log.Infof("LastChunk is: %s", string(lastChunk))
 	modelObj := gjson.GetBytes(lastChunk, "model")
 	inputTokenObj := gjson.GetBytes(lastChunk, "usage.prompt_tokens")
 	outputTokenObj := gjson.GetBytes(lastChunk, "usage.completion_tokens")
-	// log.Infof("model: %s, input_token: %s, output_token: %s", modelObj.Raw, inputTokenObj.Raw, outputTokenObj.Raw)
 	if modelObj.Exists() && inputTokenObj.Exists() && outputTokenObj.Exists() {
 		ctx.SetContext("model", modelObj.String())
 		ctx.SetContext("input_token", inputTokenObj.Int())
