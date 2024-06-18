@@ -80,11 +80,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, l
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
-	if ctx.GetContext("skip").(bool) {
+	if skip, ok := ctx.GetContext("skip").(bool); !ok || skip {
 		return data
 	}
 
-	model := ctx.GetContext("model").(string)
+	model, ok := ctx.GetContext("model").(string)
+	if !ok {
+		return data
+	}
 
 	if config.gptRegExp.MatchString(model) {
 		usage := gjson.GetBytes(data, "usage")
@@ -125,11 +128,14 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
-	if ctx.GetContext("skip").(bool) {
+	if skip, ok := ctx.GetContext("skip").(bool); !ok || skip {
 		return types.ActionContinue
 	}
 
-	model := ctx.GetContext("model").(string)
+	model, ok := ctx.GetContext("model").(string)
+	if !ok {
+		return types.ActionContinue
+	}
 
 	if config.gptRegExp.MatchString(model) {
 		usage := gjson.GetBytes(body, "usage")
