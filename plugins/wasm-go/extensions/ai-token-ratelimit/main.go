@@ -111,7 +111,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 
 	// 执行限流逻辑
 	err := config.redisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
-		defer proxywasm.ResumeHttpRequest()
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
@@ -125,6 +124,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		if context.remaining < 0 {
 			// 触发限流
 			rejected(config, context)
+		} else {
+			proxywasm.ResumeHttpRequest()
 		}
 	})
 	if err != nil {
