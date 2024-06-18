@@ -129,8 +129,6 @@ redis:
   service_name: redis.static
 ```
 
-
-
 ## 识别consumer，进行区别限流
 
 ```yaml
