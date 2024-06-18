@@ -349,11 +349,19 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	responses := make([]*chatCompletionResponse, 0)
 
 	qwenChoice := qwenResponse.Output.Choices[0]
+	// Yes, Qwen uses a string "null" as null.
+	finished := qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null"
 	message := qwenChoice.Message
 
 	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content}
 	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if !incrementalStreaming {
+		for _, tc := range message.ToolCalls {
+			if tc.Function.Arguments == "" && !finished {
+				// We don't push any tool call until its arguments are available.
+				return nil
+			}
+		}
 		if pushedMessage, ok := ctx.GetContext(ctxKeyPushedMessage).(qwenMessage); ok {
 			if message.Content == "" {
 				message.Content = pushedMessage.Content
@@ -386,8 +394,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		responses = append(responses, &response)
 	}
 
-	// Yes, Qwen uses a string "null" as null.
-	if qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null" {
+	if finished {
 		finishResponse := *&baseMessage
 		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
 
