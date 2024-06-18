@@ -29,7 +29,7 @@ type AITransformerConfig struct {
 	requestTransformPrompt  string
 	responseTransformEnable bool
 	responseTransformPrompt string
-	providerSK              string
+	providerAPIKey          string
 }
 
 const llmRequestTemplate = `{
@@ -57,7 +57,7 @@ func parseConfig(json gjson.Result, config *AITransformerConfig, log wrapper.Log
 	config.requestTransformPrompt = json.Get("request.prompt").String()
 	config.responseTransformEnable = json.Get("response.enable").Bool()
 	config.responseTransformPrompt = json.Get("response.prompt").String()
-	config.providerSK = json.Get("provider.sk").String()
+	config.providerAPIKey = json.Get("provider.apiKey").String()
 	config.client = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: json.Get("provider.serviceName").String(),
 		Port:        443,
@@ -113,7 +113,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AITransformerConfig, body
 	var llmRequestBody string
 	llmRequestBody, _ = sjson.Set(llmRequestTemplate, "input.messages.1.content", config.requestTransformPrompt)
 	llmRequestBody, _ = sjson.Set(llmRequestBody, "input.messages.2.content", headerStr+"\n"+string(body))
-	hds := [][2]string{{"Authorization", "Bearer " + config.providerSK}, {"Content-Type", "application/json"}}
+	hds := [][2]string{{"Authorization", "Bearer " + config.providerAPIKey}, {"Content-Type", "application/json"}}
 	log.Info(headerStr + "\n" + string(body))
 	config.client.Post(
 		"/api/v1/services/aigc/text-generation/generation",
@@ -155,7 +155,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AITransformerConfig, bod
 	var llmRequestBody string
 	llmRequestBody, _ = sjson.Set(llmRequestTemplate, "input.messages.1.content", config.responseTransformPrompt)
 	llmRequestBody, _ = sjson.Set(llmRequestBody, "input.messages.2.content", headerStr+"\n"+string(body))
-	hds := [][2]string{{"Authorization", "Bearer " + config.providerSK}, {"Content-Type", "application/json"}}
+	hds := [][2]string{{"Authorization", "Bearer " + config.providerAPIKey}, {"Content-Type", "application/json"}}
 	log.Info(headerStr + "\n" + string(body))
 	config.client.Post(
 		"/api/v1/services/aigc/text-generation/generation",

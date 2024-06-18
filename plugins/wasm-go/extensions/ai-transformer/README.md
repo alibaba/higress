@@ -8,22 +8,22 @@
 | request.prompt | string | requried | - | request阶段转换使用的prompt |
 | response.enable | string | requried | - | 是否在response阶段开启转换 |
 | response.prompt | string | requried | - | response阶段转换使用的prompt |
-| provider.serviceName | string | requried | - | LLM服务名 |
+| provider.serviceName | string | requried | - | DNS类型的服务名，目前仅支持通义千问 |
 | provider.domain | string | requried | - | LLM服务域名 |
-| provider.sk | string | requried | - | 阿里云SK |
+| provider.apiKey | string | requried | - | 阿里云dashscope服务的API Key |
 
 # 配置示例
 ```yaml
 request:
     enable: false
     prompt: "如果请求path是以/httpbin开头的，帮我去掉/httpbin前缀，其他的不要改。"
-response": 
+response: 
     enable: true
     prompt: "帮我修改以下HTTP应答信息，要求：1. content-type修改为application/json；2. body由xml转化为json；3. 移除content-length。"
-provider": 
+provider: 
     serviceName: qwen
     domain: dashscope.aliyuncs.com
-    sk: xxxxxxxxxxxxx
+    apiKey: xxxxxxxxxxxxx
 ```
 
 访问原始的httbin的/xml接口，结果为：
