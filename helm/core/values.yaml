@@ -1,6 +1,6 @@
 revision: ""
 global:
-  liteMetrics: false
+  liteMetrics: true
   xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
   enableSRDS: true
