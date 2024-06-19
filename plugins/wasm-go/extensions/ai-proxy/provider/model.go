@@ -16,22 +16,45 @@ const (
 )
 
 type chatCompletionRequest struct {
-	Model            string        `json:"model"`
-	Messages         []chatMessage `json:"messages"`
-	MaxTokens        int           `json:"max_tokens,omitempty"`
-	FrequencyPenalty float64       `json:"frequency_penalty,omitempty"`
-	N                int           `json:"n,omitempty"`
-	PresencePenalty  float64       `json:"presence_penalty,omitempty"`
-	Seed             int           `json:"seed,omitempty"`
-	Stream           bool          `json:"stream,omitempty"`
-	Temperature      float64       `json:"temperature,omitempty"`
-	TopP             float64       `json:"top_p,omitempty"`
-	User             string        `json:"user,omitempty"`
+	Model            string         `json:"model"`
+	Messages         []chatMessage  `json:"messages"`
+	MaxTokens        int            `json:"max_tokens,omitempty"`
+	FrequencyPenalty float64        `json:"frequency_penalty,omitempty"`
+	N                int            `json:"n,omitempty"`
+	PresencePenalty  float64        `json:"presence_penalty,omitempty"`
+	Seed             int            `json:"seed,omitempty"`
+	Stream           bool           `json:"stream,omitempty"`
+	StreamOptions    *streamOptions `json:"stream_options,omitempty"`
+	Temperature      float64        `json:"temperature,omitempty"`
+	TopP             float64        `json:"top_p,omitempty"`
+	Tools            []tool         `json:"tools,omitempty"`
+	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
+	User             string         `json:"user,omitempty"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage,omitempty"`
+}
+
+type tool struct {
+	Type     string   `json:"type"`
+	Function function `json:"function"`
+}
+
+type function struct {
+	Description string                 `json:"description,omitempty"`
+	Name        string                 `json:"name"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+}
+
+type toolChoice struct {
+	Type     string   `json:"type"`
+	Function function `json:"function"`
 }
 
 type chatCompletionResponse struct {
 	Id                string                 `json:"id,omitempty"`
-	Choices           []chatCompletionChoice `json:"choices,omitempty"`
+	Choices           []chatCompletionChoice `json:"choices"`
 	Created           int64                  `json:"created,omitempty"`
 	Model             string                 `json:"model,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
@@ -53,9 +76,46 @@ type chatCompletionUsage struct {
 }
 
 type chatMessage struct {
-	Name    string `json:"name,omitempty"`
-	Role    string `json:"role,omitempty"`
-	Content string `json:"content,omitempty"`
+	Name      string     `json:"name,omitempty"`
+	Role      string     `json:"role,omitempty"`
+	Content   string     `json:"content,omitempty"`
+	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+func (m *chatMessage) IsEmpty() bool {
+	if m.Content != "" {
+		return false
+	}
+	if len(m.ToolCalls) != 0 {
+		nonEmpty := false
+		for _, toolCall := range m.ToolCalls {
+			if !toolCall.Function.IsEmpty() {
+				nonEmpty = true
+				break
+			}
+		}
+		if nonEmpty {
+			return false
+		}
+	}
+	return true
+}
+
+type toolCall struct {
+	Index    int          `json:"index"`
+	Id       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function functionCall `json:"function"`
+}
+
+type functionCall struct {
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+func (m *functionCall) IsEmpty() bool {
+	return m.Name == "" && m.Arguments == ""
 }
 
 type streamEvent struct {
