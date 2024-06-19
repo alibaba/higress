@@ -28,6 +28,7 @@ const (
 	providerTypeBaidu    = "baidu"
 	providerTypeHunyuan  = "hunyuan"
 	providerTypeStepfun  = "stepfun"
+	providerTypeMinimax  = "minimax"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -75,6 +76,7 @@ var (
 		providerTypeBaidu:    &baiduProviderInitializer{},
 		providerTypeHunyuan:  &hunyuanProviderInitializer{},
 		providerTypeStepfun:  &stepfunProviderInitializer{},
+		providerTypeMinimax:  &minimaxProviderInitializer{},
 	}
 )
 
@@ -104,7 +106,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"、"baidu"、"stepfun"
+	// @Description zh-CN AI服务提供商类型
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
@@ -136,6 +138,9 @@ type ProviderConfig struct {
 	// @Title zh-CN hunyuan api id for authorization
 	// @Description zh-CN 仅适用于Hun Yuan AI服务鉴权
 	hunyuanAuthId string `required:"false" yaml:"hunyuanAuthId" json:"hunyuanAuthId"`
+	// @Title zh-CN minimax group id
+	// @Description zh-CN 仅适用于minimax使用ChatCompletion Pro接口的模型
+	minimaxGroupId string `required:"false" yaml:"minimaxGroupId" json:"minimaxGroupId"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
 	modelMapping map[string]string `required:"false" yaml:"modelMapping" json:"modelMapping"`
@@ -182,6 +187,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
+	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 }
 
 func (c *ProviderConfig) Validate() error {
