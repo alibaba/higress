@@ -30,6 +30,7 @@ type chatCompletionRequest struct {
 	Tools            []tool         `json:"tools,omitempty"`
 	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
 	User             string         `json:"user,omitempty"`
+	Stop             []string       `json:"stop,omitempty"`
 }
 
 type streamOptions struct {
