@@ -25,6 +25,7 @@ const (
 	providerTypeDeepSeek = "deepseek"
 	providerTypeZhipuAi  = "zhipuai"
 	providerTypeOllama   = "ollama"
+	providerTypeClaude   = "claude"
 	providerTypeBaidu    = "baidu"
 	providerTypeHunyuan  = "hunyuan"
 	providerTypeStepfun  = "stepfun"
@@ -34,10 +35,11 @@ const (
 	protocolOriginal = "original"
 
 	roleSystem    = "system"
-	roleUser      = "user"
 	roleAssistant = "assistant"
+	roleUser      = "user"
 
-	finishReasonStop = "stop"
+	finishReasonStop   = "stop"
+	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyApiName              = "apiKey"
@@ -73,6 +75,7 @@ var (
 		providerTypeDeepSeek: &deepseekProviderInitializer{},
 		providerTypeZhipuAi:  &zhipuAiProviderInitializer{},
 		providerTypeOllama:   &ollamaProviderInitializer{},
+		providerTypeClaude:   &claudeProviderInitializer{},
 		providerTypeBaidu:    &baiduProviderInitializer{},
 		providerTypeHunyuan:  &hunyuanProviderInitializer{},
 		providerTypeStepfun:  &stepfunProviderInitializer{},
@@ -150,6 +153,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 模型对话上下文
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
+	// @Title zh-CN 版本
+	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
+	claudeVersion string `required:"false" yaml:"version" json:"version"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -184,7 +190,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
-
+	c.claudeVersion = json.Get("claudeVersion").String()
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
