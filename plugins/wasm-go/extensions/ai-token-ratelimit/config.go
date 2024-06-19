@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
-	"strings"
 )
 
 // 限流规则项类型
@@ -45,10 +46,10 @@ const (
 )
 
 var timeWindows = map[string]int64{
-	"query_per_second": Second,
-	"query_per_minute": SecondsPerMinute,
-	"query_per_hour":   SecondsPerHour,
-	"query_per_day":    SecondsPerDay,
+	"token_per_second": Second,
+	"token_per_minute": SecondsPerMinute,
+	"token_per_hour":   SecondsPerHour,
+	"token_per_day":    SecondsPerDay,
 }
 
 type ClusterKeyRateLimitConfig struct {
@@ -123,11 +124,6 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	err := initRuleItems(json, config)
 	if err != nil {
 		return err
-	}
-
-	showLimitQuotaHeader := json.Get("show_limit_quota_header")
-	if showLimitQuotaHeader.Exists() {
-		config.showLimitQuotaHeader = showLimitQuotaHeader.Bool()
 	}
 
 	rejectedCode := json.Get("rejected_code")
@@ -297,5 +293,5 @@ func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, k
 			}, nil
 		}
 	}
-	return nil, errors.New("one of 'query_per_second', 'query_per_minute', 'query_per_hour', or 'query_per_day' must be set for key: " + key)
+	return nil, errors.New("one of 'token_per_second', 'token_per_minute', 'token_per_hour', or 'token_per_day' must be set for key: " + key)
 }

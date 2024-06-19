@@ -1,6 +1,6 @@
 # 功能说明
 
-`key-cluster-rate-limit`插件实现了基于特定键值实现集群限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称、cookie中 key 名称
+`ai-token-ratelimit`插件实现了基于特定键值实现token限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称、cookie中 key 名称
 
 
 
@@ -10,7 +10,6 @@
 | ----------------------- | ------ | ---- | ------ |---------------------------------------------------------------------------|
 | rule_name               | string | 是 | - | 限流规则名称，根据限流规则名称+限流类型+限流key名称+限流key对应的实际值来拼装redis key                      |
 | rule_items | array of object | 是   | -                 | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                   |
-| show_limit_quota_header | bool | 否 | false | 响应头中是否显示`X-RateLimit-Limit`（限制的总请求数）和`X-RateLimit-Remaining`（剩余还可以发送的请求数） |
 | rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                         |
 | rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                             |
 | redis                   | object          | 是                                                           | -                 | redis相关配置                                                                 |
@@ -35,10 +34,10 @@
 | 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                         |
 | ---------------- | ------ | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
 | key              | string | 是                                                           | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
-| query_per_second | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每秒请求次数                                             |
-| query_per_minute | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每分钟请求次数                                           |
-| query_per_hour   | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每小时请求次数                                           |
-| query_per_day    | int    | 否，`query_per_second`,`query_per_minute`,`query_per_hour`,`query_per_day` 中选填一项 | -      | 允许每天请求次数                                             |
+| token_per_second | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求token数                                             |
+| token_per_minute | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求token数                                           |
+| token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数                                           |
+| token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数                                             |
 
 `redis`中每一项的配置字段说明
 
@@ -61,24 +60,23 @@ rule_name: default_rule
 rule_items:
   - limit_by_param: apikey
     limit_keys:
-    	- key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
-        query_per_minute: 10
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        token_per_minute: 10
       - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
-        query_per_hour: 100
+        token_per_hour: 100
   - limit_by_per_param: apikey
     limit_keys:
       # 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
       - key: "regexp:^a.*"
-       	query_per_second: 10
+       	token_per_second: 10
       # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
       - key: "regexp:^b.*"
-        query_per_minute: 100
+        token_per_minute: 100
       # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
       - key: "*"
-        query_per_hour: 1000
+        token_per_hour: 1000
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```
 
 
@@ -91,23 +89,22 @@ rule_items:
   - limit_by_header: x-ca-key
     limit_keys:
     	- key: 102234
-        query_per_minute: 10
+        token_per_minute: 10
       - key: 308239
-        query_per_hour: 10
+        token_per_hour: 10
   - limit_by_per_header: x-ca-key
     limit_keys:
       # 正则表达式，匹配以a开头的所有字符串，每个apikey对应的请求10qds
       - key: "regexp:^a.*"
-        query_per_second: 10
+        token_per_second: 10
       # 正则表达式，匹配以b开头的所有字符串，每个apikey对应的请求100qd
       - key: "regexp:^b.*"
-        query_per_minute: 100
+        token_per_minute: 100
       # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
       - key: "*"
-        query_per_hour: 1000            
+        token_per_hour: 1000            
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```
 
 
@@ -121,19 +118,16 @@ rule_items:
     limit_keys:
       # 精确ip
       - key: 1.1.1.1
-        query_per_day: 10
+        token_per_day: 10
       # ip段，符合这个ip段的ip，每个ip 100qpd
       - key: 1.1.1.0/24
-        query_per_day: 100
+        token_per_day: 100
       # 兜底用，即默认每个ip 1000qpd
       - key: 0.0.0.0/0
-        query_per_day: 1000
+        token_per_day: 1000
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```
-
-
 
 ## 识别consumer，进行区别限流
 
@@ -143,23 +137,22 @@ rule_items:
   - limit_by_consumer: ''
     limit_keys:
       - key: consumer1
-        query_per_second: 10
+        token_per_second: 10
       - key: consumer2
-        query_per_hour: 100
+        token_per_hour: 100
   - limit_by_per_consumer: ''
     limit_keys:
       # 正则表达式，匹配以a开头的所有字符串，每个consumer对应的请求10qds
       - key: "regexp:^a.*"
-        query_per_second: 10
+        token_per_second: 10
       # 正则表达式，匹配以b开头的所有字符串，每个consumer对应的请求100qd
       - key: "regexp:^b.*"
-        query_per_minute: 100
+        token_per_minute: 100
       # 兜底用，匹配所有请求，每个consumer对应的请求1000qdh
       - key: "*"
-        query_per_hour: 1000     
+        token_per_hour: 1000     
 redis:
   service_name: redis.static
-show_limit_quota_header: true 
 ```
 
 
@@ -172,23 +165,22 @@ rule_items:
   - limit_by_cookie: key1
     limit_keys:
       - key: value1
-        query_per_minute: 10
+        token_per_minute: 10
       - key: value2
-        query_per_hour: 100
+        token_per_hour: 100
   - limit_by_per_cookie: key1
     limit_keys:
       # 正则表达式，匹配以a开头的所有字符串，每个cookie中的value对应的请求10qds
       - key: "regexp:^a.*"
-        query_per_second: 10
+        token_per_second: 10
       # 正则表达式，匹配以b开头的所有字符串，每个cookie中的value对应的请求100qd
       - key: "regexp:^b.*"
-        query_per_minute: 100
+        token_per_minute: 100
       # 兜底用，匹配所有请求，每个cookie中的value对应的请求1000qdh
       - key: "*"
-        query_per_hour: 1000 
+        token_per_hour: 1000 
 rejected_code: 200
 rejected_msg: '{"code":-1,"msg":"Too many requests"}'
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```

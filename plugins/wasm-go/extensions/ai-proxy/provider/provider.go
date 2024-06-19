@@ -28,6 +28,7 @@ const (
 	providerTypeClaude   = "claude"
 	providerTypeBaidu    = "baidu"
 	providerTypeHunyuan  = "hunyuan"
+	providerTypeStepfun  = "stepfun"
 	providerTypeMinimax  = "minimax"
 
 	protocolOpenAI   = "openai"
@@ -77,6 +78,7 @@ var (
 		providerTypeClaude:   &claudeProviderInitializer{},
 		providerTypeBaidu:    &baiduProviderInitializer{},
 		providerTypeHunyuan:  &hunyuanProviderInitializer{},
+		providerTypeStepfun:  &stepfunProviderInitializer{},
 		providerTypeMinimax:  &minimaxProviderInitializer{},
 	}
 )
@@ -107,7 +109,7 @@ type ResponseBodyHandler interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN AI服务提供商
-	// @Description zh-CN AI服务提供商类型，目前支持的取值为："moonshot"、"qwen"、"openai"、"azure"、"baichuan"、"yi"、"zhipuai"、"ollama"、"baidu"、minimax"、"claude"
+	// @Description zh-CN AI服务提供商类型
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
