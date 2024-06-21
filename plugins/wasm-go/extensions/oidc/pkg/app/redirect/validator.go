@@ -46,7 +46,7 @@ func (v *validator) IsValidRedirect(redirect string) bool {
 	case strings.HasPrefix(redirect, "http://") || strings.HasPrefix(redirect, "https://"):
 		redirectURL, err := url.Parse(redirect)
 		if err != nil {
-			//logger.Printf("Rejecting invalid redirect %q: scheme unsupported or missing", redirect)
+			util.Logger.Errorf("Rejecting invalid redirect %q: scheme unsupported or missing", redirect)
 			return false
 		}
 
@@ -54,10 +54,10 @@ func (v *validator) IsValidRedirect(redirect string) bool {
 			return true
 		}
 
-		//logger.Printf("Rejecting invalid redirect %q: domain / port not in whitelist", redirect)
+		util.Logger.Infof("Rejecting invalid redirect %q: domain / port not in whitelist", redirect)
 		return false
 	default:
-		//logger.Printf("Rejecting invalid redirect %q: not an absolute or relative URL", redirect)
+		util.Logger.Infof("Rejecting invalid redirect %q: not an absolute or relative URL", redirect)
 		return false
 	}
 }

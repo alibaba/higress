@@ -3,6 +3,7 @@ package redirect
 import (
 	"fmt"
 	"net/http"
+	"oidc/pkg/util"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func (a *appDirector) validateRedirect(redirect string, errorFormat string) stri
 		return redirect
 	}
 	if redirect != "" {
-		//logger.Errorf(errorFormat, redirect)
+		util.Logger.Errorf(errorFormat, redirect)
 	}
 	return ""
 }

@@ -34,6 +34,7 @@ const (
 
 	oauthStartPath    = "/start"
 	oauthCallbackPath = "/callback"
+	signOutPath       = "/sign_out"
 )
 
 var (
@@ -161,6 +162,8 @@ func (p *OAuthProxy) buildProxySubRouter(s *mux.Router) {
 
 	s.Path(oauthStartPath).HandlerFunc(p.OAuthStart)
 	s.Path(oauthCallbackPath).HandlerFunc(p.OAuthCallback)
+
+	s.Path(signOutPath).HandlerFunc(p.SignOut)
 }
 
 // buildPreAuthChain constructs a chain that should process every request before
@@ -184,6 +187,21 @@ func buildSessionChain(opts *options.Options, provider providers.Provider, sessi
 	}))
 
 	return chain
+}
+
+// SignOut sends a response to clear the authentication cookie
+func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
+	redirect, err := p.appDirector.GetRedirect(req)
+	if err != nil {
+		util.Logger.Errorf("Error obtaining redirect: %v", err)
+		return
+	}
+	err = p.ClearSessionCookie(rw, req)
+	if err != nil {
+		util.Logger.Errorf("Error clearing session cookie: %v", err)
+		return
+	}
+	redirectToLocation(rw, redirect)
 }
 
 // OAuthStart starts the OAuth2 authentication flow

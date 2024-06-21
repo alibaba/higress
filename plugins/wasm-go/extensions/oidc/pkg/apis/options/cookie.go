@@ -32,6 +32,6 @@ func cookieDefaults() Cookie {
 		HTTPOnly:       true,
 		SameSite:       "",
 		CSRFPerRequest: false,
-		CSRFExpire:     time.Duration(5) * time.Minute,
+		CSRFExpire:     time.Duration(15) * time.Minute,
 	}
 }
