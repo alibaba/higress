@@ -425,7 +425,7 @@ func openCommand(writer io.Writer, command string, args ...string) {
 	_, err := exec.LookPath(command)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			fmt.Fprintf(writer, "Could not open your browser. Please open it maually.\n")
+			fmt.Fprintf(writer, "Could not open your browser. Please open it manually.\n")
 			return
 		}
 		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())
