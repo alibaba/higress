@@ -28,7 +28,7 @@ import (
 
 const (
 	setFlagHelpStr = `Override an higress profile value, e.g. to choose a profile
-(--set profile=local-k8s), or override profile values (--set gateway.replicas=2), or override helm values (--set values.global.proxy.resources.requsts.cpu=500m).`
+(--set profile=local-k8s), or override profile values (--set gateway.replicas=2), or override helm values (--set values.global.proxy.resources.requests.cpu=500m).`
 	// manifestsFlagHelpStr is the command line description for --manifests
 	manifestsFlagHelpStr = `Specify a path to a directory of profiles
 (e.g. ~/Downloads/higress/manifests).`
@@ -101,7 +101,7 @@ func newInstallCmd() *cobra.Command {
   hgctl install --set profile=local-k8s  --set global.enableIstioAPI=true --set gateway.replicas=2"
 
   # To override helm setting
-  hgctl install --set profile=local-k8s  --set values.global.proxy.resources.requsts.cpu=500m"
+  hgctl install --set profile=local-k8s  --set values.global.proxy.resources.requests.cpu=500m"
 
 
 `,
