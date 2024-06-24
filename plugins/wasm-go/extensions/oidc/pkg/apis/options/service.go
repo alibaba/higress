@@ -8,36 +8,20 @@ import (
 
 // Cookie contains configuration options relating to Service configuration
 type Service struct {
-	ServiceSource string `mapstructure:"service_source"`
-	ServiceName   string `mapstructure:"service_name"`
-	ServicePort   int64  `mapstructure:"service_port"`
-	ServiceHost   string `mapstructure:"service_host"`
-	ServiceDomain string `mapstructure:"service_domain"`
+	// 带服务类型的完整 FQDN 名称，例如 keycloak.static, auth.dns
+	ServiceName string `mapstructure:"service_name"`
+	ServicePort int64  `mapstructure:"service_port"`
+	ServiceHost string `mapstructure:"service_host"`
 }
 
 func (s *Service) NewService() (wrapper.HttpClient, error) {
 	if s.ServiceName == "" || s.ServicePort == 0 {
 		return nil, errors.New("invalid service config")
 	}
-	switch s.ServiceSource {
-	case "ip":
-		Client := wrapper.NewClusterClient(&wrapper.StaticIpCluster{
-			ServiceName: s.ServiceName,
-			Host:        s.ServiceHost,
-			Port:        s.ServicePort,
-		})
-		return Client, nil
-	case "dns":
-		if s.ServiceDomain == "" {
-			return nil, errors.New("missing service_domain in config")
-		}
-		Client := wrapper.NewClusterClient(&wrapper.DnsCluster{
-			ServiceName: s.ServiceName,
-			Port:        s.ServicePort,
-			Domain:      s.ServiceDomain,
-		})
-		return Client, nil
-	default:
-		return nil, errors.New("unknown service source: " + s.ServiceSource)
-	}
+	client := wrapper.NewClusterClient(&wrapper.FQDNCluster{
+		FQDN: s.ServiceName,
+		Host: s.ServiceHost,
+		Port: s.ServicePort,
+	})
+	return client, nil
 }

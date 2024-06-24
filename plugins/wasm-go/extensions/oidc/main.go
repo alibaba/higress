@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"oidc/pkg/apis/options"
@@ -66,13 +67,18 @@ func parseConfig(json gjson.Result, config *OidcConfig, log wrapper.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrapper.Log) types.Action {
-	config.OidcHandler.Ctx = ctx
-	req := getHttpRequest()
-	rw := util.NewRecorder()
-
-	config.OidcHandler.serveMux.ServeHTTP(rw, req)
-	if code := rw.GetStatus(); code != 0 {
+	if err := validateVerifier(config.OidcHandler); err != nil {
+		util.SendError(err.Error(), nil, http.StatusInternalServerError)
 		return types.ActionContinue
+	} else {
+		config.OidcHandler.Ctx = ctx
+		req := getHttpRequest()
+		rw := util.NewRecorder()
+
+		config.OidcHandler.serveMux.ServeHTTP(rw, req)
+		if code := rw.GetStatus(); code != 0 {
+			return types.ActionContinue
+		}
 	}
 	return types.ActionPause
 }
@@ -84,6 +90,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config OidcConfig, log wrapp
 	}
 	config.OidcHandler.Ctx = nil
 	return types.ActionContinue
+}
+
+func validateVerifier(OidcHandler *OAuthProxy) error {
+	if OidcHandler.provider.Data().Verifier == nil {
+		return errors.New("Failed to obtain OpenID configuration. (There may be an error in the service configuration of the OIDC provider)")
+	}
+	return nil
 }
 
 func getHttpRequest() *http.Request {
