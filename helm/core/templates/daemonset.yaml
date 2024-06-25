@@ -1,4 +1,4 @@
-{{- if eq .Values.gateway.kind "Deployment" -}}
+{{- if eq .Values.gateway.kind "Daemonset" -}}
 {{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
@@ -11,7 +11,7 @@
     {{- end }}
 {{- end -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: {{ include "gateway.name" . }}
   namespace: {{ .Release.Namespace }}
@@ -20,24 +20,9 @@ metadata:
   annotations:
     {{- .Values.gateway.annotations | toYaml | nindent 4 }}
 spec:
-  {{- if not .Values.gateway.autoscaling.enabled }}
-  {{- if not (or .Values.global.local .Values.global.kind) }}
-  replicas: {{ .Values.gateway.replicas }}
-  {{- else }}
-  replicas: 1
-  {{- end }}
-  {{- end }}
   selector:
     matchLabels:
       {{- include "gateway.selectorLabels" . | nindent 6 }}
-  strategy:
-    rollingUpdate:
-      maxSurge: {{ .Values.gateway.rollingMaxSurge }}
-      {{- if or .Values.global.local .Values.global.kind }}
-      maxUnavailable: 100%
-      {{- else }}
-      maxUnavailable: {{ .Values.gateway.rollingMaxUnavailable }}
-      {{- end }}
   template:
     metadata:
       annotations:
