@@ -1,4 +1,4 @@
-{{- if eq .Values.gateway.kind "Daemonset" -}}
+{{- if eq .Values.gateway.kind "DaemonSet" -}}
 {{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
