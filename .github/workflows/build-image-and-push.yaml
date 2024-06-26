@@ -224,8 +224,8 @@ jobs:
         with:
           registry: ${{ env.GATEWAY_IMAGE_REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}            
-          
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
       - name: Build Gateway Image and Push
         run: |
           GOPROXY="https://proxy.golang.org,direct" make build-gateway

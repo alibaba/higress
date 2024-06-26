@@ -1,0 +1,74 @@
+name: Build Wasm Go Plugins and Push to Image Registry
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      plugin_name:
+        description: "Enter the plugin name"
+        required: true
+      plugin_version:
+        description: "Enter the plugin version"
+        required: true
+
+jobs:
+  build-and-push-wasm-go-plugin:
+    runs-on: ubuntu-latest
+    environment:
+      name: image-registry-wasm-go-plugin
+    env:
+      IMAGE_REGISTRY_SERVICE: ${{ vars.IMAGE_REGISTRY_SERVICE || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
+      IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY || 'plugins' }}
+    steps:
+      - name: "Checkout ${{ github.ref }}"
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@v1
+        with:
+          version: 1.2.0
+
+      - name: Login to Docker Registry
+        run: oras login -u ${{ secrets.REGISTRY_USERNAME }} -p ${{ secrets.REGISTRY_PASSWORD }} ${{ env.IMAGE_REGISTRY_SERVICE }}
+
+      - name: Build Plugin Image and Push
+        working-directory: plugins/wasm-go
+        run: |
+          set +e 
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PLUGIN_VERSION=${{ github.event.inputs.plugin_version }}
+            PLUGIN_DIRS=(${{ github.event.inputs.plugin_name }})
+          else
+            PLUGIN_VERSION=${{ github.ref_name }}
+            PLUGIN_DIRS=$(basename -a ./extensions/*)
+          fi
+          
+          for plugin in ${PLUGIN_DIRS[@]}; do
+            echo "Build and push wasm go plugin: ${plugin}"
+            max_retries=3
+            retries=0
+            while [[ "${retries}" -lt "${max_retries}" ]]; do
+              IMAGE="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY }}/wasm-go-${plugin}:${PLUGIN_VERSION}"
+              PLUGIN_DIR="./extensions/${plugin}"      
+              GOPROXY="https://proxy.golang.org,direct" PLUGIN_NAME="${plugin}" make build
+          
+              if [[ $? -eq 0 ]]; then
+                tar czvf "${PLUGIN_DIR}/plugin.tar.gz" "${PLUGIN_DIR}/plugin.wasm"
+                oras push "$IMAGE" "${PLUGIN_DIR}/plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+                break
+              else
+                (( retries++ ))
+                echo "Build failed. Retrying ${retries}/${max_retries}..."
+              fi
+            done
+          
+            if [[ "${retries}" -eq "${max_retries}" ]]; then
+              echo "Build failed after ${max_retries} retries."
+              exit 1
+            fi
+          done
