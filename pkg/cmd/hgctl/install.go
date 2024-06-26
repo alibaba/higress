@@ -175,7 +175,7 @@ func promptInstall(writer io.Writer, profileName string) bool {
 
 func promptProfileName(writer io.Writer) string {
 	answer := ""
-	fmt.Fprintf(writer, "\nPlease select higress install configration profile:\n")
+	fmt.Fprintf(writer, "\nPlease select higress install configuration profile:\n")
 	fmt.Fprintf(writer, "\n1.Install higress to local kubernetes cluster like kind etc.\n")
 	fmt.Fprintf(writer, "\n2.Install higress to kubernetes cluster\n")
 	fmt.Fprintf(writer, "\n3.Install higress to local docker environment\n")
