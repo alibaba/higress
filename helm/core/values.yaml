@@ -396,6 +396,9 @@ gateway:
   replicas: 2
   image: gateway
 
+  # -- Use a `DaemonSet` or `Deployment`
+  kind: Deployment
+
   # The number of successive failed probes before indicating readiness failure.
   readinessFailureThreshold: 30
 
