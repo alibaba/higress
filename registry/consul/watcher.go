@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	ConuslHealthPassing         = "passing"
+	ConsulHealthPassing         = "passing"
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 )
@@ -315,7 +315,7 @@ func (w *watcher) generateServiceEntry(host string, services []*consulapi.Servic
 
 	for _, service := range services {
 		// service status: maintenance > critical > warning > passing
-		if service.Checks.AggregatedStatus() != ConuslHealthPassing {
+		if service.Checks.AggregatedStatus() != ConsulHealthPassing {
 			continue
 		}
 
