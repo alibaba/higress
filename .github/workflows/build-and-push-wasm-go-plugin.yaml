@@ -48,27 +48,41 @@ jobs:
             PLUGIN_DIRS=$(basename -a ./extensions/*)
           fi
           
-          for plugin in ${PLUGIN_DIRS[@]}; do
-            echo "Build and push wasm go plugin: ${plugin}"
-            max_retries=3
-            retries=0
-            while [[ "${retries}" -lt "${max_retries}" ]]; do
-              IMAGE="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY }}/wasm-go-${plugin}:${PLUGIN_VERSION}"
-              PLUGIN_DIR="./extensions/${plugin}"      
-              GOPROXY="https://proxy.golang.org,direct" PLUGIN_NAME="${plugin}" make build
+          for PLUGIN in ${PLUGIN_DIRS[@]}; do
+            echo "Build and push wasm go plugin: ${PLUGIN}"
+            MAX_RETRIES=3
+            RETRIES=0
+            while [[ "${RETRIES}" -lt "${MAX_RETRIES}" ]]; do
+              IMAGE="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY }}/wasm-go-${PLUGIN}:${PLUGIN_VERSION}"
+              PLUGIN_DIR="./extensions/${PLUGIN}"      
+              GOPROXY="https://proxy.golang.org,direct" PLUGIN_NAME="${PLUGIN}" make build
           
               if [[ $? -eq 0 ]]; then
                 tar czvf "${PLUGIN_DIR}/plugin.tar.gz" "${PLUGIN_DIR}/plugin.wasm"
-                oras push "$IMAGE" "${PLUGIN_DIR}/plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+                PUSH_FILES=("${PLUGIN_DIR}/plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip")
+                declare -A FILES=(
+                  ["spec.yaml"]="application/vnd.module.wasm.spec.v1+yaml"
+                  ["README.md"]="application/vnd.module.wasm.doc.v1+markdown"
+                  ["README_EN.md"]="application/vnd.module.wasm.doc.v1.en+markdown"
+                )
+                
+                for FILE in "${!FILES[@]}"; do
+                  FILE_PATH="${PLUGIN_DIR}/${FILE}"
+                  if [[ -f "${FILE_PATH}" ]]; then
+                    PUSH_FILES+=("${FILE_PATH}:${FILES[$FILE]}")
+                  fi
+                done
+
+                oras push "${IMAGE}" "${PUSH_FILES[@]}"
                 break
               else
-                (( retries++ ))
-                echo "Build failed. Retrying ${retries}/${max_retries}..."
+                (( RETRIES++ ))
+                echo "Build failed. Retrying ${RETRIES}/${MAX_RETRIES}..."
               fi
             done
           
-            if [[ "${retries}" -eq "${max_retries}" ]]; then
-              echo "Build failed after ${max_retries} retries."
+            if [[ "${RETRIES}" -eq "${MAX_RETRIES}" ]]; then
+              echo "Build failed after ${MAX_RETRIES} retries."
               exit 1
             fi
           done
