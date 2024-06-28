@@ -48,7 +48,7 @@ jobs:
       
       - name: File Check
         run: | 
-          workspace="${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}""
+          workspace="${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}"
           push_command="oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} \
                         ./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
           
