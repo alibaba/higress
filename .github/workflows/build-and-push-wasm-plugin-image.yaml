@@ -89,14 +89,15 @@ jobs:
 
       - name: Build Image and Push
         run: |
-          commands="
+          commands=$(cat <<EOF
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
-          go mod tidy;
+          go mod tidy
           tinygo build -o ./plugin.wasm -scheduler=none -target=wasi ./main.go
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           ${{ env.PUSH_COMMAND }}
-          "
+          EOF
+          )
           docker exec builder bash -c "$commands"
 
           
