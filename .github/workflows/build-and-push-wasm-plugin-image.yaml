@@ -59,7 +59,7 @@ jobs:
           # 查找README.md
           case "$(ls ${workspace}/README*.md 2>/dev/null)" in
             *"README.md"*)
-              echo "${workspace}/README.md exists"
+              echo "README.md exists"
               push_command="$push_command ./README.md:application/vnd.module.wasm.doc.v1+markdown"
               ;;
           esac
@@ -67,9 +67,10 @@ jobs:
           # 查找README_{lang}.md
           for file in ${workspace}/README_*.md; do
             if [ -f "$file" ]; then
-              echo "$file exists"
+              file_name=$(basename $file)
+              echo "$file_name exists"
               lang=$(basename $file | sed 's/README_//; s/.md//')
-              push_command="$push_command .$file:application/vnd.module.wasm.doc.v1.$lang+markdown"
+              push_command="$push_command ./$file_name:application/vnd.module.wasm.doc.v1.$lang+markdown"
             fi
           done
 
