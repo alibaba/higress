@@ -89,6 +89,7 @@ jobs:
 
       - name: Build Image and Push
         run: |
+          docker ps -a
           commands=$(cat <<EOF
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
