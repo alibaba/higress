@@ -461,7 +461,7 @@ func (m *minimaxProvider) responseV2ToOpenAI(response *minimaxChatCompletionV2Re
 		Created: response.Created,
 		Model:   response.Model,
 		Choices: choices,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			TotalTokens: int(response.Usage.TotalTokens),
 		},
 	}

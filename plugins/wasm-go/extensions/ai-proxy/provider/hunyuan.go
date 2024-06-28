@@ -354,7 +354,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     hunyuanFormattedChunk.Usage.PromptTokens,
 			CompletionTokens: hunyuanFormattedChunk.Usage.CompletionTokens,
 			TotalTokens:      hunyuanFormattedChunk.Usage.TotalTokens,
@@ -474,7 +474,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     hunyuanResponse.Response.Usage.PromptTokens,
 			CompletionTokens: hunyuanResponse.Response.Usage.CompletionTokens,
 			TotalTokens:      hunyuanResponse.Response.Usage.TotalTokens,

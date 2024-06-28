@@ -14,6 +14,7 @@ type Pointcut string
 
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
+	ApiNameEmbeddings     ApiName = "embeddings"
 
 	providerTypeMoonshot = "moonshot"
 	providerTypeAzure    = "azure"
