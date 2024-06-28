@@ -49,7 +49,7 @@ jobs:
       - name: File Check
         run: | 
           workspace="${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}"
-          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+          push_command="${workspace}/plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
           
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
@@ -60,7 +60,7 @@ jobs:
           case "$(ls ${workspace}/README*.md 2>/dev/null)" in
             *"README.md"*)
               echo "README.md exists"
-              push_command="$push_command ./README.md:application/vnd.module.wasm.doc.v1+markdown"
+              push_command="$push_command ${workspace}/README.md:application/vnd.module.wasm.doc.v1+markdown"
               ;;
           esac
           
@@ -71,7 +71,7 @@ jobs:
                 if [ -f "$file" ]; then
                   echo "$file exists"
                   lang=$(basename $file | sed 's/README_//; s/.md//')
-                  push_command="$push_command ./$file:application/vnd.module.wasm.doc.v1.$lang+markdown"
+                  push_command="$push_command ${workspace}/$file:application/vnd.module.wasm.doc.v1.$lang+markdown"
                 fi
                 ;;
             esac
