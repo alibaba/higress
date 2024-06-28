@@ -96,6 +96,7 @@ jobs:
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           "
-          docker exec builder bash -c "$commands; ${{ env.PUSH_COMMAND }}"
+          docker exec builder bash -c "$commands"
+          docker exec builder bash -c ${{ env.PUSH_COMMAND }}
 
           
