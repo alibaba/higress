@@ -49,8 +49,7 @@ jobs:
       - name: File Check
         run: | 
           workspace="${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}"
-          push_command="oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} \
-                        ./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
           
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
@@ -95,7 +94,7 @@ jobs:
           tinygo build -o ./plugin.wasm -scheduler=none -target=wasi ./main.go
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          ${{ env.PUSH_COMMAND }}
+          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${{ env.PUSH_COMMAND }}
           "
           docker exec builder bash -c "$command"
 
