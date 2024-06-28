@@ -66,15 +66,11 @@ jobs:
           
           # 查找README_{lang}.md
           for file in ${workspace}/README_*.md; do
-            case "$file" in
-              *"README_*.md")
-                if [ -f "$file" ]; then
-                  echo "$file exists"
-                  lang=$(basename $file | sed 's/README_//; s/.md//')
-                  push_command="$push_command ./$file:application/vnd.module.wasm.doc.v1.$lang+markdown"
-                fi
-                ;;
-            esac
+            if [ -f "$file" ]; then
+              echo "$file exists"
+              lang=$(basename $file | sed 's/README_//; s/.md//')
+              push_command="$push_command ./$file:application/vnd.module.wasm.doc.v1.$lang+markdown"
+            fi
           done
 
           echo "PUSH_COMMAND=\"$push_command\"" >> $GITHUB_ENV
