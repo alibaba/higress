@@ -91,6 +91,7 @@ jobs:
         run: |
           commands=$(cat <<EOF
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
+          ls -al
           go mod tidy
           tinygo build -o ./plugin.wasm -scheduler=none -target=wasi ./main.go
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
