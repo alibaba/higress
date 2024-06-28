@@ -85,9 +85,9 @@ jobs:
 
       - name: Build Image and Push
         run: |
-          PUSH_COMMAND="${{ env.PUSH_COMMAND }}"
-          PUSH_COMMAND="${PUSH_COMMAND#\"}"   # 去除开头的双引号
-          PUSH_COMMAND="${PUSH_COMMAND%\"}"   # 去除结尾的双引号
+          PUSH_COMMAND=${{ env.PUSH_COMMAND }}
+          PUSH_COMMAND=${PUSH_COMMAND#\"}"  # 去除开头的双引号
+          PUSH_COMMAND=${PUSH_COMMAND%\"}"  # 去除结尾的双引号
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
