@@ -95,7 +95,10 @@ jobs:
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           ls -al
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${{ env.PUSH_COMMAND }}
+          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} \
+              ./README.md:application/vnd.module.wasm.doc.v1+markdown \
+              ./README_EN.md:application/vnd.module.wasm.doc.v1.en+markdown \
+              ./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
           "
           docker exec builder bash -c "$command"
 
