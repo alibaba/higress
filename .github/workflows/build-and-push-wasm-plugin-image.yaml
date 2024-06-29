@@ -89,7 +89,7 @@ jobs:
           
           push_command=${{ env.PUSH_COMMAND }}
           push_command=${push_command#\"}
-          push_command=${push_command%\"}
+          push_command=${push_command%\"} # 删除PUSH_COMMAND中的双引号，确保oras push正常解析
 
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
