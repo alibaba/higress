@@ -85,9 +85,11 @@ jobs:
 
       - name: Build Image and Push
         run: |
+          # 去除PUSH_COMMAND中的双引号，避免在oras push找不到文件路径
           push_command=${{ env.PUSH_COMMAND }}
           push_command=${push_command#\"}
           push_command=${push_command%\"}
+          
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
