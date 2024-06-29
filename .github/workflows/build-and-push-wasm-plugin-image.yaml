@@ -82,7 +82,7 @@ jobs:
           PLUGIN_NAME: ${{ env.PLUGIN_NAME }}
           BUILDER_IMAGE: higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${{ env.GO_VERSION }}-tinygo${{ env.TINYGO_VERSION }}-oras${{ env.ORAS_VERSION }}
         run: |
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -e PLUGIN_NAME=${{ env.PLUGIN_NAME }} --rm ${{ env.BUILDER_IMAGE }} sleep 99999
+          docker run -itd --name builder -v ${{ github.workspace }}:/workspace -e PLUGIN_NAME=${{ env.PLUGIN_NAME }} --rm ${{ env.BUILDER_IMAGE }} /bin/bash
 
       - name: Build Image and Push
         run: |
