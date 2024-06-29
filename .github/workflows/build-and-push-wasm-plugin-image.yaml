@@ -85,7 +85,6 @@ jobs:
 
       - name: Build Image and Push
         run: |
-          
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
@@ -93,7 +92,7 @@ jobs:
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           ls -al
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} "./README.md:application/vnd.module.wasm.doc.v1+markdown"
+          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${{ env.PUSH_COMMAND }}
           "
           docker exec builder bash -c "$command"
 
