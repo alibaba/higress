@@ -49,7 +49,7 @@ jobs:
       - name: File Check
         run: | 
           workspace=${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}
-          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip \"
           
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
@@ -60,7 +60,7 @@ jobs:
           case "$(ls ${workspace}/README*.md 2>/dev/null)" in
             *"README.md"*)
               echo "README.md exists"
-              push_command="$push_command ./README.md:application/vnd.module.wasm.doc.v1+markdown"
+              push_command="$push_command \ ./README.md:application/vnd.module.wasm.doc.v1+markdown"
               ;;
           esac
           
@@ -70,7 +70,7 @@ jobs:
               file_name=$(basename $file)
               echo "$file_name exists"
               lang=$(basename $file | sed 's/README_//; s/.md//')
-              push_command="$push_command ./$file_name:application/vnd.module.wasm.doc.v1.$lang+markdown"
+              push_command="$push_command \ ./$file_name:application/vnd.module.wasm.doc.v1.$lang+markdown"
             fi
           done
 
@@ -92,7 +92,7 @@ jobs:
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
           ls -al
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} "./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip ./README.md:application/vnd.module.wasm.doc.v1+markdown ./README_EN.md:application/vnd.module.wasm.doc.v1.EN+markdown"
+          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${{ env.PUSH_COMMAND }}
           "
           docker exec builder bash -c "$command"
 
