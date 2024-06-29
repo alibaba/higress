@@ -54,6 +54,7 @@ jobs:
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
             echo "spec.yaml exists"
+            push_command="$push_command ./spec.yaml:application/vnd.module.wasm.spec.v1+yaml"
           fi
 
           # 查找README.md
@@ -85,17 +86,16 @@ jobs:
 
       - name: Build Image and Push
         run: |
-          # 去除PUSH_COMMAND中的双引号，避免在oras push找不到文件路径
+          
           push_command=${{ env.PUSH_COMMAND }}
           push_command=${push_command#\"}
           push_command=${push_command%\"}
-          
+
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
           tinygo build -o ./plugin.wasm -scheduler=none -target=wasi ./main.go
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
-          ls -al
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${push_command}
           "
