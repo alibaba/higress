@@ -918,7 +918,7 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 	}
 	for _, f := range m.wasmPluginHandlers {
-		IngressLog.Debug("WasmPlugin triggerd update")
+		IngressLog.Debug("WasmPlugin triggered update")
 		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
 	}
 	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
@@ -960,7 +960,7 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 			Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 		}
 		for _, f := range m.wasmPluginHandlers {
-			IngressLog.Debug("WasmPlugin triggerd update")
+			IngressLog.Debug("WasmPlugin triggered update")
 			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventDelete)
 		}
 	}
@@ -987,7 +987,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 			}
 			for _, f := range m.serviceEntryHandlers {
-				IngressLog.Debug("McpBridge triggerd serviceEntry update")
+				IngressLog.Debug("McpBridge triggered serviceEntry update")
 				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, model.EventUpdate)
 			}
 		}, m.localKubeClient, m.namespace)
@@ -1042,7 +1042,7 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 }
 
 func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespacedName) {
-	IngressLog.Infof("Http2Rpc triggerd deleted event %s", clusterNamespacedName.Name)
+	IngressLog.Infof("Http2Rpc triggered deleted event %s", clusterNamespacedName.Name)
 	if clusterNamespacedName.Namespace != m.namespace {
 		return
 	}
@@ -1054,7 +1054,7 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
+		IngressLog.Infof("Http2Rpc triggered deleted event executed %s", clusterNamespacedName.Name)
 		push := func(kind config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&model.PushRequest{
 				Full: true,
@@ -1160,13 +1160,13 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	IngressLog.Infof("Found http2rpc mappings %v", mappings)
 	if _, exist := mappings[http2rpcConfig.Name]; !exist {
 		IngressLog.Errorf("Http2RpcConfig name %s, not found Http2Rpc CRD", http2rpcConfig.Name)
-		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
+		return nil, errors.New("invalid http2rpcConfig has no usable http2rpc")
 	}
 	http2rpcCRD := mappings[http2rpcConfig.Name]
 
 	if http2rpcCRD.GetDubbo() == nil {
 		IngressLog.Errorf("Http2RpcConfig name %s, only support Http2Rpc CRD Dubbo Service type", http2rpcConfig.Name)
-		return nil, errors.New("invalid http2rpcConfig has no useable http2rpc")
+		return nil, errors.New("invalid http2rpcConfig has no usable http2rpc")
 	}
 
 	httpRoute := route.HTTPRoute
@@ -1293,7 +1293,7 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		var method = make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var params []interface{}
-		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore parmas.
+		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore params.
 		var paramFromEntireBody = serviceMethod.GetParamFromEntireBody()
 		if paramFromEntireBody != nil {
 			var param = make(map[string]interface{})
