@@ -446,7 +446,7 @@ gateway:
   annotations: {}
 
   podAnnotations:
-    prometheus.io/port: "15090"
+    prometheus.io/port: "15020"
     prometheus.io/scrape: "true"
     prometheus.io/path: "/stats/prometheus"
     sidecar.istio.io/inject: "false"
