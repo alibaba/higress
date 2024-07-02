@@ -15,9 +15,9 @@
 use crate::error::WasmRustError;
 use crate::internal::{get_http_request_header, get_property};
 use crate::log::Log;
-use proxy_wasm::hostcalls::log;
+use proxy_wasm::hostcalls::{get_map_value, get_property, log};
 use proxy_wasm::traits::RootContext;
-use proxy_wasm::types::LogLevel;
+use proxy_wasm::types::{LogLevel, MapType};
 use serde::de::DeserializeOwned;
 use serde_json::{from_slice, Map, Value};
 use std::cell::RefCell;
@@ -142,8 +142,8 @@ where
     }
 
     pub fn get_match_config(&self) -> Option<(i64, &PluginConfig)> {
-        let host = get_http_request_header(":authority").unwrap_or_default();
-        let route_name = get_property(vec!["route_name"]).unwrap_or_default();
+        let host = get_map_value(MapType::HttpRequestHeaders, ":authority").unwrap_or(None).unwrap_or_default();
+        let route_name = get_property(vec!["route_name"]).unwrap_or(None).unwrap_or_default();
 
         for (i, rule) in self.rule_config.iter().enumerate() {
             match rule.category {
