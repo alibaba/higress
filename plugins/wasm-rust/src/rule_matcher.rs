@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use crate::error::WasmRustError;
-use crate::internal::{get_http_request_header, get_property};
 use crate::log::Log;
 use proxy_wasm::hostcalls::{get_map_value, get_property, log};
 use proxy_wasm::traits::RootContext;
