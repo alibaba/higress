@@ -131,6 +131,15 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 
 阶跃星辰所对应的 `type` 为 `stepfun`。它并无特有的配置字段。
 
+#### Cloudflare Workers AI
+
+Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                                                                                                         |
+|-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
+| `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
+
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
