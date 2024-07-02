@@ -15,6 +15,9 @@ spec:
 {{- with .Values.gateway.service.loadBalancerIP }}
   loadBalancerIP: "{{ . }}"
 {{- end }}
+{{- with .Values.gateway.service.loadBalancerClass }}
+  loadBalancerClass: "{{ . }}"
+{{- end }}
 {{- with .Values.gateway.service.loadBalancerSourceRanges }}
   loadBalancerSourceRanges:
 {{ toYaml . | indent 4 }}
