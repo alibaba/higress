@@ -296,7 +296,7 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     origResponse.Usage.InputTokens,
 			CompletionTokens: origResponse.Usage.OutputTokens,
 			TotalTokens:      origResponse.Usage.InputTokens + origResponse.Usage.OutputTokens,

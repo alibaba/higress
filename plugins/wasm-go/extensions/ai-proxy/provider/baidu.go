@@ -302,7 +302,7 @@ func (b *baiduProvider) responseBaidu2OpenAI(ctx wrapper.HttpContext, response *
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     response.Usage.PromptTokens,
 			CompletionTokens: response.Usage.CompletionTokens,
 			TotalTokens:      response.Usage.TotalTokens,
@@ -325,7 +325,7 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     response.Usage.PromptTokens,
 			CompletionTokens: response.Usage.CompletionTokens,
 			TotalTokens:      response.Usage.TotalTokens,
