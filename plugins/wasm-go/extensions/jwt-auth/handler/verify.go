@@ -134,6 +134,7 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, header HeaderP
 			denied: deniedJWTVerificationFails,
 		}
 	}
+	token.UnsafeClaimsWithoutVerification(&rawClaims)
 
 	if out.Issuer != consumer.Issuer {
 		return &ErrDenied{
