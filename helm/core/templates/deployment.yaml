@@ -205,7 +205,7 @@ spec:
           ports:
           - containerPort: 15020
             protocol: TCP
-            name: istio-agent-prom
+            name: istio-prom
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
