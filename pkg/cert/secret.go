@@ -46,7 +46,7 @@ func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, 
 	namespaceP, secretP := ParseTLSSecret(secretName)
 	if namespaceP != "" {
 		namespace = namespaceP
-		secretName = secretP
+		name = secretP
 	}
 
 	secret := s.constructSecret(domain, name, namespace, privateKey, certificate, notBefore, notAfter, isRenew)
