@@ -45,38 +45,46 @@ struct RquestBlock {
 }
 
 
-fn deserialize_block_reg_exp_array<'de, D>(deserializer: D) -> Result<Vec<Regex>, D::Error>
+fn deserialize_block_regexp_urls<'de, D>(deserializer: D) -> Result<Vec<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {
     
     let mut ret = Vec::new();
     let value: Value = Deserialize::deserialize(deserializer)?;
-    let block_reg_exp_array = value.as_array().ok_or(Error::custom("block_reg_exp_array error not list"))?;
+    let block_regexp_urls = value.as_array().ok_or(Error::custom("block_regexp_urls error not list"))?;
 
 
-    for block_reg_exp in block_reg_exp_array{
-        let reg_exp = block_reg_exp.as_str().ok_or(Error::custom("block_reg_exp_array error not str"))?;
+    for block_regexp_url in block_regexp_urls{
+        let reg_exp = block_regexp_url.as_str().ok_or(Error::custom("block_regexp_urls error not str"))?;
         if let Ok(reg)  = Regex::new(reg_exp){
             ret.push(reg);
         }else{
-            return Err(Error::custom(format!("block_reg_exp_array error field {}", reg_exp)))
+            return Err(Error::custom(format!("block_regexp_urls error field {}", reg_exp)))
         }
     }
     Ok(ret)
 }
+fn blocked_code_default() -> u32{
+    403
+}
+fn case_sensitive_default() -> bool{
+    true
+}
 #[derive(Default, Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct RquestBlockConfig {
+    #[serde(default = "blocked_code_default")]
 	blocked_code: u32,
 	blocked_message: String,
+    #[serde(default = "case_sensitive_default")]
 	case_sensitive: bool,
 	block_urls: Vec<String>,
 	block_exact_urls: Vec<String>,
 	block_headers: Vec<String>,
 	block_bodies: Vec<String>,
-    #[serde(deserialize_with = "deserialize_block_reg_exp_array")]
-	block_reg_exp_array: Vec<Regex>,
+    #[serde(deserialize_with = "deserialize_block_regexp_urls")]
+	block_regexp_urls: Vec<Regex>,
 }
 
 
@@ -132,7 +140,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock{
             return Action::Continue;
         }
         let config = self.config.as_ref().unwrap();
-        if !config.block_urls.is_empty() || !config.block_exact_urls.is_empty() || !config.block_reg_exp_array.is_empty(){
+        if !config.block_urls.is_empty() || !config.block_exact_urls.is_empty() || !config.block_regexp_urls.is_empty(){
             let value = headers.get(":path");
             
             if value.is_none(){
@@ -157,7 +165,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock{
                 }
             }
             
-            for block_reg_exp in &config.block_reg_exp_array{
+            for block_reg_exp in &config.block_regexp_urls{
                 if block_reg_exp.is_match(&request_url){
                     self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
                     return Action::Pause;
