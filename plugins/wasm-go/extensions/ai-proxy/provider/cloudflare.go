@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -46,11 +47,11 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	_ = util.OverwriteRequestHost(cloudflareDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+c.config.GetRandomToken())
 
-	if c.contextCache == nil {
+	if c.config.context == nil && c.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	}
+	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
 	return types.ActionContinue, nil
 }
@@ -59,12 +60,33 @@ func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiN
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if c.contextCache == nil {
-		return types.ActionContinue, nil
-	}
+
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
+	}
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in chat completion request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, c.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	streaming := request.Stream
+	if streaming {
+		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+	}
+
+	if c.contextCache == nil {
+		if err := replaceJsonRequestBody(request, log); err != nil {
+			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+		}
+		return types.ActionContinue, nil
 	}
 	err := c.contextCache.GetContent(func(content string, err error) {
 		defer func() {
