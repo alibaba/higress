@@ -32,7 +32,7 @@ It can be divided into below steps:
 4. kube-load-image: load dev higress-controller image it into kind cluster.
 5. install-dev: install higress-controller with dev image, and latest higress-gateway, istiod with helm.
 6. run-e2e-test:
-    1. Setup conformance suite, like define what conformance tests we want to run, in `e2e_test.go` / `higressTests Slice`. Each case we choose to open is difined in `test/ingress/conformance/tests`.
+    1. Setup conformance suite, like define what conformance tests we want to run, in `e2e_test.go` / `higressTests Slice`. Each case we choose to open is defined in `test/ingress/conformance/tests`.
     2. Prepare resources and install them into cluster, like backend services/deployments.
     3. Load conformance tests we choose to open in `e2e_test.go` / `higressTests Slice`, and run them one by one, fail if it is not expected.
 
@@ -67,7 +67,7 @@ The test environment reusability is primarily achieved through the following tar
 ## Gateway APIs Conformance Tests
 
 Gateway API Conformance tests are based on the suite provided by `kubernetes-sig/gateway-api`, we can reuse that,
-and descide what conformance tests we need to open. Conformance tests of Gateway API.
+and decide what conformance tests we need to open. Conformance tests of Gateway API.
 
 This API covers a broad set of features and use cases and has been implemented widely.
 This combination of both a large feature set and variety of implementations requires
