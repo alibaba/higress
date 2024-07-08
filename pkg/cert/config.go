@@ -86,6 +86,17 @@ func (c *Config) GetSecretNameByDomain(issuerName IssuerName, domain string) str
 	return ""
 }
 
+func ParseTLSSecret(tlsSecret string) (string, string) {
+	secrets := strings.Split(tlsSecret, "/")
+	switch len(secrets) {
+	case 1:
+		return "", tlsSecret
+	case 2:
+		return secrets[0], secrets[1]
+	}
+	return "", ""
+}
+
 func (c *Config) Validate() error {
 	// check acmeIssuer
 	if len(c.ACMEIssuer) == 0 {
@@ -111,14 +122,20 @@ func (c *Config) Validate() error {
 		}
 		if credential.TLSSecret == "" {
 			return fmt.Errorf("credentialConfig tlsSecret is empty")
+		} else {
+			ns, secret := ParseTLSSecret(credential.TLSSecret)
+			if ns == "" && secret == "" {
+				return fmt.Errorf("credentialConfig tlsSecret %s is not supported", credential.TLSSecret)
+			}
 		}
+
 		if credential.TLSIssuer == IssuerTypeLetsencrypt {
 			if len(credential.Domains) > 1 {
 				return fmt.Errorf("credentialConfig tlsIssuer %s only support one domain", credential.TLSIssuer)
 			}
 		}
 		if credential.TLSIssuer != IssuerTypeLetsencrypt && len(credential.TLSIssuer) > 0 {
-			return fmt.Errorf("credential tls issuer %s is not support", credential.TLSIssuer)
+			return fmt.Errorf("credential tls issuer %s is not supported", credential.TLSIssuer)
 		}
 	}
 
