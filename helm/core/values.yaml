@@ -343,7 +343,7 @@ global:
     enabled: false
     promtail:
       image:
-        repository: grafana/promtail
+        repository: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/promtail
         tag: 2.9.4
       port: 3101
       resources:
@@ -471,6 +471,7 @@ gateway:
       targetPort: 443
     annotations: {}
     loadBalancerIP: ""
+    loadBalancerClass: ""
     loadBalancerSourceRanges: []
     externalTrafficPolicy: ""
 
