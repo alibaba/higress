@@ -255,26 +255,72 @@ provider:
     'gpt-3': "qwen-turbo"
     'gpt-35-turbo': "qwen-plus"
     'gpt-4-turbo': "qwen-max"
-    'qwen-*': ""
+    'gpt-4-*': "qwen-max"
+    'text-embedding-v1': 'text-embedding-v1'
     '*': "qwen-turbo"
+```
+
+**AI 对话请求示例**
+
+URL: http://your-domain/v1/chat/completions
+
+请求体：
+
+```json
+{
+  "model": "text-embedding-v1",
+  "input": "Hello"
+}
+```
+
+响应体示例：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "index": 0,
+      "embedding": [
+        -1.0437825918197632,
+        5.208984375,
+        3.0483806133270264,
+        -1.7897135019302368,
+        -2.0107421875,
+        ...,
+        0.8125,
+        -1.1759847402572632,
+        0.8174641728401184,
+        1.0432943105697632,
+        -0.5885213017463684
+      ]
+    }
+  ],
+  "model": "text-embedding-v1",
+  "usage": {
+    "prompt_tokens": 1,
+    "total_tokens": 1
+  }
+}
 ```
 
 **请求示例**
 
+URL: http://your-domain/v1/embeddings
+
+示例请求内容：
+
 ```json
 {
-  "model": "gpt-3",
-  "messages": [
-    {
-      "role": "user",
-      "content": "你好，你是谁？"
-    }
-  ],
-  "temperature": 0.3
+    "model": "text-embedding-v1",
+    "input": [
+        "Hello world!"
+    ]
 }
 ```
 
-**响应示例**
+示例响应内容：
 
 ```json
 {

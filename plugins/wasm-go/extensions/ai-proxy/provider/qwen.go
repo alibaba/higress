@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ const (
 
 	qwenDomain             = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath  = "/api/v1/services/embeddings/text-embedding/text-embedding"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -58,14 +60,19 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	needRequestBody := false
+	if apiName == ApiNameChatCompletion {
+		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
+		needRequestBody = m.config.context != nil
+	} else if apiName == ApiNameEmbeddings {
+		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
+	} else {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	_ = util.OverwriteRequestHost(qwenDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
-	if m.config.protocol == protocolOriginal && m.config.context == nil {
+	if m.config.protocol == protocolOriginal && !needRequestBody {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue, nil
 	}
@@ -78,10 +85,16 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+	if apiName == ApiNameChatCompletion {
+		return m.onChatCompletionRequestBody(ctx, body, log)
 	}
+	if apiName == ApiNameEmbeddings {
+		return m.onEmbeddingsRequestBody(ctx, body, log)
+	}
+	return types.ActionContinue, errUnsupportedApiName
+}
 
+func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	if m.config.protocol == protocolOriginal {
 		if m.config.context == nil {
 			return types.ActionContinue, nil
@@ -169,6 +182,33 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	return types.ActionContinue, err
 }
 
+func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	request := &embeddingsRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	log.Debugf("=== embeddings request: %v", request)
+
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in the request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	if qwenRequest, err := m.buildQwenTextEmbeddingRequest(request); err == nil {
+		return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
+	} else {
+		return types.ActionContinue, err
+	}
+}
+
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadResponseBody()
@@ -180,6 +220,10 @@ func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
+
 	receivedBody := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		receivedBody = append(bufferedStreamingBody, chunk...)
@@ -264,11 +308,30 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+	if apiName == ApiNameChatCompletion {
+		return m.onChatCompletionResponseBody(ctx, body, log)
+	}
+	if apiName == ApiNameEmbeddings {
+		return m.onEmbeddingsResponseBody(ctx, body, log)
+	}
+	return types.ActionContinue, errUnsupportedApiName
+}
+
+func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	qwenResponse := &qwenTextGenResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
 	response := m.buildChatCompletionResponse(ctx, qwenResponse)
+	return types.ActionContinue, replaceJsonResponseBody(response, log)
+}
+
+func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	qwenResponse := &qwenTextEmbeddingResponse{}
+	if err := json.Unmarshal(body, qwenResponse); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+	}
+	response := m.buildEmbeddingsResponse(ctx, qwenResponse)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
@@ -328,7 +391,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -400,7 +463,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 		usageResponse := *&baseMessage
 		usageResponse.Choices = []chatCompletionChoice{{Delta: &chatMessage{}}}
-		usageResponse.Usage = chatCompletionUsage{
+		usageResponse.Usage = usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -485,6 +548,50 @@ func (m *qwenProvider) appendStreamEvent(responseBuilder *strings.Builder, event
 	responseBuilder.WriteString("\n\n")
 }
 
+func (m *qwenProvider) buildQwenTextEmbeddingRequest(request *embeddingsRequest) (*qwenTextEmbeddingRequest, error) {
+	var texts []string
+	if str, isString := request.Input.(string); isString {
+		texts = []string{str}
+	} else if strs, isArray := request.Input.([]interface{}); isArray {
+		texts = make([]string, 0, len(strs))
+		for _, item := range strs {
+			if str, isString := item.(string); isString {
+				texts = append(texts, str)
+			} else {
+				return nil, errors.New("unsupported input type in array: " + reflect.TypeOf(item).String())
+			}
+		}
+	} else {
+		return nil, errors.New("unsupported input type: " + reflect.TypeOf(request.Input).String())
+	}
+	return &qwenTextEmbeddingRequest{
+		Model: request.Model,
+		Input: qwenTextEmbeddingInput{
+			Texts: texts,
+		},
+	}, nil
+}
+
+func (m *qwenProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextEmbeddingResponse) *embeddingsResponse {
+	data := make([]embedding, 0, len(qwenResponse.Output.Embeddings))
+	for _, qwenEmbedding := range qwenResponse.Output.Embeddings {
+		data = append(data, embedding{
+			Object:    "embedding",
+			Index:     qwenEmbedding.TextIndex,
+			Embedding: qwenEmbedding.Embedding,
+		})
+	}
+	return &embeddingsResponse{
+		Object: "list",
+		Data:   data,
+		Model:  ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Usage: usage{
+			PromptTokens: qwenResponse.Usage.TotalTokens,
+			TotalTokens:  qwenResponse.Usage.TotalTokens,
+		},
+	}
+}
+
 type qwenTextGenRequest struct {
 	Model      string                `json:"model"`
 	Input      qwenTextGenInput      `json:"input"`
@@ -511,7 +618,7 @@ type qwenTextGenParameters struct {
 type qwenTextGenResponse struct {
 	RequestId string            `json:"request_id"`
 	Output    qwenTextGenOutput `json:"output"`
-	Usage     qwenTextGenUsage  `json:"usage"`
+	Usage     qwenUsage         `json:"usage"`
 }
 
 type qwenTextGenOutput struct {
@@ -524,7 +631,7 @@ type qwenTextGenChoice struct {
 	Message      qwenMessage `json:"message"`
 }
 
-type qwenTextGenUsage struct {
+type qwenUsage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
 	TotalTokens  int `json:"total_tokens"`
@@ -535,6 +642,36 @@ type qwenMessage struct {
 	Role      string     `json:"role"`
 	Content   string     `json:"content"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type qwenTextEmbeddingRequest struct {
+	Model      string                      `json:"model"`
+	Input      qwenTextEmbeddingInput      `json:"input"`
+	Parameters qwenTextEmbeddingParameters `json:"parameters,omitempty"`
+}
+
+type qwenTextEmbeddingInput struct {
+	Texts []string `json:"texts"`
+}
+
+type qwenTextEmbeddingParameters struct {
+	TextType string `json:"text_type,omitempty"`
+}
+
+type qwenTextEmbeddingResponse struct {
+	RequestId string                  `json:"request_id"`
+	Output    qwenTextEmbeddingOutput `json:"output"`
+	Usage     qwenUsage               `json:"usage"`
+}
+
+type qwenTextEmbeddingOutput struct {
+	RequestId  string               `json:"request_id"`
+	Embeddings []qwenTextEmbeddings `json:"embeddings"`
+}
+
+type qwenTextEmbeddings struct {
+	TextIndex int       `json:"text_index"`
+	Embedding []float64 `json:"embedding"`
 }
 
 func qwenMessageToChatMessage(qwenMessage qwenMessage) chatMessage {
