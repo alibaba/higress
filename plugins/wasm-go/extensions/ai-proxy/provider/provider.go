@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"math/rand"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -253,16 +254,38 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 }
 
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
-	if modelMapping == nil || len(modelMapping) == 0 {
-		return model
-	}
-	if v, ok := modelMapping[model]; ok && len(v) != 0 {
-		log.Debugf("model %s is mapped to %s explictly", model, v)
-		return v
-	}
-	if v, ok := modelMapping[wildcard]; ok {
-		log.Debugf("model %s is mapped to %s via wildcard", model, v)
-		return v
+	mappedModel := doGetMappedModel(model, modelMapping, log)
+	if len(mappedModel) != 0 {
+		return mappedModel
 	}
 	return model
+}
+
+func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
+	if modelMapping == nil || len(modelMapping) == 0 {
+		return ""
+	}
+
+	if v, ok := modelMapping[model]; ok {
+		log.Debugf("model [%s] is mapped to [%s] explictly", model, v)
+		return v
+	}
+
+	for k, v := range modelMapping {
+		if k == wildcard || !strings.HasSuffix(k, wildcard) {
+			continue
+		}
+		k = strings.TrimSuffix(k, wildcard)
+		if strings.HasPrefix(model, k) {
+			log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
+			return v
+		}
+	}
+
+	if v, ok := modelMapping[wildcard]; ok {
+		log.Debugf("model [%s] is mapped to [%s] via wildcard", model, v)
+		return v
+	}
+
+	return ""
 }
