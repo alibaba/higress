@@ -471,6 +471,7 @@ gateway:
       targetPort: 443
     annotations: {}
     loadBalancerIP: ""
+    loadBalancerClass: ""
     loadBalancerSourceRanges: []
     externalTrafficPolicy: ""
 
