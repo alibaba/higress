@@ -50,7 +50,7 @@ jobs:
         run: | 
           workspace=${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}
           push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
-          
+
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
             echo "spec.yaml exists"
@@ -91,6 +91,7 @@ jobs:
 
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
+          export GOPROXY=https://goproxy.cn 
           go mod tidy
           tinygo build -o plugin.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer" ./
           tar czvf plugin.tar.gz /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}/plugin.wasm
