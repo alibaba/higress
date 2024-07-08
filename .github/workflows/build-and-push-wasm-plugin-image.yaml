@@ -93,7 +93,9 @@ jobs:
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
           tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./main.go
-          ls -al
+          tar czvf plugin.tar.gz plugin.wasm
+          echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
+          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${push_command}
           "
           docker exec builder bash -c "$command"
 
