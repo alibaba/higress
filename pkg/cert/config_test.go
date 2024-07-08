@@ -120,3 +120,36 @@ func TestMatchSecretNameByDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTLSSecret(t *testing.T) {
+	tests := []struct {
+		tlsSecret          string
+		expectedNamespace  string
+		expectedSecretName string
+	}{
+		{
+			tlsSecret:          "example-com-tls",
+			expectedNamespace:  "",
+			expectedSecretName: "example-com-tls",
+		},
+
+		{
+			tlsSecret:          "kube-system/example-com-tls",
+			expectedNamespace:  "kube-system",
+			expectedSecretName: "example-com-tls",
+		},
+		{
+			tlsSecret:          "kube-system/example-com/wildcard",
+			expectedNamespace:  "",
+			expectedSecretName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tlsSecret, func(t *testing.T) {
+			resultNamespace, resultSecretName := ParseTLSSecret(tt.tlsSecret)
+			assert.Equal(t, tt.expectedNamespace, resultNamespace)
+			assert.Equal(t, tt.expectedSecretName, resultSecretName)
+		})
+	}
+}
