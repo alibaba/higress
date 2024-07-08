@@ -131,6 +131,15 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 
 阶跃星辰所对应的 `type` 为 `stepfun`。它并无特有的配置字段。
 
+#### Cloudflare Workers AI
+
+Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                                                                                                         |
+|-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
+| `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
+
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -755,6 +764,57 @@ provider:
         "status_code": 0,
         "status_msg": ""
     }
+}
+```
+
+### 使用 OpenAI 协议代理 Cloudflare Workers AI 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: cloudflare
+  apiTokens:
+    - "YOUR_WORKERS_AI_API_TOKEN"
+  cloudflareAccountId: "YOUR_CLOUDFLARE_ACCOUNT_ID"
+  modelMapping:
+    "*": "@cf/meta/llama-3-8b-instruct"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-3.5",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ]
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "id-1720367803430",
+  "object": "chat.completion",
+  "created": 1720367803,
+  "model": "@cf/meta/llama-3-8b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm not a human, but a computer program designed to simulate conversation and answer questions to the best of my knowledge. I can be used to generate text on a wide range of topics, from science and history to entertainment and culture.\n\nI'm a large language model, which means I've been trained on a massive dataset of text from the internet and can generate human-like responses. I can understand natural language and respond accordingly, making me suitable for tasks such as:\n\n* Answering questions on various topics\n* Generating text based on a given prompt\n* Translating text from one language to another\n* Summarizing long pieces of text\n* Creating chatbot dialogues\n\nI'm constantly learning and improving, so the more conversations I have with users like you, the better I'll become."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ]
 }
 ```
 
