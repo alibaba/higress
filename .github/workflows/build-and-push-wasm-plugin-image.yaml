@@ -49,6 +49,7 @@ jobs:
       - name: File Check
         run: | 
           workspace=${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}
+          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
           
           # 查找spec.yaml
           if [ -f "${workspace}/spec.yaml" ]; then
