@@ -39,22 +39,29 @@ func TestGetConfigmapStoreNameByKey(t *testing.T) {
 	}{
 		{
 			name:     "certificate crt",
-			key:      "/certificates/issuerKey/domain.crt",
+			key:      "certificates/issuerKey/domain/domain.crt",
 			expected: "higress-cert-store-certificates-" + fastHash([]byte("issuerKey"+"domain")),
 		},
+
+		{
+			name:     "47.237.14.136.sslip.io crt",
+			key:      "certificates/acme-v02.api.letsencrypt.org-directory/47.237.14.136.sslip.io/47.237.14.136.sslip.io.crt",
+			expected: "higress-cert-store-certificates-" + fastHash([]byte("acme-v02.api.letsencrypt.org-directory"+"47.237.14.136.sslip.io")),
+		},
+
 		{
 			name:     "certificate meta",
-			key:      "/certificates/issuerKey/domain.json",
+			key:      "certificates/issuerKey/domain/domain.json",
 			expected: "higress-cert-store-certificates-" + fastHash([]byte("issuerKey"+"domain")),
 		},
 		{
 			name:     "certificate key",
-			key:      "/certificates/issuerKey/domain.key",
+			key:      "certificates/issuerKey/domain/domain.key",
 			expected: "higress-cert-store-certificates-" + fastHash([]byte("issuerKey"+"domain")),
 		},
 		{
 			name:     "user key",
-			key:      "/users/hello/2",
+			key:      "users/hello/2",
 			expected: "higress-cert-store-default",
 		},
 		{
@@ -82,7 +89,7 @@ func TestExists(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Store a test key
-	testKey := "/certificates/issuer1/domain1.crt"
+	testKey := "certificates/issuer1/domain1/domain1.crt"
 	err = storage.Store(context.Background(), testKey, []byte("test-data"))
 	assert.NoError(t, err)
 
@@ -94,17 +101,17 @@ func TestExists(t *testing.T) {
 	}{
 		{
 			name:        "Existing Key",
-			key:         "/certificates/issuer1/domain1.crt",
+			key:         "certificates/issuer1/domain1/domain1.crt",
 			shouldExist: true,
 		},
 		{
 			name:        "Non-Existent Key1",
-			key:         "/certificates/issuer2/domain2.crt",
+			key:         "certificates/issuer2/domain2/domain2.crt",
 			shouldExist: false,
 		},
 		{
 			name:        "Non-Existent Key2",
-			key:         "/users/hello/a",
+			key:         "users/hello/a",
 			shouldExist: false,
 		},
 		// Add more test cases as needed
@@ -129,7 +136,7 @@ func TestLoad(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Store a test key
-	testKey := "/certificates/issuer1/domain1.crt"
+	testKey := "certificates/issuer1/domain1/domain1.crt"
 	testValue := []byte("test-data")
 	err = storage.Store(context.Background(), testKey, testValue)
 	assert.NoError(t, err)
@@ -143,13 +150,13 @@ func TestLoad(t *testing.T) {
 	}{
 		{
 			name:        "Existing Key",
-			key:         "/certificates/issuer1/domain1.crt",
+			key:         "certificates/issuer1/domain1/domain1.crt",
 			expected:    testValue,
 			shouldError: false,
 		},
 		{
 			name:        "Non-Existent Key",
-			key:         "/certificates/issuer2/domain2.crt",
+			key:         "certificates/issuer2/domain2/domain2.crt",
 			expected:    nil,
 			shouldError: true,
 		},
@@ -192,28 +199,28 @@ func TestStore(t *testing.T) {
 		shouldError           bool
 	}{
 		{
-			name:                  "Store Key with /certificates prefix",
-			key:                   "/certificates/issuer1/domain1.crt",
+			name:                  "Store Key with certificates prefix",
+			key:                   "certificates/issuer1/domain1/domain1.crt",
 			value:                 []byte("test-data1"),
-			expected:              map[string]string{fastHash([]byte("/certificates/issuer1/domain1.crt")): `{"k":"/certificates/issuer1/domain1.crt","v":"dGVzdC1kYXRhMQ=="}`},
+			expected:              map[string]string{fastHash([]byte("certificates/issuer1/domain1/domain1.crt")): `{"k":"certificates/issuer1/domain1/domain1.crt","v":"dGVzdC1kYXRhMQ=="}`},
 			expectedConfigmapName: "higress-cert-store-certificates-" + fastHash([]byte("issuer1"+"domain1")),
 			shouldError:           false,
 		},
 		{
-			name:  "Store Key with /certificates prefix (additional data)",
-			key:   "/certificates/issuer2/domain2.crt",
+			name:  "Store Key with certificates prefix (additional data)",
+			key:   "certificates/issuer2/domain2/domain2.crt",
 			value: []byte("test-data2"),
 			expected: map[string]string{
-				fastHash([]byte("/certificates/issuer2/domain2.crt")): `{"k":"/certificates/issuer2/domain2.crt","v":"dGVzdC1kYXRhMg=="}`,
+				fastHash([]byte("certificates/issuer2/domain2/domain2.crt")): `{"k":"certificates/issuer2/domain2/domain2.crt","v":"dGVzdC1kYXRhMg=="}`,
 			},
 			expectedConfigmapName: "higress-cert-store-certificates-" + fastHash([]byte("issuer2"+"domain2")),
 			shouldError:           false,
 		},
 		{
-			name:                  "Store Key without /certificates prefix",
-			key:                   "/other/path/data.txt",
+			name:                  "Store Key without certificates prefix",
+			key:                   "other/path/data.txt",
 			value:                 []byte("test-data3"),
-			expected:              map[string]string{fastHash([]byte("/other/path/data.txt")): `{"k":"/other/path/data.txt","v":"dGVzdC1kYXRhMw=="}`},
+			expected:              map[string]string{fastHash([]byte("other/path/data.txt")): `{"k":"other/path/data.txt","v":"dGVzdC1kYXRhMw=="}`},
 			expectedConfigmapName: "higress-cert-store-default",
 			shouldError:           false,
 		},
@@ -256,17 +263,17 @@ func TestList(t *testing.T) {
 	// Store some test data
 	// Store some test data
 	testKeys := []string{
-		"/certificates/issuer1/domain1.crt",
-		"/certificates/issuer1/domain2.crt",
-		"/certificates/issuer1/domain3.crt", // Added another domain for issuer1
-		"/certificates/issuer2/domain4.crt",
-		"/certificates/issuer2/domain5.crt",
-		"/certificates/issuer3/subdomain1/domain6.crt",            // Two-level subdirectory under issuer3
-		"/certificates/issuer3/subdomain1/subdomain2/domain7.crt", // Two more levels under issuer3
-		"/other-prefix/key1/file1",
-		"/other-prefix/key1/file2",
-		"/other-prefix/key2/file3",
-		"/other-prefix/key2/file4",
+		"certificates/issuer1/domain1/domain1.crt",
+		"certificates/issuer1/domain2/domain2.crt",
+		"certificates/issuer1/domain3/domain3.crt", // Added another domain for issuer1
+		"certificates/issuer2/domain4/domain4.crt",
+		"certificates/issuer2/domain5/domain5.crt",
+		"certificates/issuer3/domain6/domain6.crt",               // Two-level subdirectory under issuer3
+		"certificates/issuer3/subdomain1/subdomain2/domain7.crt", // Two more levels under issuer3
+		"other-prefix/key1/file1",
+		"other-prefix/key1/file2",
+		"other-prefix/key2/file3",
+		"other-prefix/key2/file4",
 	}
 
 	for _, key := range testKeys {
@@ -283,34 +290,34 @@ func TestList(t *testing.T) {
 	}{
 		{
 			name:      "List Certificates (Non-Recursive)",
-			prefix:    "/certificates",
+			prefix:    "certificates",
 			recursive: false,
-			expected:  []string{"/certificates/issuer1", "/certificates/issuer2", "/certificates/issuer3"},
+			expected:  []string{"certificates/issuer1", "certificates/issuer2", "certificates/issuer3"},
 		},
 		{
 			name:      "List Certificates (Recursive)",
-			prefix:    "/certificates",
+			prefix:    "certificates",
 			recursive: true,
-			expected:  []string{"/certificates/issuer1/domain1.crt", "/certificates/issuer1/domain2.crt", "/certificates/issuer1/domain3.crt", "/certificates/issuer2/domain4.crt", "/certificates/issuer2/domain5.crt", "/certificates/issuer3/subdomain1/domain6.crt", "/certificates/issuer3/subdomain1/subdomain2/domain7.crt"},
+			expected:  []string{"certificates/issuer1/domain1/domain1.crt", "certificates/issuer1/domain2/domain2.crt", "certificates/issuer1/domain3/domain3.crt", "certificates/issuer2/domain4/domain4.crt", "certificates/issuer2/domain5/domain5.crt", "certificates/issuer3/domain6/domain6.crt", "certificates/issuer3/subdomain1/subdomain2/domain7.crt"},
 		},
 		{
 			name:      "List Other Prefix (Non-Recursive)",
-			prefix:    "/other-prefix",
+			prefix:    "other-prefix",
 			recursive: false,
-			expected:  []string{"/other-prefix/key1", "/other-prefix/key2"},
+			expected:  []string{"other-prefix/key1", "other-prefix/key2"},
 		},
 
 		{
 			name:      "List Other Prefix (Non-Recursive)",
-			prefix:    "/other-prefix/key1",
+			prefix:    "other-prefix/key1",
 			recursive: false,
-			expected:  []string{"/other-prefix/key1/file1", "/other-prefix/key1/file2"},
+			expected:  []string{"other-prefix/key1/file1", "other-prefix/key1/file2"},
 		},
 		{
 			name:      "List Other Prefix (Recursive)",
-			prefix:    "/other-prefix",
+			prefix:    "other-prefix",
 			recursive: true,
-			expected:  []string{"/other-prefix/key1/file1", "/other-prefix/key1/file2", "/other-prefix/key2/file3", "/other-prefix/key2/file4"},
+			expected:  []string{"other-prefix/key1/file1", "other-prefix/key1/file2", "other-prefix/key2/file3", "other-prefix/key2/file4"},
 		},
 	}
 

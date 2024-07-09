@@ -41,6 +41,7 @@ func NewSecretMgr(namespace string, client kubernetes.Interface) (*SecretMgr, er
 }
 
 func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) error {
+	CertLog.Infof("update secret, domain:%s, secretName:%s, privateKey:%s, certificate:%s", domain, secretName, string(privateKey), string(certificate))
 	name := secretName
 	namespace := s.namespace
 	namespaceP, secretP := ParseTLSSecret(secretName)

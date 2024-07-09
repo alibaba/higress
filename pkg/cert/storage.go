@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	CertificatesPrefix              = "/certificates"
+	CertificatesPrefix              = "certificates"
 	ConfigmapStoreCertficatesPrefix = "higress-cert-store-certificates-"
 	ConfigmapStoreDefaultName       = "higress-cert-store-default"
 )
@@ -155,7 +155,7 @@ func (s *ConfigmapStorage) List(ctx context.Context, prefix string, recursive bo
 	// Check if the prefix corresponds to a specific key
 	hashPrefix := fastHash([]byte(prefix))
 	if strings.HasPrefix(prefix, CertificatesPrefix) {
-		// If the prefix is "/certificates", get all ConfigMaps and traverse each one
+		// If the prefix is "certificates/", get all ConfigMaps and traverse each one
 		// List all ConfigMaps in the namespace with label higress.io/cert-https=true
 		configmaps, err := s.client.CoreV1().ConfigMaps(s.namespace).List(ctx, metav1.ListOptions{FieldSelector: "metadata.annotations['higress.io/cert-https'] == 'true'"})
 		if err != nil {
@@ -290,13 +290,13 @@ func (s *ConfigmapStorage) String() string {
 }
 
 func (s *ConfigmapStorage) getConfigmapStoreNameByKey(key string) string {
-	parts := strings.SplitN(key, "/", 10)
-	if len(parts) >= 4 && parts[1] == "certificates" {
-		domain := strings.TrimSuffix(parts[3], ".crt")
-		domain = strings.TrimSuffix(domain, ".key")
-		domain = strings.TrimSuffix(domain, ".json")
-		issuerKey := parts[2]
-		return ConfigmapStoreCertficatesPrefix + fastHash([]byte(issuerKey+domain))
+	if strings.HasPrefix(key, "certificates/") {
+		parts := strings.SplitN(key, "/", 10)
+		if len(parts) >= 4 && parts[0] == "certificates" {
+			domain := parts[2]
+			issuerKey := parts[1]
+			return ConfigmapStoreCertficatesPrefix + fastHash([]byte(issuerKey+domain))
+		}
 	}
 	return ConfigmapStoreDefaultName
 }
