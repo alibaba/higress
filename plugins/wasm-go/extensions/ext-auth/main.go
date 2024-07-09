@@ -32,9 +32,13 @@ func main() {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
 	if config.withRequestBody {
-		// Delay the header processing to allow changing streaming mode in OnRequestBody
+		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+		ctx.DisableReroute()
+		// The request has a body and requires delaying the header transmission until a cache miss occurs,
+		// at which point the header should be sent.
 		return types.HeaderStopIteration
 	}
+	ctx.DontReadRequestBody()
 	return checkExtAuth(ctx, config, nil, log)
 }
 
@@ -81,7 +85,7 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 
 			if statusCode != http.StatusOK {
 				log.Warnf("failed to call ext auth server, status: %d", statusCode)
-				callExtAuthServerErrorHandler(config, responseHeaders)
+				callExtAuthServerErrorHandler(config, statusCode, responseHeaders)
 				return
 			}
 
@@ -98,14 +102,15 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 
 	if err != nil {
 		log.Warnf("failed to call ext auth server: %v", err)
-		callExtAuthServerErrorHandler(config, nil)
+		// Since the handling logic for call errors and HTTP status code 500 is the same, we directly use 500 here.
+		callExtAuthServerErrorHandler(config, 500, nil)
 		return types.ActionContinue
 	}
 	return types.ActionPause
 }
 
-func callExtAuthServerErrorHandler(config ExtAuthConfig, extAuthRespHeaders http.Header) {
-	if config.failureModeAllow {
+func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuthRespHeaders http.Header) {
+	if statusCode >= 500 && config.failureModeAllow {
 		if config.failureModeAllowHeaderAdd {
 			_ = proxywasm.ReplaceHttpRequestHeader(HeaderFailureModeAllow, "true")
 		}

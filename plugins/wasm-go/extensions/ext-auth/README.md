@@ -56,3 +56,38 @@
 | `suffix`   | string   | 否，`exact` , `prefix` , `suffix`, `contains`, `regex` 中选填一项 | -      | 后缀匹配 |
 | `contains` | string   | 否，`exact` , `prefix` , `suffix`, `contains`, `regex` 中选填一项 | -      | 是否包含 |
 | `regex`    | string   | 否，`exact` , `prefix` , `suffix`, `contains`, `regex` 中选填一项 | -      | 正则匹配 |
+
+
+
+# 配置示例
+
+下面假设 `ext-auth` 服务在Kubernetes中serviceName为 `ext-auth`，端口 `8090`，路径为 `/auth`，命名空间为 `backend`
+
+`ext-auth` 插件的配置：
+
+```yaml
+http_service:
+  server_uri:
+    path: /auth
+    service_name: ext-auth
+    namespace: backend
+    service_port: 8090
+    service_source: k8s
+    timeout: 500
+```
+
+使用如下请求网关：
+
+```shell
+curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"
+```
+
+`ext-auth` 的服务将接收到类似如下的鉴权请求：
+
+```
+GET /auth HTTP/1.1
+Host: ext-auth
+Authorization: xxx
+Content-Length: 0
+```
+

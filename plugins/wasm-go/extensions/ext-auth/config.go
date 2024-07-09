@@ -118,6 +118,22 @@ func parseServerUriConfig(json gjson.Result, httpService *HttpService) error {
 		return errors.New("invalid service config")
 	}
 	switch serviceSource {
+	case "k8s":
+		namespace := json.Get("namespace").String()
+		httpService.client = wrapper.NewClusterClient(wrapper.K8sCluster{
+			ServiceName: serviceName,
+			Namespace:   namespace,
+			Port:        servicePort,
+		})
+		return nil
+	case "nacos":
+		namespace := json.Get("namespace").String()
+		httpService.client = wrapper.NewClusterClient(wrapper.NacosCluster{
+			ServiceName: serviceName,
+			NamespaceID: namespace,
+			Port:        servicePort,
+		})
+		return nil
 	case "ip":
 		httpService.client = wrapper.NewClusterClient(wrapper.StaticIpCluster{
 			ServiceName: serviceName,

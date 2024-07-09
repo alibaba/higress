@@ -61,7 +61,7 @@ rule_name: default_rule
 rule_items:
   - limit_by_param: apikey
     limit_keys:
-    	- key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
         query_per_minute: 10
       - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
         query_per_hour: 100
@@ -90,7 +90,7 @@ rule_name: default_rule
 rule_items:
   - limit_by_header: x-ca-key
     limit_keys:
-    	- key: 102234
+      - key: 102234
         query_per_minute: 10
       - key: 308239
         query_per_hour: 10
