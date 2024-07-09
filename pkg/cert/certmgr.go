@@ -17,12 +17,12 @@ package cert
 import (
 	"context"
 	"fmt"
-	"istio.io/istio/pilot/pkg/model"
 	"reflect"
 	"sync"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
+	"istio.io/istio/pilot/pkg/model"
 	"k8s.io/client-go/kubernetes"
 )
 
