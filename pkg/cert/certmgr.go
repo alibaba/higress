@@ -17,6 +17,8 @@ package cert
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pilot/pkg/model"
+	"reflect"
 	"sync"
 
 	"github.com/caddyserver/certmagic"
@@ -39,9 +41,10 @@ type CertMgr struct {
 	ingressSolver acmez.Solver
 	configMgr     *ConfigMgr
 	secretMgr     *SecretMgr
+	XDSUpdater    model.XDSUpdater
 }
 
-func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (*CertMgr, error) {
+func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, XDSUpdater model.XDSUpdater, configMgr *ConfigMgr) (*CertMgr, error) {
 	CertLog.Infof("certmgr init config: %+v", config)
 	// Init certmagic config
 	// First make a pointer to a Cache as we need to reference the same Cache in
@@ -85,7 +88,6 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (
 	// init issuers
 	cfg.Issuers = []certmagic.Issuer{myACME}
 
-	configMgr, _ := NewConfigMgr(opts.Namespace, clientSet)
 	secretMgr, _ := NewSecretMgr(opts.Namespace, clientSet)
 
 	certMgr := &CertMgr{
@@ -97,6 +99,7 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (
 		configMgr:     configMgr,
 		secretMgr:     secretMgr,
 		cache:         cache,
+		XDSUpdater:    XDSUpdater,
 	}
 	certMgr.cfg.OnEvent = certMgr.OnEvent
 	return certMgr, nil
@@ -159,6 +162,16 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 		// stop cache  maintainAssets
 		s.cache.Stop()
 		s.configMgr.SetConfig(newConfig)
+	}
+
+	if oldConfig != nil && newConfig != nil {
+		if oldConfig.FallbackForInvalidSecret != newConfig.FallbackForInvalidSecret || !reflect.DeepEqual(oldConfig.CredentialConfig, newConfig.CredentialConfig) {
+			CertLog.Infof("ingress need to full push")
+			s.XDSUpdater.ConfigUpdate(&model.PushRequest{
+				Full:   true,
+				Reason: []model.TriggerReason{"higress-https-updated"},
+			})
+		}
 	}
 
 	return nil
