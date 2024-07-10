@@ -44,6 +44,12 @@ pub trait HttpContextWrapper<PluginConfig> : HttpContext{
     fn on_http_request_headers_ok(&mut self, _headers: &MultiMap<String, String>) -> Action{
         Action::Continue
     }
+    fn cache_request_body(&self) -> bool{
+        false
+    }
+    fn cache_response_body(&self) -> bool{
+        false
+    }
     fn on_http_request_body_ok(&mut self, _req_body: &Bytes) -> Action{
         Action::Continue
     }
@@ -99,6 +105,9 @@ where
 
     fn on_http_request_body(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
         let mut ret = self.http_content.on_http_request_body(_body_size, _end_of_stream);
+        if !self.http_content.cache_request_body(){
+            return ret
+        }
         if _body_size > 0{
             match self.get_http_request_body(0, _body_size) {
                 Some(body) => self.req_body.extend(body),
@@ -121,6 +130,9 @@ where
 
     fn on_http_response_body(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
         let mut ret = self.http_content.on_http_response_body(_body_size, _end_of_stream);
+        if !self.http_content.cache_response_body(){
+            return ret
+        }
         if _body_size > 0 {
             if let Some(body) = self.get_http_response_body(0, _body_size) {
                 self.res_body.extend(body);

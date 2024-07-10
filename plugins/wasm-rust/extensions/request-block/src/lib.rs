@@ -41,7 +41,8 @@ struct RquestBlockRoot {
 
 struct RquestBlock {
     log: Log,
-    config: Option<RquestBlockConfig>
+    config: Option<RquestBlockConfig>,
+    cache_request: bool
 }
 
 
@@ -125,7 +126,7 @@ impl RootContextWrapper<RquestBlockConfig> for RquestBlockRoot{
     }
     
     fn create_http_context_wrapper(&self, _context_id: u32) -> Option<Box<dyn HttpContextWrapper<RquestBlockConfig>>> {
-        Some(Box::new(RquestBlock{config: None, log: Log::new(PLUGIN_NAME.to_string())}))
+        Some(Box::new(RquestBlock{cache_request:false, config: None, log: Log::new(PLUGIN_NAME.to_string())}))
     }
 }
 
@@ -134,6 +135,10 @@ impl HttpContext for RquestBlock {}
 impl HttpContextWrapper<RquestBlockConfig> for RquestBlock{
     fn on_config(&mut self, _config: &RquestBlockConfig){
         self.config = Some(_config.clone());
+        self.cache_request = !_config.block_bodies.is_empty();
+    }
+    fn cache_request_body(&self) -> bool{
+        self.cache_request
     }
     fn on_http_request_headers_ok(&mut self, headers: &MultiMap<String, String>) -> Action{
         if self.config.is_none(){
