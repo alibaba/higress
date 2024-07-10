@@ -90,10 +90,9 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 			}
 
 			if config.httpService.authorizationResponse.allowedUpstreamHeaders != nil {
-				for _, header := range responseHeaders {
-					key := header[0]
-					if config.httpService.authorizationResponse.allowedUpstreamHeaders.Match(key) {
-						_ = proxywasm.ReplaceHttpRequestHeader(key, header[1])
+				for headK, headV := range responseHeaders {
+					if config.httpService.authorizationResponse.allowedUpstreamHeaders.Match(headK) {
+						_ = proxywasm.ReplaceHttpRequestHeader(headK, headV[0])
 					}
 				}
 			}
@@ -119,10 +118,9 @@ func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuth
 	var respHeaders = extAuthRespHeaders
 	if config.httpService.authorizationResponse.allowedClientHeaders != nil {
 		respHeaders = http.Header{}
-		for _, header := range extAuthRespHeaders {
-			key := header[0]
-			if config.httpService.authorizationResponse.allowedClientHeaders.Match(key) {
-				respHeaders.Set(key, header[1])
+		for headK, headV := range extAuthRespHeaders {
+			if config.httpService.authorizationResponse.allowedClientHeaders.Match(headK) {
+				respHeaders.Set(headK, headV[0])
 			}
 		}
 	}
