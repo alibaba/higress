@@ -16,7 +16,7 @@ on:
         type: string
 
 jobs:
-  build-and-push-image:
+  build-and-push-wasm-plugin-image:
     runs-on: ubuntu-latest
     environment:
       name: image-registry-msg
@@ -84,18 +84,20 @@ jobs:
 
       - name: Build Image and Push
         run: |
-          
           push_command=${{ env.PUSH_COMMAND }}
           push_command=${push_command#\"}
           push_command=${push_command%\"} # 删除PUSH_COMMAND中的双引号，确保oras push正常解析
+          
+          target_image="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:${{ env.VERSION }}"
+          echo "TargetImage=${target_image}"
 
           command="
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
-          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./main.go
+          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' .
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}:${VERSION} ${push_command}
+          oras push ${target_image} ${push_command}
           "
           docker exec builder bash -c "$command"
 
