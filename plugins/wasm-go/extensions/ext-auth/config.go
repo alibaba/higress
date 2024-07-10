@@ -75,7 +75,7 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 
 	allowedHeaders := json.Get("allowed_headers")
 	if allowedHeaders.Exists() {
-		result, err := expr.BuildRepeatedStringMatcher(allowedHeaders.Array())
+		result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedHeaders.Array())
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 
 		allowedUpstreamHeaders := authorizationResponseConfig.Get("allowed_upstream_headers")
 		if allowedUpstreamHeaders.Exists() {
-			result, err := expr.BuildRepeatedStringMatcher(allowedUpstreamHeaders.Array())
+			result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedUpstreamHeaders.Array())
 			if err != nil {
 				return err
 			}
@@ -200,11 +200,11 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 
 		allowedClientHeaders := authorizationResponseConfig.Get("allowed_client_headers")
 		if allowedClientHeaders.Exists() {
-			result, err := expr.BuildRepeatedStringMatcher(allowedClientHeaders.Array())
+			result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedClientHeaders.Array())
 			if err != nil {
 				return err
 			}
-			authorizationResponse.allowedUpstreamHeaders = result
+			authorizationResponse.allowedClientHeaders = result
 		}
 
 		httpService.authorizationResponse = authorizationResponse

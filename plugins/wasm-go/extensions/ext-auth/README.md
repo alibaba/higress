@@ -1,6 +1,6 @@
 # 功能说明
 
-`ext-auth`插件实现了向授权服务发送鉴权请求，以检查客户端请求是否得到授权
+`ext-auth`插件实现了向授权服务发送鉴权请求，以检查客户端请求是否得到授权。该插件实现时参考了envoy原生的[ext_authz filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter)，实现了原生filter中对接HTTP服务的部分能力
 
 
 
@@ -42,10 +42,10 @@
 
 `authorization_response`中每一项的配置字段说明
 
-| 名称                       | 数据类型               | 必填 | 默认值 | 描述                                                         |
-| -------------------------- | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_upstream_headers` | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的鉴权请求的响应头将添加到原始的客户端请求头中。请注意，同名的请求头将被覆盖 |
-| `allowed_client_headers`   | array of StringMatcher | 否   | -      | 当设置后，在请求被拒绝时，具有相应匹配项的鉴权请求的响应头将添加到客户端的响应头中 |
+| 名称                       | 数据类型               | 必填 | 默认值 | 描述                                                                              |
+| -------------------------- | ---------------------- | ---- | ------ |---------------------------------------------------------------------------------|
+| `allowed_upstream_headers` | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的鉴权请求的响应头将添加到原始的客户端请求头中。请注意，同名的请求头将被覆盖                              |
+| `allowed_client_headers`   | array of StringMatcher | 否   | -      | 如果不设置，在请求被拒绝时，所有的鉴权请求的响应头将添加到客户端的响应头中。当设置后，在请求被拒绝时，具有相应匹配项的鉴权请求的响应头将添加到客户端的响应头中 |
 
 `StringMatcher`类型每一项的配置字段说明
 
@@ -76,7 +76,7 @@ http_service:
     timeout: 500
 ```
 
-使用如下请求网关：
+使用如下请求网关，当开启 `ext-auth` 插件后：
 
 ```shell
 curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"

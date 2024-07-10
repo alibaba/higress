@@ -31,7 +31,10 @@ func main() {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
-	if config.withRequestBody {
+	reqMethod := ctx.Method()
+	// withRequestBody is true and the request method is not GET, OPTIONS, or HEAD
+	if config.withRequestBody &&
+		!(reqMethod == http.MethodGet || reqMethod == http.MethodOptions || reqMethod == http.MethodHead) {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
 		// The request has a body and requires delaying the header transmission until a cache miss occurs,
@@ -58,12 +61,12 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	// build extAuth request headers
 	extAuthReqHeaders := http.Header{}
 
-	headers, _ := proxywasm.GetHttpRequestHeaders()
+	reqHeaders, _ := proxywasm.GetHttpRequestHeaders()
 	if config.allowedHeaders != nil {
-		for _, header := range headers {
-			key := header[0]
-			if config.allowedHeaders.Match(key) {
-				extAuthReqHeaders.Set(key, header[1])
+		for _, header := range reqHeaders {
+			headK := header[0]
+			if config.allowedHeaders.Match(headK) {
+				extAuthReqHeaders.Set(headK, header[1])
 			}
 		}
 	}
@@ -73,7 +76,7 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	}
 
 	// add Authorization header
-	authorization := extractFromHeader(headers, HeaderAuthorization)
+	authorization := extractFromHeader(reqHeaders, HeaderAuthorization)
 	if authorization != "" {
 		extAuthReqHeaders.Set(HeaderAuthorization, authorization)
 	}
