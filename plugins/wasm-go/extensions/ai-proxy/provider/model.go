@@ -30,6 +30,7 @@ type chatCompletionRequest struct {
 	Tools            []tool         `json:"tools,omitempty"`
 	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
 	User             string         `json:"user,omitempty"`
+	Stop             []string       `json:"stop,omitempty"`
 }
 
 type streamOptions struct {
@@ -59,7 +60,7 @@ type chatCompletionResponse struct {
 	Model             string                 `json:"model,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
-	Usage             chatCompletionUsage    `json:"usage,omitempty"`
+	Usage             usage                  `json:"usage,omitempty"`
 }
 
 type chatCompletionChoice struct {
@@ -69,7 +70,7 @@ type chatCompletionChoice struct {
 	FinishReason string       `json:"finish_reason,omitempty"`
 }
 
-type chatCompletionUsage struct {
+type usage struct {
 	PromptTokens     int `json:"prompt_tokens,omitempty"`
 	CompletionTokens int `json:"completion_tokens,omitempty"`
 	TotalTokens      int `json:"total_tokens,omitempty"`
@@ -138,4 +139,25 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+type embeddingsRequest struct {
+	Input          interface{} `json:"input"`
+	Model          string      `json:"model"`
+	EncodingFormat string      `json:"encoding_format,omitempty"`
+	Dimensions     int         `json:"dimensions,omitempty"`
+	User           string      `json:"user,omitempty"`
+}
+
+type embeddingsResponse struct {
+	Object string      `json:"object"`
+	Data   []embedding `json:"data"`
+	Model  string      `json:"model"`
+	Usage  usage       `json:"usage"`
+}
+
+type embedding struct {
+	Object    string    `json:"object"`
+	Index     int       `json:"index"`
+	Embedding []float64 `json:"embedding"`
 }

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"myplugin/dashscope"
-	"myplugin/dashvector"
+	"ai-rag/dashscope"
+	"ai-rag/dashvector"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"

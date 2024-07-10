@@ -22,6 +22,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
+	"istio.io/istio/istioctl/pkg/writer/envoy/configdump"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 )
@@ -59,6 +60,23 @@ func NewDefaultGetEnvoyConfigOptions() *GetEnvoyConfigOptions {
 		Output:          "json",
 		EnvoyConfigType: AllEnvoyConfigType,
 	}
+}
+
+func setupConfigdumpEnvoyConfigWriter(debug []byte, stdout io.Writer) (*configdump.ConfigWriter, error) {
+	cw := &configdump.ConfigWriter{Stdout: stdout}
+	err := cw.Prime(debug)
+	if err != nil {
+		return nil, err
+	}
+	return cw, nil
+}
+
+func GetEnvoyConfigWriter(config *GetEnvoyConfigOptions, stdout io.Writer) (*configdump.ConfigWriter, error) {
+	configDump, err := retrieveConfigDump(config.PodName, config.PodNamespace, config.BindAddress, config.IncludeEds)
+	if err != nil {
+		return nil, err
+	}
+	return setupConfigdumpEnvoyConfigWriter(configDump, stdout)
 }
 
 func GetEnvoyConfig(config *GetEnvoyConfigOptions) ([]byte, error) {
@@ -144,14 +162,12 @@ func formatGatewayConfig(configDump any, output string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if output == "yaml" {
 		out, err = yaml.JSONToYAML(out)
 		if err != nil {
 			return nil, err
 		}
 	}
-
 	return out, nil
 }
 

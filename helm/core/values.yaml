@@ -1,6 +1,6 @@
 revision: ""
 global:
-  liteMetrics: false
+  liteMetrics: true
   xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
   enableSRDS: true
@@ -343,7 +343,7 @@ global:
     enabled: false
     promtail:
       image:
-        repository: grafana/promtail
+        repository: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/promtail
         tag: 2.9.4
       port: 3101
       resources:
@@ -395,6 +395,9 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
+
+  # -- Use a `DaemonSet` or `Deployment`
+  kind: Deployment
 
   # The number of successive failed probes before indicating readiness failure.
   readinessFailureThreshold: 30
@@ -468,6 +471,7 @@ gateway:
       targetPort: 443
     annotations: {}
     loadBalancerIP: ""
+    loadBalancerClass: ""
     loadBalancerSourceRanges: []
     externalTrafficPolicy: ""
 

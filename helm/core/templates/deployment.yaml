@@ -1,3 +1,4 @@
+{{- if eq .Values.gateway.kind "Deployment" -}}
 {{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
@@ -58,6 +59,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "gateway.serviceAccountName" . }}
+      {{- if .Values.global.priorityClassName }}
+      priorityClassName: "{{ .Values.global.priorityClassName }}"
+      {{- end }}
       securityContext:
       {{- if .Values.gateway.securityContext }}
         {{- toYaml .Values.gateway.securityContext | nindent 8 }}
@@ -202,6 +206,9 @@ spec:
             value: {{ $val | quote }}
           {{- end }}
           ports:
+          - containerPort: 15020
+            protocol: TCP
+            name: istio-prom
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
@@ -241,7 +248,7 @@ spec:
             mountPath: /var/run/secrets/istio
           - name: istio-data
             mountPath: /var/lib/istio/data
-          - name: podinfo            
+          - name: podinfo
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
@@ -340,3 +347,4 @@ spec:
           path: /opt/plugins
           type: Directory
       {{- end }}
+{{- end }}

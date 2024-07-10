@@ -28,7 +28,7 @@ import (
 
 const (
 	setFlagHelpStr = `Override an higress profile value, e.g. to choose a profile
-(--set profile=local-k8s), or override profile values (--set gateway.replicas=2), or override helm values (--set values.global.proxy.resources.requsts.cpu=500m).`
+(--set profile=local-k8s), or override profile values (--set gateway.replicas=2), or override helm values (--set values.global.proxy.resources.requests.cpu=500m).`
 	// manifestsFlagHelpStr is the command line description for --manifests
 	manifestsFlagHelpStr = `Specify a path to a directory of profiles
 (e.g. ~/Downloads/higress/manifests).`
@@ -101,7 +101,7 @@ func newInstallCmd() *cobra.Command {
   hgctl install --set profile=local-k8s  --set global.enableIstioAPI=true --set gateway.replicas=2"
 
   # To override helm setting
-  hgctl install --set profile=local-k8s  --set values.global.proxy.resources.requsts.cpu=500m"
+  hgctl install --set profile=local-k8s  --set values.global.proxy.resources.requests.cpu=500m"
 
 
 `,
@@ -175,7 +175,7 @@ func promptInstall(writer io.Writer, profileName string) bool {
 
 func promptProfileName(writer io.Writer) string {
 	answer := ""
-	fmt.Fprintf(writer, "\nPlease select higress install configration profile:\n")
+	fmt.Fprintf(writer, "\nPlease select higress install configuration profile:\n")
 	fmt.Fprintf(writer, "\n1.Install higress to local kubernetes cluster like kind etc.\n")
 	fmt.Fprintf(writer, "\n2.Install higress to kubernetes cluster\n")
 	fmt.Fprintf(writer, "\n3.Install higress to local docker environment\n")
