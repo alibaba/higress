@@ -88,7 +88,7 @@
       {{- if .Values.global.enableHigressIstio }}
       discoveryAddress: {{ printf "istiod.%s.svc" .Values.global.istioNamespace }}:15012
       {{- else }}
-      discoveryAddress: higress-controller.{{.Release.Namespace}}.svc:15012
+      discoveryAddress: {{ include "controller.name" . }}.{{.Release.Namespace}}.svc:15012
       {{- end }}
       {{- end }}
       proxyStatsMatcher:
