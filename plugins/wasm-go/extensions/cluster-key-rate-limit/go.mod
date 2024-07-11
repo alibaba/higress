@@ -1,4 +1,4 @@
-module key-cluster-rate-limit
+module cluster-key-rate-limit
 
 go 1.19
 
