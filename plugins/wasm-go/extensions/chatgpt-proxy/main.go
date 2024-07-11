@@ -94,18 +94,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 	pairs := strings.SplitN(ctx.Path(), "?", 2)
 
 	if len(pairs) < 2 {
-		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("1-need prompt param"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.empty_query_string", nil, []byte("1-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	querys, err := url.ParseQuery(pairs[1])
 	if err != nil {
-		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("2-need prompt param"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.bad_query_string", nil, []byte("2-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	var prompt []string
 	var ok bool
 	if prompt, ok = querys[config.PromptParam]; !ok || len(prompt) == 0 {
-		proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("3-need prompt param"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.no_prompt", nil, []byte("3-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	body := fmt.Sprintf(bodyTemplate, config.Model, prompt[0], config.HumainId, config.AIId)
@@ -118,10 +118,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 			for key, value := range responseHeaders {
 				headers = append(headers, [2]string{key, value[0]})
 			}
-			proxywasm.SendHttpResponse(uint32(statusCode), headers, responseBody, -1)
+			proxywasm.SendHttpResponseWithDetail(uint32(statusCode), "chatgpt-proxy.forward", headers, responseBody, -1)
 		}, 10000)
 	if err != nil {
-		proxywasm.SendHttpResponse(http.StatusInternalServerError, nil, []byte("Internel Error: "+err.Error()), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusInternalServerError, "chatgpt-proxy.request_failed", nil, []byte("Internal Error: "+err.Error()), -1)
 		return types.ActionContinue
 	}
 	return types.ActionPause

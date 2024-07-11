@@ -154,7 +154,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	err = compile.Validate(document)
 	if err != nil {
 		log.Errorf("validate request headers failed: %v", err)
-		proxywasm.SendHttpResponse(config.rejectedCode, nil, []byte(config.rejectedMsg), -1)
+		proxywasm.SendHttpResponseWithDetail(config.rejectedCode, "request-validation.invalid_headers", nil, []byte(config.rejectedMsg), -1)
 		return types.ActionPause
 	}
 
@@ -191,7 +191,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	err = compile.Validate(document)
 	if err != nil {
 		log.Errorf("validate request body failed: %v", err)
-		proxywasm.SendHttpResponse(config.rejectedCode, nil, []byte(config.rejectedMsg), -1)
+		proxywasm.SendHttpResponseWithDetail(config.rejectedCode, "request-validation.invalid_body", nil, []byte(config.rejectedMsg), -1)
 		return types.ActionPause
 	}
 
