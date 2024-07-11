@@ -289,9 +289,24 @@ func (s *ConfigmapStorage) String() string {
 	return "ConfigmapStorage"
 }
 
+// getConfigmapStoreNameByKey determines the storage name for a given key.
+// It checks if the key starts with 'certificates/' and if so, the key pattern should match one of the following:
+// 'certificates/<issuerKey>/<domain>/<domain>.json',
+// 'certificates/<issuerKey>/<domain>/<domain>.crt',
+// or 'certificates/<issuerKey>/<domain>/<domain>.key'.
+// It then returns the corresponding ConfigMap name.
+// If the key does not start with 'certificates/', it returns the default store name.
+//
+// Parameters:
+//
+// key - The configuration map key that needs to be mapped to a storage name.
+//
+// Returns:
+//
+// string - The calculated or default storage name based on the key.
 func (s *ConfigmapStorage) getConfigmapStoreNameByKey(key string) string {
 	if strings.HasPrefix(key, "certificates/") {
-		parts := strings.SplitN(key, "/", 10)
+		parts := strings.Split(key, "/")
 		if len(parts) >= 4 && parts[0] == "certificates" {
 			domain := parts[2]
 			issuerKey := parts[1]
