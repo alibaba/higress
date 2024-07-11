@@ -17,17 +17,24 @@ package cert
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"sync"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"istio.io/istio/pilot/pkg/model"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
 	EventCertObtained = "cert_obtained"
+)
+
+var (
+	cfg *certmagic.Config
 )
 
 type CertMgr struct {
@@ -52,21 +59,31 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, X
 	var cache *certmagic.Cache
 	var storage certmagic.Storage
 	storage, _ = NewConfigmapStorage(opts.Namespace, clientSet)
-	renewalWindowRatio := float64(config.RenewBeforeDays / RenewMaxDays)
+	renewalWindowRatio := float64(config.RenewBeforeDays) / float64(RenewMaxDays)
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()),
+		os.Stderr,
+		zap.DebugLevel,
+	))
 	magicConfig := certmagic.Config{
 		RenewalWindowRatio: renewalWindowRatio,
 		Storage:            storage,
+		Logger:             logger,
 	}
 	cache = certmagic.NewCache(certmagic.CacheOptions{
 		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) {
 			// Here we use New to get a valid Config associated with the same cache.
 			// The provided Config is used as a template and will be completed with
 			// any defaults that are set in the Default config.
-			return certmagic.New(cache, magicConfig), nil
+			CertLog.Infof("certmgr cache GetConfigForCert")
+			CertLog.Infof("certmgr config: %+v", cfg)
+			return cfg, nil
 		},
+		Logger: logger,
 	})
 	// init certmagic
-	cfg := certmagic.New(cache, magicConfig)
+	cfg = certmagic.New(cache, magicConfig)
+
 	// Init certmagic acme
 	issuer := config.GetIssuer(IssuerTypeLetsencrypt)
 	if issuer == nil {
@@ -152,12 +169,16 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 		// sync email
 		s.myACME.Email = newIssuer.Email
 		// sync RenewalWindowRatio
-		s.cfg.RenewalWindowRatio = float64(newConfig.RenewBeforeDays / RenewMaxDays)
+		renewalWindowRatio := float64(newConfig.RenewBeforeDays) / float64(RenewMaxDays)
+		CertLog.Infof("certmgr renewalWindowRatio: %f", renewalWindowRatio)
+		s.cfg.RenewalWindowRatio = renewalWindowRatio
 		// start cache
 		s.cache.Start()
 		// sync domains
-		s.manageSync(context.Background(), newDomains)
 		s.configMgr.SetConfig(newConfig)
+		CertLog.Infof("certMgr start to manageSync domains:+v%", newDomains)
+		s.manageSync(context.Background(), newDomains)
+		CertLog.Infof("certMgr manageSync domains done")
 	} else {
 		// stop cache  maintainAssets
 		s.cache.Stop()

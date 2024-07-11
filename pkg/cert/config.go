@@ -101,7 +101,7 @@ func (c *Config) Validate() error {
 	// check acmeIssuer
 	if c.AutomaticHttps {
 		if len(c.ACMEIssuer) == 0 {
-			return fmt.Errorf("acmeIssuer is empty")
+			return fmt.Errorf("no acmeIssuer configuration found when automaticHttps is enable")
 		}
 		for _, issuer := range c.ACMEIssuer {
 			switch issuer.Name {
