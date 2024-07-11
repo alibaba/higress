@@ -60,7 +60,7 @@ func ProcessHTTPCall(log *wrapper.Log, cfg *Oatuh2Config, callback func(response
 	if err := cfg.Client.Get(wellKnownPath, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("ValidateHTTPResponse failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
+			SendError(log, fmt.Sprintf("ValidateHTTPResponse failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode, "oidc.bad_well_known_response")
 			return
 		}
 		callback(responseBody)
