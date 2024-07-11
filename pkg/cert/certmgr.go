@@ -75,8 +75,6 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, X
 			// Here we use New to get a valid Config associated with the same cache.
 			// The provided Config is used as a template and will be completed with
 			// any defaults that are set in the Default config.
-			CertLog.Infof("certmgr cache GetConfigForCert")
-			CertLog.Infof("certmgr config: %+v", cfg)
 			return cfg, nil
 		},
 		Logger: logger,
@@ -170,7 +168,6 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 		s.myACME.Email = newIssuer.Email
 		// sync RenewalWindowRatio
 		renewalWindowRatio := float64(newConfig.RenewBeforeDays) / float64(RenewMaxDays)
-		CertLog.Infof("certmgr renewalWindowRatio: %f", renewalWindowRatio)
 		s.cfg.RenewalWindowRatio = renewalWindowRatio
 		// start cache
 		s.cache.Start()
