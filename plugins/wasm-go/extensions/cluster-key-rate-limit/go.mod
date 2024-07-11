@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/cluster-key-rate-limit
+module cluster-key-rate-limit
 
 go 1.19
 
