@@ -13,6 +13,8 @@ const (
 	matchPatternSuffix   string = "suffix"
 	matchPatternContains string = "contains"
 	matchPatternRegex    string = "regex"
+
+	matchIgnoreCase string = "ignore_case"
 )
 
 type Matcher interface {
@@ -85,8 +87,8 @@ func (m *stringExactMatcher) IgnoreCase() bool {
 }
 
 type repeatedStringMatcher struct {
-	matchers       []Matcher
 	needIgnoreCase bool
+	matchers       []Matcher
 }
 
 func (rsm *repeatedStringMatcher) Match(s string) bool {
@@ -111,10 +113,17 @@ func (rsm *repeatedStringMatcher) IgnoreCase() bool {
 	return rsm.needIgnoreCase
 }
 
-func buildRepeatedStringMatcher(matchers []gjson.Result, ignoreCase bool) (Matcher, error) {
+func buildRepeatedStringMatcher(matchers []gjson.Result, allIgnoreCase bool) (Matcher, error) {
 	builtMatchers := make([]Matcher, len(matchers))
+	needIgnoreCase := allIgnoreCase
+
 	for i, item := range matchers {
 		var matcher Matcher
+		ignoreCase := allIgnoreCase
+		ignoreCaseResult := item.Get(matchIgnoreCase)
+		if ignoreCaseResult.Exists() && ignoreCaseResult.Bool() {
+			ignoreCase = true
+		}
 
 		exactResult := item.Get(matchPatternExact)
 		if exactResult.Exists() && exactResult.String() != "" {
@@ -170,14 +179,25 @@ func buildRepeatedStringMatcher(matchers []gjson.Result, ignoreCase bool) (Match
 		}
 
 		builtMatchers[i] = matcher
+		if ignoreCase {
+			needIgnoreCase = true
+		}
 	}
 
 	return &repeatedStringMatcher{
 		matchers:       builtMatchers,
-		needIgnoreCase: ignoreCase,
+		needIgnoreCase: needIgnoreCase,
 	}, nil
 }
 
 func BuildRepeatedStringMatcherIgnoreCase(matchers []gjson.Result) (Matcher, error) {
 	return buildRepeatedStringMatcher(matchers, true)
+}
+
+func BuildRepeatedStringMatcher(matchers []gjson.Result) (Matcher, error) {
+	return buildRepeatedStringMatcher(matchers, false)
+}
+
+func BuildStringMatcher(matcher gjson.Result) (Matcher, error) {
+	return BuildRepeatedStringMatcher([]gjson.Result{matcher})
 }

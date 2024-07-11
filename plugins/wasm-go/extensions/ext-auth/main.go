@@ -105,14 +105,14 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	if err != nil {
 		log.Warnf("failed to call ext auth server: %v", err)
 		// Since the handling logic for call errors and HTTP status code 500 is the same, we directly use 500 here.
-		callExtAuthServerErrorHandler(config, 500, nil)
+		callExtAuthServerErrorHandler(config, http.StatusInternalServerError, nil)
 		return types.ActionContinue
 	}
 	return types.ActionPause
 }
 
 func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuthRespHeaders http.Header) {
-	if statusCode >= 500 && config.failureModeAllow {
+	if statusCode >= http.StatusInternalServerError && config.failureModeAllow {
 		if config.failureModeAllowHeaderAdd {
 			_ = proxywasm.ReplaceHttpRequestHeader(HeaderFailureModeAllow, "true")
 		}

@@ -5,10 +5,11 @@ import (
 	"ext-auth/expr"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"net/http"
 )
 
 const (
-	DefaultStatusOnError uint32 = 403
+	DefaultStatusOnError uint32 = http.StatusForbidden
 
 	DefaultHttpServiceTimeout uint32 = 200
 )
