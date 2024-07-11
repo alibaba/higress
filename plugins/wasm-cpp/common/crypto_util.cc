@@ -35,6 +35,19 @@ char* __crypt_blowfish(const char* key, const char* setting, char* output);
 namespace Wasm::Common::Crypto {
 
 namespace {
+/**
+ * 根据哈希算法名称获取对应哈希摘要的长度。
+ * 
+ * @param name 哈希算法的名称。
+ * @return 返回对应哈希算法的摘要长度，如果名称不匹配任何已知算法，则返回0。
+ *
+ * 该函数支持的哈希算法及其摘要长度如下：
+ * - "sha1"：SHA-1算法，摘要长度为20字节。
+ * - "sha224"：SHA-224算法，摘要长度为28字节。
+ * - "sha256"：SHA-256算法，摘要长度为32字节。
+ * - "sha384"：SHA-384算法，摘要长度为48字节。
+ * - "sha512"：SHA-512算法，摘要长度为64字节。
+ */
 size_t getDigestLength(std::string_view name) {
   if (name == "sha1") {
     return SHA_DIGEST_LENGTH;
