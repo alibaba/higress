@@ -1,8 +1,8 @@
 package main
 
 import (
-	"frontend-gray/config"
-	"frontend-gray/util"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/util"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"

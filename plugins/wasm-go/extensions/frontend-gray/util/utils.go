@@ -1,9 +1,10 @@
 package util
 
 import (
-	"frontend-gray/config"
 	"net/url"
 	"strings"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 
 	"github.com/tidwall/gjson"
 )

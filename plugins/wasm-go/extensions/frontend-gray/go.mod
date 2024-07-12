@@ -1,6 +1,8 @@
-module frontend-gray
+module github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray
 
 go 1.18
+
+replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20240531060402-2807ddfbb79e
