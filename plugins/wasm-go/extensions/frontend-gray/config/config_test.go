@@ -8,7 +8,7 @@ import (
 )
 
 func TestJsonToGreyConfig(t *testing.T) {
-	allConfigData := `{"gray-key":"userid","rules":[{"name":"inner-user","gray-key-value":["00000001","00000005"]},{"name":"beta-user","gray-key-value":["00000002","00000003"],"gray-tag-key":"level","gray-tag-value":["level3","level5"]}],"deploy":{"base":{"version":"base"},"gray":[{"name":"beta-user","version":"gray","enable":true}]}}`
+	allConfigData := `{"grayKey":"userid","rules":[{"name":"inner-user","grayKeyValue":["00000001","00000005"]},{"name":"beta-user","grayKeyValue":["00000002","00000003"],"grayTagKey":"level","grayTagValue":["level3","level5"]}],"deploy":{"base":{"version":"base"},"gray":[{"name":"beta-user","version":"gray","enabled":true}]}}`
 	var tests = []struct {
 		testName string
 		grayKey  string

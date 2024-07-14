@@ -5,19 +5,19 @@
 ## 配置字段
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
-| `gray-key`         | string       | 必填   | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid                                           |
-| `gray-sub-key`    | string       | 非必填   | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`gray-sub-key`取值为`userCode` |
+| `grayKey`         | string       | 非必填   | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则                                       |
+| `graySubKey`    | string       | 非必填   | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
 | `rules`      | array of map | 非必填  | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                             |
-| `deploy` | map of map   | 非必填  | -   | 分别配置Base基线和Gary灰度的生效规则，以及生效版本                                                         |
+| `deploy` | map of map   | 非必填  | -   | 分别配置Base基线和Gray灰度的生效规则，以及生效版本                                                         |
 
 `rules`字段配置说明：
 
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
 | `name`         | string       | 必填   | -   | 规则名称唯一标识，和`deploy.gray[].name`进行关联生效                                          |
-| `gray-key-value`    | array of string       | 非必填   | -   | 用户ID 白名单列表 |
-| `gray-tag-key`      | string | 非必填  | -   | 用户分类打标的标签key值，来自Cookie                                                             |
-| `gray-tag-value` | array of string   | 非必填  | -   | 用户分类打标的标签value值，来自Cookie                                                         |
+| `grayKeyValue`    | array of string       | 非必填   | -   | 用户ID 白名单列表 |
+| `grayTagKey`      | string | 非必填  | -   | 用户分类打标的标签key值，来自Cookie                                                             |
+| `grayTagValue` | array of string   | 非必填  | -   | 用户分类打标的标签value值，来自Cookie                                                         |
 
 
 `deploy`字段配置说明：
@@ -39,23 +39,23 @@
 |--------|--------|------|-----|----------------------------|
 | `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本 |
 | `name` | string | 必填   | -   | 规则名称和`rules[].name`关联，     |
-| `enable`  | boolean   | 必填   | -   | 是否启动当前灰度规则                 |
+| `enabled`  | boolean   | 必填   | -   | 是否启动当前灰度规则                 |
 
 ## 配置示例
 ### 基础配置
 ```yml
-gray-key: userid
+grayKey: userid
 rules:
 - name: inner-user
-  gray-key-value:
+  grayKeyValue:
   - '00000001'
   - '00000005'
 - name: beta-user
-  gray-key-value:
+  grayKeyValue:
   - '00000002'
   - '00000003'
-  gray-tag-key: level
-  gray-tag-value:
+  grayTagKey: level
+  grayTagValue:
   - level3
   - level5
 deploy:
@@ -64,7 +64,7 @@ deploy:
   gray:
   - name: beta-user
     version: gray
-    enable: true
+    enabled: true
 ```
 
 
@@ -79,19 +79,19 @@ cookie中的用户唯一标识为 `userid`，当前灰度规则配置了`beta-us
 ### 用户信息存在JSON中
 
 ```yml
-gray-key: appInfo
-gray-sub-key: userId
+grayKey: appInfo
+graySubKey: userId
 rules:
 - name: inner-user
-  gray-key-value:
+  grayKeyValue:
   - '00000001'
   - '00000005'
 - name: beta-user
-  gray-key-value:
+  grayKeyValue:
   - '00000002'
   - '00000003'
-  gray-tag-key: level
-  gray-tag-value:
+  grayTagKey: level
+  grayTagValue:
   - level3
   - level5
 deploy:
@@ -100,7 +100,7 @@ deploy:
   gray:
   - name: beta-user
     version: gray
-    enable: true
+    enabled: true
 ```
 
 cookie存在`appInfo`的JSON数据，其中包含`userId`字段为当前的唯一标识

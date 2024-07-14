@@ -45,7 +45,7 @@ func Contains(slice []interface{}, value string) bool {
 	return false
 }
 
-func ContainsRule(rules []*config.GrayRule, name string) *config.GrayRule {
+func GetRule(rules []*config.GrayRule, name string) *config.GrayRule {
 	for _, rule := range rules {
 		if rule.Name == name {
 			return rule
@@ -54,7 +54,7 @@ func ContainsRule(rules []*config.GrayRule, name string) *config.GrayRule {
 	return nil
 }
 
-func GetFromSubKey(grayInfoStr string, graySubKey string) string {
+func GetBySubKey(grayInfoStr string, graySubKey string) string {
 	// 首先对 URL 编码的字符串进行解码
 	jsonStr, err := url.QueryUnescape(grayInfoStr)
 	if err != nil {

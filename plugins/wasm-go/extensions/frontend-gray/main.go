@@ -24,18 +24,19 @@ func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.L
 	return nil
 }
 
-// OmitGrayRule 过滤灰度规则
-func OmitGrayRule(grayConfig *config.GrayConfig, grayKey string) *config.DeployItem {
-	for _, grayItem := range grayConfig.Deploy.Gray {
-		if !grayItem.Enable {
-			// 跳过Enable=false
+// FilterGrayRule 过滤灰度规则
+func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, log wrapper.Log) *config.GrayDeployments {
+	for _, grayDeployment := range grayConfig.GrayDeployments {
+		if !grayDeployment.Enabled {
+			// 跳过Enabled=false
 			continue
 		}
-		grayRule := util.ContainsRule(grayConfig.Rules, grayItem.Name)
+		grayRule := util.GetRule(grayConfig.Rules, grayDeployment.Name)
 		// 首先：先校验用户名单ID
-		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKey != "" {
-			if util.Contains(grayRule.GrayKeyValue, grayKey) {
-				return grayItem
+		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
+			if util.Contains(grayRule.GrayKeyValue, grayKeyValue) {
+				log.Infof("x-mse-tag: %s, grayKeyValue: %s", grayDeployment.Version, grayKeyValue)
+				return grayDeployment
 			}
 		}
 		//	第二：校验Cookie中的 GrayTagKey
@@ -43,10 +44,12 @@ func OmitGrayRule(grayConfig *config.GrayConfig, grayKey string) *config.DeployI
 			cookieStr, _ := proxywasm.GetHttpRequestHeader("cookie")
 			grayTagValue := util.GetValueByCookie(cookieStr, grayRule.GrayTagKey)
 			if util.Contains(grayRule.GrayTagValue, grayTagValue) {
-				return grayItem
+				log.Infof("x-mse-tag: %s, grayTag: %s=%s", grayDeployment.Version, grayRule.GrayTagKey, grayTagValue)
+				return grayDeployment
 			}
 		}
 	}
+	log.Infof("x-mse-tag: %s, grayKeyValue: %s", grayConfig.BaseDeployment.Version, grayKeyValue)
 	return nil
 }
 
@@ -62,18 +65,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	// 如果有子key, 尝试从子key中获取值
 	if grayConfig.GraySubKey != "" {
-		subKeyValue := util.GetFromSubKey(grayKeyValue, grayConfig.GraySubKey)
+		subKeyValue := util.GetBySubKey(grayKeyValue, grayConfig.GraySubKey)
 		if subKeyValue != "" {
 			grayKeyValue = subKeyValue
 		}
 	}
-	grayDeployItem := OmitGrayRule(&grayConfig, grayKeyValue)
-	if grayDeployItem != nil {
-		log.Infof("x-mse-tag: %s, grayKey: %s", grayDeployItem.Version, grayKeyValue)
-		proxywasm.AddHttpRequestHeader("x-mse-tag", grayDeployItem.Version)
-	} else {
-		log.Infof("x-mse-tag: %s, grayKey: %s", grayConfig.Deploy.Base.Version, grayKeyValue)
+	grayDeployment := FilterGrayRule(&grayConfig, grayKeyValue, log)
+	if grayDeployment != nil {
+		proxywasm.AddHttpRequestHeader("x-mse-tag", grayDeployment.Version)
 	}
-
 	return types.ActionContinue
 }

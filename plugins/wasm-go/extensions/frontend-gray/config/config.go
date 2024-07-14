@@ -13,22 +13,23 @@ type GrayRule struct {
 	GrayTagValue []interface{}
 }
 
-type DeployItem struct {
+type BaseDeployment struct {
 	Name    string
 	Version string
-	Enable  bool
 }
 
-type Deploy struct {
-	Base *DeployItem
-	Gray []*DeployItem
+type GrayDeployments struct {
+	Name    string
+	Version string
+	Enabled bool
 }
 
 type GrayConfig struct {
-	GrayKey    string
-	GraySubKey string
-	Rules      []*GrayRule
-	Deploy     *Deploy
+	GrayKey         string
+	GraySubKey      string
+	Rules           []*GrayRule
+	BaseDeployment  *BaseDeployment
+	GrayDeployments []*GrayDeployments
 }
 
 func interfacesFromJSONResult(results []gjson.Result) []interface{} {
@@ -48,43 +49,34 @@ func interfacesFromJSONResult(results []gjson.Result) []interface{} {
 
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
-	grayConfig.GrayKey = json.Get("gray-key").String()
-	grayConfig.GraySubKey = json.Get("gray-sub-key").String()
+	grayConfig.GrayKey = json.Get("grayKey").String()
+	grayConfig.GraySubKey = json.Get("graySubKey").String()
 
 	// 解析 Rules
 	rules := json.Get("rules").Array()
 	for _, rule := range rules {
 		grayRule := GrayRule{
 			Name:         rule.Get("name").String(),
-			GrayKeyValue: interfacesFromJSONResult(rule.Get("gray-key-value").Array()), // 使用辅助函数将 []gjson.Result 转换为 []interface{}
-			GrayTagKey:   rule.Get("gray-tag-key").String(),
-			GrayTagValue: interfacesFromJSONResult(rule.Get("gray-tag-value").Array()),
+			GrayKeyValue: interfacesFromJSONResult(rule.Get("grayKeyValue").Array()), // 使用辅助函数将 []gjson.Result 转换为 []interface{}
+			GrayTagKey:   rule.Get("grayTagKey").String(),
+			GrayTagValue: interfacesFromJSONResult(rule.Get("grayTagValue").Array()),
 		}
 		grayConfig.Rules = append(grayConfig.Rules, &grayRule)
 	}
 
 	// 解析 deploy
-	deployJSON := json.Get("deploy")
-	baseItem := deployJSON.Get("base")
-	grayItems := deployJSON.Get("gray").Array()
+	baseDeployment := json.Get("baseDeployment")
+	grayDeployments := json.Get("grayDeployments").Array()
 
-	// 分配内存给 release 对象
-	grayConfig.Deploy = &Deploy{
-		Base: &DeployItem{
-			Name:    baseItem.Get("name").String(),
-			Version: baseItem.Get("version").String(),
-			Enable:  baseItem.Get("enable").Bool(),
-		},
-		Gray: []*DeployItem{},
+	grayConfig.BaseDeployment = &BaseDeployment{
+		Name:    baseDeployment.Get("name").String(),
+		Version: baseDeployment.Get("version").String(),
 	}
-
-	// 解析 Gray 列表
-	for _, item := range grayItems {
-		DeployItem := &DeployItem{
+	for _, item := range grayDeployments {
+		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &GrayDeployments{
 			Name:    item.Get("name").String(),
 			Version: item.Get("version").String(),
-			Enable:  item.Get("enable").Bool(),
-		}
-		grayConfig.Deploy.Gray = append(grayConfig.Deploy.Gray, DeployItem)
+			Enabled: item.Get("enabled").Bool(),
+		})
 	}
 }
