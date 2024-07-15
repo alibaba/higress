@@ -7,9 +7,9 @@
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填   | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则                                       |
 | `graySubKey`    | string       | 非必填   | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
-| `rules`      | array of map | 非必填  | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                             |
-| `baseDeployment` | map of string   | 非必填  | -   | 配置Base基线规则的配置                                    |
-| `grayDeployments` | map of array   | 非必填  | -   | 配置Gray灰度的生效规则，以及生效版本                                                         |
+| `rules`      | array of object | 非必填  | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                             |
+| `baseDeployment` | object   | 非必填  | -   | 配置Base基线规则的配置                                    |
+| `grayDeployments` |  array of object   | 非必填  | -   | 配置Gray灰度的生效规则，以及生效版本                                                         |
 
 `rules`字段配置说明：
 
@@ -62,11 +62,11 @@ grayDeployments:
 
 cookie中的用户唯一标识为 `userid`，当前灰度规则配置了`beta-user`的规则。
 
-当满足下面调试的时候，会使用`versin: gray`版本
+当满足下面调试的时候，会使用`version: gray`版本
 - cookie中`userid`等于`00000002`或者`00000003`
 - cookie中`level`等于`level3`或者`level5`的用户
 
-否则使用`versin: base`版本
+否则使用`version: base`版本
 
 ### 用户信息存在JSON中
 
@@ -96,8 +96,8 @@ grayDeployments:
 
 cookie存在`appInfo`的JSON数据，其中包含`userId`字段为当前的唯一标识
 当前灰度规则配置了`beta-user`的规则。
-当满足下面调试的时候，会使用`versin: gray`版本
+当满足下面调试的时候，会使用`version: gray`版本
 - cookie中`userid`等于`00000002`或者`00000003`
 - cookie中`level`等于`level3`或者`level5`的用户
 
-否则使用`versin: base`版本
+否则使用`version: base`版本
