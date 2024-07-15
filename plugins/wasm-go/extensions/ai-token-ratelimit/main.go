@@ -166,7 +166,6 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 		if response.Error() != nil {
 			log.Errorf("call Eval error: %v", response.Error())
 		}
-		proxywasm.ResumeHttpResponse()
 	})
 	if err != nil {
 		log.Errorf("redis call failed: %v", err)

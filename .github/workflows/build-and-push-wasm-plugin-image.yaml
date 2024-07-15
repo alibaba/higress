@@ -21,8 +21,8 @@ jobs:
     environment:
       name: image-registry-msg
     env:
-      IMAGE_REGISTRY_SERVICE: ${{ vars.IMAGE_REGISTRY_SERVICE || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
-      IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY || 'plugins' }}
+      IMAGE_REGISTRY_SERVICE: ${{ vars.IMAGE_REGISTRY || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
+      IMAGE_REPOSITORY: ${{ vars.PLUGIN_IMAGE_REPOSITORY || 'plugins' }}
       GO_VERSION: 1.19
       TINYGO_VERSION: 0.28.1
       ORAS_VERSION: 1.0.0
@@ -91,10 +91,20 @@ jobs:
           target_image="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:${{ env.VERSION }}"
           echo "TargetImage=${target_image}"
 
+          cd ${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}
+          if [ -f ./.buildrc ]; then
+            echo 'Found .buildrc file, sourcing it...'
+            . ./.buildrc
+          else
+            echo '.buildrc file not found'
+          fi
+          echo "EXTRA_TAGS=${EXTRA_TAGS}"
+
           command="
+          set -e
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
-          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' .
+          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags=\"custommalloc nottinygc_finalizer ${EXTRA_TAGS}\" .
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           oras push ${target_image} ${push_command}
