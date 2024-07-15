@@ -7,7 +7,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestJsonToGreyConfig(t *testing.T) {
+func TestJsonToGrayConfig(t *testing.T) {
 	allConfigData := `{"grayKey":"userid","rules":[{"name":"inner-user","grayKeyValue":["00000001","00000005"]},{"name":"beta-user","grayKeyValue":["00000002","00000003"],"grayTagKey":"level","grayTagValue":["level3","level5"]}],"deploy":{"base":{"version":"base"},"gray":[{"name":"beta-user","version":"gray","enabled":true}]}}`
 	var tests = []struct {
 		testName string

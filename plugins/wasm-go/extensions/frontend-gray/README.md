@@ -8,7 +8,8 @@
 | `grayKey`         | string       | 非必填   | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则                                       |
 | `graySubKey`    | string       | 非必填   | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
 | `rules`      | array of map | 非必填  | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                             |
-| `deploy` | map of map   | 非必填  | -   | 分别配置Base基线和Gray灰度的生效规则，以及生效版本                                                         |
+| `baseDeployment` | map of string   | 非必填  | -   | 配置Base基线规则的配置                                    |
+| `grayDeployments` | map of array   | 非必填  | -   | 配置Gray灰度的生效规则，以及生效版本                                                         |
 
 `rules`字段配置说明：
 
@@ -19,21 +20,13 @@
 | `grayTagKey`      | string | 非必填  | -   | 用户分类打标的标签key值，来自Cookie                                                             |
 | `grayTagValue` | array of string   | 非必填  | -   | 用户分类打标的标签value值，来自Cookie                                                         |
 
-
-`deploy`字段配置说明：
-
-| 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
-|----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
-| `base`         | map of string       | 必填   | -   | 定义Base版本，如果匹配不到灰度版本，默认fallback到当前版本                                         |
-| `gray`    | array of string       | 非必填   | -   | 定义Gray版本，如果匹配到灰度规则，则当前的灰度版本生效 |
-
-`deploy.base`字段配置说明：
+`baseDeployment`字段配置说明：
 
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
 | `version`         | string       | 必填   | -   | Base版本的版本号，作为兜底的版本                                         |
 
-`deploy.gray`字段配置说明：
+`grayDeployments`字段配置说明：
 
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                         |
 |--------|--------|------|-----|----------------------------|
@@ -58,10 +51,9 @@ rules:
   grayTagValue:
   - level3
   - level5
-deploy:
-  base:
-    version: base
-  gray:
+baseDeployment:
+  version: base
+grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
@@ -94,10 +86,9 @@ rules:
   grayTagValue:
   - level3
   - level5
-deploy:
-  base:
-    version: base
-  gray:
+baseDeployment:
+  version: base
+grayDeployments:
   - name: beta-user
     version: gray
     enabled: true

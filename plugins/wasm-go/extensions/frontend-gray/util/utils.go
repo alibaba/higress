@@ -14,7 +14,6 @@ func GetValueByCookie(cookieStr string, cookieName string) string {
 	if cookieStr == "" {
 		return ""
 	}
-
 	cookies := strings.Split(cookieStr, ";")
 	curCookieName := cookieName + "="
 	var foundCookieValue string
@@ -23,12 +22,11 @@ func GetValueByCookie(cookieStr string, cookieName string) string {
 	for _, cookie := range cookies {
 		cookie = strings.TrimSpace(cookie) // 清理空白符
 		if strings.HasPrefix(cookie, curCookieName) {
-			foundCookieValue = strings.TrimPrefix(cookie, curCookieName)
+			foundCookieValue = cookie[len(curCookieName):]
 			found = true
 			break
 		}
 	}
-
 	if !found {
 		return ""
 	}
