@@ -55,12 +55,10 @@ func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	apiKey := m.config.GetRandomToken()
 	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
 	_ = util.OverwriteRequestHost(moonshotDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+apiKey)
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetOrSetTokenWithContext(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	ctx.SetContext(ctxKeyApiName, apiKey)
 	return types.ActionContinue, nil
 }
 
@@ -88,7 +86,7 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	}
 
-	apiKey := ctx.GetContext(ctxKeyApiName).(string)
+	apiKey := m.config.GetOrSetTokenWithContext(ctx)
 	err := m.getContextContent(apiKey, func(content string, err error) {
 		defer func() {
 			_ = proxywasm.ResumeHttpRequest()
