@@ -18,17 +18,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-)
-
-const (
-	SecretNamePrefix = "higress-secret-"
 )
 
 type SecretMgr struct {
@@ -46,13 +41,20 @@ func NewSecretMgr(namespace string, client kubernetes.Interface) (*SecretMgr, er
 }
 
 func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) error {
-	//secretName := s.getSecretName(domain)
-	secret := s.constructSecret(domain, privateKey, certificate, notBefore, notAfter, isRenew)
-	_, err := s.client.CoreV1().Secrets(s.namespace).Get(context.Background(), secretName, metav1.GetOptions{})
+	name := secretName
+	namespace := s.namespace
+	namespaceP, secretP := ParseTLSSecret(secretName)
+	if namespaceP != "" {
+		namespace = namespaceP
+		name = secretP
+	}
+
+	secret := s.constructSecret(domain, name, namespace, privateKey, certificate, notBefore, notAfter, isRenew)
+	_, err := s.client.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// create secret
-			_, err2 := s.client.CoreV1().Secrets(s.namespace).Create(context.Background(), secret, metav1.CreateOptions{})
+			_, err2 := s.client.CoreV1().Secrets(namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 			return err2
 		}
 		return err
@@ -61,7 +63,7 @@ func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, 
 	if _, ok := secret.Annotations["higress.io/cert-domain"]; !ok {
 		return fmt.Errorf("the secret name %s is not automatic https secret name for the domain:%s, please rename it in config", secretName, domain)
 	}
-	_, err1 := s.client.CoreV1().Secrets(s.namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
+	_, err1 := s.client.CoreV1().Secrets(namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 	if err1 != nil {
 		return err1
 	}
@@ -69,18 +71,7 @@ func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, 
 	return nil
 }
 
-func (s *SecretMgr) Delete(domain string) error {
-	secretName := s.getSecretName(domain)
-	err := s.client.CoreV1().Secrets(s.namespace).Delete(context.Background(), secretName, metav1.DeleteOptions{})
-	return err
-}
-
-func (s *SecretMgr) getSecretName(domain string) string {
-	return SecretNamePrefix + strings.ReplaceAll(strings.TrimSpace(domain), ".", "-")
-}
-
-func (s *SecretMgr) constructSecret(domain string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) *v1.Secret {
-	secretName := s.getSecretName(domain)
+func (s *SecretMgr) constructSecret(domain string, name string, namespace string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) *v1.Secret {
 	annotationMap := make(map[string]string, 0)
 	annotationMap["higress.io/cert-domain"] = domain
 	annotationMap["higress.io/cert-notAfter"] = notAfter.Format("2006-01-02 15:04:05")
@@ -97,8 +88,8 @@ func (s *SecretMgr) constructSecret(domain string, privateKey []byte, certificat
 	dataMap["tls.crt"] = certificate
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        secretName,
-			Namespace:   s.namespace,
+			Name:        name,
+			Namespace:   namespace,
 			Annotations: annotationMap,
 		},
 		Type: v1.SecretTypeTLS,
