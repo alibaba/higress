@@ -52,8 +52,8 @@ func SerializeAndEncryptCookieData(data *CookieData, keySecret string, cookieSet
 	return buildSecureCookieHeader(data, keySecret, cookieSettings)
 }
 
-// DeserializedeCookieData 将一个安全的cookie header解密并反序列化为 CookieData 对象
-func DeserializedeCookieData(cookievalue string) (*CookieData, error) {
+// DeserializeCookieData 将一个安全的cookie header解密并反序列化为 CookieData 对象
+func DeserializeCookieData(cookievalue string) (*CookieData, error) {
 
 	data, err := retrieveCookieData(cookievalue)
 	if err != nil {

@@ -64,7 +64,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	apiName := getOpenAiApiName(path.Path)
 	if apiName == "" {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		_ = util.SendResponse(404, util.MimeTypeTextPlain, "API not found: "+path.Path)
+		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
@@ -77,7 +77,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue
 	}
 
@@ -104,7 +104,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
 		return types.ActionContinue
 	}
 	return types.ActionContinue
@@ -144,7 +144,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_resp_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
 		return types.ActionContinue
 	}
 
@@ -198,7 +198,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process response body: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_resp_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response body: %v", err))
 		return types.ActionContinue
 	}
 	return types.ActionContinue
