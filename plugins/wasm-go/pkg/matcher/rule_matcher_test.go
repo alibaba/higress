@@ -153,6 +153,62 @@ func TestHostMatch(t *testing.T) {
 	}
 }
 
+func TestServiceMatch(t *testing.T) {
+	cases := []struct {
+		name    string
+		config  RuleConfig[customConfig]
+		service string
+		result  bool
+	}{
+		{
+			name: "fqdn",
+			config: RuleConfig[customConfig]{
+				services: map[string]struct{}{
+					"qwen.dns": {},
+				},
+			},
+			service: "outbound|443||qwen.dns",
+			result:  true,
+		},
+		{
+			name: "fqdn with port",
+			config: RuleConfig[customConfig]{
+				services: map[string]struct{}{
+					"qwen.dns:443": {},
+				},
+			},
+			service: "outbound|443||qwen.dns",
+			result:  true,
+		},
+		{
+			name: "not match",
+			config: RuleConfig[customConfig]{
+				services: map[string]struct{}{
+					"moonshot.dns:443": {},
+				},
+			},
+			service: "outbound|443||qwen.dns",
+			result:  false,
+		},
+		{
+			name: "error config format",
+			config: RuleConfig[customConfig]{
+				services: map[string]struct{}{
+					"qwen.dns:": {},
+				},
+			},
+			service: "outbound|443||qwen.dns",
+			result:  false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var m RuleMatcher[customConfig]
+			assert.Equal(t, c.result, m.serviceMatch(c.config, c.service))
+		})
+	}
+}
+
 func TestParseRuleConfig(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -173,7 +229,7 @@ func TestParseRuleConfig(t *testing.T) {
 		},
 		{
 			name:   "rules config",
-			config: `{"_rules_":[{"_match_domain_":["*.example.com","www.*","*","www.abc.com"],"name":"john", "age":18},{"_match_route_":["test1","test2"],"name":"ann", "age":16}]}`,
+			config: `{"_rules_":[{"_match_domain_":["*.example.com","www.*","*","www.abc.com"],"name":"john", "age":18},{"_match_route_":["test1","test2"],"name":"ann", "age":16},{"_match_service_":["test1.dns","test2.static:8080"],"name":"ann", "age":16}]}`,
 			expected: RuleMatcher[customConfig]{
 				ruleConfig: []RuleConfig[customConfig]{
 					{
@@ -196,7 +252,8 @@ func TestParseRuleConfig(t *testing.T) {
 								host:      "www.abc.com",
 							},
 						},
-						routes: map[string]struct{}{},
+						routes:   map[string]struct{}{},
+						services: map[string]struct{}{},
 						config: customConfig{
 							name: "john",
 							age:  18,
@@ -208,6 +265,19 @@ func TestParseRuleConfig(t *testing.T) {
 							"test1": {},
 							"test2": {},
 						},
+						services: map[string]struct{}{},
+						config: customConfig{
+							name: "ann",
+							age:  16,
+						},
+					},
+					{
+						category: Service,
+						services: map[string]struct{}{
+							"test1.dns":         {},
+							"test2.static:8080": {},
+						},
+						routes: map[string]struct{}{},
 						config: customConfig{
 							name: "ann",
 							age:  16,
@@ -224,12 +294,17 @@ func TestParseRuleConfig(t *testing.T) {
 		{
 			name:   "invalid rule",
 			config: `{"_rules_":[{"_match_domain_":["*"],"_match_route_":["test"]}]}`,
-			errMsg: "there is only one of  '_match_route_' and '_match_domain_' can present in configuration.",
+			errMsg: "there is only one of  '_match_route_', '_match_domain_' and '_match_service_' can present in configuration.",
+		},
+		{
+			name:   "invalid rule",
+			config: `{"_rules_":[{"_match_domain_":["*"],"_match_service_":["test.dns"]}]}`,
+			errMsg: "there is only one of  '_match_route_', '_match_domain_' and '_match_service_' can present in configuration.",
 		},
 		{
 			name:   "invalid rule",
 			config: `{"_rules_":[{"age":16}]}`,
-			errMsg: "there is only one of  '_match_route_' and '_match_domain_' can present in configuration.",
+			errMsg: "there is only one of  '_match_route_', '_match_domain_' and '_match_service_' can present in configuration.",
 		},
 	}
 	for _, c := range cases {
@@ -303,6 +378,7 @@ func TestParseOverrideConfig(t *testing.T) {
 							"r1": {},
 							"r2": {},
 						},
+						services: map[string]struct{}{},
 						config: completeConfig{
 							consumers: []string{"c1", "c2", "c3"},
 							allow:     []string{"c1", "c3"},

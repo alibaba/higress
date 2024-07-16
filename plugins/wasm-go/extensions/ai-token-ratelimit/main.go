@@ -166,7 +166,6 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 		if response.Error() != nil {
 			log.Errorf("call Eval error: %v", response.Error())
 		}
-		proxywasm.ResumeHttpResponse()
 	})
 	if err != nil {
 		log.Errorf("redis call failed: %v", err)
@@ -298,6 +297,6 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
-	_ = proxywasm.SendHttpResponse(
-		config.rejectedCode, reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+	_ = proxywasm.SendHttpResponseWithDetail(
+		config.rejectedCode, "ai-token-ratelimit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
 }

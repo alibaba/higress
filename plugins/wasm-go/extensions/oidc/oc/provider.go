@@ -60,7 +60,7 @@ func ProcessHTTPCall(log *wrapper.Log, cfg *Oatuh2Config, callback func(response
 	if err := cfg.Client.Get(wellKnownPath, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("ValidateHTTPResponse failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
+			SendError(log, fmt.Sprintf("ValidateHTTPResponse failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode, "oidc.bad_well_known_response")
 			return
 		}
 		callback(responseBody)
@@ -78,7 +78,7 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 		statStr := GenState(state, cfg.ClientSecret, cfg.RedirectURL)
 		cfg.Endpoint.AuthURL = gjson.ParseBytes(responseBody).Get("authorization_endpoint").String()
 		if cfg.Endpoint.AuthURL == "" {
-			SendError(log, "Missing 'authorization_endpoint' in the OpenID configuration response.", http.StatusInternalServerError)
+			SendError(log, "Missing 'authorization_endpoint' in the OpenID configuration response.", http.StatusInternalServerError, "oidc.auth_endpoint_missing")
 			return
 		}
 
@@ -87,7 +87,7 @@ func (d *DefaultOAuthHandler) ProcessRedirect(log *wrapper.Log, cfg *Oatuh2Confi
 			opts = SetNonce(string(cfg.CookieData.Nonce))
 		}
 		codeURL := cfg.AuthCodeURL(statStr, opts)
-		proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
+		proxywasm.SendHttpResponseWithDetail(http.StatusFound, "oidc.authed", [][2]string{
 			{"Location", codeURL},
 		}, nil, -1)
 		return
@@ -100,18 +100,18 @@ func (d *DefaultOAuthHandler) ProcessExchangeToken(log *wrapper.Log, cfg *Oatuh2
 		PvRJson := gjson.ParseBytes(responseBody)
 		cfg.Endpoint.TokenURL = PvRJson.Get("token_endpoint").String()
 		if cfg.Endpoint.TokenURL == "" {
-			SendError(log, "Missing 'token_endpoint' in the OpenID configuration response.", http.StatusInternalServerError)
+			SendError(log, "Missing 'token_endpoint' in the OpenID configuration response.", http.StatusInternalServerError, "oidc.token_endpoint_missing")
 			return
 		}
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
-			SendError(log, "Missing 'jwks_uri' in the OpenID configuration response.", http.StatusInternalServerError)
+			SendError(log, "Missing 'jwks_uri' in the OpenID configuration response.", http.StatusInternalServerError, "oidc.jwks_uri_missing")
 			return
 		}
 		cfg.Option.AuthStyle = AuthStyle(cfg.Endpoint.AuthStyle)
 
 		if err := processToken(log, cfg); err != nil {
-			SendError(log, fmt.Sprintf("ProcessToken failed : err %v", err), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("ProcessToken failed : err %v", err), http.StatusInternalServerError, "oidc.process_token_failed")
 			return
 		}
 	})
@@ -123,7 +123,7 @@ func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config)
 
 		cfg.JwksURL = PvRJson.Get("jwks_uri").String()
 		if cfg.JwksURL == "" {
-			SendError(log, "Missing 'token_endpoint' in the OpenID configuration response.", http.StatusInternalServerError)
+			SendError(log, "Missing 'token_endpoint' in the OpenID configuration response.", http.StatusInternalServerError, "oidc.token_endpoint_missing")
 			return
 		}
 		var algs []string
@@ -134,7 +134,7 @@ func (d *DefaultOAuthHandler) ProcessVerify(log *wrapper.Log, cfg *Oatuh2Config)
 		}
 		cfg.SupportedSigningAlgs = algs
 		if err := processTokenVerify(log, cfg); err != nil {
-			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError, "oidc.verify_token_failed")
 			return
 		}
 	})
@@ -161,13 +161,13 @@ func processToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 	cb := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
+			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode, "oidc.bad_token_response")
 			return
 		}
 
 		tk, err := UnmarshalToken(&token, responseHeaders, responseBody)
 		if err != nil {
-			SendError(log, fmt.Sprintf("UnmarshalToken error: %v", err), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("UnmarshalToken error: %v", err), http.StatusInternalServerError, "oidc.extract_token_failed")
 			return
 		}
 
@@ -179,14 +179,14 @@ func processToken(log *wrapper.Log, cfg *Oatuh2Config) error {
 
 		rawIDToken, ok := betoken.Extra("id_token").(string)
 		if !ok {
-			SendError(log, fmt.Sprintf("No id_token field in oauth2 token."), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("No id_token field in oauth2 token."), http.StatusInternalServerError, "oidc.id_token_missing")
 			return
 		}
 		cfg.Option.RawIdToken = rawIDToken
 
 		err = processTokenVerify(log, cfg)
 		if err != nil {
-			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("failed to verify token: %v", err), http.StatusInternalServerError, "oidc.verify_token_failed")
 			return
 		}
 
@@ -218,7 +218,7 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 	cb := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if err := ValidateHTTPResponse(statusCode, responseHeaders, responseBody); err != nil {
 			cleanedBody := re.ReplaceAllString(string(responseBody), "")
-			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode)
+			SendError(log, fmt.Sprintf("Valid failed , status : %v err : %v  err_info: %v ", statusCode, err, cleanedBody), statusCode, "oidc.bad_validate_response")
 			return
 		}
 
@@ -227,7 +227,7 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 			jsw, err := GenJswkey(val)
 			if err != nil {
 				log.Errorf("err: %v", err)
-				SendError(log, fmt.Sprintf("GenJswkey error:%v", err), http.StatusInternalServerError)
+				SendError(log, fmt.Sprintf("GenJswkey error:%v", err), http.StatusInternalServerError, "oidc.gen_jsw_key_failed")
 				return
 			}
 			keySet.Keys = append(keySet.Keys, *jsw)
@@ -262,10 +262,10 @@ func processTokenVerify(log *wrapper.Log, cfg *Oatuh2Config) error {
 
 		cookieHeader, err := SerializeAndEncryptCookieData(cfg.CookieData, cfg.CookieOption.Secret, cfg.CookieOption)
 		if err != nil {
-			SendError(log, fmt.Sprintf("SerializeAndEncryptCookieData failed : %v", err), http.StatusInternalServerError)
+			SendError(log, fmt.Sprintf("SerializeAndEncryptCookieData failed : %v", err), http.StatusInternalServerError, "oidc.gen_cookie_failed")
 			return
 		}
-		proxywasm.SendHttpResponse(http.StatusFound, [][2]string{
+		proxywasm.SendHttpResponseWithDetail(http.StatusFound, "oidc.token_verified", [][2]string{
 			{"Location", cfg.ClientUrl},
 			{"Set-Cookie", cookieHeader},
 		}, nil, -1)

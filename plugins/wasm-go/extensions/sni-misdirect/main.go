@@ -60,11 +60,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		return types.ActionContinue
 	}
 	if !strings.HasPrefix(string(sni), "*.") {
-		proxywasm.SendHttpResponse(http.StatusMisdirectedRequest, nil, []byte("Misdirected Request"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusMisdirectedRequest, "sni-misdirect.mismatched.non_wildcard", nil, []byte("Misdirected Request"), -1)
 		return types.ActionPause
 	}
 	if !strings.Contains(host, string(sni)[1:]) {
-		proxywasm.SendHttpResponse(http.StatusMisdirectedRequest, nil, []byte("Misdirected Request"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusMisdirectedRequest, "sni-misdirect.mismatched.wildcard", nil, []byte("Misdirected Request"), -1)
 		return types.ActionPause
 	}
 	return types.ActionContinue

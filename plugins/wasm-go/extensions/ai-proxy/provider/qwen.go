@@ -112,11 +112,11 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.qwen.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			m.insertContextMessage(request, content, false)
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.qwen.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -165,7 +165,7 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.qwen.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		qwenRequest := m.buildQwenTextGenerationRequest(request, streaming)
@@ -173,7 +173,7 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 			ctx.SetContext(ctxKeyIncrementalStreaming, qwenRequest.Parameters.IncrementalOutput)
 		}
 		if err := replaceJsonRequestBody(qwenRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.qwen.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -229,10 +229,7 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 		receivedBody = append(bufferedStreamingBody, chunk...)
 	}
 
-	incrementalStreaming, err := ctx.GetContext(ctxKeyIncrementalStreaming).(bool)
-	if !err {
-		incrementalStreaming = false
-	}
+	incrementalStreaming := ctx.GetBoolContext(ctxKeyIncrementalStreaming, false)
 
 	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
 
@@ -387,7 +384,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	return &chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
@@ -403,7 +400,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices:           make([]chatCompletionChoice, 0),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,

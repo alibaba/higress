@@ -95,7 +95,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 			headers = append(headers, [2]string{"x-degraphql-endpoint", config.GetEndpoint()})
 			headers = append(headers, [2]string{"x-degraphql-timeout", fmt.Sprintf("%d", config.GetTimeout())})
 			headers = append(headers, [2]string{"x-degraphql-version", config.GetVersion()})
-			proxywasm.SendHttpResponse(uint32(statusCode), headers, responseBody, -1)
+			proxywasm.SendHttpResponseWithDetail(uint32(statusCode), "de-graphql", headers, responseBody, -1)
 			return
 		}, config.GetTimeout())
 

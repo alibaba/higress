@@ -253,6 +253,6 @@ func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 		headers[RateLimitLimitHeader] = []string{strconv.Itoa(context.count)}
 		headers[RateLimitRemainingHeader] = []string{strconv.Itoa(0)}
 	}
-	_ = proxywasm.SendHttpResponse(
-		config.rejectedCode, reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+	_ = proxywasm.SendHttpResponseWithDetail(
+		config.rejectedCode, "cluster-key-rate-limit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
 }
