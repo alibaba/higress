@@ -34,7 +34,7 @@ type HttpClient interface {
 	Delete(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 	Connect(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 	Trace(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Do(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Call(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 }
 
 type ClusterClient[C Cluster] struct {
@@ -73,7 +73,7 @@ func (c ClusterClient[C]) Trace(path string, headers [][2]string, body []byte, c
 	return HttpCall(c.cluster, http.MethodTrace, path, headers, body, cb, timeoutMillisecond...)
 }
 
-func (c ClusterClient[C]) Do(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+func (c ClusterClient[C]) Call(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
 	return HttpCall(c.cluster, method, path, headers, body, cb, timeoutMillisecond...)
 }
 

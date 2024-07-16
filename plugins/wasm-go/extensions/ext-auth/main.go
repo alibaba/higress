@@ -32,8 +32,9 @@ func main() {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
 	reqMethod := ctx.Method()
-	// withRequestBody is true and the request method is not GET, OPTIONS, or HEAD
-	if config.withRequestBody &&
+	// If withRequestBody is true and the request method is not GET, OPTIONS, or HEAD,
+	// it will be handled in the onHttpRequestBody phase.
+	if config.httpService.authorizationRequest.withRequestBody &&
 		!(reqMethod == http.MethodGet || reqMethod == http.MethodOptions || reqMethod == http.MethodHead) {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
@@ -46,7 +47,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wra
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
-	if config.withRequestBody {
+	if config.httpService.authorizationRequest.withRequestBody {
 		return checkExtAuth(ctx, config, body, log)
 	}
 	return types.ActionContinue
@@ -61,17 +62,19 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	// build extAuth request headers
 	extAuthReqHeaders := http.Header{}
 
+	httpServiceConfig := config.httpService
+	requestConfig := httpServiceConfig.authorizationRequest
 	reqHeaders, _ := proxywasm.GetHttpRequestHeaders()
-	if config.allowedHeaders != nil {
+	if requestConfig.allowedHeaders != nil {
 		for _, header := range reqHeaders {
 			headK := header[0]
-			if config.allowedHeaders.Match(headK) {
+			if requestConfig.allowedHeaders.Match(headK) {
 				extAuthReqHeaders.Set(headK, header[1])
 			}
 		}
 	}
 
-	for key, value := range config.httpService.authorizationRequest.headersToAdd {
+	for key, value := range requestConfig.headersToAdd {
 		extAuthReqHeaders.Set(key, value)
 	}
 
@@ -82,28 +85,27 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	}
 
 	// call ext auth server
-	err := config.httpService.client.Do(ctx.Method(), config.httpService.path, reconvertHeaders(extAuthReqHeaders), body,
+	err := httpServiceConfig.client.Post(httpServiceConfig.path, reconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest()
-
 			if statusCode != http.StatusOK {
-				log.Warnf("failed to call ext auth server, status: %d", statusCode)
+				log.Errorf("failed to call ext auth server, status: %d", statusCode)
 				callExtAuthServerErrorHandler(config, statusCode, responseHeaders)
 				return
 			}
 
-			if config.httpService.authorizationResponse.allowedUpstreamHeaders != nil {
+			if httpServiceConfig.authorizationResponse.allowedUpstreamHeaders != nil {
 				for headK, headV := range responseHeaders {
-					if config.httpService.authorizationResponse.allowedUpstreamHeaders.Match(headK) {
+					if httpServiceConfig.authorizationResponse.allowedUpstreamHeaders.Match(headK) {
 						_ = proxywasm.ReplaceHttpRequestHeader(headK, headV[0])
 					}
 				}
 			}
 
-		}, config.httpService.timeout)
+		}, httpServiceConfig.timeout)
 
 	if err != nil {
-		log.Warnf("failed to call ext auth server: %v", err)
+		log.Errorf("failed to call ext auth server: %v", err)
 		// Since the handling logic for call errors and HTTP status code 500 is the same, we directly use 500 here.
 		callExtAuthServerErrorHandler(config, http.StatusInternalServerError, nil)
 		return types.ActionContinue

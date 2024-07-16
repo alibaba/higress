@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"ext-auth/expr"
+	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -18,15 +20,12 @@ type ExtAuthConfig struct {
 	httpService               HttpService
 	failureModeAllow          bool
 	failureModeAllowHeaderAdd bool
-	withRequestBody           bool
 	statusOnError             uint32
-	// allowedHeaders In addition to the user’s supplied matchers,
-	// Host, Method, Path, Content-Length, and Authorization are automatically included to the list.
-	allowedHeaders expr.Matcher
 }
 
 type HttpService struct {
 	client                wrapper.HttpClient
+	requestMethod         string
 	path                  string
 	timeout               uint32
 	authorizationRequest  AuthorizationRequest
@@ -34,7 +33,11 @@ type HttpService struct {
 }
 
 type AuthorizationRequest struct {
-	headersToAdd map[string]string
+	// allowedHeaders In addition to the user’s supplied matchers,
+	// Host, Method, Path, Content-Length, and Authorization are automatically included to the list.
+	allowedHeaders  expr.Matcher
+	headersToAdd    map[string]string
+	withRequestBody bool
 }
 
 type AuthorizationResponse struct {
@@ -62,25 +65,11 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 		config.failureModeAllowHeaderAdd = failureModeAllowHeaderAdd.Bool()
 	}
 
-	withRequestBody := json.Get("with_request_body")
-	if withRequestBody.Exists() {
-		config.withRequestBody = withRequestBody.Bool()
-	}
-
 	statusOnError := json.Get("status_on_error")
 	if statusOnError.Exists() {
 		config.statusOnError = uint32(statusOnError.Uint())
 	} else {
 		config.statusOnError = DefaultStatusOnError
-	}
-
-	allowedHeaders := json.Get("allowed_headers")
-	if allowedHeaders.Exists() {
-		result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedHeaders.Array())
-		if err != nil {
-			return err
-		}
-		config.allowedHeaders = result
 	}
 
 	return nil
@@ -89,9 +78,15 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig) error {
 	var httpService HttpService
 
-	if err := parseServerUriConfig(json, &httpService); err != nil {
+	if err := parseEndpointConfig(json, &httpService); err != nil {
 		return err
 	}
+
+	timeout := uint32(json.Get("timeout").Uint())
+	if timeout == 0 {
+		timeout = DefaultHttpServiceTimeout
+	}
+	httpService.timeout = timeout
 
 	if err := parseAuthorizationRequestConfig(json, &httpService); err != nil {
 		return err
@@ -106,15 +101,15 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig) error {
 	return nil
 }
 
-func parseServerUriConfig(json gjson.Result, httpService *HttpService) error {
-	serverUriConfig := json.Get("server_uri")
-	if !serverUriConfig.Exists() {
-		return errors.New("missing server_uri in config")
+func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
+	endpointConfig := json.Get("endpoint")
+	if !endpointConfig.Exists() {
+		return errors.New("missing endpoint in config")
 	}
 
-	serviceSource := serverUriConfig.Get("service_source").String()
-	serviceName := serverUriConfig.Get("service_name").String()
-	servicePort := serverUriConfig.Get("service_port").Int()
+	serviceSource := endpointConfig.Get("service_source").String()
+	serviceName := endpointConfig.Get("service_name").String()
+	servicePort := endpointConfig.Get("service_port").Int()
 	if serviceName == "" || servicePort == 0 {
 		return errors.New("invalid service config")
 	}
@@ -141,7 +136,7 @@ func parseServerUriConfig(json gjson.Result, httpService *HttpService) error {
 			Port:        servicePort,
 		})
 	case "dns":
-		domain := serverUriConfig.Get("domain").String()
+		domain := endpointConfig.Get("domain").String()
 		httpService.client = wrapper.NewClusterClient(wrapper.DnsCluster{
 			ServiceName: serviceName,
 			Port:        servicePort,
@@ -151,17 +146,18 @@ func parseServerUriConfig(json gjson.Result, httpService *HttpService) error {
 		return errors.New("unknown service source: " + serviceSource)
 	}
 
-	pathConfig := serverUriConfig.Get("path")
+	requestMethodConfig := endpointConfig.Get("request_method")
+	if !requestMethodConfig.Exists() {
+		httpService.requestMethod = http.MethodGet
+	} else {
+		httpService.requestMethod = strings.ToUpper(requestMethodConfig.String())
+	}
+
+	pathConfig := endpointConfig.Get("path")
 	if !pathConfig.Exists() {
 		return errors.New("missing path in config")
 	}
 	httpService.path = pathConfig.String()
-
-	timeout := uint32(serverUriConfig.Get("timeout").Uint())
-	if timeout == 0 {
-		timeout = DefaultHttpServiceTimeout
-	}
-	httpService.timeout = timeout
 
 	return nil
 }
@@ -179,6 +175,25 @@ func parseAuthorizationRequestConfig(json gjson.Result, httpService *HttpService
 			}
 		}
 		authorizationRequest.headersToAdd = headersToAdd
+
+		withRequestBody := authorizationRequestConfig.Get("with_request_body")
+		if withRequestBody.Exists() {
+			// withRequestBody is true and the request method is GET, OPTIONS or HEAD
+			if withRequestBody.Bool() &&
+				(httpService.requestMethod == http.MethodGet || httpService.requestMethod == http.MethodOptions || httpService.requestMethod == http.MethodHead) {
+				return errors.New(fmt.Sprintf("requestMethod %s does not support with_request_body set to true", httpService.requestMethod))
+			}
+			authorizationRequest.withRequestBody = withRequestBody.Bool()
+		}
+
+		allowedHeaders := authorizationRequestConfig.Get("allowed_headers")
+		if allowedHeaders.Exists() {
+			result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedHeaders.Array())
+			if err != nil {
+				return err
+			}
+			authorizationRequest.allowedHeaders = result
+		}
 
 		httpService.authorizationRequest = authorizationRequest
 	}

@@ -19,7 +19,18 @@ const (
 
 type Matcher interface {
 	Match(s string) bool
-	IgnoreCase() bool
+}
+
+type stringExactMatcher struct {
+	target     string
+	ignoreCase bool
+}
+
+func (m *stringExactMatcher) Match(s string) bool {
+	if m.ignoreCase {
+		return strings.ToLower(s) == m.target
+	}
+	return s == m.target
 }
 
 type stringPrefixMatcher struct {
@@ -28,11 +39,10 @@ type stringPrefixMatcher struct {
 }
 
 func (m *stringPrefixMatcher) Match(s string) bool {
+	if m.ignoreCase {
+		return strings.HasPrefix(strings.ToLower(s), m.target)
+	}
 	return strings.HasPrefix(s, m.target)
-}
-
-func (m *stringPrefixMatcher) IgnoreCase() bool {
-	return m.ignoreCase
 }
 
 type stringSuffixMatcher struct {
@@ -41,11 +51,22 @@ type stringSuffixMatcher struct {
 }
 
 func (m *stringSuffixMatcher) Match(s string) bool {
+	if m.ignoreCase {
+		return strings.HasSuffix(strings.ToLower(s), m.target)
+	}
 	return strings.HasSuffix(s, m.target)
 }
 
-func (m *stringSuffixMatcher) IgnoreCase() bool {
-	return m.ignoreCase
+type stringContainsMatcher struct {
+	target     string
+	ignoreCase bool
+}
+
+func (m *stringContainsMatcher) Match(s string) bool {
+	if m.ignoreCase {
+		return strings.Contains(strings.ToLower(s), m.target)
+	}
+	return strings.Contains(s, m.target)
 }
 
 type stringRegexMatcher struct {
@@ -56,122 +77,61 @@ func (m *stringRegexMatcher) Match(s string) bool {
 	return m.regex.MatchString(s)
 }
 
-func (m *stringRegexMatcher) IgnoreCase() bool {
-	return false
-}
-
-type stringContainsMatcher struct {
-	target     string
-	ignoreCase bool
-}
-
-func (m *stringContainsMatcher) Match(s string) bool {
-	return strings.Contains(s, m.target)
-}
-
-func (m *stringContainsMatcher) IgnoreCase() bool {
-	return m.ignoreCase
-}
-
-type stringExactMatcher struct {
-	target     string
-	ignoreCase bool
-}
-
-func (m *stringExactMatcher) Match(s string) bool {
-	return s == m.target
-}
-
-func (m *stringExactMatcher) IgnoreCase() bool {
-	return m.ignoreCase
-}
-
 type repeatedStringMatcher struct {
-	needIgnoreCase bool
-	matchers       []Matcher
+	matchers []Matcher
 }
 
 func (rsm *repeatedStringMatcher) Match(s string) bool {
-	var ls string
-	if rsm.needIgnoreCase {
-		// the repeated string matcher will share one case-insensitive input
-		ls = strings.ToLower(s)
-	}
 	for _, m := range rsm.matchers {
-		input := s
-		if m.IgnoreCase() {
-			input = ls
-		}
-		if m.Match(input) {
+		if m.Match(s) {
 			return true
 		}
 	}
 	return false
 }
 
-func (rsm *repeatedStringMatcher) IgnoreCase() bool {
-	return rsm.needIgnoreCase
-}
-
 func buildRepeatedStringMatcher(matchers []gjson.Result, allIgnoreCase bool) (Matcher, error) {
 	builtMatchers := make([]Matcher, len(matchers))
-	needIgnoreCase := allIgnoreCase
+
+	createMatcher := func(json gjson.Result, targetKey string, ignoreCase bool, matcherType MatcherConstructor) (Matcher, error) {
+		result := json.Get(targetKey)
+		if result.Exists() && result.String() != "" {
+			target := result.String()
+			return matcherType(target, ignoreCase)
+		}
+		return nil, nil
+	}
 
 	for i, item := range matchers {
 		var matcher Matcher
+		var err error
+
+		// If allIgnoreCase is true, it takes precedence over any user configuration,
+		// forcing case-insensitive matching regardless of individual item settings.
 		ignoreCase := allIgnoreCase
-		ignoreCaseResult := item.Get(matchIgnoreCase)
-		if ignoreCaseResult.Exists() && ignoreCaseResult.Bool() {
-			ignoreCase = true
+		if !allIgnoreCase {
+			ignoreCaseResult := item.Get(matchIgnoreCase)
+			if ignoreCaseResult.Exists() && ignoreCaseResult.Bool() {
+				ignoreCase = true
+			}
 		}
 
-		exactResult := item.Get(matchPatternExact)
-		if exactResult.Exists() && exactResult.String() != "" {
-			target := exactResult.String()
-			if ignoreCase {
-				target = strings.ToLower(target)
-			}
-			matcher = &stringExactMatcher{target: target, ignoreCase: ignoreCase}
-		}
-
-		prefixResult := item.Get(matchPatternPrefix)
-		if prefixResult.Exists() && prefixResult.String() != "" {
-			target := prefixResult.String()
-			if ignoreCase {
-				target = strings.ToLower(target)
-			}
-			matcher = &stringPrefixMatcher{target: target, ignoreCase: ignoreCase}
-		}
-
-		suffixResult := item.Get(matchPatternSuffix)
-		if suffixResult.Exists() && suffixResult.String() != "" {
-			target := suffixResult.String()
-			if ignoreCase {
-				target = strings.ToLower(target)
-			}
-			matcher = &stringSuffixMatcher{target: target, ignoreCase: ignoreCase}
-		}
-
-		containsResult := item.Get(matchPatternContains)
-		if containsResult.Exists() && containsResult.String() != "" {
-			target := containsResult.String()
-			if ignoreCase {
-				target = strings.ToLower(target)
-			}
-			matcher = &stringContainsMatcher{target: target, ignoreCase: ignoreCase}
-		}
-
-		regexResult := item.Get(matchPatternRegex)
-		if regexResult.Exists() && regexResult.String() != "" {
-			target := regexResult.String()
-			if ignoreCase && !strings.HasPrefix(target, "(?i)") {
-				target = "(?i)" + target
-			}
-			re, err := regexp.Compile(target)
-			if err != nil {
+		for _, matcherType := range []struct {
+			key     string
+			creator MatcherConstructor
+		}{
+			{matchPatternExact, newStringExactMatcher},
+			{matchPatternPrefix, newStringPrefixMatcher},
+			{matchPatternSuffix, newStringSuffixMatcher},
+			{matchPatternContains, newStringContainsMatcher},
+			{matchPatternRegex, newStringRegexMatcher},
+		} {
+			if matcher, err = createMatcher(item, matcherType.key, ignoreCase, matcherType.creator); err != nil {
 				return nil, err
 			}
-			matcher = &stringRegexMatcher{regex: re}
+			if matcher != nil {
+				break
+			}
 		}
 
 		if matcher == nil {
@@ -179,15 +139,53 @@ func buildRepeatedStringMatcher(matchers []gjson.Result, allIgnoreCase bool) (Ma
 		}
 
 		builtMatchers[i] = matcher
-		if ignoreCase {
-			needIgnoreCase = true
-		}
+
 	}
 
 	return &repeatedStringMatcher{
-		matchers:       builtMatchers,
-		needIgnoreCase: needIgnoreCase,
+		matchers: builtMatchers,
 	}, nil
+}
+
+type MatcherConstructor func(string, bool) (Matcher, error)
+
+func newStringExactMatcher(target string, ignoreCase bool) (Matcher, error) {
+	if ignoreCase {
+		target = strings.ToLower(target)
+	}
+	return &stringExactMatcher{target: target, ignoreCase: ignoreCase}, nil
+}
+
+func newStringPrefixMatcher(target string, ignoreCase bool) (Matcher, error) {
+	if ignoreCase {
+		target = strings.ToLower(target)
+	}
+	return &stringPrefixMatcher{target: target, ignoreCase: ignoreCase}, nil
+}
+
+func newStringSuffixMatcher(target string, ignoreCase bool) (Matcher, error) {
+	if ignoreCase {
+		target = strings.ToLower(target)
+	}
+	return &stringSuffixMatcher{target: target, ignoreCase: ignoreCase}, nil
+}
+
+func newStringContainsMatcher(target string, ignoreCase bool) (Matcher, error) {
+	if ignoreCase {
+		target = strings.ToLower(target)
+	}
+	return &stringContainsMatcher{target: target, ignoreCase: ignoreCase}, nil
+}
+
+func newStringRegexMatcher(target string, ignoreCase bool) (Matcher, error) {
+	if ignoreCase && !strings.HasPrefix(target, "(?i)") {
+		target = "(?i)" + target
+	}
+	re, err := regexp.Compile(target)
+	if err != nil {
+		return nil, err
+	}
+	return &stringRegexMatcher{regex: re}, nil
 }
 
 func BuildRepeatedStringMatcherIgnoreCase(matchers []gjson.Result) (Matcher, error) {
