@@ -64,6 +64,8 @@
 
 下面假设 `ext-auth` 服务在Kubernetes中serviceName为 `ext-auth`，端口 `8090`，路径为 `/auth`，命名空间为 `backend`
 
+## 示例1
+
 `ext-auth` 插件的配置：
 
 ```yaml
@@ -84,7 +86,9 @@ http_service:
 curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"
 ```
 
-`ext-auth` 的服务将接收到如下的鉴权请求：
+**请求 `ext-auth` 服务成功：**
+
+`ext-auth` 服务将接收到如下的鉴权请求：
 
 ```
 POST /auth HTTP/1.1
@@ -93,3 +97,63 @@ Authorization: xxx
 Content-Length: 0
 ```
 
+**请求 `ext-auth` 服务失败：**
+
+当调用 `ext-auth` 服务响应非200时，客户端将接收到HTTP响应码403和 `ext-auth` 服务返回的全量响应头
+
+假如 `ext-auth` 服务返回了 `x-auth-version: 1.0` 和 `x-auth-failed: true` 的响应头，会传递给客户端
+
+```
+HTTP/1.1 403 Forbidden
+x-auth-version: 1.0
+x-auth-failed: true
+date: Tue, 16 Jul 2024 00:19:41 GMT
+server: istio-envoy
+content-length: 0
+```
+
+
+
+## 示例2
+
+`ext-auth` 插件的配置：
+
+```yaml
+http_service:
+  authorization_request:
+    allowed_headers:
+    - exact: x-auth-version
+    headers_to_add:
+      x-envoy-header: true
+  authorization_response:
+    allowed_upstream_headers:
+    - exact: x-user-id
+    - exact: x-auth-version
+  endpoint:
+    service_name: ext-auth
+    namespace: backend
+    service_port: 8090
+    service_source: k8s
+    path: /auth
+    request_method: POST
+  timeout: 500
+```
+
+使用如下请求网关，当开启 `ext-auth` 插件后：
+
+```shell
+curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx" -H "X-Auth-Version: 1.0"
+```
+
+`ext-auth` 服务将接收到如下的鉴权请求：
+
+```
+POST /auth HTTP/1.1
+Host: ext-auth
+Authorization: xxx
+X-Auth-Version: 1.0
+x-envoy-header: true
+Content-Length: 0
+```
+
+`ext-auth` 服务返回响应头中如果包含 `x-user-id` 和 `x-auth-version`，网关调用upstream时的请求中会带上这两个请求头
