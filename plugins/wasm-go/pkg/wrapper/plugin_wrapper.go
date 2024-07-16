@@ -38,6 +38,8 @@ type HttpContext interface {
 	Method() string
 	SetContext(key string, value interface{})
 	GetContext(key string) interface{}
+	GetBoolContext(key string, defaultValue bool) bool
+	GetStringContext(key, defaultValue string) string
 	// If the onHttpRequestBody handle is not set, the request body will not be read by default
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
@@ -295,6 +297,20 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue bool) bool {
+	if b, ok := ctx.userContext[key].(bool); ok {
+		return b
+	}
+	return defaultValue
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetStringContext(key, defaultValue string) string {
+	if s, ok := ctx.userContext[key].(string); ok {
+		return s
+	}
+	return defaultValue
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) Scheme() string {
