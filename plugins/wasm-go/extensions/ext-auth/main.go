@@ -19,6 +19,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
+	"strconv"
 )
 
 func main() {
@@ -30,12 +31,22 @@ func main() {
 	)
 }
 
+const (
+	HeaderContentLength    string = "content-length"
+	HeaderAuthorization    string = "authorization"
+	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
+)
+
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
-	reqMethod := ctx.Method()
-	// If withRequestBody is true and the request method is not GET, OPTIONS, or HEAD,
+	contentLengthStr, _ := proxywasm.GetHttpRequestHeader(HeaderContentLength)
+	hasRequestBody := false
+	if contentLengthStr != "" {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		hasRequestBody = err == nil && contentLength > 0
+	}
+	// If withRequestBody is true AND the HTTP request contains a request body,
 	// it will be handled in the onHttpRequestBody phase.
-	if config.httpService.authorizationRequest.withRequestBody &&
-		!(reqMethod == http.MethodGet || reqMethod == http.MethodOptions || reqMethod == http.MethodHead) {
+	if config.httpService.authorizationRequest.withRequestBody && hasRequestBody {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
 		// The request has a body and requires delaying the header transmission until a cache miss occurs,
@@ -52,11 +63,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config ExtAuthConfig, body []byt
 	}
 	return types.ActionContinue
 }
-
-const (
-	HeaderAuthorization    string = "authorization"
-	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
-)
 
 func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
 	// build extAuth request headers
