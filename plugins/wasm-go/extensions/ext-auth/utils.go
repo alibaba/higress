@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-func sendResponse(statusCode uint32, headers http.Header) error {
-	return proxywasm.SendHttpResponse(statusCode, reconvertHeaders(headers), nil, -1)
+func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header) error {
+	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, reconvertHeaders(headers), nil, -1)
 }
 
 func reconvertHeaders(headers http.Header) [][2]string {

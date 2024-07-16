@@ -129,5 +129,5 @@ func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuth
 			}
 		}
 	}
-	_ = sendResponse(config.statusOnError, respHeaders)
+	_ = sendResponse(config.statusOnError, "ext-auth.unauthorized", respHeaders)
 }
