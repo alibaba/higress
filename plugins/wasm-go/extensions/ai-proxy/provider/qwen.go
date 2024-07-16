@@ -229,10 +229,7 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 		receivedBody = append(bufferedStreamingBody, chunk...)
 	}
 
-	incrementalStreaming, err := ctx.GetContext(ctxKeyIncrementalStreaming).(bool)
-	if !err {
-		incrementalStreaming = false
-	}
+	incrementalStreaming := ctx.GetBoolContext(ctxKeyIncrementalStreaming, false)
 
 	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
 
@@ -387,7 +384,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	return &chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
@@ -403,7 +400,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices:           make([]chatCompletionChoice, 0),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
