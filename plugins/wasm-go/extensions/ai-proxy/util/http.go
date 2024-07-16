@@ -9,8 +9,8 @@ const (
 	MimeTypeApplicationJson = "application/json"
 )
 
-func SendResponse(statusCode uint32, contentType, body string) error {
-	return proxywasm.SendHttpResponse(statusCode, CreateHeaders(HeaderContentType, contentType), []byte(body), -1)
+func SendResponse(statusCode uint32, statusCodeDetails string, contentType, body string) error {
+	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetails, CreateHeaders(HeaderContentType, contentType), []byte(body), -1)
 }
 
 func CreateHeaders(kvs ...string) [][2]string {

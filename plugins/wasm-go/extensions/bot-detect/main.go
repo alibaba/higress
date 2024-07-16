@@ -95,7 +95,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, botDetectConfig config.BotDet
 	method := ctx.Method()
 
 	if ok, rule := botDetectConfig.Process(ua); !ok {
-		proxywasm.SendHttpResponse(botDetectConfig.BlockedCode, nil, []byte(botDetectConfig.BlockedMessage), -1)
+		proxywasm.SendHttpResponseWithDetail(botDetectConfig.BlockedCode, "bot-detect.blocked", nil, []byte(botDetectConfig.BlockedMessage), -1)
 		log.Debugf("scheme:%s, host:%s, method:%s, path:%s user-agent:%s has been blocked by rule:%s", scheme, host, method, path, ua, rule)
 		return types.ActionPause
 	}

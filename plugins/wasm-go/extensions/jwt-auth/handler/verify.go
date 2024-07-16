@@ -172,31 +172,31 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, header HeaderP
 }
 
 func deniedJWTMissing() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(401, "jwt-auth.token_missing", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by JWT Auth check. JWT is missing."), -1)
 	return types.ActionContinue
 }
 
 func deniedJWTExpired() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
-		[]byte("Request denied by JWT Auth check. JWT is expried."), -1)
+	_ = proxywasm.SendHttpResponseWithDetail(401, "jwt-auth.token_expired", WWWAuthenticateHeader(protectionSpace),
+		[]byte("Request denied by JWT Auth check. JWT is expired."), -1)
 	return types.ActionContinue
 }
 
 func deniedJWTVerificationFails() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(401, "jwt-auth.verification_failed", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by JWT Auth check. JWT verification fails"), -1)
 	return types.ActionContinue
 }
 
 func deniedUnauthorizedConsumer() types.Action {
-	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(403, "jwt-auth.unauthorized_customer", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by JWT Auth check. Unauthorized consumer."), -1)
 	return types.ActionContinue
 }
 
 func deniedNotAllow() types.Action {
-	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(403, "jwt-auth.not_allowed_by_default", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by JWT Auth check. JWT token not allow."), -1)
 	return types.ActionContinue
 }
