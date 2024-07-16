@@ -145,8 +145,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 							Message: respAdvice.Array()[0].Get("Answer").String(),
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponse(403, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						label := respResult.Array()[0].Get("Label").String()
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(label))
+						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.label."+label, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						sr := StandardResponse{
 							Code:    403,
@@ -155,7 +156,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						}
 						jsonData, _ := json.MarshalIndent(sr, "", "    ")
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponse(403, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.risk_detected", [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}

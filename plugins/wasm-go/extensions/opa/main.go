@@ -111,23 +111,23 @@ func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper
 
 func rspCall(statusCode int, _ http.Header, responseBody []byte) {
 	if statusCode != http.StatusOK {
-		proxywasm.SendHttpResponse(uint32(statusCode), nil, []byte("opa state not is 200"), -1)
+		proxywasm.SendHttpResponseWithDetail(uint32(statusCode), "opa.status_ne_200", nil, []byte("opa state not is 200"), -1)
 		return
 	}
 	var rsp map[string]interface{}
 	if err := json.Unmarshal(responseBody, &rsp); err != nil {
-		proxywasm.SendHttpResponse(http.StatusInternalServerError, nil, []byte(fmt.Sprintf("opa parse rsp fail %+v", err)), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusInternalServerError, "opa.bad_response_body", nil, []byte(fmt.Sprintf("opa parse rsp fail %+v", err)), -1)
 		return
 	}
 
 	result, ok := rsp["result"].(bool)
 	if !ok {
-		proxywasm.SendHttpResponse(http.StatusInternalServerError, nil, []byte("rsp type conversion fail"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusInternalServerError, "opa.conversion_fail", nil, []byte("rsp type conversion fail"), -1)
 		return
 	}
 
 	if !result {
-		proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, []byte("opa server not allowed"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "opa.server_not_allowed", nil, []byte("opa server not allowed"), -1)
 		return
 	}
 	proxywasm.ResumeHttpRequest()
