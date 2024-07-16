@@ -126,6 +126,7 @@ func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuth
 		}
 		return
 	}
+
 	var respHeaders = extAuthRespHeaders
 	if config.httpService.authorizationResponse.allowedClientHeaders != nil {
 		respHeaders = http.Header{}
@@ -135,5 +136,12 @@ func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuth
 			}
 		}
 	}
-	_ = sendResponse(config.statusOnError, "ext-auth.unauthorized", respHeaders)
+
+	// Rejects client requests with statusOnError on extAuth unavailability or 5xx.
+	// Otherwise, uses the extAuth's returned status code to reject requests.
+	statusToUse := statusCode
+	if statusCode >= http.StatusInternalServerError {
+		statusToUse = int(config.statusOnError)
+	}
+	_ = sendResponse(uint32(statusToUse), "ext-auth.unauthorized", respHeaders)
 }

@@ -6,39 +6,39 @@
 
 # 配置字段
 
-| 名称                            | 数据类型 | 必填 | 默认值 | 描述                                                         |
-| ------------------------------- | -------- | ---- | ------ | ------------------------------------------------------------ |
-| `http_service`                  | object   | 是   | -      | 外部授权服务配置                                             |
-| `failure_mode_allow`            | bool     | 否   | false  | 当设置为 true 时，即使与授权服务的通信失败，或者授权服务返回了 HTTP 5xx 错误，仍会接受客户端请求 |
+| 名称                            | 数据类型 | 必填 | 默认值 | 描述                                                                                                                                                         |
+| ------------------------------- | -------- | ---- | ------ |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `http_service`                  | object   | 是   | -      | 外部授权服务配置                                                                                                                                                   |
+| `failure_mode_allow`            | bool     | 否   | false  | 当设置为 true 时，即使与授权服务的通信失败，或者授权服务返回了 HTTP 5xx 错误，仍会接受客户端请求                                                                                                   |
 | `failure_mode_allow_header_add` | bool     | 否   | false  | 当 `failure_mode_allow` 和 `failure_mode_allow_header_add` 都设置为 true 时，若与授权服务的通信失败，或授权服务返回了 HTTP 5xx 错误，那么请求头中将会添加 `x-envoy-auth-failure-mode-allowed: true` |
-| `status_on_error`               | int      | 否   | 403    | 当鉴权服务器返回错误或无法访问时，设置返回给客户端的 HTTP 状态码。默认状态码是 `403` |
+| `status_on_error`               | int      | 否   | 403    | 当授权服务无法访问或状态码为 5xx 时，设置返回给客户端的 HTTP 状态码。默认状态码是 `403`                                        |
 
 `http_service`中每一项的配置字段说明
 
 | 名称                     | 数据类型 | 必填 | 默认值 | 描述                                  |
 | ------------------------ | -------- | ---- | ------ | ------------------------------------- |
-| `endpoint`               | object   | 是   | -      | 发送授权请求的 HTTP 服务信息          |
+| `endpoint`               | object   | 是   | -      | 发送鉴权请求的 HTTP 服务信息          |
 | `timeout`                | int      | 否   | 200    | `ext-auth` 服务连接超时时间，单位毫秒 |
-| `authorization_request`  | object   | 否   | -      | 发送授权请求配置                      |
-| `authorization_response` | object   | 否   | -      | 处理授权响应配置                      |
+| `authorization_request`  | object   | 否   | -      | 发送鉴权请求配置                      |
+| `authorization_response` | object   | 否   | -      | 处理鉴权响应配置                      |
 
 `endpoint`中每一项的配置字段说明
 
-| 名称             | 数据类型 | 必填 | 默认值 | 描述                                                   |
-| ---------------- | -------- | ---- | ------ | ------------------------------------------------------ |
-| `service_source` | string   | 是   | -      | 类型为固定 ip 或者 dns，输入 `ext-auth` 服务的注册来源 |
-| `service_name`   | string   | 是   | -      | 输入 `ext-auth` 服务的注册名称                         |
-| `service_port`   | string   | 是   | -      | 输入 `ext-auth` 服务的服务端口                         |
-| `service_domain` | string   | 否   | -      | 当类型为dns时必须填写，输入 `ext-auth` 服务的domain    |
-| `request_method` | string   | 否   | GET    | 客户端向  `ext-auth` 服务发送请求的HTTP Method         |
-| `path`           | string   | 是   | -      | 输入 `ext-auth` 服务的请求路径                         |
+| 名称             | 数据类型 | 必填 | 默认值 | 描述                                                |
+| ---------------- | -------- | ---- | ------ | --------------------------------------------------- |
+| `service_source` | string   | 是   | -      | 类型为固定 ip 或者 dns，输入授权服务的注册来源 |
+| `service_name`   | string   | 是   | -      | 输入授权服务的注册名称                      |
+| `service_port`   | string   | 是   | -      | 输入授权服务的服务端口                      |
+| `service_domain` | string   | 否   | -      | 当类型为dns时必须填写，输入 `ext-auth` 服务的domain |
+| `request_method` | string   | 否   | GET    | 客户端向授权服务发送请求的HTTP Method        |
+| `path`           | string   | 是   | -      | 输入授权服务的请求路径                       |
 
 `authorization_request`中每一项的配置字段说明
 
 | 名称                | 数据类型               | 必填 | 默认值 | 描述                                                         |
 | ------------------- | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_headers`   | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到鉴权服务请求中的请求头中。除了用户自定义的头部匹配规则外，鉴权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
-| `headers_to_add`    | `map[string]string`    | 否   | -      | 设置将包含在鉴权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
+| `allowed_headers`   | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
+| `headers_to_add`    | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
 | `with_request_body` | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
 
 `authorization_response`中每一项的配置字段说明
@@ -99,7 +99,7 @@ Content-Length: 0
 
 **请求 `ext-auth` 服务失败：**
 
-当调用 `ext-auth` 服务响应非200时，客户端将接收到HTTP响应码403和 `ext-auth` 服务返回的全量响应头
+当调用 `ext-auth` 服务响应为 5xx 时，客户端将接收到HTTP响应码403和 `ext-auth` 服务返回的全量响应头
 
 假如 `ext-auth` 服务返回了 `x-auth-version: 1.0` 和 `x-auth-failed: true` 的响应头，会传递给客户端
 
@@ -112,6 +112,9 @@ server: istio-envoy
 content-length: 0
 ```
 
+当 `ext-auth` 无法访问或状态码为 5xx 时，将以 `status_on_error` 配置的状态码拒绝客户端请求
+
+当 `ext-auth` 服务返回其他 HTTP 状态码时，将以返回的状态码拒绝客户端请求。如果配置了 `allowed_client_headers`，具有相应匹配项的响应头将添加到客户端的响应中
 
 
 ## 示例2
