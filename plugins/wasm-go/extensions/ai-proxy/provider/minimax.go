@@ -222,9 +222,9 @@ func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName Api
 		return types.ActionContinue, nil
 	}
 	// 模型对应接口为ChatCompletion v2,跳过OnStreamingResponseBody()和OnResponseBody()
-	model := ctx.GetContext(ctxKeyFinalRequestModel)
-	if model != nil {
-		_, ok := chatCompletionProModels[model.(string)]
+	model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
+	if model != "" {
+		_, ok := chatCompletionProModels[model]
 		if !ok {
 			ctx.DontReadResponseBody()
 			return types.ActionContinue, nil

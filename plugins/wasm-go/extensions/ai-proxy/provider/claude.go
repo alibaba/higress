@@ -292,7 +292,7 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 	return &chatCompletionResponse{
 		Id:                origResponse.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
@@ -356,7 +356,7 @@ func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextG
 	return &chatCompletionResponse{
 		Id:      response.Message.Id,
 		Created: time.Now().UnixMilli() / 1000,
-		Model:   ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletionChunk,
 		Choices: []chatCompletionChoice{choice},
 	}

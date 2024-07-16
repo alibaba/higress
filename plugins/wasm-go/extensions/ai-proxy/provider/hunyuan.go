@@ -351,7 +351,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	openAIFormattedChunk := &chatCompletionResponse{
 		Id:                hunyuanFormattedChunk.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 		Usage: usage{
@@ -470,7 +470,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 	return &chatCompletionResponse{
 		Id:                hunyuanResponse.Response.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
