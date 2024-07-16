@@ -132,19 +132,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, lo
 		}
 		for _, blockExactUrl := range config.blockExactUrls {
 			if requestUrl == blockExactUrl {
-				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+				proxywasm.SendHttpResponseWithDetail(config.blockedCode, "request-block.url_blocked.exact", nil, []byte(config.blockedMessage), -1)
 				return types.ActionContinue
 			}
 		}
 		for _, blockUrl := range config.blockUrls {
 			if strings.Contains(requestUrl, blockUrl) {
-				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+				proxywasm.SendHttpResponseWithDetail(config.blockedCode, "request-block.url_blocked.keyword", nil, []byte(config.blockedMessage), -1)
 				return types.ActionContinue
 			}
 		}
 		for _, regExpObj := range config.blockRegExpArray {
 			if regExpObj.MatchString(requestUrl) {
-				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+				proxywasm.SendHttpResponseWithDetail(config.blockedCode, "request-block.url_blocked.regexp", nil, []byte(config.blockedMessage), -1)
 				return types.ActionContinue
 			}
 		}
@@ -165,7 +165,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, lo
 		}
 		for _, blockHeader := range config.blockHeaders {
 			if strings.Contains(headerStr, blockHeader) {
-				proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+				proxywasm.SendHttpResponseWithDetail(config.blockedCode, "request-block.body_blocked", nil, []byte(config.blockedMessage), -1)
 				return types.ActionContinue
 			}
 		}
@@ -183,7 +183,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config RequestBlockConfig, body 
 	}
 	for _, blockBody := range config.blockBodies {
 		if strings.Contains(bodyStr, blockBody) {
-			proxywasm.SendHttpResponse(config.blockedCode, nil, []byte(config.blockedMessage), -1)
+			proxywasm.SendHttpResponseWithDetail(config.blockedCode, "request-block.body_blocked", nil, []byte(config.blockedMessage), -1)
 			return types.ActionContinue
 		}
 	}

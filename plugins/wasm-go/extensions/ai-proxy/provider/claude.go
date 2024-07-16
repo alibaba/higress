@@ -139,10 +139,10 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -185,12 +185,12 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		claudeRequest := c.buildClaudeTextGenRequest(request)
 		if err := replaceJsonRequestBody(claudeRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
