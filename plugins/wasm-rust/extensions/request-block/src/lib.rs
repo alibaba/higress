@@ -13,11 +13,12 @@
 // limitations under the License.
 
 use higress_wasm_rust::log::Log;
+use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
-use higress_wasm_rust::plugin_wrapper::{RootContextWrapper, HttpContextWrapper};
 use multimap::MultiMap;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, ContextType, LogLevel, Bytes};
+use proxy_wasm::types::{Action, Bytes, ContextType, LogLevel};
+use regex::Regex;
 use serde::de::Error;
 use serde::Deserialize;
 use serde::Deserializer;
@@ -25,7 +26,6 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
-use regex::Regex;
 
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
@@ -42,52 +42,55 @@ struct RquestBlockRoot {
 struct RquestBlock {
     log: Log,
     config: Option<RquestBlockConfig>,
-    cache_request: bool
+    cache_request: bool,
 }
-
 
 fn deserialize_block_regexp_urls<'de, D>(deserializer: D) -> Result<Vec<Regex>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    
     let mut ret = Vec::new();
     let value: Value = Deserialize::deserialize(deserializer)?;
-    let block_regexp_urls = value.as_array().ok_or(Error::custom("block_regexp_urls error not list"))?;
+    let block_regexp_urls = value
+        .as_array()
+        .ok_or(Error::custom("block_regexp_urls error not list"))?;
 
-
-    for block_regexp_url in block_regexp_urls{
-        let reg_exp = block_regexp_url.as_str().ok_or(Error::custom("block_regexp_urls error not str"))?;
-        if let Ok(reg)  = Regex::new(reg_exp){
+    for block_regexp_url in block_regexp_urls {
+        let reg_exp = block_regexp_url
+            .as_str()
+            .ok_or(Error::custom("block_regexp_urls error not str"))?;
+        if let Ok(reg) = Regex::new(reg_exp) {
             ret.push(reg);
-        }else{
-            return Err(Error::custom(format!("block_regexp_urls error field {}", reg_exp)))
+        } else {
+            return Err(Error::custom(format!(
+                "block_regexp_urls error field {}",
+                reg_exp
+            )));
         }
     }
     Ok(ret)
 }
-fn blocked_code_default() -> u32{
+fn blocked_code_default() -> u32 {
     403
 }
-fn case_sensitive_default() -> bool{
+fn case_sensitive_default() -> bool {
     true
 }
 #[derive(Default, Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct RquestBlockConfig {
     #[serde(default = "blocked_code_default")]
-	blocked_code: u32,
-	blocked_message: String,
+    blocked_code: u32,
+    blocked_message: String,
     #[serde(default = "case_sensitive_default")]
-	case_sensitive: bool,
-	block_urls: Vec<String>,
-	block_exact_urls: Vec<String>,
-	block_headers: Vec<String>,
-	block_bodies: Vec<String>,
+    case_sensitive: bool,
+    block_urls: Vec<String>,
+    block_exact_urls: Vec<String>,
+    block_headers: Vec<String>,
+    block_bodies: Vec<String>,
     #[serde(deserialize_with = "deserialize_block_regexp_urls")]
-	block_regexp_urls: Vec<Regex>,
+    block_regexp_urls: Vec<Regex>,
 }
-
 
 impl RquestBlockRoot {
     fn new() -> Self {
@@ -100,7 +103,6 @@ impl RquestBlockRoot {
 
 impl Context for RquestBlockRoot {}
 
-
 impl RootContext for RquestBlockRoot {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         let ret = on_configure(
@@ -112,7 +114,6 @@ impl RootContext for RquestBlockRoot {
         ret
     }
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        // 
         self.create_http_context_use_wrapper(_context_id)
     }
     fn get_type(&self) -> Option<ContextType> {
@@ -120,97 +121,125 @@ impl RootContext for RquestBlockRoot {
     }
 }
 
-impl RootContextWrapper<RquestBlockConfig> for RquestBlockRoot{
-    fn rule_matcher(&self) -> &SharedRuleMatcher<RquestBlockConfig>{
+impl RootContextWrapper<RquestBlockConfig> for RquestBlockRoot {
+    fn rule_matcher(&self) -> &SharedRuleMatcher<RquestBlockConfig> {
         &self.rule_matcher
     }
-    
-    fn create_http_context_wrapper(&self, _context_id: u32) -> Option<Box<dyn HttpContextWrapper<RquestBlockConfig>>> {
-        Some(Box::new(RquestBlock{cache_request:false, config: None, log: Log::new(PLUGIN_NAME.to_string())}))
+
+    fn create_http_context_wrapper(
+        &self,
+        _context_id: u32,
+    ) -> Option<Box<dyn HttpContextWrapper<RquestBlockConfig>>> {
+        Some(Box::new(RquestBlock {
+            cache_request: false,
+            config: None,
+            log: Log::new(PLUGIN_NAME.to_string()),
+        }))
     }
 }
 
 impl Context for RquestBlock {}
 impl HttpContext for RquestBlock {}
-impl HttpContextWrapper<RquestBlockConfig> for RquestBlock{
-    fn on_config(&mut self, _config: &RquestBlockConfig){
+impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
+    fn on_config(&mut self, _config: &RquestBlockConfig) {
         self.config = Some(_config.clone());
         self.cache_request = !_config.block_bodies.is_empty();
     }
-    fn cache_request_body(&self) -> bool{
+    fn cache_request_body(&self) -> bool {
         self.cache_request
     }
-    fn on_http_request_headers_ok(&mut self, headers: &MultiMap<String, String>) -> Action{
-        if self.config.is_none(){
+    fn on_http_request_headers_ok(&mut self, headers: &MultiMap<String, String>) -> Action {
+        if self.config.is_none() {
             return Action::Continue;
         }
         let config = self.config.as_ref().unwrap();
-        if !config.block_urls.is_empty() || !config.block_exact_urls.is_empty() || !config.block_regexp_urls.is_empty(){
+        if !config.block_urls.is_empty()
+            || !config.block_exact_urls.is_empty()
+            || !config.block_regexp_urls.is_empty()
+        {
             let value = headers.get(":path");
-            
-            if value.is_none(){
+
+            if value.is_none() {
                 self.log.warn("get path failed");
                 return Action::Continue;
             }
             let mut request_url = value.unwrap().clone();
-            
-            if config.case_sensitive{
+
+            if config.case_sensitive {
                 request_url = request_url.to_lowercase();
             }
-            for block_exact_url in &config.block_exact_urls{
-                if *block_exact_url == request_url{
-                    self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
+            for block_exact_url in &config.block_exact_urls {
+                if *block_exact_url == request_url {
+                    self.send_http_response(
+                        config.blocked_code,
+                        Vec::new(),
+                        Some(config.blocked_message.as_bytes()),
+                    );
                     return Action::Pause;
                 }
             }
-            for block_url in &config.block_urls{
-                if request_url.contains(block_url){
-                    self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
+            for block_url in &config.block_urls {
+                if request_url.contains(block_url) {
+                    self.send_http_response(
+                        config.blocked_code,
+                        Vec::new(),
+                        Some(config.blocked_message.as_bytes()),
+                    );
                     return Action::Pause;
                 }
             }
-            
-            for block_reg_exp in &config.block_regexp_urls{
-                if block_reg_exp.is_match(&request_url){
-                    self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
+
+            for block_reg_exp in &config.block_regexp_urls {
+                if block_reg_exp.is_match(&request_url) {
+                    self.send_http_response(
+                        config.blocked_code,
+                        Vec::new(),
+                        Some(config.blocked_message.as_bytes()),
+                    );
                     return Action::Pause;
                 }
             }
-            
-            
         }
         if !config.block_headers.is_empty() {
-            let mut header_strs: Vec<String>  = Vec::new();
-            for (k, v) in headers{
+            let mut header_strs: Vec<String> = Vec::new();
+            for (k, v) in headers {
                 header_strs.push(k.clone());
                 header_strs.push(v.join("\n"));
             }
             let header_str = header_strs.join("\n");
-            for block_header in &config.block_headers{
-                if header_str.contains(block_header){
-                    self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
+            for block_header in &config.block_headers {
+                if header_str.contains(block_header) {
+                    self.send_http_response(
+                        config.blocked_code,
+                        Vec::new(),
+                        Some(config.blocked_message.as_bytes()),
+                    );
                     return Action::Pause;
                 }
             }
         }
         Action::Continue
     }
-    fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action{
-        if self.config.is_none(){
+    fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action {
+        if self.config.is_none() {
             return Action::Continue;
         }
         let config = self.config.as_ref().unwrap();
-        if config.block_bodies.is_empty(){
+        if config.block_bodies.is_empty() {
             return Action::Continue;
         }
         let mut body = req_body.clone();
-        if config.case_sensitive{
+        if config.case_sensitive {
             body = body.to_ascii_lowercase();
         }
-        for block_body in &config.block_bodies{
+        for block_body in &config.block_bodies {
             let s = block_body.as_bytes();
-            if  body.windows(s.len()).any(|window| window == s){
-                self.send_http_response(config.blocked_code, Vec::new(), Some(config.blocked_message.as_bytes()));
+            if body.windows(s.len()).any(|window| window == s) {
+                self.send_http_response(
+                    config.blocked_code,
+                    Vec::new(),
+                    Some(config.blocked_message.as_bytes()),
+                );
                 return Action::Pause;
             }
         }
