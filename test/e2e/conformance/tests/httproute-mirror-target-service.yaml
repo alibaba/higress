@@ -17,16 +17,16 @@ metadata:
   name: higress-conformance-infra-mirror-target-service
   namespace: higress-conformance-infra
   annotations:
-    nginx.ingress.kubernetes.io/mirror-target-service: "infra-backend-v1"
+    nginx.ingress.kubernetes.io/mirror-target-service: "infra-backend-mirror"
 spec:
   ingressClassName: higress
   rules:
   - http:
       paths:
       - pathType: Prefix
-        path: "/foo"
+        path: "/mirror"
         backend:
           service:
-            name: non-existent
+            name: infra-backend-v1
             port:
               number: 8080
