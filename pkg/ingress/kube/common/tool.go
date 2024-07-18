@@ -17,7 +17,6 @@ package common
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"sort"
 	"strings"
@@ -29,6 +28,7 @@ import (
 	"istio.io/istio/pkg/kube"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
