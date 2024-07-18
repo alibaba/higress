@@ -19,7 +19,6 @@ import (
 	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"reflect"
-	"sort"
 	"time"
 
 	kubelib "istio.io/istio/pkg/kube"
@@ -107,8 +106,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 			continue
 		}
 
-		curIPs := ingress.Status.LoadBalancer.Ingress
-		sort.SliceStable(curIPs, common2.SortLbIngressList(curIPs))
+		curIPs := common2.SortLbIngressList(ingress.Status.LoadBalancer.Ingress)
 
 		if reflect.DeepEqual(status, curIPs) {
 			IngressLog.Debugf("skipping update of Ingress %v/%v within cluster %s (no change)",

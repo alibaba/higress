@@ -15,6 +15,7 @@
 package common
 
 import (
+	"reflect"
 	"testing"
 
 	networking "istio.io/api/networking/v1alpha3"
@@ -553,6 +554,138 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 	for idx, val := range list {
 		if val.HTTPRoute.Name != expect[idx] {
 			t.Fatalf("should be %s, but got %s", expect[idx], val.HTTPRoute.Name)
+		}
+	}
+}
+
+func TestSortUniqueLbIngressList(t *testing.T) {
+	testCases := []struct {
+		input  []v1.LoadBalancerIngress
+		expect []v1.LoadBalancerIngress
+	}{
+		{},
+		{
+			input: []v1.LoadBalancerIngress{
+				{
+					IP: "2.2.2.2",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					IP: "1.1.1.1",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					IP: "2.2.2.2",
+				},
+			},
+			expect: []v1.LoadBalancerIngress{
+				{
+					IP: "1.1.1.1",
+				},
+				{
+					IP: "2.2.2.2",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+			},
+		},
+		{
+			input: []v1.LoadBalancerIngress{
+				{
+					Hostname: "www.3.com",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					Hostname: "www.1.com",
+				},
+				{
+					Hostname: "www.3.com",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					Hostname: "www.1.com",
+				},
+			},
+			expect: []v1.LoadBalancerIngress{
+				{
+					Hostname: "www.1.com",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					Hostname: "www.3.com",
+				},
+			},
+		},
+		{
+			input: []v1.LoadBalancerIngress{
+				{
+					IP: "2.2.2.2",
+				},
+				{
+					Hostname: "www.3.com",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					IP: "1.1.1.1",
+				},
+				{
+					Hostname: "www.1.com",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+			},
+			expect: []v1.LoadBalancerIngress{
+				{
+					IP: "1.1.1.1",
+				},
+				{
+					IP: "2.2.2.2",
+				},
+				{
+					IP: "3.3.3.3",
+				},
+				{
+					Hostname: "www.1.com",
+				},
+				{
+					Hostname: "www.2.com",
+				},
+				{
+					Hostname: "www.3.com",
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		if !reflect.DeepEqual(sortUniqueLbIngressList(testCase.input), testCase.expect) {
+			t.Fatal("should be equal")
 		}
 	}
 }
