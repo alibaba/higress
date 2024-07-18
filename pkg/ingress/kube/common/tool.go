@@ -17,9 +17,11 @@ package common
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"sort"
 	"strings"
+	"time"
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -31,6 +33,30 @@ import (
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
+
+const (
+	defaultInterval = 3 * time.Second
+	defaultTimeout  = 1 * time.Minute
+)
+
+type retry struct {
+	interval time.Duration
+	timeout  time.Duration
+}
+
+type RetryOption func(o *retry)
+
+func WithInterval(interval time.Duration) RetryOption {
+	return func(r *retry) {
+		r.interval = interval
+	}
+}
+
+func WithTimeout(timeout time.Duration) RetryOption {
+	return func(r *retry) {
+		r.timeout = timeout
+	}
+}
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 	if resource == nil || resource.APIGroup == nil ||
