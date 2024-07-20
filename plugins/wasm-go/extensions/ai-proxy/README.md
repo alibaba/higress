@@ -139,6 +139,15 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 |-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
 | `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
 
+#### 星火 (Spark)
+
+星火所对应的 `type` 为 `spark`。它特有的配置字段如下：
+
+| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
+|-------------------|--------|------|-----|----------------------------------------------|
+| `sparkAuthKey` | string | 必填   | -   | 星火用于鉴权的key |
+| `sparkAuthSecret` | string | 必填   | -   | 星火用于鉴权的secret |
+
 
 ## 用法示例
 
@@ -865,6 +874,66 @@ provider:
 }
 ```
 
+### 使用 OpenAI 协议代理Spark服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: spark
+  sparkAuthKey: "YOUR_API_KEY"
+  sparkAuthSecret: "YOUR_MINIMAX_API_SECRET"
+  apiTokens:
+    - "TODO"
+  modelMapping:
+    "gpt-4o": "Max"
+    "*": "Lite"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "g-4o",
+    "messages": [
+        {
+            "role": "system",
+            "content": "你是一个名专业的开发人员！"
+        },
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "cha000c388a@dx190d0fca0f5b8f2532",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "您好，我是一名专业的开发人员，我可以帮助您解决各种编程和技术问题。"
+            }
+        }
+    ],
+    "created": 1721493136,
+    "model": "Lite",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 11,
+        "completion_tokens": 14,
+        "total_tokens": 25
+    }
+}
+```
+
 ## 完整配置示例
 
 ### Kubernetes 示例
@@ -1067,3 +1136,5 @@ curl "http://localhost:10000/v1/chat/completions"  -H "Content-Type: application
   ]
 }'
 ```
+
+# 
