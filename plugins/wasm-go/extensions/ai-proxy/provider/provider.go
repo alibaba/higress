@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"math/rand"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -14,22 +15,24 @@ type Pointcut string
 
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
+	ApiNameEmbeddings     ApiName = "embeddings"
 
-	providerTypeMoonshot = "moonshot"
-	providerTypeAzure    = "azure"
-	providerTypeQwen     = "qwen"
-	providerTypeOpenAI   = "openai"
-	providerTypeGroq     = "groq"
-	providerTypeBaichuan = "baichuan"
-	providerTypeYi       = "yi"
-	providerTypeDeepSeek = "deepseek"
-	providerTypeZhipuAi  = "zhipuai"
-	providerTypeOllama   = "ollama"
-	providerTypeClaude   = "claude"
-	providerTypeBaidu    = "baidu"
-	providerTypeHunyuan  = "hunyuan"
-	providerTypeStepfun  = "stepfun"
-	providerTypeMinimax  = "minimax"
+	providerTypeMoonshot   = "moonshot"
+	providerTypeAzure      = "azure"
+	providerTypeQwen       = "qwen"
+	providerTypeOpenAI     = "openai"
+	providerTypeGroq       = "groq"
+	providerTypeBaichuan   = "baichuan"
+	providerTypeYi         = "yi"
+	providerTypeDeepSeek   = "deepseek"
+	providerTypeZhipuAi    = "zhipuai"
+	providerTypeOllama     = "ollama"
+	providerTypeClaude     = "claude"
+	providerTypeBaidu      = "baidu"
+	providerTypeHunyuan    = "hunyuan"
+	providerTypeStepfun    = "stepfun"
+	providerTypeMinimax    = "minimax"
+	providerTypeCloudflare = "cloudflare"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -65,21 +68,22 @@ var (
 	errUnsupportedApiName = errors.New("unsupported API name")
 
 	providerInitializers = map[string]providerInitializer{
-		providerTypeMoonshot: &moonshotProviderInitializer{},
-		providerTypeAzure:    &azureProviderInitializer{},
-		providerTypeQwen:     &qwenProviderInitializer{},
-		providerTypeOpenAI:   &openaiProviderInitializer{},
-		providerTypeGroq:     &groqProviderInitializer{},
-		providerTypeBaichuan: &baichuanProviderInitializer{},
-		providerTypeYi:       &yiProviderInitializer{},
-		providerTypeDeepSeek: &deepseekProviderInitializer{},
-		providerTypeZhipuAi:  &zhipuAiProviderInitializer{},
-		providerTypeOllama:   &ollamaProviderInitializer{},
-		providerTypeClaude:   &claudeProviderInitializer{},
-		providerTypeBaidu:    &baiduProviderInitializer{},
-		providerTypeHunyuan:  &hunyuanProviderInitializer{},
-		providerTypeStepfun:  &stepfunProviderInitializer{},
-		providerTypeMinimax:  &minimaxProviderInitializer{},
+		providerTypeMoonshot:   &moonshotProviderInitializer{},
+		providerTypeAzure:      &azureProviderInitializer{},
+		providerTypeQwen:       &qwenProviderInitializer{},
+		providerTypeOpenAI:     &openaiProviderInitializer{},
+		providerTypeGroq:       &groqProviderInitializer{},
+		providerTypeBaichuan:   &baichuanProviderInitializer{},
+		providerTypeYi:         &yiProviderInitializer{},
+		providerTypeDeepSeek:   &deepseekProviderInitializer{},
+		providerTypeZhipuAi:    &zhipuAiProviderInitializer{},
+		providerTypeOllama:     &ollamaProviderInitializer{},
+		providerTypeClaude:     &claudeProviderInitializer{},
+		providerTypeBaidu:      &baiduProviderInitializer{},
+		providerTypeHunyuan:    &hunyuanProviderInitializer{},
+		providerTypeStepfun:    &stepfunProviderInitializer{},
+		providerTypeMinimax:    &minimaxProviderInitializer{},
+		providerTypeCloudflare: &cloudflareProviderInitializer{},
 	}
 )
 
@@ -156,6 +160,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 版本
 	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
 	claudeVersion string `required:"false" yaml:"version" json:"version"`
+	// @Title zh-CN Cloudflare Account ID
+	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
+	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -194,6 +201,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
+	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -247,16 +255,38 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 }
 
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
-	if modelMapping == nil || len(modelMapping) == 0 {
-		return model
-	}
-	if v, ok := modelMapping[model]; ok && len(v) != 0 {
-		log.Debugf("model %s is mapped to %s explictly", model, v)
-		return v
-	}
-	if v, ok := modelMapping[wildcard]; ok {
-		log.Debugf("model %s is mapped to %s via wildcard", model, v)
-		return v
+	mappedModel := doGetMappedModel(model, modelMapping, log)
+	if len(mappedModel) != 0 {
+		return mappedModel
 	}
 	return model
+}
+
+func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
+	if modelMapping == nil || len(modelMapping) == 0 {
+		return ""
+	}
+
+	if v, ok := modelMapping[model]; ok {
+		log.Debugf("model [%s] is mapped to [%s] explictly", model, v)
+		return v
+	}
+
+	for k, v := range modelMapping {
+		if k == wildcard || !strings.HasSuffix(k, wildcard) {
+			continue
+		}
+		k = strings.TrimSuffix(k, wildcard)
+		if strings.HasPrefix(model, k) {
+			log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
+			return v
+		}
+	}
+
+	if v, ok := modelMapping[wildcard]; ok {
+		log.Debugf("model [%s] is mapped to [%s] via wildcard", model, v)
+		return v
+	}
+
+	return ""
 }

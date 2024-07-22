@@ -135,11 +135,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			m.setBotSettings(request, content)
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -168,11 +168,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, content)
 		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -202,11 +202,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, log w
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -222,9 +222,9 @@ func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName Api
 		return types.ActionContinue, nil
 	}
 	// 模型对应接口为ChatCompletion v2,跳过OnStreamingResponseBody()和OnResponseBody()
-	model := ctx.GetContext(ctxKeyFinalRequestModel)
-	if model != nil {
-		_, ok := chatCompletionProModels[model.(string)]
+	model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
+	if model != "" {
+		_, ok := chatCompletionProModels[model]
 		if !ok {
 			ctx.DontReadResponseBody()
 			return types.ActionContinue, nil
@@ -461,7 +461,7 @@ func (m *minimaxProvider) responseV2ToOpenAI(response *minimaxChatCompletionV2Re
 		Created: response.Created,
 		Model:   response.Model,
 		Choices: choices,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			TotalTokens: int(response.Usage.TotalTokens),
 		},
 	}

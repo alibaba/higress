@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/key-cluster-rate-limit
+module cluster-key-rate-limit
 
 go 1.19
 
@@ -6,7 +6,7 @@ replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240327114451-d6b7174a84fc
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240711023527-ba358c48772f
 	github.com/tidwall/gjson v1.14.3
 	github.com/tidwall/resp v0.1.1
 	github.com/wasilibs/go-re2 v1.5.3

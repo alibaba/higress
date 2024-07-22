@@ -68,9 +68,9 @@ func GetParams(name, cookie, path, key string) (oidcCookieValue, code, state str
 	return oidcCookieValue, code, state, nil
 }
 
-func SendError(log *wrapper.Log, errMsg string, status int) {
+func SendError(log *wrapper.Log, errMsg string, status int, statusDetail string) {
 	log.Errorf(errMsg)
-	proxywasm.SendHttpResponse(uint32(status), nil, []byte(errMsg), -1)
+	proxywasm.SendHttpResponseWithDetail(uint32(status), statusDetail, nil, []byte(errMsg), -1)
 }
 
 type jsonTime time.Time

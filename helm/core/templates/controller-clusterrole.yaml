@@ -36,7 +36,7 @@ rules:
   # Needed for multicluster secret reading, possibly ingress certs in the future
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "watch", "list"]
+    verbs: ["get", "watch", "list", "create", "update", "delete", "patch"]
 
   - apiGroups: ["networking.higress.io"]
     resources: ["mcpbridges"]
@@ -61,12 +61,12 @@ rules:
 
   # discovery and routing
   - apiGroups: [""]
-    resources: ["pods", "nodes", "services", "namespaces", "endpoints"]
+    resources: ["pods", "nodes", "services", "namespaces", "endpoints", "deployments"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["get", "list", "watch"]
-    
+
   # Istiod and bootstrap.
   - apiGroups: ["certificates.k8s.io"]
     resources:
@@ -100,7 +100,7 @@ rules:
   - apiGroups: ["multicluster.x-k8s.io"]
     resources: ["serviceimports"]
     verbs: ["get", "watch", "list"]
-    
+
   # sidecar injection controller
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["mutatingwebhookconfigurations"]

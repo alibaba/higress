@@ -100,7 +100,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, 
 	if len(config.enableOnStatus) != 0 {
 		return types.ActionContinue
 	}
-	err := proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+	err := proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
 	if err != nil {
 		log.Errorf("send http response failed: %v", err)
 	}
@@ -124,7 +124,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig,
 
 	for _, v := range config.enableOnStatus {
 		if uint32(statusCode) == v {
-			err = proxywasm.SendHttpResponse(config.statusCode, config.headers, []byte(config.body), -1)
+			err = proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
 			if err != nil {
 				log.Errorf("send http response failed: %v", err)
 			}

@@ -29,6 +29,7 @@ type Category int
 const (
 	Route Category = iota
 	Host
+	Service
 )
 
 type MatchType int
@@ -40,9 +41,10 @@ const (
 )
 
 const (
-	RULES_KEY        = "_rules_"
-	MATCH_ROUTE_KEY  = "_match_route_"
-	MATCH_DOMAIN_KEY = "_match_domain_"
+	RULES_KEY         = "_rules_"
+	MATCH_ROUTE_KEY   = "_match_route_"
+	MATCH_DOMAIN_KEY  = "_match_domain_"
+	MATCH_SERVICE_KEY = "_match_service_"
 )
 
 type HostMatcher struct {
@@ -53,6 +55,7 @@ type HostMatcher struct {
 type RuleConfig[PluginConfig any] struct {
 	category Category
 	routes   map[string]struct{}
+	services map[string]struct{}
 	hosts    []HostMatcher
 	config   PluginConfig
 }
@@ -72,14 +75,25 @@ func (m RuleMatcher[PluginConfig]) GetMatchConfig() (*PluginConfig, error) {
 	if err != nil && err != types.ErrorStatusNotFound {
 		return nil, err
 	}
+	serviceName, err := proxywasm.GetProperty([]string{"cluster_name"})
+	if err != nil && err != types.ErrorStatusNotFound {
+		return nil, err
+	}
 	for _, rule := range m.ruleConfig {
+		// category == Host
 		if rule.category == Host {
 			if m.hostMatch(rule, host) {
 				return &rule.config, nil
 			}
 		}
 		// category == Route
-		if _, ok := rule.routes[string(routeName)]; ok {
+		if rule.category == Route {
+			if _, ok := rule.routes[string(routeName)]; ok {
+				return &rule.config, nil
+			}
+		}
+		// category == Cluster
+		if m.serviceMatch(rule, string(serviceName)) {
 			return &rule.config, nil
 		}
 	}
@@ -137,15 +151,19 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 		}
 		rule.routes = m.parseRouteMatchConfig(ruleJson)
 		rule.hosts = m.parseHostMatchConfig(ruleJson)
+		rule.services = m.parseServiceMatchConfig(ruleJson)
 		noRoute := len(rule.routes) == 0
 		noHosts := len(rule.hosts) == 0
-		if (noRoute && noHosts) || (!noRoute && !noHosts) {
-			return errors.New("there is only one of  '_match_route_' and '_match_domain_' can present in configuration.")
+		noService := len(rule.services) == 0
+		if boolToInt(noRoute)+boolToInt(noService)+boolToInt(noHosts) != 2 {
+			return errors.New("there is only one of  '_match_route_', '_match_domain_' and '_match_service_' can present in configuration.")
 		}
 		if !noRoute {
 			rule.category = Route
-		} else {
+		} else if !noHosts {
 			rule.category = Host
+		} else {
+			rule.category = Service
 		}
 		m.ruleConfig = append(m.ruleConfig, rule)
 	}
@@ -162,6 +180,18 @@ func (m RuleMatcher[PluginConfig]) parseRouteMatchConfig(config gjson.Result) ma
 		}
 	}
 	return routes
+}
+
+func (m RuleMatcher[PluginConfig]) parseServiceMatchConfig(config gjson.Result) map[string]struct{} {
+	keys := config.Get(MATCH_SERVICE_KEY).Array()
+	clusters := make(map[string]struct{})
+	for _, item := range keys {
+		clusterName := item.String()
+		if clusterName != "" {
+			clusters[clusterName] = struct{}{}
+		}
+	}
+	return clusters
 }
 
 func (m RuleMatcher[PluginConfig]) parseHostMatchConfig(config gjson.Result) []HostMatcher {
@@ -220,6 +250,24 @@ func (m RuleMatcher[PluginConfig]) hostMatch(rule RuleConfig[PluginConfig], reqH
 			}
 		default:
 			return false
+		}
+	}
+	return false
+}
+
+func (m RuleMatcher[PluginConfig]) serviceMatch(rule RuleConfig[PluginConfig], serviceName string) bool {
+	parts := strings.Split(serviceName, "|")
+	if len(parts) != 4 {
+		return false
+	}
+	port := parts[1]
+	fqdn := parts[3]
+	for configServiceName := range rule.services {
+		colonIndex := strings.LastIndexByte(configServiceName, ':')
+		if colonIndex != -1 && fqdn == string(configServiceName[:colonIndex]) && port == string(configServiceName[colonIndex+1:]) {
+			return true
+		} else if fqdn == string(configServiceName) {
+			return true
 		}
 	}
 	return false

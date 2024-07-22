@@ -14,6 +14,7 @@ import (
 const (
 	openaiDomain             = "api.openai.com"
 	openaiChatCompletionPath = "/v1/chat/completions"
+	openaiEmbeddingsPath     = "/v1/chat/embeddings"
 )
 
 type openaiProviderInitializer struct {
@@ -40,14 +41,19 @@ func (m *openaiProvider) GetProviderType() string {
 }
 
 func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+	skipRequestBody := true
+	switch apiName {
+	case ApiNameChatCompletion:
+		_ = util.OverwriteRequestPath(openaiChatCompletionPath)
+		skipRequestBody = m.contextCache == nil
+		break
+	case ApiNameEmbeddings:
+		_ = util.OverwriteRequestPath(openaiEmbeddingsPath)
+		break
 	}
-	_ = util.OverwriteRequestPath(openaiChatCompletionPath)
-	_ = util.OverwriteRequestHost(openaiDomain)
 	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
 
-	if m.contextCache == nil {
+	if skipRequestBody {
 		ctx.DontReadRequestBody()
 	} else {
 		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
@@ -58,7 +64,8 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		// We don't need to process the request body for other APIs.
+		return types.ActionContinue, nil
 	}
 	if m.contextCache == nil {
 		return types.ActionContinue, nil
@@ -73,11 +80,11 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.openai.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.openai.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
