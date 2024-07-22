@@ -15,4 +15,5 @@
 pub mod error;
 mod internal;
 pub mod log;
+pub mod plugin_wrapper;
 pub mod rule_matcher;
