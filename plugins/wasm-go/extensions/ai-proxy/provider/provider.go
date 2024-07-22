@@ -165,12 +165,6 @@ type ProviderConfig struct {
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
-	// @Title zh-CN spark api key for authorization
-	// @Description zh-CN 仅适用于 Spark 服务鉴权，API key/secret 参考：https://www.xfyun.cn/doc/spark/HTTP%E8%B0%83%E7%94%A8%E6%96%87%E6%A1%A3.html#_3-%E8%AF%B7%E6%B1%82%E8%AF%B4%E6%98%8E
-	sparkAuthKey string `required:"false" yaml:"sparkAuthKey" json:"sparkAuthKey"`
-	// @Title zh-CN spark api secret for authorization
-	// @Description zh-CN 仅适用于 Spark 服务鉴权
-	sparkAuthSecret string `required:"false" yaml:"sparkAuthSecret" json:"sparkAuthSecret"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -210,8 +204,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
-	c.sparkAuthKey = json.Get("sparkAuthKey").String()
-	c.sparkAuthSecret = json.Get("sparkAuthSecret").String()
 }
 
 func (c *ProviderConfig) Validate() error {

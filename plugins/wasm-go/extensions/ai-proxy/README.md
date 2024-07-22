@@ -141,12 +141,9 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 #### 星火 (Spark)
 
-星火所对应的 `type` 为 `spark`。它特有的配置字段如下：
+星火所对应的 `type` 为 `spark`。它并无特有的配置字段。
 
-| 名称                | 数据类型   | 填写要求 | 默认值 | 描述                                           |
-|-------------------|--------|------|-----|----------------------------------------------|
-| `sparkAuthKey` | string | 必填   | -   | 星火用于鉴权的key |
-| `sparkAuthSecret` | string | 必填   | -   | 星火用于鉴权的secret |
+讯飞星火认知大模型的`apiTokens`字段值为`APIKey:APISecret`。即填入自己的APIKey与APISecret，并以`:`分隔。
 
 
 ## 用法示例
@@ -881,10 +878,8 @@ provider:
 ```yaml
 provider:
   type: spark
-  sparkAuthKey: "YOUR_API_KEY"
-  sparkAuthSecret: "YOUR_MINIMAX_API_SECRET"
   apiTokens:
-    - "TODO"
+    - "APIKey:APISecret"
   modelMapping:
     "gpt-4o": "Max"
     "*": "Lite"
@@ -894,7 +889,7 @@ provider:
 
 ```json
 {
-    "model": "g-4o",
+    "model": "gpt-4o",
     "messages": [
         {
             "role": "system",
@@ -924,7 +919,7 @@ provider:
         }
     ],
     "created": 1721493136,
-    "model": "Lite",
+    "model": "Max",
     "object": "chat.completion",
     "usage": {
         "prompt_tokens": 11,
