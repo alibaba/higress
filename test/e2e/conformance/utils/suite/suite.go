@@ -95,10 +95,11 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	if s.IsWasmPluginTest {
-		if s.WasmPluginType == "CPP" {
-			s.SupportedFeatures.Insert(string(WASMCPPConformanceFeature))
+		feature, ok := WasmPluginTypeMap[s.WasmPluginType]
+		if ok {
+			s.SupportedFeatures.Insert(string(feature))
 		} else {
-			s.SupportedFeatures.Insert(string(WASMGoConformanceFeature))
+			panic("WasmPluginType [" + s.WasmPluginType + "] not support")
 		}
 	} else if s.IsEnvoyConfigTest {
 		s.SupportedFeatures.Insert(string(EnvoyConfigConformanceFeature))
