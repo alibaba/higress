@@ -33,9 +33,8 @@ type sparkProviderInitializer struct {
 }
 
 type sparkProvider struct {
-	config        ProviderConfig
-	serviceDomain string
-	contextCache  *contextCache
+	config       ProviderConfig
+	contextCache *contextCache
 }
 
 type sparkRequest struct {
@@ -154,12 +153,7 @@ func (p *sparkProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName,
 	if sparkResponse.Code != 0 {
 		return types.ActionContinue, fmt.Errorf("spark response error, error_code: %d, error_message: %s", sparkResponse.Code, sparkResponse.Message)
 	}
-	var response interface{}
-	if p.config.protocol == "original" {
-		response = sparkResponse
-	} else {
-		response = p.responseSpark2OpenAI(ctx, sparkResponse)
-	}
+	response := p.responseSpark2OpenAI(ctx, sparkResponse)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
@@ -175,18 +169,16 @@ func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Ap
 			continue
 		}
 		data = data[6:]
-		var sparkResponse sparkStreamResponse
 		// The final response is `data: [DONE]`
+		if data == "[DONE]" {
+			continue
+		}
+		var sparkResponse sparkStreamResponse
 		if err := json.Unmarshal([]byte(data), &sparkResponse); err != nil {
 			log.Errorf("unable to unmarshal spark response: %v", err)
 			continue
 		}
-		var response interface{}
-		if p.config.protocol == "original" {
-			response = sparkResponse
-		} else {
-			response = p.streamResponseSpark2OpenAI(ctx, &sparkResponse)
-		}
+		response := p.streamResponseSpark2OpenAI(ctx, &sparkResponse)
 		responseBody, err := json.Marshal(response)
 		if err != nil {
 			log.Errorf("unable to marshal response: %v", err)

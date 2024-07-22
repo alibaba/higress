@@ -893,7 +893,7 @@ provider:
     "messages": [
         {
             "role": "system",
-            "content": "你是一个名专业的开发人员！"
+            "content": "你是一名专业的开发人员！"
         },
         {
             "role": "user",
