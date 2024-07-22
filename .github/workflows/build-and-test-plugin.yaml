@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         # TODO(Xunzhuo): Enable C WASM Filters in CI
-        wasmPluginType: [ GO ]
+        wasmPluginType: [ GO, RUST ]
     steps:
       - uses: actions/checkout@v3
 
