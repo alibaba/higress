@@ -5,8 +5,8 @@ AI提示词装饰器插件，支持在LLM的请求前后插入prompt。
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |----------------|-----------------|------|-----|----------------------------------|
-| `prepend` | array of message object | 必填 | - | 在初始输入之前插入的语句 |
-| `append` | array of message object | 必填 | - | 在初始输入之后插入的语句 |
+| `prepend` | array of message object | optional | - | 在初始输入之前插入的语句 |
+| `append` | array of message object | optional | - | 在初始输入之后插入的语句 |
 
 message object 配置说明：
 
