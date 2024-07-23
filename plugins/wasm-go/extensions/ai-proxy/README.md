@@ -139,6 +139,13 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 |-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
 | `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
 
+#### DeepL
+
+DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
+
+| 名称        | 数据类型   | 填写要求 | 默认值 | 描述                               |
+|-----------|--------|------|-----|----------------------------------|
+| `deeplVersion` | string | 可选   | Free  | DeepL 服务的 API 版本，值可为`Free`或`Pro` |
 
 ## 用法示例
 
@@ -862,6 +869,64 @@ provider:
       "finish_reason": "stop"
     }
   ]
+}
+```
+
+### 使用 OpenAI 协议代理 DeepL 文本翻译服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: deepl
+  apiTokens:
+    - "YOUR_DEEPL_API_TOKEN"
+  deeplVersion: "Free | Pro"
+```
+
+**请求示例**
+此处`model`表示deepl的`target_lang`，`user`表示deepl的`source_lang`，`messages[i].content`表示deepl的`text[i]`。`model`(即目标语言)和`content`为必填字段。
+```json
+{
+    "model":"EN-US",
+    "user":"ZH",
+    "messages": [
+        {
+            "content": "你是一名专业的开发人员！"
+        },
+        {
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+此处`choices[i].message.name`表示deepl的`translations[i].detected_source_language`，`choices[i].message.content`表示deepl的`translations[i].text`。
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "name": "ZH",
+                "role": "assistant",
+                "content": "You are a professional developer!"
+            }
+        },
+        {
+            "index": 1,
+            "message": {
+                "name": "ZH",
+                "role": "assistant",
+                "content": "Hello."
+            }
+        }
+    ],
+    "created": 1721725968,
+    "object": "chat.completion",
+    "usage": {}
 }
 ```
 

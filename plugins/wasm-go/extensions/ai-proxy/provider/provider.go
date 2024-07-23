@@ -33,6 +33,7 @@ const (
 	providerTypeStepfun    = "stepfun"
 	providerTypeMinimax    = "minimax"
 	providerTypeCloudflare = "cloudflare"
+	providerTypeDeepl      = "deepl"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -45,6 +46,7 @@ const (
 	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
+	ctxKeyIsStream             = "isStream"
 	ctxKeyApiName              = "apiKey"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
@@ -84,6 +86,7 @@ var (
 		providerTypeStepfun:    &stepfunProviderInitializer{},
 		providerTypeMinimax:    &minimaxProviderInitializer{},
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
+		providerTypeDeepl:      &deeplProviderInitializer{},
 	}
 )
 
@@ -163,6 +166,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
+	// @Title zh-CN deepl版本
+	// @Description zh-CN deepl服务的版本，仅适用于DeepL 服务。默认值为“Free”,也可配置为“Pro”。参考：https://developers.deepl.com/docs/v/zh/api-reference/translate
+	deeplVersion string `required:"false" yaml:"deeplVersion" json:"deeplVersion"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -202,6 +208,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
+	c.deeplVersion = json.Get("deeplVersion").String()
 }
 
 func (c *ProviderConfig) Validate() error {
