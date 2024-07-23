@@ -233,6 +233,15 @@ func (c *ProviderConfig) Validate() error {
 	return nil
 }
 
+func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
+	ctxApiKey := ctx.GetContext(ctxKeyApiName)
+	if ctxApiKey == nil {
+		ctxApiKey = c.GetRandomToken()
+		ctx.SetContext(ctxKeyApiName, ctxApiKey)
+	}
+	return ctxApiKey.(string)
+}
+
 func (c *ProviderConfig) GetRandomToken() string {
 	apiTokens := c.apiTokens
 	count := len(apiTokens)
