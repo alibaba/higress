@@ -24,14 +24,15 @@
 
 `endpoint`中每一项的配置字段说明
 
-| 名称             | 数据类型 | 必填 | 默认值 | 描述                                                |
-| ---------------- | -------- | ---- | ------ | --------------------------------------------------- |
-| `service_source` | string   | 是   | -      | 类型为固定 ip 或者 dns，输入授权服务的注册来源 |
-| `service_name`   | string   | 是   | -      | 输入授权服务的注册名称                      |
-| `service_port`   | string   | 是   | -      | 输入授权服务的服务端口                      |
-| `service_domain` | string   | 否   | -      | 当类型为dns时必须填写，输入 `ext-auth` 服务的domain |
-| `request_method` | string   | 否   | GET    | 客户端向授权服务发送请求的HTTP Method        |
-| `path`           | string   | 是   | -      | 输入授权服务的请求路径                       |
+| 名称       | 数据类型 | 必填 | 默认值 | 描述                                               |
+| -------- | -------- | ---- | ------ |--------------------------------------------------|
+| `service_source` | string   | 是   | -      | 类型固定为 `k8s` , `nacos` , `ip` 或 `dns`，输入授权服务的注册来源 |
+| `service_name` | string   | 是   | -      | 输入授权服务的注册名称                                      |
+| `service_port` | string   | 是   | -      | 输入授权服务的服务端口                                      |
+| `domain` | string   | 否   | -      | 当类型为dns时必须填写，输入 `ext-auth` 服务的domain             |
+| `namespace` | string   | 否   | -      | 当类型为k8s和nacos时必须填写，输入 `ext-auth` 服务的namespace    |
+| `request_method` | string   | 否   | GET    | 客户端向授权服务发送请求的HTTP Method                         |
+| `path`   | string   | 是   | -      | 输入授权服务的请求路径                                      |
 
 `authorization_request`中每一项的配置字段说明
 

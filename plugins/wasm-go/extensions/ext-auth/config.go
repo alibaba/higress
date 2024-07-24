@@ -121,7 +121,6 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 			Namespace:   namespace,
 			Port:        servicePort,
 		})
-		return nil
 	case "nacos":
 		namespace := json.Get("namespace").String()
 		httpService.client = wrapper.NewClusterClient(wrapper.NacosCluster{
@@ -129,7 +128,6 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 			NamespaceID: namespace,
 			Port:        servicePort,
 		})
-		return nil
 	case "ip":
 		httpService.client = wrapper.NewClusterClient(wrapper.StaticIpCluster{
 			ServiceName: serviceName,

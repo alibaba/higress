@@ -91,7 +91,7 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	}
 
 	// call ext auth server
-	err := httpServiceConfig.client.Post(httpServiceConfig.path, reconvertHeaders(extAuthReqHeaders), body,
+	err := httpServiceConfig.client.Call(httpServiceConfig.requestMethod, httpServiceConfig.path, reconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
