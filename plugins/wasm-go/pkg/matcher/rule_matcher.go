@@ -95,7 +95,7 @@ func (m RuleMatcher[PluginConfig]) GetMatchConfig() (*PluginConfig, error) {
 				return &rule.config, nil
 			}
 		}
-		// category == api
+		// category == RoutePrefix
 		if rule.category == RoutePrefix {
 			for routePrefix := range rule.routePrefixs {
 				if strings.HasPrefix(string(routeName), routePrefix) {
