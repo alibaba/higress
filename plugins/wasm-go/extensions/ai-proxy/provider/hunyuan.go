@@ -155,7 +155,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		// 根据确定好的payload进行签名
 		hunyuanBody, _ := json.Marshal(request)
 		authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
-		_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
+		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
 		// log.Debugf("#debug nash5# OnRequestBody call hunyuan api using original api! signature computation done!")
 
@@ -178,7 +178,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			// 因为手动插入了context内容，这里需要重新计算签名
 			hunyuanBody, _ := json.Marshal(request)
 			authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
-			_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
+			_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 			if err := replaceJsonRequestBody(request, log); err != nil {
 				_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
@@ -234,7 +234,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			hunyuanChatCompletionTCAction,
 			string(body),
 		)
-		_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
+		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 		// log.Debugf("#debug nash5# OnRequestBody done, body is: ", string(body))
 
 		// // 打印所有的headers
@@ -265,7 +265,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		// 因为手动插入了context内容，这里需要重新计算签名
 		hunyuanBody, _ := json.Marshal(hunyuanRequest)
 		authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
-		_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, authorizedValueNew)
+		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 		if err := replaceJsonRequestBody(hunyuanRequest, log); err != nil {
 			_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
