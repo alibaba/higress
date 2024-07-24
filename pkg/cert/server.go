@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/certmagic"
+	"istio.io/istio/pilot/pkg/model"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -37,12 +38,14 @@ type Server struct {
 	clientSet  kubernetes.Interface
 	controller *Controller
 	certMgr    *CertMgr
+	XDSUpdater model.XDSUpdater
 }
 
-func NewServer(clientSet kubernetes.Interface, opts *Option) (*Server, error) {
+func NewServer(clientSet kubernetes.Interface, XDSUpdater model.XDSUpdater, opts *Option) (*Server, error) {
 	server := &Server{
-		clientSet: clientSet,
-		opts:      opts,
+		clientSet:  clientSet,
+		opts:       opts,
+		XDSUpdater: XDSUpdater,
 	}
 	return server, nil
 }
@@ -65,7 +68,7 @@ func (s *Server) InitServer() error {
 		return err
 	}
 	// init certmgr
-	certMgr, err := InitCertMgr(s.opts, s.clientSet, defaultConfig) // config and start
+	certMgr, err := InitCertMgr(s.opts, s.clientSet, defaultConfig, s.XDSUpdater, configMgr) // config and start
 	s.certMgr = certMgr
 	// init controller
 	controller, err := NewController(s.clientSet, s.opts.Namespace, certMgr, configMgr)
