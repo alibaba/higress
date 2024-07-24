@@ -111,6 +111,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
+	if !wrapper.IsResponseFromUpstream() {
+		// Response is not coming from the upstream. Let it pass through.
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	activeProvider := pluginConfig.GetProvider()
 
 	if activeProvider == nil {
