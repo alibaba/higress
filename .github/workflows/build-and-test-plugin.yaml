@@ -17,8 +17,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: 1.19
     # There are too many lint errors in current code bases
@@ -32,7 +32,7 @@ jobs:
         # TODO(Xunzhuo): Enable C WASM Filters in CI
         wasmPluginType: [ GO, RUST ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Free Up GitHub Actions Ubuntu Runner Disk Space 🔧
         uses: jlumbroso/free-disk-space@main
@@ -45,12 +45,12 @@ jobs:
           swap-storage: true      
 
       - name: "Setup Go"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.19
 
       - name: Setup Golang Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             ~/.cache/go-build
@@ -60,7 +60,7 @@ jobs:
             ${{ runner.os }}-go
 
       - name: Setup Submodule Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             .git/modules
@@ -81,4 +81,4 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ higress-wasmplugin-test ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4

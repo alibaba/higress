@@ -14,7 +14,7 @@ jobs:
     steps:
       # Step 1
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       # Step 2
       - name: Download Helm Charts Index
         uses: doggycool/ossutil-github-action@master
