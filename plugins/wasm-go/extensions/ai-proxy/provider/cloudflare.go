@@ -3,11 +3,12 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
 )
 
 const (
@@ -45,7 +46,7 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	}
 	_ = util.OverwriteRequestPath(strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	_ = util.OverwriteRequestHost(cloudflareDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+c.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetRandomToken())
 
 	if c.config.context == nil && c.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()

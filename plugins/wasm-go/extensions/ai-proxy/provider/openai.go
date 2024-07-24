@@ -51,7 +51,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		_ = util.OverwriteRequestPath(openaiEmbeddingsPath)
 		break
 	}
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 
 	if skipRequestBody {
 		ctx.DontReadRequestBody()

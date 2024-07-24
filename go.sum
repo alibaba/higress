@@ -61,8 +61,8 @@ dmitri.shuralyov.com/html/belt v0.0.0-20180602232347-f7d459c86be0/go.mod h1:JLBr
 dmitri.shuralyov.com/service/change v0.0.0-20181023043359-a85b471d5412/go.mod h1:a1inKt/atXimZ4Mv927x+r7UpyzRUf4emIoiiSC2TN4=
 dmitri.shuralyov.com/state v0.0.0-20180228185332-28bcc343414c/go.mod h1:0PRwlb0D6DFvNNtx+9ybjezNCa8XF0xaYcETyp6rHWU=
 git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999/go.mod h1:fPE2ZNJGynbRyZ4dJvy6G277gSllfV2HJqblrnkyeyg=
-github.com/2456868764/certmagic v1.0.1 h1:dRzow2Npe9llFTBhNVl0fVe8Yi/Q14ygNonlaZUyDZQ=
-github.com/2456868764/certmagic v1.0.1/go.mod h1:LOn81EQYMPajdew6Ln6SVdHPxPqPv6jwsUg92kiNlcQ=
+github.com/2456868764/certmagic v1.0.2 h1:xYoN4z6seONwT85llWXZcASvQME8TOSiSWQvLJsGGsE=
+github.com/2456868764/certmagic v1.0.2/go.mod h1:LOn81EQYMPajdew6Ln6SVdHPxPqPv6jwsUg92kiNlcQ=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20210929163055-e81b3f25be97/go.mod h1:WpB7kf89yJUETZxQnP1kgYPNwlT2jjdDYUCoxVggM3g=
 github.com/AlecAivazis/survey/v2 v2.3.6 h1:NvTuVHISgTHEHeBFqt6BHOe4Ny/NwGZr7w+F8S9ziyw=
 github.com/AlecAivazis/survey/v2 v2.3.6/go.mod h1:4AuI9b7RjAR+G7v9+C4YSlX/YL3K3cWNXgWXOhllqvI=
