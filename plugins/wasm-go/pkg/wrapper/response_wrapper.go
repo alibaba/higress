@@ -19,10 +19,10 @@ import (
 )
 
 func IsResponseFromUpstream() bool {
-	if codeDetails, err := proxywasm.GetProperty([]string{"response", "code_details"}); err != nil {
+	if codeDetails, err := proxywasm.GetProperty([]string{"response", "code_details"}); err == nil {
+		return string(codeDetails) == "via_upstream"
+	} else {
 		proxywasm.LogErrorf("get response code details failed: %v", err)
 		return false
-	} else {
-		return string(codeDetails) == "via_upstream"
 	}
 }
