@@ -13,7 +13,7 @@ import (
 const (
 	DefaultStatusOnError uint32 = http.StatusForbidden
 
-	DefaultHttpServiceTimeout uint32 = 200
+	DefaultHttpServiceTimeout uint32 = 1000
 )
 
 type ExtAuthConfig struct {

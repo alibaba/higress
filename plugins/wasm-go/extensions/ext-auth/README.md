@@ -18,7 +18,7 @@
 | 名称                     | 数据类型 | 必填 | 默认值 | 描述                                  |
 | ------------------------ | -------- | ---- | ------ | ------------------------------------- |
 | `endpoint`               | object   | 是   | -      | 发送鉴权请求的 HTTP 服务信息          |
-| `timeout`                | int      | 否   | 200    | `ext-auth` 服务连接超时时间，单位毫秒 |
+| `timeout`                | int      | 否   | 1000    | `ext-auth` 服务连接超时时间，单位毫秒 |
 | `authorization_request`  | object   | 否   | -      | 发送鉴权请求配置                      |
 | `authorization_response` | object   | 否   | -      | 处理鉴权响应配置                      |
 
@@ -78,7 +78,7 @@ http_service:
     service_source: k8s
     path: /auth
     request_method: POST
-  timeout: 500
+  timeout: 1000
 ```
 
 使用如下请求网关，当开启 `ext-auth` 插件后：
@@ -140,7 +140,7 @@ http_service:
     service_source: k8s
     path: /auth
     request_method: POST
-  timeout: 500
+  timeout: 1000
 ```
 
 使用如下请求网关，当开启 `ext-auth` 插件后：
