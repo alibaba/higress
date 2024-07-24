@@ -111,7 +111,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
-	if codeDetails, err := proxywasm.GetProperty([]string{"response", "code_details"}); err == nil && string(codeDetails) != "via_upstream" {
+	if !wrapper.IsResponseFromUpstream() {
 		// Response is not coming from the upstream. Let it pass through.
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
