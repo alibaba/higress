@@ -30,6 +30,7 @@ const (
 	Route Category = iota
 	Host
 	Service
+	API
 )
 
 type MatchType int
@@ -45,6 +46,7 @@ const (
 	MATCH_ROUTE_KEY   = "_match_route_"
 	MATCH_DOMAIN_KEY  = "_match_domain_"
 	MATCH_SERVICE_KEY = "_match_service_"
+	MATCH_API_KEY     = "_match_api_"
 )
 
 type HostMatcher struct {
@@ -56,6 +58,7 @@ type RuleConfig[PluginConfig any] struct {
 	category Category
 	routes   map[string]struct{}
 	services map[string]struct{}
+	apis     map[string]struct{}
 	hosts    []HostMatcher
 	config   PluginConfig
 }
@@ -90,6 +93,14 @@ func (m RuleMatcher[PluginConfig]) GetMatchConfig() (*PluginConfig, error) {
 		if rule.category == Route {
 			if _, ok := rule.routes[string(routeName)]; ok {
 				return &rule.config, nil
+			}
+		}
+		// category == api
+		if rule.category == API {
+			for api := range rule.apis {
+				if strings.HasPrefix(string(routeName), api) {
+					return &rule.config, nil
+				}
 			}
 		}
 		// category == Cluster
@@ -152,18 +163,22 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 		rule.routes = m.parseRouteMatchConfig(ruleJson)
 		rule.hosts = m.parseHostMatchConfig(ruleJson)
 		rule.services = m.parseServiceMatchConfig(ruleJson)
+		rule.apis = m.parseAPIMatchConfig(ruleJson)
 		noRoute := len(rule.routes) == 0
 		noHosts := len(rule.hosts) == 0
 		noService := len(rule.services) == 0
-		if boolToInt(noRoute)+boolToInt(noService)+boolToInt(noHosts) != 2 {
-			return errors.New("there is only one of  '_match_route_', '_match_domain_' and '_match_service_' can present in configuration.")
+		noAPI := len(rule.apis) == 0
+		if boolToInt(noRoute)+boolToInt(noService)+boolToInt(noHosts)+boolToInt(noAPI) != 3 {
+			return errors.New("there is only one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_api_' can present in configuration.")
 		}
 		if !noRoute {
 			rule.category = Route
 		} else if !noHosts {
 			rule.category = Host
-		} else {
+		} else if !noService {
 			rule.category = Service
+		} else {
+			rule.category = API
 		}
 		m.ruleConfig = append(m.ruleConfig, rule)
 	}
@@ -180,6 +195,18 @@ func (m RuleMatcher[PluginConfig]) parseRouteMatchConfig(config gjson.Result) ma
 		}
 	}
 	return routes
+}
+
+func (m RuleMatcher[PluginConfig]) parseAPIMatchConfig(config gjson.Result) map[string]struct{} {
+	keys := config.Get(MATCH_API_KEY).Array()
+	apis := make(map[string]struct{})
+	for _, item := range keys {
+		apiName := item.String()
+		if apiName != "" {
+			apis[apiName] = struct{}{}
+		}
+	}
+	return apis
 }
 
 func (m RuleMatcher[PluginConfig]) parseServiceMatchConfig(config gjson.Result) map[string]struct{} {
