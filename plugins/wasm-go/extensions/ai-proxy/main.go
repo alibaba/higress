@@ -75,6 +75,11 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
+			if contentType, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil && contentType != "" {
+				// Always return types.HeaderStopIteration to support fallback routing,
+				// as long as onHttpRequestBody can be called.
+				return types.HeaderStopIteration
+			}
 			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
