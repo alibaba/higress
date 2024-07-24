@@ -20,6 +20,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 func main() {
@@ -33,17 +34,26 @@ func main() {
 
 const (
 	HeaderContentLength    string = "content-length"
+	HeaderTransferEncoding string = "transfer-encoding"
 	HeaderAuthorization    string = "authorization"
 	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
+	var hasRequestBody bool
 	contentLengthStr, _ := proxywasm.GetHttpRequestHeader(HeaderContentLength)
-	hasRequestBody := false
 	if contentLengthStr != "" {
 		contentLength, err := strconv.Atoi(contentLengthStr)
-		hasRequestBody = err == nil && contentLength > 0
+		if err == nil && contentLength > 0 {
+			hasRequestBody = true
+		}
 	}
+
+	transferEncodingStr, _ := proxywasm.GetHttpRequestHeader(HeaderTransferEncoding)
+	if transferEncodingStr != "" {
+		hasRequestBody = strings.Contains(transferEncodingStr, "chunked")
+	}
+
 	// If withRequestBody is true AND the HTTP request contains a request body,
 	// it will be handled in the onHttpRequestBody phase.
 	if config.httpService.authorizationRequest.withRequestBody && hasRequestBody {
@@ -54,17 +64,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wra
 		return types.HeaderStopIteration
 	}
 	ctx.DontReadRequestBody()
-	return checkExtAuth(ctx, config, nil, log)
+	return checkExtAuth(config, nil, log, types.HeaderStopAllIterationAndWatermark)
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
 	if config.httpService.authorizationRequest.withRequestBody {
-		return checkExtAuth(ctx, config, body, log)
+		return checkExtAuth(config, body, log, types.ActionPause)
 	}
 	return types.ActionContinue
 }
 
-func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
+func checkExtAuth(config ExtAuthConfig, body []byte, log wrapper.Log, pauseAction types.Action) types.Action {
 	// build extAuth request headers
 	extAuthReqHeaders := http.Header{}
 
@@ -116,7 +126,7 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 		callExtAuthServerErrorHandler(config, http.StatusInternalServerError, nil)
 		return types.ActionContinue
 	}
-	return types.ActionPause
+	return pauseAction
 }
 
 func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuthRespHeaders http.Header) {
