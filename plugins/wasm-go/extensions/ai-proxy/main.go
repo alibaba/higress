@@ -21,6 +21,8 @@ const (
 	pluginName = "ai-proxy"
 
 	ctxKeyApiName = "apiKey"
+
+	defaultMaxBodySize uint32 = 10485760
 )
 
 func main() {
@@ -90,6 +92,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		ctx.DontReadRequestBody()
 	}
 
+	ctx.SetRequestBodyBufferLimit(defaultMaxBodySize)
 	return types.ActionContinue
 }
 
