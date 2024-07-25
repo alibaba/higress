@@ -881,7 +881,7 @@ provider:
   type: deepl
   apiTokens:
     - "YOUR_DEEPL_API_TOKEN"
-  deeplVersion: "Free | Pro"
+  deeplVersion: "YOUR_DEEPL_API_VERSION"
 ```
 
 **请求示例**
