@@ -1,0 +1,38 @@
+diff --git a/source/extensions/common/wasm/context.cc b/source/extensions/common/wasm/context.cc
+index 9642d8abd3..2249ac49d9 100644
+--- a/source/extensions/common/wasm/context.cc
++++ b/source/extensions/common/wasm/context.cc
+@@ -62,6 +62,20 @@ constexpr absl::string_view CelStateKeyPrefix = "wasm.";
+ #if defined(ALIMESH)
+ constexpr std::string_view ClearRouteCacheKey = "clear_route_cache";
+ constexpr std::string_view DisableClearRouteCache = "off";
++constexpr std::string_view SetBufferLimit = "set_buffer_limit";
++
++bool stringViewToUint32(std::string_view str, uint32_t& out_value) {
++  try {
++    unsigned long temp = std::stoul(std::string(str));
++    if (temp <= std::numeric_limits<uint32_t>::max()) {
++      out_value = static_cast<uint32_t>(temp);
++      return true;
++    }
++  } catch (const std::exception& e) {
++    ENVOY_LOG_MISC(critical, "stringToUint exception '{}'", e.what());
++  }
++  return false;
++}
+ #endif
+ 
+ using HashPolicy = envoy::config::route::v3::RouteAction::HashPolicy;
+@@ -1281,6 +1295,12 @@ WasmResult Context::setProperty(std::string_view path, std::string_view value) {
+       disable_clear_route_cache_ = false;
+     }
+   }
++  if (path == SetBufferLimit) {
++    uint32_t buffer_limit;
++    if (stringViewToUint32(value, buffer_limit)) {
++      decoder_callbacks_->setDecoderBufferLimit(buffer_limit);
++    }
++  }
+ #endif
+   if (!state->setValue(toAbslStringView(value))) {
+     return WasmResult::BadArgument;
