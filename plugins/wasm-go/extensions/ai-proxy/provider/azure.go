@@ -58,13 +58,7 @@ func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
 	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

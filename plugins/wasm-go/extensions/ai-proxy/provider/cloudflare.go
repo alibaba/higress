@@ -48,9 +48,6 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	_ = util.OverwriteRequestHost(cloudflareDomain)
 	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetRandomToken())
 
-	if c.config.context == nil && c.config.protocol == protocolOriginal {
-		ctx.DontReadRequestBody()
-	}
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
