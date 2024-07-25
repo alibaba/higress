@@ -46,13 +46,7 @@ func (m *deepseekProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	_ = util.OverwriteRequestPath(deepseekChatCompletionPath)
 	_ = util.OverwriteRequestHost(deepseekDomain)
 	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

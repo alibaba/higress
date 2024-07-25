@@ -41,24 +41,16 @@ func (m *openaiProvider) GetProviderType() string {
 }
 
 func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	skipRequestBody := true
 	switch apiName {
 	case ApiNameChatCompletion:
 		_ = util.OverwriteRequestPath(openaiChatCompletionPath)
-		skipRequestBody = m.contextCache == nil
 		break
 	case ApiNameEmbeddings:
 		_ = util.OverwriteRequestPath(openaiEmbeddingsPath)
 		break
 	}
 	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-
-	if skipRequestBody {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 
@@ -67,12 +59,30 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
+	}
+	bodyAltered := false
+	if request.Stream {
+		// For stream requests, we need to include usage in the response.
+		if request.StreamOptions == nil {
+			request.StreamOptions = &streamOptions{IncludeUsage: true}
+			bodyAltered = true
+		} else if !request.StreamOptions.IncludeUsage {
+			request.StreamOptions.IncludeUsage = true
+			bodyAltered = true
+		}
+	}
+	if m.contextCache == nil {
+		if bodyAltered {
+			if err := replaceJsonRequestBody(request, log); err != nil {
+				_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			}
+		}
+		return types.ActionContinue, nil
+	} else {
+		// If context cache is configured and body has been altered, the new body will be replaced when inserting the context data.
 	}
 	err := m.contextCache.GetContent(func(content string, err error) {
 		defer func() {
