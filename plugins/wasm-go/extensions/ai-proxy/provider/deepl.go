@@ -144,7 +144,7 @@ func (d *deeplProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName,
 	if err := json.Unmarshal(body, deeplResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal deepl response: %v", err)
 	}
-	response := d.responseDeepl2OpenAI(ctx, deeplResponse)
+	response := d.responseDeepl2OpenAI(ctx, deeplResponse, false)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
@@ -162,7 +162,7 @@ func (d *deeplProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Ap
 		log.Errorf("unable to unmarshal deepl response: %v", err)
 		goto flag
 	}
-	response = d.responseDeepl2OpenAI(ctx, deeplResponse)
+	response = d.responseDeepl2OpenAI(ctx, deeplResponse, true)
 	responseBody, err = json.Marshal(response)
 	if err != nil {
 		log.Errorf("unable to marshal deepl response: %v", err)
@@ -175,7 +175,7 @@ flag:
 	return []byte(modifiedResponseChunk), nil
 }
 
-func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplResponse *deeplResponse) *chatCompletionResponse {
+func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplResponse *deeplResponse, isStream bool) *chatCompletionResponse {
 	var choices []chatCompletionChoice
 	// Fail
 	if deeplResponse.Message != "" {
@@ -188,10 +188,15 @@ func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplRespo
 		// Success
 		choices = make([]chatCompletionChoice, len(deeplResponse.Translations))
 		for idx, t := range deeplResponse.Translations {
-			choices[idx] = chatCompletionChoice{
-				Index:   idx,
-				Message: &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage},
+			choice := chatCompletionChoice{
+				Index: idx,
 			}
+			if isStream {
+				choice.Delta = &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage}
+			} else {
+				choice.Message = &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage}
+			}
+			choices[idx] = choice
 		}
 	}
 	return &chatCompletionResponse{
