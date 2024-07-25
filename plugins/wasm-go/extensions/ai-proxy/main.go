@@ -22,7 +22,7 @@ const (
 
 	ctxKeyApiName = "apiKey"
 
-	defaultMaxBodySize uint32 = 10485760
+	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
 )
 
 func main() {
@@ -78,6 +78,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			if contentType, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil && contentType != "" {
+				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 				// Always return types.HeaderStopIteration to support fallback routing,
 				// as long as onHttpRequestBody can be called.
 				return types.HeaderStopIteration
@@ -91,8 +92,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if _, needHandleBody := activeProvider.(provider.RequestBodyHandler); needHandleBody {
 		ctx.DontReadRequestBody()
 	}
-
-	ctx.SetRequestBodyBufferLimit(defaultMaxBodySize)
 	return types.ActionContinue
 }
 
