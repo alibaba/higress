@@ -89,9 +89,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		return types.ActionContinue
 	}
 
-	if _, needHandleBody := activeProvider.(provider.RequestBodyHandler); needHandleBody {
-		ctx.DontReadRequestBody()
-	}
 	return types.ActionContinue
 }
 
