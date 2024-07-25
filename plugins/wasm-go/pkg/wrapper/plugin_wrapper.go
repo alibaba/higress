@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -49,7 +50,12 @@ type HttpContext interface {
 	// If the onHttpStreamingResponseBody handle is not set, and the onHttpResponseBody handle is set, the response body will be buffered by default
 	BufferResponseBody()
 	// If any request header is changed in onHttpRequestHeaders, envoy will re-calculate the route. Call this function to disable the re-routing.
+	// You need to call this before making any header modification operations.
 	DisableReroute()
+	// Note that this parameter affects the gateway's memory usage！Support setting a maximum buffer size for each request body individually in request phase.
+	SetRequestBodyBufferLimit(size uint32)
+	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
+	SetResponseBodyBufferLimit(size uint32)
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
@@ -351,6 +357,16 @@ func (ctx *CommonHttpCtx[PluginConfig]) BufferResponseBody() {
 
 func (ctx *CommonHttpCtx[PluginConfig]) DisableReroute() {
 	_ = proxywasm.SetProperty([]string{"clear_route_cache"}, []byte("off"))
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetRequestBodyBufferLimit(size uint32) {
+	ctx.plugin.vm.log.Infof("SetRequestBodyBufferLimit: %d", size)
+	_ = proxywasm.SetProperty([]string{"set_decoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) {
+	ctx.plugin.vm.log.Infof("SetResponseBodyBufferLimit: %d", size)
+	_ = proxywasm.SetProperty([]string{"set_encoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
