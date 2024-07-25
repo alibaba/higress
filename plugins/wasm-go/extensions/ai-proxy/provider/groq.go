@@ -44,13 +44,7 @@ func (m *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	_ = util.OverwriteRequestPath(groqChatCompletionPath)
 	_ = util.OverwriteRequestHost(groqDomain)
 	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

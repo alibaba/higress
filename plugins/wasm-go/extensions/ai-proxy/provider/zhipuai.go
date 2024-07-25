@@ -43,13 +43,7 @@ func (m *zhipuAiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	_ = util.OverwriteRequestPath(zhipuAiChatCompletionPath)
 	_ = util.OverwriteRequestHost(zhipuAiDomain)
 	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

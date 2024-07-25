@@ -21,6 +21,8 @@ const (
 	pluginName = "ai-proxy"
 
 	ctxKeyApiName = "apiKey"
+
+	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
 )
 
 func main() {
@@ -76,6 +78,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			if contentType, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil && contentType != "" {
+				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 				// Always return types.HeaderStopIteration to support fallback routing,
 				// as long as onHttpRequestBody can be called.
 				return types.HeaderStopIteration
@@ -84,10 +87,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue
-	}
-
-	if _, needHandleBody := activeProvider.(provider.RequestBodyHandler); needHandleBody {
-		ctx.DontReadRequestBody()
 	}
 
 	return types.ActionContinue
