@@ -19,16 +19,6 @@ const (
 	sparkChatCompletionPath = "/v1/chat/completions"
 )
 
-// Map of model version to path and domain. Reference：https://www.xfyun.cn/doc/spark/Web.html#_1-%E6%8E%A5%E5%8F%A3%E8%AF%B4%E6%98%8E
-var sparkModelToDomainMap = map[string][]string{
-	"Lite":      []string{"v1.1", "general"},
-	"V2.0":      []string{"v2.1", "generalv2"},
-	"Pro":       []string{"v3.1", "generalv3"},
-	"Pro-128K":  []string{"pro-128k", "pro-128k"},
-	"Max":       []string{"v3.5", "generalv3.5"},
-	"4.0 Ultra": []string{"v4.0", "4.0Ultra"},
-}
-
 type sparkProviderInitializer struct {
 }
 
@@ -82,6 +72,7 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(sparkHost)
+	_ = util.OverwriteRequestPath(sparkChatCompletionPath)
 	_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, "Bearer "+p.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
@@ -101,16 +92,9 @@ func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		if request.Model == "" {
 			return types.ActionContinue, errors.New("request model is empty")
 		}
-		modelValue, ok := sparkModelToDomainMap[request.Model]
-		if !ok {
-			return types.ActionContinue, fmt.Errorf("missing model in chat completion request")
-		}
-		request.Model = modelValue[1]
-		// 根据模型重写requestPath
-		path := fmt.Sprintf("/%s/chat/completions", modelValue[0])
-		_ = util.OverwriteRequestPath(path)
-		action, err := p.insertSparkContext(request, &log)
-		return action, err
+		// 目前星火在模型名称错误时，也会调用generalv3，这里还是按照输入的模型名称设置响应里的模型名称
+		ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	} else {
 		// 使用openai协议
 		request := &chatCompletionRequest{}
@@ -120,23 +104,14 @@ func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		if request.Model == "" {
 			return types.ActionContinue, errors.New("missing model in chat completion request")
 		}
-		originalModel := request.Model
-		ctx.SetContext(ctxKeyOriginalRequestModel, originalModel)
 		// 映射模型
-		finalModel := getMappedModel(originalModel, p.config.modelMapping, log)
-		ctx.SetContext(ctxKeyFinalRequestModel, finalModel)
-		if finalModel == "" {
+		mappedModel := getMappedModel(request.Model, p.config.modelMapping, log)
+		if mappedModel == "" {
 			return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
 		}
-		modelValue, ok := sparkModelToDomainMap[finalModel]
-		if !ok {
-			return types.ActionContinue, fmt.Errorf("missing model in chat completion request")
-		}
-		request.Model = modelValue[1]
-		path := fmt.Sprintf("/%s/chat/completions", modelValue[0])
-		_ = util.OverwriteRequestPath(path)
-		action, err := p.insertOpenAIContext(request, &log)
-		return action, err
+		ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+		request.Model = mappedModel
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
 	}
 }
 
@@ -202,8 +177,8 @@ func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *
 	return &chatCompletionResponse{
 		Id:      response.Sid,
 		Created: time.Now().UnixMilli() / 1000,
-		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletion,
+		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: choices,
 		Usage:   response.Usage,
 	}
@@ -213,8 +188,8 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 	choices := make([]chatCompletionChoice, len(response.Choices))
 	for idx, c := range response.Choices {
 		choices[idx] = chatCompletionChoice{
-			Index:   c.Index,
-			Message: &chatMessage{Role: c.Delta.Role, Content: c.Delta.Content},
+			Index: c.Index,
+			Delta: &chatMessage{Role: c.Delta.Role, Content: c.Delta.Content},
 		}
 	}
 	return &chatCompletionResponse{
@@ -229,66 +204,4 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 
 func (p *sparkProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
-}
-
-func (p *sparkProvider) insertSparkContext(request *sparkRequest, log *wrapper.Log) (types.Action, error) {
-	if p.config.context == nil {
-		return types.ActionContinue, nil
-	}
-	err := p.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.spark.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		// Copied from request_helper::insertContextMessage
-		fileMessage := chatMessage{
-			Role:    roleSystem,
-			Content: content,
-		}
-		var firstNonSystemMessageIndex int
-		for i, message := range request.Messages {
-			if message.Role != roleSystem {
-				firstNonSystemMessageIndex = i
-				break
-			}
-		}
-		if firstNonSystemMessageIndex == 0 {
-			request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
-		} else {
-			request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
-		}
-		if err := replaceJsonRequestBody(request, *log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.spark.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, *log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
-}
-
-func (p *sparkProvider) insertOpenAIContext(request *chatCompletionRequest, log *wrapper.Log) (types.Action, error) {
-	if p.config.context == nil {
-		return types.ActionContinue, nil
-	}
-	err := p.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.spark.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, *log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.spark.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, *log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
 }

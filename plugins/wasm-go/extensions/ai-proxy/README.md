@@ -881,8 +881,9 @@ provider:
   apiTokens:
     - "APIKey:APISecret"
   modelMapping:
-    "gpt-4o": "Max"
-    "*": "Lite"
+    "gpt-4o": "generalv3.5"
+    "gpt-4": "generalv3"
+    "*": "general"
 ```
 
 **请求示例**
@@ -908,23 +909,23 @@ provider:
 
 ```json
 {
-    "id": "cha000c388a@dx190d0fca0f5b8f2532",
+    "id": "cha000c23c6@dx190ef0b4b96b8f2532",
     "choices": [
         {
             "index": 0,
             "message": {
                 "role": "assistant",
-                "content": "您好，我是一名专业的开发人员，我可以帮助您解决各种编程和技术问题。"
+                "content": "你好！我是一名专业的开发人员，擅长编程和解决技术问题。有什么我可以帮助你的吗？"
             }
         }
     ],
-    "created": 1721493136,
-    "model": "Max",
+    "created": 1721997415,
+    "model": "generalv3.5",
     "object": "chat.completion",
     "usage": {
-        "prompt_tokens": 11,
-        "completion_tokens": 14,
-        "total_tokens": 25
+        "prompt_tokens": 10,
+        "completion_tokens": 19,
+        "total_tokens": 29
     }
 }
 ```
