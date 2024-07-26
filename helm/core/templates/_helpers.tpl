@@ -101,3 +101,15 @@ higress: {{ include "controller.name" . }}
 true
 {{- end }}
 {{- end }}
+
+{{- define "gateway.podMonitor.gvk" -}}
+{{- if eq .Values.gateway.metrics.provider "monitoring.coreos.com" -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+{{- else if eq .Values.gateway.metrics.provider "operator.victoriametrics.com" -}}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+{{- else -}}
+{{- fail "unexpected gateway.metrics.provider" -}}
+{{- end -}}
+{{- end -}}
