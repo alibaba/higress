@@ -19,8 +19,6 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
-	"strconv"
-	"strings"
 )
 
 func main() {
@@ -33,36 +31,26 @@ func main() {
 }
 
 const (
-	HeaderContentLength    string = "content-length"
-	HeaderTransferEncoding string = "transfer-encoding"
+	DefaultMaxBodyBytes    uint32 = 10 * 1024 * 1024
 	HeaderAuthorization    string = "authorization"
 	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
-	var hasRequestBody bool
-	contentLengthStr, _ := proxywasm.GetHttpRequestHeader(HeaderContentLength)
-	if contentLengthStr != "" {
-		contentLength, err := strconv.Atoi(contentLengthStr)
-		if err == nil && contentLength > 0 {
-			hasRequestBody = true
+	if hasRequestBody() {
+		ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
+
+		// If withRequestBody is true AND the HTTP request contains a request body,
+		// it will be handled in the onHttpRequestBody phase.
+		if config.httpService.authorizationRequest.withRequestBody {
+			// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+			ctx.DisableReroute()
+			// The request has a body and requires delaying the header transmission until a cache miss occurs,
+			// at which point the header should be sent.
+			return types.HeaderStopIteration
 		}
 	}
 
-	transferEncodingStr, _ := proxywasm.GetHttpRequestHeader(HeaderTransferEncoding)
-	if transferEncodingStr != "" {
-		hasRequestBody = strings.Contains(transferEncodingStr, "chunked")
-	}
-
-	// If withRequestBody is true AND the HTTP request contains a request body,
-	// it will be handled in the onHttpRequestBody phase.
-	if config.httpService.authorizationRequest.withRequestBody && hasRequestBody {
-		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-		ctx.DisableReroute()
-		// The request has a body and requires delaying the header transmission until a cache miss occurs,
-		// at which point the header should be sent.
-		return types.HeaderStopIteration
-	}
 	ctx.DontReadRequestBody()
 	return checkExtAuth(config, nil, log, types.HeaderStopAllIterationAndWatermark)
 }

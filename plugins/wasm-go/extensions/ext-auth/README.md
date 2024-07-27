@@ -1,10 +1,16 @@
-# 功能说明
+---
+title: 外部认证
+keywords: [higress, auth]
+description: 外部认证插件配置参考
+---
+
+## 功能说明
 
 `ext-auth` 插件实现了向外部授权服务发送鉴权请求，以检查客户端请求是否得到授权。该插件实现时参考了Envoy原生的[ext_authz filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter)，实现了原生filter中对接HTTP服务的部分能力
 
 
 
-# 配置字段
+## 配置字段
 
 | 名称                            | 数据类型 | 必填 | 默认值 | 描述                                                                                                                                                         |
 | ------------------------------- | -------- | ---- | ------ |------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -24,23 +30,20 @@
 
 `endpoint`中每一项的配置字段说明
 
-| 名称       | 数据类型 | 必填 | 默认值 | 描述                                               |
-| -------- | -------- | ---- | ------ |--------------------------------------------------|
-| `service_source` | string   | 是   | -      | 类型固定为 `k8s` , `nacos` , `ip` 或 `dns`，输入授权服务的注册来源 |
-| `service_name` | string   | 是   | -      | 输入授权服务的注册名称                                      |
-| `service_port` | string   | 是   | -      | 输入授权服务的服务端口                                      |
-| `domain` | string   | 否   | -      | 当类型为dns时必须填写，输入 `ext-auth` 服务的domain             |
-| `namespace` | string   | 否   | -      | 当类型为k8s和nacos时必须填写，输入 `ext-auth` 服务的namespace    |
-| `request_method` | string   | 否   | GET    | 客户端向授权服务发送请求的HTTP Method                         |
-| `path`   | string   | 是   | -      | 输入授权服务的请求路径                                      |
+| 名称       | 数据类型 | 必填 | 默认值 | 描述                                                                                      |
+| -------- | -------- | -- | ------ |-----------------------------------------------------------------------------------------|
+| `service_name` | string | 必填 | -                                                          | 输入授权服务名称，带服务类型的完整 FQDN 名称，例如 `ext-auth.dns` 、`ext-auth.my-ns.svc.cluster.local`         |
+| `service_port` | int    | 否 | 80 | 输入授权服务的服务端口                                                                             |
+| `request_method` | string   | 否 | GET    | 客户端向授权服务发送请求的HTTP Method                                                                |
+| `path`   | string   | 是 | -      | 输入授权服务的请求路径                                                                             |
 
 `authorization_request`中每一项的配置字段说明
 
-| 名称                | 数据类型               | 必填 | 默认值 | 描述                                                         |
-| ------------------- | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_headers`   | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
-| `headers_to_add`    | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
-| `with_request_body` | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
+| 名称                     | 数据类型               | 必填 | 默认值 | 描述                                                         |
+| ------------------------ | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
+| `allowed_headers`        | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
+| `headers_to_add`         | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
+| `with_request_body`      | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
 
 `authorization_response`中每一项的配置字段说明
 
@@ -61,21 +64,19 @@
 
 
 
-# 配置示例
+## 配置示例
 
 下面假设 `ext-auth` 服务在Kubernetes中serviceName为 `ext-auth`，端口 `8090`，路径为 `/auth`，命名空间为 `backend`
 
-## 示例1
+### 示例1
 
 `ext-auth` 插件的配置：
 
 ```yaml
 http_service:
   endpoint:
-    service_name: ext-auth
-    namespace: backend
+    service_name: ext-auth.backend.svc.cluster.local
     service_port: 8090
-    service_source: k8s
     path: /auth
     request_method: POST
   timeout: 1000
@@ -118,7 +119,7 @@ content-length: 0
 当 `ext-auth` 服务返回其他 HTTP 状态码时，将以返回的状态码拒绝客户端请求。如果配置了 `allowed_client_headers`，具有相应匹配项的响应头将添加到客户端的响应中
 
 
-## 示例2
+### 示例2
 
 `ext-auth` 插件的配置：
 
@@ -134,10 +135,8 @@ http_service:
     - exact: x-user-id
     - exact: x-auth-version
   endpoint:
-    service_name: ext-auth
-    namespace: backend
+    service_name: ext-auth.backend.svc.cluster.local
     service_port: 8090
-    service_source: k8s
     path: /auth
     request_method: POST
   timeout: 1000

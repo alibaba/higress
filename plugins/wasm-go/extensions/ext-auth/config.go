@@ -107,42 +107,19 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 		return errors.New("missing endpoint in config")
 	}
 
-	serviceSource := endpointConfig.Get("service_source").String()
 	serviceName := endpointConfig.Get("service_name").String()
 	servicePort := endpointConfig.Get("service_port").Int()
-	if serviceName == "" || servicePort == 0 {
-		return errors.New("invalid service config")
+	if serviceName == "" {
+		return errors.New("endpoint service name must not be empty")
 	}
-	switch serviceSource {
-	case "k8s":
-		namespace := json.Get("namespace").String()
-		httpService.client = wrapper.NewClusterClient(wrapper.K8sCluster{
-			ServiceName: serviceName,
-			Namespace:   namespace,
-			Port:        servicePort,
-		})
-	case "nacos":
-		namespace := json.Get("namespace").String()
-		httpService.client = wrapper.NewClusterClient(wrapper.NacosCluster{
-			ServiceName: serviceName,
-			NamespaceID: namespace,
-			Port:        servicePort,
-		})
-	case "ip":
-		httpService.client = wrapper.NewClusterClient(wrapper.StaticIpCluster{
-			ServiceName: serviceName,
-			Port:        servicePort,
-		})
-	case "dns":
-		domain := endpointConfig.Get("domain").String()
-		httpService.client = wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: serviceName,
-			Port:        servicePort,
-			Domain:      domain,
-		})
-	default:
-		return errors.New("unknown service source: " + serviceSource)
+	if servicePort == 0 {
+		servicePort = 80
 	}
+
+	httpService.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: servicePort,
+	})
 
 	requestMethodConfig := endpointConfig.Get("request_method")
 	if !requestMethodConfig.Exists() {
@@ -165,6 +142,15 @@ func parseAuthorizationRequestConfig(json gjson.Result, httpService *HttpService
 	if authorizationRequestConfig.Exists() {
 		var authorizationRequest AuthorizationRequest
 
+		allowedHeaders := authorizationRequestConfig.Get("allowed_headers")
+		if allowedHeaders.Exists() {
+			result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedHeaders.Array())
+			if err != nil {
+				return err
+			}
+			authorizationRequest.allowedHeaders = result
+		}
+
 		headersToAdd := map[string]string{}
 		headersToAddConfig := authorizationRequestConfig.Get("headers_to_add")
 		if headersToAddConfig.Exists() {
@@ -182,15 +168,6 @@ func parseAuthorizationRequestConfig(json gjson.Result, httpService *HttpService
 				return errors.New(fmt.Sprintf("requestMethod %s does not support with_request_body set to true", httpService.requestMethod))
 			}
 			authorizationRequest.withRequestBody = withRequestBody.Bool()
-		}
-
-		allowedHeaders := authorizationRequestConfig.Get("allowed_headers")
-		if allowedHeaders.Exists() {
-			result, err := expr.BuildRepeatedStringMatcherIgnoreCase(allowedHeaders.Array())
-			if err != nil {
-				return err
-			}
-			authorizationRequest.allowedHeaders = result
 		}
 
 		httpService.authorizationRequest = authorizationRequest
