@@ -39,11 +39,11 @@ description: 外部认证插件配置参考
 
 `authorization_request`中每一项的配置字段说明
 
-| 名称                     | 数据类型               | 必填 | 默认值 | 描述                                                         |
-| ------------------------ | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_headers`        | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
-| `headers_to_add`         | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
-| `with_request_body`      | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
+| 名称                | 数据类型               | 必填 | 默认值 | 描述                                                         |
+| ------------------- | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
+| `allowed_headers`   | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
+| `headers_to_add`    | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
+| `with_request_body` | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
 
 `authorization_response`中每一项的配置字段说明
 
