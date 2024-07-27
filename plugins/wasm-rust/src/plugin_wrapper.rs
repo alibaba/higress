@@ -82,7 +82,43 @@ impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
         }
     }
 }
-impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {}
+impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
+    fn on_http_call_response(
+        &mut self,
+        token_id: u32,
+        num_headers: usize,
+        body_size: usize,
+        num_trailers: usize,
+    ) {
+        self.http_content
+            .on_http_call_response(token_id, num_headers, body_size, num_trailers)
+    }
+
+    fn on_grpc_call_response(&mut self, token_id: u32, status_code: u32, response_size: usize) {
+        self.http_content
+            .on_grpc_call_response(token_id, status_code, response_size)
+    }
+    fn on_grpc_stream_initial_metadata(&mut self, token_id: u32, num_elements: u32) {
+        self.http_content
+            .on_grpc_stream_initial_metadata(token_id, num_elements)
+    }
+    fn on_grpc_stream_message(&mut self, token_id: u32, message_size: usize) {
+        self.http_content
+            .on_grpc_stream_message(token_id, message_size)
+    }
+    fn on_grpc_stream_trailing_metadata(&mut self, token_id: u32, num_elements: u32) {
+        self.http_content
+            .on_grpc_stream_trailing_metadata(token_id, num_elements)
+    }
+    fn on_grpc_stream_close(&mut self, token_id: u32, status_code: u32) {
+        self.http_content
+            .on_grpc_stream_close(token_id, status_code)
+    }
+
+    fn on_done(&mut self) -> bool {
+        self.http_content.on_done()
+    }
+}
 impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned + Clone,

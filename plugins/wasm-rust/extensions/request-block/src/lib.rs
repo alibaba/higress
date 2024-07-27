@@ -165,7 +165,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
             }
             let mut request_url = value.unwrap().clone();
 
-            if config.case_sensitive {
+            if !config.case_sensitive {
                 request_url = request_url.to_lowercase();
             }
             for block_exact_url in &config.block_exact_urls {
@@ -229,7 +229,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
             return Action::Continue;
         }
         let mut body = req_body.clone();
-        if config.case_sensitive {
+        if !config.case_sensitive {
             body = body.to_ascii_lowercase();
         }
         for block_body in &config.block_bodies {
