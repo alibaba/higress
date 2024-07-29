@@ -4,27 +4,8 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 )
-
-const (
-	HeaderContentLength    string = "content-length"
-	HeaderTransferEncoding string = "transfer-encoding"
-)
-
-func hasRequestBody() bool {
-	contentLengthStr, _ := proxywasm.GetHttpRequestHeader(HeaderContentLength)
-	if contentLengthStr != "" {
-		contentLength, err := strconv.Atoi(contentLengthStr)
-		if err == nil && contentLength > 0 {
-			return true
-		}
-	}
-
-	transferEncodingStr, _ := proxywasm.GetHttpRequestHeader(HeaderTransferEncoding)
-	return strings.Contains(transferEncodingStr, "chunked")
-}
 
 func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header) error {
 	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, reconvertHeaders(headers), nil, -1)

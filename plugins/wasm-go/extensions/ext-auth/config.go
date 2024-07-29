@@ -14,6 +14,8 @@ const (
 	DefaultStatusOnError uint32 = http.StatusForbidden
 
 	DefaultHttpServiceTimeout uint32 = 1000
+
+	DefaultMaxRequestBodyBytes uint32 = 10 * 1024 * 1024
 )
 
 type ExtAuthConfig struct {
@@ -35,9 +37,10 @@ type HttpService struct {
 type AuthorizationRequest struct {
 	// allowedHeaders In addition to the user’s supplied matchers,
 	// Host, Method, Path, Content-Length, and Authorization are automatically included to the list.
-	allowedHeaders  expr.Matcher
-	headersToAdd    map[string]string
-	withRequestBody bool
+	allowedHeaders      expr.Matcher
+	headersToAdd        map[string]string
+	withRequestBody     bool
+	maxRequestBodyBytes uint32
 }
 
 type AuthorizationResponse struct {
@@ -65,12 +68,11 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 		config.failureModeAllowHeaderAdd = failureModeAllowHeaderAdd.Bool()
 	}
 
-	statusOnError := json.Get("status_on_error")
-	if statusOnError.Exists() {
-		config.statusOnError = uint32(statusOnError.Uint())
-	} else {
-		config.statusOnError = DefaultStatusOnError
+	statusOnError := uint32(json.Get("status_on_error").Uint())
+	if statusOnError == 0 {
+		statusOnError = DefaultStatusOnError
 	}
+	config.statusOnError = statusOnError
 
 	return nil
 }
@@ -169,6 +171,12 @@ func parseAuthorizationRequestConfig(json gjson.Result, httpService *HttpService
 			}
 			authorizationRequest.withRequestBody = withRequestBody.Bool()
 		}
+
+		maxRequestBodyBytes := uint32(authorizationRequestConfig.Get("max_request_body_bytes").Uint())
+		if maxRequestBodyBytes == 0 {
+			maxRequestBodyBytes = DefaultMaxRequestBodyBytes
+		}
+		authorizationRequest.maxRequestBodyBytes = maxRequestBodyBytes
 
 		httpService.authorizationRequest = authorizationRequest
 	}

@@ -31,14 +31,13 @@ func main() {
 }
 
 const (
-	DefaultMaxBodyBytes    uint32 = 10 * 1024 * 1024
 	HeaderAuthorization    string = "authorization"
 	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
-	if hasRequestBody() {
-		ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
+	if wrapper.HasRequestBody() {
+		ctx.SetRequestBodyBufferLimit(config.httpService.authorizationRequest.maxRequestBodyBytes)
 
 		// If withRequestBody is true AND the HTTP request contains a request body,
 		// it will be handled in the onHttpRequestBody phase.
