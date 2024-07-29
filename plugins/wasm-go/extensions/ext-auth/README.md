@@ -1,7 +1,7 @@
 ---
 title: 外部认证
 keywords: [higress, auth]
-description: Ext 认证插件插件实现了调用外部授权服务进行认证鉴权的功能。
+description: Ext 认证插件实现了调用外部授权服务进行认证鉴权的功能。
 ---
 
 ## 功能说明
