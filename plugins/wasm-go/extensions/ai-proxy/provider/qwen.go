@@ -60,20 +60,17 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	needRequestBody := false
 	if apiName == ApiNameChatCompletion {
 		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
-		needRequestBody = m.config.context != nil
 	} else if apiName == ApiNameEmbeddings {
 		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
 	} else {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 
-	if m.config.protocol == protocolOriginal && !needRequestBody {
-		ctx.DontReadRequestBody()
+	if m.config.protocol == protocolOriginal {
 		return types.ActionContinue, nil
 	}
 

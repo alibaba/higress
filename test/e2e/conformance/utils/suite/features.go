@@ -23,8 +23,9 @@ const (
 	HTTPConformanceFeature SupportedFeature = "http"
 
 	// extended: extensibility
-	WASMGoConformanceFeature  SupportedFeature = "wasm-go"
-	WASMCPPConformanceFeature SupportedFeature = "wasm-cpp"
+	WASMGoConformanceFeature   SupportedFeature = "wasm-go"
+	WASMCPPConformanceFeature  SupportedFeature = "wasm-cpp"
+	WASMRustConformanceFeature SupportedFeature = "wasm-rust"
 
 	// extended: service discovery
 	DubboConformanceFeature  SupportedFeature = "dubbo"
@@ -36,6 +37,13 @@ const (
 	EnvoyConfigConformanceFeature SupportedFeature = "envoy-config"
 )
 
+var WasmPluginTypeMap = map[string]SupportedFeature{
+	"":     WASMGoConformanceFeature, // default
+	"GO":   WASMGoConformanceFeature,
+	"CPP":  WASMCPPConformanceFeature,
+	"RUST": WASMRustConformanceFeature,
+}
+
 var AllFeatures = sets.Set{}.
 	Insert(string(HTTPConformanceFeature)).
 	Insert(string(DubboConformanceFeature)).
@@ -46,4 +54,5 @@ var AllFeatures = sets.Set{}.
 
 var ExperimentFeatures = sets.Set{}.
 	Insert(string(WASMGoConformanceFeature)).
-	Insert(string(WASMCPPConformanceFeature))
+	Insert(string(WASMCPPConformanceFeature)).
+	Insert(string(WASMRustConformanceFeature))

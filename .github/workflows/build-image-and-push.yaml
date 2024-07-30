@@ -16,7 +16,7 @@ jobs:
       CONTROLLER_IMAGE_NAME: ${{ vars.CONTROLLER_IMAGE_NAME || 'higress/higress' }}
     steps:
       - name: "Checkout ${{ github.ref }}"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -31,12 +31,12 @@ jobs:
           swap-storage: true
 
       - name: "Setup Go"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.19
 
       - name: Setup Golang Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             ~/.cache/go-build
@@ -45,7 +45,7 @@ jobs:
           restore-keys: ${{ runner.os }}-go
 
       - name: Setup Submodule Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             envoy
@@ -56,7 +56,7 @@ jobs:
 
       - name: Calculate Docker metadata
         id: docker-meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.CONTROLLER_IMAGE_REGISTRY }}/${{ env.CONTROLLER_IMAGE_NAME }}
@@ -67,7 +67,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.CONTROLLER_IMAGE_REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -92,7 +92,7 @@ jobs:
       PILOT_IMAGE_NAME: ${{ vars.PILOT_IMAGE_NAME || 'higress/pilot' }}
     steps:
       - name: "Checkout ${{ github.ref }}"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -107,12 +107,12 @@ jobs:
           swap-storage: true
 
       - name: "Setup Go"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.19
 
       - name: Setup Golang Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             ~/.cache/go-build
@@ -121,7 +121,7 @@ jobs:
           restore-keys: ${{ runner.os }}-go
 
       - name: Setup Submodule Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             envoy
@@ -132,7 +132,7 @@ jobs:
 
       - name: Calculate Docker metadata
         id: docker-meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.PILOT_IMAGE_REGISTRY }}/${{ env.PILOT_IMAGE_NAME }}
@@ -143,7 +143,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.PILOT_IMAGE_REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -169,7 +169,7 @@ jobs:
       GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME || 'higress/gateway' }}
     steps:
       - name: "Checkout ${{ github.ref }}"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -184,12 +184,12 @@ jobs:
           swap-storage: true
 
       - name: "Setup Go"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.19
 
       - name: Setup Golang Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             ~/.cache/go-build
@@ -198,7 +198,7 @@ jobs:
           restore-keys: ${{ runner.os }}-go
 
       - name: Setup Submodule Caches
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |-
             envoy
@@ -209,7 +209,7 @@ jobs:
 
       - name: Calculate Docker metadata
         id: docker-meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.GATEWAY_IMAGE_REGISTRY }}/${{ env.GATEWAY_IMAGE_NAME }}
@@ -220,7 +220,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Login to Docker Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.GATEWAY_IMAGE_REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
