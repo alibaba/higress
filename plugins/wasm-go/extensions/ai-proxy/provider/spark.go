@@ -73,7 +73,7 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	}
 	_ = util.OverwriteRequestHost(sparkHost)
 	_ = util.OverwriteRequestPath(sparkChatCompletionPath)
-	_ = proxywasm.ReplaceHttpRequestHeader(authorizationKey, "Bearer "+p.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + p.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
