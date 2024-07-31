@@ -16,6 +16,10 @@ const (
 	DefaultHttpServiceTimeout uint32 = 1000
 
 	DefaultMaxRequestBodyBytes uint32 = 10 * 1024 * 1024
+
+	EndpointModeEnvoy = "envoy"
+
+	EndpointModeForwardAuth = "forward_auth"
 )
 
 type ExtAuthConfig struct {
@@ -26,8 +30,13 @@ type ExtAuthConfig struct {
 }
 
 type HttpService struct {
-	client                wrapper.HttpClient
-	requestMethod         string
+	endpointMode string
+	client       wrapper.HttpClient
+	// pathPrefix is only used when endpoint_mode is envoy
+	pathPrefix string
+	// requestMethod is only used when endpoint_mode is forward_auth
+	requestMethod string
+	// path is only used when endpoint_mode is forward_auth
 	path                  string
 	timeout               uint32
 	authorizationRequest  AuthorizationRequest
@@ -104,6 +113,15 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig) error {
 }
 
 func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
+	endpointMode := json.Get("endpoint_mode").String()
+	if endpointMode == "" {
+		endpointMode = EndpointModeEnvoy
+	}
+	if endpointMode != EndpointModeEnvoy && endpointMode != EndpointModeForwardAuth {
+		return errors.New(fmt.Sprintf("endpoint_mode %s is not supported", endpointMode))
+	}
+	httpService.endpointMode = endpointMode
+
 	endpointConfig := json.Get("endpoint")
 	if !endpointConfig.Exists() {
 		return errors.New("missing endpoint in config")
@@ -123,19 +141,26 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 		Port: servicePort,
 	})
 
-	requestMethodConfig := endpointConfig.Get("request_method")
-	if !requestMethodConfig.Exists() {
-		httpService.requestMethod = http.MethodGet
-	} else {
-		httpService.requestMethod = strings.ToUpper(requestMethodConfig.String())
-	}
+	if endpointMode == EndpointModeEnvoy {
+		pathPrefixConfig := endpointConfig.Get("path_prefix")
+		if !pathPrefixConfig.Exists() {
+			return errors.New("when endpoint_mode is envoy, endpoint path_prefix must not be empty")
+		}
+		httpService.pathPrefix = pathPrefixConfig.String()
+	} else if endpointMode == EndpointModeForwardAuth {
+		requestMethodConfig := endpointConfig.Get("request_method")
+		if !requestMethodConfig.Exists() {
+			httpService.requestMethod = http.MethodGet
+		} else {
+			httpService.requestMethod = strings.ToUpper(requestMethodConfig.String())
+		}
 
-	pathConfig := endpointConfig.Get("path")
-	if !pathConfig.Exists() {
-		return errors.New("missing path in config")
+		pathConfig := endpointConfig.Get("path")
+		if !pathConfig.Exists() {
+			return errors.New("when endpoint_mode is forward_auth, endpoint path must not be empty")
+		}
+		httpService.path = pathConfig.String()
 	}
-	httpService.path = pathConfig.String()
-
 	return nil
 }
 

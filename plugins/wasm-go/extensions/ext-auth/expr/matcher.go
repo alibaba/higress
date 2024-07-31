@@ -3,7 +3,7 @@ package expr
 import (
 	"errors"
 	"github.com/tidwall/gjson"
-	"regexp"
+	regexp "github.com/wasilibs/go-re2"
 	"strings"
 )
 

@@ -23,10 +23,11 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 | 名称                     | 数据类型 | 必填 | 默认值 | 描述                                  |
 | ------------------------ | -------- | ---- | ------ | ------------------------------------- |
+| `endpoint_mode`          | string   | 否   | envoy  | `envoy` , `forward_auth` 中选填一项   |
 | `endpoint`               | object   | 是   | -      | 发送鉴权请求的 HTTP 服务信息          |
-| `timeout`                | int      | 否   | 1000    | `ext-auth` 服务连接超时时间，单位毫秒 |
+| `timeout`                | int      | 否   | 1000   | `ext-auth` 服务连接超时时间，单位毫秒 |
 | `authorization_request`  | object   | 否   | -      | 发送鉴权请求配置                      |
-| `authorization_response` | object   | 否   | -      | 处理鉴权响应配置                      |
+| `authorization_response` | object   | 否   | -      | 处理鉴权响应配置 |
 
 `endpoint`中每一项的配置字段说明
 
@@ -34,8 +35,9 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | -------- | -------- | -- | ------ |-----------------------------------------------------------------------------------------|
 | `service_name` | string | 必填 | -                                                          | 输入授权服务名称，带服务类型的完整 FQDN 名称，例如 `ext-auth.dns` 、`ext-auth.my-ns.svc.cluster.local`         |
 | `service_port` | int    | 否 | 80 | 输入授权服务的服务端口                                                                             |
-| `request_method` | string   | 否 | GET    | 客户端向授权服务发送请求的HTTP Method                                                                |
-| `path`   | string   | 是 | -      | 输入授权服务的请求路径                                                                             |
+| `path_prefix`    | string   | `endpoint_mode` 为`envoy`时必填        |        | `endpoint_mode` 为`envoy` 时，客户端向授权服务发送请求的请求路径前缀 |
+| `request_method` | string   | 否                                     | GET    | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的HTTP Method |
+| `path`           | string   | `endpoint_mode` 为`forward_auth`时必填 | -      | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的请求路径 |
 
 `authorization_request`中每一项的配置字段说明
 
@@ -69,12 +71,116 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 下面假设 `ext-auth` 服务在Kubernetes中serviceName为 `ext-auth`，端口 `8090`，路径为 `/auth`，命名空间为 `backend`
 
-### 示例1
+支持两种 `endpoint_mode`：
+
+- `endpoint_mode` 为 `envoy` 时，鉴权请求会使用原始请求的HTTP Method，和配置的 `path_prefix` 作为请求路径前缀拼接上原始的请求路径
+- `endpoint_mode` 为 `forward_auth` 时，鉴权请求会使用配置的 `request_method` 作为HTTP Method，和配置的 `path` 作为请求路径
+
+### endpoint_mode为envoy时
+
+#### 示例1
 
 `ext-auth` 插件的配置：
 
 ```yaml
 http_service:
+  endpoint_mode: envoy
+  endpoint:
+    service_name: ext-auth.backend.svc.cluster.local
+    service_port: 8090
+    path_prefix: /auth
+  timeout: 1000
+```
+
+使用如下请求网关，当开启 `ext-auth` 插件后：
+
+```shell
+curl -X POST http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 -X GET -H "foo: bar" -H "Authorization: xxx"
+```
+
+**请求 `ext-auth` 服务成功：**
+
+`ext-auth` 服务将接收到如下的鉴权请求：
+
+```
+POST /auth/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 HTTP/1.1
+Host: ext-auth
+Authorization: xxx
+Content-Length: 0
+```
+
+**请求 `ext-auth` 服务失败：**
+
+当调用 `ext-auth` 服务响应为 5xx 时，客户端将接收到HTTP响应码403和 `ext-auth` 服务返回的全量响应头
+
+假如 `ext-auth` 服务返回了 `x-auth-version: 1.0` 和 `x-auth-failed: true` 的响应头，会传递给客户端
+
+```
+HTTP/1.1 403 Forbidden
+x-auth-version: 1.0
+x-auth-failed: true
+date: Tue, 16 Jul 2024 00:19:41 GMT
+server: istio-envoy
+content-length: 0
+```
+
+当 `ext-auth` 无法访问或状态码为 5xx 时，将以 `status_on_error` 配置的状态码拒绝客户端请求
+
+当 `ext-auth` 服务返回其他 HTTP 状态码时，将以返回的状态码拒绝客户端请求。如果配置了 `allowed_client_headers`，具有相应匹配项的响应头将添加到客户端的响应中
+
+#### 示例2
+
+`ext-auth` 插件的配置：
+
+```yaml
+http_service:
+  authorization_request:
+    allowed_headers:
+    - exact: x-auth-version
+    headers_to_add:
+      x-envoy-header: true
+  authorization_response:
+    allowed_upstream_headers:
+    - exact: x-user-id
+    - exact: x-auth-version
+  endpoint_mode: envoy  
+  endpoint:
+    service_name: ext-auth.backend.svc.cluster.local
+    service_port: 8090
+    path_prefix: /auth
+  timeout: 1000
+```
+
+使用如下请求网关，当开启 `ext-auth` 插件后：
+
+```shell
+curl -X POST http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 -X GET -H "foo: bar" -H "Authorization: xxx"
+```
+
+`ext-auth` 服务将接收到如下的鉴权请求：
+
+```
+POST /auth/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 HTTP/1.1
+Host: ext-auth
+Authorization: xxx
+X-Auth-Version: 1.0
+x-envoy-header: true
+Content-Length: 0
+```
+
+`ext-auth` 服务返回响应头中如果包含 `x-user-id` 和 `x-auth-version`，网关调用upstream时的请求中会带上这两个请求头
+
+
+
+### endpoint_mode为forward_auth时
+
+#### 示例1
+
+`ext-auth` 插件的配置：
+
+```yaml
+http_service:
+  endpoint_mode: forward_auth
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
     service_port: 8090
@@ -119,8 +225,7 @@ content-length: 0
 
 当 `ext-auth` 服务返回其他 HTTP 状态码时，将以返回的状态码拒绝客户端请求。如果配置了 `allowed_client_headers`，具有相应匹配项的响应头将添加到客户端的响应中
 
-
-### 示例2
+#### 示例2
 
 `ext-auth` 插件的配置：
 
@@ -135,6 +240,7 @@ http_service:
     allowed_upstream_headers:
     - exact: x-user-id
     - exact: x-auth-version
+  endpoint_mode: forward_auth  
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
     service_port: 8090

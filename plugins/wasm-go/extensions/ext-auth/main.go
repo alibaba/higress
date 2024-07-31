@@ -19,6 +19,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
+	"net/url"
 )
 
 func main() {
@@ -51,17 +52,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wra
 	}
 
 	ctx.DontReadRequestBody()
-	return checkExtAuth(config, nil, log, types.HeaderStopAllIterationAndWatermark)
+	return checkExtAuth(ctx, config, nil, log, types.HeaderStopAllIterationAndWatermark)
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
 	if config.httpService.authorizationRequest.withRequestBody {
-		return checkExtAuth(config, body, log, types.ActionPause)
+		return checkExtAuth(ctx, config, body, log, types.ActionPause)
 	}
 	return types.ActionContinue
 }
 
-func checkExtAuth(config ExtAuthConfig, body []byte, log wrapper.Log, pauseAction types.Action) types.Action {
+func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log, pauseAction types.Action) types.Action {
 	// build extAuth request headers
 	extAuthReqHeaders := http.Header{}
 
@@ -87,8 +88,15 @@ func checkExtAuth(config ExtAuthConfig, body []byte, log wrapper.Log, pauseActio
 		extAuthReqHeaders.Set(HeaderAuthorization, authorization)
 	}
 
+	requestMethod := httpServiceConfig.requestMethod
+	requestPath := httpServiceConfig.path
+	if httpServiceConfig.endpointMode == EndpointModeEnvoy {
+		requestMethod = ctx.Method()
+		requestPath, _ = url.JoinPath(httpServiceConfig.pathPrefix, ctx.Path())
+	}
+
 	// call ext auth server
-	err := httpServiceConfig.client.Call(httpServiceConfig.requestMethod, httpServiceConfig.path, reconvertHeaders(extAuthReqHeaders), body,
+	err := httpServiceConfig.client.Call(requestMethod, requestPath, reconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
