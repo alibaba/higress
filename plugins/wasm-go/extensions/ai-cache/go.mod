@@ -4,7 +4,6 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache
 
 go 1.19
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.3.6-0.20240528060522-53bccf89f441
