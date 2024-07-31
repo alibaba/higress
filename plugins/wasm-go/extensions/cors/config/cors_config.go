@@ -18,8 +18,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
+
+	regexp "github.com/wasilibs/go-re2"
 )
 
 const (
