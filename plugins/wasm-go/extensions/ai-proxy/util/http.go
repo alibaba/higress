@@ -34,3 +34,12 @@ func OverwriteRequestPath(path string) error {
 	}
 	return proxywasm.ReplaceHttpRequestHeader(":path", path)
 }
+
+func OverwriteRequestAuthorization(credential string) error {
+	if exist, _ := proxywasm.GetHttpRequestHeader("X-HI-ORIGINAL-AUTH"); exist == "" {
+		if originAuth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil {
+			_ = proxywasm.AddHttpRequestHeader("X-HI-ORIGINAL-AUTH", originAuth)
+		}
+	}
+	return proxywasm.ReplaceHttpRequestHeader("Authorization", credential)
+}

@@ -391,7 +391,7 @@ func (s *Server) initAutomaticHttps() error {
 		ServerAddress: s.CertHttpAddress,
 		Email:         s.AutomaticHttpsEmail,
 	}
-	certServer, err := cert.NewServer(s.kubeClient.Kube(), certOption)
+	certServer, err := cert.NewServer(s.kubeClient.Kube(), s.xdsServer, certOption)
 	if err != nil {
 		return err
 	}

@@ -41,6 +41,7 @@ func NewSecretMgr(namespace string, client kubernetes.Interface) (*SecretMgr, er
 }
 
 func (s *SecretMgr) Update(domain string, secretName string, privateKey []byte, certificate []byte, notBefore time.Time, notAfter time.Time, isRenew bool) error {
+	CertLog.Infof("update secret, domain:%s, secretName:%s, notBefore:%v, notAfter:%v, isRenew:%t", domain, secretName, notBefore, notAfter, isRenew)
 	name := secretName
 	namespace := s.namespace
 	namespaceP, secretP := ParseTLSSecret(secretName)
@@ -77,6 +78,7 @@ func (s *SecretMgr) constructSecret(domain string, name string, namespace string
 	annotationMap["higress.io/cert-notAfter"] = notAfter.Format("2006-01-02 15:04:05")
 	annotationMap["higress.io/cert-notBefore"] = notBefore.Format("2006-01-02 15:04:05")
 	annotationMap["higress.io/cert-renew"] = strconv.FormatBool(isRenew)
+	annotationMap["higress.io/cert-source"] = string(IssuerTypeLetsencrypt)
 	if isRenew {
 		annotationMap["higress.io/cert-renew-time"] = time.Now().Format("2006-01-02 15:04:05")
 	}

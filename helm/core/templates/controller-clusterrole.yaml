@@ -9,7 +9,7 @@ rules:
   # ingress controller
   - apiGroups: ["extensions", "networking.k8s.io"]
     resources: ["ingresses"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
   - apiGroups: ["extensions", "networking.k8s.io"]
     resources: ["ingresses/status"]
     verbs: ["*"]

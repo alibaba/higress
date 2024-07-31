@@ -17,15 +17,24 @@ package cert
 import (
 	"context"
 	"fmt"
+	"os"
+	"reflect"
 	"sync"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"istio.io/istio/pilot/pkg/model"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
 	EventCertObtained = "cert_obtained"
+)
+
+var (
+	cfg *certmagic.Config
 )
 
 type CertMgr struct {
@@ -39,9 +48,10 @@ type CertMgr struct {
 	ingressSolver acmez.Solver
 	configMgr     *ConfigMgr
 	secretMgr     *SecretMgr
+	XDSUpdater    model.XDSUpdater
 }
 
-func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (*CertMgr, error) {
+func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, XDSUpdater model.XDSUpdater, configMgr *ConfigMgr) (*CertMgr, error) {
 	CertLog.Infof("certmgr init config: %+v", config)
 	// Init certmagic config
 	// First make a pointer to a Cache as we need to reference the same Cache in
@@ -49,21 +59,29 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (
 	var cache *certmagic.Cache
 	var storage certmagic.Storage
 	storage, _ = NewConfigmapStorage(opts.Namespace, clientSet)
-	renewalWindowRatio := float64(config.RenewBeforeDays / RenewMaxDays)
+	renewalWindowRatio := float64(config.RenewBeforeDays) / float64(RenewMaxDays)
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()),
+		os.Stderr,
+		zap.DebugLevel,
+	))
 	magicConfig := certmagic.Config{
 		RenewalWindowRatio: renewalWindowRatio,
 		Storage:            storage,
+		Logger:             logger,
 	}
 	cache = certmagic.NewCache(certmagic.CacheOptions{
 		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) {
 			// Here we use New to get a valid Config associated with the same cache.
 			// The provided Config is used as a template and will be completed with
 			// any defaults that are set in the Default config.
-			return certmagic.New(cache, magicConfig), nil
+			return cfg, nil
 		},
+		Logger: logger,
 	})
 	// init certmagic
-	cfg := certmagic.New(cache, magicConfig)
+	cfg = certmagic.New(cache, magicConfig)
+
 	// Init certmagic acme
 	issuer := config.GetIssuer(IssuerTypeLetsencrypt)
 	if issuer == nil {
@@ -85,7 +103,6 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (
 	// init issuers
 	cfg.Issuers = []certmagic.Issuer{myACME}
 
-	configMgr, _ := NewConfigMgr(opts.Namespace, clientSet)
 	secretMgr, _ := NewSecretMgr(opts.Namespace, clientSet)
 
 	certMgr := &CertMgr{
@@ -97,6 +114,7 @@ func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config) (
 		configMgr:     configMgr,
 		secretMgr:     secretMgr,
 		cache:         cache,
+		XDSUpdater:    XDSUpdater,
 	}
 	certMgr.cfg.OnEvent = certMgr.OnEvent
 	return certMgr, nil
@@ -149,16 +167,29 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 		// sync email
 		s.myACME.Email = newIssuer.Email
 		// sync RenewalWindowRatio
-		s.cfg.RenewalWindowRatio = float64(newConfig.RenewBeforeDays / RenewMaxDays)
+		renewalWindowRatio := float64(newConfig.RenewBeforeDays) / float64(RenewMaxDays)
+		s.cfg.RenewalWindowRatio = renewalWindowRatio
 		// start cache
 		s.cache.Start()
 		// sync domains
-		s.manageSync(context.Background(), newDomains)
 		s.configMgr.SetConfig(newConfig)
+		CertLog.Infof("certMgr start to manageSync domains:+v%", newDomains)
+		s.manageSync(context.Background(), newDomains)
+		CertLog.Infof("certMgr manageSync domains done")
 	} else {
 		// stop cache  maintainAssets
 		s.cache.Stop()
 		s.configMgr.SetConfig(newConfig)
+	}
+
+	if oldConfig != nil && newConfig != nil {
+		if oldConfig.FallbackForInvalidSecret != newConfig.FallbackForInvalidSecret || !reflect.DeepEqual(oldConfig.CredentialConfig, newConfig.CredentialConfig) {
+			CertLog.Infof("ingress need to full push")
+			s.XDSUpdater.ConfigUpdate(&model.PushRequest{
+				Full:   true,
+				Reason: []model.TriggerReason{"higress-https-updated"},
+			})
+		}
 	}
 
 	return nil

@@ -43,14 +43,8 @@ func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	}
 	_ = util.OverwriteRequestPath(stepfunChatCompletionPath)
 	_ = util.OverwriteRequestHost(stepfunDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

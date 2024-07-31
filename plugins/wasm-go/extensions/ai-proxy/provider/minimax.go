@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
 )
 
 // minimaxProvider is the provider for minimax service.
@@ -75,7 +76,7 @@ func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(minimaxDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
