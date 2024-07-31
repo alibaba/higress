@@ -15,16 +15,16 @@
 package main
 
 import (
-	"regexp"
 	"strings"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	regexp "github.com/wasilibs/go-re2"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
