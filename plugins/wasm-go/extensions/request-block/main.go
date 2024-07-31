@@ -17,12 +17,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	regexp "github.com/wasilibs/go-re2"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
