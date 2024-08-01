@@ -31,6 +31,8 @@ import (
 
 type upgradeArgs struct {
 	*InstallArgs
+	// FromHelm if set true, it will convert helm chart to higress profile
+	FromHelm bool
 }
 
 func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
@@ -38,12 +40,14 @@ func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
 	cmd.PersistentFlags().StringVarP(&args.ManifestsPath, "manifests", "d", "", manifestsFlagHelpStr)
 	cmd.PersistentFlags().BoolVar(&args.Devel, "devel", false, "use development versions (alpha, beta, and release candidate releases), If version is set, this is ignored")
+	cmd.PersistentFlags().BoolVar(&args.FromHelm, "from-helm", false, "upgrade by read helm release")
 }
 
 // newUpgradeCmd upgrades Istio control plane in-place with eligibility checks.
 func newUpgradeCmd() *cobra.Command {
 	upgradeArgs := &upgradeArgs{
 		InstallArgs: &InstallArgs{},
+		FromHelm:    false,
 	}
 	upgradeCmd := &cobra.Command{
 		Use:   "upgrade",
@@ -51,7 +55,7 @@ func newUpgradeCmd() *cobra.Command {
 		Long: "The upgrade command is an alias for the install command" +
 			" that performs additional upgrade-related checks.",
 		RunE: func(cmd *cobra.Command, args []string) (e error) {
-			return upgrade(cmd.OutOrStdout(), upgradeArgs.InstallArgs)
+			return upgrade(cmd.OutOrStdout(), upgradeArgs)
 		},
 	}
 	addUpgradeFlags(upgradeCmd, upgradeArgs)
@@ -61,29 +65,46 @@ func newUpgradeCmd() *cobra.Command {
 }
 
 // upgrade upgrade higress resources from the cluster.
-func upgrade(writer io.Writer, iArgs *InstallArgs) error {
+func upgrade(writer io.Writer, iArgs *upgradeArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
-	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
-	profileContexts, _ := getAllProfiles()
-	if len(profileContexts) == 0 {
-		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
-		return nil
+
+	var profile *helm.Profile
+
+	if !iArgs.FromHelm {
+		fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
+		profileContexts, _ := getAllProfiles()
+		if len(profileContexts) == 0 {
+			fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
+			return nil
+		}
+
+		valuesOverlay, err := helm.GetValuesOverylayFromFiles(iArgs.InFilenames)
+		if err != nil {
+			return err
+		}
+
+		profileContext := promptProfileContexts(writer, profileContexts)
+
+		_, profile, err = helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
+	} else {
+		helmAgent := installer.NewHelmAgent(nil, writer, false)
+		installed, _, err := helmAgent.GetHigressInformance()
+		if err != nil {
+			return err
+		}
+		if !installed {
+			fmt.Fprintf(writer, "\nHigress hasn't been installed by helm yet!\n")
+			return nil
+		}
+		// TODO: convert helm values to higress profile
 	}
 
-	valuesOverlay, err := helm.GetValuesOverylayFromFiles(iArgs.InFilenames)
-	if err != nil {
-		return err
-	}
-
-	profileContext := promptProfileContexts(writer, profileContexts)
-
-	_, profile, err := helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
-	err = profile.Validate()
+	err := profile.Validate()
 	if err != nil {
 		return err
 	}
