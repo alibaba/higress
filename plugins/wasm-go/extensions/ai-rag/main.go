@@ -34,7 +34,6 @@ type AIRagConfig struct {
 	DashVectorTopK       int32
 	DashVectorThreshold  float64
 	DashVectorField      string
-	EnableTracing        bool
 }
 
 type Request struct {
@@ -66,7 +65,6 @@ func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error 
 		"dashvector.topk",
 		"dashvector.threshold",
 		"dashvector.field",
-		"enableTracing",
 	}
 	for _, checkEntry := range checkList {
 		if !json.Get(checkEntry).Exists() {
@@ -90,7 +88,6 @@ func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error 
 	config.DashVectorTopK = int32(json.Get("dashvector.topk").Int())
 	config.DashVectorThreshold = json.Get("dashvector.threshold").Float()
 	config.DashVectorField = json.Get("dashvector.field").String()
-	config.EnableTracing = json.Get("enableTracing").Bool()
 	return nil
 }
 
@@ -138,19 +135,19 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte,
 				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 					var response dashvector.Response
 					_ = json.Unmarshal(responseBody, &response)
+					recallDocIds := []string{}
 					recallDocs := []string{}
 					for _, output := range response.Output {
 						log.Debugf("Score: %f, Doc: %s", output.Score, output.Fields.Raw)
 						if output.Score <= float32(config.DashVectorThreshold) {
 							recallDocs = append(recallDocs, output.Fields.Raw)
+							recallDocIds = append(recallDocIds, output.ID)
 						}
 					}
 					if len(recallDocs) > 0 {
 						rawRequest.Messages = rawRequest.Messages[:messageLength-1]
-						if config.EnableTracing {
-							traceStr := strings.Join(recallDocs, "\n---\n")
-							proxywasm.SetProperty([]string{"trace_span_tag.rag_docs"}, []byte(traceStr))
-						}
+						traceStr := strings.Join(recallDocIds, ", ")
+						proxywasm.SetProperty([]string{"trace_span_tag.rag_docs"}, []byte(traceStr))
 						for _, doc := range recallDocs {
 							rawRequest.Messages = append(rawRequest.Messages, Message{"user", doc})
 						}
