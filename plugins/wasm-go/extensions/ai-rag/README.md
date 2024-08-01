@@ -1,7 +1,7 @@
 # 简介
 通过对接阿里云向量检索服务实现LLM-RAG，流程如图所示：
 
-![](https://img.alicdn.com/imgextra/i1/O1CN01LuRVs41KhoeuzakeF_!!6000000001196-0-tps-1926-1316.jpg)
+<img src="https://img.alicdn.com/imgextra/i1/O1CN01LuRVs41KhoeuzakeF_!!6000000001196-0-tps-1926-1316.jpg" width=600>
 
 # 配置说明
 | 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
