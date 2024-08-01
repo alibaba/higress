@@ -25,6 +25,9 @@ spec:
 {{- with .Values.gateway.service.externalTrafficPolicy }}
   externalTrafficPolicy: "{{ . }}"
 {{- end }}
+{{- with .Values.gateway.service.loadBalancerClass}}
+  loadBalancerClass: "{{ . }}"
+{{- end }}
   type: {{ .Values.gateway.service.type }}
   ports:
 {{- if .Values.gateway.networkGateway }}
