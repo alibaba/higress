@@ -62,7 +62,7 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 	if !httpServiceConfig.Exists() {
 		return errors.New("missing http_service in config")
 	}
-	err := parseHttpServiceConfig(httpServiceConfig, config)
+	err := parseHttpServiceConfig(httpServiceConfig, config, log)
 	if err != nil {
 		return err
 	}
@@ -86,10 +86,10 @@ func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 	return nil
 }
 
-func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig) error {
+func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
 	var httpService HttpService
 
-	if err := parseEndpointConfig(json, &httpService); err != nil {
+	if err := parseEndpointConfig(json, &httpService, log); err != nil {
 		return err
 	}
 
@@ -112,12 +112,11 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig) error {
 	return nil
 }
 
-func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
+func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrapper.Log) error {
 	endpointMode := json.Get("endpoint_mode").String()
 	if endpointMode == "" {
 		endpointMode = EndpointModeEnvoy
-	}
-	if endpointMode != EndpointModeEnvoy && endpointMode != EndpointModeForwardAuth {
+	} else if endpointMode != EndpointModeEnvoy && endpointMode != EndpointModeForwardAuth {
 		return errors.New(fmt.Sprintf("endpoint_mode %s is not supported", endpointMode))
 	}
 	httpService.endpointMode = endpointMode
@@ -128,10 +127,10 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 	}
 
 	serviceName := endpointConfig.Get("service_name").String()
-	servicePort := endpointConfig.Get("service_port").Int()
 	if serviceName == "" {
 		return errors.New("endpoint service name must not be empty")
 	}
+	servicePort := endpointConfig.Get("service_port").Int()
 	if servicePort == 0 {
 		servicePort = 80
 	}
@@ -141,13 +140,18 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 		Port: servicePort,
 	})
 
-	if endpointMode == EndpointModeEnvoy {
+	switch endpointMode {
+	case EndpointModeEnvoy:
 		pathPrefixConfig := endpointConfig.Get("path_prefix")
 		if !pathPrefixConfig.Exists() {
 			return errors.New("when endpoint_mode is envoy, endpoint path_prefix must not be empty")
 		}
 		httpService.pathPrefix = pathPrefixConfig.String()
-	} else if endpointMode == EndpointModeForwardAuth {
+
+		if endpointConfig.Get("request_method").Exists() || endpointConfig.Get("path").Exists() {
+			log.Warn("when endpoint_mode is envoy, endpoint request_method and path will be ignored")
+		}
+	case EndpointModeForwardAuth:
 		requestMethodConfig := endpointConfig.Get("request_method")
 		if !requestMethodConfig.Exists() {
 			httpService.requestMethod = http.MethodGet
@@ -160,6 +164,10 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService) error {
 			return errors.New("when endpoint_mode is forward_auth, endpoint path must not be empty")
 		}
 		httpService.path = pathConfig.String()
+
+		if endpointConfig.Get("path_prefix").Exists() {
+			log.Warn("when endpoint_mode is forward_auth, endpoint path_prefix will be ignored")
+		}
 	}
 	return nil
 }
