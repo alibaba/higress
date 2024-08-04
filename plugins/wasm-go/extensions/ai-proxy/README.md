@@ -143,9 +143,9 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 
-| 名称        | 数据类型   | 填写要求 | 默认值 | 描述                               |
-|-----------|--------|------|-----|----------------------------------|
-| `deeplVersion` | string | 可选   | Free  | DeepL 服务的 API 版本，值可为`Free`或`Pro` |
+| 名称         | 数据类型 | 填写要求 | 默认值 | 描述                         |
+| ------------ | -------- | -------- | ------ | ---------------------------- |
+| `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
 
 ## 用法示例
 
@@ -881,24 +881,28 @@ provider:
   type: deepl
   apiTokens:
     - "YOUR_DEEPL_API_TOKEN"
-  deeplVersion: "YOUR_DEEPL_API_VERSION"
+  targetLang: "ZH"
 ```
 
 **请求示例**
-此处`model`表示deepl的`target_lang`，`user`表示deepl的`source_lang`，`messages[i].content`表示deepl的`text[i]`。`model`(即目标语言)和`content`为必填字段。
+此处`model`表示 deepl 的服务类型，只能填"Free"或"Pro"。`messages[i].role` 为 `system` 时对应的`content`表示 deepl 的 `context`,否则`content`表示 deepl 的`text`。
+
 ```json
 {
-    "model":"EN-US",
-    "user":"ZH",
-    "messages": [
-        {
-            "content": "你是一名专业的开发人员！"
-        },
-        {
-            "content": "你好，你是谁？"
-        }
-    ],
-    "stream": false
+  "model": "Free",
+  "messages": [
+    {
+      "role": "system",
+      "content": "money"
+    },
+    {
+      "content": "sit by the bank"
+    },
+    {
+      "content": "a bank in China"
+    }
+  ],
+  "stream": false
 }
 ```
 
