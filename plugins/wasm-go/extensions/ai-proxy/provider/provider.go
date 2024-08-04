@@ -212,7 +212,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		if geminiSafetySetting == "" {
 			geminiSafetySetting = geminiDefaultSafetySetting
 		}
-		c.geminiSafetySetting = geminiDefaultSafetySetting
+		c.geminiSafetySetting = geminiSafetySetting
 	}
 }
 
