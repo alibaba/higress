@@ -69,18 +69,55 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName == ApiNameChatCompletion {
 		return g.onChatCompletionRequestBody(ctx, body, log)
+	} else if apiName == ApiNameEmbeddings {
+		return g.onEmbeddingsRequestBody(ctx, body, log)
 	}
-	// todo
-	//if apiName == ApiNameEmbeddings {
-	//	return g.onEmbeddingsRequestBody(ctx, body, log)
-	//}
 	return types.ActionContinue, errUnsupportedApiName
 }
 
 func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	// 使用gemini接口协议
 	if g.config.protocol == protocolOriginal {
-		// todo 暂不支持
+		request := &geminiChatRequest{}
+		if err := json.Unmarshal(body, request); err != nil {
+			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+		}
+		if request.Model == "" {
+			return types.ActionContinue, errors.New("request model is empty")
+		}
+		// 根据模型重写requestPath
+		path := g.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
+		_ = util.OverwriteRequestPath(path)
+
+		// 移除多余的model和stream字段
+		request = &geminiChatRequest{
+			Contents:         request.Contents,
+			SafetySettings:   request.SafetySettings,
+			GenerationConfig: request.GenerationConfig,
+			Tools:            request.Tools,
+		}
+		if g.config.context == nil {
+			return types.ActionContinue, replaceJsonRequestBody(request, log)
+		}
+
+		err := g.contextCache.GetContent(func(content string, err error) {
+			defer func() {
+				_ = proxywasm.ResumeHttpRequest()
+			}()
+
+			if err != nil {
+				log.Errorf("failed to load context file: %v", err)
+				_ = util.SendResponse(500, "ai-proxy.gemini.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			}
+			g.setSystemContent(request, content)
+			if err := replaceJsonRequestBody(request, log); err != nil {
+				_ = util.SendResponse(500, "ai-proxy.gemini.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			}
+		}, log)
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
 	}
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
@@ -118,7 +155,7 @@ func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		insertContextMessage(request, content)
 		geminiRequest := g.buildGeminiChatRequest(request)
 		if err := replaceJsonRequestBody(geminiRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.gemini.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.gemini.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -127,9 +164,49 @@ func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 	return types.ActionContinue, err
 }
 
-// todo
-//func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
-//}
+func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	// 使用gemini接口协议
+	if g.config.protocol == protocolOriginal {
+		request := &geminiBatchEmbeddingRequest{}
+		if err := json.Unmarshal(body, request); err != nil {
+			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+		}
+		if request.Model == "" {
+			return types.ActionContinue, errors.New("request model is empty")
+		}
+		// 根据模型重写requestPath
+		path := g.getRequestPath(ApiNameEmbeddings, request.Model, false)
+		_ = util.OverwriteRequestPath(path)
+
+		// 移除多余的model字段
+		request = &geminiBatchEmbeddingRequest{
+			Requests: request.Requests,
+		}
+		return types.ActionContinue, replaceJsonRequestBody(request, log)
+	}
+	request := &embeddingsRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	// 映射模型重写requestPath
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in embeddings request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, g.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+	path := g.getRequestPath(ApiNameEmbeddings, mappedModel, false)
+	_ = util.OverwriteRequestPath(path)
+
+	geminiRequest := g.buildBatchEmbeddingRequest(request)
+	return types.ActionContinue, replaceJsonRequestBody(geminiRequest, log)
+}
 
 func (g *geminiProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	if g.config.protocol == protocolOriginal {
@@ -177,11 +254,9 @@ func (g *geminiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 func (g *geminiProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName == ApiNameChatCompletion {
 		return g.onChatCompletionResponseBody(ctx, body, log)
+	} else if apiName == ApiNameEmbeddings {
+		return g.onEmbeddingsResponseBody(ctx, body, log)
 	}
-	// todo
-	//if apiName == ApiNameEmbeddings {
-	//	return g.onEmbeddingsResponseBody(ctx, body, log)
-	//}
 	return types.ActionContinue, errUnsupportedApiName
 }
 
@@ -190,14 +265,26 @@ func (g *geminiProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, b
 	if err := json.Unmarshal(body, geminiResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal gemini chat response: %v", err)
 	}
+	if geminiResponse.Error != nil {
+		return types.ActionContinue, fmt.Errorf("gemini chat completion response error, error_code: %d, error_status:%s, error_message: %s",
+			geminiResponse.Error.Code, geminiResponse.Error.Status, geminiResponse.Error.Message)
+	}
 	response := g.buildChatCompletionResponse(ctx, geminiResponse)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
-// todo
-//func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
-//
-//}
+func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	geminiResponse := &geminiEmbeddingResponse{}
+	if err := json.Unmarshal(body, geminiResponse); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal gemini embeddings response: %v", err)
+	}
+	if geminiResponse.Error != nil {
+		return types.ActionContinue, fmt.Errorf("gemini embeddings response error, error_code: %d, error_status:%s, error_message: %s",
+			geminiResponse.Error.Code, geminiResponse.Error.Status, geminiResponse.Error.Message)
+	}
+	response := g.buildEmbeddingsResponse(ctx, geminiResponse)
+	return types.ActionContinue, replaceJsonResponseBody(response, log)
+}
 
 func (g *geminiProvider) getRequestPath(apiName ApiName, geminiModel string, stream bool) string {
 	action := ""
@@ -212,6 +299,9 @@ func (g *geminiProvider) getRequestPath(apiName ApiName, geminiModel string, str
 }
 
 type geminiChatRequest struct {
+	// Model and Stream are only used when using the gemini original protocol
+	Model            string                     `json:"model,omitempty"`
+	Stream           bool                       `json:"stream,omitempty"`
 	Contents         []geminiChatContent        `json:"contents"`
 	SafetySettings   []geminiChatSafetySettings `json:"safety_settings,omitempty"`
 	GenerationConfig geminiChatGenerationConfig `json:"generation_config,omitempty"`
@@ -296,18 +386,16 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			},
 		}
 
-		// there's no assistant role in gemini and API shall vomit if Role is not user or model
+		// there's no assistant role in gemini and API shall vomit if role is not user or model
 		if content.Role == roleAssistant {
 			content.Role = "model"
-		}
-		// Converting system prompt to prompt from user for the same reason
-		if content.Role == roleSystem {
+		} else if content.Role == roleSystem { // converting system prompt to prompt from user for the same reason
 			content.Role = roleUser
 			shouldAddDummyModelMessage = true
 		}
 		geminiRequest.Contents = append(geminiRequest.Contents, content)
 
-		// If a system message is the last message, we need to add a dummy model message to make gemini happy
+		// if a system message is the last message, we need to add a dummy model message to make gemini happy
 		if shouldAddDummyModelMessage {
 			geminiRequest.Contents = append(geminiRequest.Contents, geminiChatContent{
 				Role: "model",
@@ -324,10 +412,60 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	return &geminiRequest
 }
 
+func (g *geminiProvider) setSystemContent(request *geminiChatRequest, content string) {
+	systemContents := []geminiChatContent{{
+		Role: roleUser,
+		Parts: []geminiPart{
+			{
+				Text: content,
+			},
+		},
+	}}
+	request.Contents = append(systemContents, request.Contents...)
+}
+
+type geminiBatchEmbeddingRequest struct {
+	// Model are only used when using the gemini original protocol
+	Model    string                   `json:"model,omitempty"`
+	Requests []geminiEmbeddingRequest `json:"requests"`
+}
+
+type geminiEmbeddingRequest struct {
+	Model                string            `json:"model"`
+	Content              geminiChatContent `json:"content"`
+	TaskType             string            `json:"taskType,omitempty"`
+	Title                string            `json:"title,omitempty"`
+	OutputDimensionality int               `json:"outputDimensionality,omitempty"`
+}
+
+func (g *geminiProvider) buildBatchEmbeddingRequest(request *embeddingsRequest) *geminiBatchEmbeddingRequest {
+	inputs := request.ParseInput()
+	requests := make([]geminiEmbeddingRequest, len(inputs))
+	model := fmt.Sprintf("models/%s", request.Model)
+
+	for i, input := range inputs {
+		requests[i] = geminiEmbeddingRequest{
+			Model: model,
+			Content: geminiChatContent{
+				Parts: []geminiPart{
+					{
+						Text: input,
+					},
+				},
+			},
+		}
+	}
+
+	return &geminiBatchEmbeddingRequest{
+		Requests: requests,
+	}
+}
+
 type geminiChatResponse struct {
 	Candidates     []geminiChatCandidate    `json:"candidates"`
 	PromptFeedback geminiChatPromptFeedback `json:"promptFeedback"`
 	UsageMetadata  geminiUsageMetadata      `json:"usageMetadata"`
+	Error          *geminiResponseError     `json:"error,omitempty"`
 }
 
 type geminiChatCandidate struct {
@@ -345,6 +483,12 @@ type geminiUsageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount,omitempty"`
 	CandidatesTokenCount int `json:"candidatesTokenCount,omitempty"`
 	TotalTokenCount      int `json:"totalTokenCount,omitempty"`
+}
+
+type geminiResponseError struct {
+	Code    int    `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
 }
 
 type geminiChatSafetyRating struct {
@@ -430,6 +574,34 @@ func (g *geminiProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 		},
 	}
 	return &streamResponse
+}
+
+type geminiEmbeddingResponse struct {
+	Embeddings []geminiEmbeddingData `json:"embeddings"`
+	Error      *geminiResponseError  `json:"error,omitempty"`
+}
+
+type geminiEmbeddingData struct {
+	Values []float64 `json:"values"`
+}
+
+func (g *geminiProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, geminiResp *geminiEmbeddingResponse) *embeddingsResponse {
+	response := embeddingsResponse{
+		Object: "list",
+		Data:   make([]embedding, 0, len(geminiResp.Embeddings)),
+		Model:  ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Usage: usage{
+			TotalTokens: 0,
+		},
+	}
+	for _, item := range geminiResp.Embeddings {
+		response.Data = append(response.Data, embedding{
+			Object:    `embedding`,
+			Index:     0,
+			Embedding: item.Values,
+		})
+	}
+	return &response
 }
 
 func (g *geminiProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
