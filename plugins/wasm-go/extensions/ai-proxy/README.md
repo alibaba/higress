@@ -139,6 +139,13 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 |-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
 | `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
 
+#### Gemini
+
+Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
+
+| 名称                  | 数据类型 | 填写要求 | 默认值     | 描述                                                         |
+| --------------------- | -------- | -------- | ---------- | ------------------------------------------------------------ |
+| `geminiSafetySetting` | string   | 可选     | BLOCK_NONE | [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
 ## 用法示例
 
@@ -862,6 +869,60 @@ provider:
       "finish_reason": "stop"
     }
   ]
+}
+```
+
+### 使用 OpenAI 协议代理 gemini 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: gemini
+  apiTokens:
+    - "YOUR_GEMINI_API_TOKEN"
+  modelMapping:
+    "*": "gemini-pro"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-3.5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1722756984,
+    "model": "gemini-pro",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 29,
+        "total_tokens": 34
+    }
 }
 ```
 
