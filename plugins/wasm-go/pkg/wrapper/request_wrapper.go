@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -80,4 +81,17 @@ func IsBinaryResponseBody() bool {
 		return true
 	}
 	return false
+}
+
+func HasRequestBody() bool {
+	contentLengthStr, _ := proxywasm.GetHttpRequestHeader("content-length")
+	if contentLengthStr != "" {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err == nil && contentLength > 0 {
+			return true
+		}
+	}
+
+	transferEncodingStr, _ := proxywasm.GetHttpRequestHeader("transfer-encoding")
+	return strings.Contains(transferEncodingStr, "chunked")
 }
