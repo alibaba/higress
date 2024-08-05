@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -12,9 +13,9 @@ import (
 // openaiProvider is the provider for OpenAI service.
 
 const (
-	openaiDomain             = "api.openai.com"
-	openaiChatCompletionPath = "/v1/chat/completions"
-	openaiEmbeddingsPath     = "/v1/chat/embeddings"
+	defaultOpenaiDomain             = "api.openai.com"
+	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
+	defaultOpenaiEmbeddingsPath     = "/v1/chat/embeddings"
 )
 
 type openaiProviderInitializer struct {
@@ -25,14 +26,29 @@ func (m *openaiProviderInitializer) ValidateConfig(config ProviderConfig) error 
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	if config.openaiCustomUrl == "" {
+		return &openaiProvider{
+			config:       config,
+			contextCache: createContextCache(&config),
+		}, nil
+	}
+	customUrl := strings.TrimPrefix(strings.TrimPrefix(config.openaiCustomUrl, "http://"), "https://")
+	pairs := strings.SplitN(customUrl, "/", 2)
+	if len(pairs) != 2 {
+		return nil, fmt.Errorf("invalid openaiCustomUrl:%s", config.openaiCustomUrl)
+	}
 	return &openaiProvider{
 		config:       config,
+		customDomain: pairs[0],
+		customPath:   "/" + pairs[1],
 		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type openaiProvider struct {
 	config       ProviderConfig
+	customDomain string
+	customPath   string
 	contextCache *contextCache
 }
 
@@ -41,15 +57,24 @@ func (m *openaiProvider) GetProviderType() string {
 }
 
 func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	switch apiName {
-	case ApiNameChatCompletion:
-		_ = util.OverwriteRequestPath(openaiChatCompletionPath)
-		break
-	case ApiNameEmbeddings:
-		_ = util.OverwriteRequestPath(openaiEmbeddingsPath)
-		break
+	if m.customPath == "" {
+		switch apiName {
+		case ApiNameChatCompletion:
+			_ = util.OverwriteRequestPath(defaultOpenaiChatCompletionPath)
+		case ApiNameEmbeddings:
+			_ = util.OverwriteRequestPath(defaultOpenaiEmbeddingsPath)
+		}
+	} else {
+		_ = util.OverwriteRequestPath(m.customPath)
 	}
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	if m.customDomain == "" {
+		_ = util.OverwriteRequestHost(defaultOpenaiDomain)
+	} else {
+		_ = util.OverwriteRequestPath(m.customDomain)
+	}
+	if len(m.config.apiTokens) > 0 {
+		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	}
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
