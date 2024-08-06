@@ -88,26 +88,19 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
-	bodyAltered := false
 	if request.Stream {
 		// For stream requests, we need to include usage in the response.
 		if request.StreamOptions == nil {
 			request.StreamOptions = &streamOptions{IncludeUsage: true}
-			bodyAltered = true
 		} else if !request.StreamOptions.IncludeUsage {
 			request.StreamOptions.IncludeUsage = true
-			bodyAltered = true
 		}
 	}
 	if m.contextCache == nil {
-		if bodyAltered {
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
+		if err := replaceJsonRequestBody(request, log); err != nil {
+			_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 		return types.ActionContinue, nil
-	} else {
-		// If context cache is configured and body has been altered, the new body will be replaced when inserting the context data.
 	}
 	err := m.contextCache.GetContent(func(content string, err error) {
 		defer func() {

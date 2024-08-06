@@ -39,6 +39,9 @@ func (m *qwenProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.qwenFileIds) != 0 && config.context != nil {
 		return errors.New("qwenFileIds and context cannot be configured at the same time")
 	}
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
