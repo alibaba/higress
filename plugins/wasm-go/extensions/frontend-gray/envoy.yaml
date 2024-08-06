@@ -73,10 +73,12 @@ static_resources:
                                   "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
                                   "notFound": "/mfe/app1/dev/404.html",
                                   "index": {
-                                    "/app1": "/mfe/app1/{version}/index.html"
+                                    "/app1": "/mfe/app1/{version}/index.html",
+                                    "/": "/mfe/app1/{version}/index.html"
                                   },
                                   "file": {
-                                    "/":             "/mfe/app1/{version}"
+                                    "/":             "/mfe/app1/{version}",
+                                    "/app1":             "/mfe/app1/{version}"
                                   }
                                 },
                                 "baseDeployment": {

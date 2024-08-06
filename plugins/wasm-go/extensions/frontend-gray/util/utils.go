@@ -1,12 +1,13 @@
 package util
 
 import (
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 
@@ -96,11 +97,7 @@ func GetRule(rules []*config.GrayRule, name string) *config.GrayRule {
 
 // 检查是否是页面
 func CheckReqesutIsIndex(fetchMode string, accept string, p string) bool {
-	// 如果存在text/html，则一定是页面
-	if strings.Contains(accept, "text/html") {
-		return true
-	}
-	// 使用 fetch/xhr 方式
+	// fetch/xhr 请求，认为不是页面
 	if fetchMode == "cors" {
 		return false
 	}
@@ -117,18 +114,14 @@ func CheckReqesutIsIndex(fetchMode string, accept string, p string) bool {
 		".twig",
 	}
 
+	// 如果后缀存在html等，则返回true
 	for _, suffix := range indexSuffixes {
 		if strings.HasSuffix(p, suffix) {
 			return true
 		}
 	}
-	// 如果不是文件，没有后缀，则认为是页面
-	// 但是不准确
-	if path.Ext(p) != "" {
-		return false
-	}
-
-	return false
+	// 如果存在后缀，如果不存在，则返回true
+	return path.Ext(p) == ""
 }
 
 // 首页Rewrite

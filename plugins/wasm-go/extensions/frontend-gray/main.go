@@ -21,6 +21,7 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeader),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 	)
 }
 
@@ -95,7 +96,6 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	contentType, _ := proxywasm.GetHttpResponseHeader("Content-Type")
-
 	if err != nil || status != "200" {
 		isIndex := ctx.GetContext(config.IsIndex)
 		if status == "404" {
@@ -107,6 +107,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 				headersMap["content-type"][0] = "text/html"
 				delete(headersMap, "content-length")
 				proxywasm.ReplaceHttpResponseHeaders(util.ReconvertHeaders(headersMap))
+				ctx.BufferResponseBody()
 				return types.ActionContinue
 			} else {
 				ctx.DontReadResponseBody()
@@ -114,6 +115,11 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		}
 		log.Errorf("error status: %s, error message: %v", status, err)
 		return types.ActionContinue
+	}
+
+	if grayConfig.Rewrite.Host != "" {
+		// 删除Content-Disposition，避免自动下载文件
+		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 	}
 
 	if strings.HasPrefix(contentType, "text/html") {
@@ -168,4 +174,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		}
 	}
 	return types.ActionContinue
+}
+
+func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.GrayConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	return chunk
 }
