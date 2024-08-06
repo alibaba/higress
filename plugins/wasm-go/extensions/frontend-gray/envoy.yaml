@@ -47,8 +47,7 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: |
                               {
-                                "grayKey": "UserInfo",
-                                "graySubKey": "userCode",
+                                "grayKey": "userId",
                                 "rules": [
                                   {
                                     "name": "inner-user",
@@ -70,13 +69,24 @@ static_resources:
                                     ]
                                   }
                                 ],
+                                "rewrite": {
+                                  "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
+                                  "notFound": "/mfe/app1/dev/404.html",
+                                  "index": {
+                                    "/app1": "/mfe/app1/{version}/index.html"
+                                  },
+                                  "file": {
+                                    "/":             "/mfe/app1/{version}"
+                                  }
+                                },
                                 "baseDeployment": {
-                                  "version": "base"
+                                  "version": "dev"
                                 },
                                 "grayDeployments": [
                                   {
                                     "name": "beta-user",
-                                    "version": "gray",
+                                    "version": "0.0.1",
+                                    "backendVersion": "beta",
                                     "enabled": true
                                   }
                                 ]
@@ -98,5 +108,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: httpbin.org
+                      address: frontend-gray-cn-shanghai.oss-cn-shanghai.aliyuncs.com
                       port_value: 80
