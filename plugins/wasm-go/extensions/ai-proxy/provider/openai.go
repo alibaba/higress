@@ -70,7 +70,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if m.customDomain == "" {
 		_ = util.OverwriteRequestHost(defaultOpenaiDomain)
 	} else {
-		_ = util.OverwriteRequestPath(m.customDomain)
+		_ = util.OverwriteRequestHost(m.customDomain)
 	}
 	if len(m.config.apiTokens) > 0 {
 		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
