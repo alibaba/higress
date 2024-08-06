@@ -45,7 +45,7 @@ type HttpService struct {
 
 type AuthorizationRequest struct {
 	// allowedHeaders In addition to the user’s supplied matchers,
-	// Host, Method, Path, Content-Length, and Authorization are automatically included to the list.
+	// Authorization are automatically included to the list
 	allowedHeaders      expr.Matcher
 	headersToAdd        map[string]string
 	withRequestBody     bool
