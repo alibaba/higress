@@ -131,10 +131,7 @@ where
 {
     fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> Action {
         let binding = self.rule_matcher.borrow();
-        self.config = match binding.get_match_config() {
-            None => None,
-            Some(config) => Some(config.1.clone()),
-        };
+        self.config = binding.get_match_config().map(|config| config.1.clone());
         for (k, v) in self.get_http_request_headers() {
             self.req_headers.insert(k, v);
         }
