@@ -1,5 +1,5 @@
 export * from "@higress/proxy-wasm-assemblyscript-sdk/assembly/proxy";
-import { SetCtx, HttpContext, ProcessRequestHeadersBy, logger, ParseConfigBy, ParseResult, ProcessResponseHeadersBy } from "@higress/wasm-assemblyscript/assembly";
+import { SetCtx, HttpContext, ProcessRequestHeadersBy, Logger, ParseConfigBy, ParseResult, ProcessResponseHeadersBy } from "@higress/wasm-assemblyscript/assembly";
 import { FilterHeadersStatusValues, Headers, send_http_response, stream_context, HeaderPair } from "@higress/proxy-wasm-assemblyscript-sdk/assembly"
 import { JSON } from "assemblyscript-json/assembly";
 
@@ -43,7 +43,7 @@ function parseConfig(json: JSON.Obj): ParseResult<CustomResponseConfig> {
           config.headers.push(new HeaderPair(String.UTF8.encode(key), String.UTF8.encode(value)));
         }
       } else {
-        logger.Error("parse header failed");
+        Logger.Error("parse header failed");
         return new ParseResult<CustomResponseConfig>(null, false);
       }
     }
@@ -83,7 +83,7 @@ function onHttpRequestHeaders(context: HttpContext, config: CustomResponseConfig
 function onHttpResponseHeaders(context: HttpContext, config: CustomResponseConfig): FilterHeadersStatusValues {
   let statusCodeStr = stream_context.headers.response.get(":status")
   if (statusCodeStr == "") {
-    logger.Error("get http response status code failed");
+    Logger.Error("get http response status code failed");
     return FilterHeadersStatusValues.Continue;
   }
   let statusCode = parseInt(statusCodeStr);

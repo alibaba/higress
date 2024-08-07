@@ -74,17 +74,17 @@ export class RuleMatcher<PluginConfig> {
       return new ParseResult<PluginConfig>(null, false);
     }
     const routeName = String.UTF8.decode(result.returnValue);
-    
     for (let i = 0; i < this.ruleConfig.length; i++) {
       const rule = this.ruleConfig[i];
       if (rule.category == Category.Host) {
         if (this.hostMatch(rule, host)) {
+          log(LogLevelValues.debug, "getMatchConfig: match host " + host);
           return new ParseResult<PluginConfig>(rule.config, true);
         }
       }
       if (routeName) {
         if (rule.routes.has(routeName)) {
-          log(LogLevelValues.debug, "getMatchConfig: match route: " + rule.routes.toString());
+          log(LogLevelValues.debug, "getMatchConfig: match route " + routeName);
           return new ParseResult<PluginConfig>(rule.config, true);
         }
       }

@@ -10,6 +10,8 @@ import {
   FilterDataStatusValues,
   get_buffer_bytes,
   BufferTypeValues,
+  set_tick_period_milliseconds,
+  get_current_time_nanoseconds
 } from "@higress/proxy-wasm-assemblyscript-sdk/assembly";
 import {
   getRequestHost,
@@ -54,22 +56,23 @@ type OnHttpBodyFunc<PluginConfig> = (
 ) => FilterDataStatusValues;
 
 
-export var logger: Log = new Log("");
+export var Logger: Log = new Log("");
 
 class CommonRootCtx<PluginConfig> extends RootContext {
   pluginName: string;
   hasCustomConfig: boolean;
-  ruleMatcher!: RuleMatcher<PluginConfig>;
+  ruleMatcher: RuleMatcher<PluginConfig>;
   parseConfig: ParseConfigFunc<PluginConfig> | null;
   onHttpRequestHeaders: OnHttpHeadersFunc<PluginConfig> | null;
   onHttpRequestBody: OnHttpBodyFunc<PluginConfig> | null;
   onHttpResponseHeaders: OnHttpHeadersFunc<PluginConfig> | null;
   onHttpResponseBody: OnHttpBodyFunc<PluginConfig> | null;
+  onTickFuncs: Array<TickFuncEntry>;
 
   constructor(context_id: u32, pluginName: string, setFuncs: usize[]) {
     super(context_id);
     this.pluginName = pluginName;
-    logger = new Log(this.pluginName);
+    Logger = new Log(pluginName);
     this.hasCustomConfig = true;
     this.onHttpRequestHeaders = null;
     this.onHttpRequestBody = null;
@@ -77,6 +80,7 @@ class CommonRootCtx<PluginConfig> extends RootContext {
     this.onHttpResponseBody = null;
     this.parseConfig = null;
     this.ruleMatcher = new RuleMatcher<PluginConfig>();
+    this.onTickFuncs = new Array<TickFuncEntry>();
     for (let i = 0; i < setFuncs.length; i++) {
       changetype<Closure<PluginConfig>>(setFuncs[i]).lambdaFn(
         setFuncs[i],
@@ -95,7 +99,6 @@ class CommonRootCtx<PluginConfig> extends RootContext {
   onConfigure(configuration_size: u32): bool {
     super.onConfigure(configuration_size);
     const data = this.getConfiguration();
-
     let jsonData: JSON.Obj;
     if (data.length == 0) {
       if (this.hasCustomConfig) {
@@ -117,8 +120,50 @@ class CommonRootCtx<PluginConfig> extends RootContext {
       log(LogLevelValues.warn, "config is not empty, but has no ParseConfigFunc")
       this.parseConfig = (json: JSON.Obj): ParseResult<PluginConfig> =>{ return new ParseResult<PluginConfig>(null, true); };
     }
-    return this.ruleMatcher.parseRuleConfig(jsonData, this.parseConfig as ParseConfigFunc<PluginConfig>);
+
+    if (!this.ruleMatcher.parseRuleConfig(jsonData, this.parseConfig as ParseConfigFunc<PluginConfig>)) {
+      return false;
+    }
+
+    if (globalOnTickFuncs.length > 0) {
+      this.onTickFuncs = globalOnTickFuncs;
+      set_tick_period_milliseconds(100);
+    }
+    return true;
   }
+
+  onTick(): void {
+    for (let i = 0; i < this.onTickFuncs.length; i++) {
+      const tickFuncEntry = this.onTickFuncs[i];
+      const now = getCurrentTimeMilliseconds();
+      if (tickFuncEntry.lastExecuted + tickFuncEntry.tickPeriod <= now) {
+        tickFuncEntry.tickFunc();
+        tickFuncEntry.lastExecuted = getCurrentTimeMilliseconds();
+      }
+    }
+  }
+}
+
+function getCurrentTimeMilliseconds(): u64 {
+  return get_current_time_nanoseconds() / 1000000;
+}
+
+class TickFuncEntry {
+  lastExecuted: u64;
+  tickPeriod: u64;
+  tickFunc: () => void;
+
+  constructor(lastExecuted: u64, tickPeriod: u64, tickFunc: () => void) {
+    this.lastExecuted = lastExecuted;
+    this.tickPeriod = tickPeriod;
+    this.tickFunc = tickFunc;
+  }
+}
+
+var globalOnTickFuncs = new Array<TickFuncEntry>();
+
+export function RegisteTickFunc(tickPeriod: i64, tickFunc: () => void): void {
+  globalOnTickFuncs.push(new TickFuncEntry(0, tickPeriod, tickFunc));
 }
 
 class Closure<PluginConfig> {
