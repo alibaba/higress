@@ -148,9 +148,9 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 
-| 名称                  | 数据类型 | 填写要求 | 默认值     | 描述                                                         |
-| --------------------- | -------- | -------- | ---------- | ------------------------------------------------------------ |
-| `geminiSafetySetting` | string   | 可选     | BLOCK_NONE | [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
+| 名称                  | 数据类型 | 填写要求 | 默认值 | 描述                                                                                              |
+| --------------------- | -------- | -------- |-----|-------------------------------------------------------------------------------------------------|
+| `geminiSafetySetting` | map of string   | 非必填     | -   | Gemini AI内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
 ## 用法示例
 
@@ -888,6 +888,11 @@ provider:
     - "YOUR_GEMINI_API_TOKEN"
   modelMapping:
     "*": "gemini-pro"
+  geminiSafetySetting:
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT" :"BLOCK_NONE"
+    "HARM_CATEGORY_HATE_SPEECH" :"BLOCK_NONE"
+    "HARM_CATEGORY_HARASSMENT" :"BLOCK_NONE"
+    "HARM_CATEGORY_DANGEROUS_CONTENT" :"BLOCK_NONE"
 ```
 
 **请求示例**

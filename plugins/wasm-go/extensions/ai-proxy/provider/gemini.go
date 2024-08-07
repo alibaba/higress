@@ -16,17 +16,9 @@ import (
 // geminiProvider is the provider for google gemini/gemini flash service.
 
 const (
-	geminiApiKeyHeader         = "x-goog-api-key"
-	geminiDomain               = "generativelanguage.googleapis.com"
-	geminiDefaultSafetySetting = "BLOCK_NONE"
+	geminiApiKeyHeader = "x-goog-api-key"
+	geminiDomain       = "generativelanguage.googleapis.com"
 )
-
-var harmCategories = []string{
-	"HARM_CATEGORY_SEXUALLY_EXPLICIT",
-	"HARM_CATEGORY_HATE_SPEECH",
-	"HARM_CATEGORY_HARASSMENT",
-	"HARM_CATEGORY_DANGEROUS_CONTENT",
-}
 
 type geminiProviderInitializer struct {
 }
@@ -303,7 +295,7 @@ type geminiChatRequest struct {
 	Model            string                     `json:"model,omitempty"`
 	Stream           bool                       `json:"stream,omitempty"`
 	Contents         []geminiChatContent        `json:"contents"`
-	SafetySettings   []geminiChatSafetySettings `json:"safety_settings,omitempty"`
+	SafetySettings   []geminiChatSafetySetting  `json:"safety_settings,omitempty"`
 	GenerationConfig geminiChatGenerationConfig `json:"generation_config,omitempty"`
 	Tools            []geminiChatTools          `json:"tools,omitempty"`
 }
@@ -313,7 +305,7 @@ type geminiChatContent struct {
 	Parts []geminiPart `json:"parts"`
 }
 
-type geminiChatSafetySettings struct {
+type geminiChatSafetySetting struct {
 	Category  string `json:"category"`
 	Threshold string `json:"threshold"`
 }
@@ -348,12 +340,14 @@ type geminiFunctionCall struct {
 }
 
 func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) *geminiChatRequest {
-	safetySettings := make([]geminiChatSafetySettings, len(harmCategories))
-	for i, category := range harmCategories {
-		safetySettings[i] = geminiChatSafetySettings{
+	var safetySettings []geminiChatSafetySetting
+	{
+	}
+	for category, threshold := range g.config.geminiSafetySetting {
+		safetySettings = append(safetySettings, geminiChatSafetySetting{
 			Category:  category,
-			Threshold: g.config.geminiSafetySetting,
-		}
+			Threshold: threshold,
+		})
 	}
 	geminiRequest := geminiChatRequest{
 		Contents:       make([]geminiChatContent, 0, len(request.Messages)),
