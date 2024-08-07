@@ -45,7 +45,10 @@ type HttpService struct {
 
 type AuthorizationRequest struct {
 	// allowedHeaders In addition to the user’s supplied matchers,
-	// Authorization are automatically included to the list
+	// Authorization are automatically included to the list.
+	// When the endpoint_mode is set to forward_auth,
+	// the original request's path is set in the X-Original-Uri header,
+	// and the original request's HTTP method is set in the X-Original-Method header.
 	allowedHeaders      expr.Matcher
 	headersToAdd        map[string]string
 	withRequestBody     bool
