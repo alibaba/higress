@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -166,38 +165,13 @@ func (b *baiduProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (b *baiduProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if isLastChunk || len(chunk) == 0 {
-		return nil, nil
-	}
 	// sample event response:
 	// data: {"id":"as-vb0m37ti8y","object":"chat.completion","created":1709089502,"sentence_id":0,"is_end":false,"is_truncated":false,"result":"当然可以，","need_clear_history":false,"finish_reason":"normal","usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}
 
 	// sample end event response:
 	// data: {"id":"as-vb0m37ti8y","object":"chat.completion","created":1709089531,"sentence_id":20,"is_end":true,"is_truncated":false,"result":"","need_clear_history":false,"finish_reason":"normal","usage":{"prompt_tokens":5,"completion_tokens":420,"total_tokens":425}}
-	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
-			continue
-		}
-		data = data[6:]
-		var baiduResponse baiduTextGenStreamResponse
-		if err := json.Unmarshal([]byte(data), &baiduResponse); err != nil {
-			log.Errorf("unable to unmarshal baidu response: %v", err)
-			continue
-		}
-		response := b.streamResponseBaidu2OpenAI(ctx, &baiduResponse)
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return nil, err
-		}
-		b.appendResponse(responseBuilder, string(responseBody))
-	}
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
+	modifiedResponseChunk := processStreamEvent(ctx, chunk, isLastChunk, log, b.streamResponseBaidu2OpenAI)
+	return modifiedResponseChunk, nil
 }
 
 func (b *baiduProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -313,7 +287,13 @@ func (b *baiduProvider) responseBaidu2OpenAI(ctx wrapper.HttpContext, response *
 	}
 }
 
-func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, response *baiduTextGenStreamResponse) *chatCompletionResponse {
+func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) *chatCompletionResponse {
+	var response baiduTextGenStreamResponse
+	if err := json.Unmarshal(chunk, &response); err != nil {
+		log.Errorf("unable to unmarshal baidu response: %v", err)
+		return nil
+	}
+
 	choice := chatCompletionChoice{
 		Index:   0,
 		Message: &chatMessage{Role: roleAssistant, Content: response.Result},
@@ -321,7 +301,7 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 	if response.IsEnd {
 		choice.FinishReason = finishReasonStop
 	}
-	return &chatCompletionResponse{
+	openAIResponse := &chatCompletionResponse{
 		Id:                response.Id,
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
@@ -334,8 +314,6 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 			TotalTokens:      response.Usage.TotalTokens,
 		},
 	}
-}
 
-func (b *baiduProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+	return openAIResponse
 }

@@ -224,24 +224,6 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 		return chunk, nil
 	}
 
-	receivedBody := chunk
-	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
-		receivedBody = append(bufferedStreamingBody, chunk...)
-	}
-
-	incrementalStreaming := ctx.GetBoolContext(ctxKeyIncrementalStreaming, false)
-
-	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
-
-	defer func() {
-		if eventStartIndex >= 0 && eventStartIndex < len(receivedBody) {
-			// Just in case the received chunk is not a complete event.
-			ctx.SetContext(ctxKeyStreamingBody, receivedBody[eventStartIndex:])
-		} else {
-			ctx.SetContext(ctxKeyStreamingBody, nil)
-		}
-	}()
-
 	// Sample Qwen event response:
 	//
 	// event:result
@@ -252,56 +234,8 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 	// :HTTP_STATUS/400
 	// data:{"code":"InvalidParameter","message":"Preprocessor error","request_id":"0cbe6006-faec-9854-bf8b-c906d75c3bd8"}
 	//
-
-	var responseBuilder strings.Builder
-	currentKey := ""
-	currentEvent := &streamEvent{}
-	i, length := 0, len(receivedBody)
-	for i = 0; i < length; i++ {
-		ch := receivedBody[i]
-		if ch != '\n' {
-			if lineStartIndex == -1 {
-				if eventStartIndex == -1 {
-					eventStartIndex = i
-				}
-				lineStartIndex = i
-				valueStartIndex = -1
-			}
-			if valueStartIndex == -1 {
-				if ch == ':' {
-					valueStartIndex = i + 1
-					currentKey = string(receivedBody[lineStartIndex:valueStartIndex])
-				}
-			} else if valueStartIndex == i && ch == ' ' {
-				// Skip leading spaces in data.
-				valueStartIndex = i + 1
-			}
-			continue
-		}
-
-		if lineStartIndex != -1 {
-			value := string(receivedBody[valueStartIndex:i])
-			currentEvent.setValue(currentKey, value)
-		} else {
-			// Extra new line. The current event is complete.
-			log.Debugf("processing event: %v", currentEvent)
-			if err := m.convertStreamEvent(ctx, &responseBuilder, currentEvent, incrementalStreaming, log); err != nil {
-				return nil, err
-			}
-			// Reset event parsing state.
-			eventStartIndex = -1
-			currentEvent = &streamEvent{}
-		}
-
-		// Reset line parsing state.
-		lineStartIndex = -1
-		valueStartIndex = -1
-		currentKey = ""
-	}
-
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
+	modifiedResponseChunk := processStreamEvent(ctx, chunk, isLastChunk, log, m.buildChatCompletionStreamingResponse)
+	return modifiedResponseChunk, nil
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -396,7 +330,15 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	}
 }
 
-func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse, incrementalStreaming bool, log wrapper.Log) []*chatCompletionResponse {
+func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []*chatCompletionResponse {
+	qwenResponse := &qwenTextGenResponse{}
+	if err := json.Unmarshal(chunk, qwenResponse); err != nil {
+		log.Errorf("unable to unmarshal Qwen response: %v", err)
+		return nil
+	}
+
+	incrementalStreaming := ctx.GetBoolContext(ctxKeyIncrementalStreaming, false)
+
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
@@ -470,39 +412,6 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	}
 
 	return responses
-}
-
-func (m *qwenProvider) convertStreamEvent(ctx wrapper.HttpContext, responseBuilder *strings.Builder, event *streamEvent, incrementalStreaming bool, log wrapper.Log) error {
-	if event.Data == streamEndDataValue {
-		m.appendStreamEvent(responseBuilder, event)
-		return nil
-	}
-
-	if event.Event != eventResult || event.HttpStatus != httpStatus200 {
-		// Something goes wrong. Just pass through the event.
-		m.appendStreamEvent(responseBuilder, event)
-		return nil
-	}
-
-	qwenResponse := &qwenTextGenResponse{}
-	if err := json.Unmarshal([]byte(event.Data), qwenResponse); err != nil {
-		log.Errorf("unable to unmarshal Qwen response: %v", err)
-		return fmt.Errorf("unable to unmarshal Qwen response: %v", err)
-	}
-
-	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse, incrementalStreaming, log)
-	for _, response := range responses {
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return fmt.Errorf("unable to marshal response: %v", err)
-		}
-		modifiedEvent := &*event
-		modifiedEvent.Data = string(responseBody)
-		m.appendStreamEvent(responseBuilder, modifiedEvent)
-	}
-
-	return nil
 }
 
 func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content string, onlyOneSystemBeforeFile bool) int {
