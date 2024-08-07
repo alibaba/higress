@@ -80,11 +80,10 @@ func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestPath(deeplChatCompletionPath)
-	// _ = util.OverwriteRequestHost(deeplHostFree)
 	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + d.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	return types.ActionContinue, nil
+	return types.HeaderStopIteration, nil
 }
 
 func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -96,8 +95,8 @@ func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		if err := json.Unmarshal(body, request); err != nil {
 			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
 		}
-		if ok := d.overwriteRequestHost(request.Model); !ok {
-			return types.ActionContinue, fmt.Errorf(`deepl model should be "Free" or "Pro"`)
+		if err := d.overwriteRequestHost(request.Model); err != nil {
+			return types.ActionContinue, err
 		}
 		ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 		return types.ActionContinue, replaceJsonRequestBody(request, log)
@@ -106,8 +105,8 @@ func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		if err := decodeChatCompletionRequest(body, originRequest); err != nil {
 			return types.ActionContinue, err
 		}
-		if ok := d.overwriteRequestHost(originRequest.Model); !ok {
-			return types.ActionContinue, fmt.Errorf(`deepl model should be "Free" or "Pro"`)
+		if err := d.overwriteRequestHost(originRequest.Model); err != nil  {
+			return types.ActionContinue, err
 		}
 		ctx.SetContext(ctxKeyIsStream, originRequest.Stream)
 		ctx.SetContext(ctxKeyFinalRequestModel, originRequest.Model)
@@ -207,15 +206,15 @@ func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplRespo
 	}
 }
 
-func (d *deeplProvider) overwriteRequestHost(model string) bool {
+func (d *deeplProvider) overwriteRequestHost(model string) error {
 	if model == "Pro" {
 		_ = util.OverwriteRequestHost(deeplHostPro)
 	} else if model == "Free" {
 		_ = util.OverwriteRequestHost(deeplHostFree)
 	} else {
-		return false
+		return errors.New(`deepl model should be "Free" or "Pro"`)
 	}
-	return true
+	return nil
 }
 
 func (d *deeplProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
