@@ -23,6 +23,9 @@ func (m *azureProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if _, err := url.Parse(config.azureServiceUrl); err != nil {
 		return fmt.Errorf("invalid azureServiceUrl: %w", err)
 	}
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -66,12 +69,15 @@ func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
+	}
+	if m.contextCache == nil {
+		if err := replaceJsonRequestBody(request, log); err != nil {
+			_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+		}
+		return types.ActionContinue, nil
 	}
 	err := m.contextCache.GetContent(func(content string, err error) {
 		defer func() {

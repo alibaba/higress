@@ -123,6 +123,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN 基于OpenAI协议的自定义后端URL
+	// @Description zh-CN 仅适用于支持 openai 协议的服务。
+	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
 	// @Title zh-CN Moonshot File ID
 	// @Description zh-CN 仅适用于Moonshot AI服务。Moonshot AI服务的文件ID，其内容用于补充AI请求上下文
 	moonshotFileId string `required:"false" yaml:"moonshotFileId" json:"moonshotFileId"`
@@ -180,6 +183,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = defaultTimeout
 	}
+	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
 	c.qwenFileIds = make([]string, 0)
@@ -217,9 +221,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 }
 
 func (c *ProviderConfig) Validate() error {
-	if c.apiTokens == nil || len(c.apiTokens) == 0 {
-		return errors.New("no apiToken found in provider config")
-	}
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
 	}

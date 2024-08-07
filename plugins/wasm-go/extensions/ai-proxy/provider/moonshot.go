@@ -26,6 +26,9 @@ func (m *moonshotProviderInitializer) ValidateConfig(config ProviderConfig) erro
 	if config.moonshotFileId != "" && config.context != nil {
 		return errors.New("moonshotFileId and context cannot be configured at the same time")
 	}
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
