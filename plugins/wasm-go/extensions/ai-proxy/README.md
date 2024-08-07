@@ -910,27 +910,20 @@ provider:
 此处`choices[i].message.name`表示deepl的`translations[i].detected_source_language`，`choices[i].message.content`表示deepl的`translations[i].text`。
 ```json
 {
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "name": "ZH",
-                "role": "assistant",
-                "content": "You are a professional developer!"
-            }
-        },
-        {
-            "index": 1,
-            "message": {
-                "name": "ZH",
-                "role": "assistant",
-                "content": "Hello."
-            }
-        }
-    ],
-    "created": 1721725968,
-    "object": "chat.completion",
-    "usage": {}
+  "choices": [
+    {
+      "index": 0,
+      "message": { "name": "EN", "role": "assistant", "content": "坐庄" }
+    },
+    {
+      "index": 1,
+      "message": { "name": "EN", "role": "assistant", "content": "中国银行" }
+    }
+  ],
+  "created": 1722747752,
+  "model": "Free",
+  "object": "chat.completion",
+  "usage": {}
 }
 ```
 
