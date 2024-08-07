@@ -22,7 +22,7 @@ npx asinit .
 }
 ```
 
-将`"@higress/proxy-wasm-assemblyscript-sdk": "^0.0.1"`和`"@higress/wasm-assemblyscript": "^0.0.1"`添加到你的依赖项中，然后运行`npm install`。
+将`"@higress/proxy-wasm-assemblyscript-sdk": "^0.0.1"`和`"@higress/wasm-assemblyscript": "^0.0.3"`添加到你的依赖项中，然后运行`npm install`。
 
 ### 本地构建
 
@@ -30,4 +30,8 @@ npx asinit .
 npm run asbuild
 ```
 
-构建结果将在`build`文件夹中。其中，`debug.wasm`和`release.wasm`是已编译的文件。
+构建结果将在`build`文件夹中。其中，`debug.wasm`和`release.wasm`是已编译的文件，在生产环境中建议使用`release.wasm`。
+
+### AssemblyScript 限制
+
+此 SDK 使用的 AssemblyScript 版本为`0.27.29`，参考[AssemblyScript Status](https://www.assemblyscript.org/status.html)该版本尚未支持闭包、异常、迭代器等特性，并且JSON，正则表达式等功能还尚未在标准库中实现，暂时需要使用社区提供的实现。
