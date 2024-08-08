@@ -64,6 +64,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    service:
+                      items:
+                        type: string
+                      type: array
                   type: object
                 type: array
               phase:
