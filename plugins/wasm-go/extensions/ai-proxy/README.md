@@ -1,6 +1,6 @@
 ---
 title: AI 代理
-keywords: [ higress,ai,proxy,rag ]
+keywords: [ AI网关, AI代理 ]
 description: AI 代理插件配置参考
 ---
 
