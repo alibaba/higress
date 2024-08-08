@@ -62,6 +62,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		case ApiNameChatCompletion:
 			_ = util.OverwriteRequestPath(defaultOpenaiChatCompletionPath)
 		case ApiNameEmbeddings:
+			ctx.DontReadRequestBody()
 			_ = util.OverwriteRequestPath(defaultOpenaiEmbeddingsPath)
 		}
 	} else {
