@@ -32,7 +32,7 @@ func ParseProtocol(s string) Protocol {
 		return TCP
 	case "http":
 		return HTTP
-	case "grpc":
+	case "grpc", "triple", "tri":
 		return GRPC
 	case "dubbo":
 		return Dubbo
