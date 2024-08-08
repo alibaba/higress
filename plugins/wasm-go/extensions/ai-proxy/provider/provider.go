@@ -33,6 +33,7 @@ const (
 	providerTypeStepfun    = "stepfun"
 	providerTypeMinimax    = "minimax"
 	providerTypeCloudflare = "cloudflare"
+	providerTypeSpark      = "spark"
 	providerTypeGemini     = "gemini"
 
 	protocolOpenAI   = "openai"
@@ -81,11 +82,12 @@ var (
 		providerTypeOllama:     &ollamaProviderInitializer{},
 		providerTypeClaude:     &claudeProviderInitializer{},
 		providerTypeBaidu:      &baiduProviderInitializer{},
-		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeHunyuan:    &hunyuanProviderInitializer{},
 		providerTypeStepfun:    &stepfunProviderInitializer{},
 		providerTypeMinimax:    &minimaxProviderInitializer{},
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
+		providerTypeSpark:      &sparkProviderInitializer{},
+		providerTypeGemini:     &geminiProviderInitializer{},
 	}
 )
 
