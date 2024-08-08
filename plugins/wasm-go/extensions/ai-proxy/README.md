@@ -144,6 +144,12 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 |-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
 | `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
 
+#### 星火 (Spark)
+
+星火所对应的 `type` 为 `spark`。它并无特有的配置字段。
+
+讯飞星火认知大模型的`apiTokens`字段值为`APIKey:APISecret`。即填入自己的APIKey与APISecret，并以`:`分隔。
+
 
 ## 用法示例
 
@@ -867,6 +873,65 @@ provider:
       "finish_reason": "stop"
     }
   ]
+}
+```
+
+### 使用 OpenAI 协议代理Spark服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: spark
+  apiTokens:
+    - "APIKey:APISecret"
+  modelMapping:
+    "gpt-4o": "generalv3.5"
+    "gpt-4": "generalv3"
+    "*": "general"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-4o",
+    "messages": [
+        {
+            "role": "system",
+            "content": "你是一名专业的开发人员！"
+        },
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "cha000c23c6@dx190ef0b4b96b8f2532",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "你好！我是一名专业的开发人员，擅长编程和解决技术问题。有什么我可以帮助你的吗？"
+            }
+        }
+    ],
+    "created": 1721997415,
+    "model": "generalv3.5",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 19,
+        "total_tokens": 29
+    }
 }
 ```
 
