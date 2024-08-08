@@ -33,6 +33,7 @@ const (
 	providerTypeStepfun    = "stepfun"
 	providerTypeMinimax    = "minimax"
 	providerTypeCloudflare = "cloudflare"
+	providerTypeSpark      = "spark"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -84,6 +85,7 @@ var (
 		providerTypeStepfun:    &stepfunProviderInitializer{},
 		providerTypeMinimax:    &minimaxProviderInitializer{},
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
+		providerTypeSpark:      &sparkProviderInitializer{},
 	}
 )
 
