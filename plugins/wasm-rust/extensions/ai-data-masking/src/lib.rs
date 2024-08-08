@@ -340,7 +340,10 @@ impl AiDataMasking {
             )
         }
     }
-    fn deny(&self) -> Action {
+    fn deny(&self, in_response: bool) -> Action {
+        if in_response{
+           return Action::Pause; 
+        }
         let (deny_code, (deny_message, content_type)) = if let Some(config) = &self.config {
             (config.deny_code, self.msg_to_response(&config.deny_message))
         } else {
@@ -425,7 +428,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
         self.stream = req.stream;
         for msg in req.messages {
             if self.check_message(&msg.content) {
-                return self.deny();
+                return self.deny(false);
             }
             if config.replace_roles.is_empty() {
                 continue;
@@ -491,7 +494,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             let (mut message, last_line, role, finish_reason) = self.process_sse_message(&res_body);
 
             if self.check_message(&message) {
-                return self.deny();
+                return self.deny(true);
             }
             if self.mask_map.is_empty() {
                 return Action::Continue;
@@ -518,7 +521,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             for msg in res.choices {
                 if let Some(meesage) = msg.message {
                     if self.check_message(&meesage.content) {
-                        return self.deny();
+                        return self.deny(true);
                     }
 
                     if self.mask_map.is_empty() {
