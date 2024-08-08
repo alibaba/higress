@@ -41,12 +41,12 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 `authorization_request`中每一项的配置字段说明
 
-| 名称                     | 数据类型               | 必填 | 默认值 | 描述                                                         |
-| ------------------------ | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_headers`        | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含`Host`, `Method`, `Path`, `Content-Length` 和 `Authorization`这几个关键的HTTP头 |
-| `headers_to_add`         | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖 |
-| `with_request_body`      | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
-| `max_request_body_bytes` | int                    | 否   | 10MB   | 设置在内存中保存客户端请求体的最大尺寸。当客户端请求体达到在此字段中设置的数值时，将会返回HTTP 413状态码，并且不会启动授权过程。注意，这个设置会优先于 `failure_mode_allow` 的配置 |
+| 名称                     | 数据类型               | 必填 | 默认值 | 描述                                                                                                                                                                                                      |
+| ------------------------ | ---------------------- | ---- | ------ |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allowed_headers`        | array of StringMatcher | 否   | -      | 当设置后，具有相应匹配项的客户端请求头将添加到授权服务请求中的请求头中。除了用户自定义的头部匹配规则外，授权服务请求中会自动包含 `Authorization` 这个HTTP头（ `endpoint_mode` 为 `forward_auth` 时，会把原始请求的请求路径设置到 `X-Original-Uri` ，原始请求的HTTP Method设置到 `X-Original-Method` ） |
+| `headers_to_add`         | `map[string]string`    | 否   | -      | 设置将包含在授权服务请求中的请求头列表。请注意，同名的客户端请求头将被覆盖                                                                                                                                                                   |
+| `with_request_body`      | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效）                                                                                                                                                |
+| `max_request_body_bytes` | int                    | 否   | 10MB   | 设置在内存中保存客户端请求体的最大尺寸。当客户端请求体达到在此字段中设置的数值时，将会返回HTTP 413状态码，并且不会启动授权过程。注意，这个设置会优先于 `failure_mode_allow` 的配置                                                                                                |
 
 `authorization_response`中每一项的配置字段说明
 
@@ -192,7 +192,7 @@ http_service:
 使用如下请求网关，当开启 `ext-auth` 插件后：
 
 ```shell
-curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"
+curl -i http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 -X GET -H "foo: bar" -H "Authorization: xxx"
 ```
 
 **请求 `ext-auth` 服务成功：**
@@ -203,6 +203,8 @@ curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"
 POST /auth HTTP/1.1
 Host: ext-auth
 Authorization: xxx
+X-Original-Uri: /users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5
+X-Original-Method: GET
 Content-Length: 0
 ```
 
@@ -252,7 +254,7 @@ http_service:
 使用如下请求网关，当开启 `ext-auth` 插件后：
 
 ```shell
-curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx" -H "X-Auth-Version: 1.0"
+curl -i http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 -X GET -H "foo: bar" -H "Authorization: xxx" -H "X-Auth-Version: 1.0"
 ```
 
 `ext-auth` 服务将接收到如下的鉴权请求：
@@ -261,6 +263,8 @@ curl -i http://localhost:8082/users -X GET -H "foo: bar" -H "Authorization: xxx"
 POST /auth HTTP/1.1
 Host: ext-auth
 Authorization: xxx
+X-Original-Uri: /users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5
+X-Original-Method: GET
 X-Auth-Version: 1.0
 x-envoy-header: true
 Content-Length: 0
