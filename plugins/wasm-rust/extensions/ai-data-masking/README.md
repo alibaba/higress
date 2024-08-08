@@ -9,12 +9,12 @@
 
 | 名称 | 数据类型 | 默认值 | 描述 |
 | -------- | --------  | -------- | -------- |
-|  system_deny            | bool            |   -  |  开启内置拦截规则  数据来源：https://github.com/houbb/sensitive-word/tree/master/src/main/resources  |
+|  system_deny            | bool            |   -  |  开启内置拦截规则  |
 |  deny_code              | int             | 200  |  拦截时http状态码   |
 |  deny_message           | bool            | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
 |  deny_words             | array of string | []   |  自定义敏感词列表  |
 |  replace_roles          | array           |   -  |  自定义敏感词正则替换  |
-|  replace_roles.regex    | string          |   -  |  规则正则(内置GROK规则)  |
+|  replace_roles.regex    | string          |   -  |  规则正则(内置GROK规则) |
 |  replace_roles.type     | [replace, hash] |   -  |  替换类型  |
 |  replace_roles.restore  | bool            | false|  是否恢复  |
 |  replace_roles.value    | string          |   -  |  替换值（支持正则变量）  |
@@ -105,3 +105,10 @@ curl -X POST \
 - `-d '{"key":"value"}'` 这里设置了要发送的数据，`'{"key":"value"}'` 是一个简单的 JSON 对象示例。您需要将其替换为您实际想要发送的数据。
 
 请注意，您需要将 `"key":"value"` 替换为您实际要发送的数据内容。如果您的 API 接受不同的数据结构或者需要特定的字段，请根据实际情况调整这部分内容。
+
+
+# 相关说明
+
+ - grok 内置规则列表 https://help.aliyun.com/zh/sls/user-guide/grok-patterns
+ - 内置拦截规则数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
+ 
