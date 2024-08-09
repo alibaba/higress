@@ -133,37 +133,8 @@ func (p *sparkProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if isLastChunk || len(chunk) == 0 {
-		return nil, nil
-	}
-	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
-			continue
-		}
-		data = data[6:]
-		// The final response is `data: [DONE]`
-		if data == "[DONE]" {
-			continue
-		}
-		var sparkResponse sparkStreamResponse
-		if err := json.Unmarshal([]byte(data), &sparkResponse); err != nil {
-			log.Errorf("unable to unmarshal spark response: %v", err)
-			continue
-		}
-		response := p.streamResponseSpark2OpenAI(ctx, &sparkResponse)
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return nil, err
-		}
-		p.appendResponse(responseBuilder, string(responseBody))
-	}
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
+	modifiedResponseChunk := processStreamEvent(ctx, chunk, isLastChunk, log, p.streamResponseSpark2OpenAI)
+	return modifiedResponseChunk, nil
 }
 
 func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *sparkResponse) *chatCompletionResponse {
@@ -184,7 +155,13 @@ func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *
 	}
 }
 
-func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, response *sparkStreamResponse) *chatCompletionResponse {
+func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) *chatCompletionResponse {
+	var response sparkStreamResponse
+	if err := json.Unmarshal(chunk, &response); err != nil {
+		log.Errorf("unable to unmarshal spark response: %v", err)
+		return nil
+	}
+
 	choices := make([]chatCompletionChoice, len(response.Choices))
 	for idx, c := range response.Choices {
 		choices[idx] = chatCompletionChoice{
