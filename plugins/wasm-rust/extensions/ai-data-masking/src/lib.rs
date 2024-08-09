@@ -18,6 +18,7 @@ use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use jieba_rs::Jieba;
+use jsonpath_rust::{JsonPath, JsonPathValue};
 use lazy_static::lazy_static;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Action, Bytes, ContextType, LogLevel};
@@ -30,6 +31,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::ops::DerefMut;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::{usize, vec};
 
 proxy_wasm::main! {{
@@ -44,9 +46,13 @@ const GROK_PATTERN: &str = r"%\{(?<name>(?<pattern>[A-z0-9]+)(?::(?<alias>[A-z0-
 #[folder = "res/"]
 struct Asset;
 
-struct System {
+#[derive(Default, Debug, Clone)]
+struct DenyWord {
     jieba: Jieba,
     words: HashSet<String>,
+}
+struct System {
+    deny_word: DenyWord,
     grok_regex: Regex,
     grok_patterns: BTreeMap<String, String>,
 }
@@ -61,7 +67,9 @@ struct AiDataMaskingRoot {
 struct AiDataMasking {
     config: Option<AiDataMaskingConfig>,
     mask_map: HashMap<String, Option<String>>,
+    is_openai: bool,
     stream: bool,
+    res_body: Bytes,
 }
 fn deserialize_regexp<'de, D>(deserializer: D) -> Result<Regex, D::Error>
 where
@@ -99,6 +107,33 @@ where
         Err(Error::custom("type error not string".to_string()))
     }
 }
+
+fn deserialize_denyword<'de, D>(deserializer: D) -> Result<DenyWord, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: Vec<String> = Deserialize::deserialize(deserializer)?;
+    Ok(DenyWord::from_iter(value))
+}
+
+fn deserialize_jsonpath<'de, D>(deserializer: D) -> Result<Vec<JsonPath>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: Vec<String> = Deserialize::deserialize(deserializer)?;
+    let mut ret = Vec::new();
+    for v in value {
+        if v.is_empty() {
+            continue;
+        }
+        match JsonPath::from_str(&v) {
+            Ok(jp) => ret.push(jp),
+            Err(_) => return Err(Error::custom(format!("jsonpath error value {}", v))),
+        }
+    }
+    Ok(ret)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Type {
     Replace,
@@ -116,41 +151,59 @@ struct Rule {
     #[serde(default)]
     value: String,
 }
+fn default_deny_openai() -> bool {
+    true
+}
+fn default_deny_raw() -> bool {
+    false
+}
 fn default_system_deny() -> bool {
     true
 }
 fn default_deny_code() -> u16 {
     200
 }
+fn default_deny_content_type() -> String {
+    "application/json".to_string()
+}
+fn default_deny_raw_message() -> String {
+    "{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}".to_string()
+}
 fn default_deny_message() -> String {
     "提问或回答中包含敏感词，已被屏蔽".to_string()
 }
 #[derive(Default, Debug, Deserialize, Clone)]
 pub struct AiDataMaskingConfig {
+    #[serde(default = "default_deny_openai")]
+    deny_openai: bool,
+    #[serde(default = "default_deny_raw")]
+    deny_raw: bool,
+    #[serde(default, deserialize_with = "deserialize_jsonpath")]
+    deny_jsonpath: Vec<JsonPath>,
     #[serde(default = "default_system_deny")]
     system_deny: bool,
     #[serde(default = "default_deny_code")]
     deny_code: u16,
     #[serde(default = "default_deny_message")]
     deny_message: String,
+    #[serde(default = "default_deny_raw_message")]
+    deny_raw_message: String,
+    #[serde(default = "default_deny_content_type")]
+    deny_content_type: String,
     #[serde(default)]
     replace_roles: Vec<Rule>,
-    #[serde(default)]
-    deny_words: Vec<String>,
+    #[serde(deserialize_with = "deserialize_denyword", default = "DenyWord::empty")]
+    deny_words: DenyWord,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 struct Message {
-    #[serde(default)]
     content: String,
-    #[serde(default)]
-    role: String,
 }
 #[derive(Debug, Deserialize, Clone)]
 struct Req {
     #[serde(default)]
     stream: bool,
-    #[serde(default)]
     messages: Vec<Message>,
 }
 
@@ -160,8 +213,6 @@ struct ResMessage {
     message: Option<Message>,
     #[serde(default)]
     delta: Option<Message>,
-    #[serde(default)]
-    finish_reason: String,
 }
 #[derive(Default, Debug, Deserialize)]
 struct Res {
@@ -174,16 +225,52 @@ static SYSTEM_PATTERNS: &[(&str, &str)] = &[
     ("IDCARD", r#"\d{17}[0-9xX]|\d{15}"#),
 ];
 
+impl DenyWord {
+    fn empty() -> Self {
+        DenyWord {
+            jieba: Jieba::empty(),
+            words: HashSet::new(),
+        }
+    }
+    fn from_iter<T: IntoIterator<Item = impl Into<String>>>(words: T) -> Self {
+        let mut deny_word = DenyWord::empty();
+
+        for word in words {
+            let _w = word.into();
+            let w = _w.trim();
+            if w.is_empty() {
+                continue;
+            }
+            deny_word.jieba.add_word(w, None, None);
+            deny_word.words.insert(w.to_string());
+        }
+
+        deny_word
+    }
+    fn default() -> Self {
+        if let Some(file) = Asset::get("sensitive_word_dict.txt") {
+            if let Ok(data) = std::str::from_utf8(file.data.as_ref()) {
+                return DenyWord::from_iter(data.split('\n'));
+            }
+        }
+        DenyWord::empty()
+    }
+
+    fn check(&self, message: &str) -> bool {
+        for word in self.jieba.cut(message, true) {
+            if self.words.contains(word) {
+                return true;
+            }
+        }
+        false
+    }
+}
 impl System {
     fn new() -> Self {
-        let jieba = Jieba::empty();
-        let words = HashSet::new();
-
         let grok_regex = Regex::new(GROK_PATTERN).unwrap();
         let grok_patterns = BTreeMap::new();
         let mut system = System {
-            jieba,
-            words,
+            deny_word: DenyWord::default(),
             grok_regex,
             grok_patterns,
         };
@@ -191,18 +278,6 @@ impl System {
         system
     }
     fn init(&mut self) {
-        if let Some(file) = Asset::get("sensitive_word_dict.txt") {
-            if let Ok(data) = std::str::from_utf8(file.data.as_ref()) {
-                for word in data.split('\n') {
-                    let w = word.trim();
-                    if w.is_empty() {
-                        continue;
-                    }
-                    self.jieba.add_word(w, None, None);
-                    self.words.insert(w.to_string());
-                }
-            }
-        }
         let mut grok_temp_patterns = VecDeque::new();
         for patterns in [patterns(), SYSTEM_PATTERNS] {
             for &(key, value) in patterns {
@@ -257,14 +332,6 @@ impl System {
         }
         (ret, ok)
     }
-    fn check(&self, message: &str) -> bool {
-        for word in self.jieba.cut(message, true) {
-            if self.words.contains(word) {
-                return true;
-            }
-        }
-        false
-    }
 }
 impl AiDataMaskingRoot {
     fn new() -> Self {
@@ -306,26 +373,25 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
         Some(Box::new(AiDataMasking {
             mask_map: HashMap::new(),
             config: None,
+            is_openai: true,
             stream: false,
+            res_body: Bytes::new(),
         }))
     }
 }
 impl AiDataMasking {
     fn check_message(&self, message: &str) -> bool {
         if let Some(config) = &self.config {
-            for deny_word in &config.deny_words {
-                if message.contains(deny_word) {
-                    return true;
-                }
-            }
-            if config.system_deny {
-                return SYSTEM.check(message);
-            }
+            config.deny_words.check(message)
+                || (config.system_deny && SYSTEM.deny_word.check(message))
+        } else {
+            false
         }
-        false
     }
-    fn msg_to_response(&self, msg: &str) -> (String, String) {
-        if self.stream {
+    fn msg_to_response(&self, msg: &str, raw_msg: &str, content_type: &str) -> (String, String) {
+        if !self.is_openai {
+            (raw_msg.to_string(), content_type.to_string())
+        } else if self.stream {
             (
                 format!(
                     "data:{}\n\n",
@@ -341,15 +407,26 @@ impl AiDataMasking {
         }
     }
     fn deny(&self, in_response: bool) -> Action {
-        if in_response{
-           return Action::Pause; 
+        if in_response {
+            return Action::Pause;
         }
         let (deny_code, (deny_message, content_type)) = if let Some(config) = &self.config {
-            (config.deny_code, self.msg_to_response(&config.deny_message))
+            (
+                config.deny_code,
+                self.msg_to_response(
+                    &config.deny_message,
+                    &config.deny_raw_message,
+                    &config.deny_content_type,
+                ),
+            )
         } else {
             (
                 default_deny_code(),
-                self.msg_to_response(&default_deny_message()),
+                self.msg_to_response(
+                    &default_deny_message(),
+                    &default_deny_raw_message(),
+                    &default_deny_content_type(),
+                ),
             )
         };
         self.send_http_response(
@@ -359,21 +436,17 @@ impl AiDataMasking {
         );
         Action::Pause
     }
-    fn process_sse_message(&mut self, sse_message: &str) -> (String, String, String, String) {
-        let mut message = String::new();
-        let mut last_line = "";
-        let mut role = String::new();
-        let mut finish_reason = String::new();
+
+    fn process_sse_message(&mut self, sse_message: &str) -> Vec<String> {
+        let mut messages = Vec::new();
         for msg in sse_message.split('\n') {
             if !msg.starts_with("data:") {
                 continue;
             }
             let res: Res = if let Some(m) = msg.strip_prefix("data:") {
-                last_line = m;
-
                 match serde_json::from_str(m) {
                     Ok(r) => r,
-                    Err(_) => return (String::new(), last_line.to_string(), role, finish_reason),
+                    Err(_) => continue,
                 }
             } else {
                 continue;
@@ -383,24 +456,111 @@ impl AiDataMasking {
                 continue;
             }
             for choice in &res.choices {
-                if !choice.finish_reason.is_empty() {
-                    finish_reason = choice.finish_reason.to_string();
-                }
                 if let Some(delta) = &choice.delta {
-                    if !delta.role.is_empty() {
-                        role.clone_from(&delta.role);
-                    }
-                    message.push_str(&delta.content)
+                    messages.push(delta.content.clone());
                 }
             }
         }
+        messages
+    }
+    fn replace_request_msg(&mut self, message: &str) -> String {
+        let config = self.config.as_ref().unwrap();
+        let mut msg = message.to_string();
+        for rule in &config.replace_roles {
+            let mut replace_pair = Vec::new();
+            if rule.type_ == Type::Replace && !rule.restore {
+                msg = rule.regex.replace_all(&msg, &rule.value).to_string();
+            } else {
+                for _m in rule.regex.find_iter(&msg) {
+                    if _m.is_err() {
+                        continue;
+                    }
+                    let m = _m.unwrap();
+                    let from_word = m.as_str();
 
-        (message, last_line.to_string(), role, finish_reason)
+                    let to_word = match rule.type_ {
+                        Type::Hash => {
+                            let digest = md5::compute(from_word.as_bytes());
+                            format!("{:x}", digest)
+                        }
+                        Type::Replace => rule.regex.replace(from_word, &rule.value).to_string(),
+                    };
+                    replace_pair.push((from_word.to_string(), to_word.clone()));
+
+                    if rule.restore && !to_word.is_empty() {
+                        match self.mask_map.entry(to_word) {
+                            std::collections::hash_map::Entry::Occupied(mut e) => {
+                                e.insert(None);
+                            }
+                            std::collections::hash_map::Entry::Vacant(e) => {
+                                e.insert(Some(from_word.to_string()));
+                            }
+                        }
+                    }
+                }
+                for (from_word, to_word) in replace_pair {
+                    msg = msg.replace(&from_word, &to_word);
+                }
+            }
+        }
+        msg
     }
 }
 
 impl Context for AiDataMasking {}
-impl HttpContext for AiDataMasking {}
+impl HttpContext for AiDataMasking {
+    fn on_http_response_body(&mut self, body_size: usize, _end_of_stream: bool) -> Action {
+        if let Some(body) = self.get_http_response_body(0, body_size) {
+            self.res_body.extend(&body);
+
+            if let Ok(body_str) = String::from_utf8(self.res_body.clone()) {
+                if self.is_openai {
+                    let messages = self.process_sse_message(&body_str);
+
+                    if self.check_message(&messages.join("")) {
+                        return self.deny(true);
+                    }
+                } else if self.check_message(&body_str) {
+                    return self.deny(true);
+                }
+            }
+            if self.mask_map.is_empty() {
+                return Action::Continue;
+            }
+            if let Ok(body_str) = std::str::from_utf8(&body) {
+                let mut new_str = body_str.to_string();
+                if self.is_openai {
+                    let messages = self.process_sse_message(body_str);
+
+                    for message in messages {
+                        let mut new_message = message.clone();
+                        for (from_word, to_word) in self.mask_map.iter() {
+                            if let Some(to) = to_word {
+                                new_message = new_message.replace(from_word, to);
+                            }
+                        }
+                        if new_message != message {
+                            new_str = new_str.replace(
+                                &json!(message).to_string(),
+                                &json!(new_message).to_string(),
+                            );
+                        }
+                    }
+                } else {
+                    for (from_word, to_word) in self.mask_map.iter() {
+                        if let Some(to) = to_word {
+                            new_str = new_str.replace(from_word, to);
+                        }
+                    }
+                }
+                if new_str != body_str {
+                    self.replace_http_response_body(new_str.as_bytes());
+                }
+            }
+        }
+        Action::Continue
+    }
+}
 impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     fn on_config(&mut self, _config: &AiDataMaskingConfig) {
         self.config = Some(_config.clone());
@@ -409,7 +569,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
         true
     }
     fn cache_response_body(&self) -> bool {
-        true
+        !self.stream
     }
     fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action {
         if self.config.is_none() {
@@ -421,131 +581,125 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             Ok(r) => r,
             Err(_) => return Action::Continue,
         };
-        let req: Req = match serde_json::from_str(req_body.as_str()) {
-            Ok(r) => r,
-            Err(_) => return Action::Continue,
-        };
-        self.stream = req.stream;
-        for msg in req.messages {
-            if self.check_message(&msg.content) {
-                return self.deny(false);
-            }
-            if config.replace_roles.is_empty() {
-                continue;
-            }
-            let mut to_content = msg.content.clone();
-            for rule in &config.replace_roles {
-                let mut replace_pair = Vec::new();
-                if rule.type_ == Type::Replace && !rule.restore {
-                    to_content = rule.regex.replace_all(&to_content, &rule.value).to_string();
-                } else {
-                    for _m in rule.regex.find_iter(&to_content) {
-                        if _m.is_err() {
-                            continue;
-                        }
-                        let m = _m.unwrap();
-                        let from_word = m.as_str();
-
-                        let to_word = match rule.type_ {
-                            Type::Hash => {
-                                let digest = md5::compute(from_word.as_bytes());
-                                format!("{:x}", digest)
-                            }
-                            Type::Replace => rule.regex.replace(from_word, &rule.value).to_string(),
-                        };
-                        replace_pair.push((from_word.to_string(), to_word.clone()));
-
-                        if rule.restore && !to_word.is_empty() {
-                            match self.mask_map.entry(to_word) {
-                                std::collections::hash_map::Entry::Occupied(mut e) => {
-                                    e.insert(None);
-                                }
-                                std::collections::hash_map::Entry::Vacant(e) => {
-                                    e.insert(Some(from_word.to_string()));
-                                }
-                            }
+        if config.deny_openai {
+            if let Ok(r) = serde_json::from_str(req_body.as_str()) {
+                let req: Req = r;
+                self.is_openai = true;
+                self.stream = req.stream;
+                for msg in req.messages {
+                    if self.check_message(&msg.content) {
+                        return self.deny(false);
+                    }
+                    let new_content = self.replace_request_msg(&msg.content);
+                    if new_content != msg.content {
+                        if let (Ok(from), Ok(to)) = (
+                            serde_json::to_string(&msg.content),
+                            serde_json::to_string(&new_content),
+                        ) {
+                            req_body = req_body.replace(&from, &to);
                         }
                     }
-                    for (from_word, to_word) in replace_pair {
-                        to_content = to_content.replace(&from_word, &to_word);
-                    }
                 }
-            }
-
-            if to_content != msg.content.as_str() {
-                if let (Ok(from), Ok(to)) = (
-                    serde_json::to_string(&msg.content),
-                    serde_json::to_string(&to_content),
-                ) {
-                    req_body = req_body.replace(&from, &to);
-                }
+                self.replace_http_request_body(req_body.as_bytes());
+                return Action::Continue;
             }
         }
-        self.replace_http_request_body(req_body.as_bytes());
+        if !config.deny_jsonpath.is_empty() {
+            if let Ok(r) = serde_json::from_str(req_body.as_str()) {
+                let json: Value = r;
+                for jsonpath in config.deny_jsonpath.clone() {
+                    for v in jsonpath.find_slice(&json) {
+                        if let JsonPathValue::Slice(d, _) = v {
+                            if let Some(s) = d.as_str() {
+                                if self.check_message(s) {
+                                    return self.deny(false);
+                                }
+                                let content = s.to_string();
+                                let new_content = self.replace_request_msg(&content);
+                                if new_content != content {
+                                    if let (Ok(from), Ok(to)) = (
+                                        serde_json::to_string(&content),
+                                        serde_json::to_string(&new_content),
+                                    ) {
+                                        req_body = req_body.replace(&from, &to);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                self.replace_http_request_body(req_body.as_bytes());
+                return Action::Continue;
+            }
+        }
+        if config.deny_raw {
+            if self.check_message(&req_body) {
+                return self.deny(false);
+            }
+            let new_body = self.replace_request_msg(&req_body);
+            if new_body != req_body {
+                self.replace_http_request_body(new_body.as_bytes())
+            }
+            return Action::Continue;
+        }
         Action::Continue
     }
     fn on_http_response_body_ok(&mut self, res_body: &Bytes) -> Action {
+        if self.config.is_none() {
+            return Action::Continue;
+        }
+        let config = self.config.as_ref().unwrap();
         let mut res_body = match String::from_utf8(res_body.clone()) {
             Ok(r) => r,
             Err(_) => return Action::Continue,
         };
+        if config.deny_openai && self.is_openai {
+            if let Ok(r) = serde_json::from_str(res_body.as_str()) {
+                let res: Res = r;
+                for msg in res.choices {
+                    if let Some(meesage) = msg.message {
+                        if self.check_message(&meesage.content) {
+                            return self.deny(true);
+                        }
 
-        let new_body = if self.stream {
-            let (mut message, last_line, role, finish_reason) = self.process_sse_message(&res_body);
+                        if self.mask_map.is_empty() {
+                            continue;
+                        }
+                        let mut m = meesage.content.clone();
+                        for (from_word, to_word) in self.mask_map.iter() {
+                            if let Some(to) = to_word {
+                                m = m.replace(from_word, to);
+                            }
+                        }
+                        if m != meesage.content {
+                            if let (Ok(from), Ok(to)) = (
+                                serde_json::to_string(&meesage.content),
+                                serde_json::to_string(&m),
+                            ) {
+                                res_body = res_body.replace(&from, &to);
+                            }
+                        }
+                    }
+                }
 
-            if self.check_message(&message) {
-                return self.deny(true);
-            }
-            if self.mask_map.is_empty() {
+                self.replace_http_response_body(res_body.as_bytes());
                 return Action::Continue;
             }
-            let mut value: Value = match serde_json::from_str(last_line.as_str()) {
-                Ok(r) => r,
-                Err(_) => return Action::Continue,
-            };
-            if let Some(obj) = value.as_object_mut() {
+        }
+        if config.deny_raw {
+            if self.check_message(&res_body) {
+                return self.deny(true);
+            }
+            if !self.mask_map.is_empty() {
                 for (from_word, to_word) in self.mask_map.iter() {
                     if let Some(to) = to_word {
-                        message = message.replace(from_word, to);
-                    }
-                }
-                let msg = json!([{"index": 0, "delta": {"content": message, "role": role}, "finish_reason": finish_reason}]);
-                obj.insert("choices".to_string(), msg);
-            }
-            format!("data:{}\n\n", value)
-        } else {
-            let res: Res = match serde_json::from_str(res_body.as_str()) {
-                Ok(r) => r,
-                Err(_) => return Action::Continue,
-            };
-            for msg in res.choices {
-                if let Some(meesage) = msg.message {
-                    if self.check_message(&meesage.content) {
-                        return self.deny(true);
-                    }
-
-                    if self.mask_map.is_empty() {
-                        continue;
-                    }
-                    let mut m = meesage.content.clone();
-                    for (from_word, to_word) in self.mask_map.iter() {
-                        if let Some(to) = to_word {
-                            m = m.replace(from_word, to);
-                        }
-                    }
-                    if m != meesage.content {
-                        if let (Ok(from), Ok(to)) = (
-                            serde_json::to_string(&meesage.content),
-                            serde_json::to_string(&m),
-                        ) {
-                            res_body = res_body.replace(&from, &to);
-                        }
+                        res_body = res_body.replace(from_word, to);
                     }
                 }
             }
-            res_body
-        };
-        self.replace_http_response_body(new_body.as_bytes());
+            self.replace_http_response_body(res_body.as_bytes());
+            return Action::Continue;
+        }
         Action::Continue
     }
 }

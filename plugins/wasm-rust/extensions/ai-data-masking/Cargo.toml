@@ -19,3 +19,4 @@ grok = "2"
 lazy_static = "1"
 jieba-rs = {version = "0", feature = "reduced-trie"}
 rust-embed="8.5.0"
+jsonpath-rust = "0"

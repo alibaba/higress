@@ -9,22 +9,33 @@
 
 | 名称 | 数据类型 | 默认值 | 描述 |
 | -------- | --------  | -------- | -------- |
-|  system_deny            | bool            |   -  |  开启内置拦截规则  |
-|  deny_code              | int             | 200  |  拦截时http状态码   |
-|  deny_message           | bool            | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
-|  deny_words             | array of string | []   |  自定义敏感词列表  |
-|  replace_roles          | array           |   -  |  自定义敏感词正则替换  |
-|  replace_roles.regex    | string          |   -  |  规则正则(内置GROK规则) |
-|  replace_roles.type     | [replace, hash] |   -  |  替换类型  |
-|  replace_roles.restore  | bool            | false|  是否恢复  |
-|  replace_roles.value    | string          |   -  |  替换值（支持正则变量）  |
+|  deny_openai            | bool            | true  |  对openai协议进行拦截 |
+|  deny_jsonpath          | string          |   []  |  对指定jsonpath拦截 |
+|  deny_raw               | bool            | false |  对原始body拦截 |
+|  system_deny            | bool            | true  |  开启内置拦截规则  |
+|  deny_code              | int             | 200   |  拦截时http状态码   |
+|  deny_message           | string          | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
+|  deny_raw_message       | string          | {"errmsg":"提问或回答中包含敏感词，已被屏蔽"} |  非openai拦截时返回内容   |
+|  deny_content_type      | string          | application/json  |  非openai拦截时返回content_type头 |
+|  deny_words             | array of string | []    |  自定义敏感词列表  |
+|  replace_roles          | array           |   -   |  自定义敏感词正则替换  |
+|  replace_roles.regex    | string          |   -   |  规则正则(内置GROK规则) |
+|  replace_roles.type     | [replace, hash] |   -   |  替换类型  |
+|  replace_roles.restore  | bool            | false |  是否恢复  |
+|  replace_roles.value    | string          |   -   |  替换值（支持正则变量）  |
 
 # 配置示例
 
 ```yaml
 system_deny: true
+deny_openai: true
+deny_jsonpath:
+  - "$.messages[*].content"
+deny_raw: true
 deny_code: 200
 deny_message: "提问或回答中包含敏感词，已被屏蔽"
+deny_raw_message: "{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"
+deny_content_type: "application/json"
 deny_words: 
   - "自定义敏感词1"
   - "自定义敏感词2"
