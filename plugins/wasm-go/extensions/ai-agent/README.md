@@ -1,5 +1,7 @@
 # 简介
-一个可定制化的API AI Agent，目前第一版本只支持配置http method类型为GET的API。
+一个可定制化的API AI Agent，目前第一版本只支持配置http method类型为GET的API。agent执行的流程图如下：
+![未命名绘图 drawio](https://github.com/user-attachments/assets/7d2e5b23-99f0-4e80-8524-c4ffa523ddbe)
+
 
 # 配置说明
 | 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
