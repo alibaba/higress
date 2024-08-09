@@ -55,19 +55,21 @@ func (m *azureProvider) GetProviderType() string {
 }
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
 	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	if apiName == ApiNameChatCompletion {
+		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	} else {
+		ctx.DontReadRequestBody()
+	}
 	return types.ActionContinue, nil
 }
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		// We don't need to process the request body for other APIs.
+		return types.ActionContinue, nil
 	}
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {

@@ -33,6 +33,8 @@ const (
 	providerTypeStepfun    = "stepfun"
 	providerTypeMinimax    = "minimax"
 	providerTypeCloudflare = "cloudflare"
+	providerTypeSpark      = "spark"
+	providerTypeGemini     = "gemini"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -84,6 +86,8 @@ var (
 		providerTypeStepfun:    &stepfunProviderInitializer{},
 		providerTypeMinimax:    &minimaxProviderInitializer{},
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
+		providerTypeSpark:      &sparkProviderInitializer{},
+		providerTypeGemini:     &geminiProviderInitializer{},
 	}
 )
 
@@ -166,6 +170,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
+	// @Title zh-CN Gemini AI内容过滤和安全级别设定
+	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
+	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -206,6 +213,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
+	if c.typ == providerTypeGemini {
+		c.geminiSafetySetting = make(map[string]string)
+		for k, v := range json.Get("geminiSafetySetting").Map() {
+			c.geminiSafetySetting[k] = v.String()
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {

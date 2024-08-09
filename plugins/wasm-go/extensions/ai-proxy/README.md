@@ -1,6 +1,6 @@
 ---
 title: AI 代理
-keywords: [ higress,ai,proxy,rag ]
+keywords: [ AI网关, AI代理 ]
 description: AI 代理插件配置参考
 ---
 
@@ -8,6 +8,13 @@ description: AI 代理插件配置参考
 
 `AI 代理`插件实现了基于 OpenAI API 契约的 AI 代理功能。目前支持 OpenAI、Azure OpenAI、月之暗面（Moonshot）和通义千问等 AI
 服务提供商。
+
+> **注意：**
+
+> 请求路径后缀匹配 `/v1/chat/completions` 时，对应文生文场景，会用 OpenAI 的文生文协议解析请求 Body，再转换为对应 LLM 厂商的文生文协议
+
+> 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
+
 
 ## 配置字段
 
@@ -144,6 +151,19 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 |-------------------|--------|------|-----|----------------------------------------------------------------------------------------------------------------------------|
 | `cloudflareAccountId` | string | 必填   | -   | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id) |
 
+#### 星火 (Spark)
+
+星火所对应的 `type` 为 `spark`。它并无特有的配置字段。
+
+讯飞星火认知大模型的`apiTokens`字段值为`APIKey:APISecret`。即填入自己的APIKey与APISecret，并以`:`分隔。
+
+#### Gemini
+
+Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
+
+| 名称                  | 数据类型 | 填写要求 | 默认值 | 描述                                                                                              |
+| --------------------- | -------- | -------- |-----|-------------------------------------------------------------------------------------------------|
+| `geminiSafetySetting` | map of string   | 非必填     | -   | Gemini AI内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
 ## 用法示例
 
@@ -867,6 +887,124 @@ provider:
       "finish_reason": "stop"
     }
   ]
+}
+```
+
+### 使用 OpenAI 协议代理Spark服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: spark
+  apiTokens:
+    - "APIKey:APISecret"
+  modelMapping:
+    "gpt-4o": "generalv3.5"
+    "gpt-4": "generalv3"
+    "*": "general"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-4o",
+    "messages": [
+        {
+            "role": "system",
+            "content": "你是一名专业的开发人员！"
+        },
+        {
+            "role": "user",
+            "content": "你好，你是谁？"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "cha000c23c6@dx190ef0b4b96b8f2532",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "你好！我是一名专业的开发人员，擅长编程和解决技术问题。有什么我可以帮助你的吗？"
+            }
+        }
+    ],
+    "created": 1721997415,
+    "model": "generalv3.5",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 19,
+        "total_tokens": 29
+    }
+}
+```
+
+### 使用 OpenAI 协议代理 gemini 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: gemini
+  apiTokens:
+    - "YOUR_GEMINI_API_TOKEN"
+  modelMapping:
+    "*": "gemini-pro"
+  geminiSafetySetting:
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT" :"BLOCK_NONE"
+    "HARM_CATEGORY_HATE_SPEECH" :"BLOCK_NONE"
+    "HARM_CATEGORY_HARASSMENT" :"BLOCK_NONE"
+    "HARM_CATEGORY_DANGEROUS_CONTENT" :"BLOCK_NONE"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-3.5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1722756984,
+    "model": "gemini-pro",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 29,
+        "total_tokens": 34
+    }
 }
 ```
 

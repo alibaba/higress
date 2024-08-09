@@ -46,10 +46,6 @@
           address: {{ .Values.global.tracer.lightstep.address }}
           # Access Token used to communicate with the Satellite pool
           accessToken: {{ .Values.global.tracer.lightstep.accessToken }}
-      {{- else if eq .Values.global.proxy.tracer "zipkin" }}
-        zipkin:
-          # Address of the Zipkin collector
-          address: {{ .Values.global.tracer.zipkin.address | default (print "zipkin." .Release.Namespace ":9411") }}
       {{- else if eq .Values.global.proxy.tracer "datadog" }}
         datadog:
           # Address of the Datadog Agent
@@ -109,7 +105,17 @@ metadata:
   labels:
     {{- include "gateway.labels" . | nindent 4 }}    
 data:
-
+  higress: |-
+    {{- $existingConfig := lookup "v1" "ConfigMap" .Release.Namespace "higress-config" }}
+    {{- $existingData := dict }}
+    {{- if $existingConfig }}
+    {{- $existingData = index $existingConfig.data "higress" | default "{}" | fromYaml }}
+    {{- end }}
+    {{- $newData := dict }}
+    {{- if and (hasKey .Values "tracing") .Values.tracing.enable }}
+    {{- $_ := set $newData "tracing" .Values.tracing }}
+    {{- end }}
+    {{- toYaml (merge $existingData $newData) | nindent 4 }}
   # Configuration file for the mesh networks to be used by the Split Horizon EDS.
   meshNetworks: |-
   {{- if .Values.global.meshNetworks }}
@@ -170,8 +176,8 @@ data:
                       "endpoint": {
                         "address": {
                           "socket_address": {
-                            "address": "{{ .Values.skywalking.service.address }}",
-                            "port_value": "{{ .Values.skywalking.service.port }}"
+                            "address": "{{ .Values.tracing.skywalking.service }}",
+                            "port_value": "{{ .Values.tracing.skywalking.port }}"
                           }
                         }
                       }
