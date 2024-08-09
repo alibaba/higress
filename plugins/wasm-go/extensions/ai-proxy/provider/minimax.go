@@ -245,42 +245,10 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	// data: {"created":1689747645,"model":"abab6.5s-chat","reply":"I am from China.","choices":[{"finish_reason":"stop","messages":[{"sender_type":"BOT","sender_name":"MM智能助理","text":"I am from China."}]}],"usage":{"total_tokens":187},"input_sensitive":false,"output_sensitive":false,"id":"0106b3bc9fd844a9f3de1aa06004e2ab","base_resp":{"status_code":0,"status_msg":""}}
 	modifiedResponseChunk := processStreamEvent(ctx, chunk, isLastChunk, log, m.responseV2ToOpenAI)
 	return modifiedResponseChunk, nil
-
-	//responseBuilder := &strings.Builder{}
-	//lines := strings.Split(string(chunk), "\n")
-	//for _, data := range lines {
-	//	if len(data) < 6 {
-	//		// ignore blank line or wrong format
-	//		continue
-	//	}
-	//	data = data[6:]
-	//	var minimaxResp minimaxChatCompletionV2Resp
-	//	if err := json.Unmarshal([]byte(data), &minimaxResp); err != nil {
-	//		log.Errorf("unable to unmarshal minimax response: %v", err)
-	//		continue
-	//	}
-	//	response := m.responseV2ToOpenAI(&minimaxResp)
-	//	responseBody, err := json.Marshal(response)
-	//	if err != nil {
-	//		log.Errorf("unable to marshal response: %v", err)
-	//		return nil, err
-	//	}
-	//	m.appendResponse(responseBuilder, string(responseBody))
-	//}
-	//modifiedResponseChunk := responseBuilder.String()
-	//log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	//return []byte(modifiedResponseChunk), nil
 }
 
 // OnResponseBody 只处理使用OpenAI协议 且 模型对应接口为ChatCompletion Pro的流式响应
 func (m *minimaxProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	//minimaxResp := &minimaxChatCompletionV2Resp{}
-	//if err := json.Unmarshal(body, minimaxResp); err != nil {
-	//	return types.ActionContinue, fmt.Errorf("unable to unmarshal minimax response: %v", err)
-	//}
-	//if minimaxResp.BaseResp.StatusCode != 0 {
-	//	return types.ActionContinue, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
-	//}
 	modifiedResponseChunk := m.responseV2ToOpenAI(ctx, body, log)
 	return types.ActionContinue, replaceJsonResponseBody(modifiedResponseChunk, log)
 }

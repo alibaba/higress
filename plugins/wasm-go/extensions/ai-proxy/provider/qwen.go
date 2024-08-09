@@ -448,12 +448,6 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 	}
 }
 
-func (m *qwenProvider) appendStreamEvent(responseBuilder *strings.Builder, event *streamEvent) {
-	responseBuilder.WriteString(streamDataItemKey)
-	responseBuilder.WriteString(event.Data)
-	responseBuilder.WriteString("\n\n")
-}
-
 func (m *qwenProvider) buildQwenTextEmbeddingRequest(request *embeddingsRequest) (*qwenTextEmbeddingRequest, error) {
 	var texts []string
 	if str, isString := request.Input.(string); isString {

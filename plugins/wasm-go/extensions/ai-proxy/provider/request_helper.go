@@ -67,7 +67,7 @@ func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
 
 type chatCompletionResponseConverter interface{}
 
-// processStreamEvent 从上下文中取出缓冲区，将新chunk追加到缓冲区，然后处理缓冲区中的完整事件
+// processStreamEvent 从上下文中取出缓冲区，将新 chunk 追加到缓冲区，然后处理缓冲区中的完整事件
 func processStreamEvent(
 	ctx wrapper.HttpContext,
 	chunk []byte, isLastChunk bool,
@@ -77,17 +77,17 @@ func processStreamEvent(
 	if isLastChunk || len(chunk) == 0 {
 		return nil
 	}
-	// 从上下文中取出缓冲区，将新chunk追加到缓冲区
+	// 从上下文中取出缓冲区，将新 chunk 追加到缓冲区
 	newBufferedBody := chunk
 	if bufferedBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		newBufferedBody = append(bufferedBody, chunk...)
 	}
 
-	// 初始化处理下标，以及将要返回的处理过的chunks
+	// 初始化处理下标，以及将要返回的处理过的 chunk
 	var newEventPivot = -1
 	var outputBuffer []byte
 
-	// 从buffer区取出若干完整的chunk，将其转为openAI格式后返回
+	// 从缓冲区取出若干完整的 chunk，将其转为 openAI 格式后返回
 	// 处理可能包含多个事件的缓冲区
 	for {
 		eventStartIndex := bytes.Index(newBufferedBody, []byte(streamDataItemKey))
@@ -101,7 +101,7 @@ func processStreamEvent(
 		// 查找事件结束的位置（即下一个事件的开始）
 		newEventPivot = bytes.Index(newBufferedBody, []byte("\n\n"))
 		if newEventPivot == -1 {
-			// 未找到事件结束标识，跳出循环等待更多数据，若是最后一个chunk，不一定有2个换行符
+			// 未找到事件结束标识，跳出循环等待更多数据，若是最后一个 chunk，不一定有 2 个换行符
 			break
 		}
 
@@ -119,6 +119,7 @@ func processStreamEvent(
 				}
 				outputBuffer = append(outputBuffer, convertedData...)
 			}
+		// qwen 的 chunk 中可能包含多个事件
 		case func(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []*chatCompletionResponse:
 			if openAIResponses := fn(ctx, eventData, log); openAIResponses != nil {
 				for _, response := range openAIResponses {

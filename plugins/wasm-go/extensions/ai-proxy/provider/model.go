@@ -1,18 +1,7 @@
 package provider
 
-import "strings"
-
 const (
-	streamEventIdItemKey        = "id:"
-	streamEventNameItemKey      = "event:"
-	streamBuiltInItemKey        = ":"
-	streamHttpStatusValuePrefix = "HTTP_STATUS/"
-	streamDataItemKey           = "data:"
-	streamEndDataValue          = "[DONE]"
-
-	eventResult = "result"
-
-	httpStatus200 = "200"
+	streamDataItemKey = "data:"
 )
 
 type chatCompletionRequest struct {
@@ -117,28 +106,6 @@ type functionCall struct {
 
 func (m *functionCall) IsEmpty() bool {
 	return m.Name == "" && m.Arguments == ""
-}
-
-type streamEvent struct {
-	Id         string `json:"id"`
-	Event      string `json:"event"`
-	Data       string `json:"data"`
-	HttpStatus string `json:"http_status"`
-}
-
-func (e *streamEvent) setValue(key, value string) {
-	switch key {
-	case streamEventIdItemKey:
-		e.Id = value
-	case streamEventNameItemKey:
-		e.Event = value
-	case streamDataItemKey:
-		e.Data = value
-	case streamBuiltInItemKey:
-		if strings.HasPrefix(value, streamHttpStatusValuePrefix) {
-			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
-		}
-	}
 }
 
 type embeddingsRequest struct {
