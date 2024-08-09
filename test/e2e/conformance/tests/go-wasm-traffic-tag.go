@@ -1,0 +1,455 @@
+// Copyright (c) 2024 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package tests
+
+import (
+	"testing"
+
+	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+)
+
+func init() {
+	Register(WasmPluginsRequestOr)
+	Register(WasmPluginsRequestAnd)
+	Register(WasmPluginsRequestPercent)
+	Register(WasmPluginsRequestRegex)
+	Register(WasmPluginsRequestDomain)
+	Register(WasmPluginsRequestRoute)
+}
+
+var WasmPluginsRequestOr = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestOr",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-0-or.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "OR-1-header-prefix-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/foo",
+						UnfollowRedirect: true,
+						Headers: map[string]string{
+							"x-user-type": "test_user_1",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "OR-3-header-regex-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"userId": "user_1234",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "OR-4-param-in-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/foo?role=super-admin",
+						UnfollowRedirect: true,
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo?role=super-admin",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "OR-4-param-equal-unmatch",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/foo?feature=old-ui",
+						UnfollowRedirect: true,
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo?feature=old-ui",
+						},
+						AbsentHeaders: []string{"x-mse-tag"},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestTag", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsRequestAnd = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestAnd",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-1-and.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "AND-1-header-cookie-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo?session=valid",
+						Headers: map[string]string{
+							"user_id": "superuser",
+							"cookie":  "user_role=editor",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo?session=valid",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "AND-2-header-cookir-unmatch",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo?session=expired",
+						Headers: map[string]string{
+							"user_id": "superMan",
+							"cookie":  "user_role=guest",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo?session=expired",
+						},
+						AbsentHeaders: []string{"x-mse-tag"},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestAnd", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsRequestPercent = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestPercent",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-2-percent.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "percent-1-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"user-id": "qwqwqwqdd7",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "percent-2-unmatch",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"user_id": "qwqwqwqdd2",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo",
+						},
+						AbsentHeaders: []string{"x-mse-tag"},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestPercent", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsRequestRegex = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestRegex",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-3-regex.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "regex-1-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo.com",
+						Path: "/foo?session=12345678901234567890123456789012",
+						Headers: map[string]string{
+							"user-agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+							"accept-language": "en-US,en;q=0.9",
+							"cookie":          "session_id=abcd1234abcd1234",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo.com",
+							Path: "/foo?session=12345678901234567890123456789012",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestRegex", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsRequestDomain = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestDomain",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-4-domain.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "domain-1-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "c.test.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"role": "admin",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "c.test.com",
+							Path: "/foo",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "domain-2-unmatch",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "d.test.com",
+						Path: "/foo",
+						Headers: map[string]string{
+							"role": "admin",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "d.test.com",
+							Path: "/foo",
+						},
+						AbsentHeaders: []string{"x-mse-tag"},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestDomain", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
+
+var WasmPluginsRequestRoute = suite.ConformanceTest{
+	ShortName:   "WasmPluginsRequestRoute",
+	Description: "The Ingress in the higress-conformance-infra namespace test the traffic-tag wasmplugins.",
+	Manifests:   []string{"tests/go-wasm-traffic-tag-5-route.yaml"},
+	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "route-1-match",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "d.test.com",
+						Path: "/brz",
+						Headers: map[string]string{
+							"role": "admin",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "d.test.com",
+							Path: "/brz",
+							Headers: map[string]string{
+								"x-mse-tag": "gray",
+							},
+						},
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "route-2-unmatch",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "d.test.com",
+						Path: "/bar",
+						Headers: map[string]string{
+							"role": "admin",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "d.test.com",
+							Path: "/bar",
+						},
+						AbsentHeaders: []string{"x-mse-tag"},
+					},
+				},
+			},
+		}
+
+		t.Run("WasmPluginsRequestDomain", func(t *testing.T) {
+			for _, testcase := range testcases {
+				t.Log("Running test case: ", testcase.Meta.TestCaseName)
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+		})
+	},
+}
