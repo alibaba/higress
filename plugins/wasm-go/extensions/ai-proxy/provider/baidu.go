@@ -83,7 +83,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 			return types.ActionContinue, errors.New("request model is empty")
 		}
 		// 根据模型重写requestPath
-		path := b.GetRequestPath(request.Model)
+		path := b.getRequestPath(request.Model)
 		_ = util.OverwriteRequestPath(path)
 
 		if b.config.context == nil {
@@ -126,7 +126,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 	}
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := b.GetRequestPath(mappedModel)
+	path := b.getRequestPath(mappedModel)
 	_ = util.OverwriteRequestPath(path)
 
 	if b.config.context == nil {
@@ -226,7 +226,7 @@ type baiduTextGenRequest struct {
 	UserId          string        `json:"user_id,omitempty"`
 }
 
-func (b *baiduProvider) GetRequestPath(baiduModel string) string {
+func (b *baiduProvider) getRequestPath(baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
 	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
 	if !ok {
@@ -326,7 +326,7 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
-		Object:            objectChatCompletion,
+		Object:            objectChatCompletionChunk,
 		Choices:           []chatCompletionChoice{choice},
 		Usage: usage{
 			PromptTokens:     response.Usage.PromptTokens,
