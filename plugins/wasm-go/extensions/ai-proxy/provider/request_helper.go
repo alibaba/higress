@@ -112,20 +112,22 @@ func processStreamEvent(
 		// 转换并追加到输出缓冲区
 		switch fn := streamResponseCovertFunc.(type) {
 		case func(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) *chatCompletionResponse:
-			openAIResponse := fn(ctx, eventData, log)
-			convertedData, err := appendOpenAIChunk(openAIResponse, log)
-			if err != nil {
-				log.Errorf("failed to append openAI chunk: %v", err)
-			}
-			outputBuffer = append(outputBuffer, convertedData...)
-		case func(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []*chatCompletionResponse:
-			openAIResponses := fn(ctx, eventData, log)
-			for _, response := range openAIResponses {
-				convertedData, err := appendOpenAIChunk(response, log)
+			if openAIResponse := fn(ctx, eventData, log); openAIResponse != nil {
+				convertedData, err := appendOpenAIChunk(openAIResponse, log)
 				if err != nil {
 					log.Errorf("failed to append openAI chunk: %v", err)
 				}
 				outputBuffer = append(outputBuffer, convertedData...)
+			}
+		case func(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []*chatCompletionResponse:
+			if openAIResponses := fn(ctx, eventData, log); openAIResponses != nil {
+				for _, response := range openAIResponses {
+					convertedData, err := appendOpenAIChunk(response, log)
+					if err != nil {
+						log.Errorf("failed to append openAI chunk: %v", err)
+					}
+					outputBuffer = append(outputBuffer, convertedData...)
+				}
 			}
 		default:
 			log.Errorf("unsupported streamResponseCovertFunc type")
