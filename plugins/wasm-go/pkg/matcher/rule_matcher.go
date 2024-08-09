@@ -123,8 +123,7 @@ func (m *RuleMatcher[PluginConfig]) ParseRuleConfig(config gjson.Result,
 	if keyCount == 0 {
 		// enable globally for empty config
 		m.hasGlobalConfig = true
-		parsePluginConfig(config, &m.globalConfig)
-		return nil
+		return parsePluginConfig(config, &m.globalConfig)
 	}
 	if rulesJson, ok := obj[RULES_KEY]; ok {
 		rules = rulesJson.Array()
