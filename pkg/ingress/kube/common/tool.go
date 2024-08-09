@@ -17,6 +17,7 @@ package common
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"istio.io/istio/pilot/pkg/util/sets"
 	"net"
 	"sort"
 	"strings"
@@ -342,18 +343,20 @@ func ConvertBackendService(routeDestination *networking.HTTPRouteDestination) mo
 	return service
 }
 
-func getLoadBalancerIp(svc *v1.Service) []string {
-	var out []string
+func getLoadBalancerIp(svc *v1.Service) []v1.LoadBalancerIngress {
+	var out []v1.LoadBalancerIngress
 
 	for _, ingress := range svc.Status.LoadBalancer.Ingress {
 		if ingress.IP != "" {
-			out = append(out, ingress.IP)
-		}
-
-		if ingress.Hostname != "" {
-			hostName := strings.TrimSuffix(ingress.Hostname, SvcHostNameSuffix)
-			if net.ParseIP(hostName) != nil {
-				out = append(out, hostName)
+			out = append(out, v1.LoadBalancerIngress{IP: ingress.IP})
+		} else if ingress.Hostname != "" {
+			if strings.HasSuffix(ingress.Hostname, SvcHostNameSuffix) {
+				ip := strings.TrimSuffix(ingress.Hostname, SvcHostNameSuffix)
+				if net.ParseIP(ip) != nil {
+					out = append(out, v1.LoadBalancerIngress{IP: ip})
+				}
+			} else {
+				out = append(out, v1.LoadBalancerIngress{Hostname: ingress.Hostname})
 			}
 		}
 	}
@@ -361,7 +364,7 @@ func getLoadBalancerIp(svc *v1.Service) []string {
 	return out
 }
 
-func getSvcIpList(svcList []*v1.Service) []string {
+func extractLBIFromService(svcList []*v1.Service) []v1.LoadBalancerIngress {
 	var targetSvcList []*v1.Service
 	for _, svc := range svcList {
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer &&
@@ -370,26 +373,70 @@ func getSvcIpList(svcList []*v1.Service) []string {
 		}
 	}
 
-	var out []string
+	var out []v1.LoadBalancerIngress
 	for _, svc := range targetSvcList {
 		out = append(out, getLoadBalancerIp(svc)...)
 	}
 	return out
 }
 
-func SortLbIngressList(lbi []v1.LoadBalancerIngress) func(int, int) bool {
-	return func(i int, j int) bool {
-		return lbi[i].IP < lbi[j].IP
+// SortLbIngressList sort and remove duplicated item
+func SortLbIngressList(lbi []v1.LoadBalancerIngress) []v1.LoadBalancerIngress {
+	var ip, hostname []v1.LoadBalancerIngress
+	for _, status := range lbi {
+		if status.IP != "" {
+			ip = append(ip, status)
+		} else if status.Hostname != "" {
+			hostname = append(hostname, status)
+		}
 	}
+
+	sort.SliceStable(ip, func(i, j int) bool {
+		return ip[i].IP < ip[j].IP
+	})
+	sort.SliceStable(hostname, func(i, j int) bool {
+		return hostname[i].Hostname < hostname[j].Hostname
+	})
+
+	result := append([]v1.LoadBalancerIngress(nil), ip...)
+	result = append(result, hostname...)
+	return result
+}
+
+func sortUniqueLbIngressList(lbi []v1.LoadBalancerIngress) []v1.LoadBalancerIngress {
+	var ip, hostname []v1.LoadBalancerIngress
+
+	ipSet := sets.NewSet()
+	hostNameSet := sets.NewSet()
+
+	for _, status := range lbi {
+		if status.IP != "" {
+			if !ipSet.Contains(status.IP) {
+				ipSet.Insert(status.IP)
+				ip = append(ip, status)
+			}
+		} else if status.Hostname != "" {
+			if !hostNameSet.Contains(status.Hostname) {
+				hostNameSet.Insert(status.Hostname)
+				hostname = append(hostname, status)
+			}
+		}
+	}
+
+	sort.SliceStable(ip, func(i, j int) bool {
+		return ip[i].IP < ip[j].IP
+	})
+	sort.SliceStable(hostname, func(i, j int) bool {
+		return hostname[i].Hostname < hostname[j].Hostname
+	})
+
+	result := append([]v1.LoadBalancerIngress(nil), ip...)
+	result = append(result, hostname...)
+	return result
 }
 
 func GetLbStatusList(svcList []*v1.Service) []v1.LoadBalancerIngress {
-	svcIpList := getSvcIpList(svcList)
-	lbi := make([]v1.LoadBalancerIngress, 0, len(svcIpList))
-	for _, ep := range svcIpList {
-		lbi = append(lbi, v1.LoadBalancerIngress{IP: ep})
-	}
+	lbi := extractLBIFromService(svcList)
 
-	sort.SliceStable(lbi, SortLbIngressList(lbi))
-	return lbi
+	return sortUniqueLbIngressList(lbi)
 }
