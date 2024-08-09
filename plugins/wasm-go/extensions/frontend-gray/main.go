@@ -32,7 +32,7 @@ func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.L
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGreyEnabled(grayConfig) {
+	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
 
@@ -41,7 +41,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	accept, _ := proxywasm.GetHttpRequestHeader("accept")
 	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
 
-	isIndex := util.CheckReqesutIsIndex(fetchMode, accept, path)
+	isIndex := util.IsIndexRequest(fetchMode, accept, path)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValue := util.GetGrayKey(util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey), grayConfig.GraySubKey)
 
@@ -91,7 +91,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 }
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGreyEnabled(grayConfig) {
+	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
 	status, err := proxywasm.GetHttpResponseHeader(":status")
@@ -117,20 +117,16 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		return types.ActionContinue
 	}
 
-	if grayConfig.Rewrite.Host != "" {
-		// 删除Content-Disposition，避免自动下载文件
-		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
-	}
+	// 删除content-length，可能要修改Response返回值
+	proxywasm.RemoveHttpResponseHeader("Content-Length")
+
+	// 删除Content-Disposition，避免自动下载文件
+	proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 
 	if strings.HasPrefix(contentType, "text/html") {
 		ctx.SetContext(config.IsHTML, true)
 		// 不会进去Streaming 的Body处理
 		ctx.BufferResponseBody()
-		// 删除content-length，可能要修改Response返回值
-		proxywasm.RemoveHttpResponseHeader("Content-Length")
-
-		// 删除Content-Disposition，避免自动下载文件
-		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 
 		// 添加Cache-Control 头部，禁止缓存
 		proxywasm.ReplaceHttpRequestHeader("Cache-Control", "no-cache, no-store")
@@ -147,14 +143,14 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log wrapper.Log) types.Action {
-	if !util.IsGreyEnabled(grayConfig) {
+	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
 	backendVersion := ctx.GetContext(config.XMseTag)
 	isHtml := ctx.GetContext(config.IsHTML)
 	isIndex := ctx.GetContext(config.IsIndex)
-	notFound := ctx.GetContext(config.NotFound)
-	if isIndex != nil && isIndex.(bool) && notFound != nil && notFound.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	notFoundUri := ctx.GetContext(config.NotFound)
+	if isIndex != nil && isIndex.(bool) && notFoundUri != nil && notFoundUri.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 		client.Get(grayConfig.Rewrite.NotFound, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			proxywasm.ReplaceHttpResponseBody(responseBody)

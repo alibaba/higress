@@ -8,7 +8,7 @@
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode`                   |
 | `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                                              |
-| `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN 前端部署的重写配置                                                                           |
+| `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置                                                                           |
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置                                                                                      |
 | `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                                                               |
 
@@ -22,15 +22,17 @@
 | `grayTagValue` | array of string   | 非必填  | -   | 用户分类打标的标签value值，来自Cookie                                                         |
 
 `rewrite`字段配置说明：
-> `index`首页重写和`file`文件重写，本质都是前缀匹配，比如`/app1`: `/mfe/app1/{version}/index.html`代表/app1为前缀的请求，路由到`/mfe/app1/{version}/index.html`页面上，其中`{version}`代表版本号，在运行过程中会被`baseDeployment.version`或者`grayDeployments[].version`动态替换。
+> `indexRouting`首页重写和`fileRouting`文件重写，本质都是前缀匹配，比如`/app1`: `/mfe/app1/{version}/index.html`代表/app1为前缀的请求，路由到`/mfe/app1/{version}/index.html`页面上，其中`{version}`代表版本号，在运行过程中会被`baseDeployment.version`或者`grayDeployments[].version`动态替换。
+
+> `{version}` 作为保留字段，在灰度过程中进行动态替换前端版本。
 
 
 | 名称         | 数据类型         | 填写要求 | 默认值 | 描述                           |
 |------------|--------------|------|-----|------------------------------|
 | `host`     | string       | 非必填  | -   | host地址，如果是OSS则设置为 VPC 内网访问地址 |
-| `notFound` | string       | 非必填  | -   | 404 页面配置                     |
-| `index`    | object       | 非必填  | -   | 首页重写配置                       |
-| `file`     | object       | 非必填  | -   | 文件重写配置                       |
+| `notFoundUri` | string       | 非必填  | -   | 404 页面配置                     |
+| `indexRouting`    | object       | 非必填  | -   | 首页重写配置                       |
+| `fileRouting`     | object       | 非必填  | -   | 文件重写配置                       |
 
 `baseDeployment`字段配置说明：
 
@@ -134,11 +136,11 @@ rules:
   - level5
 rewrite:
   host: frontend-gray.oss-cn-shanghai-internal.aliyuncs.com
-  notFound: /mfe/app1/dev/404.html
-  index:
+  notFoundUri: /mfe/app1/dev/404.html
+  indexRouting:
     /app1: '/mfe/app1/{version}/index.html'
     /: '/mfe/app1/{version}/index.html',
-  file:
+  fileRouting:
     /: '/mfe/app1/{version}'
     /app1/: '/mfe/app1/{version}'
 baseDeployment:
@@ -151,10 +153,10 @@ grayDeployments:
 
 `{version}`会在运行过程中动态替换为真正的版本
 
-#### 首页配置
+#### indexRouting：首页路由配置
 访问 `/app1`, `/app123`,`/app1/index.html`, `/app1/xxx`, `/xxxx` 都会路由到'/mfe/app1/{version}/index.html'
 
-#### 文件配置
+#### fileRouting：文件路由配置
 下面文件映射均生效
 - `/js/a.js` => `/mfe/app1/v1.0.0/js/a.js`
 - `/js/template/a.js` => `/mfe/app1/v1.0.0/js/template/a.js`

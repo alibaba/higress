@@ -14,24 +14,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func IsGreyEnabled(grayConfig config.GrayConfig) bool {
+func IsGrayEnabled(grayConfig config.GrayConfig) bool {
+	// 检查是否存在重写主机
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		return true
 	}
 
+	// 检查灰度部署是否为 nil 或空
 	grayDeployments := grayConfig.GrayDeployments
-	if grayDeployments == nil || len(grayDeployments) == 0 {
-		return false
-	}
-	hasEnabled := false
-	for _, grayDeployment := range grayDeployments {
-		if grayDeployment.Enabled {
-			hasEnabled = true
+	if grayDeployments != nil && len(grayDeployments) > 0 {
+		for _, grayDeployment := range grayDeployments {
+			if grayDeployment.Enabled {
+				return true
+			}
 		}
 	}
-	if hasEnabled {
-		return true
-	}
+
 	return false
 }
 
@@ -96,31 +94,22 @@ func GetRule(rules []*config.GrayRule, name string) *config.GrayRule {
 }
 
 // 检查是否是页面
-func CheckReqesutIsIndex(fetchMode string, accept string, p string) bool {
-	// fetch/xhr 请求，认为不是页面
+var indexSuffixes = []string{
+	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
+}
+
+// IsIndexRequest determines if the request is an index request
+func IsIndexRequest(fetchMode string, accept string, p string) bool {
 	if fetchMode == "cors" {
 		return false
 	}
 
-	indexSuffixes := []string{
-		".html",
-		".htm",
-		".jsp",
-		".php",
-		".asp",
-		".aspx",
-		".erb",
-		".ejs",
-		".twig",
-	}
-
-	// 如果后缀存在html等，则返回true
 	for _, suffix := range indexSuffixes {
 		if strings.HasSuffix(p, suffix) {
 			return true
 		}
 	}
-	// 如果存在后缀，如果不存在，则返回true
+
 	return path.Ext(p) == ""
 }
 

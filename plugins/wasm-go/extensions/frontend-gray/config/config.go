@@ -51,9 +51,9 @@ type GrayConfig struct {
 }
 
 func convertToStringList(results []gjson.Result) []string {
-	interfaces := make([]string, 0)
-	for _, result := range results {
-		interfaces = append(interfaces, result.Value().(string))
+	interfaces := make([]string, len(results)) // 预分配切片容量
+	for i, result := range results {
+		interfaces[i] = result.String() // 使用 String() 方法直接获取字符串
 	}
 	return interfaces
 }
@@ -85,9 +85,9 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	}
 	grayConfig.Rewrite = &Rewrite{
 		Host:     json.Get("rewrite.host").String(),
-		NotFound: json.Get("rewrite.notFound").String(),
-		Index:    convertToStringMap(json.Get("rewrite.index")),
-		File:     convertToStringMap(json.Get("rewrite.file")),
+		NotFound: json.Get("rewrite.notFoundUri").String(),
+		Index:    convertToStringMap(json.Get("rewrite.indexRouting")),
+		File:     convertToStringMap(json.Get("rewrite.fileRouting")),
 	}
 
 	// 解析 deployment
