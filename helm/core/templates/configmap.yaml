@@ -107,9 +107,12 @@ metadata:
 data:
   higress: |-
     {{- $existingConfig := lookup "v1" "ConfigMap" .Release.Namespace "higress-config" }}
-    {{- $existingData := index $existingConfig.data "higress" | default "{}" | fromYaml }}
+    {{- $existingData := dict }}
+    {{- if $existingConfig }}
+    {{- $existingData = index $existingConfig.data "higress" | default "{}" | fromYaml }}
+    {{- end }}
     {{- $newData := dict }}
-    {{- if .Values.tracing.enable }}
+    {{- if and (hasKey .Values "tracing") .Values.tracing.enable }}
     {{- $_ := set $newData "tracing" .Values.tracing }}
     {{- end }}
     {{- toYaml (merge $existingData $newData) | nindent 4 }}
