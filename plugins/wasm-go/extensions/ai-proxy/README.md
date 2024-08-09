@@ -157,6 +157,13 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 讯飞星火认知大模型的`apiTokens`字段值为`APIKey:APISecret`。即填入自己的APIKey与APISecret，并以`:`分隔。
 
+#### Gemini
+
+Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
+
+| 名称                  | 数据类型 | 填写要求 | 默认值 | 描述                                                                                              |
+| --------------------- | -------- | -------- |-----|-------------------------------------------------------------------------------------------------|
+| `geminiSafetySetting` | map of string   | 非必填     | -   | Gemini AI内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
 ## 用法示例
 
@@ -938,6 +945,65 @@ provider:
         "prompt_tokens": 10,
         "completion_tokens": 19,
         "total_tokens": 29
+    }
+}
+```
+
+### 使用 OpenAI 协议代理 gemini 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: gemini
+  apiTokens:
+    - "YOUR_GEMINI_API_TOKEN"
+  modelMapping:
+    "*": "gemini-pro"
+  geminiSafetySetting:
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT" :"BLOCK_NONE"
+    "HARM_CATEGORY_HATE_SPEECH" :"BLOCK_NONE"
+    "HARM_CATEGORY_HARASSMENT" :"BLOCK_NONE"
+    "HARM_CATEGORY_DANGEROUS_CONTENT" :"BLOCK_NONE"
+```
+
+**请求示例**
+
+```json
+{
+    "model": "gpt-3.5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ],
+    "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1722756984,
+    "model": "gemini-pro",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 29,
+        "total_tokens": 34
     }
 }
 ```
