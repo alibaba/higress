@@ -89,6 +89,7 @@ class CommonRootCtx<PluginConfig> extends RootContext {
     }
     if (this.parseConfig == null) {
       this.hasCustomConfig = false;
+      this.parseConfig = (json: JSON.Obj): ParseResult<PluginConfig> =>{ return new ParseResult<PluginConfig>(null, true); };
     }
   }
 
@@ -96,17 +97,14 @@ class CommonRootCtx<PluginConfig> extends RootContext {
     return new CommonCtx<PluginConfig>(context_id, this);
   }
 
-  onConfigure(configuration_size: u32): bool {
+  onConfigure(configuration_size: u32): boolean {
     super.onConfigure(configuration_size);
     const data = this.getConfiguration();
-    let jsonData: JSON.Obj;
-    if (data.length == 0) {
+    let jsonData: JSON.Obj = new JSON.Obj();
+    if (data == "{}") {
       if (this.hasCustomConfig) {
         log(LogLevelValues.warn, "config is empty, but has ParseConfigFunc");
-        return false;
-      } else {
-        return true;
-      }
+      } 
     } else {
       const parseData = JSON.parse(data);
       if (parseData.isObj) {
@@ -115,10 +113,6 @@ class CommonRootCtx<PluginConfig> extends RootContext {
         log(LogLevelValues.error, "parse json data failed")
         return false;
       }
-    }
-    if (!this.hasCustomConfig) {
-      log(LogLevelValues.warn, "config is not empty, but has no ParseConfigFunc")
-      this.parseConfig = (json: JSON.Obj): ParseResult<PluginConfig> =>{ return new ParseResult<PluginConfig>(null, true); };
     }
 
     if (!this.ruleMatcher.parseRuleConfig(jsonData, this.parseConfig as ParseConfigFunc<PluginConfig>)) {

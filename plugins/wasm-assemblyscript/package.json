@@ -1,6 +1,6 @@
 {
   "name": "@higress/wasm-assemblyscript",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "assembly/index.ts",
   "scripts": {
     "test": "node tests",

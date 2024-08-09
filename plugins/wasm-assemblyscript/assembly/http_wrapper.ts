@@ -18,15 +18,15 @@ import {
 } from "@higress/proxy-wasm-assemblyscript-sdk/assembly";
 
 export interface HttpClient {
-  get(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  head(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  options(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  post(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  put(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  patch(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  delete(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  connect(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
-  trace(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): bool;
+  get(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  head(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  options(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  post(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  put(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  patch(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  delete(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  connect(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
+  trace(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32): boolean;
 }
 
 const methodArrayBuffer: ArrayBuffer = String.UTF8.encode(":method");
@@ -42,7 +42,7 @@ export class ClusterClient {
     this.cluster = cluster;
   }
 
-  private httpCall(method: string, path: string, headers: Headers, body: ArrayBuffer, callback: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  private httpCall(method: string, path: string, headers: Headers, body: ArrayBuffer, callback: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     if (root_context == null) {
       log(LogLevelValues.error, "Root context is null");
       return false;
@@ -82,39 +82,39 @@ export class ClusterClient {
     return true
   }
 
-  get(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  get(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("GET", path, headers, new ArrayBuffer(0), cb, timeoutMillisecond);
   }
 
-  head(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  head(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("HEAD", path, headers, new ArrayBuffer(0), cb, timeoutMillisecond);
   }
 
-  options(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  options(path: string, headers: Headers, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("OPTIONS", path, headers, new ArrayBuffer(0), cb, timeoutMillisecond);
   }
 
-  post(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  post(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("POST", path, headers, body, cb, timeoutMillisecond);
   }
 
-  put(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  put(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("PUT", path, headers, body, cb, timeoutMillisecond);
   }
 
-  patch(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  patch(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("PATCH", path, headers, body, cb, timeoutMillisecond);
   }
 
-  delete(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  delete(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("DELETE", path, headers, body, cb, timeoutMillisecond);
   }
 
-  connect(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  connect(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("CONNECT", path, headers, body, cb, timeoutMillisecond);
   }
 
-  trace(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): bool {
+  trace(path: string, headers: Headers, body: ArrayBuffer, cb: ResponseCallBack, timeoutMillisecond: u32 = 500): boolean {
     return this.httpCall("TRACE", path, headers, body, cb, timeoutMillisecond);
   }
 }
