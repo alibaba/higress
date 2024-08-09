@@ -165,6 +165,14 @@ Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 | --------------------- | -------- | -------- |-----|-------------------------------------------------------------------------------------------------|
 | `geminiSafetySetting` | map of string   | 非必填     | -   | Gemini AI内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
+#### DeepL
+
+DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
+
+| 名称         | 数据类型 | 填写要求 | 默认值 | 描述                         |
+| ------------ | -------- | -------- | ------ | ---------------------------- |
+| `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -1005,6 +1013,61 @@ provider:
         "completion_tokens": 29,
         "total_tokens": 34
     }
+}
+```
+
+### 使用 OpenAI 协议代理 DeepL 文本翻译服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: deepl
+  apiTokens:
+    - "YOUR_DEEPL_API_TOKEN"
+  targetLang: "ZH"
+```
+
+**请求示例**
+此处`model`表示 deepl 的服务类型，只能填"Free"或"Pro"。`messages[i].role` 为 `system` 时对应的`content`表示 deepl 的 `context`,否则`content`表示 deepl 的`text`。
+
+```json
+{
+  "model": "Free",
+  "messages": [
+    {
+      "role": "system",
+      "content": "money"
+    },
+    {
+      "content": "sit by the bank"
+    },
+    {
+      "content": "a bank in China"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+此处`choices[i].message.name`表示deepl的`translations[i].detected_source_language`，`choices[i].message.content`表示deepl的`translations[i].text`。
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": { "name": "EN", "role": "assistant", "content": "坐庄" }
+    },
+    {
+      "index": 1,
+      "message": { "name": "EN", "role": "assistant", "content": "中国银行" }
+    }
+  ],
+  "created": 1722747752,
+  "model": "Free",
+  "object": "chat.completion",
+  "usage": {}
 }
 ```
 
