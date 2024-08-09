@@ -1,16 +1,25 @@
 package config
 
 import (
-	"strconv"
-
 	"github.com/tidwall/gjson"
 )
 
+const (
+	XHigressTag    = "x-higress-tag"
+	XPreHigressTag = "x-pre-higress-tag"
+	XMseTag        = "x-mse-tag"
+	IsHTML         = "is_html"
+	IsIndex        = "is_index"
+	NotFound       = "not_found"
+)
+
+type LogInfo func(format string, args ...interface{})
+
 type GrayRule struct {
 	Name         string
-	GrayKeyValue []interface{}
+	GrayKeyValue []string
 	GrayTagKey   string
-	GrayTagValue []interface{}
+	GrayTagValue []string
 }
 
 type BaseDeployment struct {
@@ -18,33 +27,44 @@ type BaseDeployment struct {
 	Version string
 }
 
-type GrayDeployments struct {
-	Name    string
-	Version string
-	Enabled bool
+type GrayDeployment struct {
+	Name           string
+	Enabled        bool
+	Version        string
+	BackendVersion string
+}
+
+type Rewrite struct {
+	Host     string
+	NotFound string
+	Index    map[string]string
+	File     map[string]string
 }
 
 type GrayConfig struct {
 	GrayKey         string
 	GraySubKey      string
 	Rules           []*GrayRule
+	Rewrite         *Rewrite
 	BaseDeployment  *BaseDeployment
-	GrayDeployments []*GrayDeployments
+	GrayDeployments []*GrayDeployment
 }
 
-func interfacesFromJSONResult(results []gjson.Result) []interface{} {
-	var interfaces []interface{}
-	for _, result := range results {
-		switch v := result.Value().(type) {
-		case float64:
-			// 当 v 是 float64 时，将其转换为字符串
-			interfaces = append(interfaces, strconv.FormatFloat(v, 'f', -1, 64))
-		default:
-			// 其它类型不改变，直接追加
-			interfaces = append(interfaces, v)
-		}
+func convertToStringList(results []gjson.Result) []string {
+	interfaces := make([]string, len(results)) // 预分配切片容量
+	for i, result := range results {
+		interfaces[i] = result.String() // 使用 String() 方法直接获取字符串
 	}
 	return interfaces
+}
+
+func convertToStringMap(result gjson.Result) map[string]string {
+	m := make(map[string]string)
+	result.ForEach(func(key, value gjson.Result) bool {
+		m[key.String()] = value.String()
+		return true // keep iterating
+	})
+	return m
 }
 
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
@@ -57,14 +77,20 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	for _, rule := range rules {
 		grayRule := GrayRule{
 			Name:         rule.Get("name").String(),
-			GrayKeyValue: interfacesFromJSONResult(rule.Get("grayKeyValue").Array()), // 使用辅助函数将 []gjson.Result 转换为 []interface{}
+			GrayKeyValue: convertToStringList(rule.Get("grayKeyValue").Array()),
 			GrayTagKey:   rule.Get("grayTagKey").String(),
-			GrayTagValue: interfacesFromJSONResult(rule.Get("grayTagValue").Array()),
+			GrayTagValue: convertToStringList(rule.Get("grayTagValue").Array()),
 		}
 		grayConfig.Rules = append(grayConfig.Rules, &grayRule)
 	}
+	grayConfig.Rewrite = &Rewrite{
+		Host:     json.Get("rewrite.host").String(),
+		NotFound: json.Get("rewrite.notFoundUri").String(),
+		Index:    convertToStringMap(json.Get("rewrite.indexRouting")),
+		File:     convertToStringMap(json.Get("rewrite.fileRouting")),
+	}
 
-	// 解析 deploy
+	// 解析 deployment
 	baseDeployment := json.Get("baseDeployment")
 	grayDeployments := json.Get("grayDeployments").Array()
 
@@ -73,10 +99,11 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		Version: baseDeployment.Get("version").String(),
 	}
 	for _, item := range grayDeployments {
-		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &GrayDeployments{
-			Name:    item.Get("name").String(),
-			Version: item.Get("version").String(),
-			Enabled: item.Get("enabled").Bool(),
+		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &GrayDeployment{
+			Name:           item.Get("name").String(),
+			Enabled:        item.Get("enabled").Bool(),
+			Version:        item.Get("version").String(),
+			BackendVersion: item.Get("backendVersion").String(),
 		})
 	}
 }
