@@ -295,8 +295,8 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, chun
 	}
 
 	choice := chatCompletionChoice{
-		Index:   0,
-		Message: &chatMessage{Role: roleAssistant, Content: response.Result},
+		Index: 0,
+		Delta: &chatMessage{Role: roleAssistant, Content: response.Result},
 	}
 	if response.IsEnd {
 		choice.FinishReason = finishReasonStop
