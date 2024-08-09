@@ -81,6 +81,7 @@ type chatMessage struct {
 	Role      string     `json:"role,omitempty"`
 	Content   string     `json:"content,omitempty"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Partial   bool       `json:"partial,omitempty"`
 }
 
 func (m *chatMessage) IsEmpty() bool {
