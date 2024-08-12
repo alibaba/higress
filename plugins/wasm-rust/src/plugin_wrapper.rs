@@ -178,15 +178,19 @@ where
     }
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
-        if !self.http_content.cache_response_body(){
-            return self.http_content.on_http_response_body(body_size, end_of_stream);
+        if !self.http_content.cache_response_body() {
+            return self
+                .http_content
+                .on_http_response_body(body_size, end_of_stream);
         }
         self.res_body_len += body_size;
 
         if !end_of_stream {
             return Action::Pause;
         }
-        let ret = self.http_content.on_http_response_body(self.res_body_len, end_of_stream);
+        let ret = self
+            .http_content
+            .on_http_response_body(self.res_body_len, end_of_stream);
         if ret != Action::Continue {
             return ret;
         }

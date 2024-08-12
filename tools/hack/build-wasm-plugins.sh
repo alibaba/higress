@@ -32,6 +32,7 @@ then
 elif [ "$TYPE" == "RUST" ]
 then
     cd ./plugins/wasm-rust/
+    make lint-base
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
         EXTENSIONS_DIR=$(pwd)"/extensions/"
         echo "🚀 Build all Rust WasmPlugins under folder of $EXTENSIONS_DIR"
@@ -40,11 +41,13 @@ then
                 if [ -d $EXTENSIONS_DIR$file ]; then 
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
+                    PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
                     PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-rust-" make build
                 fi
             done
     else
         echo "🚀 Build Rust WasmPlugin: $INNER_PLUGIN_NAME"
+        PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
     fi
 else
