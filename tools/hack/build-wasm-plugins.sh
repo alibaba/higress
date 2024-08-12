@@ -41,7 +41,7 @@ then
                 if [ -d $EXTENSIONS_DIR$file ]; then 
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
-                    PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
+                    PLUGIN_NAME=${name} make lint 
                     PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-rust-" make build
                 fi
             done
