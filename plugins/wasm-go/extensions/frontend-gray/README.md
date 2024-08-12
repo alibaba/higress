@@ -24,7 +24,7 @@
 `rewrite`字段配置说明：
 > `indexRouting`首页重写和`fileRouting`文件重写，本质都是前缀匹配，比如`/app1`: `/mfe/app1/{version}/index.html`代表/app1为前缀的请求，路由到`/mfe/app1/{version}/index.html`页面上，其中`{version}`代表版本号，在运行过程中会被`baseDeployment.version`或者`grayDeployments[].version`动态替换。
 
-> `{version}` 作为保留字段，在灰度过程中进行动态替换前端版本。
+> `{version}` 作为保留字段，在执行过程中会被`baseDeployment.version`或者`grayDeployments[].version`动态替换前端版本。
 
 
 | 名称         | 数据类型         | 填写要求 | 默认值 | 描述                           |
