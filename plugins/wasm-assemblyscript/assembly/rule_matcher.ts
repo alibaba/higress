@@ -10,6 +10,8 @@ import { JSON } from "assemblyscript-json/assembly";
 enum Category {
   Route,
   Host,
+  RoutePrefix,
+  Service
 }
 
 enum MatchType {
@@ -21,6 +23,8 @@ enum MatchType {
 const RULES_KEY: string = "_rules_";
 const MATCH_ROUTE_KEY: string = "_match_route_";
 const MATCH_DOMAIN_KEY: string = "_match_domain_";
+const MATCH_SERVICE_KEY: string = "_match_service_";
+const MATCH_ROUTE_PREFIX_KEY: string = "_match_route_prefix_"
 
 class HostMatcher {
   matchType: MatchType;
@@ -33,10 +37,12 @@ class HostMatcher {
 }
 
 class RuleConfig<PluginConfig> {
-  category: Category;
-  routes!: Map<string, boolean>;
-  hosts!: Array<HostMatcher>;
-  config: PluginConfig | null;
+  category:      Category;
+  routes!:       Map<string, boolean>;
+  services!:     Map<string, boolean>;
+  routePrefixs!: Map<string, boolean>;
+  hosts!:        Array<HostMatcher>;
+  config:        PluginConfig | null;
 
   constructor() {
     this.category = Category.Route;
@@ -66,27 +72,49 @@ export class RuleMatcher<PluginConfig> {
 
   getMatchConfig(): ParseResult<PluginConfig> {
     const host = getRequestHost();
-    if (!host) {
+    if (host == "") {
       return new ParseResult<PluginConfig>(null, false);
     }
-    const result = get_property("route_name")
-    if (result.status != WasmResultValues.Ok) {
+    let result = get_property("route_name");
+    if (result.status != WasmResultValues.Ok && result.status != WasmResultValues.NotFound) {
       return new ParseResult<PluginConfig>(null, false);
     }
     const routeName = String.UTF8.decode(result.returnValue);
+
+    result = get_property("cluster_name");
+    if (result.status != WasmResultValues.Ok && result.status != WasmResultValues.NotFound) {
+      return new ParseResult<PluginConfig>(null, false);
+    }
+    const serviceName = String.UTF8.decode(result.returnValue);
+
     for (let i = 0; i < this.ruleConfig.length; i++) {
       const rule = this.ruleConfig[i];
+      // category == Host
       if (rule.category == Category.Host) {
         if (this.hostMatch(rule, host)) {
           log(LogLevelValues.debug, "getMatchConfig: match host " + host);
           return new ParseResult<PluginConfig>(rule.config, true);
         }
       }
-      if (routeName) {
+      // category == Route
+      if (rule.category == Category.Route) {
         if (rule.routes.has(routeName)) {
           log(LogLevelValues.debug, "getMatchConfig: match route " + routeName);
           return new ParseResult<PluginConfig>(rule.config, true);
         }
+      }
+      // category == RoutePrefix
+      if (rule.category == Category.RoutePrefix) {
+        for (let i = 0; i < rule.routePrefixs.keys().length; i++) {
+          const routePrefix = rule.routePrefixs.keys()[i];
+          if (routeName.startsWith(routePrefix)) {
+            return new ParseResult<PluginConfig>(rule.config, true);
+          }
+        }
+      }
+      // category == Cluster
+      if (this.serviceMatch(rule, serviceName)) {
+        return new ParseResult<PluginConfig>(rule.config, true);
       }
     }
 
@@ -149,15 +177,30 @@ export class RuleMatcher<PluginConfig> {
       } else {
         return false;
       }
+
       rule.routes = this.parseRouteMatchConfig(ruleJson);
       rule.hosts = this.parseHostMatchConfig(ruleJson);
+      rule.services = this.parseServiceMatchConfig(ruleJson);
+      rule.routePrefixs = this.parseRoutePrefixMatchConfig(ruleJson);
+
       const noRoute = rule.routes.size == 0;
       const noHosts = rule.hosts.length == 0;
-      if ((noRoute && noHosts) || (!noRoute && !noHosts)) {
-        log(LogLevelValues.error, "there is only one of '_match_route_' and '_match_domain_' can present in configuration.");
+      const noServices = rule.services.size == 0;
+      const noRoutePrefixs = rule.routePrefixs.size == 0;
+
+      if ((boolToInt(noRoute) + boolToInt(noHosts) + boolToInt(noServices) + boolToInt(noRoutePrefixs)) != 3) {
+        log(LogLevelValues.error, "there is only one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_route_prefix_' can present in configuration.");
         return false;
       }
-      rule.category = noRoute ? Category.Host : Category.Route;
+      if (!noRoute) {
+        rule.category = Category.Route;
+      } else if (!noHosts) {
+        rule.category = Category.Host;
+      } else if (!noServices) {
+        rule.category = Category.Service;
+      } else {
+        rule.category = Category.RoutePrefix;
+      }
       this.ruleConfig.push(rule);
     }
     return true;
@@ -176,6 +219,36 @@ export class RuleMatcher<PluginConfig> {
       }
     }
     return routes;
+  }
+
+  parseRoutePrefixMatchConfig(config: JSON.Obj): Map<string, boolean> {
+    const keys = config.getArr(MATCH_ROUTE_PREFIX_KEY);
+    const routePrefixs = new Map<string, boolean>();
+    if (keys) {
+      const array = keys.valueOf();
+      for (let i = 0; i < array.length; i++) {
+        const key = array[i].toString();
+        if (key != "") {
+          routePrefixs.set(key, true);
+        }
+      }
+    }
+    return routePrefixs;
+  }
+
+  parseServiceMatchConfig(config: JSON.Obj): Map<string, boolean> {
+    const keys = config.getArr(MATCH_SERVICE_KEY);
+    const clusters = new Map<string, boolean>();
+    if (keys) {
+      const array = keys.valueOf();
+      for (let i = 0; i < array.length; i++) {
+        const key = array[i].toString();
+        if (key != "") {
+          clusters.set(key, true);
+        }
+      }
+    }
+    return clusters;
   }
 
   parseHostMatchConfig(config: JSON.Obj): Array<HostMatcher> {
@@ -245,4 +318,29 @@ export class RuleMatcher<PluginConfig> {
     }
     return false;
   }
+
+  serviceMatch(rule: RuleConfig<PluginConfig>, serviceName: string): boolean {
+    const parts = serviceName.split('|');
+    if (parts.length != 4) {
+      return false;
+    }
+    const port = parts[1];
+    const fqdn = parts[3];
+    for (let i = 0; i < rule.services.keys().length; i++) {
+      let configServiceName = rule.services.keys()[i];
+      let colonIndex = configServiceName.lastIndexOf(':');
+      if (colonIndex != -1) {
+          let configFQDN = configServiceName.slice(0, colonIndex);
+          let configPort = configServiceName.slice(colonIndex + 1);
+          if (fqdn == configFQDN && port == configPort) return true;
+      } else if (fqdn == configServiceName) {
+          return true;
+      }
+    }
+    return false;
+  }
+}
+
+function boolToInt(value: boolean): i32 {
+  return value ? 1 : 0;
 }
