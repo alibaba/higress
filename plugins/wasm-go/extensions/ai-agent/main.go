@@ -64,6 +64,33 @@ type Response struct {
 	Usage   Usage    `json:"usage"`
 }
 
+// 用于存放拆解出来的工具相关信息
+type Tool_Param struct {
+	ToolName   string   `yaml:"toolName"`
+	Path       string   `yaml:"path"`
+	Method     string   `yaml:"method"`
+	ParamName  []string `yaml:"paramName"`
+	Parameter  string   `yaml:"parameter"`
+	Desciption string   `yaml:"description"`
+}
+
+// 用于存放拆解出来的api相关信息
+type API_Param struct {
+	APIKey     APIKey       `yaml:"apiKey"`
+	URL        string       `yaml:"url"`
+	Tool_Param []Tool_Param `yaml:"tool_Param"`
+}
+
+type Info struct {
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Version     string `yaml:"version"`
+}
+
+type Server struct {
+	URL string `yaml:"url"`
+}
+
 type Parameter struct {
 	Name        string `yaml:"name"`
 	In          string `yaml:"in"`
@@ -76,37 +103,71 @@ type Parameter struct {
 	} `yaml:"schema"`
 }
 
-type ParamReq struct {
-	Parameter []Parameter `yaml:"parameters"`
+type PathItem struct {
+	Description string      `yaml:"description"`
+	OperationID string      `yaml:"operationId"`
+	Parameters  []Parameter `yaml:"parameters"`
+	Deprecated  bool        `yaml:"deprecated"`
 }
 
-type ToolsInfo struct {
-	Title                 string `required:"true" yaml:"title" json:"title"`
-	Name_for_model        string `required:"true" yaml:"name_for_model" json:"name_for_model"`
-	Description_for_model string `required:"true" yaml:"description_for_model" json:"description_for_model"`
-	Parameters            string `required:"true" yaml:"parameters" json:"parameters"`
-	Url                   string `rearamquired:"true" yaml:"url" json:"url"`
-	Method                string `required:"true" yaml:"method" json:"method"`
+type Paths map[string]map[string]PathItem
+
+type Components struct {
+	Schemas map[string]interface{} `yaml:"schemas"`
 }
 
-type ToolsClientInfo struct {
+type API struct {
+	OpenAPI    string     `yaml:"openapi"`
+	Info       Info       `yaml:"info"`
+	Servers    []Server   `yaml:"servers"`
+	Paths      Paths      `yaml:"paths"`
+	Components Components `yaml:"components"`
+}
+
+type APIKey struct {
+	Name  string `yaml:"name" json:"name"`
+	Value string `yaml:"value" json:"value"`
+}
+
+type APIProvider struct {
 	// @Title zh-CN 服务名称
-	// @Description zh-CN 访问外部API服务
+	// @Description zh-CN 带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local
 	ServiceName string `required:"true" yaml:"serviceName" json:"serviceName"`
 	// @Title zh-CN 服务端口
-	// @Description zh-CN 访问外部API服务端口
+	// @Description zh-CN 服务端口
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 	// @Title zh-CN 服务域名
-	// @Description zh-CN 访问外部API服务域名，例如 restapi.amap.com
+	// @Description zh-CN 服务域名，例如 restapi.amap.com
 	Domin string `required:"true" yaml:"domain" json:"domain"`
-	// @Title zh-CN 访问外部API服务的key
-	// @Description zh-CN 访问外部API服务的key
-	APIKey string `required:"true" yaml:"apiKey" json:"apiKey"`
+	// @Title zh-CN 通义千问大模型服务的key
+	// @Description zh-CN 通义千问大模型服务的key
+	APIKey APIKey `required:"true" yaml:"apiKey" json:"apiKey"`
+}
+
+type APIs struct {
+	APIProvider APIProvider `required:"true" yaml:"apiProvider" json:"apiProvider"`
+	API         string      `required:"true" yaml:"api" json:"api"`
+}
+
+type Template struct {
+	Question    string `yaml:"question" json:"question"`
+	Thought1    string `yaml:"thought1" json:"thought1"`
+	ActionInput string `yaml:"actionInput" json:"actionInput"`
+	Observation string `yaml:"observation" json:"observation"`
+	Thought2    string `yaml:"thought2" json:"thought2"`
+	FinalAnswer string `yaml:"finalAnswer" json:"finalAnswer"`
+	Begin       string `yaml:"begin" json:"begin"`
+}
+
+type PromptTemplate struct {
+	Language   string   `required:"true" yaml:"language" json:"language"`
+	CHTemplate Template `yaml:"chTemplate" json:"chTemplate"`
+	ENTemplate Template `yaml:"enTemplate" json:"enTemplate"`
 }
 
 type DashScopeInfo struct {
 	// @Title zh-CN 通义千问大模型服务名称
-	// @Description zh-CN 通义千问大模型服务名称
+	// @Description zh-CN 带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local
 	ServiceName string `required:"true" yaml:"serviceName" json:"serviceName"`
 	// @Title zh-CN 通义千问大模型服务端口
 	// @Description zh-CN 通义千问服务端口
@@ -123,131 +184,178 @@ type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
 	ReturnResponseTemplate string `required:"true" yaml:"returnResponseTemplate" json:"returnResponseTemplate"`
-	// @Title zh-CN ToolsInfo 工具信息
-	// @Description zh-CN 用于存放工具信息
-	ToolsInfo []ToolsInfo `required:"true" yaml:"tools" json:"tools"`
-	// @Title zh-CN ToolsClient信息
-	// @Description zh-CN 用于存储ToolsClient使用信息
-	ToolsClientInfo []ToolsClientInfo    `required:"true" yaml:"toolsClientInfo" json:"toolsClientInfo"`
-	ToolsClient     []wrapper.HttpClient `yaml:"-" json:"-"`
+	// @Title zh-CN 工具服务商以及工具信息
+	// @Description zh-CN 用于存储工具服务商以及工具信息
+	APIs      []APIs               `required:"true" yaml:"apis" json:"apis"`
+	APIClient []wrapper.HttpClient `yaml:"-" json:"-"`
 	// @Title zh-CN dashscope信息
 	// @Description zh-CN 用于存储dashscope使用信息
 	DashScopeInfo   DashScopeInfo      `required:"true" yaml:"dashscope" json:"dashscope"`
 	DashScopeClient wrapper.HttpClient `yaml:"-" json:"-"`
+	API_Param       []API_Param        `yaml:"-" json:"-"`
+	PromptTemplate  PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	//设置回复模板
-	c.ReturnResponseTemplate = json.Get("returnResponseTemplate").String()
+	c.ReturnResponseTemplate = gjson.Get("returnResponseTemplate").String()
 	if c.ReturnResponseTemplate == "" {
 		c.ReturnResponseTemplate = `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	}
 
 	//从插件配置中获取toolsClientInfo信息
-	toolsClientInfo := json.Get("toolsClientInfo")
-	if !toolsClientInfo.Exists() {
-		return errors.New("toolsClientInfo is required")
+	apis := gjson.Get("apis")
+	if !apis.Exists() {
+		return errors.New("apis is required")
 	}
-	if len(toolsClientInfo.Array()) == 0 {
-		return errors.New("toolsClientInfo cannot be empty")
+	if len(apis.Array()) == 0 {
+		return errors.New("apis cannot be empty")
 	}
 
-	for _, item := range toolsClientInfo.Array() {
-		serviceName := item.Get("serviceName")
+	for _, item := range apis.Array() {
+		serviceName := item.Get("apiProvider.serviceName")
 		if !serviceName.Exists() || serviceName.String() == "" {
-			return errors.New("toolsClientInfo serviceName is required")
+			return errors.New("apiProvider serviceName is required")
 		}
 
-		servicePort := item.Get("servicePort")
+		servicePort := item.Get("apiProvider.servicePort")
 		if !servicePort.Exists() || servicePort.Int() == 0 {
-			return errors.New("toolsClientInfo servicePort is required")
+			return errors.New("apiProvider servicePort is required")
 		}
 
-		domain := item.Get("domain")
+		domain := item.Get("apiProvider.domain")
 		if !domain.Exists() || domain.String() == "" {
-			return errors.New("toolsClientInfo domain is required")
+			return errors.New("apiProvider domain is required")
 		}
 
-		apiKey := item.Get("apiKey")
-		if !apiKey.Exists() || apiKey.String() == "" {
-			return errors.New("toolsClientInfo apiKey is required")
+		apiKeyName := item.Get("apiProvider.apiKey.name")
+		if !apiKeyName.Exists() || apiKeyName.String() == "" {
+			return errors.New("apiProvider apiKey apiKeyName is required")
 		}
 
-		toolsClientInfo := ToolsClientInfo{
-			ServiceName: serviceName.String(),
-			ServicePort: servicePort.Int(),
-			Domin:       domain.String(),
-			APIKey:      apiKey.String(),
+		apiKeyValue := item.Get("apiProvider.apiKey.value")
+		if !apiKeyValue.Exists() || apiKeyValue.String() == "" {
+			return errors.New("apiProvider apiKey apiKeyValue is required")
 		}
-
-		c.ToolsClientInfo = append(c.ToolsClientInfo, toolsClientInfo)
 
 		//根据多个toolsClientInfo的信息，分别初始化toolsClient
-		toolsClient := wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: toolsClientInfo.ServiceName,
-			Port:        toolsClientInfo.ServicePort,
-			Domain:      toolsClientInfo.Domin,
+		apiClient := wrapper.NewClusterClient(wrapper.DnsCluster{
+			ServiceName: serviceName.String(),
+			Port:        servicePort.Int(),
+			Domain:      domain.String(),
 		})
 
-		c.ToolsClient = append(c.ToolsClient, toolsClient)
+		c.APIClient = append(c.APIClient, apiClient)
+
+		api := item.Get("api")
+		if !api.Exists() || api.String() == "" {
+			return errors.New("api is required")
+		}
+
+		var apiStrcut API
+		err := yaml.Unmarshal([]byte(api.String()), &apiStrcut)
+		if err != nil {
+			return err
+		}
+
+		var allTool_param []Tool_Param
+		//拆除服务下面的每个api的path
+		for path, pathmap := range apiStrcut.Paths {
+			//拆解出每个api对应的参数
+			for method, submap := range pathmap {
+				//把参数列表存起来
+				var param Tool_Param
+				param.Path = path
+				param.Method = method
+				param.ToolName = submap.OperationID
+				paramName := make([]string, 0)
+				for _, parammeter := range submap.Parameters {
+					paramName = append(paramName, parammeter.Name)
+				}
+				param.ParamName = paramName
+				out, _ := json.Marshal(submap.Parameters)
+				param.Parameter = string(out)
+				param.Desciption = submap.Description
+				allTool_param = append(allTool_param, param)
+			}
+		}
+		api_param := API_Param{
+			APIKey:     APIKey{Name: apiKeyName.String(), Value: apiKeyValue.String()},
+			URL:        apiStrcut.Servers[0].URL,
+			Tool_Param: allTool_param,
+		}
+
+		c.API_Param = append(c.API_Param, api_param)
 	}
 
-	//从插件配置中获取tools信息
-	tools := json.Get("tools")
-	if !tools.Exists() {
-		return errors.New("tools is required")
+	c.PromptTemplate.Language = gjson.Get("promptTemplate.language").String()
+	if c.PromptTemplate.Language != "EN" && c.PromptTemplate.Language != "CH" {
+		c.PromptTemplate.Language = "EN"
 	}
-	if len(tools.Array()) == 0 {
-		return errors.New("tools cannot be empty")
+	if c.PromptTemplate.Language == "EN" {
+		c.PromptTemplate.ENTemplate.Question = gjson.Get("promptTemplate.enTemplate.question").String()
+		if c.PromptTemplate.ENTemplate.Question == "" {
+			c.PromptTemplate.ENTemplate.Question = "the input question you must answer"
+		}
+		c.PromptTemplate.ENTemplate.Thought1 = gjson.Get("promptTemplate.enTemplate.thought1").String()
+		if c.PromptTemplate.ENTemplate.Thought1 == "" {
+			c.PromptTemplate.ENTemplate.Thought1 = "you should always think about what to do"
+		}
+		c.PromptTemplate.ENTemplate.ActionInput = gjson.Get("promptTemplate.enTemplate.actionInput").String()
+		if c.PromptTemplate.ENTemplate.ActionInput == "" {
+			c.PromptTemplate.ENTemplate.ActionInput = "the input to the action"
+		}
+		c.PromptTemplate.ENTemplate.Observation = gjson.Get("promptTemplate.enTemplate.observation").String()
+		if c.PromptTemplate.ENTemplate.Observation == "" {
+			c.PromptTemplate.ENTemplate.Observation = "the result of the action"
+		}
+		c.PromptTemplate.ENTemplate.Thought1 = gjson.Get("promptTemplate.enTemplate.thought2").String()
+		if c.PromptTemplate.ENTemplate.Thought1 == "" {
+			c.PromptTemplate.ENTemplate.Thought1 = "I now know the final answer"
+		}
+		c.PromptTemplate.ENTemplate.FinalAnswer = gjson.Get("promptTemplate.enTemplate.finalAnswer").String()
+		if c.PromptTemplate.ENTemplate.FinalAnswer == "" {
+			c.PromptTemplate.ENTemplate.FinalAnswer = "the final answer to the original input question, please give the most direct answer directly in Chinese, not English, and do not add extra content."
+		}
+		c.PromptTemplate.ENTemplate.Begin = gjson.Get("promptTemplate.enTemplate.begin").String()
+		if c.PromptTemplate.ENTemplate.Begin == "" {
+			c.PromptTemplate.ENTemplate.Begin = "Begin! Remember to speak as a pirate when giving your final answer. Use lots of \"Arg\"s"
+		}
+	} else if c.PromptTemplate.Language == "CH" {
+		c.PromptTemplate.CHTemplate.Question = gjson.Get("promptTemplate.chTemplate.question").String()
+		if c.PromptTemplate.CHTemplate.Question == "" {
+			c.PromptTemplate.CHTemplate.Question = "你需要回答的输入问题"
+		}
+		c.PromptTemplate.CHTemplate.Thought1 = gjson.Get("promptTemplate.chTemplate.thought1").String()
+		if c.PromptTemplate.CHTemplate.Thought1 == "" {
+			c.PromptTemplate.CHTemplate.Thought1 = "你应该总是思考该做什么"
+		}
+		c.PromptTemplate.CHTemplate.ActionInput = gjson.Get("promptTemplate.chTemplate.actionInput").String()
+		if c.PromptTemplate.CHTemplate.ActionInput == "" {
+			c.PromptTemplate.CHTemplate.ActionInput = "行动的输入，必须出现在Action后"
+		}
+		c.PromptTemplate.CHTemplate.Observation = gjson.Get("promptTemplate.chTemplate.observation").String()
+		if c.PromptTemplate.CHTemplate.Observation == "" {
+			c.PromptTemplate.CHTemplate.Observation = "行动的结果"
+		}
+		c.PromptTemplate.CHTemplate.Thought1 = gjson.Get("promptTemplate.chTemplate.thought2").String()
+		if c.PromptTemplate.CHTemplate.Thought1 == "" {
+			c.PromptTemplate.CHTemplate.Thought1 = "我现在知道最终答案"
+		}
+		c.PromptTemplate.CHTemplate.FinalAnswer = gjson.Get("promptTemplate.chTemplate.finalAnswer").String()
+		if c.PromptTemplate.CHTemplate.FinalAnswer == "" {
+			c.PromptTemplate.CHTemplate.FinalAnswer = "对原始输入问题的最终答案"
+		}
+		c.PromptTemplate.CHTemplate.Begin = gjson.Get("promptTemplate.chTemplate.begin").String()
+		if c.PromptTemplate.CHTemplate.Begin == "" {
+			c.PromptTemplate.CHTemplate.Begin = "再次重申，不要修改以上模板的字段名称，开始吧！"
+		}
 	}
 
-	for _, item := range tools.Array() {
-		title := item.Get("title")
-		if !title.Exists() || title.String() == "" {
-			return errors.New("tools title is required")
-		}
-
-		name_for_model := item.Get("name_for_model")
-		if !name_for_model.Exists() || name_for_model.String() == "" {
-			return errors.New("tools name_for_model is required")
-		}
-
-		description_for_model := item.Get("description_for_model")
-		if !description_for_model.Exists() || description_for_model.String() == "" {
-			return errors.New("tools description_for_model is required")
-		}
-
-		parameters := item.Get("parameters")
-		if !parameters.Exists() || parameters.String() == "" {
-			return errors.New("tools parameters is required")
-		}
-
-		url := item.Get("url")
-		if !url.Exists() || url.String() == "" {
-			return errors.New("tools url is required")
-		}
-
-		method := item.Get("method")
-		if !method.Exists() || method.String() == "" {
-			return errors.New("tools method is required")
-		}
-
-		tool := ToolsInfo{
-			Title:                 title.String(),
-			Name_for_model:        name_for_model.String(),
-			Description_for_model: description_for_model.String(),
-			Parameters:            parameters.String(),
-			Url:                   url.String(),
-			Method:                method.String(),
-		}
-
-		c.ToolsInfo = append(c.ToolsInfo, tool)
-	}
-
-	c.DashScopeInfo.APIKey = json.Get("dashscope.apiKey").String()
-	c.DashScopeInfo.ServiceName = json.Get("dashscope.serviceName").String()
-	c.DashScopeInfo.ServicePort = json.Get("dashscope.servicePort").Int()
-	c.DashScopeInfo.Domin = json.Get("dashscope.domain").String()
+	c.DashScopeInfo.APIKey = gjson.Get("dashscope.apiKey").String()
+	c.DashScopeInfo.ServiceName = gjson.Get("dashscope.serviceName").String()
+	c.DashScopeInfo.ServicePort = gjson.Get("dashscope.servicePort").Int()
+	c.DashScopeInfo.Domin = gjson.Get("dashscope.domain").String()
 
 	c.DashScopeClient = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: c.DashScopeInfo.ServiceName,
@@ -335,12 +443,37 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	//拼装agent prompt模板
 	tool_desc := make([]string, 0)
 	tool_names := make([]string, 0)
-	for _, tool := range config.ToolsInfo {
-		tool_desc = append(tool_desc, fmt.Sprintf(prompttpl.TOOL_DESC, tool.Name_for_model, tool.Description_for_model, tool.Description_for_model, tool.Description_for_model, tool.Parameters), "\n")
-		tool_names = append(tool_names, tool.Name_for_model)
+	for _, api_param := range config.API_Param {
+		for _, tool_param := range api_param.Tool_Param {
+			tool_desc = append(tool_desc, fmt.Sprintf(prompttpl.TOOL_DESC, tool_param.ToolName, tool_param.Desciption, tool_param.Desciption, tool_param.Desciption, tool_param.Parameter), "\n")
+			tool_names = append(tool_names, tool_param.ToolName)
+		}
 	}
 
-	prompt := fmt.Sprintf(prompttpl.Template, tool_desc, tool_names, query)
+	var prompt string
+	if config.PromptTemplate.Language == "CH" {
+		prompt = fmt.Sprintf(prompttpl.CH_Template,
+			tool_desc,
+			config.PromptTemplate.CHTemplate.Question,
+			config.PromptTemplate.CHTemplate.Thought1,
+			tool_names,
+			config.PromptTemplate.CHTemplate.ActionInput,
+			config.PromptTemplate.CHTemplate.Observation,
+			config.PromptTemplate.CHTemplate.FinalAnswer,
+			config.PromptTemplate.CHTemplate.Begin,
+			query)
+	} else {
+		prompt = fmt.Sprintf(prompttpl.EN_Template,
+			tool_desc,
+			config.PromptTemplate.ENTemplate.Question,
+			config.PromptTemplate.ENTemplate.Thought1,
+			tool_names,
+			config.PromptTemplate.ENTemplate.ActionInput,
+			config.PromptTemplate.ENTemplate.Observation,
+			config.PromptTemplate.ENTemplate.FinalAnswer,
+			config.PromptTemplate.ENTemplate.Begin,
+			query)
+	}
 
 	//将请求加入到历史对话存储器中
 	dashscope.MessageStore.AddForUser(prompt)
@@ -377,66 +510,52 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 
 	if len(action) > 1 && len(actionInput) > 1 {
 		var url string
-		var toolsClient wrapper.HttpClient
-		var toolsInfo ToolsInfo
+		var apiClient wrapper.HttpClient
 		var method string
 
-		for _, tool := range config.ToolsInfo {
-			if action[1] == tool.Name_for_model {
-				log.Infof("calls %s\n", tool.Name_for_model)
-				log.Infof("actionInput[1]: %s", actionInput[1])
-				toolsInfo = tool
-				break
+		for i, api_param := range config.API_Param {
+			for _, tool_param := range api_param.Tool_Param {
+				if action[1] == tool_param.ToolName {
+					log.Infof("calls %s\n", tool_param.ToolName)
+					log.Infof("actionInput[1]: %s", actionInput[1])
+
+					//将大模型需要的参数反序列化
+					var data map[string]interface{}
+					if err := json.Unmarshal([]byte(actionInput[1]), &data); err != nil {
+						log.Infof("Error: %s\n", err.Error())
+						return types.ActionContinue
+					}
+
+					var args string
+					for i, param := range tool_param.ParamName { //从参数列表中取出参数
+						if i == 0 {
+							args = "?" + param + "=%s"
+							args = fmt.Sprintf(args, data[param])
+						} else {
+							args = args + "&" + param + "=%s"
+							args = fmt.Sprintf(args, data[param])
+						}
+					}
+
+					url = api_param.URL + tool_param.Path + args
+					if api_param.APIKey.Name != "" {
+						key := "&" + api_param.APIKey.Name + "=" + api_param.APIKey.Value
+						url += key
+					}
+
+					log.Infof("url: %s\n", url)
+
+					method = tool_param.Method
+
+					apiClient = config.APIClient[i]
+					break
+				}
 			}
-		}
-
-		//取出工具的http request方法
-		method = toolsInfo.Method
-
-		//根据大模型要求的API所对应的title，取出对应的client和apikey
-		var apiKey string
-		for i, toolsClientInfo := range config.ToolsClientInfo {
-			if toolsClientInfo.ServiceName == toolsInfo.Title {
-				toolsClient = config.ToolsClient[i]
-				apiKey = toolsClientInfo.APIKey
-				break
-			}
-		}
-
-		var paramReq ParamReq
-		if err := yaml.Unmarshal([]byte(toolsInfo.Parameters), &paramReq); err != nil {
-			log.Infof("Error: %s\n", err.Error())
-			return types.ActionContinue
-		}
-
-		log.Infof("paramReq: %s %s\n", paramReq.Parameter[0].Name, paramReq.Parameter[0].In)
-
-		//将大模型需要的参数反序列化
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(actionInput[1]), &data); err != nil {
-			log.Infof("Error: %s\n", err.Error())
-			return types.ActionContinue
 		}
 
 		if method == "get" {
-			//按照参数列表中的参数排列顺序，从data中取出参数
-			var args []interface{}
-			for _, param := range paramReq.Parameter {
-				if param.Name == "apiKey" {
-					data[param.Name] = apiKey
-				}
-				if param.In == "query" { //query表示是组装到url中的参数
-					arg := data[param.Name] //在反序列化后的Action Input中把参数的值取出来
-					args = append(args, arg)
-				}
-			}
-
-			//组装Url
-			url = fmt.Sprintf(toolsInfo.Url, args...)
-			log.Infof("url: %s", url)
-
 			//调用工具
-			err := toolsClient.Get(
+			err := apiClient.Get(
 				url,
 				nil,
 				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -447,17 +566,16 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 					log.Infof(string(responseBody))
 
 					Observation := "Observation: " + string(responseBody)
-					prompt := content + Observation
 
-					dashscope.MessageStore.AddForUser(prompt)
+					dashscope.MessageStore.AddForUser(Observation)
 
-					for _, v := range dashscope.MessageStore {
-						log.Infof("role: %s\n", v.Role)
-						log.Infof("Content: %s\n", v.Content)
-					}
+					// for _, v := range dashscope.MessageStore {
+					// 	log.Infof("role: %s\n", v.Role)
+					// 	log.Infof("Content: %s\n", v.Content)
+					// }
 
 					completion := dashscope.Completion{
-						Model:    "qwen-long",
+						Model:    "qwen-max-0403",
 						Messages: dashscope.MessageStore,
 					}
 
@@ -533,7 +651,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		log.Infof("[onHttpResponseBody] body to json err: %s", err.Error())
 		return types.ActionContinue
 	}
-
+	log.Infof("first content: %s\n", rawResponse.Choices[0].Message.Content)
 	//如果gpt返回的内容不是空的
 	if rawResponse.Choices[0].Message.Content != "" {
 		//进入agent的循环思考，工具调用的过程中
