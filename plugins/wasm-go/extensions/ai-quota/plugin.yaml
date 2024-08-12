@@ -1,0 +1,34 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-quota
+  namespace: higress-system
+
+spec:
+  defaultConfig: {}
+  defaultConfigDisable: true
+  matchRules:
+  - config:
+      consumers:
+      - credential: credential1
+        name: consumer1
+      - credential: credential2
+        name: consumer2
+      - credential: credential3
+        name: consumer3
+      keys:
+      - authorization
+      in_header: true
+      redis_key_prefix: "chat_quota:"
+      admin_consumer: consumer3
+      admin_path: /quota
+      redis:
+        service_name: redis-service.default.svc.cluster.local
+        service_port: 6379
+        timeout: 2000
+    configDisable: false
+    ingress:
+    - qwen
+  phase: UNSPECIFIED_PHASE
+  priority: 200
+  url: oci://registry.cn-hangzhou.aliyuncs.com/2456868764/ai-quota:1.0.4
