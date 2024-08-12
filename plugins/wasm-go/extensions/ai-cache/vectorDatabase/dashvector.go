@@ -9,6 +9,10 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
+const (
+	dashVectorPort = 443
+)
+
 type dashVectorProviderInitializer struct {
 }
 
@@ -29,11 +33,19 @@ func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) er
 }
 
 func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	return &DvProvider{config: config}, nil
+	return &DvProvider{
+		config: config,
+		client: wrapper.NewClusterClient(wrapper.DnsCluster{
+			ServiceName: config.DashVectorServiceName,
+			Port:        dashVectorPort,
+			Domain:      config.DashVectorAuthApiEnd,
+		}),
+	}, nil
 }
 
 type DvProvider struct {
 	config ProviderConfig
+	client wrapper.HttpClient
 }
 
 func (d *DvProvider) GetProviderType() string {
@@ -85,17 +97,19 @@ func (d *DvProvider) ParseQueryResponse(responseBody []byte) (QueryResponse, err
 	return queryResp, nil
 }
 
-func (d *DvProvider) QueryEmbedding(queryEmb []float64,
-	ctx wrapper.HttpContext, log wrapper.Log,
+func (d *DvProvider) QueryEmbedding(
+	queryEmb []float64,
+	ctx wrapper.HttpContext,
+	log wrapper.Log,
 	callback func(query_resp QueryResponse, ctx wrapper.HttpContext, log wrapper.Log)) {
+
+	// 构造请求参数
 	url, body, headers, err := d.ConstructEmbeddingQueryParameters(queryEmb)
 	if err != nil {
 		log.Infof("Failed to construct embedding query parameters: %v", err)
 	}
-	d.config.DashVectorClient.Post(
-		url,
-		headers,
-		body,
+
+	err = d.client.Post(url, headers, body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			log.Infof("Query embedding response: %d, %s", statusCode, responseBody)
 			query_resp, err_query := d.ParseQueryResponse(responseBody)
@@ -105,6 +119,10 @@ func (d *DvProvider) QueryEmbedding(queryEmb []float64,
 			callback(query_resp, ctx, log)
 		},
 		d.config.DashVectorTimeout)
+	if err != nil {
+		log.Infof("Failed to query embedding: %v", err)
+	}
+
 }
 
 type Document struct {
@@ -141,7 +159,7 @@ func (d *DvProvider) ConstructEmbeddingUploadParameters(emb []float64, query_str
 
 func (d *DvProvider) UploadEmbedding(query_emb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
 	url, body, headers, _ := d.ConstructEmbeddingUploadParameters(query_emb, queryString)
-	d.config.DashVectorClient.Post(
+	d.client.Post(
 		url,
 		headers,
 		body,

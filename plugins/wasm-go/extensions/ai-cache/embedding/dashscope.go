@@ -184,7 +184,7 @@ func (d *DSProvider) GetEmbedding(
 
 			// 调用回调函数
 			callback(resp.Output.Embeddings[0].Embedding, statusCode, responseHeaders, responseBody)
-		})
+		}, d.config.DashScopeTimeout)
 
 	return nil
 }

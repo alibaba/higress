@@ -26,13 +26,24 @@ type RedisConfig struct {
 	RedisTimeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
 }
 
-func CreateProvider(cf RedisConfig) (Provider, error) {
+func CreateProvider(cf RedisConfig, log wrapper.Log) (Provider, error) {
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 			FQDN: cf.RedisServiceName,
+			Host: "redis",
 			Port: int64(cf.RedisServicePort)}),
+		// client: wrapper.NewRedisClusterClient(wrapper.DnsCluster{
+		// 	ServiceName: cf.RedisServiceName,
+		// 	Port:        int64(cf.RedisServicePort)}),
 	}
+	// FQDN := wrapper.FQDNCluster{
+	// 	FQDN: cf.RedisServiceName,
+	// 	Host: "redis",
+	// 	Port: int64(cf.RedisServicePort)}
+	// log.Debugf("test:%s", FQDN.ClusterName())
+	// log.Debugf("test:%d", cf.RedisServicePort)
+	// log.Debugf("test:%s", proxywasm.RedisInit(FQDN.ClusterName(), "", "", 100))
 	err := rp.Init(cf.RedisUsername, cf.RedisPassword, cf.RedisTimeout)
 	return &rp, err
 }
@@ -43,6 +54,9 @@ func (c *RedisConfig) FromJson(json gjson.Result) {
 	c.RedisTimeout = uint32(json.Get("timeout").Int())
 	c.RedisServiceName = json.Get("serviceName").String()
 	c.RedisServicePort = int(json.Get("servicePort").Int())
+	if c.RedisServicePort == 0 {
+		c.RedisServicePort = 6379
+	}
 }
 
 func (c *RedisConfig) Validate() error {
@@ -56,6 +70,7 @@ func (c *RedisConfig) Validate() error {
 		c.RedisServicePort = 6379
 	}
 	if len(c.RedisUsername) == 0 {
+		// return errors.New("redis.username is required")
 		c.RedisUsername = ""
 	}
 	if len(c.RedisPassword) == 0 {

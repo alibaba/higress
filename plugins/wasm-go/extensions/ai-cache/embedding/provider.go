@@ -9,7 +9,15 @@ import (
 )
 
 const (
-	providerTypeDashScope = "dashscope"
+	providerTypeDashScope    = "dashscope"
+	CacheKeyContextKey       = "cacheKey"
+	CacheContentContextKey   = "cacheContent"
+	PartialMessageContextKey = "partialMessage"
+	ToolCallsContextKey      = "toolCalls"
+	StreamContextKey         = "stream"
+	CacheKeyPrefix           = "higressAiCache"
+	DefaultCacheKeyPrefix    = "higressAiCache"
+	QueryEmbeddingKey        = "queryEmbedding"
 )
 
 type providerInitializer interface {
@@ -32,8 +40,8 @@ type ProviderConfig struct {
 	ServiceName       string             `require:"true" yaml:"DashScopeServiceName" jaon:"DashScopeServiceName"`
 	Client            wrapper.HttpClient `yaml:"-"`
 	DashScopeKey      string             `require:"true" yaml:"DashScopeKey" jaon:"DashScopeKey"`
-	DashScopeTimeout  uint32             `require:"true" yaml:"DashScopeTimeout" jaon:"DashScopeTimeout"`
-	QueryEmbeddingKey string             `require:"true" yaml:"QueryEmbeddingKey" jaon:"QueryEmbeddingKey"`
+	DashScopeTimeout  uint32             `require:"false" yaml:"DashScopeTimeout" jaon:"DashScopeTimeout"`
+	QueryEmbeddingKey string             `require:"false" yaml:"QueryEmbeddingKey" jaon:"QueryEmbeddingKey"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -41,6 +49,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.ServiceName = json.Get("DashScopeServiceName").String()
 	c.DashScopeKey = json.Get("DashScopeKey").String()
 	c.DashScopeTimeout = uint32(json.Get("DashScopeTimeout").Int())
+	if c.DashScopeTimeout == 0 {
+		c.DashScopeTimeout = 1000
+	}
 	c.QueryEmbeddingKey = json.Get("QueryEmbeddingKey").String()
 }
 

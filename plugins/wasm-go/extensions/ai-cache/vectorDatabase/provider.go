@@ -40,8 +40,8 @@ type ProviderConfig struct {
 	DashVectorCollection string `require:"true" yaml:"DashVectorCollection" jaon:"DashVectorCollection"`
 	// @Title zh-CN DashVector Client
 	// @Description zh-CN 阿里云向量搜索引擎的 Client
-	DashVectorTopK    int                `require:"true" yaml:"DashVectorTopK" jaon:"DashVectorTopK"`
-	DashVectorTimeout uint32             `require:"true" yaml:"DashVectorTimeout" jaon:"DashVectorTimeout"`
+	DashVectorTopK    int                `require:"false" yaml:"DashVectorTopK" jaon:"DashVectorTopK"`
+	DashVectorTimeout uint32             `require:"false" yaml:"DashVectorTimeout" jaon:"DashVectorTimeout"`
 	DashVectorClient  wrapper.HttpClient `yaml:"-" json:"-"`
 }
 

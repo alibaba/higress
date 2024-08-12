@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -37,9 +38,15 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log) error {
-	config.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
-	config.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
+	// config.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
+	// config.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
+	// config.RedisConfig.FromJson(json.Get("redis"))
+	config.FromJson(json)
 	if err := config.Validate(); err != nil {
+		return err
+	}
+	if err := config.Complete(log); err != nil {
+		log.Errorf("complete config failed:%v", err)
 		return err
 	}
 	return nil
@@ -79,6 +86,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	}
 	// key := TrimQuote(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw)
 	key := bodyJson.Get(config.CacheKeyFrom.RequestBody).String()
+	ctx.SetContext(CacheKeyContextKey, key)
+	log.Debugf("[onHttpRequestBody] key:%s", key)
 	if key == "" {
 		log.Debug("[onHttpRquestBody] parse key from request body failed")
 		return types.ActionContinue
@@ -136,6 +145,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	// log.Infof("I am here")
+	log.Debugf("[onHttpResponseBody] i am here")
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
 		return chunk
@@ -199,6 +209,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 			return chunk
 		}
 	} else {
+		log.Infof("[onHttpResponseBody] stream mode")
 		if len(chunk) > 0 {
 			var lastMessage []byte
 			partialMessageI := ctx.GetContext(PartialMessageContextKey)
@@ -208,7 +219,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 				lastMessage = chunk
 			}
 			if !strings.HasSuffix(string(lastMessage), "\n\n") {
-				log.Warnf("invalid lastMessage:%s", lastMessage)
+				log.Warnf("[onHttpResponseBody] invalid lastMessage:%s", lastMessage)
 				return chunk
 			}
 			// remove the last \n\n
@@ -217,13 +228,14 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		} else {
 			tempContentI := ctx.GetContext(CacheContentContextKey)
 			if tempContentI == nil {
+				log.Warnf("[onHttpResponseBody] no content in tempContentI")
 				return chunk
 			}
 			value = tempContentI.(string)
 		}
 	}
 	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
-	config.GetCacheProvider().Set(config.CacheKeyPrefix+key, value, nil)
+	config.GetCacheProvider().Set(embedding.CacheKeyPrefix+key, value, nil)
 	// TODO: 要不要加个Expire方法
 	// if config.RedisConfig.RedisTimeout != 0 {
 	// 	config.GetCacheProvider().Expire(config.CacheKeyPrefix+key, config.RedisConfig.RedisTimeout, nil)
