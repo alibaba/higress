@@ -1,21 +1,21 @@
 # 功能说明
 
-`ai-qutoa`插件实现给特定 consumer 根据分配固定的 Quota 进行 Quota 策略限流，同时支持 Quota 管理能力，包括查询 Quota 、刷新 Quota、增减 Quota。
+`ai-qutoa`插件实现给特定 consumer 根据分配固定的 quota 进行 quota 策略限流，同时支持 quota 管理能力，包括查询 quota 、刷新 quota、增减 quota。
 
 
 
 # 配置说明
 
-| 名称                 | 数据类型            | 填写要求                                 | 默认值 | 描述                                      |
-|--------------------|-----------------|--------------------------------------| ---- |-----------------------------------------|
-| `consumers`        | array of object | 必填                                   | -    | 配置服务的调用者，用于对请求进行认证                      |
-| `keys`             | array of string | 必填                                   | -    | API Key 的来源字段名称，可以是 URL 参数或者 HTTP 请求头名称 |
-| `in_query`         | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 URL 参数中解析 API Key      |
-| `in_header`        | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 HTTP 请求头中解析 API Key    |
-| `redis_key_prefix` | string          |  选填                                     |   chat_quota:   | Qutoa redis key 前缀                      |
-| `admin_consumer`   | string          | 必填                                   |      | 管理 Quota 管理身份的 consumer 名称              |
-| `admin_path`       | string          | 选填                                   |   /quota   | 管理 Quota 请求 path 前缀                     |
-| `redis`            | object          | 是                                    |      | redis相关配置                               |
+| 名称                 | 数据类型            | 填写要求                                 | 默认值 | 描述                                         |
+|--------------------|-----------------|--------------------------------------| ---- |--------------------------------------------|
+| `consumers`        | array of object | 必填                                   | -    | 配置服务的调用者，用于对请求进行认证                         |
+| `keys`             | array of string | 必填                                   | -    | credential 的来源字段名称，可以是 URL 参数或者 HTTP 请求头名称 |
+| `in_query`         | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 URL 参数中解析 credential      |
+| `in_header`        | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 HTTP 请求头中解析 credential    |
+| `redis_key_prefix` | string          |  选填                                     |   chat_quota:   | qutoa redis key 前缀                         |
+| `admin_consumer`   | string          | 必填                                   |      | 管理 quota 管理身份的 consumer 名称                 |
+| `admin_path`       | string          | 选填                                   |   /quota   | 管理 quota 请求 path 前缀                        |
+| `redis`            | object          | 是                                    |      | redis相关配置                                  |
 
 
 `consumers`中每一项的配置字段说明如下：
@@ -62,20 +62,20 @@ redis:
   timeout: 2000
 ```
 
-##  刷新 Quota
+##  刷新 quota
 
 如果当前请求 url 的后缀符合 admin_path，例如插件在 example.com/v1/chat/completions 这个路由上生效，那么更新 quota 可以通过
 curl https://example.com/v1/chat/completions/quota/refresh -H "Authorization: Bearer credential3" -d "consumer=consumer1&quota=10000" 
 
 Redis 中 key 为 chat_quota:consumer1 的值就会被刷新为 10000
 
-## 查询 Quota
+## 查询 quota
 
-查询特定用户的 Quota 可以通过 curl https://example.com/v1/chat/completions/quota?consumer=consumer1 -H "Authorization: Bearer credential3"
+查询特定用户的 quota 可以通过 curl https://example.com/v1/chat/completions/quota?consumer=consumer1 -H "Authorization: Bearer credential3"
 将返回： {"quota": 10000, "consumer": "consumer1"}
 
-## 增减 Quota 
+## 增减 quota 
 
-增减特定用户的 Quota 可以通过 curl https://example.com/v1/chat/completions/quota/delta -d "consumer=consumer1&value=100" -H "Authorization: Bearer credential3"
+增减特定用户的 quota 可以通过 curl https://example.com/v1/chat/completions/quota/delta -d "consumer=consumer1&value=100" -H "Authorization: Bearer credential3"
 这样 Redis 中 Key 为 chat_quota:consumer1 的值就会增加100，可以支持负数，则减去对应值。
 
