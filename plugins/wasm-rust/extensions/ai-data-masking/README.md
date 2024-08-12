@@ -120,6 +120,8 @@ curl -X POST \
 
 # 相关说明
 
+ - 流模式中如果脱敏后的词被多个chunk拆分，可能无法进行还原
+ - 流模式中，如果敏感词语被多个chunk拆分，可能会有敏感词的一部分返回给用户的情况
  - grok 内置规则列表 https://help.aliyun.com/zh/sls/user-guide/grok-patterns
  - 内置拦截规则数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
  
