@@ -176,7 +176,7 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log w
 		}
 		proxywasm.ResumeHttpRequest()
 	})
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte, log wrapper.Log) types.Action {
@@ -220,12 +220,10 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, da
 		return data
 	}
 	inputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.input_token"})
-	log.Debugf("inputTokenStr:%s, err:%v", string(inputTokenStr), err)
 	if err != nil {
 		return data
 	}
 	outputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.output_token"})
-	log.Debugf("outputTokenStr:%s, err:%v", string(outputTokenStr), err)
 	if err != nil {
 		return data
 	}

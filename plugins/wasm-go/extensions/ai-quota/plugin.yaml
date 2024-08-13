@@ -20,7 +20,7 @@ spec:
     - qwen
   phase: UNSPECIFIED_PHASE
   priority: 280
-  url: oci://registry.cn-hangzhou.aliyuncs.com/2456868764/ai-quota:1.0.6
+  url: oci://registry.cn-hangzhou.aliyuncs.com/2456868764/ai-quota:1.0.8
 
 ---
 apiVersion: extensions.higress.io/v1alpha1
