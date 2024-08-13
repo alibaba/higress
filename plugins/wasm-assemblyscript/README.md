@@ -22,7 +22,7 @@ npx asinit .
 }
 ```
 
-将`"@higress/proxy-wasm-assemblyscript-sdk": "^0.0.1"`和`"@higress/wasm-assemblyscript": "^0.0.3"`添加到你的依赖项中，然后运行`npm install`。
+将`"@higress/proxy-wasm-assemblyscript-sdk": "^0.0.2"`和`"@higress/wasm-assemblyscript": "^0.0.4"`添加到你的依赖项中，然后运行`npm install`。
 
 ### 本地构建
 

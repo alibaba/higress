@@ -16,7 +16,7 @@
     "assemblyscript": "^0.27.29",
     "assemblyscript-json": "^1.1.0",
     "@higress/proxy-wasm-assemblyscript-sdk": "^0.0.2",
-    "@higress/wasm-assemblyscript": "^0.0.3"
+    "@higress/wasm-assemblyscript": "^0.0.4"
   },
   "type": "module",
   "exports": {
