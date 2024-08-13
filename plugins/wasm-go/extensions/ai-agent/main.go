@@ -125,6 +125,7 @@ type API struct {
 }
 
 type APIKey struct {
+	In    string `yaml:"in" json:"in"`
 	Name  string `yaml:"name" json:"name"`
 	Value string `yaml:"value" json:"value"`
 }
@@ -228,15 +229,14 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 			return errors.New("apiProvider domain is required")
 		}
 
-		apiKeyName := item.Get("apiProvider.apiKey.name")
-		if !apiKeyName.Exists() || apiKeyName.String() == "" {
-			return errors.New("apiProvider apiKey apiKeyName is required")
+		apiKeyIn := item.Get("apiProvider.apiKey.in").String()
+		if apiKeyIn != "query" {
+			apiKeyIn = "header"
 		}
 
+		apiKeyName := item.Get("apiProvider.apiKey.name")
+
 		apiKeyValue := item.Get("apiProvider.apiKey.value")
-		if !apiKeyValue.Exists() || apiKeyValue.String() == "" {
-			return errors.New("apiProvider apiKey apiKeyValue is required")
-		}
 
 		//根据多个toolsClientInfo的信息，分别初始化toolsClient
 		apiClient := wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -280,7 +280,7 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 			}
 		}
 		api_param := API_Param{
-			APIKey:     APIKey{Name: apiKeyName.String(), Value: apiKeyValue.String()},
+			APIKey:     APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
 			URL:        apiStrcut.Servers[0].URL,
 			Tool_Param: allTool_param,
 		}
@@ -510,6 +510,7 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 
 	if len(action) > 1 && len(actionInput) > 1 {
 		var url string
+		var headers [][2]string
 		var apiClient wrapper.HttpClient
 		var method string
 
@@ -538,9 +539,15 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 					}
 
 					url = api_param.URL + tool_param.Path + args
+
 					if api_param.APIKey.Name != "" {
-						key := "&" + api_param.APIKey.Name + "=" + api_param.APIKey.Value
-						url += key
+						if api_param.APIKey.In == "query" {
+							headers = nil
+							key := "&" + api_param.APIKey.Name + "=" + api_param.APIKey.Value
+							url += key
+						} else if api_param.APIKey.In == "header" {
+							headers = [][2]string{{"Content-Type", "application/json"}, {"Authorization", api_param.APIKey.Name + " " + api_param.APIKey.Value}}
+						}
 					}
 
 					log.Infof("url: %s\n", url)
@@ -557,7 +564,7 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 			//调用工具
 			err := apiClient.Get(
 				url,
-				nil,
+				headers,
 				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 					if statusCode != http.StatusOK {
 						log.Infof("statusCode: %d\n", statusCode)

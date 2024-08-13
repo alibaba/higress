@@ -1,7 +1,5 @@
 # 简介
-一个可定制化的API AI Agent，目前第一版本只支持配置http method类型为GET的API。agent执行的流程图如下：
-![未命名绘图 drawio](https://github.com/user-attachments/assets/7d2e5b23-99f0-4e80-8524-c4ffa523ddbe)
-
+一个可定制化的API AI Agent，目前第一版本只支持配置http method类型为GET的API。
 
 # 配置说明
 | 名称                                  | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
@@ -10,6 +8,7 @@
 | `dashscope.serviceName` | string | 必填 | - | 通义千问服务名 |
 | `dashscope.servicePort` | int | 必填 | - | 通义千问服务端口 |
 | `dashscope.domain` | string | 必填 | - | 访问通义千问服务时域名 |
+| `apis.apiProvider.apiKey.in` | string | 选填 | - | 在访问外部API服务时进行认证的令牌是放在header中还是放在query中，默认是header。 |
 | `apis.apiProvider.apiKey.name` | string | 选填 | - | 用于在访问外部API服务时进行认证的令牌的名称。 |
 | `apis.apiProvider.apiKey.value` | string | 选填 | - | 用于在访问外部API服务时进行认证的令牌的值。 |
 | `apis.apiProvider.serviceName` | string | 必填 | - | 访问外部API服务名 |
@@ -48,6 +47,7 @@ apis:
     serviceName: geo
     servicePort: 80
     apiKey: 
+      in: query
       name: key
       value: xxxxxxxxxxxxxxx
   api: |
@@ -102,6 +102,7 @@ apis:
     serviceName: seniverse
     servicePort: 80
     apiKey: 
+      in: query
       name: key
       value: xxxxxxxxxxxxxxx
   api: |
