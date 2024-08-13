@@ -32,7 +32,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::{usize, vec};
+use std::vec;
 
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
