@@ -1,31 +1,17 @@
 # 功能说明
 
-`ai-qutoa`插件实现给特定 consumer 根据分配固定的 quota 进行 quota 策略限流，同时支持 quota 管理能力，包括查询 quota 、刷新 quota、增减 quota。
+`ai-qutoa` 插件实现给特定 consumer 根据分配固定的 quota 进行 quota 策略限流，同时支持 quota 管理能力，包括查询 quota 、刷新 quota、增减 quota。
 
-
+`ai-quota` 插件需要配合 认证插件比如 `key-auth`、`jwt-auth` 等插件获取认证身份的 consumer 名称，同时需要配合 `ai-statatistics` 插件获取 AI Token 统计信息。
 
 # 配置说明
 
 | 名称                 | 数据类型            | 填写要求                                 | 默认值 | 描述                                         |
 |--------------------|-----------------|--------------------------------------| ---- |--------------------------------------------|
-| `consumers`        | array of object | 必填                                   | -    | 配置服务的调用者，用于对请求进行认证                         |
-| `keys`             | array of string | 必填                                   | -    | credential 的来源字段名称，可以是 URL 参数或者 HTTP 请求头名称 |
-| `in_query`         | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 URL 参数中解析 credential      |
-| `in_header`        | bool            | `in_query` 和 `in_header` 至少有一个为 true | true | 配置 true 时，网关会尝试从 HTTP 请求头中解析 credential    |
 | `redis_key_prefix` | string          |  选填                                     |   chat_quota:   | qutoa redis key 前缀                         |
 | `admin_consumer`   | string          | 必填                                   |      | 管理 quota 管理身份的 consumer 名称                 |
 | `admin_path`       | string          | 选填                                   |   /quota   | 管理 quota 请求 path 前缀                        |
 | `redis`            | object          | 是                                    |      | redis相关配置                                  |
-
-
-`consumers`中每一项的配置字段说明如下：
-
-| 名称         | 数据类型 | 填写要求 | 默认值 | 描述                     |
-| ------------ | -------- | -------- | ------ | ------------------------ |
-| `credential` | string   | 必填     | -      | 配置该consumer的访问凭证 |
-| `name`       | string   | 必填     | -      | 配置该consumer的名称     |
-
-
 
 `redis`中每一项的配置字段说明
 
@@ -43,16 +29,6 @@
 
 ## 识别请求参数 apikey，进行区别限流
 ```yaml
-consumers:
-- credential: "Bearer credential1"
-  name: consumer1
-- credential: "Bearer credential2"
-  name: consumer2
-- credential: "Bearer credential3"
-  name: consumer3
-keys:
-- authorization
-in_header: true
 redis_key_prefix: "chat_quota:"
 admin_consumer: consumer3
 admin_path: /quota
@@ -61,6 +37,7 @@ redis:
   service_port: 6379
   timeout: 2000
 ```
+
 
 ##  刷新 quota
 

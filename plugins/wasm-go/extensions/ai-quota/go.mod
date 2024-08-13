@@ -2,7 +2,7 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-quota
 
 go 1.19
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
+//replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.4.3-0.20240808022948-34f5722d93de

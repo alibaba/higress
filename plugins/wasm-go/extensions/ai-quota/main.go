@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,18 +44,11 @@ func main() {
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingResponseBody),
 	)
 }
 
 type QuotaConfig struct {
-	Keys      []string   `yaml:"keys"` // key auth names
-	InQuery   bool       `yaml:"in_query,omitempty"`
-	InHeader  bool       `yaml:"in_header,omitempty"`
-	consumers []Consumer `yaml:"consumers"`
-
 	redisInfo       RedisInfo         `yaml:"redis"`
 	RedisKeyPrefix  string            `yaml:"redis_key_prefix"`
 	AdminConsumer   string            `yaml:"admin_consumer"`
@@ -80,61 +72,6 @@ type RedisInfo struct {
 
 func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error {
 	log.Debugf("parse config()")
-	// init
-	config.credential2Name = make(map[string]string)
-	// keys
-	names := json.Get("keys")
-	if !names.Exists() {
-		return errors.New("keys is required")
-	}
-	if len(names.Array()) == 0 {
-		return errors.New("keys cannot be empty")
-	}
-
-	for _, name := range names.Array() {
-		config.Keys = append(config.Keys, name.String())
-	}
-	// in_query and in_header
-	in_query := json.Get("in_query")
-	in_header := json.Get("in_header")
-	if !in_query.Exists() && !in_header.Exists() {
-		return errors.New("must one of in_query/in_header required")
-	}
-	if in_query.Exists() {
-		config.InQuery = in_query.Bool()
-	}
-	if in_header.Exists() {
-		config.InHeader = in_header.Bool()
-	}
-	// consumers
-	consumers := json.Get("consumers")
-	if !consumers.Exists() {
-		return errors.New("consumers is required")
-	}
-	if len(consumers.Array()) == 0 {
-		return errors.New("consumers cannot be empty")
-	}
-
-	for _, item := range consumers.Array() {
-		name := item.Get("name")
-		if !name.Exists() || name.String() == "" {
-			return errors.New("consumer name is required")
-		}
-		credential := item.Get("credential")
-		if !credential.Exists() || credential.String() == "" {
-			return errors.New("consumer credential is required")
-		}
-		if _, ok := config.credential2Name[credential.String()]; ok {
-			return errors.New("duplicate consumer credential: " + credential.String())
-		}
-
-		consumer := Consumer{
-			Name:       name.String(),
-			Credential: credential.String(),
-		}
-		config.consumers = append(config.consumers, consumer)
-		config.credential2Name[credential.String()] = name.String()
-	}
 	// admin
 	config.AdminPath = json.Get("admin_path").String()
 	config.AdminConsumer = json.Get("admin_consumer").String()
@@ -188,36 +125,11 @@ func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error 
 func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log wrapper.Log) types.Action {
 	log.Debugf("onHttpRequestHeaders()")
 	// get tokens
-	var tokens []string
-	if config.InHeader {
-		// 匹配keys中的 keyname
-		for _, key := range config.Keys {
-			value, err := proxywasm.GetHttpRequestHeader(key)
-			if err == nil && value != "" {
-				tokens = append(tokens, value)
-			}
-		}
-	} else if config.InQuery {
-		requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
-		url, _ := url.Parse(requestUrl)
-		queryValues := url.Query()
-		for _, key := range config.Keys {
-			values, ok := queryValues[key]
-			if ok && len(values) > 0 {
-				tokens = append(tokens, values...)
-			}
-		}
-	}
-	// header/query
-	if len(tokens) > 1 {
-		return deniedMultiKeyAuthData()
-	} else if len(tokens) <= 0 {
+	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")
+	if err != nil {
 		return deniedNoKeyAuthData()
 	}
-	// 验证token
-	consumer, ok := config.credential2Name[tokens[0]]
-	if !ok {
-		log.Warnf("credential %q is not configured", tokens[0])
+	if consumer == "" {
 		return deniedUnauthorizedConsumer()
 	}
 
@@ -295,15 +207,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte,
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config QuotaConfig, log wrapper.Log) types.Action {
-	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
-	if !strings.Contains(contentType, "text/event-stream") {
-		ctx.BufferResponseBody()
-	}
-	return types.ActionContinue
-}
-
-func onHttpStreamingBody(ctx wrapper.HttpContext, config QuotaConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
 	chatMode, ok := ctx.GetContext("chatMode").(ChatMode)
 	if !ok {
 		return data
@@ -311,9 +215,26 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config QuotaConfig, data []byt
 	if chatMode == ChatModeNone || chatMode == ChatModeAdmin {
 		return data
 	}
-
-	_, inputToken, outputToken, ok := getUsage(data)
-	if !ok {
+	// chat completion mode
+	if !endOfStream {
+		return data
+	}
+	inputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.input_token"})
+	log.Debugf("inputTokenStr:%s, err:%v", string(inputTokenStr), err)
+	if err != nil {
+		return data
+	}
+	outputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.output_token"})
+	log.Debugf("outputTokenStr:%s, err:%v", string(outputTokenStr), err)
+	if err != nil {
+		return data
+	}
+	inputToken, err := strconv.Atoi(string(inputTokenStr))
+	if err != nil {
+		return data
+	}
+	outputToken, err := strconv.Atoi(string(outputTokenStr))
+	if err != nil {
 		return data
 	}
 	consumer, ok := ctx.GetContext("consumer").(string)
@@ -323,58 +244,6 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config QuotaConfig, data []byt
 		config.redisClient.DecrBy(config.RedisKeyPrefix+consumer, totalToken, nil)
 	}
 	return data
-}
-
-func onHttpResponseBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte, log wrapper.Log) types.Action {
-	chatMode, ok := ctx.GetContext("chatMode").(ChatMode)
-	if !ok {
-		return types.ActionContinue
-	}
-	if chatMode == ChatModeNone || chatMode == ChatModeAdmin {
-		return types.ActionContinue
-	}
-
-	_, inputToken, outputToken, ok := getUsage(body)
-	if !ok {
-		return types.ActionContinue
-	}
-	consumer, ok := ctx.GetContext("consumer").(string)
-	if ok {
-		totalToken := int(inputToken + outputToken)
-		log.Debugf("update consumer:%s, totalToken:%d", consumer, totalToken)
-		config.redisClient.DecrBy(config.RedisKeyPrefix+consumer, totalToken, nil)
-	}
-	return types.ActionContinue
-}
-
-func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
-	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
-	for _, chunk := range chunks {
-		// the feature strings are used to identify the usage data, like:
-		// {"model":"gpt2","usage":{"prompt_tokens":1,"completion_tokens":1}}
-		if !bytes.Contains(chunk, []byte("prompt_tokens")) {
-			continue
-		}
-		if !bytes.Contains(chunk, []byte("completion_tokens")) {
-			continue
-		}
-		modelObj := gjson.GetBytes(chunk, "model")
-		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
-		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
-		if modelObj.Exists() && inputTokenObj.Exists() && outputTokenObj.Exists() {
-			model = modelObj.String()
-			inputTokenUsage = inputTokenObj.Int()
-			outputTokenUsage = outputTokenObj.Int()
-			ok = true
-			return
-		}
-	}
-	return
-}
-
-func deniedMultiKeyAuthData() types.Action {
-	util.SendResponse(http.StatusUnauthorized, "ai-quota.multi_key", "text/plain", "Request denied by ai qutota check. Multi Key Authentication information found.")
-	return types.ActionContinue
 }
 
 func deniedNoKeyAuthData() types.Action {
