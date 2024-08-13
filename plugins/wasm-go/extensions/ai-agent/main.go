@@ -166,19 +166,25 @@ type PromptTemplate struct {
 	ENTemplate Template `yaml:"enTemplate" json:"enTemplate"`
 }
 
-type DashScopeInfo struct {
-	// @Title zh-CN 通义千问大模型服务名称
-	// @Description zh-CN 带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local
+type LLMInfo struct {
+	// @Title zh-CN 大模型服务名称
+	// @Description zh-CN 带服务类型的完整 FQDN 名称
 	ServiceName string `required:"true" yaml:"serviceName" json:"serviceName"`
-	// @Title zh-CN 通义千问大模型服务端口
-	// @Description zh-CN 通义千问服务端口
+	// @Title zh-CN 大模型服务端口
+	// @Description zh-CN 服务端口
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
-	// @Title zh-CN 通义千问大模型服务域名
-	// @Description zh-CN 通义千问大模型服务域名，例如 dashscope.aliyuncs.com
+	// @Title zh-CN 大模型服务域名
+	// @Description zh-CN 大模型服务域名，例如 dashscope.aliyuncs.com
 	Domin string `required:"true" yaml:"domin" json:"domin"`
-	// @Title zh-CN 通义千问大模型服务的key
-	// @Description zh-CN 通义千问大模型服务的key
+	// @Title zh-CN 大模型服务的key
+	// @Description zh-CN 大模型服务的key
 	APIKey string `required:"true" yaml:"apiKey" json:"apiKey"`
+	// @Title zh-CN 大模型服务的请求路径
+	// @Description zh-CN 大模型服务的请求路径，如"/compatible-mode/v1/chat/completions"
+	Path string `required:"true" yaml:"path" json:"path"`
+	// @Title zh-CN 大模型服务的模型名称
+	// @Description zh-CN 大模型服务的模型名称，如"qwen-max-0403"
+	Model string `required:"true" yaml:"model" json:"model"`
 }
 
 type PluginConfig struct {
@@ -189,12 +195,12 @@ type PluginConfig struct {
 	// @Description zh-CN 用于存储工具服务商以及工具信息
 	APIs      []APIs               `required:"true" yaml:"apis" json:"apis"`
 	APIClient []wrapper.HttpClient `yaml:"-" json:"-"`
-	// @Title zh-CN dashscope信息
-	// @Description zh-CN 用于存储dashscope使用信息
-	DashScopeInfo   DashScopeInfo      `required:"true" yaml:"dashscope" json:"dashscope"`
-	DashScopeClient wrapper.HttpClient `yaml:"-" json:"-"`
-	API_Param       []API_Param        `yaml:"-" json:"-"`
-	PromptTemplate  PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
+	// @Title zh-CN llm信息
+	// @Description zh-CN 用于存储llm使用信息
+	LLMInfo        LLMInfo            `required:"true" yaml:"llm" json:"llm"`
+	LLMClient      wrapper.HttpClient `yaml:"-" json:"-"`
+	API_Param      []API_Param        `yaml:"-" json:"-"`
+	PromptTemplate PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
 }
 
 func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
@@ -352,15 +358,17 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 		}
 	}
 
-	c.DashScopeInfo.APIKey = gjson.Get("dashscope.apiKey").String()
-	c.DashScopeInfo.ServiceName = gjson.Get("dashscope.serviceName").String()
-	c.DashScopeInfo.ServicePort = gjson.Get("dashscope.servicePort").Int()
-	c.DashScopeInfo.Domin = gjson.Get("dashscope.domain").String()
+	c.LLMInfo.APIKey = gjson.Get("llm.apiKey").String()
+	c.LLMInfo.ServiceName = gjson.Get("llm.serviceName").String()
+	c.LLMInfo.ServicePort = gjson.Get("llm.servicePort").Int()
+	c.LLMInfo.Domin = gjson.Get("llm.domain").String()
+	c.LLMInfo.Path = gjson.Get("llm.path").String()
+	c.LLMInfo.Model = gjson.Get("llm.model").String()
 
-	c.DashScopeClient = wrapper.NewClusterClient(wrapper.DnsCluster{
-		ServiceName: c.DashScopeInfo.ServiceName,
-		Port:        c.DashScopeInfo.ServicePort,
-		Domain:      c.DashScopeInfo.Domin,
+	c.LLMClient = wrapper.NewClusterClient(wrapper.DnsCluster{
+		ServiceName: c.LLMInfo.ServiceName,
+		Port:        c.LLMInfo.ServicePort,
+		Domain:      c.LLMInfo.Domin,
 	})
 
 	return nil
@@ -582,14 +590,14 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 					// }
 
 					completion := dashscope.Completion{
-						Model:    "qwen-max-0403",
+						Model:    config.LLMInfo.Model,
 						Messages: dashscope.MessageStore,
 					}
 
-					headers := [][2]string{{"Content-Type", "application/json"}, {"Authorization", "Bearer " + config.DashScopeInfo.APIKey}}
+					headers := [][2]string{{"Content-Type", "application/json"}, {"Authorization", "Bearer " + config.LLMInfo.APIKey}}
 					completionSerialized, _ := json.Marshal(completion)
-					err := config.DashScopeClient.Post(
-						"/compatible-mode/v1/chat/completions",
+					err := config.LLMClient.Post(
+						config.LLMInfo.Path,
 						headers,
 						completionSerialized,
 						func(statusCode int, responseHeaders http.Header, responseBody []byte) {

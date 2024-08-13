@@ -6,10 +6,12 @@
 # 配置说明
 | 名称                                  | 数据类型            | 填写要求 | 默认值 | 描述                                                                               |
 |---------------------------------------|-----------------|------|-----|----------------------------------------------------------------------------------|
-| `dashscope.apiKey` | string | 必填 | - | 用于在访问通义千问服务时进行认证的令牌。 |
-| `dashscope.serviceName` | string | 必填 | - | 通义千问服务名 |
-| `dashscope.servicePort` | int | 必填 | - | 通义千问服务端口 |
-| `dashscope.domain` | string | 必填 | - | 访问通义千问服务时域名 |
+| `llm.apiKey` | string | 必填 | - | 用于在访问大模型服务时进行认证的令牌。 |
+| `llm.serviceName` | string | 必填 | - | 大模型服务名 |
+| `llm.servicePort` | int | 必填 | - | 大模型服务端口 |
+| `llm.domain` | string | 必填 | - | 访问大模型服务时域名 |
+| `llm.path` | string | 必填 | - | 访问大模型服务时路径 |
+| `llm.model` | string | 必填 | - | 访问大模型服务时模型名 |
 | `apis.apiProvider.apiKey.in` | string | 选填 | - | 在访问外部API服务时进行认证的令牌是放在header中还是放在query中，默认是header。 |
 | `apis.apiProvider.apiKey.name` | string | 选填 | - | 用于在访问外部API服务时进行认证的令牌的名称。 |
 | `apis.apiProvider.apiKey.value` | string | 选填 | - | 用于在访问外部API服务时进行认证的令牌的值。 |
@@ -36,11 +38,13 @@
 # 示例
 
 ```yaml
-dashscope:
+llm:
   apiKey: xxxxxxxxxxxxxxxxxx
   domain: dashscope.aliyuncs.com
   serviceName: dashscope
   servicePort: 443
+  path: /compatible-mode/v1/chat/completions
+  model: qwen-max-0403
 promptTemplate:
   language: CH
 apis:
