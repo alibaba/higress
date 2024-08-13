@@ -245,10 +245,10 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 		apiKeyValue := item.Get("apiProvider.apiKey.value")
 
 		//根据多个toolsClientInfo的信息，分别初始化toolsClient
-		apiClient := wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: serviceName.String(),
-			Port:        servicePort.Int(),
-			Domain:      domain.String(),
+		apiClient := wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: serviceName.String(),
+			Port: servicePort.Int(),
+			Host: domain.String(),
 		})
 
 		c.APIClient = append(c.APIClient, apiClient)
@@ -365,18 +365,18 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	c.LLMInfo.Path = gjson.Get("llm.path").String()
 	c.LLMInfo.Model = gjson.Get("llm.model").String()
 
-	c.LLMClient = wrapper.NewClusterClient(wrapper.DnsCluster{
-		ServiceName: c.LLMInfo.ServiceName,
-		Port:        c.LLMInfo.ServicePort,
-		Domain:      c.LLMInfo.Domin,
+	c.LLMClient = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: c.LLMInfo.ServiceName,
+		Port: c.LLMInfo.ServicePort,
+		Host: c.LLMInfo.Domin,
 	})
 
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Info("onHttpRequestHeaders start")
-	defer log.Info("onHttpRequestHeaders end")
+	log.Debug("onHttpRequestHeaders start")
+	defer log.Debug("onHttpRequestHeaders end")
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -394,7 +394,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 func firstreq(config PluginConfig, prompt string, rawRequest Request, log wrapper.Log) types.Action {
-	log.Infof("[onHttpRequestBody] firstreq:%s", prompt)
+	log.Debugf("[onHttpRequestBody] firstreq:%s", prompt)
 
 	var userMessage Message
 	userMessage.Role = "user"
@@ -408,37 +408,37 @@ func firstreq(config PluginConfig, prompt string, rawRequest Request, log wrappe
 	if err != nil {
 		return types.ActionContinue
 	} else {
-		log.Infof("[onHttpRequestBody] newRequestBody: ", string(newbody))
+		log.Debugf("[onHttpRequestBody] newRequestBody: ", string(newbody))
 		err := proxywasm.ReplaceHttpRequestBody(newbody)
 		if err != nil {
-			log.Info("替换失败")
+			log.Debug("替换失败")
 			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, "替换失败"+err.Error())), -1)
 		}
-		log.Info("[onHttpRequestBody] request替换成功")
+		log.Debug("[onHttpRequestBody] request替换成功")
 		return types.ActionContinue
 	}
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Info("onHttpRequestBody start")
-	defer log.Info("onHttpRequestBody end")
+	log.Debug("onHttpRequestBody start")
+	defer log.Debug("onHttpRequestBody end")
 
 	//拿到请求
 	var rawRequest Request
 	err := json.Unmarshal(body, &rawRequest)
 	if err != nil {
-		log.Infof("[onHttpRequestBody] body json umarshal err: ", err.Error())
+		log.Debugf("[onHttpRequestBody] body json umarshal err: ", err.Error())
 		return types.ActionContinue
 	}
-	log.Infof("onHttpRequestBody rawRequest: %v", rawRequest)
+	log.Debugf("onHttpRequestBody rawRequest: %v", rawRequest)
 
 	//获取用户query
 	var query string
 	messageLength := len(rawRequest.Messages)
-	log.Infof("[onHttpRequestBody] messageLength: ", messageLength)
+	log.Debugf("[onHttpRequestBody] messageLength: %s\n", messageLength)
 	if messageLength > 0 {
 		query = rawRequest.Messages[messageLength-1].Content
-		log.Infof("[onHttpRequestBody] query: ", query)
+		log.Debugf("[onHttpRequestBody] query: %s\n", query)
 	} else {
 		return types.ActionContinue
 	}
@@ -493,8 +493,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Info("onHttpResponseHeaders start")
-	defer log.Info("onHttpResponseHeaders end")
+	log.Debug("onHttpResponseHeaders start")
+	defer log.Debug("onHttpResponseHeaders end")
 
 	return types.ActionContinue
 }
@@ -531,7 +531,7 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 					//将大模型需要的参数反序列化
 					var data map[string]interface{}
 					if err := json.Unmarshal([]byte(actionInput[1]), &data); err != nil {
-						log.Infof("Error: %s\n", err.Error())
+						log.Debugf("Error: %s\n", err.Error())
 						return types.ActionContinue
 					}
 
@@ -575,7 +575,7 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 				headers,
 				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 					if statusCode != http.StatusOK {
-						log.Infof("statusCode: %d\n", statusCode)
+						log.Debugf("statusCode: %d\n", statusCode)
 					}
 					log.Info("========函数返回结果========")
 					log.Infof(string(responseBody))
@@ -629,7 +629,7 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 										log.Infof("[onHttpResponseBody] newResponseBody: ", string(newbody))
 										proxywasm.ReplaceHttpResponseBody(newbody)
 
-										log.Info("[onHttpResponseBody] response替换成功")
+										log.Debug("[onHttpResponseBody] response替换成功")
 										proxywasm.ResumeHttpResponse()
 									}
 								}
@@ -638,12 +638,12 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 							}
 						}, 50000)
 					if err != nil {
-						log.Infof("[onHttpRequestBody] completion err: %s", err.Error())
+						log.Debugf("[onHttpRequestBody] completion err: %s", err.Error())
 						proxywasm.ResumeHttpRequest()
 					}
 				}, 50000)
 			if err != nil {
-				log.Infof("tool calls error: %s\n", err.Error())
+				log.Debugf("tool calls error: %s\n", err.Error())
 				proxywasm.ResumeHttpRequest()
 			}
 		} else {
@@ -656,14 +656,14 @@ func toolsCall(config PluginConfig, content string, rawResponse Response, log wr
 
 // 从response接收到firstreq的大模型返回
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Info("onHttpResponseBody start")
-	defer log.Info("onHttpResponseBody end")
+	log.Debugf("onHttpResponseBody start")
+	defer log.Debugf("onHttpResponseBody end")
 
 	//初始化接收gpt返回内容的结构体
 	var rawResponse Response
 	err := json.Unmarshal(body, &rawResponse)
 	if err != nil {
-		log.Infof("[onHttpResponseBody] body to json err: %s", err.Error())
+		log.Debugf("[onHttpResponseBody] body to json err: %s", err.Error())
 		return types.ActionContinue
 	}
 	log.Infof("first content: %s\n", rawResponse.Choices[0].Message.Content)
