@@ -15,3 +15,5 @@ tools/bin/
 helm/**/charts/**.tgz
 target/
 tools/hack/cluster.conf
+envoy/1.20
+istio/1.12
