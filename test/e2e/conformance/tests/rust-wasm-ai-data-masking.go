@@ -105,13 +105,13 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"costom_word1.openai.com",
 			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}"),
-			[]byte(""),
+			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word.openai.com",
 			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}"),
-			[]byte(""),
+			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 
 		//jsonpath
@@ -166,13 +166,13 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"system_deny.openai.com",
 			false,
 			[]byte("test"),
-			[]byte(""),
+			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word1.openai.com",
 			false,
 			[]byte("test"),
-			[]byte(""),
+			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word.openai.com",

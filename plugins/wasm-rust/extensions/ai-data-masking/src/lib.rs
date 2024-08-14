@@ -406,9 +406,10 @@ impl AiDataMasking {
             )
         }
     }
-    fn deny(&self, in_response: bool) -> Action {
-        if in_response {
-            return Action::Pause;
+    fn deny(&mut self, in_response: bool) -> Action {
+        if in_response && self.stream {
+            self.replace_http_response_body(&[]);
+            return Action::Continue;
         }
         let (deny_code, (deny_message, content_type)) = if let Some(config) = &self.config {
             (
@@ -429,6 +430,10 @@ impl AiDataMasking {
                 ),
             )
         };
+        if in_response {
+            self.replace_http_response_body(deny_message.as_bytes());
+            return Action::Continue;
+        }
         self.send_http_response(
             deny_code as u32,
             vec![("Content-Type", &content_type)],
