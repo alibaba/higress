@@ -15,6 +15,3 @@ plugins:
 - name: golang-jsonshim
   out: .
   opt: paths=source_relative
-- name: docs
-  out: .
-  opt: warnings=false,dictionary=./dictionaries/en-US,custom_word_list=./dictionaries/custom.txt,per_file=true,mode=html_fragment_with_front_matter

@@ -41,10 +41,10 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.25.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20230920204549-e6e6cdab5c13
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	istio.io/api v1.19.5-0.20231206014255-f55a2b1e931e
-	istio.io/gogo-genproto v0.0.0-20211115195057-0e34bdd2be67
 	istio.io/istio v0.0.0
 	istio.io/pkg v0.0.0-20231221211216-7635388a563e
 	k8s.io/api v0.28.3
@@ -215,7 +215,6 @@ require (
 	google.golang.org/api v0.132.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20231002182017-d307bd883b97 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230920204549-e6e6cdab5c13 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231009173412-8bfb1ae86b6c // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
