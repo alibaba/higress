@@ -87,10 +87,6 @@ func range2cidrList(startIp string, endIp string, country string, province strin
 			return
 		}
 
-		if ipStr == "0.0.0.0" && maxSize == 0 {
-			break
-		}
-
 		start += uint32(math.Pow(2, float64(32-maxSize)))
 		//avoid dead loop for 255.255.255.255
 		if start < beginStart {
