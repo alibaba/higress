@@ -24,7 +24,9 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/model"
 	istiomodel "istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pilot/pkg/model/credentials"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
@@ -49,8 +51,6 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
-	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
 var (

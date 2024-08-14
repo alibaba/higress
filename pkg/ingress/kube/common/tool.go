@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/kube"
@@ -32,7 +33,6 @@ import (
 
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/model"
 )
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {

@@ -44,6 +44,7 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
+	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -67,14 +68,13 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
 	_                 istiomodel.ConfigStoreController = &IngressConfig{}
-	_                 model.IngressStore               = &IngressConfig{}
+	_                 istiomodel.IngressStore          = &IngressConfig{}
 	Http2RpcMethodMap                                  = func() map[string]string {
 		return map[string]string{
 			"GET":    "ALL_GET",
@@ -103,8 +103,8 @@ type IngressConfig struct {
 	remoteGatewayControllers map[cluster.ID]common.GatewayController
 	mutex                    sync.RWMutex
 
-	ingressRouteCache  model.IngressRouteCollection
-	ingressDomainCache model.IngressDomainCollection
+	ingressRouteCache  istiomodel.IngressRouteCollection
+	ingressDomainCache istiomodel.IngressDomainCollection
 
 	localKubeClient kube.Client
 
@@ -191,7 +191,7 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
 	config.configmapMgr = configmap.NewConfigmapMgr(xdsUpdater, namespace, higressConfigController, higressConfigController.Lister())
 
-	httpsConfigMgr, _ := cert.NewConfigMgr(namespace, localKubeClient)
+	httpsConfigMgr, _ := cert.NewConfigMgr(namespace, localKubeClient.Kube())
 	config.httpsConfigMgr = httpsConfigMgr
 
 	return config
@@ -838,9 +838,18 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		PluginConfig:    obj.PluginConfig,
 		PluginName:      obj.PluginName,
 		Phase:           extensions.PluginPhase(obj.Phase),
+		FailStrategy:    extensions.FailStrategy(obj.FailStrategy),
+		Priority:        obj.Priority,
 	}
-	if obj.GetPriority() != nil {
-		result.Priority = &types.Int64Value{Value: int64(obj.GetPriority().Value)}
+	if obj.VmConfig != nil {
+		result.VmConfig = &extensions.VmConfig{}
+		for _, env := range obj.VmConfig.Env {
+			result.VmConfig.Env = append(result.VmConfig.Env, &extensions.EnvVar{
+				Name:      env.Name,
+				ValueFrom: extensions.EnvValueSource(env.ValueFrom),
+				Value:     env.Value,
+			})
+		}
 	}
 	if result.PluginConfig != nil {
 		return result, nil
@@ -900,22 +909,22 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
-				v.StructValue.Fields["_match_domain_"] = &types.Value{
-					Kind: &types.Value_ListValue{
-						ListValue: &types.ListValue{
+				v.StructValue.Fields["_match_domain_"] = &_struct.Value{
+					Kind: &_struct.Value_ListValue{
+						ListValue: &_struct.ListValue{
 							Values: matchItems,
 						},
 					},
 				}
-				ruleValues = append(ruleValues, &types.Value{
+				ruleValues = append(ruleValues, &_struct.Value{
 					Kind: v,
 				})
 				continue
 			}
 			// match service
 			for _, service := range rule.Service {
-				matchItems = append(matchItems, &types.Value{
-					Kind: &types.Value_StringValue{
+				matchItems = append(matchItems, &_struct.Value{
+					Kind: &_struct.Value_StringValue{
 						StringValue: service,
 					},
 				})
@@ -923,9 +932,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 			if len(matchItems) == 0 {
 				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
 			}
-			v.StructValue.Fields["_match_service_"] = &types.Value{
-				Kind: &types.Value_ListValue{
-					ListValue: &types.ListValue{
+			v.StructValue.Fields["_match_service_"] = &_struct.Value{
+				Kind: &_struct.Value_ListValue{
+					ListValue: &_struct.ListValue{
 						Values: matchItems,
 					},
 				},
@@ -1569,16 +1578,28 @@ func (m *IngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err erro
 	return nil
 }
 
-func (m *IngressConfig) GetIngressRoutes() model.IngressRouteCollection {
+func (m *IngressConfig) GetIngressRoutes() istiomodel.IngressRouteCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressRouteCache
 }
 
-func (m *IngressConfig) GetIngressDomains() model.IngressDomainCollection {
+func (m *IngressConfig) GetIngressDomains() istiomodel.IngressDomainCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressDomainCache
+}
+
+func (m *IngressConfig) CheckIngress(clusterName string) istiomodel.CheckIngressResponse {
+	return istiomodel.CheckIngressResponse{}
+}
+
+func (m *IngressConfig) Services(clusterName string) ([]*v1.Service, error) {
+	return nil, nil
+}
+
+func (m *IngressConfig) IngressControllers() map[string]string {
+	return nil
 }
 
 func (m *IngressConfig) Schemas() collection.Schemas {
