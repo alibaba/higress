@@ -42,7 +42,21 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Forwarded-For": "217.194.207.254,10.1.1.1"},
+						Headers: map[string]string{
+							"X-Forwarded-For": "70.155.208.224,10.1.1.1",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/info",
+							Host: "foo.com",
+							Headers: map[string]string{
+								"X-Higress-Geo-Isp":      "美国电话电报",
+								"X-Higress-Geo-City":     "0",
+								"X-Higress-Geo-Province": "密西西比",
+								"X-Higress-Geo-Country":  "美国",
+							},
+						},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -62,7 +76,21 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 						Host:             "foo.com",
 						Path:             "/info",
 						UnfollowRedirect: true,
-						Headers:          map[string]string{"X-Forwarded-For": "2.2.128.100,10.1.1.2"},
+						Headers: map[string]string{
+							"X-Forwarded-For": "2.2.128.100,10.1.1.2",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/info",
+							Host: "foo.com",
+							Headers: map[string]string{
+								"X-Higress-Geo-Isp":      "橘子电信",
+								"X-Higress-Geo-City":     "0",
+								"X-Higress-Geo-Province": "Var",
+								"X-Higress-Geo-Country":  "法国",
+							},
+						},
 					},
 				},
 				Response: http.AssertionResponse{
@@ -80,5 +108,3 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 		})
 	},
 }
-
-
