@@ -78,7 +78,7 @@ rename_generated_files=\
 .PHONY: generate-k8s-client
 generate-k8s-client:
 	# generate kube api type wrappers for higress types
-	@KUBETYPE_GOLANG_PROTOBUF=true @$(kubetype_gen) --input-dirs $(kube_source_packages) --output-package $(kube_api_base_package) -h $(kube_go_header_text)
+	@KUBETYPE_GOLANG_PROTOBUF=true $(kubetype_gen) --input-dirs $(kube_source_packages) --output-package $(kube_api_base_package) -h $(kube_go_header_text)
 	@$(move_generated)
 	# generate deepcopy for kube api types
 	@$(deepcopy_gen) --input-dirs $(kube_api_packages) -O zz_generated.deepcopy  -h $(kube_go_header_text)
