@@ -25,7 +25,13 @@ func init() {
 	Register(RustWasmPluginsAiDataMasking)
 }
 
-func gen_assertion(host string, req_body []byte, res_body []byte) http.Assertion {
+func gen_assertion(host string, req_is_json bool, req_body []byte, res_body []byte) http.Assertion {
+	var content_type string
+	if req_is_json {
+		content_type = http.ContentTypeApplicationJson
+	} else {
+		content_type = http.ContentTypeTextPlain
+	}
 	return http.Assertion{
 		Meta: http.AssertionMeta{
 			TargetBackend:   "infra-backend-v1",
@@ -36,6 +42,7 @@ func gen_assertion(host string, req_body []byte, res_body []byte) http.Assertion
 				Host:             host,
 				Path:             "/",
 				Method:           "POST",
+				ContentType:      content_type,
 				Body:             req_body,
 				UnfollowRedirect: true,
 			},
@@ -58,37 +65,44 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 		//openai
 		testcases = append(testcases, gen_assertion(
 			"replace.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"127.0.0.1 sk12345 admin@gmail.com\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"fuck\"}]}"),
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"提问或回答中包含敏感词，已被屏蔽\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"costom_word1\"}]}"),
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"提问或回答中包含敏感词，已被屏蔽\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"costom_word\"}]}"),
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"}}],\"usage\":{}}"),
 		))
 
 		testcases = append(testcases, gen_assertion(
 			"system_deny.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}"),
 			[]byte(""),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word1.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}"),
 			[]byte(""),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word.openai.com",
+			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"test\"}]}"),
 			[]byte(""),
 		))
@@ -96,11 +110,13 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 		//jsonpath
 		testcases = append(testcases, gen_assertion(
 			"ok.raw.com",
+			true,
 			[]byte("{\"test\":[{\"test\":\"costom\\\"word\"}]}"),
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.raw.com",
+			true,
 			[]byte("{\"test1\":[{\"test1\":\"costom\\\"word\"}]}"),
 			[]byte("ok"),
 		))
@@ -108,38 +124,45 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 		//raw
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
+			false,
 			[]byte("127.0.0.1 admin@gmail.com sk-12345"),
 			[]byte("127.0.0.1 sk12345 admin@gmail.com"),
 		))
 
 		testcases = append(testcases, gen_assertion(
 			"ok.raw.com",
+			false,
 			[]byte("fuck"),
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.raw.com",
+			false,
 			[]byte("costom_word1"),
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.raw.com",
+			false,
 			[]byte("costom_word"),
 			[]byte("ok"),
 		))
 
 		testcases = append(testcases, gen_assertion(
 			"system_deny.openai.com",
+			false,
 			[]byte("test"),
 			[]byte(""),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word1.openai.com",
+			false,
 			[]byte("test"),
 			[]byte(""),
 		))
 		testcases = append(testcases, gen_assertion(
 			"costom_word.openai.com",
+			false,
 			[]byte("test"),
 			[]byte("costom_word"),
 		))
