@@ -1029,7 +1029,7 @@ provider:
 ```
 
 **请求示例**
-此处`model`表示 deepl 的服务类型，只能填"Free"或"Pro"。`messages[i].role` 为 `system` 时对应的`content`表示 deepl 的 `context`,否则`content`表示 deepl 的`text`。
+此处 `model` 表示 DeepL 的服务类型，只能填 `Free` 或 `Pro`。`content` 中设置需要翻译的文本；在 `role: system` 的 `content` 中可以包含可能影响翻译但本身不会被翻译的上下文，例如翻译产品名称时，可以将产品描述作为上下文传递，这种额外的上下文可能会提高翻译的质量。
 
 ```json
 {
@@ -1045,13 +1045,11 @@ provider:
     {
       "content": "a bank in China"
     }
-  ],
-  "stream": false
+  ]
 }
 ```
 
 **响应示例**
-此处`choices[i].message.name`表示deepl的`translations[i].detected_source_language`，`choices[i].message.content`表示deepl的`translations[i].text`。
 ```json
 {
   "choices": [

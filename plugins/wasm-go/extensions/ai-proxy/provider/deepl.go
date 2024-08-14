@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -105,10 +104,9 @@ func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		if err := decodeChatCompletionRequest(body, originRequest); err != nil {
 			return types.ActionContinue, err
 		}
-		if err := d.overwriteRequestHost(originRequest.Model); err != nil  {
+		if err := d.overwriteRequestHost(originRequest.Model); err != nil {
 			return types.ActionContinue, err
 		}
-		ctx.SetContext(ctxKeyIsStream, originRequest.Stream)
 		ctx.SetContext(ctxKeyFinalRequestModel, originRequest.Model)
 		deeplRequest := &deeplRequest{
 			Text:       make([]string, 0),
@@ -127,15 +125,6 @@ func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 
 func (d *deeplProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	// setEventStreamHeaders
-	if ctx.GetBoolContext(ctxKeyIsStream, false) {
-		proxywasm.ReplaceHttpResponseHeader("Content-Type", "text/event-stream")
-		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache")
-		proxywasm.ReplaceHttpResponseHeader("Connection", "keep-alive")
-		proxywasm.ReplaceHttpResponseHeader("Transfer-Encoding", "chunked")
-		proxywasm.ReplaceHttpResponseHeader("X-Accel-Buffering", "no")
-	}
-
 	return types.ActionContinue, nil
 }
 
@@ -144,37 +133,11 @@ func (d *deeplProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName,
 	if err := json.Unmarshal(body, deeplResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal deepl response: %v", err)
 	}
-	response := d.responseDeepl2OpenAI(ctx, deeplResponse, false)
+	response := d.responseDeepl2OpenAI(ctx, deeplResponse)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
-func (d *deeplProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if isLastChunk || len(chunk) == 0 {
-		return nil, nil
-	}
-	responseBuilder := &strings.Builder{}
-	deeplResponse := &deeplResponse{}
-	var response *chatCompletionResponse
-	var responseBody []byte
-	var err error
-	if err := json.Unmarshal(chunk, deeplResponse); err != nil {
-		log.Errorf("unable to unmarshal deepl response: %v", err)
-		goto flag
-	}
-	response = d.responseDeepl2OpenAI(ctx, deeplResponse, true)
-	responseBody, err = json.Marshal(response)
-	if err != nil {
-		log.Errorf("unable to marshal deepl response: %v", err)
-		goto flag
-	}
-	d.appendResponse(responseBuilder, string(responseBody))
-flag:
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
-}
-
-func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplResponse *deeplResponse, isStream bool) *chatCompletionResponse {
+func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplResponse *deeplResponse) *chatCompletionResponse {
 	var choices []chatCompletionChoice
 	// Fail
 	if deeplResponse.Message != "" {
@@ -187,15 +150,10 @@ func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplRespo
 		// Success
 		choices = make([]chatCompletionChoice, len(deeplResponse.Translations))
 		for idx, t := range deeplResponse.Translations {
-			choice := chatCompletionChoice{
-				Index: idx,
+			choices[idx] = chatCompletionChoice{
+				Index:   idx,
+				Message: &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage},
 			}
-			if isStream {
-				choice.Delta = &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage}
-			} else {
-				choice.Message = &chatMessage{Role: roleAssistant, Content: t.Text, Name: t.DetectedSourceLanguage}
-			}
-			choices[idx] = choice
 		}
 	}
 	return &chatCompletionResponse{
@@ -215,8 +173,4 @@ func (d *deeplProvider) overwriteRequestHost(model string) error {
 		return errors.New(`deepl model should be "Free" or "Pro"`)
 	}
 	return nil
-}
-
-func (d *deeplProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }

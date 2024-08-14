@@ -48,7 +48,6 @@ const (
 	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
-	ctxKeyIsStream             = "isStream"
 	ctxKeyApiName              = "apiKey"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
