@@ -36,6 +36,7 @@ func gen_assertion(host string, req_is_json bool, req_body []byte, res_body []by
 		Meta: http.AssertionMeta{
 			TargetBackend:   "infra-backend-v1",
 			TargetNamespace: "higress-conformance-infra",
+			CompareTarget:   http.CompareTargetResponse,
 		},
 		Request: http.AssertionRequest{
 			ActualRequest: http.Request{
@@ -68,6 +69,12 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"127.0.0.1 sk12345 admin@gmail.com\"}}],\"usage\":{}}"),
+		))
+		testcases = append(testcases, gen_assertion(
+			"replace.openai.com",
+			true,
+			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"192.168.0.1 root@gmail.com sk-12345\"}]}"),
+			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"192.168.0.1 sk12345 root@gmail.com\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.openai.com",
@@ -127,6 +134,13 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			false,
 			[]byte("127.0.0.1 admin@gmail.com sk-12345"),
 			[]byte("127.0.0.1 sk12345 admin@gmail.com"),
+		))
+
+		testcases = append(testcases, gen_assertion(
+			"replace.raw.com",
+			false,
+			[]byte("192.168.0.1 root@gmail.com sk-12345"),
+			[]byte("192.168.0.1 sk12345 root@gmail.com"),
 		))
 
 		testcases = append(testcases, gen_assertion(
