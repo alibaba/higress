@@ -176,7 +176,7 @@ func (a *Agent) checkSudoPermission() error {
 	case <-time.After(5 * time.Second):
 		cmd2.Process.Signal(os.Interrupt)
 		if !a.quiet {
-			fmt.Fprintf(a.writer, "checked result: timeout execeed and need sudo with password\n")
+			fmt.Fprintf(a.writer, "checked result: timeout exceed and need sudo with password\n")
 		}
 		a.runSudoState = SudoWithPassword
 

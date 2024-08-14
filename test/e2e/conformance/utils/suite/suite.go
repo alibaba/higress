@@ -15,6 +15,7 @@ package suite
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
@@ -43,6 +44,7 @@ type ConformanceTestSuite struct {
 	BaseManifests     []string
 	Applier           kubernetes.Applier
 	SkipTests         sets.Set[string]
+	ExecuteTests      sets.Set[string]
 	TimeoutConfig     config.TimeoutConfig
 	SupportedFeatures sets.Set[string]
 }
@@ -51,6 +53,7 @@ type ConformanceTestSuite struct {
 type Options struct {
 	SupportedFeatures sets.Set[string]
 	ExemptFeatures    sets.Set[string]
+	ExecuteTests      string
 
 	EnableAllSupportedFeatures bool
 	Client                     client.Client
@@ -92,10 +95,11 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	if s.IsWasmPluginTest {
-		if s.WasmPluginType == "CPP" {
-			s.SupportedFeatures.Insert(string(WASMCPPConformanceFeature))
+		feature, ok := WasmPluginTypeMap[s.WasmPluginType]
+		if ok {
+			s.SupportedFeatures.Insert(string(feature))
 		} else {
-			s.SupportedFeatures.Insert(string(WASMGoConformanceFeature))
+			panic("WasmPluginType [" + s.WasmPluginType + "] not support")
 		}
 	} else if s.IsEnvoyConfigTest {
 		s.SupportedFeatures.Insert(string(EnvoyConfigConformanceFeature))
@@ -116,6 +120,7 @@ func New(s Options) *ConformanceTestSuite {
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
+		ExecuteTests:      sets.NewSet(),
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
@@ -131,6 +136,13 @@ func New(s Options) *ConformanceTestSuite {
 			"base/nacos.yaml",
 			"base/dubbo.yaml",
 			"base/opa.yaml",
+		}
+	}
+
+	testNames := strings.Split(s.ExecuteTests, ",")
+	for i := range testNames {
+		if testNames[i] != "" {
+			suite.ExecuteTests = suite.ExecuteTests.Insert(testNames[i])
 		}
 	}
 
@@ -229,6 +241,10 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 
 	// check that the test should not be skipped
 	if suite.SkipTests.Contains(test.ShortName) {
+		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
+	}
+
+	if len(suite.ExecuteTests) > 0 && !suite.ExecuteTests.Contains(test.ShortName) {
 		t.Skipf("🏊🏼 Skipping %s: test explicitly skipped", test.ShortName)
 	}
 

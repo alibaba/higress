@@ -32,6 +32,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/alibaba/higress/pkg/cmd/hgctl/docker"
+	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/pkg/cmd/options"
 )
 
 var (
@@ -55,7 +59,9 @@ var (
 
 	proxyAdminPort int
 
-	docker = false
+	project = "higress"
+
+	dockerCli = false
 )
 
 const (
@@ -107,7 +113,7 @@ func newDashboardCmd() *cobra.Command {
 
 	consoleCmd := consoleDashCmd()
 	consoleCmd.PersistentFlags().IntVar(&consolePort, "ui-port", defaultConsolePort, "The component dashboard UI port.")
-	consoleCmd.PersistentFlags().BoolVar(&docker, "docker", false, "Search higress console from docker")
+	consoleCmd.PersistentFlags().BoolVar(&dockerCli, "docker", false, "Search higress console from docker")
 	dashboardCmd.AddCommand(consoleCmd)
 
 	controllerDebugCmd := controllerDebugCmd()
@@ -165,23 +171,23 @@ func consoleDashCmd() *cobra.Command {
   hgctl dash console
   hgctl d console`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if docker {
-				return accessDocker(cmd)
+			if dockerCli {
+				return accessDockerCompose(cmd)
 			}
 			client, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
 			if err != nil {
 				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
-				return accessDocker(cmd)
+				return accessDockerCompose(cmd)
 			}
 			pl, err := client.PodsForSelector(addonNamespace, "app.kubernetes.io/name=higress-console")
 			if err != nil {
 				fmt.Printf("build kubernetes CLI client fail: %v\ntry to access docker container\n", err)
-				return accessDocker(cmd)
+				return accessDockerCompose(cmd)
 			}
 
 			if len(pl.Items) < 1 {
 				fmt.Printf("no higress console pods found\ntry to access docker container\n")
-				return accessDocker(cmd)
+				return accessDockerCompose(cmd)
 			}
 
 			// only use the first pod in the list
@@ -193,27 +199,26 @@ func consoleDashCmd() *cobra.Command {
 	return cmd
 }
 
-// accessDocker access docker container
-func accessDocker(cmd *cobra.Command) error {
-	dockerCli, err := command.NewDockerCli(command.WithCombinedStreams(os.Stdout))
+// accessDockerCompose access docker compose ps
+func accessDockerCompose(cmd *cobra.Command) error {
+	cli, err := docker.NewCompose(cmd.OutOrStdout())
 	if err != nil {
-		return fmt.Errorf("build docker CLI client fail: %w", err)
+		return errors.Wrap(err, "failed to build the docker compose client")
 	}
-	err = dockerCli.Initialize(flags.NewClientOptions())
+
+	list, err := cli.Ps(context.TODO(), project)
 	if err != nil {
-		return fmt.Errorf("docker client initialize fail: %w", err)
+		return errors.Wrap(err, "failed to build the docker compose ps")
 	}
-	apiClient := dockerCli.Client()
-	list, err := apiClient.ContainerList(context.Background(), types2.ContainerListOptions{})
 	for _, container := range list {
-		for i, name := range container.Names {
-			if strings.Contains(name, "higress-console") {
-				port := container.Ports[i].PublicPort
-				// not support define ip address
-				url := fmt.Sprintf("http://localhost:%d", port)
+		if strings.Contains(container.Service, "console") {
+			// not support define ip address
+			if container.Publishers != nil {
+				url := fmt.Sprintf("http://localhost:%d", container.Publishers[0].PublishedPort)
 				openBrowser(url, cmd.OutOrStdout(), browser)
-				return nil
 			}
+
+			return nil
 		}
 	}
 	return errors.New("no higress console container found")
@@ -425,7 +430,7 @@ func openCommand(writer io.Writer, command string, args ...string) {
 	_, err := exec.LookPath(command)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			fmt.Fprintf(writer, "Could not open your browser. Please open it maually.\n")
+			fmt.Fprintf(writer, "Could not open your browser. Please open it manually.\n")
 			return
 		}
 		fmt.Fprintf(writer, "Failed to open browser; open %s in your browser.\nError: %s\n", args[0], err.Error())

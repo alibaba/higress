@@ -15,7 +15,8 @@
 package hgctl
 
 const (
-	yamlOutput  = "yaml"
-	jsonOutput  = "json"
-	flagsOutput = "flags"
+	summaryOutput = "short"
+	yamlOutput    = "yaml"
+	jsonOutput    = "json"
+	flagsOutput   = "flags"
 )

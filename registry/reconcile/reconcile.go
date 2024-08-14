@@ -278,3 +278,25 @@ func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, 
 
 	return authOption, nil
 }
+
+type RegistryWatcherStatus struct {
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Healthy bool   `json:"healthy"`
+	Ready   bool   `json:"ready"`
+}
+
+func (r *Reconciler) GetRegistryWatcherStatusList() []RegistryWatcherStatus {
+	var registryStatusList []RegistryWatcherStatus
+	for key, watcher := range r.watchers {
+		_, name := path.Split(key)
+		registryStatus := RegistryWatcherStatus{
+			Name:    name,
+			Type:    watcher.GetRegistryType(),
+			Healthy: watcher.IsHealthy(),
+			Ready:   watcher.IsReady(),
+		}
+		registryStatusList = append(registryStatusList, registryStatus)
+	}
+	return registryStatusList
+}

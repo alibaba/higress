@@ -1,17 +1,18 @@
 <h1 align="center">
     <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
-  Next-generation Cloud Native Gateway
+  AI Gateway
 </h1>
+<h4 align="center"> AI Native API Gateway </h4>
 
-[![Build Status](https://github.com/alibaba/higress/workflows/build%20and%20codecov/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
+[![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 [**官网**](https://higress.io/) &nbsp; |
-&nbsp; [**文档**](https://higress.io/zh-cn/docs/overview/what-is-higress) &nbsp; |
-&nbsp; [**博客**](https://higress.io/zh-cn/blog) &nbsp; |
-&nbsp; [**开发指引**](https://higress.io/zh-cn/docs/developers/developers_dev) &nbsp; |
-&nbsp; [**Higress 企业版**](https://www.aliyun.com/product/aliware/mse?spm=higress-website.topbar.0.0.0) &nbsp;
+&nbsp; [**文档**](https://higress.io/docs/latest/user/quickstart/) &nbsp; |
+&nbsp; [**博客**](https://higress.io/blog/) &nbsp; |
+&nbsp; [**开发指引**](https://higress.io/docs/latest/dev/architecture/) &nbsp; |
+&nbsp; [**AI插件**](https://higress.io/plugin/) &nbsp;
 
 
 <p>
@@ -19,9 +20,15 @@
 </p>
 
 
-Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的下一代云原生网关。Higress 实现了安全防护网关、流量网关、微服务网关三层网关合一，可以显著降低网关的部署和运维成本。
+Higress 是基于阿里内部多年的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的云原生 API 网关。
 
-![arch](https://img.alicdn.com/imgextra/i1/O1CN01iO9ph825juHbOIg75_!!6000000007563-2-tps-2483-2024.png)
+Higress 是面向 AI 原生设计的 API 网关，在阿里内部，承载了通义千问 APP、百炼大模型 API、机器学习 PAI 平台等 AI 业务的流量。
+
+Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时具备丰富的 AI 可观测、多模型负载均衡/fallback、AI token 流控、AI 缓存等能力：
+
+![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
+
+
 
 ## Summary
     
@@ -33,6 +40,10 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 
 ## 使用场景
+
+- **AI 网关**:
+
+  Higress 提供了一站式的 AI 插件集，可以增强依赖 AI 能力业务的稳定性、灵活性、可观测性，使得业务与 AI 的集成更加便捷和高效。
 
 - **Kubernetes Ingress 网关**:
 
@@ -56,27 +67,36 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
   脱胎于阿里巴巴2年多生产验证的内部产品，支持每秒请求量达数十万级的大规模场景。
 
-  彻底摆脱 reload 引起的流量抖动，配置变更毫秒级生效且业务无感。
-  
-- **平滑演进**
+  彻底摆脱 Nginx reload 引起的流量抖动，配置变更毫秒级生效且业务无感。对 AI 业务等长连接场景特别友好。
 
-  支持 Nacos/Zookeeper/Eureka 等多种注册中心，可以不依赖 K8s Service 进行服务发现，支持非容器架构平滑演进到云原生架构。
+- **流式处理**
 
-  支持从 Nginx Ingress Controller 平滑迁移，支持平滑过渡到 Gateway API，支持业务架构平滑演进到 ServiceMesh。
+  支持真正的完全流式处理请求/响应 Body，Wasm 插件很方便地自定义处理 SSE （Server-Sent Events）等流式协议的报文。
 
-- **兼收并蓄**
-  
-  兼容 Nginx Ingress Annotation 80%+ 的使用场景，且提供功能更丰富的 Higress Annotation 注解。
-  
-  兼容 Ingress API/Gateway API/Istio API，可以组合多种 CRD 实现流量精细化管理。
-  
+  在 AI 业务等大带宽场景下，可以显著降低内存开销。  
+    
 - **便于扩展**
   
-  提供 Wasm、Lua、进程外三种插件扩展机制，支持多语言编写插件，生效粒度支持全局级、域名级，路由级。
+  提供丰富的官方插件库，涵盖 AI、流量管理、安全防护等常用功能，满足90%以上的业务场景需求。
 
-  插件支持热更新，变更插件逻辑和配置都对流量无损。
+  主打 Wasm 插件扩展，通过沙箱隔离确保内存安全，支持多种编程语言，允许插件版本独立升级，实现流量无损热更新网关逻辑。
+
+- **安全易用**
+  
+  基于 Ingress API 和 Gateway API 标准，提供开箱即用的 UI 控制台，WAF 防护插件、IP/Cookie CC 防护插件开箱即用。
+
+  支持对接 Let's Encrypt 自动签发和续签免费证书，并且可以脱离 K8s 部署，一行 Docker 命令即可启动，方便个人开发者使用。
+
 
 ## 功能展示
+
+### AI 网关 Demo 展示
+
+[从 OpenAI 到其他大模型，30 秒完成迁移
+](https://www.bilibili.com/video/BV1dT421a7w7/?spm_id_from=333.788.recommend_more_video.14)
+
+
+### Higress UI 控制台
     
 - **丰富的可观测**
 
@@ -119,9 +139,13 @@ Higress 是基于阿里内部两年多的 Envoy Gateway 实践沉淀，以开源
 
 如果没有 Envoy 和 Istio 的开源工作，Higress 就不可能实现，在这里向这两个项目献上最诚挚的敬意。
 
-### 联系我们
-
-社区交流群: 
+### 交流群
 
 ![image](https://img.alicdn.com/imgextra/i2/O1CN01qPd7Ix1uZPVEsWjWp_!!6000000006051-0-tps-720-405.jpg)
+
+### 技术分享
+
+微信公众号：
+
+![](https://img.alicdn.com/imgextra/i1/O1CN01WnQt0q1tcmqVDU73u_!!6000000005923-0-tps-258-258.jpg)
 

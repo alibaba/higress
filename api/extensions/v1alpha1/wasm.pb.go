@@ -327,6 +327,7 @@ func (x *WasmPlugin) GetPhase() PluginPhase {
 	return PluginPhase_UNSPECIFIED_PHASE
 }
 
+
 func (x *WasmPlugin) GetPriority() *wrapperspb.Int32Value {
 	if x != nil {
 		return x.Priority
@@ -357,14 +358,14 @@ func (x *WasmPlugin) GetDefaultConfigDisable() bool {
 
 // Extended by Higress
 type MatchRule struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Ingress       []string         `protobuf:"bytes,1,rep,name=ingress,proto3" json:"ingress,omitempty"`
-	Domain        []string         `protobuf:"bytes,2,rep,name=domain,proto3" json:"domain,omitempty"`
-	Config        *structpb.Struct `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
-	ConfigDisable bool             `protobuf:"varint,4,opt,name=config_disable,json=configDisable,proto3" json:"config_disable,omitempty"`
+	Ingress              []string      `protobuf:"bytes,1,rep,name=ingress,proto3" json:"ingress,omitempty"`
+	Domain               []string      `protobuf:"bytes,2,rep,name=domain,proto3" json:"domain,omitempty"`
+	Config               *types.Struct `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
+	ConfigDisable        bool          `protobuf:"varint,4,opt,name=config_disable,json=configDisable,proto3" json:"config_disable,omitempty"`
+	Service              []string      `protobuf:"bytes,5,rep,name=service,proto3" json:"service,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
 func (x *MatchRule) Reset() {
@@ -382,12 +383,147 @@ func (x *MatchRule) String() string {
 
 func (*MatchRule) ProtoMessage() {}
 
-func (x *MatchRule) ProtoReflect() protoreflect.Message {
-	mi := &file_api_extensions_v1alpha1_wasm_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
+func (m *MatchRule) GetConfigDisable() bool {
+	if m != nil {
+		return m.ConfigDisable
+	}
+	return false
+}
+
+func (m *MatchRule) GetService() []string {
+	if m != nil {
+		return m.Service
+	}
+	return nil
+}
+
+func init() {
+	proto.RegisterEnum("higress.extensions.v1alpha1.PluginPhase", PluginPhase_name, PluginPhase_value)
+	proto.RegisterEnum("higress.extensions.v1alpha1.PullPolicy", PullPolicy_name, PullPolicy_value)
+	proto.RegisterType((*WasmPlugin)(nil), "higress.extensions.v1alpha1.WasmPlugin")
+	proto.RegisterType((*MatchRule)(nil), "higress.extensions.v1alpha1.MatchRule")
+}
+
+func init() { proto.RegisterFile("extensions/v1alpha1/wasm.proto", fileDescriptor_4d60b240916c4e18) }
+
+var fileDescriptor_4d60b240916c4e18 = []byte{
+	// 631 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x94, 0xdd, 0x6e, 0xd3, 0x4c,
+	0x10, 0x86, 0xeb, 0xa4, 0x49, 0x9b, 0x49, 0xdb, 0xcf, 0x5d, 0x7d, 0x94, 0x55, 0x8b, 0x42, 0x54,
+	0x09, 0x30, 0x3d, 0xb0, 0xd5, 0x94, 0x9f, 0x13, 0x54, 0x91, 0xb6, 0x81, 0x46, 0x40, 0xb0, 0xec,
+	0x16, 0x44, 0x4f, 0xac, 0x8d, 0xbb, 0x71, 0x56, 0xac, 0x7f, 0xe4, 0x5d, 0xb7, 0xe4, 0xaa, 0xb8,
+	0x0d, 0x0e, 0xb9, 0x04, 0xd4, 0xbb, 0xe0, 0x0c, 0x65, 0xed, 0x34, 0x49, 0x41, 0x39, 0xdb, 0x9d,
+	0x79, 0x66, 0xe6, 0x7d, 0xc7, 0x2b, 0x43, 0x83, 0x7e, 0x93, 0x34, 0x12, 0x2c, 0x8e, 0x84, 0x75,
+	0xb5, 0x4f, 0x78, 0x32, 0x24, 0xfb, 0xd6, 0x35, 0x11, 0xa1, 0x99, 0xa4, 0xb1, 0x8c, 0xd1, 0xce,
+	0x90, 0x05, 0x29, 0x15, 0xc2, 0x9c, 0x72, 0xe6, 0x84, 0xdb, 0x6e, 0x04, 0x71, 0x1c, 0x70, 0x6a,
+	0x29, 0xb4, 0x9f, 0x0d, 0xac, 0xeb, 0x94, 0x24, 0x09, 0x4d, 0x45, 0x5e, 0xbc, 0xfd, 0xe0, 0x6e,
+	0x5e, 0xc8, 0x34, 0xf3, 0x65, 0x9e, 0xdd, 0xfd, 0xbd, 0x0c, 0xf0, 0x99, 0x88, 0xd0, 0xe6, 0x59,
+	0xc0, 0x22, 0xa4, 0x43, 0x39, 0x4b, 0x39, 0x2e, 0x35, 0x35, 0xa3, 0xe6, 0x8c, 0x8f, 0x68, 0x0b,
+	0xaa, 0x62, 0x48, 0x5a, 0xcf, 0x5f, 0xe0, 0xb2, 0x0a, 0x16, 0x37, 0xe4, 0xc2, 0x26, 0x0b, 0x49,
+	0x40, 0xbd, 0x24, 0xe3, 0xdc, 0x4b, 0x62, 0xce, 0xfc, 0x11, 0x5e, 0x6e, 0x6a, 0xc6, 0x46, 0xeb,
+	0x89, 0xb9, 0x40, 0xaf, 0x69, 0x67, 0x9c, 0xdb, 0x0a, 0x77, 0xfe, 0x53, 0x1d, 0xa6, 0x01, 0xb4,
+	0x37, 0xd7, 0x54, 0x50, 0x3f, 0xa5, 0x12, 0x57, 0xd4, 0xdc, 0x29, 0xeb, 0xaa, 0x30, 0x7a, 0x0a,
+	0xfa, 0x15, 0x4d, 0xd9, 0x80, 0xf9, 0x44, 0xb2, 0x38, 0xf2, 0xbe, 0xd2, 0x11, 0xae, 0xe6, 0xe8,
+	0x6c, 0xfc, 0x1d, 0x1d, 0xa1, 0x57, 0xb0, 0x9e, 0x28, 0x7f, 0x9e, 0x1f, 0x47, 0x03, 0x16, 0xe0,
+	0x95, 0xa6, 0x66, 0xd4, 0x5b, 0xf7, 0xcd, 0x7c, 0x35, 0xe6, 0x64, 0x35, 0xa6, 0xab, 0x56, 0xe3,
+	0xac, 0xe5, 0xf4, 0xb1, 0x82, 0xd1, 0x43, 0xa8, 0x17, 0xd5, 0x11, 0x09, 0x29, 0x5e, 0x55, 0x33,
+	0x20, 0x0f, 0xf5, 0x48, 0x48, 0xd1, 0x21, 0x54, 0x92, 0x21, 0x11, 0x14, 0xd7, 0x94, 0x7d, 0x63,
+	0xb1, 0x7d, 0x55, 0x67, 0x8f, 0x79, 0x27, 0x2f, 0x43, 0x2f, 0x61, 0x35, 0x49, 0x59, 0x9c, 0x32,
+	0x39, 0xc2, 0xa0, 0x94, 0xed, 0xfc, 0xa5, 0xac, 0x1b, 0xc9, 0x83, 0xd6, 0x27, 0xc2, 0x33, 0xea,
+	0xdc, 0xc2, 0xe8, 0x10, 0x36, 0x2e, 0xe9, 0x80, 0x64, 0x5c, 0x4e, 0x8c, 0xd1, 0xc5, 0xc6, 0xd6,
+	0x0b, 0xbc, 0x70, 0xf6, 0x16, 0xea, 0x21, 0x91, 0xfe, 0xd0, 0x4b, 0x33, 0x4e, 0x05, 0x1e, 0x34,
+	0xcb, 0x46, 0xbd, 0xf5, 0x78, 0xa1, 0xfc, 0x0f, 0x63, 0xde, 0xc9, 0x38, 0x75, 0x20, 0x9c, 0x1c,
+	0x05, 0x7a, 0x06, 0x5b, 0xf3, 0x42, 0xbc, 0x4b, 0x26, 0x48, 0x9f, 0x53, 0x1c, 0x34, 0x35, 0x63,
+	0xd5, 0xf9, 0x7f, 0x6e, 0xee, 0x49, 0x9e, 0xdb, 0xfd, 0xae, 0x41, 0xed, 0xb6, 0x1f, 0xc2, 0xb0,
+	0xc2, 0x22, 0x35, 0x18, 0x6b, 0xcd, 0xb2, 0x51, 0x73, 0x26, 0xd7, 0xf1, 0x13, 0xbc, 0x8c, 0x43,
+	0xc2, 0x22, 0x5c, 0x52, 0x89, 0xe2, 0x86, 0x2c, 0xa8, 0x16, 0xb6, 0xcb, 0x8b, 0x6d, 0x17, 0x18,
+	0x7a, 0x04, 0x1b, 0x77, 0xe4, 0x2d, 0x2b, 0x79, 0xeb, 0xfe, 0xac, 0xae, 0xb1, 0x12, 0x41, 0xd3,
+	0x2b, 0xe6, 0x53, 0x5c, 0xc9, 0x95, 0x14, 0xd7, 0xbd, 0x0e, 0xd4, 0x67, 0xbe, 0x1f, 0xba, 0x07,
+	0x9b, 0xe7, 0x3d, 0xd7, 0xee, 0x1c, 0x77, 0xdf, 0x74, 0x3b, 0x27, 0x9e, 0x7d, 0xda, 0x76, 0x3b,
+	0xfa, 0x12, 0xaa, 0x41, 0xa5, 0x7d, 0x7e, 0x76, 0xda, 0xd3, 0xb5, 0xc9, 0xf1, 0x42, 0x2f, 0x8d,
+	0x8f, 0xee, 0x59, 0xfb, 0xcc, 0xd5, 0xcb, 0x7b, 0x47, 0x00, 0x33, 0x8f, 0x7e, 0x0b, 0xd0, 0x5c,
+	0x97, 0x8f, 0xef, 0xbb, 0xc7, 0x5f, 0xf4, 0x25, 0xa4, 0xc3, 0x5a, 0x77, 0xd0, 0x8b, 0xa5, 0x9d,
+	0x52, 0x41, 0x23, 0xa9, 0x6b, 0x08, 0xa0, 0xda, 0xe6, 0xd7, 0x64, 0x24, 0xf4, 0xd2, 0xd1, 0xeb,
+	0x1f, 0x37, 0x0d, 0xed, 0xe7, 0x4d, 0x43, 0xfb, 0x75, 0xd3, 0xd0, 0x2e, 0x5a, 0x01, 0x93, 0xc3,
+	0xac, 0x6f, 0xfa, 0x71, 0x68, 0x11, 0xce, 0xfa, 0xa4, 0x4f, 0xac, 0xe2, 0x33, 0x5a, 0x24, 0x61,
+	0xd6, 0x3f, 0x7e, 0x30, 0xfd, 0xaa, 0x5a, 0xd3, 0xc1, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x0b,
+	0x3c, 0xc3, 0xcf, 0x7e, 0x04, 0x00, 0x00,
+}
+
+func (m *WasmPlugin) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WasmPlugin) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WasmPlugin) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DefaultConfigDisable {
+		i--
+		if m.DefaultConfigDisable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xb8
+	}
+	if len(m.MatchRules) > 0 {
+		for iNdEx := len(m.MatchRules) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.MatchRules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintWasm(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x6
+			i--
+			dAtA[i] = 0xb2
+		}
+	}
+	if m.DefaultConfig != nil {
+		{
+			size, err := m.DefaultConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWasm(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xaa
+	}
+	if m.Priority != nil {
+		{
+			size, err := m.Priority.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWasm(dAtA, i, uint64(size))
 		}
 		return ms
 	}
@@ -403,7 +539,56 @@ func (x *MatchRule) GetIngress() []string {
 	if x != nil {
 		return x.Ingress
 	}
-	return nil
+	if len(m.Service) > 0 {
+		for iNdEx := len(m.Service) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Service[iNdEx])
+			copy(dAtA[i:], m.Service[iNdEx])
+			i = encodeVarintWasm(dAtA, i, uint64(len(m.Service[iNdEx])))
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if m.ConfigDisable {
+		i--
+		if m.ConfigDisable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Config != nil {
+		{
+			size, err := m.Config.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWasm(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Domain) > 0 {
+		for iNdEx := len(m.Domain) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Domain[iNdEx])
+			copy(dAtA[i:], m.Domain[iNdEx])
+			i = encodeVarintWasm(dAtA, i, uint64(len(m.Domain[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Ingress) > 0 {
+		for iNdEx := len(m.Ingress) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Ingress[iNdEx])
+			copy(dAtA[i:], m.Ingress[iNdEx])
+			i = encodeVarintWasm(dAtA, i, uint64(len(m.Ingress[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
 }
 
 func (x *MatchRule) GetDomain() []string {
@@ -424,7 +609,23 @@ func (x *MatchRule) GetConfigDisable() bool {
 	if x != nil {
 		return x.ConfigDisable
 	}
-	return false
+	if m.Config != nil {
+		l = m.Config.Size()
+		n += 1 + l + sovWasm(uint64(l))
+	}
+	if m.ConfigDisable {
+		n += 2
+	}
+	if len(m.Service) > 0 {
+		for _, s := range m.Service {
+			l = len(s)
+			n += 1 + l + sovWasm(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
 }
 
 var File_api_extensions_v1alpha1_wasm_proto protoreflect.FileDescriptor
@@ -502,10 +703,618 @@ var file_api_extensions_v1alpha1_wasm_proto_rawDesc = []byte{
 	0x70, 0x68, 0x61, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
-var (
-	file_api_extensions_v1alpha1_wasm_proto_rawDescOnce sync.Once
-	file_api_extensions_v1alpha1_wasm_proto_rawDescData = file_api_extensions_v1alpha1_wasm_proto_rawDesc
-)
+func sozWasm(x uint64) (n int) {
+	return sovWasm(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *WasmPlugin) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWasm
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WasmPlugin: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WasmPlugin: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Url", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Url = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sha256", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Sha256 = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImagePullPolicy", wireType)
+			}
+			m.ImagePullPolicy = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ImagePullPolicy |= PullPolicy(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImagePullSecret", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ImagePullSecret = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VerificationKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.VerificationKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PluginConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PluginConfig == nil {
+				m.PluginConfig = &types.Struct{}
+			}
+			if err := m.PluginConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PluginName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PluginName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Phase", wireType)
+			}
+			m.Phase = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Phase |= PluginPhase(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Priority == nil {
+				m.Priority = &types.Int32Value{}
+			}
+			if err := m.Priority.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 101:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DefaultConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.DefaultConfig == nil {
+				m.DefaultConfig = &types.Struct{}
+			}
+			if err := m.DefaultConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 102:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MatchRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MatchRules = append(m.MatchRules, &MatchRule{})
+			if err := m.MatchRules[len(m.MatchRules)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 103:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DefaultConfigDisable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.DefaultConfigDisable = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWasm(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MatchRule) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWasm
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MatchRule: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MatchRule: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ingress", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Ingress = append(m.Ingress, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Domain", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Domain = append(m.Domain, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Config", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Config == nil {
+				m.Config = &types.Struct{}
+			}
+			if err := m.Config.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConfigDisable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ConfigDisable = bool(v != 0)
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Service", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWasm
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWasm
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Service = append(m.Service, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWasm(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthWasm
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+>>>>>>> main
 
 func file_api_extensions_v1alpha1_wasm_proto_rawDescGZIP() []byte {
 	file_api_extensions_v1alpha1_wasm_proto_rawDescOnce.Do(func() {

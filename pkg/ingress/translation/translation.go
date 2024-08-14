@@ -62,6 +62,10 @@ func (m *IngressTranslation) AddLocalCluster(options common.Options) {
 	}
 }
 
+func (m *IngressTranslation) GetIngressConfig() *ingressconfig.IngressConfig {
+	return m.ingressConfig
+}
+
 func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
 	m.ingressConfig.RegisterEventHandler(kind, f)
 	if m.kingressConfig != nil {

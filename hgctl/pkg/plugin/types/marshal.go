@@ -124,7 +124,7 @@ func (s *JSONSchemaPropsOrBool) UnmarshalJSON(data []byte) error {
 
 func (s JSONSchemaPropsOrBool) MarshalYAML() (interface{}, error) {
 	if s.Schema != nil {
-		return yaml.Marshal(s.Schema)
+		return s.Schema, nil
 	}
 
 	if s.Schema == nil && !s.Allows {

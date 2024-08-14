@@ -52,7 +52,7 @@ func newConfigCommand() *cobra.Command {
 	flags := cfgCommand.Flags()
 	options.AddKubeConfigFlags(flags)
 
-	cfgCommand.PersistentFlags().StringVarP(&output, "output", "o", "json", "One of 'yaml' or 'json'")
+	cfgCommand.PersistentFlags().StringVarP(&output, "output", "o", "json", "Output format: one of json|yaml|short")
 	cfgCommand.PersistentFlags().StringVarP(&podNamespace, "namespace", "n", "higress-system", "Namespace where envoy proxy pod are installed.")
 
 	return cfgCommand

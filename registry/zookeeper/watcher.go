@@ -241,7 +241,7 @@ func (w *watcher) fetchAllServices(firstFetch ...bool) error {
 			case SpringCloudService:
 				serviceConfig.UrlIndex = path.Join(serviceInfo.rootPath, serviceInfo.service)
 			default:
-				return errors.New("unkown type")
+				return errors.New("unknown type")
 			}
 			serviceConfigs = append(serviceConfigs, serviceConfig)
 		}
@@ -275,7 +275,7 @@ func (w *watcher) ListenService() {
 						}
 						log.Errorf("[Zookeeper][ListenService] Get children of path zkRootPath with watcher failed, err:%v, index:%s", err, listIndex.UrlIndex)
 
-						// May be the provider does not ready yet, sleep failTimes * ConnDelay senconds to wait
+						// May be the provider does not ready yet, sleep failTimes * ConnDelay seconds to wait
 						after := time.After(timeSecondDuration(failTimes * ConnDelay))
 						select {
 						case <-after:
@@ -384,7 +384,7 @@ func (w *watcher) GetInterfaceConfig(event Event) (string, *InterfaceConfig, err
 	}
 }
 
-func (w *watcher) GetSpringCloudConfig(intefaceName string, content []byte) (string, *InterfaceConfig, error) {
+func (w *watcher) GetSpringCloudConfig(interfaceName string, content []byte) (string, *InterfaceConfig, error) {
 	var instance SpringCloudInstance
 	err := json.Unmarshal(content, &instance)
 	if err != nil {
@@ -392,7 +392,7 @@ func (w *watcher) GetSpringCloudConfig(intefaceName string, content []byte) (str
 		return "", nil, err
 	}
 	var config InterfaceConfig
-	host := intefaceName
+	host := interfaceName
 	config.Host = host
 	config.Protocol = common.HTTP.String()
 	if len(instance.Payload.Metadata) > 0 && instance.Payload.Metadata["protocol"] != "" {
@@ -678,7 +678,7 @@ func (w *watcher) Run() {
 		select {
 		case <-ticker.C:
 			var needNewFetch bool
-			if w.IsReady() {
+			if w.watcherReady() {
 				w.Ready(true)
 				needNewFetch = true
 			}
@@ -727,7 +727,7 @@ func (w *watcher) GetRegistryType() string {
 	return w.RegistryType.String()
 }
 
-func (w *watcher) IsReady() bool {
+func (w *watcher) watcherReady() bool {
 	if w.serviceRemaind == nil {
 		return true
 	}

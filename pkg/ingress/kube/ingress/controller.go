@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/higress/pkg/cert"
+
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	istiomodel "istio.io/istio/pilot/pkg/model"
@@ -57,6 +59,7 @@ import (
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/model"
 	"github.com/alibaba/higress/pkg/model/credentials"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var (
@@ -344,7 +347,7 @@ func extractTLSSecretName(host string, tls []ingress.IngressTLS) string {
 	return ""
 }
 
-func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig, httpsCredentialConfig *cert.Config) error {
 	if convertOptions == nil {
 		return fmt.Errorf("convertOptions is nil")
 	}
@@ -367,7 +370,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 		common.IncrementInvalidIngress(c.options.ClusterId, common.EmptyRule)
 		return fmt.Errorf("invalid ingress rule %s:%s in cluster %s, either `defaultBackend` or `rules` must be specified", cfg.Namespace, cfg.Name, c.options.ClusterId)
 	}
-
 	for _, rule := range ingressV1Beta.Rules {
 		// Need create builder for every rule.
 		domainBuilder := &common.IngressDomainBuilder{
@@ -418,12 +420,42 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 
 		// Get tls secret matching the rule host
 		secretName := extractTLSSecretName(rule.Host, ingressV1Beta.TLS)
+		secretNamespace := cfg.Namespace
+		if secretName != "" {
+			if httpsCredentialConfig != nil && httpsCredentialConfig.FallbackForInvalidSecret {
+				_, err := c.secretController.Lister().Secrets(secretNamespace).Get(secretName)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						// If there is no matching secret, try to get it from configmap.
+						secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+						secretNamespace = c.options.SystemNamespace
+						namespace, secret := cert.ParseTLSSecret(secretName)
+						if namespace != "" {
+							secretNamespace = namespace
+							secretName = secret
+						}
+					}
+				}
+			}
+		} else {
+			// If there is no matching secret, try to get it from configmap.
+			if httpsCredentialConfig != nil {
+				secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+				secretNamespace = c.options.SystemNamespace
+				namespace, secret := cert.ParseTLSSecret(secretName)
+				if namespace != "" {
+					secretNamespace = namespace
+					secretName = secret
+				}
+			}
+		}
 		if secretName == "" {
 			// There no matching secret, so just skip.
 			continue
 		}
 
 		domainBuilder.Protocol = common.HTTPS
+
 		domainBuilder.SecretName = path.Join(c.options.ClusterId.String(), cfg.Namespace, secretName)
 
 		// There is a matching secret and the gateway has already a tls secret.
@@ -446,7 +478,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
 				Mode:           networking.ServerTLSSettings_SIMPLE,
-				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, cfg.Namespace, secretName),
+				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, secretNamespace, secretName),
 			},
 		})
 
@@ -875,15 +907,28 @@ func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, ba
 	}
 	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
 		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
+			portNumber := dest.Destination.GetPort().GetNumber()
 			serviceKey := common.ServiceKey{
 				Namespace:   "mcp",
 				Name:        dest.Destination.Host,
+				Port:        int32(portNumber),
 				ServiceFQDN: dest.Destination.Host,
 			}
 			if _, exist := store[serviceKey]; !exist {
-				store[serviceKey] = &common.WrapperTrafficPolicy{
-					TrafficPolicy: &networking.TrafficPolicy{},
-					WrapperConfig: wrapper,
+				if serviceKey.Port != 0 {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						PortTrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
+							Port: &networking.PortSelector{
+								Number: uint32(serviceKey.Port),
+							},
+						},
+						WrapperConfig: wrapper,
+					}
+				} else {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						TrafficPolicy: &networking.TrafficPolicy{},
+						WrapperConfig: wrapper,
+					}
 				}
 			}
 		}

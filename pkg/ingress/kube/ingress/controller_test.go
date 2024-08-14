@@ -342,7 +342,7 @@ func testConvertGateway(t *testing.T, c common.IngressController) {
 	}
 
 	for _, testcase := range testcases {
-		err := c.ConvertGateway(testcase.input.options, testcase.input.wrapperConfig)
+		err := c.ConvertGateway(testcase.input.options, testcase.input.wrapperConfig, nil)
 		if err != nil {
 			require.Equal(t, testcase.expectNoError, false)
 		} else {

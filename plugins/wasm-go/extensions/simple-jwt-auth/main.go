@@ -44,7 +44,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		res.Code = http.StatusBadRequest
 		res.Msg = "token or secret 不允许为空"
 		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
+		_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "simple-jwt-auth.bad_config", nil, data, -1)
 		return types.ActionContinue
 	}
 
@@ -53,20 +53,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		res.Code = http.StatusUnauthorized
 		res.Msg = "认证失败"
 		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
+		_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "simple-jwt-auth.auth_failed", nil, data, -1)
 		return types.ActionContinue
 	}
 	valid := ParseTokenValid(token, config.TokenSecretKey)
 	if valid {
-		_ = proxywasm.ResumeHttpRequest()
-		return types.ActionPause
-	} else {
-		res.Code = http.StatusUnauthorized
-		res.Msg = "认证失败"
-		data, _ := json.Marshal(res)
-		_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, nil, data, -1)
 		return types.ActionContinue
 	}
+	res.Code = http.StatusUnauthorized
+	res.Msg = "认证失败"
+	data, _ := json.Marshal(res)
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "simple-jwt-auth.auth_failed", nil, data, -1)
+	return types.ActionContinue
 }
 
 func ParseTokenValid(tokenString, TokenSecretKey string) bool {
