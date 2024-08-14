@@ -1,19 +1,29 @@
-1. The functionality of geo-ip plugin
-This geo-ip plugin finds the client's geographic information depending on his/her ip address. It searches the geoip database to find which ip segment contains client's ip. After that, it gets the geographic information of the segment. And then, it passes the geographic information to latter wasm plugins. It is able to supply geographic prompt and higress could send client's request with this prompt to LLVM chat api upstream server.
+# 功能说明
+`geo-ip`本插件实现了通过用户ip查询出地理位置信息，然后通过请求属性和新添加的请求头把地理位置信息传递给后续插件。
 
 
-2. Plugin configuration:
-ipProtocol: $ip_protocol
-
-$ip_protocol stands for the ip protocol that client's ip is. Currently, this plugin implemented search client's geographic information depending on client's ip with type ipv4. Later it will have the ipv6 functionality. The parameter type is string. It could be configured as "ipv4" or "ipv6".
-
-
-3. How to retrive the geographic data from this plugin?
-The geo-ip plugin calls proxywasm.SetProperty() to set the client's geographic data to the request. The program of wasm plugins behind the geo-ip plugin calls proxywasm.GetProperty() to retrieve the geographic data.
+# 配置字段
+| 名称            | 数据类型     | 填写要求   |  默认值  | 描述 |
+| --------        | --------    | -------- | -------- | -------- |
+|  ipProtocol     |  string     |  必填     |   ipv4    |  ip协议版本   |
 
 
-4. How to generate geoCidr.txt?
-This plugin supply a function to translate ip segment into cidr in generateCidr directory. And each cidr in the result is unique.
+# 配置示例
+```yaml
+ipProtocol: ipv4
+
+
+# 运行代码把ip网段转换成多个cidr地址，生成geoCidr.txt
+在generateCidr目录里包含的ip.merge.txt文件是github上ip2region项目的全世界的ip网段库。main.go 是把ip网段转换成多个cidr的程序。转换出的cidr 和地理位置信息存在 /data/geoCidr.txt文件里。geo-ip插件会在Higress启动读配置阶段读取geoCidr.txt文件并且解析到radixtree数据结构的内存里，以便以后查询用户ip对应的地理位置信息。转换程序运行命令如下：
+
+go run generateCidr/main.go
+
+
+
+
+
+
+
 
 
 

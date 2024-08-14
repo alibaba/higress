@@ -63,7 +63,7 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 	geoIpRows := strings.Split(geoipdata, "\n")
 	geoIpRows = geoIpRows[:(len(geoIpRows) - 1)]
 	for _, row := range geoIpRows {
-		log.Errorf("geoip cidr row: %s", row)
+		//log.Errorf("geoip cidr row: %s", row)
 		pureRow := strings.Trim(row, " ")
 		tmpArr := strings.Split(pureRow, "|")
 		if len(tmpArr) < 5 {
@@ -143,6 +143,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIGeoIpConfig, log wra
 	proxywasm.SetProperty([]string{"geo-province"}, []byte(geoIpData.Province))
 	proxywasm.SetProperty([]string{"geo-country"}, []byte(geoIpData.Country))
 	proxywasm.SetProperty([]string{"geo-isp"}, []byte(geoIpData.Isp))
+
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Country", geoIpData.Country)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Province", geoIpData.Province)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-City", geoIpData.City)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Isp", geoIpData.Isp)
 
 	return types.ActionContinue
 }

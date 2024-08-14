@@ -1,11 +1,12 @@
 package main
 
 import (
-	"encoding/binary"
+	"bytes"
 	"fmt"
 	"log"
-	"net"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 
 	//"strconv"
@@ -15,19 +16,16 @@ import (
 //go:embed ip.merge.txt
 var geoipdata string
 
-func CheckCidr(ip, nb string) (string, error) {
-	_, ipv4Net, err := net.ParseCIDR(ip + "/" + nb)
-	if err != nil {
-		log.Println("check cidr failed.", err)
-		return "", err
-	}
-	return ipv4Net.String(), nil
+var CIDR2MASK = []uint32{
+	0x00000000, 0x80000000, 0xC0000000, 0xE0000000, 0xF0000000, 0xF8000000,
+	0xFC000000, 0xFE000000, 0xFF000000, 0xFF800000, 0xFFC00000, 0xFFE00000,
+	0xFFF00000, 0xFFF80000, 0xFFFC0000, 0xFFFE0000, 0xFFFF0000, 0xFFFF8000,
+	0xFFFFC000, 0xFFFFE000, 0xFFFFF000, 0xFFFFF800, 0xFFFFFC00, 0xFFFFFE00,
+	0xFFFFFF00, 0xFFFFFF80, 0xFFFFFFC0, 0xFFFFFFE0, 0xFFFFFFF0, 0xFFFFFFF8,
+	0xFFFFFFFC, 0xFFFFFFFE, 0xFFFFFFFF,
 }
 
 func main() {
-	//geoipstr := geoip.GetDataString()
-	//eg., 1.0.210.128|1.0.211.127
-
 	outFile := "/data/geoCidr.txt"
 	f, err := os.Create(outFile)
 	if err != nil {
@@ -40,7 +38,7 @@ func main() {
 	geoIpRows := strings.Split(geoipdata, "\n")
 	geoIpRows = geoIpRows[:len(geoIpRows)-1]
 	for _, row := range geoIpRows {
-		//log.Println("geoip segment: ", row)
+		log.Println("geoip segment: ", row)
 		tmpArr := strings.Split(row, "|")
 		if len(tmpArr) < 7 {
 			log.Println("geoIp row field number is less than 7 " + row)
@@ -54,66 +52,109 @@ func main() {
 		city := tmpArr[5]
 		isp := tmpArr[6]
 
-		sipf := net.ParseIP(sip)
-		if sipf == nil {
-			log.Println("sip is not ip format " + sip)
-			return
-		}
-		sipb := sipf.To4()
-		sipall := binary.BigEndian.Uint32(sipb)
-
-		eipf := net.ParseIP(eip)
-		if eipf == nil {
-			log.Println("eip is not ip format " + eip)
-			return
-		}
-		eipb := eipf.To4()
-		eipall := binary.BigEndian.Uint32(eipb)
-
-		netbit := 0
-		for i := 31; i >= 0; i-- {
-			if (sipall & (1 << i)) != (eipall & (1 << i)) {
-				break
-			}
-			netbit++
-		}
-
-		mid := 0
-		tmp := 32 - netbit
-		for i := 31; i >= tmp; i-- {
-			mid |= 1 << i
-		}
-
-		netSeg := sipall & uint32(mid)
-		netIp0 := netSeg >> 24 & 0xFF
-		netIp1 := netSeg >> 16 & 0xFF
-		netIp2 := netSeg >> 8 & 0xFF
-		netIp3 := netSeg & 0xFF
-		netIp := fmt.Sprintf("%d.%d.%d.%d", netIp0, netIp1, netIp2, netIp3)
-		cidr := fmt.Sprintf("%s/%d", netIp, netbit)
-
-		log.Printf("cidr:%s sip:%s eip:%s country:%s province:%s city:%s isp:%s", cidr, sip, eip, country, province, city, isp)
-		outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
-
-		_, err := f.WriteString(outRow + "\n")
-		if err != nil {
-			log.Println("write string failed.", err)
-			return
-		}
+		range2cidrList(sip, eip, country, province, city, isp, f)
 
 		/*
-			res, err := CheckCidr(eip, strconv.FormatUint(uint64(netbit), 10))
-			if err != nil {
-				log.Println("check cidr failed.",eip, err)
-				return
-			}
-
-			if cidr != res {
-				log.Printf("Error: different cidr. %s  %s  %s  %s", cidr, res, sip, eip)
-			} else {
-				log.Printf("good cidr. %s  %s  %s  %s", cidr, res, sip, eip)
+			cidrArr := range2cidrList(sip, eip, country, province, city, isp, f)
+			if len(cidrArr) > 0 {
+				for _, cidr := range cidrArr {
+					outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
+					_, err := f.WriteString(outRow + "\n")
+					if err != nil {
+						log.Println("write string failed.", outRow, err)
+						return
+					}
+				}
 			}
 		*/
 
 	}
+	//fmt.Println(Range2CidrList("10.104.0.12", "10.104.0.35"))
+}
+
+func range2cidrList(startIp string, endIp string, country string, province string, city string, isp string, f *os.File) {
+	//var cidrList = make([]string, 0)
+
+	start := uint32(ipToInt(startIp))
+    beginStart := start
+	end := uint32(ipToInt(endIp))
+	for {
+		if end >= start {
+			maxSize := 32
+			for {
+				if maxSize > 0 {
+					mask := CIDR2MASK[maxSize-1]
+					maskedBase := start & mask
+
+					if maskedBase != start {
+						break
+					}
+
+					maxSize--
+
+				} else {
+					break
+				}
+			}
+
+			x := math.Log2(float64(end - start + 1))
+			maxDiff := 32 - int(math.Floor(x))
+			if maxSize < maxDiff {
+				maxSize = maxDiff
+			}
+			ipStr := intToIP(int(start))
+			//cidrList = append(cidrList, fmt.Sprintf("%s/%d", ipStr, maxSize))
+			cidr := fmt.Sprintf("%s/%d", ipStr, maxSize)
+			outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
+			_, err := f.WriteString(outRow + "\n")
+			if err != nil {
+				log.Println("write string failed.", outRow, err)
+				return
+			}
+
+			if ipStr == "0.0.0.0" && maxSize == 0 {
+				break
+			}
+
+			start += uint32(math.Pow(2, float64(32-maxSize)))
+            //avoid dead loop for 255.255.255.255
+            if start < beginStart {
+                break
+            }
+		} else {
+			break
+		}
+	}
+	//return cidrList
+}
+
+func ipToInt(ipStr string) int {
+	ipSegs := strings.Split(ipStr, ".")
+	var ipInt int = 0
+	var pos uint = 24
+	for _, ipSeg := range ipSegs {
+		tempInt, _ := strconv.Atoi(ipSeg)
+		tempInt = tempInt << pos
+		ipInt = ipInt | tempInt
+		pos -= 8
+	}
+	return ipInt
+}
+
+func intToIP(ipInt int) string {
+	ipSegs := make([]string, 4)
+	var len int = len(ipSegs)
+	buffer := bytes.NewBufferString("")
+	for i := 0; i < len; i++ {
+		tempInt := ipInt & 0xFF
+		ipSegs[len-i-1] = strconv.Itoa(tempInt)
+		ipInt = ipInt >> 8
+	}
+	for i := 0; i < len; i++ {
+		buffer.WriteString(ipSegs[i])
+		if i < len-1 {
+			buffer.WriteString(".")
+		}
+	}
+	return buffer.String()
 }
