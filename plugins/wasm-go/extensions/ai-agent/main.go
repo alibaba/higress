@@ -42,22 +42,7 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Debug("onHttpRequestHeaders start")
-	defer log.Debug("onHttpRequestHeaders end")
-	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
-	// The request does not have a body.
-	if contentType == "" {
-		return types.ActionContinue
-	}
-	if !strings.Contains(contentType, "application/json") {
-		log.Warnf("content is not json, can't process:%s", contentType)
-		ctx.DontReadRequestBody()
-		return types.ActionContinue
-	}
-	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	// The request has a body and requires delaying the header transmission until a cache miss occurs,
-	// at which point the header should be sent.
-	return types.HeaderStopIteration
+	return types.ActionContinue
 }
 
 func firstReq(config PluginConfig, prompt string, rawRequest Request, log wrapper.Log) types.Action {
@@ -160,9 +145,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Debug("onHttpResponseHeaders start")
-	defer log.Debug("onHttpResponseHeaders end")
-
 	return types.ActionContinue
 }
 
