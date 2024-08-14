@@ -53,79 +53,50 @@ func main() {
 		isp := tmpArr[6]
 
 		range2cidrList(sip, eip, country, province, city, isp, f)
-
-		/*
-			cidrArr := range2cidrList(sip, eip, country, province, city, isp, f)
-			if len(cidrArr) > 0 {
-				for _, cidr := range cidrArr {
-					outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
-					_, err := f.WriteString(outRow + "\n")
-					if err != nil {
-						log.Println("write string failed.", outRow, err)
-						return
-					}
-				}
-			}
-		*/
-
 	}
-	//fmt.Println(Range2CidrList("10.104.0.12", "10.104.0.35"))
 }
 
 func range2cidrList(startIp string, endIp string, country string, province string, city string, isp string, f *os.File) {
-	//var cidrList = make([]string, 0)
-
 	start := uint32(ipToInt(startIp))
-    beginStart := start
+	beginStart := start
 	end := uint32(ipToInt(endIp))
-	for {
-		if end >= start {
-			maxSize := 32
-			for {
-				if maxSize > 0 {
-					mask := CIDR2MASK[maxSize-1]
-					maskedBase := start & mask
+	for end >= start {
+		maxSize := 32
+		for maxSize > 0 {
+			mask := CIDR2MASK[maxSize-1]
+			maskedBase := start & mask
 
-					if maskedBase != start {
-						break
-					}
-
-					maxSize--
-
-				} else {
-					break
-				}
-			}
-
-			x := math.Log2(float64(end - start + 1))
-			maxDiff := 32 - int(math.Floor(x))
-			if maxSize < maxDiff {
-				maxSize = maxDiff
-			}
-			ipStr := intToIP(int(start))
-			//cidrList = append(cidrList, fmt.Sprintf("%s/%d", ipStr, maxSize))
-			cidr := fmt.Sprintf("%s/%d", ipStr, maxSize)
-			outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
-			_, err := f.WriteString(outRow + "\n")
-			if err != nil {
-				log.Println("write string failed.", outRow, err)
-				return
-			}
-
-			if ipStr == "0.0.0.0" && maxSize == 0 {
+			if maskedBase != start {
 				break
 			}
 
-			start += uint32(math.Pow(2, float64(32-maxSize)))
-            //avoid dead loop for 255.255.255.255
-            if start < beginStart {
-                break
-            }
-		} else {
+			maxSize--
+		}
+
+		x := math.Log2(float64(end - start + 1))
+		maxDiff := 32 - int(math.Floor(x))
+		if maxSize < maxDiff {
+			maxSize = maxDiff
+		}
+		ipStr := intToIP(int(start))
+		cidr := fmt.Sprintf("%s/%d", ipStr, maxSize)
+		outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
+		_, err := f.WriteString(outRow + "\n")
+		if err != nil {
+			log.Println("write string failed.", outRow, err)
+			return
+		}
+
+		if ipStr == "0.0.0.0" && maxSize == 0 {
+			break
+		}
+
+		start += uint32(math.Pow(2, float64(32-maxSize)))
+		//avoid dead loop for 255.255.255.255
+		if start < beginStart {
 			break
 		}
 	}
-	//return cidrList
 }
 
 func ipToInt(ipStr string) int {
