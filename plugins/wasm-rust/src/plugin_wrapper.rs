@@ -43,7 +43,7 @@ where
 }
 pub trait HttpContextWrapper<PluginConfig>: HttpContext {
     fn on_config(&mut self, _config: &PluginConfig) {}
-    fn on_http_request_headers_ok(&mut self, _headers: &MultiMap<String, String>) -> Action {
+    fn on_http_request_complete_headers(&mut self, _headers: &MultiMap<String, String>) -> Action {
         Action::Continue
     }
     fn cache_request_body(&self) -> bool {
@@ -52,10 +52,10 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
     fn cache_response_body(&self) -> bool {
         false
     }
-    fn on_http_request_body_ok(&mut self, _req_body: &Bytes) -> Action {
+    fn on_http_request_complete_body(&mut self, _req_body: &Bytes) -> Action {
         Action::Continue
     }
-    fn on_http_response_body_ok(&mut self, _res_body: &Bytes) -> Action {
+    fn on_http_response_complete_body(&mut self, _res_body: &Bytes) -> Action {
         Action::Continue
     }
     fn replace_http_request_body(&mut self, body: &[u8]) {
@@ -145,7 +145,7 @@ where
             return ret;
         }
         self.http_content
-            .on_http_request_headers_ok(&self.req_headers)
+            .on_http_request_complete_headers(&self.req_headers)
     }
 
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
@@ -165,7 +165,7 @@ where
                 req_body = body;
             }
         }
-        self.http_content.on_http_request_body_ok(&req_body)
+        self.http_content.on_http_request_complete_body(&req_body)
     }
 
     fn on_http_request_trailers(&mut self, num_trailers: usize) -> Action {
@@ -201,7 +201,7 @@ where
                 res_body = body;
             }
         }
-        self.http_content.on_http_response_body_ok(&res_body)
+        self.http_content.on_http_response_complete_body(&res_body)
     }
 
     fn on_http_response_trailers(&mut self, num_trailers: usize) -> Action {

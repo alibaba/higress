@@ -571,7 +571,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     fn cache_response_body(&self) -> bool {
         !self.stream
     }
-    fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action {
+    fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> Action {
         if self.config.is_none() {
             return Action::Continue;
         }
@@ -644,7 +644,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
         }
         Action::Continue
     }
-    fn on_http_response_body_ok(&mut self, res_body: &Bytes) -> Action {
+    fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> Action {
         if self.config.is_none() {
             return Action::Continue;
         }

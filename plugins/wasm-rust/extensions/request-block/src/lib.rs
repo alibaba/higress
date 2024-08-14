@@ -148,7 +148,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
     fn cache_request_body(&self) -> bool {
         self.cache_request
     }
-    fn on_http_request_headers_ok(&mut self, headers: &MultiMap<String, String>) -> Action {
+    fn on_http_request_complete_headers(&mut self, headers: &MultiMap<String, String>) -> Action {
         if self.config.is_none() {
             return Action::Continue;
         }
@@ -220,7 +220,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
         }
         Action::Continue
     }
-    fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action {
+    fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> Action {
         if self.config.is_none() {
             return Action::Continue;
         }
