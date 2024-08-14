@@ -89,7 +89,7 @@ spec:
         - costom_word1.raw.com
       config:
         "body": "costom_word1"
-      - domain:
+    - domain:
         - costom_word.raw.com
       config:
         "body": "costom_word"

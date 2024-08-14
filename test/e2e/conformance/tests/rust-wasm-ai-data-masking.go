@@ -36,7 +36,6 @@ func gen_assertion(host string, req_body []byte, res_body []byte) http.Assertion
 				Host:             host,
 				Path:             "/",
 				Method:           "POST",
-				ContentType:      http.ContentTypeApplicationJson,
 				Body:             req_body,
 				UnfollowRedirect: true,
 			},
