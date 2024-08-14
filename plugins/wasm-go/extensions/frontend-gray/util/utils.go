@@ -99,18 +99,12 @@ var indexSuffixes = []string{
 }
 
 // IsIndexRequest determines if the request is an index request
-func IsIndexRequest(fetchMode string, accept string, p string) bool {
+func IsIndexRequest(fetchMode string, p string) bool {
 	if fetchMode == "cors" {
 		return false
 	}
-
-	for _, suffix := range indexSuffixes {
-		if strings.HasSuffix(p, suffix) {
-			return true
-		}
-	}
-
-	return path.Ext(p) == ""
+	ext := path.Ext(p)
+	return ext == "" || ContainsValue(indexSuffixes, ext)
 }
 
 // 首页Rewrite

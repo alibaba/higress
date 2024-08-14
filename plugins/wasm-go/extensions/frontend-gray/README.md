@@ -31,8 +31,8 @@
 |------------|--------------|------|-----|------------------------------|
 | `host`     | string       | 非必填  | -   | host地址，如果是OSS则设置为 VPC 内网访问地址 |
 | `notFoundUri` | string       | 非必填  | -   | 404 页面配置                     |
-| `indexRouting`    | object       | 非必填  | -   | 首页重写配置                       |
-| `fileRouting`     | object       | 非必填  | -   | 文件重写配置                       |
+| `indexRouting`    | map of string to string       | 非必填  | -   | 用于定义首页重写路由规则。每个键 (Key) 表示首页的路由路径，值 (Value) 则指向重定向的目标文件。例如，键为 `/app1` 对应的值为 `/mfe/app1/{version}/index.html`。生效version为`0.0.1`， 访问路径为 `/app1`，则重定向到 `/mfe/app1/0.0.1/index.html`。                     |
+| `fileRouting`     | map of string to string       | 非必填  | -   | 用于定义资源文件重写路由规则。每个键 (Key) 表示资源访问路径，值 (Value) 则指向重定向的目标文件。例如，键为 `/app1/` 对应的值为 `/mfe/app1/{version}`。生效version为`0.0.1`，访问路径为 `/app1/js/a.js`，则重定向到 `/mfe/app1/0.0.1/js/a.js`。                     |
 
 `baseDeployment`字段配置说明：
 

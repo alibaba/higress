@@ -38,10 +38,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	cookies, _ := proxywasm.GetHttpRequestHeader("cookie")
 	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	accept, _ := proxywasm.GetHttpRequestHeader("accept")
 	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
 
-	isIndex := util.IsIndexRequest(fetchMode, accept, path)
+	isIndex := util.IsIndexRequest(fetchMode, path)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValue := util.GetGrayKey(util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey), grayConfig.GraySubKey)
 

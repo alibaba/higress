@@ -79,3 +79,26 @@ func TestPrefixFileRewrite(t *testing.T) {
 		})
 	}
 }
+
+func TestIsIndexRequest(t *testing.T) {
+	var tests = []struct {
+		fetchMode string
+		p         string
+		output    bool
+	}{
+		{"cors", "/js/a.js", false},
+		{"no-cors", "/js/a.js", false},
+		{"no-cors", "/images/a.png", false},
+		{"no-cors", "/index", true},
+		{"cors", "/inde", false},
+		{"no-cors", "/index.html", true},
+		{"no-cors", "/demo.php", true},
+	}
+	for _, test := range tests {
+		testPath := test.p
+		t.Run(testPath, func(t *testing.T) {
+			output := IsIndexRequest(test.fetchMode, testPath)
+			assert.Equal(t, test.output, output)
+		})
+	}
+}
