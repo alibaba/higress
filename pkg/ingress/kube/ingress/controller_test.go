@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/model"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -44,7 +45,6 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -342,7 +342,7 @@ func testConvertGateway(t *testing.T, c common.IngressController) {
 	}
 
 	for _, testcase := range testcases {
-		err := c.ConvertGateway(testcase.input.options, testcase.input.wrapperConfig)
+		err := c.ConvertGateway(testcase.input.options, testcase.input.wrapperConfig, nil)
 		if err != nil {
 			require.Equal(t, testcase.expectNoError, false)
 		} else {

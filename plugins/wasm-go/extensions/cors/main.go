@@ -94,7 +94,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if !httpCorsContext.IsValid {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(http.StatusForbidden, headers, []byte("Invalid CORS request"), -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusForbidden, "cors.forbidden", headers, []byte("Invalid CORS request"), -1)
 		return types.ActionPause
 	}
 
@@ -102,7 +102,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	if httpCorsContext.IsPreFlight {
 		headers := make([][2]string, 0)
 		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponse(http.StatusOK, headers, nil, -1)
+		proxywasm.SendHttpResponseWithDetail(http.StatusOK, "cores.preflight", headers, nil, -1)
 		return types.ActionPause
 	}
 

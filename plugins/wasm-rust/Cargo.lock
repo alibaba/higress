@@ -43,6 +43,7 @@ dependencies = [
 name = "higress-wasm-rust"
 version = "0.1.0"
 dependencies = [
+ "multimap",
  "proxy-wasm",
  "serde",
  "serde_json",
@@ -68,6 +69,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "multimap"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

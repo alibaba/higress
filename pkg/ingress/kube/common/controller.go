@@ -17,6 +17,8 @@ package common
 import (
 	"strings"
 
+	"github.com/alibaba/higress/pkg/cert"
+	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
@@ -24,8 +26,6 @@ import (
 	gatewaytool "istio.io/istio/pkg/config/gateway"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 )
 
 type ServiceKey struct {
@@ -122,7 +122,7 @@ type IngressController interface {
 
 	SecretLister() listerv1.SecretLister
 
-	ConvertGateway(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
+	ConvertGateway(convertOptions *ConvertOptions, wrapper *WrapperConfig, httpsCredentialConfig *cert.Config) error
 
 	ConvertHTTPRoute(convertOptions *ConvertOptions, wrapper *WrapperConfig) error
 

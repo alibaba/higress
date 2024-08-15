@@ -24,9 +24,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/higress/pkg/cert"
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/model"
 	istiomodel "istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pilot/pkg/model/credentials"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
@@ -50,8 +53,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/model"
-	"github.com/alibaba/higress/pkg/model/credentials"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var (
@@ -315,7 +317,7 @@ func extractTLSSecretName(host string, tls []ingress.IngressTLS) string {
 	return ""
 }
 
-func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig) error {
+func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapper *common.WrapperConfig, httpsCredentialConfig *cert.Config) error {
 	// Ignore canary config.
 	if wrapper.AnnotationsConfig.IsCanary() {
 		return nil
@@ -382,6 +384,36 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 
 		// Get tls secret matching the rule host
 		secretName := extractTLSSecretName(rule.Host, ingressV1.TLS)
+		secretNamespace := cfg.Namespace
+		if secretName != "" {
+			if httpsCredentialConfig != nil && httpsCredentialConfig.FallbackForInvalidSecret {
+				_, err := c.secretController.Lister().Secrets(secretNamespace).Get(secretName)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						// If there is no matching secret, try to get it from configmap.
+						secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+						secretNamespace = c.options.SystemNamespace
+						namespace, secret := cert.ParseTLSSecret(secretName)
+						if namespace != "" {
+							secretNamespace = namespace
+							secretName = secret
+						}
+					}
+				}
+			}
+		} else {
+			// If there is no matching secret, try to get it from configmap.
+			if httpsCredentialConfig != nil {
+				secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+				secretNamespace = c.options.SystemNamespace
+				namespace, secret := cert.ParseTLSSecret(secretName)
+				if namespace != "" {
+					secretNamespace = namespace
+					secretName = secret
+				}
+			}
+		}
+
 		if secretName == "" {
 			// There no matching secret, so just skip.
 			continue
@@ -410,7 +442,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			Hosts: []string{rule.Host},
 			Tls: &networking.ServerTLSSettings{
 				Mode:           networking.ServerTLSSettings_SIMPLE,
-				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, cfg.Namespace, secretName),
+				CredentialName: credentials.ToKubernetesIngressResource(c.options.RawClusterId, secretNamespace, secretName),
 			},
 		})
 
@@ -853,15 +885,28 @@ func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, ba
 	}
 	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
 		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
+			portNumber := dest.Destination.GetPort().GetNumber()
 			serviceKey := common.ServiceKey{
 				Namespace:   "mcp",
 				Name:        dest.Destination.Host,
+				Port:        int32(portNumber),
 				ServiceFQDN: dest.Destination.Host,
 			}
 			if _, exist := store[serviceKey]; !exist {
-				store[serviceKey] = &common.WrapperTrafficPolicy{
-					TrafficPolicy: &networking.TrafficPolicy{},
-					WrapperConfig: wrapper,
+				if serviceKey.Port != 0 {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						PortTrafficPolicy: &networking.TrafficPolicy_PortTrafficPolicy{
+							Port: &networking.PortSelector{
+								Number: uint32(serviceKey.Port),
+							},
+						},
+						WrapperConfig: wrapper,
+					}
+				} else {
+					store[serviceKey] = &common.WrapperTrafficPolicy{
+						TrafficPolicy: &networking.TrafficPolicy{},
+						WrapperConfig: wrapper,
+					}
 				}
 			}
 		}

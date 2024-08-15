@@ -53,7 +53,7 @@ $(OUT):
 
 submodule:
 	git submodule update --init
-	git submodule update --remote istio/istio
+#	git submodule update --remote
 
 .PHONY: prebuild
 prebuild: submodule
@@ -133,16 +133,18 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/alibaba/higress/releases/download/v1.3.4-rc.1/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0-rc.1/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
 
 external/package/envoy-amd64.tar.gz:
-	cd external/package; wget $(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})
+#       cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release	
+	cd external/package; wget -O envoy-amd64.tar.gz $(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})
 
 external/package/envoy-arm64.tar.gz:
-	cd external/package; wget $(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})
+#       cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
+	cd external/package; wget -O envoy-arm64.tar.gz $(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})
 
 build-pilot: prebuild
 	TARGET_ARCH=amd64 ./tools/hack/build-istio-pilot.sh
@@ -177,8 +179,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-eb1f993
-ISTIO_LATEST_IMAGE_TAG ?= sha-eb1f993
+ENVOY_LATEST_IMAGE_TAG ?= sha-59acb61
+ISTIO_LATEST_IMAGE_TAG ?= sha-59acb61
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -305,7 +307,7 @@ run-higress-e2e-test:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=all
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=all --execute-tests=$(TEST_SHORTNAME)
 
 # run-higress-e2e-test-run starts to run ingress e2e conformance tests.
 .PHONY: run-higress-e2e-test-run
@@ -315,7 +317,7 @@ run-higress-e2e-test-run:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=run
+	go test -v -tags conformance ./test/e2e/e2e_test.go --ingress-class=higress --debug=true --test-area=run --execute-tests=$(TEST_SHORTNAME)
 
 # run-higress-e2e-test-clean starts to clean ingress e2e tests.
 .PHONY: run-higress-e2e-test-clean
@@ -345,7 +347,7 @@ run-higress-e2e-test-wasmplugin:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=all
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=all --execute-tests=$(TEST_SHORTNAME)
 
 # run-higress-e2e-test-wasmplugin-run starts to run ingress e2e conformance tests.
 .PHONY: run-higress-e2e-test-wasmplugin-run
@@ -355,7 +357,7 @@ run-higress-e2e-test-wasmplugin-run:
 	kubectl wait --timeout=10m -n higress-system deployment/higress-controller --for=condition=Available
 	@echo -e "\n\033[36mWaiting higress-gateway to be ready...\033[0m\n"
 	kubectl wait --timeout=10m -n higress-system deployment/higress-gateway --for=condition=Available
-	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=run
+	go test -v -tags conformance ./test/e2e/e2e_test.go -isWasmPluginTest=true -wasmPluginType=$(PLUGIN_TYPE) -wasmPluginName=$(PLUGIN_NAME) --ingress-class=higress --debug=true --test-area=run --execute-tests=$(TEST_SHORTNAME)
 
 # run-higress-e2e-test-wasmplugin-clean starts to clean ingress e2e tests.
 .PHONY: run-higress-e2e-test-wasmplugin-clean

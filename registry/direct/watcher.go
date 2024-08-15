@@ -162,3 +162,7 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 	}
 	return se
 }
+
+func (w *watcher) GetRegistryType() string {
+	return w.RegistryConfig.Type
+}

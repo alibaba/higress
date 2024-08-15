@@ -17,10 +17,9 @@ package annotations
 import (
 	"strings"
 
+	"istio.io/istio/pilot/pkg/model/credentials"
 	"istio.io/istio/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/alibaba/higress/pkg/model/credentials"
 )
 
 func extraSecret(name string) types.NamespacedName {

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -26,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/model"
 )
 
 type PathType string

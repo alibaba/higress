@@ -42,7 +42,7 @@ func NewEurekaHttpClient(config EurekaHttpConfig) EurekaHttpClient {
 type EurekaHttpConfig struct {
 	BaseUrl               string
 	ConnectTimeoutSeconds int // default 30
-	PollInterval          int //default 30
+	PollInterval          int // default 30
 	Retries               int // default 3
 	RetryDelayTime        int // default 100ms
 	EnableDelta           bool
@@ -101,7 +101,7 @@ func (e *eurekaHttpClient) ScheduleAppUpdates(name string, stop <-chan struct{})
 
 func (e *eurekaHttpClient) GetDelta() (*Applications, error) {
 	if !e.EnableDelta {
-		return nil, fmt.Errorf("failed to get DeltaAppliation, enableDelta is false")
+		return nil, fmt.Errorf("failed to get DeltaApplication, enableDelta is false")
 	}
 	return e.getApplications("/apps/delta")
 }
@@ -119,7 +119,7 @@ func (c *eurekaHttpClient) getApplications(path string) (*Applications, error) {
 
 	var rj fargo.GetAppsResponseJson
 	if err = json.Unmarshal(res, &rj); err != nil {
-		log.Errorf("Failed to unmarshal response body to fargo.GetAppResponseJosn, error: %v", err)
+		log.Errorf("Failed to unmarshal response body to fargo.GetAppResponseJson, error: %v", err)
 		return nil, err
 	}
 

@@ -19,6 +19,7 @@ import (
 
 	"github.com/alibaba/higress/hgctl/cmd/hgctl/config"
 	"github.com/spf13/cobra"
+	"istio.io/istio/istioctl/pkg/writer/envoy/configdump"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -49,17 +50,23 @@ func runListenerConfig(c *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		podName = args[0]
 	}
-	envoyConfig, err := config.GetEnvoyConfig(&config.GetEnvoyConfigOptions{
+	configWriter, err := config.GetEnvoyConfigWriter(&config.GetEnvoyConfigOptions{
 		PodName:         podName,
 		PodNamespace:    podNamespace,
 		BindAddress:     bindAddress,
 		Output:          output,
 		EnvoyConfigType: config.ListenerEnvoyConfigType,
 		IncludeEds:      true,
-	})
+	}, c.OutOrStdout())
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(c.OutOrStdout(), string(envoyConfig))
-	return err
+	switch output {
+	case summaryOutput:
+		return configWriter.PrintListenerSummary(configdump.ListenerFilter{Verbose: true})
+	case jsonOutput, yamlOutput:
+		return configWriter.PrintListenerDump(configdump.ListenerFilter{Verbose: true}, output)
+	default:
+		return fmt.Errorf("output format %q not supported", output)
+	}
 }

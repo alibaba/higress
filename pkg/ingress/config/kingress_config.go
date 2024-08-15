@@ -26,6 +26,7 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
+	v1 "k8s.io/api/core/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -36,21 +37,20 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
 var (
 	_ istiomodel.ConfigStoreController = &KIngressConfig{}
-	_ model.IngressStore               = &KIngressConfig{}
+	_ istiomodel.IngressStore          = &KIngressConfig{}
 )
 
 type KIngressConfig struct {
 	remoteIngressControllers map[cluster.ID]common.KIngressController
 	mutex                    sync.RWMutex
 
-	ingressRouteCache  model.IngressRouteCollection
-	ingressDomainCache model.IngressDomainCollection
+	ingressRouteCache  istiomodel.IngressRouteCollection
+	ingressDomainCache istiomodel.IngressDomainCollection
 
 	localKubeClient        kube.Client
 	virtualServiceHandlers []istiomodel.EventHandler
@@ -401,56 +401,55 @@ func (m *KIngressConfig) applyInternalActiveRedirect(convertOptions *common.Conv
 		var tempRoutes []*common.WrapperHTTPRoute
 		for _, route := range routes {
 			tempRoutes = append(tempRoutes, route)
-			// TODO: Upgrade fix
-			//if route.HTTPRoute.InternalActiveRedirect != nil {
-			//	fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
-			//	if fallbackConfig == nil {
-			//		continue
-			//	}
-			//
-			//	typedNamespace := fallbackConfig.DefaultBackend
-			//	internalRedirectRoute := route.HTTPRoute.DeepCopy()
-			//	internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
-			//	internalRedirectRoute.InternalActiveRedirect = nil
-			//	internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
-			//		{
-			//			Uri: &networking.StringMatch{
-			//				MatchType: &networking.StringMatch_Exact{
-			//					Exact: "/",
-			//				},
-			//			},
-			//			Headers: map[string]*networking.StringMatch{
-			//				annotations.FallbackInjectHeaderRouteName: {
-			//					MatchType: &networking.StringMatch_Exact{
-			//						Exact: internalRedirectRoute.Name,
-			//					},
-			//				},
-			//				annotations.FallbackInjectFallbackService: {
-			//					MatchType: &networking.StringMatch_Exact{
-			//						Exact: typedNamespace.String(),
-			//					},
-			//				},
-			//			},
-			//		},
-			//	}
-			//	internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
-			//		{
-			//			Destination: &networking.Destination{
-			//				Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
-			//				Port: &networking.PortSelector{
-			//					Number: fallbackConfig.Port,
-			//				},
-			//			},
-			//			Weight: 100,
-			//		},
-			//	}
-			//
-			//	tempRoutes = append([]*common.WrapperHTTPRoute{{
-			//		HTTPRoute:     internalRedirectRoute,
-			//		WrapperConfig: route.WrapperConfig,
-			//		ClusterId:     route.ClusterId,
-			//	}}, tempRoutes...)
-			//}
+			if route.HTTPRoute.InternalActiveRedirect != nil {
+				fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
+				if fallbackConfig == nil {
+					continue
+				}
+
+				typedNamespace := fallbackConfig.DefaultBackend
+				internalRedirectRoute := route.HTTPRoute.DeepCopy()
+				internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
+				internalRedirectRoute.InternalActiveRedirect = nil
+				internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{
+								Exact: "/",
+							},
+						},
+						Headers: map[string]*networking.StringMatch{
+							annotations.FallbackInjectHeaderRouteName: {
+								MatchType: &networking.StringMatch_Exact{
+									Exact: internalRedirectRoute.Name,
+								},
+							},
+							annotations.FallbackInjectFallbackService: {
+								MatchType: &networking.StringMatch_Exact{
+									Exact: typedNamespace.String(),
+								},
+							},
+						},
+					},
+				}
+				internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
+					{
+						Destination: &networking.Destination{
+							Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
+							Port: &networking.PortSelector{
+								Number: fallbackConfig.Port,
+							},
+						},
+						Weight: 100,
+					},
+				}
+
+				tempRoutes = append([]*common.WrapperHTTPRoute{{
+					HTTPRoute:     internalRedirectRoute,
+					WrapperConfig: route.WrapperConfig,
+					ClusterId:     route.ClusterId,
+				}}, tempRoutes...)
+			}
 		}
 		convertOptions.HTTPRoutes[host] = tempRoutes
 	}
@@ -508,16 +507,28 @@ func (m *KIngressConfig) SetWatchErrorHandler(f func(r *cache.Reflector, err err
 	return nil
 }
 
-func (m *KIngressConfig) GetIngressRoutes() model.IngressRouteCollection {
+func (m *KIngressConfig) GetIngressRoutes() istiomodel.IngressRouteCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressRouteCache
 }
 
-func (m *KIngressConfig) GetIngressDomains() model.IngressDomainCollection {
+func (m *KIngressConfig) GetIngressDomains() istiomodel.IngressDomainCollection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.ingressDomainCache
+}
+
+func (m *KIngressConfig) CheckIngress(clusterName string) istiomodel.CheckIngressResponse {
+	return istiomodel.CheckIngressResponse{}
+}
+
+func (m *KIngressConfig) Services(clusterName string) ([]*v1.Service, error) {
+	return nil, nil
+}
+
+func (m *KIngressConfig) IngressControllers() map[string]string {
+	return nil
 }
 
 func (m *KIngressConfig) Schemas() collection.Schemas {

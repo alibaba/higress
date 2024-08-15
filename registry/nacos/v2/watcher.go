@@ -66,7 +66,7 @@ type watcher struct {
 	isStop               bool
 	addrProvider         *address.NacosAddressProvider
 	updateCacheWhenEmpty bool
-	nacosClietConfig     *constant.ClientConfig
+	nacosClientConfig     *constant.ClientConfig
 	authOption           provider.AuthOption
 }
 
@@ -94,7 +94,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 	log.Infof("new nacos2 watcher with config Name:%s", w.Name)
 
-	w.nacosClietConfig = constant.NewClientConfig(
+	w.nacosClientConfig = constant.NewClientConfig(
 		constant.WithTimeoutMs(DefaultNacosTimeout),
 		constant.WithLogLevel(DefaultNacosLogLevel),
 		constant.WithLogDir(DefaultNacosLogDir),
@@ -129,7 +129,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	success := make(chan struct{})
 	go func() {
 		namingClient, err := clients.NewNamingClient(vo.NacosClientParam{
-			ClientConfig:  w.nacosClietConfig,
+			ClientConfig:  w.nacosClientConfig,
 			ServerConfigs: sc,
 		})
 		if err == nil {
@@ -267,7 +267,7 @@ func (w *watcher) updateNacosClient() {
 				defer w.mutex.Unlock()
 				w.Domain = addr
 				namingClient, err := clients.NewNamingClient(vo.NacosClientParam{
-					ClientConfig: w.nacosClietConfig,
+					ClientConfig: w.nacosClientConfig,
 					ServerConfigs: []constant.ServerConfig{
 						*constant.NewServerConfig(addr, uint64(w.Port)),
 					},

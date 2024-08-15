@@ -38,6 +38,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log 
 	if err != nil {
 		log.Critical("failed to set request header")
 	}
-	proxywasm.SendHttpResponse(http.StatusOK, nil, []byte("hello world"), -1)
+	proxywasm.SendHttpResponseWithDetail(http.StatusOK, "hello-world", nil, []byte("hello world"), -1)
 	return types.ActionContinue
 }

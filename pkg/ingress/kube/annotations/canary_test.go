@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -229,15 +228,14 @@ func TestApplyWeight(t *testing.T) {
 					},
 				},
 				Weight: 30,
-				// TODO: Upgrade fix
-				//FallbackClusters: []*networking.Destination{
-				//	{
-				//		Host: "normal",
-				//		Port: &networking.PortSelector{
-				//			Number: 80,
-				//		},
-				//	},
-				//},
+				FallbackClusters: []*networking.Destination{
+					{
+						Host: "normal",
+						Port: &networking.PortSelector{
+							Number: 80,
+						},
+					},
+				},
 			},
 			{
 				Destination: &networking.Destination{
@@ -254,15 +252,14 @@ func TestApplyWeight(t *testing.T) {
 					},
 				},
 				Weight: 20,
-				// TODO: Upgrade fix
-				//FallbackClusters: []*networking.Destination{
-				//	{
-				//		Host: "normal",
-				//		Port: &networking.PortSelector{
-				//			Number: 80,
-				//		},
-				//	},
-				//},
+				FallbackClusters: []*networking.Destination{
+					{
+						Host: "normal",
+						Port: &networking.PortSelector{
+							Number: 80,
+						},
+					},
+				},
 			},
 		},
 	}

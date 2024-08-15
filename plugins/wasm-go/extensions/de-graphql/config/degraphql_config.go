@@ -17,8 +17,9 @@ package config
 import (
 	"errors"
 	"net/url"
-	"regexp"
 	"strings"
+
+	regexp "github.com/wasilibs/go-re2"
 )
 
 const (

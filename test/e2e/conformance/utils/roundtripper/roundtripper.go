@@ -291,6 +291,16 @@ func (d *DefaultRoundTripper) CaptureRoundTrip(request Request) (*CapturedReques
 			Path:   redirectURL.Path,
 		}
 	}
+	if len(cReq.Namespace) > 0 {
+		if _, ok := cRes.Headers["Namespace"]; !ok {
+			cRes.Headers["Namespace"] = []string{cReq.Namespace}
+		}
+	}
+	if len(cReq.Pod) > 0 {
+		if _, ok := cRes.Headers["Pod"]; !ok {
+			cRes.Headers["Pod"] = []string{cReq.Pod}
+		}
+	}
 
 	return cReq, cRes, nil
 }

@@ -17,23 +17,24 @@ package translation
 import (
 	"sync"
 
+	"istio.io/istio/pilot/pkg/model"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	ingressconfig "github.com/alibaba/higress/pkg/ingress/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
 )
 
 var (
 	_ istiomodel.ConfigStoreController = &IngressTranslation{}
-	_ model.IngressStore               = &IngressTranslation{}
+	_ istiomodel.IngressStore          = &IngressTranslation{}
 )
 
 type IngressTranslation struct {
@@ -60,6 +61,10 @@ func (m *IngressTranslation) AddLocalCluster(options common.Options) {
 	if m.kingressConfig != nil {
 		m.kingressConfig.AddLocalCluster(options)
 	}
+}
+
+func (m *IngressTranslation) GetIngressConfig() *ingressconfig.IngressConfig {
+	return m.ingressConfig
 }
 
 func (m *IngressTranslation) RegisterEventHandler(kind config.GroupVersionKind, f istiomodel.EventHandler) {
@@ -136,6 +141,18 @@ func (m *IngressTranslation) GetIngressDomains() model.IngressDomainCollection {
 		m.higressDomainCache.Valid = append(m.higressDomainCache.Valid, kingressDomainCache.Valid...)
 	}
 	return m.higressDomainCache
+}
+
+func (m *IngressTranslation) CheckIngress(clusterName string) istiomodel.CheckIngressResponse {
+	return istiomodel.CheckIngressResponse{}
+}
+
+func (m *IngressTranslation) Services(clusterName string) ([]*v1.Service, error) {
+	return nil, nil
+}
+
+func (m *IngressTranslation) IngressControllers() map[string]string {
+	return nil
 }
 
 func (m *IngressTranslation) Schemas() collection.Schemas {

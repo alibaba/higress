@@ -108,3 +108,7 @@ func (c Compose) List(ctx context.Context) ([]api.Stack, error) {
 func (c Compose) Down(ctx context.Context, name string) error {
 	return c.client.Down(ctx, name, api.DownOptions{})
 }
+
+func (c Compose) Ps(ctx context.Context, name string) ([]api.ContainerSummary, error) {
+	return c.client.Ps(ctx, name, api.PsOptions{})
+}

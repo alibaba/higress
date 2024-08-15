@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	istiov1alpha3 "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -33,7 +34,6 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/pkg/model"
 )
 
 const (

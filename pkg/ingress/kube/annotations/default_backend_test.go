@@ -150,58 +150,57 @@ func TestFallbackApplyRoute(t *testing.T) {
 			input:  &networking.HTTPRoute{},
 			expect: &networking.HTTPRoute{},
 		},
-		// TODO: Upgrade fix
-		//{
-		//	config: &Ingress{
-		//		Fallback: &FallbackConfig{
-		//			DefaultBackend: types.NamespacedName{
-		//				Namespace: "test",
-		//				Name:      "app",
-		//			},
-		//			Port:             80,
-		//			customHTTPErrors: []uint32{404, 503},
-		//		},
-		//	},
-		//	input: &networking.HTTPRoute{
-		//		Name: "route",
-		//		Route: []*networking.HTTPRouteDestination{
-		//			{},
-		//		},
-		//	},
-		//	expect: &networking.HTTPRoute{
-		//		Name: "route",
-		//		InternalActiveRedirect: &networking.HTTPInternalActiveRedirect{
-		//			MaxInternalRedirects:  1,
-		//			RedirectResponseCodes: []uint32{404, 503},
-		//			AllowCrossScheme:      true,
-		//			Headers: &networking.Headers{
-		//				Request: &networking.Headers_HeaderOperations{
-		//					Add: map[string]string{
-		//						FallbackInjectHeaderRouteName: "route" + FallbackRouteNameSuffix,
-		//						FallbackInjectFallbackService: "test/app",
-		//					},
-		//				},
-		//			},
-		//			RedirectUrlRewriteSpecifier: &networking.HTTPInternalActiveRedirect_RedirectUrl{
-		//				RedirectUrl: defaultRedirectUrl,
-		//			},
-		//			ForcedUseOriginalHost:             true,
-		//			ForcedAddHeaderBeforeRouteMatcher: true,
-		//		},
-		//		Route: []*networking.HTTPRouteDestination{
-		//			{
-		//				FallbackClusters: []*networking.Destination{
-		//					{
-		//						Host: "app.test.svc.cluster.local",
-		//						Port: &networking.PortSelector{
-		//							Number: 80,
-		//						},
-		//					},
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
+		{
+			config: &Ingress{
+				Fallback: &FallbackConfig{
+					DefaultBackend: types.NamespacedName{
+						Namespace: "test",
+						Name:      "app",
+					},
+					Port:             80,
+					customHTTPErrors: []uint32{404, 503},
+				},
+			},
+			input: &networking.HTTPRoute{
+				Name: "route",
+				Route: []*networking.HTTPRouteDestination{
+					{},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Name: "route",
+				InternalActiveRedirect: &networking.HTTPInternalActiveRedirect{
+					MaxInternalRedirects:  1,
+					RedirectResponseCodes: []uint32{404, 503},
+					AllowCrossScheme:      true,
+					Headers: &networking.Headers{
+						Request: &networking.Headers_HeaderOperations{
+							Add: map[string]string{
+								FallbackInjectHeaderRouteName: "route" + FallbackRouteNameSuffix,
+								FallbackInjectFallbackService: "test/app",
+							},
+						},
+					},
+					RedirectUrlRewriteSpecifier: &networking.HTTPInternalActiveRedirect_RedirectUrl{
+						RedirectUrl: defaultRedirectUrl,
+					},
+					ForcedUseOriginalHost:             true,
+					ForcedAddHeaderBeforeRouteMatcher: true,
+				},
+				Route: []*networking.HTTPRouteDestination{
+					{
+						FallbackClusters: []*networking.Destination{
+							{
+								Host: "app.test.svc.cluster.local",
+								Port: &networking.PortSelector{
+									Number: 80,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, inputCase := range inputCases {

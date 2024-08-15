@@ -21,14 +21,17 @@ source "${SCRIPT_DIR}/setup-istio-env.sh"
 
 cd ${ROOT}/external/proxy
 
-if ! patch -R -d . -s -f  --dry-run -p1 < "${SCRIPT_DIR}/build-envoy.patch"; then
-    patch -d . -p1 < "${SCRIPT_DIR}/build-envoy.patch"
+if patch_output=$(patch -d . -s -f --dry-run -p1 < ${SCRIPT_DIR}/build-envoy.patch 2>&1); then
+    patch -d . -p1 < ${SCRIPT_DIR}/build-envoy.patch
+else
+    echo "build-envoy.patch was already patched"
 fi
 
 CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/package,destination=/home/package "
+CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/envoy,destination=/home/envoy "
 
 BUILD_WITH_CONTAINER=1 \
     CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
     BUILD_ENVOY_BINARY_ONLY=1 \
-    IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools-proxy:release-1.19-04ab00931b61c082300832a7dd51634e5e3634ad \
+    IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools-proxy:release-1.19-ef344298e65eeb2d9e2d07b87eb4e715c2def613 \
     make test_release

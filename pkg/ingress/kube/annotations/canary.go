@@ -109,17 +109,16 @@ func ApplyByWeight(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 	// canary route use the header control applied on itself.
 	headerControl{}.ApplyRoute(canary, canaryIngress)
 	// reset
-	// TODO: Upgrade fix
-	//canary.Route[0].FallbackClusters = nil
+	canary.Route[0].FallbackClusters = nil
 	// Move route level to destination level
 	canary.Route[0].Headers = canary.Headers
 
-	//// First add normal route cluster
-	//canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
-	//	route.Route[0].Destination.DeepCopy())
-	//// Second add fallback cluster of normal route cluster
-	//canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
-	//	route.Route[0].FallbackClusters...)
+	// First add normal route cluster
+	canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
+		route.Route[0].Destination.DeepCopy())
+	// Second add fallback cluster of normal route cluster
+	canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
+		route.Route[0].FallbackClusters...)
 }
 
 func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) {
@@ -177,13 +176,12 @@ func ApplyByHeader(canary, route *networking.HTTPRoute, canaryIngress *Ingress) 
 	// canary route use the header control applied on itself.
 	headerControl{}.ApplyRoute(canary, canaryIngress)
 
-	// TODO: Upgrade fix
-	//// First add normal route cluster
-	//canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
-	//	route.Route[0].Destination.DeepCopy())
-	//// Second add fallback cluster of normal route cluster
-	//canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
-	//	route.Route[0].FallbackClusters...)
+	// First add normal route cluster
+	canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
+		route.Route[0].Destination.DeepCopy())
+	// Second add fallback cluster of normal route cluster
+	canary.Route[0].FallbackClusters = append(canary.Route[0].FallbackClusters,
+		route.Route[0].FallbackClusters...)
 }
 
 func needCanaryConfig(annotations Annotations) bool {

@@ -1,3 +1,4 @@
+{{- if eq .Values.gateway.kind "Deployment" -}}
 {{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
@@ -58,6 +59,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "gateway.serviceAccountName" . }}
+      {{- if .Values.global.priorityClassName }}
+      priorityClassName: "{{ .Values.global.priorityClassName }}"
+      {{- end }}
       securityContext:
       {{- if .Values.gateway.securityContext }}
         {{- toYaml .Values.gateway.securityContext | nindent 8 }}
@@ -123,7 +127,10 @@ spec:
               - ALL
             allowPrivilegeEscalation: false
             privileged: false
+          # When enabling lite metrics, the configuration template files need to be replaced.
+          {{- if not .Values.global.liteMetrics }}
             readOnlyRootFilesystem: true
+          {{- end }}
             runAsUser: 1337
             runAsGroup: 1337
             runAsNonRoot: true
@@ -137,7 +144,6 @@ spec:
             runAsGroup: 1337
             runAsNonRoot: false
             allowPrivilegeEscalation: true
-            readOnlyRootFilesystem: true
           {{- end }}
           env:
           - name: NODE_NAME
@@ -183,6 +189,10 @@ spec:
             value: "{{ $.Values.clusterName | default `Kubernetes` }}"
           - name: INSTANCE_NAME
             value: "higress-gateway"
+          {{- if .Values.global.liteMetrics }}
+          - name: LITE_METRICS
+            value: "on"
+          {{- end }}
           {{- if include "skywalking.enabled" . }}
           - name: ISTIO_BOOTSTRAP_OVERRIDE
             value: /etc/istio/custom-bootstrap/custom_bootstrap.json
@@ -196,6 +206,9 @@ spec:
             value: {{ $val | quote }}
           {{- end }}
           ports:
+          - containerPort: 15020
+            protocol: TCP
+            name: istio-prom
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
@@ -235,7 +248,7 @@ spec:
             mountPath: /var/run/secrets/istio
           - name: istio-data
             mountPath: /var/lib/istio/data
-          - name: podinfo            
+          - name: podinfo
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
@@ -334,3 +347,4 @@ spec:
           path: /opt/plugins
           type: Directory
       {{- end }}
+{{- end }}
