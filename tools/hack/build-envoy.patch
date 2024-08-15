@@ -6,7 +6,7 @@ diff --color -Naur scripts/release-binary.sh scripts/release-binary.sh
  # k8-opt is the output directory for x86_64 optimized builds (-c opt, so --config=release-symbol and --config=release).
  # k8-dbg is the output directory for -c dbg builds.
 -for config in release release-symbol asan debug
-+for config in release
++for config in release release-symbol
  do
    case $config in
      "release" )
