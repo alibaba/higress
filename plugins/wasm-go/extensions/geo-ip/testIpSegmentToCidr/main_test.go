@@ -1,4 +1,4 @@
-package testIpSegmentToCidr
+package main
 
 import (
 	"bytes"

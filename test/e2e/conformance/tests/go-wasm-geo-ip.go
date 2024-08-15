@@ -52,7 +52,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 							Host: "foo.com",
 							Headers: map[string]string{
 								"X-Higress-Geo-Isp":      "美国电话电报",
-								"X-Higress-Geo-City":     "0",
+								"X-Higress-Geo-City":     "",
 								"X-Higress-Geo-Province": "密西西比",
 								"X-Higress-Geo-Country":  "美国",
 							},
@@ -86,7 +86,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 							Host: "foo.com",
 							Headers: map[string]string{
 								"X-Higress-Geo-Isp":      "橘子电信",
-								"X-Higress-Geo-City":     "0",
+								"X-Higress-Geo-City":     "",
 								"X-Higress-Geo-Province": "Var",
 								"X-Higress-Geo-Country":  "法国",
 							},

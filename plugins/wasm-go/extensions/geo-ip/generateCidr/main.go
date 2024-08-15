@@ -1,4 +1,4 @@
-package generateCidr
+package main
 
 import (
 	"bytes"
@@ -51,6 +51,19 @@ func main() {
 		province := tmpArr[4]
 		city := tmpArr[5]
 		isp := tmpArr[6]
+
+		if country == "0" {
+			country = ""
+		}
+		if province == "0" {
+			province = ""
+		}
+		if city == "0" {
+			city = ""
+		}
+		if isp == "0" {
+			isp = ""
+		}
 
 		range2cidrList(sip, eip, country, province, city, isp, f)
 	}
