@@ -171,7 +171,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"replace.raw.com",
 			true,
 			[]byte("{\"test\":[{\"test\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
-			[]byte("{\"res\":\"192.168.0.1 sk-12345 root@gmail.com\"}"),
+			[]byte("{\"res\":\"127.0.0.1 sk-12345 admin@gmail.com\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
