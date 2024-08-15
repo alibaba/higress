@@ -13,6 +13,8 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // qwenProvider is the provider for Qwen service.
@@ -23,6 +25,7 @@ const (
 	qwenDomain             = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath  = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenCompatiblePath     = "/compatible-mode/v1/chat/completions"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -63,7 +66,9 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName == ApiNameChatCompletion {
+	if m.config.qwenEnableCompatible {
+		_ = util.OverwriteRequestPath(qwenCompatiblePath)
+	} else if apiName == ApiNameChatCompletion {
 		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	} else if apiName == ApiNameEmbeddings {
 		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
@@ -85,6 +90,23 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+	if m.config.qwenEnableCompatible {
+		if gjson.GetBytes(body, "model").Exists() {
+			rawModel := gjson.GetBytes(body, "model").String()
+			mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
+			newBody, err := sjson.SetBytes(body, "model", mappedModel)
+			if err != nil {
+				log.Errorf("Replace model error: %v", err)
+				return types.ActionContinue, err
+			}
+			err = proxywasm.ReplaceHttpRequestBody(newBody)
+			if err != nil {
+				log.Errorf("Replace request body error: %v", err)
+				return types.ActionContinue, err
+			}
+		}
+		return types.ActionContinue, nil
+	}
 	if apiName == ApiNameChatCompletion {
 		return m.onChatCompletionRequestBody(ctx, body, log)
 	}
@@ -220,7 +242,7 @@ func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if name != ApiNameChatCompletion {
+	if m.config.qwenEnableCompatible || name != ApiNameChatCompletion {
 		return chunk, nil
 	}
 
@@ -305,6 +327,9 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+	if m.config.qwenEnableCompatible {
+		return types.ActionContinue, nil
+	}
 	if apiName == ApiNameChatCompletion {
 		return m.onChatCompletionResponseBody(ctx, body, log)
 	}
