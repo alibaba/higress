@@ -22,7 +22,7 @@
 
 Higress 是基于阿里内部多年的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的云原生 API 网关。
 
-Higress 是面向 AI 原生设计的 API 网关，在阿里内部，承载了通义千问 APP、百炼大模型 API、机器学习 PAI 平台等 AI 业务的流量。
+Higress 在阿里内部作为 AI 网关，承载了通义千问 APP、百炼大模型 API、机器学习 PAI 平台等 AI 业务的流量。
 
 Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时具备丰富的 AI 可观测、多模型负载均衡/fallback、AI token 流控、AI 缓存等能力：
 
@@ -31,12 +31,35 @@ Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时�
 
 
 ## Summary
-    
+
+- [**快速开始**](#快速开始)    
 - [**功能展示**](#功能展示)
 - [**使用场景**](#使用场景)
 - [**核心优势**](#核心优势)
-- [**Quick Start**](https://higress.io/zh-cn/docs/user/quickstart)
 - [**社区**](#社区)
+
+## 快速开始
+
+Higress 只需 Docker 即可启动，方便个人开发者在本地搭建学习，或者用于搭建简易站点:
+
+```bash
+# 创建一个工作目录
+mkdir higress; cd higress
+# 启动 higress，配置文件会写到工作目录下
+docker run -d --rm --name higress-ai -v ${PWD}:/data \
+        -p 8001:8001 -p 8080:8080 -p 8443:8443  \
+        higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
+```
+
+监听端口说明如下：
+
+- 8001 端口：Higress UI 控制台入口
+- 8080 端口：网关 HTTP 协议入口
+- 8443 端口：网关 HTTPS 协议入口
+
+**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内不可访问的影响**
+
+K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.io/docs/latest/user/quickstart/)。
 
 
 ## 使用场景

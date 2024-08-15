@@ -165,6 +165,14 @@ Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 | --------------------- | -------- | -------- |-----|-------------------------------------------------------------------------------------------------|
 | `geminiSafetySetting` | map of string   | 非必填     | -   | Gemini AI内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
 
+#### DeepL
+
+DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
+
+| 名称         | 数据类型 | 填写要求 | 默认值 | 描述                         |
+| ------------ | -------- | -------- | ------ | ---------------------------- |
+| `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -1005,6 +1013,59 @@ provider:
         "completion_tokens": 29,
         "total_tokens": 34
     }
+}
+```
+
+### 使用 OpenAI 协议代理 DeepL 文本翻译服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: deepl
+  apiTokens:
+    - "YOUR_DEEPL_API_TOKEN"
+  targetLang: "ZH"
+```
+
+**请求示例**
+此处 `model` 表示 DeepL 的服务类型，只能填 `Free` 或 `Pro`。`content` 中设置需要翻译的文本；在 `role: system` 的 `content` 中可以包含可能影响翻译但本身不会被翻译的上下文，例如翻译产品名称时，可以将产品描述作为上下文传递，这种额外的上下文可能会提高翻译的质量。
+
+```json
+{
+  "model": "Free",
+  "messages": [
+    {
+      "role": "system",
+      "content": "money"
+    },
+    {
+      "content": "sit by the bank"
+    },
+    {
+      "content": "a bank in China"
+    }
+  ]
+}
+```
+
+**响应示例**
+```json
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": { "name": "EN", "role": "assistant", "content": "坐庄" }
+    },
+    {
+      "index": 1,
+      "message": { "name": "EN", "role": "assistant", "content": "中国银行" }
+    }
+  ],
+  "created": 1722747752,
+  "model": "Free",
+  "object": "chat.completion",
+  "usage": {}
 }
 ```
 
