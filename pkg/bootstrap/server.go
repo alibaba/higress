@@ -161,10 +161,7 @@ var (
 func NewServer(args *ServerArgs) (*Server, error) {
 	e := model.NewEnvironment()
 	e.DomainSuffix = constants.DefaultClusterLocalDomain
-	// TODO: Upgrade fix
-	//e.MCPMode = true
 	e.SetLedger(buildLedger(args.RegistryOptions))
-
 	ac := aggregate.NewController(aggregate.Options{
 		MeshHolder: e,
 	})
@@ -265,8 +262,7 @@ func (s *Server) initConfigController() error {
 	// Create the config store.
 	s.environment.ConfigStore = aggregateConfigController
 
-	// TODO: Upgrade fix
-	//s.environment.IngressStore = ingressConfig
+	// s.environment.IngressStore = ingressConfig
 
 	// Defer starting the controller until after the service is created.
 	s.server.RunComponent("config-controller", func(stop <-chan struct{}) error {

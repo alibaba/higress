@@ -74,20 +74,20 @@ func (i ipAccessControl) ApplyRoute(route *networking.HTTPRoute, config *Ingress
 		return
 	}
 
-	// TODO: Upgrade fix
-	//filter := &networking.IPAccessControl{}
-	//if ac.Route.isWhite {
-	//	filter.RemoteIpBlocks = ac.Route.remoteIp
-	//} else {
-	//	filter.NotRemoteIpBlocks = ac.Route.remoteIp
-	//}
-	//
-	//route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
-	//	Name: mseingress.IPAccessControl,
-	//	Filter: &networking.HTTPFilter_IpAccessControl{
-	//		IpAccessControl: filter,
-	//	},
-	//})
+	filter := &networking.IPAccessControl{}
+	if ac.Route.isWhite {
+		filter.RemoteIpBlocks = ac.Route.remoteIp
+	} else {
+		filter.NotRemoteIpBlocks = ac.Route.remoteIp
+	}
+
+	route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
+		// TODO: hardcode
+		Name: "ip-access-control",
+		Filter: &networking.HTTPFilter_IpAccessControl{
+			IpAccessControl: filter,
+		},
+	})
 }
 
 func needIPAccessControlConfig(annotations Annotations) bool {

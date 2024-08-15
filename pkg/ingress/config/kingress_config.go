@@ -401,56 +401,55 @@ func (m *KIngressConfig) applyInternalActiveRedirect(convertOptions *common.Conv
 		var tempRoutes []*common.WrapperHTTPRoute
 		for _, route := range routes {
 			tempRoutes = append(tempRoutes, route)
-			// TODO: Upgrade fix
-			//if route.HTTPRoute.InternalActiveRedirect != nil {
-			//	fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
-			//	if fallbackConfig == nil {
-			//		continue
-			//	}
-			//
-			//	typedNamespace := fallbackConfig.DefaultBackend
-			//	internalRedirectRoute := route.HTTPRoute.DeepCopy()
-			//	internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
-			//	internalRedirectRoute.InternalActiveRedirect = nil
-			//	internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
-			//		{
-			//			Uri: &networking.StringMatch{
-			//				MatchType: &networking.StringMatch_Exact{
-			//					Exact: "/",
-			//				},
-			//			},
-			//			Headers: map[string]*networking.StringMatch{
-			//				annotations.FallbackInjectHeaderRouteName: {
-			//					MatchType: &networking.StringMatch_Exact{
-			//						Exact: internalRedirectRoute.Name,
-			//					},
-			//				},
-			//				annotations.FallbackInjectFallbackService: {
-			//					MatchType: &networking.StringMatch_Exact{
-			//						Exact: typedNamespace.String(),
-			//					},
-			//				},
-			//			},
-			//		},
-			//	}
-			//	internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
-			//		{
-			//			Destination: &networking.Destination{
-			//				Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
-			//				Port: &networking.PortSelector{
-			//					Number: fallbackConfig.Port,
-			//				},
-			//			},
-			//			Weight: 100,
-			//		},
-			//	}
-			//
-			//	tempRoutes = append([]*common.WrapperHTTPRoute{{
-			//		HTTPRoute:     internalRedirectRoute,
-			//		WrapperConfig: route.WrapperConfig,
-			//		ClusterId:     route.ClusterId,
-			//	}}, tempRoutes...)
-			//}
+			if route.HTTPRoute.InternalActiveRedirect != nil {
+				fallbackConfig := route.WrapperConfig.AnnotationsConfig.Fallback
+				if fallbackConfig == nil {
+					continue
+				}
+
+				typedNamespace := fallbackConfig.DefaultBackend
+				internalRedirectRoute := route.HTTPRoute.DeepCopy()
+				internalRedirectRoute.Name = internalRedirectRoute.Name + annotations.FallbackRouteNameSuffix
+				internalRedirectRoute.InternalActiveRedirect = nil
+				internalRedirectRoute.Match = []*networking.HTTPMatchRequest{
+					{
+						Uri: &networking.StringMatch{
+							MatchType: &networking.StringMatch_Exact{
+								Exact: "/",
+							},
+						},
+						Headers: map[string]*networking.StringMatch{
+							annotations.FallbackInjectHeaderRouteName: {
+								MatchType: &networking.StringMatch_Exact{
+									Exact: internalRedirectRoute.Name,
+								},
+							},
+							annotations.FallbackInjectFallbackService: {
+								MatchType: &networking.StringMatch_Exact{
+									Exact: typedNamespace.String(),
+								},
+							},
+						},
+					},
+				}
+				internalRedirectRoute.Route = []*networking.HTTPRouteDestination{
+					{
+						Destination: &networking.Destination{
+							Host: util.CreateServiceFQDN(typedNamespace.Namespace, typedNamespace.Name),
+							Port: &networking.PortSelector{
+								Number: fallbackConfig.Port,
+							},
+						},
+						Weight: 100,
+					},
+				}
+
+				tempRoutes = append([]*common.WrapperHTTPRoute{{
+					HTTPRoute:     internalRedirectRoute,
+					WrapperConfig: route.WrapperConfig,
+					ClusterId:     route.ClusterId,
+				}}, tempRoutes...)
+			}
 		}
 		convertOptions.HTTPRoutes[host] = tempRoutes
 	}

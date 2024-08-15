@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/alibaba/higress/pkg/bootstrap"
 	innerconstants "github.com/alibaba/higress/pkg/config/constants"
 	"github.com/spf13/cobra"
@@ -115,9 +116,6 @@ func getServerCommand() *cobra.Command {
 	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeConfig, "kubeconfig", "",
 		"Use a Kubernetes configuration file instead of in-cluster configuration")
 	// RegistryOptions Controller options
-	// TODO: Upgrade fix https://github.com/istio/istio/pull/38443
-	//serveCmd.PersistentFlags().DurationVar(&serverArgs.RegistryOptions.KubeOptions.ResyncPeriod, "resync", 60*time.Second,
-	//	"Controller resync interval")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeOptions.DomainSuffix, "domain", constants.DefaultClusterLocalDomain,
 		"DNS domain suffix")
 	serveCmd.PersistentFlags().StringVar((*string)(&serverArgs.RegistryOptions.KubeOptions.ClusterID), "clusterID", "Kubernetes",
