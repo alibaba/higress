@@ -169,12 +169,6 @@ where
         if !end_of_stream {
             return DataAction::StopIterationAndBuffer;
         }
-        let ret = self
-            .http_content
-            .on_http_request_body(self.req_body_len, end_of_stream);
-        if ret != DataAction::Continue {
-            return ret;
-        }
         let mut req_body = Bytes::new();
         if self.req_body_len > 0 {
             if let Some(body) = self.get_http_request_body(0, self.req_body_len) {
@@ -216,12 +210,6 @@ where
 
         if !end_of_stream {
             return DataAction::StopIterationAndBuffer;
-        }
-        let ret = self
-            .http_content
-            .on_http_response_body(self.res_body_len, end_of_stream);
-        if ret != DataAction::Continue {
-            return ret;
         }
 
         let mut res_body = Bytes::new();
