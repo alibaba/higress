@@ -140,6 +140,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 开启通义千问兼容模式
+	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
+	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
 	// @Title zh-CN Ollama Server IP/Domain
 	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的主机地址。
 	ollamaServerHost string `required:"false" yaml:"ollamaServerHost" json:"ollamaServerHost"`
@@ -193,6 +196,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
+	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
