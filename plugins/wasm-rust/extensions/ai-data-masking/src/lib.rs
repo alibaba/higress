@@ -406,16 +406,9 @@ impl AiDataMasking {
             )
         }
     }
-    fn http_response_body(&mut self, body: &[u8]) {
-        self.replace_http_response_body(body);
-        if !self.stream {
-            self.set_http_response_header("Content-Length", Some(&body.len().to_string()));
-            self.resume_http_response();
-        }
-    }
     fn deny(&mut self, in_response: bool) -> DataAction {
         if in_response && self.stream {
-            self.http_response_body(&[]);
+            self.replace_http_response_body(&[]);
             return DataAction::Continue;
         }
         let (deny_code, (deny_message, content_type)) = if let Some(config) = &self.config {
@@ -438,7 +431,7 @@ impl AiDataMasking {
             )
         };
         if in_response {
-            self.http_response_body(deny_message.as_bytes());
+            self.replace_http_response_body(deny_message.as_bytes());
             return DataAction::Continue;
         }
         self.send_http_response(
@@ -533,13 +526,13 @@ impl HttpContext for AiDataMasking {
         _num_headers: usize,
         _end_of_stream: bool,
     ) -> HeaderAction {
-        if self.stream {
-            HeaderAction::Continue
-        } else {
-            HeaderAction::StopIteration
-        }
+        self.set_http_response_header("Content-Length", None);
+        HeaderAction::Continue
     }
     fn on_http_response_body(&mut self, body_size: usize, _end_of_stream: bool) -> DataAction {
+        if !self.stream {
+            return DataAction::Continue;
+        }
         if let Some(body) = self.get_http_response_body(0, body_size) {
             self.res_body.extend(&body);
 
@@ -584,7 +577,7 @@ impl HttpContext for AiDataMasking {
                     }
                 }
                 if new_str != body_str {
-                    self.http_response_body(new_str.as_bytes());
+                    self.replace_http_response_body(new_str.as_bytes());
                 }
             }
         }
@@ -715,7 +708,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                         }
                     }
                 }
-                self.http_response_body(res_body.as_bytes());
+                self.replace_http_response_body(res_body.as_bytes());
 
                 return DataAction::Continue;
             }
@@ -731,11 +724,9 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                     }
                 }
             }
-            self.http_response_body(res_body.as_bytes());
+            self.replace_http_response_body(res_body.as_bytes());
             return DataAction::Continue;
         }
-
-        self.reset_http_response();
         DataAction::Continue
     }
 }
