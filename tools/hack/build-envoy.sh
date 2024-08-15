@@ -21,9 +21,11 @@ source "${SCRIPT_DIR}/setup-istio-env.sh"
 
 cd ${ROOT}/external/proxy
 
-
-patch -d . -p1 < "${SCRIPT_DIR}/build-envoy.patch"
-
+if patch_output=$(patch -d . -s -f --dry-run -p1 < ${SCRIPT_DIR}/build-envoy.patch 2>&1); then
+    patch -d . -p1 < ${SCRIPT_DIR}/build-envoy.patch
+else
+    echo "build-envoy.patch was already patched"
+fi
 
 CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/package,destination=/home/package "
 
