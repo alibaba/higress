@@ -7,7 +7,7 @@ require (
 	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240711023527-ba358c48772f
 	github.com/stretchr/testify v1.8.4
-	github.com/tidwall/gjson v1.14.3
+	github.com/tidwall/gjson v1.17.3
 	github.com/tidwall/resp v0.1.1
 )
 
