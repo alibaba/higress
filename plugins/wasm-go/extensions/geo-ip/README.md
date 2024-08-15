@@ -23,7 +23,22 @@ go run generateCidr/main.go
 在geo-ip插件里调用proxywasm.SetProperty() 分别把country，city，province，isp设置进请求属性里，以便后续插件可以调用proxywasm.GetProperty()获取该请求的用户ip对应的地理信息。
 
 
+# ip网段转换成cidr列表的单元测试
+在 testIpSegmentToCidr 目录里的main_test.go是ip网段转换成cidr 列表的单元测试程序。在文件里的TestRange2CidrList3()函数里定义变量如下：
 
+startIp := "224.0.0.0"   //ip网段的起始ip
+endIp := "255.255.255.255"   //ip网段的结尾ip
+country := "CountryY"  //ip网段的国家
+province := "ProvinceY"  //ip网段的省份
+city := "CityY"   //ip网段的城市
+isp := "ISPY"    //ip网段的ISP
+
+expectedOutput := "224.0.0.0/3|CountryY|ProvinceY|CityY|ISPY\n"
+
+然后在testIpSegmentToCidr目录里运行命令 go test 。通过的情况显示如下：
+
+PASS
+ok      higress/plugins/wasm-go/extensions/geo-ip/testIpSegmentToCidr   0.011s
 
 
 
