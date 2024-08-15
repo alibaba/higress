@@ -28,5 +28,5 @@ GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${TARGET_ARCH} \
     DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="${DOCKER_TARGETS}" \
     ISTIO_BASE_REGISTRY="${HUB}" \
     BASE_VERSION="${HIGRESS_BASE_VERSION}" \
-    IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools:release-1.19-04ab00931b61c082300832a7dd51634e5e3634ad \
+    IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools:release-1.19-ef344298e65eeb2d9e2d07b87eb4e715c2def613 \
     make docker
