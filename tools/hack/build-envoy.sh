@@ -28,6 +28,7 @@ else
 fi
 
 CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/package,destination=/home/package "
+CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/envoy,destination=/home/envoy "
 
 BUILD_WITH_CONTAINER=1 \
     CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
