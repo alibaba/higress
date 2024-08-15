@@ -21,7 +21,7 @@ use jieba_rs::Jieba;
 use jsonpath_rust::{JsonPath, JsonPathValue};
 use lazy_static::lazy_static;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, Bytes, ContextType, LogLevel};
+use proxy_wasm::types::{Bytes, ContextType, DataAction, HeaderAction, LogLevel};
 use rust_embed::Embed;
 use serde::de::Error;
 use serde::Deserialize;
@@ -373,7 +373,7 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
         Some(Box::new(AiDataMasking {
             mask_map: HashMap::new(),
             config: None,
-            is_openai: true,
+            is_openai: false,
             stream: false,
             res_body: Bytes::new(),
         }))
@@ -406,10 +406,17 @@ impl AiDataMasking {
             )
         }
     }
-    fn deny(&mut self, in_response: bool) -> Action {
+    fn http_response_body(&mut self, body: &[u8]) {
+        self.replace_http_response_body(body);
+        if !self.stream {
+            self.set_http_response_header("Content-Length", Some(&body.len().to_string()));
+            self.resume_http_response();
+        }
+    }
+    fn deny(&mut self, in_response: bool) -> DataAction {
         if in_response && self.stream {
-            self.replace_http_response_body(&[]);
-            return Action::Continue;
+            self.http_response_body(&[]);
+            return DataAction::Continue;
         }
         let (deny_code, (deny_message, content_type)) = if let Some(config) = &self.config {
             (
@@ -431,15 +438,15 @@ impl AiDataMasking {
             )
         };
         if in_response {
-            self.replace_http_response_body(deny_message.as_bytes());
-            return Action::Continue;
+            self.http_response_body(deny_message.as_bytes());
+            return DataAction::Continue;
         }
         self.send_http_response(
             deny_code as u32,
             vec![("Content-Type", &content_type)],
             Some(deny_message.as_bytes()),
         );
-        Action::Pause
+        DataAction::StopIterationAndBuffer
     }
 
     fn process_sse_message(&mut self, sse_message: &str) -> Vec<String> {
@@ -514,7 +521,25 @@ impl AiDataMasking {
 
 impl Context for AiDataMasking {}
 impl HttpContext for AiDataMasking {
-    fn on_http_response_body(&mut self, body_size: usize, _end_of_stream: bool) -> Action {
+    fn on_http_request_headers(
+        &mut self,
+        _num_headers: usize,
+        _end_of_stream: bool,
+    ) -> HeaderAction {
+        HeaderAction::StopIteration
+    }
+    fn on_http_response_headers(
+        &mut self,
+        _num_headers: usize,
+        _end_of_stream: bool,
+    ) -> HeaderAction {
+        if self.stream {
+            HeaderAction::Continue
+        } else {
+            HeaderAction::StopIteration
+        }
+    }
+    fn on_http_response_body(&mut self, body_size: usize, _end_of_stream: bool) -> DataAction {
         if let Some(body) = self.get_http_response_body(0, body_size) {
             self.res_body.extend(&body);
 
@@ -530,7 +555,7 @@ impl HttpContext for AiDataMasking {
                 }
             }
             if self.mask_map.is_empty() {
-                return Action::Continue;
+                return DataAction::Continue;
             }
             if let Ok(body_str) = std::str::from_utf8(&body) {
                 let mut new_str = body_str.to_string();
@@ -559,16 +584,16 @@ impl HttpContext for AiDataMasking {
                     }
                 }
                 if new_str != body_str {
-                    self.replace_http_response_body(new_str.as_bytes());
+                    self.http_response_body(new_str.as_bytes());
                 }
             }
         }
-        Action::Continue
+        DataAction::Continue
     }
 }
 impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
-    fn on_config(&mut self, _config: &AiDataMaskingConfig) {
-        self.config = Some(_config.clone());
+    fn on_config(&mut self, config: &AiDataMaskingConfig) {
+        self.config = Some(config.clone());
     }
     fn cache_request_body(&self) -> bool {
         true
@@ -576,15 +601,15 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     fn cache_response_body(&self) -> bool {
         !self.stream
     }
-    fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> Action {
+    fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> DataAction {
         if self.config.is_none() {
-            return Action::Continue;
+            return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
 
         let mut req_body = match String::from_utf8(req_body.clone()) {
             Ok(r) => r,
-            Err(_) => return Action::Continue,
+            Err(_) => return DataAction::Continue,
         };
         if config.deny_openai {
             if let Ok(r) = serde_json::from_str(req_body.as_str()) {
@@ -606,7 +631,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                     }
                 }
                 self.replace_http_request_body(req_body.as_bytes());
-                return Action::Continue;
+                return DataAction::Continue;
             }
         }
         if !config.deny_jsonpath.is_empty() {
@@ -634,7 +659,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                     }
                 }
                 self.replace_http_request_body(req_body.as_bytes());
-                return Action::Continue;
+                return DataAction::Continue;
             }
         }
         if config.deny_raw {
@@ -645,18 +670,22 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             if new_body != req_body {
                 self.replace_http_request_body(new_body.as_bytes())
             }
-            return Action::Continue;
+            return DataAction::Continue;
         }
-        Action::Continue
+        DataAction::Continue
     }
-    fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> Action {
+    fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> DataAction {
         if self.config.is_none() {
-            return Action::Continue;
+            self.reset_http_response();
+            return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
         let mut res_body = match String::from_utf8(res_body.clone()) {
             Ok(r) => r,
-            Err(_) => return Action::Continue,
+            Err(_) => {
+                self.reset_http_response();
+                return DataAction::Continue;
+            }
         };
         if config.deny_openai && self.is_openai {
             if let Ok(r) = serde_json::from_str(res_body.as_str()) {
@@ -686,9 +715,9 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                         }
                     }
                 }
+                self.http_response_body(res_body.as_bytes());
 
-                self.replace_http_response_body(res_body.as_bytes());
-                return Action::Continue;
+                return DataAction::Continue;
             }
         }
         if config.deny_raw {
@@ -702,9 +731,11 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                     }
                 }
             }
-            self.replace_http_response_body(res_body.as_bytes());
-            return Action::Continue;
+            self.http_response_body(res_body.as_bytes());
+            return DataAction::Continue;
         }
-        Action::Continue
+
+        self.reset_http_response();
+        DataAction::Continue
     }
 }

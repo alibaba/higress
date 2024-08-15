@@ -67,13 +67,13 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"replace.openai.com",
 			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
-			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"127.0.0.1 sk12345 admin@gmail.com\"}}],\"usage\":{}}"),
+			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"127.0.0.1 sk-12345 admin@gmail.com\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"replace.openai.com",
 			true,
 			[]byte("{\"messages\":[{\"role\":\"user\",\"content\":\"192.168.0.1 root@gmail.com sk-12345\"}]}"),
-			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"192.168.0.1 sk12345 root@gmail.com\"}}],\"usage\":{}}"),
+			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"192.168.0.1 sk-12345 root@gmail.com\"}}],\"usage\":{}}"),
 		))
 		testcases = append(testcases, gen_assertion(
 			"ok.openai.com",
@@ -113,33 +113,19 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"costom_word\"}}],\"usage\":{}}"),
 		))
 
-		//jsonpath
-		testcases = append(testcases, gen_assertion(
-			"ok.raw.com",
-			true,
-			[]byte("{\"test\":[{\"test\":\"costom\\\"word\"}]}"),
-			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
-		))
-		testcases = append(testcases, gen_assertion(
-			"ok.raw.com",
-			true,
-			[]byte("{\"test1\":[{\"test1\":\"costom\\\"word\"}]}"),
-			[]byte("[\"ok\"]"),
-		))
-
 		//raw
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
 			false,
 			[]byte("127.0.0.1 admin@gmail.com sk-12345"),
-			[]byte("[\"127.0.0.1 sk12345 admin@gmail.com\"]"),
+			[]byte("{\"res\":\"127.0.0.1 sk-12345 admin@gmail.com\"}"),
 		))
 
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
 			false,
 			[]byte("192.168.0.1 root@gmail.com sk-12345"),
-			[]byte("[\"192.168.0.1 sk12345 root@gmail.com\"]"),
+			[]byte("{\"res\":\"192.168.0.1 sk-12345 root@gmail.com\"}"),
 		))
 
 		testcases = append(testcases, gen_assertion(
@@ -158,26 +144,40 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"ok.raw.com",
 			false,
 			[]byte("costom_word"),
-			[]byte("[\"ok\"]"),
+			[]byte("{\"res\":\"ok\"}"),
 		))
 
 		testcases = append(testcases, gen_assertion(
-			"system_deny.openai.com",
+			"system_deny.raw.com",
 			false,
 			[]byte("test"),
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
-			"costom_word1.openai.com",
+			"costom_word1.raw.com",
 			false,
 			[]byte("test"),
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
-			"costom_word.openai.com",
+			"costom_word.raw.com",
 			false,
 			[]byte("test"),
-			[]byte("[\"costom_word\"]"),
+			[]byte("{\"res\":\"costom_word\"}"),
+		))
+
+		//jsonpath
+		testcases = append(testcases, gen_assertion(
+			"replace.raw.com",
+			true,
+			[]byte("{\"test\":[{\"test\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
+			[]byte("{\"res\":\"192.168.0.1 sk-12345 root@gmail.com\"}"),
+		))
+		testcases = append(testcases, gen_assertion(
+			"replace.raw.com",
+			true,
+			[]byte("{\"test\":[{\"test\":\"test\", \"test1\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
+			[]byte("{\"res\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}"),
 		))
 
 		t.Run("WasmPlugins ai-data-masking", func(t *testing.T) {

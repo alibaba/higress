@@ -87,31 +87,31 @@ spec:
       config:
         headers:
           - Content-Type=application/json
-        "body": "[\"ok\"]"
+        "body": "{\"res\":\"ok\"}"
     - domain:
         - replace.raw.com
       config:
         headers:
           - Content-Type=application/json
-        "body": "[\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"]"
+        "body": "{\"res\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}"
     - domain:
         - system_deny.raw.com
       config:
         headers:
           - Content-Type=application/json
-        "body": "[\"fuck\"]"
+        "body": "{\"res\":\"fuck\"}"
     - domain:
         - costom_word1.raw.com
       config:
         headers:
           - Content-Type=application/json
-        "body": "[\"costom_word1\"]"
+        "body": "{\"res\":\"costom_word1\"}"
     - domain:
         - costom_word.raw.com
       config:
         headers:
           - Content-Type=application/json
-        "body": "[\"costom_word\"]"
+        "body": "{\"res\":\"costom_word\"}"
     
   url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm
 ---
@@ -121,6 +121,7 @@ metadata:
   name: ai-data-masking
   namespace: higress-system
 spec:
+  priority: 300
   defaultConfig:
     system_deny: true
     deny_openai: true
@@ -133,7 +134,6 @@ spec:
     deny_content_type: "application/json"
     deny_words: 
       - "costom_word1"
-      - "costom\"word"
     replace_roles:
       - regex: "%{EMAILLOCALPART}@%{HOSTNAME:domain}"
         type: "replace"
