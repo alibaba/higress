@@ -35,6 +35,7 @@ const (
 	providerTypeCloudflare = "cloudflare"
 	providerTypeSpark      = "spark"
 	providerTypeGemini     = "gemini"
+	providerTypeDeepl      = "deepl"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -88,6 +89,7 @@ var (
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
 		providerTypeSpark:      &sparkProviderInitializer{},
 		providerTypeGemini:     &geminiProviderInitializer{},
+		providerTypeDeepl:      &deeplProviderInitializer{},
 	}
 )
 
@@ -176,6 +178,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN 翻译服务需指定的目标语种
+	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
+	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -223,6 +228,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.targetLang = json.Get("targetLang").String()
 }
 
 func (c *ProviderConfig) Validate() error {
