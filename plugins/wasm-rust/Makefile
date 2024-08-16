@@ -6,6 +6,12 @@ IMAGE_TAG = $(if $(strip $(PLUGIN_VERSION)),${PLUGIN_VERSION},${BUILD_TIME}-${CO
 IMG ?= ${REGISTRY}${PLUGIN_NAME}:${IMAGE_TAG}
 
 .DEFAULT:
+lint-base:
+	cargo fmt --all --check
+	cargo clippy --workspace --all-features --all-targets
+lint:
+	cargo fmt --all --check --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
+	cargo clippy --workspace --all-features --all-targets --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 build:
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg PLUGIN_NAME=${PLUGIN_NAME} \
