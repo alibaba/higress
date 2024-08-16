@@ -21,12 +21,18 @@ source "$(dirname -- "$0")/setup-istio-env.sh"
 cd ${ROOT}/external/istio
 rm -rf out/linux_${TARGET_ARCH}; 
 
+CONDITIONAL_HOST_MOUNTS+="--mount type=bind,source=${ROOT}/external/package,destination=/home/package "
+
+DOCKER_RUN_OPTIONS+="-e HTTP_PROXY -e HTTPS_PROXY"
+
 GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${TARGET_ARCH} \
     ISTIO_ENVOY_LINUX_RELEASE_URL=${ISTIO_ENVOY_LINUX_RELEASE_URL} \
     BUILD_WITH_CONTAINER=1 \
+    USE_REAL_USER=${USE_REAL_USER:-0} \
     CONDITIONAL_HOST_MOUNTS=${CONDITIONAL_HOST_MOUNTS} \
     DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="${DOCKER_TARGETS}" \
     ISTIO_BASE_REGISTRY="${HUB}" \
     BASE_VERSION="${HIGRESS_BASE_VERSION}" \
+    DOCKER_RUN_OPTIONS=${DOCKER_RUN_OPTIONS} \
     IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools:release-1.19-ef344298e65eeb2d9e2d07b87eb4e715c2def613 \
-    make docker
+    make "$@"

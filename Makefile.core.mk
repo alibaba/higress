@@ -4,6 +4,10 @@ export HIGRESS_BASE_VERSION ?= 2023-07-20T20-50-43
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
+export ISTIO_BASE_REGISTRY ?= $(HUB)
+
+export BASE_VERSION ?= $(HIGRESS_BASE_VERSION)
+
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
 VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
@@ -138,14 +142,6 @@ export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/release
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
 
-external/package/envoy-amd64.tar.gz:
-#       cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release	
-	cd external/package; wget -O envoy-amd64.tar.gz $(subst ARCH,amd64,${ENVOY_PACKAGE_URL_PATTERN})
-
-external/package/envoy-arm64.tar.gz:
-#       cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-arm64.tar.gz $(subst ARCH,arm64,${ENVOY_PACKAGE_URL_PATTERN})
-
 build-pilot: prebuild
 	TARGET_ARCH=amd64 ./tools/hack/build-istio-pilot.sh
 	TARGET_ARCH=arm64 ./tools/hack/build-istio-pilot.sh
@@ -153,17 +149,22 @@ build-pilot: prebuild
 build-pilot-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} ./tools/hack/build-istio-pilot.sh
 
-build-gateway: prebuild
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker.buildx
+buildx-prepare:
+	docker buildx inspect multi-arch >/dev/null 2>&1 || docker buildx create --name multi-arch --platform linux/amd64,linux/arm64 --use
 
-build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz
-	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh
+build-gateway: prebuild buildx-prepare
+	USE_REAL_USER=1 TARGET_ARCH=amd64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
+	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
+	DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker.buildx
 
-build-istio: prebuild
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker.buildx
+build-gateway-local: prebuild
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
+
+build-istio: prebuild buildx-prepare
+	DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker.buildx
 
 build-istio-local: prebuild
-	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker
 
 build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh
@@ -179,8 +180,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-59acb61
-ISTIO_LATEST_IMAGE_TAG ?= sha-59acb61
+ENVOY_LATEST_IMAGE_TAG ?= d309f9059573c32b3a24917de95883fd8910557d
+ISTIO_LATEST_IMAGE_TAG ?= d309f9059573c32b3a24917de95883fd8910557d
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
