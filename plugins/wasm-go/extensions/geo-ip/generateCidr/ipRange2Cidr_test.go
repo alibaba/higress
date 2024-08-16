@@ -18,7 +18,7 @@ func TestRange2CidrList(t *testing.T) {
 		want    map[string]int
 	}{
 		{
-			"start with 0.0.0.0",
+			"test start ip with 0.0.0.0",
 			"0.0.0.0",
 			"1.0.0.255",
 			map[string]int{
@@ -61,13 +61,13 @@ func TestRange2CidrList(t *testing.T) {
 			},
 		},
 		{
-			"end with 255.255.255.255",
+			"test end ip with 255.255.255.255",
 			"224.0.0.0",
 			"255.255.255.255",
 			map[string]int{"224.0.0.0/3": 1},
 		},
 		{
-			"end ip is greater than start ip",
+			"test start ip is greater than end ip",
 			"1.0.0.255",
 			"1.0.0.0",
 			map[string]int{},

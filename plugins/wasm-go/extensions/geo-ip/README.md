@@ -14,9 +14,9 @@ ipProtocol: ipv4
 
 
 # 生成geoCidr.txt的说明
-在generateCidr目录里包含的ip.merge.txt文件是github上ip2region项目的全世界的ip网段库。main.go 是把ip网段转换成多个cidr的程序。转换出的cidr 和地理位置信息存在 /data/geoCidr.txt文件里。geo-ip插件会在Higress启动读配置阶段读取geoCidr.txt文件并且解析到radixtree数据结构的内存里，以便以后查询用户ip对应的地理位置信息。转换程序运行命令如下：
+在generateCidr目录里包含的ip.merge.txt文件是github上ip2region项目的全世界的ip网段库。 ipRange2Cidr.go 是把ip网段转换成多个cidr的程序。转换出的cidr 和地理位置信息存在 /data/geoCidr.txt文件里。geo-ip插件会在Higress启动读配置阶段读取geoCidr.txt文件并且解析到radixtree数据结构的内存里，以便以后查询用户ip对应的地理位置信息。转换程序运行命令如下：
 
-go run generateCidr/main.go
+go run generateCidr/ipRange2Cidr.go
 
 
 # property 的使用方式
@@ -24,21 +24,10 @@ go run generateCidr/main.go
 
 
 # ip网段转换成cidr列表的单元测试
-在 testIpSegmentToCidr 目录里的main_test.go是ip网段转换成cidr 列表的单元测试程序。在文件里的TestRange2CidrList3()函数里定义变量如下：
-
-startIp := "224.0.0.0"   //ip网段的起始ip
-endIp := "255.255.255.255"   //ip网段的结尾ip
-country := "CountryY"  //ip网段的国家
-province := "ProvinceY"  //ip网段的省份
-city := "CityY"   //ip网段的城市
-isp := "ISPY"    //ip网段的ISP
-
-expectedOutput := "224.0.0.0/3|CountryY|ProvinceY|CityY|ISPY\n"
-
-然后在testIpSegmentToCidr目录里运行命令 go test 。通过的情况显示如下：
+在 generateCidr 目录里的  ipRange2Cidr_test.go  是ip网段转换成cidr 列表的单元测试程序。在 generateCidr 目录里运行命令 go test 。通过的情况显示如下：
 
 PASS
-ok      higress/plugins/wasm-go/extensions/geo-ip/testIpSegmentToCidr   0.011s
+ok      higress/plugins/wasm-go/extensions/geo-ip/generateCidr  0.018s
 
 
 
