@@ -32,6 +32,7 @@ then
 elif [ "$TYPE" == "RUST" ]
 then
     cd ./plugins/wasm-rust/
+    make lint-base
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
         EXTENSIONS_DIR=$(pwd)"/extensions/"
         echo "🚀 Build all Rust WasmPlugins under folder of $EXTENSIONS_DIR"
@@ -40,12 +41,21 @@ then
                 if [ -d $EXTENSIONS_DIR$file ]; then 
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
+                    PLUGIN_NAME=${name} make lint 
                     PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-rust-" make build
                 fi
             done
+            cd ../wasm-go/
+            PLUGIN_NAME=custom-response make build
     else
         echo "🚀 Build Rust WasmPlugin: $INNER_PLUGIN_NAME"
+        PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
+        if [ "$INNER_PLUGIN_NAME" == "ai-data-masking" ]; then
+            cd ../wasm-go/
+            PLUGIN_NAME=custom-response make build
+        fi
+
     fi
 else
     echo "Not specify plugin language, so just compile wasm-go as default"

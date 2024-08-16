@@ -1,5 +1,5 @@
 [package]
-name = "request-block"
+name = "ai-data-masking"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -13,5 +13,10 @@ higress-wasm-rust = { path = "../../", version = "0.1.0" }
 proxy-wasm = { git="https://github.com/higress-group/proxy-wasm-rust-sdk", branch="main", version="0.2.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-regex = "1"
-multimap = "0"
+fancy-regex = "0"
+md5 = "0"
+grok = "2"
+lazy_static = "1"
+jieba-rs = "0"
+rust-embed="8.5.0"
+jsonpath-rust = "0"
