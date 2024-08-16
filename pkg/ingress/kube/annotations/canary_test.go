@@ -15,10 +15,10 @@
 package annotations
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -264,7 +264,7 @@ func TestApplyWeight(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(route, expect) {
+	if !assert.Equal(t, route, expect) {
 		t.Fatal("Should be equal")
 	}
 }

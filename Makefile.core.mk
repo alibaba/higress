@@ -64,7 +64,7 @@ default: build
 
 .PHONY: go.test.coverage
 go.test.coverage: prebuild
-	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+	go test -ldflags "-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
 
 .PHONY: build
 build: prebuild $(OUT)
