@@ -23,6 +23,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: "Setup Go"
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.21.5
+
     - name: Setup Golang Caches
       uses: actions/cache@v4
       with:
@@ -107,7 +112,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Free Up GitHub Actions Ubuntu Runner Disk Space 🔧
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
       
     - name: "Setup Go"
       uses: actions/setup-go@v5
@@ -121,8 +136,7 @@ jobs:
           ~/.cache/go-build
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ github.run_id }}
-        restore-keys: |
-          ${{ runner.os }}-go
+        restore-keys: ${{ runner.os }}-go
       
     - name: Setup Submodule Caches
       uses: actions/cache@v4
