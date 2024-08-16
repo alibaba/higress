@@ -17,9 +17,10 @@
 package istio
 
 import (
-	"istio.io/istio/pkg/config/constants"
 	corev1 "k8s.io/api/core/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/alibaba/higress/pkg/config/constants"
 )
 
 // classInfo holds information about a gateway class

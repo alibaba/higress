@@ -21,12 +21,6 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	k8sbeta "sigs.k8s.io/gateway-api/apis/v1beta1"
-
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/config/memory"
 	"istio.io/istio/pilot/pkg/model"
@@ -34,13 +28,20 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
 	"istio.io/istio/pilot/pkg/serviceregistry/util/xdsfake"
 	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/constants"
+	istioconst "istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/kclient/clienttest"
 	"istio.io/istio/pkg/test"
 	"istio.io/istio/pkg/util/sets"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	k8sbeta "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	"github.com/alibaba/higress/pkg/config/constants"
 )
 
 var (
@@ -134,7 +135,7 @@ func TestListGatewayResourceType(t *testing.T) {
 	g.Expect(cfg).To(HaveLen(1))
 	for _, c := range cfg {
 		g.Expect(c.GroupVersionKind).To(Equal(gvk.Gateway))
-		g.Expect(c.Name).To(Equal("gwspec" + "-" + constants.KubernetesGatewayName + "-default"))
+		g.Expect(c.Name).To(Equal("gwspec" + "-" + istioconst.KubernetesGatewayName + "-default"))
 		g.Expect(c.Namespace).To(Equal("ns1"))
 		g.Expect(c.Spec).To(Equal(expectedgw))
 	}

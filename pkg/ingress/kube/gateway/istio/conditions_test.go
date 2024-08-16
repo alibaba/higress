@@ -18,12 +18,12 @@ import (
 	"reflect"
 	"testing"
 
+	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8s "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/constants"
-	"istio.io/istio/pkg/config/schema/gvk"
+	"github.com/alibaba/higress/pkg/config/constants"
 )
 
 func TestCreateRouteStatus(t *testing.T) {
