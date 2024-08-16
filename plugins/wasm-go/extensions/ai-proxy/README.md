@@ -52,6 +52,7 @@ OpenAI 所对应的 `type` 为 `openai`。它特有的配置字段如下:
 | 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
 |-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
 | `openaiCustomUrl` | string   | 非必填   | -      | 基于OpenAI协议的自定义后端URL，例如: www.example.com/myai/v1/chat/completions |
+| `responseJsonSchema` | object | 非必填 | - | 预先定义OpenAI响应需满足的Json Schema, 注意目前仅特定的几种模型支持该用法|
 
 
 #### Azure OpenAI
