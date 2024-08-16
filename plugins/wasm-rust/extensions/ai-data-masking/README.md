@@ -1,7 +1,23 @@
 # 功能说明
 
   对请求/返回中的敏感词拦截、替换
+```memaid
+sequenceDiagram
+    participant 用户
+    participant 敏感词插件
+    participant 后端服务
 
+    用户->>敏感词插件: 请求数据(如:包含admin@gmail.com)
+    敏感词插件->>敏感词插件: 数据解析
+    opt 如果包含拦截词
+    敏感词插件-->>用户: 返回预设错误消息 (拦截)
+    end
+    opt 替换敏感词
+    敏感词插件->>后端服务: 关键词替换后的请求数据 (将admin@gmail.com替换为****@gmail.com)
+    后端服务->>敏感词插件: 原始返回响应(包含 ****@gmail.com)
+    敏感词插件->>用户: 数据恢复后的相应数据(将****@gmail.com恢复为admin@gmail.com)
+    end
+```
 ## 处理数据范围
   - openai协议：请求/返回对话内容
   - jsonpath：只处理指定字段
