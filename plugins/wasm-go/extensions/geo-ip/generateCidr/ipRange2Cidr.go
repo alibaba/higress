@@ -65,11 +65,16 @@ func main() {
 			isp = ""
 		}
 
-		range2cidrList(sip, eip, country, province, city, isp, f)
+		if err := parseGeoIpFile(sip, eip, country, province, city, isp, f); err != nil {
+			log.Printf("parse geo ip file failed, error:%v", err)
+			return
+		}
 	}
 }
 
-func range2cidrList(startIp string, endIp string, country string, province string, city string, isp string, f *os.File) {
+func range2cidrList(startIp string, endIp string) []string {
+	cidrList := []string{}
+
 	start := uint32(ipToInt(startIp))
 	beginStart := start
 	end := uint32(ipToInt(endIp))
@@ -93,12 +98,7 @@ func range2cidrList(startIp string, endIp string, country string, province strin
 		}
 		ipStr := intToIP(int(start))
 		cidr := fmt.Sprintf("%s/%d", ipStr, maxSize)
-		outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
-		_, err := f.WriteString(outRow + "\n")
-		if err != nil {
-			log.Println("write string failed.", outRow, err)
-			return
-		}
+		cidrList = append(cidrList, cidr)
 
 		start += uint32(math.Pow(2, float64(32-maxSize)))
 		//avoid dead loop for 255.255.255.255
@@ -106,6 +106,22 @@ func range2cidrList(startIp string, endIp string, country string, province strin
 			break
 		}
 	}
+
+	return cidrList
+}
+
+func parseGeoIpFile(startIp string, endIp string, country string, province string, city string, isp string, f *os.File) error {
+	cidrList := range2cidrList(startIp, endIp)
+	for _, cidr := range cidrList {
+		outRow := fmt.Sprintf("%s|%s|%s|%s|%s", cidr, country, province, city, isp)
+		_, err := f.WriteString(outRow + "\n")
+		if err != nil {
+			log.Println("write string failed.", outRow, err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ipToInt(ipStr string) int {
