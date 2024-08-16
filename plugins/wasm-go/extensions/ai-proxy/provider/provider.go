@@ -232,6 +232,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		}
 	}
 	c.targetLang = json.Get("targetLang").String()
+	c.responseJsonSchema = json.Get("responseJsonSchema").Value().(map[string]interface{})
 }
 
 func (c *ProviderConfig) Validate() error {
