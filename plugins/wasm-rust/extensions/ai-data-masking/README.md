@@ -1,7 +1,7 @@
 # 功能说明
 
   对请求/返回中的敏感词拦截、替换
-```memaid
+```mermaid
 sequenceDiagram
     participant 用户
     participant 敏感词插件
