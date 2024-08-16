@@ -181,6 +181,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
+	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
+	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
+	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
