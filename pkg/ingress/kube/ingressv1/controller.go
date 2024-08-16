@@ -24,7 +24,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alibaba/higress/pkg/cert"
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -44,10 +43,12 @@ import (
 	ingress "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/alibaba/higress/pkg/cert"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
@@ -80,7 +81,7 @@ type controller struct {
 	ingressLister   networkinglister.IngressLister
 	serviceInformer informerfactory.StartableInformer
 	serviceLister   listerv1.ServiceLister
-	// May be nil if ingress class is not supported in the cluster
+
 	classInformer informerfactory.StartableInformer
 	classLister   networkinglister.IngressClassLister
 
@@ -139,6 +140,13 @@ func (c *controller) Run(stop <-chan struct{}) {
 		go c.statusSyncer.run(stop)
 	}
 	go c.secretController.Run(stop)
+
+	defer utilruntime.HandleCrash()
+
+	if !cache.WaitForCacheSync(stop, c.informerSynced) {
+		IngressLog.Errorf("Failed to sync ingress controller cache for cluster %s", c.options.ClusterId)
+		return
+	}
 
 	c.queue.Run(stop)
 }
@@ -256,10 +264,14 @@ func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err e
 	return errs
 }
 
-func (c *controller) HasSynced() bool {
+func (c *controller) informerSynced() bool {
 	return c.ingressInformer.Informer.HasSynced() && c.serviceInformer.Informer.HasSynced() &&
 		c.classInformer.Informer.HasSynced() &&
 		c.secretController.HasSynced()
+}
+
+func (c *controller) HasSynced() bool {
+	return c.queue.HasSynced()
 }
 
 func (c *controller) List() []config.Config {
