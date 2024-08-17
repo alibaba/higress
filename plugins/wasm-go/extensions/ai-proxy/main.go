@@ -104,12 +104,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+
+		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
+		if settingErr != nil {
+			_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to rewrite request body by custom settings: %v", settingErr))
+			return types.ActionContinue
+		}
+
+		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
+		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
-		return types.ActionContinue
 	}
 	return types.ActionContinue
 }
