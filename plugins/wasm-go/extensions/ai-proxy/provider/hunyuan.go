@@ -447,7 +447,7 @@ func convertMessagesFromOpenAIToHunyuan(openAIMessages []chatMessage) []hunyuanC
 	for _, msg := range openAIMessages {
 		hunyuanChatMessages = append(hunyuanChatMessages, hunyuanChatMessage{
 			Role:    msg.Role,
-			Content: msg.Content,
+			Content: msg.StringContent(),
 		})
 	}
 

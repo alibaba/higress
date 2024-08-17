@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
-	"strings"
 )
 
 // 限流规则项类型

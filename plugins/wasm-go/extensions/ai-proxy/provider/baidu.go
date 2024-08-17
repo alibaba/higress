@@ -253,7 +253,7 @@ func (b *baiduProvider) baiduTextGenRequest(request *chatCompletionRequest) *bai
 	}
 	for _, message := range request.Messages {
 		if message.Role == roleSystem {
-			baiduRequest.System = message.Content
+			baiduRequest.System = message.StringContent()
 		} else {
 			baiduRequest.Messages = append(baiduRequest.Messages, chatMessage{
 				Role:    message.Role,
