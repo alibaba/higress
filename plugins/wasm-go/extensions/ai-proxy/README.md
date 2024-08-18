@@ -339,7 +339,7 @@ URL: http://your-domain/v1/chat/completions
 }
 ```
 
-**多模态模型API请求示例（适用于 qwen-vl-plus 和 qwen-vl-max 模型）**
+**多模态模型 API 请求示例（适用于 `qwen-vl-plus` 和 `qwen-vl-max` 模型）**
 
 URL: http://your-domain/v1/chat/completions
 
