@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 type Controller[lister any] interface {
@@ -85,6 +86,10 @@ func (c *CommonController[lister]) AddEventHandler(addOrUpdate func(util.Cluster
 }
 
 func (c *CommonController[lister]) Run(stop <-chan struct{}) {
+	if !cache.WaitForCacheSync(stop, c.informer.HasSynced) {
+		IngressLog.Errorf("Failed to sync %s controller cache", c.typeName)
+		return
+	}
 	c.queue.Run(stop)
 }
 
@@ -120,5 +125,5 @@ func (c *CommonController[lister]) Get(namespacedName types.NamespacedName) (con
 }
 
 func (c *CommonController[lister]) HasSynced() bool {
-	return c.informer.HasSynced()
+	return c.queue.HasSynced()
 }

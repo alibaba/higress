@@ -25,7 +25,7 @@ TARGET_ARCH ?= amd64
 
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
-RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
+RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w -X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)

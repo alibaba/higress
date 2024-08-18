@@ -1166,7 +1166,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 		secretController: secretController,
 	}
 
-	ingressController.queue = controllers.NewQueue("ingress",
+	ingressController.queue = controllers.NewQueue("ingress-test",
 		controllers.WithReconciler(ingressController.onEvent),
 		controllers.WithMaxAttempts(5))
 	_, _ = ingressController.ingressInformer.Informer.AddEventHandler(controllers.ObjectHandler(ingressController.queue.AddObject))
@@ -1182,7 +1182,6 @@ func TestIngressControllerProcessing(t *testing.T) {
 	go ingressController.secretController.Informer().Run(stopChan)
 
 	go ingressController.Run(stopChan)
-	go secretController.Run(stopChan)
 
 	ingressController.RegisterEventHandler(gvk.VirtualService, func(c1, c2 config.Config, e istiomodel.Event) {})
 	ingressController.RegisterEventHandler(gvk.DestinationRule, func(c1, c2 config.Config, e istiomodel.Event) {})

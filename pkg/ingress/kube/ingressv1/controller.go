@@ -266,12 +266,11 @@ func (c *controller) SetWatchErrorHandler(handler func(r *cache.Reflector, err e
 
 func (c *controller) informerSynced() bool {
 	return c.ingressInformer.Informer.HasSynced() && c.serviceInformer.Informer.HasSynced() &&
-		c.classInformer.Informer.HasSynced() &&
-		c.secretController.HasSynced()
+		c.classInformer.Informer.HasSynced()
 }
 
 func (c *controller) HasSynced() bool {
-	return c.queue.HasSynced()
+	return c.queue.HasSynced() && c.secretController.HasSynced()
 }
 
 func (c *controller) List() []config.Config {

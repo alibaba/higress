@@ -30,7 +30,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"github.com/golang/protobuf/ptypes/wrappers"
-	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/anypb"
 	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
@@ -45,8 +44,6 @@ import (
 	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	ktypes "k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -122,8 +119,6 @@ type IngressConfig struct {
 
 	RegistryReconciler *reconcile.Reconciler
 
-	mcpbridgeReconciled *atomic.Bool
-
 	mcpbridgeController mcpbridge.McpBridgeController
 
 	mcpbridgeLister netlisterv1.McpBridgeLister
@@ -169,7 +164,6 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		globalGatewayName:        namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
 		watchedSecretSet:         sets.New[string](),
 		namespace:                namespace,
-		mcpbridgeReconciled:      atomic.NewBool(false),
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
@@ -1058,7 +1052,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 		IngressLog.Errorf("Mcpbridge reconcile failed, err:%v", err)
 		return
 	}
-	m.mcpbridgeReconciled.Store(true)
+	IngressLog.Info("Mcpbridge reconciled")
 }
 
 func (m *IngressConfig) DeleteMcpBridge(clusterNamespacedName util.ClusterNamespacedName) {
@@ -1545,19 +1539,6 @@ func (m *IngressConfig) HasSynced() bool {
 	}
 	if !m.mcpbridgeController.HasSynced() {
 		return false
-	} else {
-		_, err := m.mcpbridgeController.Get(ktypes.NamespacedName{
-			Namespace: m.namespace,
-			Name:      DefaultMcpbridgeName,
-		})
-		if err != nil {
-			if !kerrors.IsNotFound(err) {
-				return false
-			}
-			// mcpbridge exist
-		} else if !m.mcpbridgeReconciled.Load() {
-			return false
-		}
 	}
 	if !m.wasmPluginController.HasSynced() {
 		return false

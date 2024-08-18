@@ -133,11 +133,7 @@ spec:
           env:
           - name: PILOT_ENABLE_HEADLESS_SERVICE_POD_LISTENERS
             value: "false"
-          - name: PILOT_ENABLE_METADATA_EXCHANGE
-            value: "false"
           - name: PILOT_ENABLE_ALPN_FILTER
-            value: "false"
-          - name: VALIDATION_ENABLED
             value: "false"
           - name: ENABLE_OPTIMIZED_CONFIG_REBUILD
             value: "false"
