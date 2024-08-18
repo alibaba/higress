@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	settingNameMaxTokens   = "max_tokens"
-	settingNameTemperature = "temperature"
-	settingNameTopP        = "top_p"
-	settingNameTopK        = "top_k"
-	settingNameSeed        = "seed"
+	nameMaxTokens   = "max_tokens"
+	nameTemperature = "temperature"
+	nameTopP        = "top_p"
+	nameTopK        = "top_k"
+	nameSeed        = "seed"
 )
 
 var maxTokensMapping = map[string]string{
@@ -56,48 +56,56 @@ var seedMapping = map[string]string{
 }
 
 var settingMapping = map[string]map[string]string{
-	settingNameMaxTokens:   maxTokensMapping,
-	settingNameTemperature: temperatureMapping,
-	settingNameTopP:        topPMapping,
-	settingNameTopK:        topKMapping,
-	settingNameSeed:        seedMapping,
+	nameMaxTokens:   maxTokensMapping,
+	nameTemperature: temperatureMapping,
+	nameTopP:        topPMapping,
+	nameTopK:        topKMapping,
+	nameSeed:        seedMapping,
 }
 
 type CustomSetting struct {
 	// @Title zh-CN 参数名称
 	// @Description zh-CN 想要设置的参数的名称，例如max_tokens
-	settingName string
+	name string
 	// @Title zh-CN 参数值
 	// @Description zh-CN 想要设置的参数的值，例如0
-	settingValue string
+	value string
 	// @Title zh-CN 设置模式
-	// @Description zh-CN 参数设置的模式，可以设置为"fill"或者"overwrite"，如果为"fill"则只在用户没有设置这个参数时填充参数，如果为"overwrite"则会直接覆盖用户原有的参数设置
-	settingMode string
+	// @Description zh-CN 参数设置的模式，可以设置为"auto"或者"raw"，如果为"auto"则会根据 /plugins/wasm-go/extensions/ai-proxy/README.md中关于custom-setting部分的表格自动按照协议对参数名做改写，如果为"raw"则不会有任何改写和限制检查
+	mode string
 	// @Title zh-CN json edit 模式
-	// @Description zh-CN 是否启用json edit模式。如果启用，会直接用输入的settingName和settingValue去更改请求中的json内容，而不对参数名称做任何限制和修改。
-	enableJsonEdit bool
+	// @Description zh-CN 如果为false则只在用户没有设置这个参数时填充参数，否则会直接覆盖用户原有的参数设置
+	overwrite bool
 }
 
 func (c *CustomSetting) FromJson(json gjson.Result) {
-	c.settingName = json.Get("settingName").String()
-	c.settingValue = json.Get("settingValue").Raw
-	c.settingMode = json.Get("settingMode").String()
-	c.enableJsonEdit = json.Get("enableJsonEdit").Bool()
+	c.name = json.Get("name").String()
+	c.value = json.Get("value").Raw
+	if obj := json.Get("mode"); obj.Exists() {
+		c.mode = obj.String()
+	} else {
+		c.mode = "auto"
+	}
+	if obj := json.Get("overwrite"); obj.Exists() {
+		c.overwrite = obj.Bool()
+	} else {
+		c.overwrite = true
+	}
 }
 
 func (c *CustomSetting) Validate() bool {
-	return c.settingName != ""
+	return c.name != ""
 }
 
 func (c *CustomSetting) setInvalid() {
-	c.settingName = "" // set empty to represent invalid
+	c.name = "" // set empty to represent invalid
 }
 
 func (c *CustomSetting) AdjustWithProtocol(protocol string) {
-	if !c.enableJsonEdit {
-		mapping, ok := settingMapping[c.settingName]
+	if !(c.mode == "raw") {
+		mapping, ok := settingMapping[c.name]
 		if ok {
-			c.settingName, ok = mapping[protocol]
+			c.name, ok = mapping[protocol]
 		}
 		if !ok {
 			c.setInvalid()
@@ -106,10 +114,10 @@ func (c *CustomSetting) AdjustWithProtocol(protocol string) {
 	}
 
 	if protocol == providerTypeQwen {
-		c.settingName = "parameters." + c.settingName
+		c.name = "parameters." + c.name
 	}
 	if protocol == providerTypeGemini {
-		c.settingName = "generation_config." + c.settingName
+		c.name = "generation_config." + c.name
 	}
 }
 
@@ -117,7 +125,10 @@ func ReplaceByCustomSettings(body []byte, settings []CustomSetting) ([]byte, err
 	var err error
 	strBody := string(body)
 	for _, setting := range settings {
-		strBody, err = sjson.SetRaw(strBody, setting.settingName, setting.settingValue)
+		if !setting.overwrite && gjson.Get(strBody, setting.name).Exists() {
+			continue
+		}
+		strBody, err = sjson.SetRaw(strBody, setting.name, setting.value)
 		if err != nil {
 			break
 		}
