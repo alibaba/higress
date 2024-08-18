@@ -22,7 +22,6 @@ import (
 	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
 	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
-	"istio.io/istio/pilot/pkg/status"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -46,16 +45,14 @@ type gatewayController struct {
 	destinationRuleHandlers []model.EventHandler
 	envoyFilterHandlers     []model.EventHandler
 
-	environment     *model.Environment
 	store           model.ConfigStoreController
 	credsController credentials.MulticlusterController
 	istioController *istiogateway.Controller
-	statusManager   *status.Manager
 
 	resourceUpToDate atomic.Bool
 }
 
-func NewController(environment *model.Environment, client kube.Client, options common.Options) common.GatewayController {
+func NewController(client kube.Client, options common.Options) common.GatewayController {
 	domainSuffix := util.GetDomainSuffix()
 	opts := crdclient.Option{
 		Revision:     higressconfig.Revision,
@@ -74,25 +71,22 @@ func NewController(environment *model.Environment, client kube.Client, options c
 	clusterId := options.ClusterId
 	credsController := kubecredentials.NewMulticluster(clusterId)
 	credsController.ClusterAdded(&multicluster.Cluster{ID: clusterId, Client: client}, nil)
-	istioController := istiogateway.NewController(environment, client, store, client.CrdWatcher().WaitForCRD, credsController, kubecontroller.Options{DomainSuffix: domainSuffix})
+	istioController := istiogateway.NewController(client, store, client.CrdWatcher().WaitForCRD, credsController, kubecontroller.Options{DomainSuffix: domainSuffix})
 	if options.GatewaySelectorKey != "" {
 		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
 	}
 
-	var statusManager *status.Manager = nil
 	if options.EnableStatus {
-		statusManager = status.NewManager(store)
-		istioController.SetStatusWrite(true, statusManager)
+		// TODO: Add status sync support
+		//istioController.SetStatusWrite(true,)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
 	}
 
 	return &gatewayController{
-		environment:     environment,
 		store:           store,
 		credsController: credsController,
 		istioController: istioController,
-		statusManager:   statusManager,
 	}
 }
 
@@ -106,7 +100,10 @@ func (g *gatewayController) Get(typ config.GroupVersionKind, name, namespace str
 
 func (g *gatewayController) List(typ config.GroupVersionKind, namespace string) []config.Config {
 	if g.resourceUpToDate.CompareAndSwap(false, true) {
-		_ = g.reconcile()
+		err := g.istioController.Reconcile(model.NewPushContext())
+		if err != nil {
+			IngressLog.Errorf("failed to recompute Gateway API resources: %v", err)
+		}
 	}
 	return g.istioController.List(typ, namespace)
 }
@@ -151,9 +148,6 @@ func (g *gatewayController) Run(stop <-chan struct{}) {
 	})
 	go g.store.Run(stop)
 	go g.istioController.Run(stop)
-	if g.statusManager != nil {
-		g.statusManager.Start(stop)
-	}
 }
 
 func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
@@ -164,25 +158,13 @@ func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err 
 func (g *gatewayController) HasSynced() bool {
 	ret := g.istioController.HasSynced()
 	if ret {
-		_ = g.reconcile()
+		err := g.istioController.Reconcile(model.NewPushContext())
+		if err != nil {
+			IngressLog.Errorf("failed to recompute Gateway API resources: %v", err)
+		}
 	}
 	return ret
 }
-
-func (g *gatewayController) reconcile() error {
-	//ps := model.NewPushContext()
-	//if err := ps.InitContext(g.environment, nil, nil); err != nil {
-	//	IngressLog.Errorf("failed to init PushContext. use empty PushContext instead: %v", err)
-	//}
-	err := g.istioController.Reconcile(model.NewPushContext())
-	if err != nil {
-		IngressLog.Errorf("failed to recompute Gateway API resources: %v", err)
-	}
-	return err
-}
-
-//func (g *gatewayController) initPushContext(ps *model.PushContext) error {
-//}
 
 func (g *gatewayController) onEvent(prev config.Config, curr config.Config, event model.Event) {
 	g.resourceUpToDate.Store(false)

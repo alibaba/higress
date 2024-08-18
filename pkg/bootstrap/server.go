@@ -170,7 +170,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		s.initKubeClient,
 		s.initXdsServer,
 		s.initHttpServer,
-		s.initControllers,
+		s.initConfigController,
 		s.initRegistryEventHandlers,
 		s.initAuthenticators,
 		s.initAutomaticHttps,
@@ -217,7 +217,8 @@ func (s *Server) initRegistryEventHandlers() error {
 	return nil
 }
 
-func (s *Server) initControllers() error {
+func (s *Server) initConfigController() error {
+	ns := higressconfig.PodNamespace
 	options := common.Options{
 		Enable:               true,
 		ClusterId:            s.RegistryOptions.KubeOptions.ClusterID,
@@ -234,14 +235,7 @@ func (s *Server) initControllers() error {
 		options.ClusterId = ""
 	}
 
-	if err := s.initConfigController(options); err != nil {
-		return fmt.Errorf("error initializing config controller: %v", err)
-	}
-	return nil
-}
-
-func (s *Server) initConfigController(options common.Options) error {
-	ingressConfig := translation.NewIngressTranslation(s.environment, s.kubeClient, s.xdsServer, options.SystemNamespace, options.ClusterId)
+	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options.ClusterId)
 	ingressConfig.AddLocalCluster(options)
 
 	s.configStores = append(s.configStores, ingressConfig)
@@ -263,7 +257,6 @@ func (s *Server) initConfigController(options common.Options) error {
 		go s.configController.Run(stop)
 		return nil
 	})
-
 	return nil
 }
 
