@@ -15,7 +15,7 @@ const (
 	httpStatus200 = "200"
 
 	contentTypeText     = "text"
-	contentTypeImageURL = "image_url"
+	contentTypeImageUrl = "image_url"
 )
 
 type chatCompletionRequest struct {
@@ -89,10 +89,10 @@ type chatMessage struct {
 type messageContent struct {
 	Type     string    `json:"type,omitempty"`
 	Text     string    `json:"text"`
-	ImageURL *imageURL `json:"image_url,omitempty"`
+	ImageUrl *imageUrl `json:"image_url,omitempty"`
 }
 
-type imageURL struct {
+type imageUrl struct {
 	Url    string `json:"url,omitempty"`
 	Detail string `json:"detail,omitempty"`
 }
@@ -136,7 +136,7 @@ func (m *chatMessage) StringContent() string {
 			}
 			if contentMap["type"] == contentTypeText {
 				if subStr, ok := contentMap[contentTypeText].(string); ok {
-					contentStr += subStr
+					contentStr += subStr + "\n"
 				}
 			}
 		}
@@ -170,11 +170,11 @@ func (m *chatMessage) ParseContent() []messageContent {
 						Text: subStr,
 					})
 				}
-			case contentTypeImageURL:
-				if subObj, ok := contentMap[contentTypeImageURL].(map[string]any); ok {
+			case contentTypeImageUrl:
+				if subObj, ok := contentMap[contentTypeImageUrl].(map[string]any); ok {
 					contentList = append(contentList, messageContent{
-						Type: contentTypeImageURL,
-						ImageURL: &imageURL{
+						Type: contentTypeImageUrl,
+						ImageUrl: &imageUrl{
 							Url: subObj["url"].(string),
 						},
 					})

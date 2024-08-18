@@ -779,8 +779,8 @@ func chatMessage2QwenMessage(chatMessage chatMessage) qwenMessage {
 			var content qwenVlMessageContent
 			if part.Type == contentTypeText {
 				content.Text = part.Text
-			} else if part.Type == contentTypeImageURL {
-				content.Image = part.ImageURL.Url
+			} else if part.Type == contentTypeImageUrl {
+				content.Image = part.ImageUrl.Url
 			}
 			contents = append(contents, content)
 		}
