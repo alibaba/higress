@@ -98,7 +98,11 @@ type imageUrl struct {
 }
 
 func (m *chatMessage) IsEmpty() bool {
-	if m.Content != "" {
+	if m.IsStringContent() && m.Content != "" {
+		return false
+	}
+	anyList, ok := m.Content.([]any)
+	if ok && len(anyList) > 0 {
 		return false
 	}
 	if len(m.ToolCalls) != 0 {
