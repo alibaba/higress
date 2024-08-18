@@ -48,13 +48,13 @@ import (
 	"istio.io/istio/pkg/util/sets"
 	"istio.io/istio/security/pkg/server/ca/authenticate"
 	"istio.io/istio/security/pkg/server/ca/authenticate/kubeauth"
-	"istio.io/pkg/env"
 	"istio.io/pkg/ledger"
 	"istio.io/pkg/log"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/alibaba/higress/pkg/cert"
+	higressconfig "github.com/alibaba/higress/pkg/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/mcp"
 	"github.com/alibaba/higress/pkg/ingress/translation"
@@ -155,14 +155,6 @@ type Server struct {
 	certServer             *cert.Server
 }
 
-var (
-	PodNamespace = env.RegisterStringVar("POD_NAMESPACE", "higress-system", "").Get()
-	PodName      = env.RegisterStringVar("POD_NAME", "", "").Get()
-	// Revision is the value of the Istio control plane revision, e.g. "canary",
-	// and is the value used by the "istio.io/rev" label.
-	Revision = env.Register("REVISION", "", "").Get()
-)
-
 func NewServer(args *ServerArgs) (*Server, error) {
 	e := model.NewEnvironment()
 	e.DomainSuffix = constants.DefaultClusterLocalDomain
@@ -242,7 +234,7 @@ func (s *Server) initControllers() error {
 		IngressClass:         s.IngressClass,
 		WatchNamespace:       s.WatchNamespace,
 		EnableStatus:         s.EnableStatus,
-		SystemNamespace:      PodNamespace,
+		SystemNamespace:      higressconfig.PodNamespace,
 		GatewaySelectorKey:   s.GatewaySelectorKey,
 		GatewaySelectorValue: s.GatewaySelectorValue,
 		GatewayHttpPort:      s.GatewayHttpPort,
@@ -348,7 +340,7 @@ func (s *Server) initKubeRegistry(options common.Options) (err error) {
 	s.RegistryOptions.KubeOptions.MeshServiceController = s.ServiceController()
 	// pass namespace to k8s service registry
 	s.RegistryOptions.KubeOptions.DiscoveryNamespacesFilter = s.multiclusterController.DiscoveryNamespacesFilter
-	s.multiclusterController.AddHandler(kubecontroller.NewMulticluster(PodName,
+	s.multiclusterController.AddHandler(kubecontroller.NewMulticluster(higressconfig.PodName,
 		s.kubeClient.Kube(),
 		s.RegistryOptions.ClusterRegistriesNamespace,
 		s.RegistryOptions.KubeOptions,
@@ -356,7 +348,7 @@ func (s *Server) initKubeRegistry(options common.Options) (err error) {
 		s.configController,
 		//s.istiodCertBundleWatcher,
 		nil,
-		Revision,
+		higressconfig.Revision,
 		false,
 		s.environment.ClusterLocal(),
 		s.server))
@@ -446,7 +438,7 @@ func (s *Server) WaitUntilCompletion() {
 
 func (s *Server) initXdsServer() error {
 	log.Info("init xds server")
-	s.xdsServer = xds.NewDiscoveryServer(s.environment, PodName, cluster.ID(PodNamespace), s.RegistryOptions.KubeOptions.ClusterAliases)
+	s.xdsServer = xds.NewDiscoveryServer(s.environment, higressconfig.PodName, cluster.ID(higressconfig.PodNamespace), s.RegistryOptions.KubeOptions.ClusterAliases)
 	generatorOptions := mcp.GeneratorOptions{KeepConfigLabels: s.XdsOptions.KeepConfigLabels, KeepConfigAnnotations: s.XdsOptions.KeepConfigAnnotations}
 	s.xdsServer.Generators[gvk.WasmPlugin.String()] = &mcp.WasmPluginGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
 	s.xdsServer.Generators[gvk.DestinationRule.String()] = &mcp.DestinationRuleGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
@@ -497,7 +489,7 @@ func (s *Server) initAuthenticators() error {
 
 func (s *Server) initAutomaticHttps() error {
 	certOption := &cert.Option{
-		Namespace:     PodNamespace,
+		Namespace:     higressconfig.PodNamespace,
 		ServerAddress: s.CertHttpAddress,
 		Email:         s.AutomaticHttpsEmail,
 	}

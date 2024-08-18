@@ -34,6 +34,7 @@ import (
 	"istio.io/istio/pkg/kube/multicluster"
 	"k8s.io/client-go/tools/cache"
 
+	higressconfig "github.com/alibaba/higress/pkg/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	istiogateway "github.com/alibaba/higress/pkg/ingress/kube/gateway/istio"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
@@ -58,7 +59,7 @@ type gatewayController struct {
 func NewController(environment *model.Environment, client kube.Client, options common.Options) common.GatewayController {
 	domainSuffix := util.GetDomainSuffix()
 	opts := crdclient.Option{
-		Revision:     bootstrap.Revision,
+		Revision:     higressconfig.Revision,
 		DomainSuffix: domainSuffix,
 		Identifier:   "gateway-controller",
 	}

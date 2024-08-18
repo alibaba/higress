@@ -265,7 +265,7 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, namespace string) []config.Config {
 	// Currently, only support list all namespaces gateways or virtualservices.
 	if namespace != "" {
-		IngressLog.Warnf("ingress store only support type %s of all namespace.", typ)
+		IngressLog.Warnf("ingress store only support type %s of all namespace, request namespace: %s", typ, namespace)
 		return nil
 	}
 

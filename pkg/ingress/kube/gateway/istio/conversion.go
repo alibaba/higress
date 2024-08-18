@@ -20,9 +20,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"path"
 	"sort"
 	"strings"
 
+	higressconfig "github.com/alibaba/higress/pkg/config"
 	istio "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/model"
@@ -177,6 +179,16 @@ func convertVirtualService(r configContext) []config.Config {
 	return result
 }
 
+// Start - Added by Higress
+func generateRouteName(obj config.Config) string {
+	if obj.Namespace == higressconfig.PodNamespace {
+		return obj.Name
+	}
+	return path.Join(obj.Namespace, obj.Name)
+}
+
+// End - Added by Higress
+
 func convertHTTPRoute(r k8s.HTTPRouteRule, ctx configContext,
 	obj config.Config, pos int, enforceRefGrant bool,
 ) (*istio.HTTPRoute, *ConfigError) {
@@ -184,7 +196,11 @@ func convertHTTPRoute(r k8s.HTTPRouteRule, ctx configContext,
 	vs := &istio.HTTPRoute{}
 	// Auto-name the route. If upstream defines an explicit name, will use it instead
 	// The position within the route is unique
-	vs.Name = fmt.Sprintf("%s.%s.%d", obj.Namespace, obj.Name, pos)
+	// Start - Modified by Higress
+	// vs.Name = fmt.Sprintf("%s.%s.%d", obj.Namespace, obj.Name, pos)
+	// The best practice for Higress is to configure one HTTP route per route match.
+	vs.Name = generateRouteName(obj)
+	// End - Modified by Higress
 
 	for _, match := range r.Matches {
 		uri, err := createURIMatch(match)
