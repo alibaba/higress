@@ -135,7 +135,6 @@ func (c *controller) Run(stop <-chan struct{}) {
 func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 	event := istiomodel.EventUpdate
 	ing, err := c.ingressLister.Ingresses(namespacedName.Namespace).Get(namespacedName.Name)
-	ing.Status.InitializeConditions()
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			event = istiomodel.EventDelete
@@ -152,7 +151,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 	if ing == nil {
 		return nil
 	}
-
+	ing.Status.InitializeConditions()
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.
 	if event != istiomodel.EventDelete {
