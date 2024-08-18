@@ -17,7 +17,6 @@ package gateway
 import (
 	"sync/atomic"
 
-	"istio.io/istio/pilot/pkg/bootstrap"
 	"istio.io/istio/pilot/pkg/config/kube/crdclient"
 	"istio.io/istio/pilot/pkg/credentials"
 	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"

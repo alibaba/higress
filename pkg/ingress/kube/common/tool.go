@@ -151,7 +151,7 @@ func convertToDNSLabelValid(input string) string {
 	hasher.Write([]byte(input))
 	hash := hasher.Sum(nil)
 
-	return hex.EncodeToString(hash)
+	return hex.EncodeToString(hash[4:12])
 }
 
 // CleanHost follow the format of mse-ops for host.
