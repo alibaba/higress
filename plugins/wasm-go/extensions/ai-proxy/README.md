@@ -289,6 +289,7 @@ provider:
     'gpt-35-turbo': "qwen-plus"
     'gpt-4-turbo': "qwen-max"
     'gpt-4-*': "qwen-max"
+    'gpt-4o': "qwen-vl-plus"
     'text-embedding-v1': 'text-embedding-v1'
     '*': "qwen-turbo"
 ```
@@ -297,7 +298,111 @@ provider:
 
 URL: http://your-domain/v1/chat/completions
 
-请求体：
+请求示例：
+
+```json
+{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.3
+}
+```
+
+响应示例：
+
+```json
+{
+  "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1715175072,
+  "model": "qwen-turbo",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 33,
+    "total_tokens": 57
+  }
+}
+```
+
+**多模态模型API请求示例（适用于 qwen-vl-plus 和 qwen-vl-max 模型）**
+
+URL: http://your-domain/v1/chat/completions
+
+请求示例：
+
+```json
+{
+    "model": "gpt-4o",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": "这个图片是哪里？"
+                }
+            ]
+        }
+    ],
+    "temperature": 0.3
+}
+```
+
+响应示例：
+
+```json
+{
+    "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": "这张照片显示的是一位女士和一只狗在海滩上。由于我无法获取具体的地理位置信息，所以不能确定这是哪个地方的海滩。但是从视觉内容来看，它可能是一个位于沿海地区的沙滩海岸线，并且有海浪拍打着岸边。这样的场景在全球许多美丽的海滨地区都可以找到。如果您需要更精确的信息，请提供更多的背景或细节描述。"
+                    }
+                ]
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1723949230,
+    "model": "qwen-vl-plus",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 1279,
+        "completion_tokens": 78
+    }
+}
+```
+
+**文本向量请求示例**
+
+URL: http://your-domain/v1/embeddings
+
+请求示例：
 
 ```json
 {
@@ -306,7 +411,7 @@ URL: http://your-domain/v1/chat/completions
 }
 ```
 
-响应体示例：
+响应示例：
 
 ```json
 {
@@ -334,47 +439,6 @@ URL: http://your-domain/v1/chat/completions
   "usage": {
     "prompt_tokens": 1,
     "total_tokens": 1
-  }
-}
-```
-
-**请求示例**
-
-URL: http://your-domain/v1/embeddings
-
-示例请求内容：
-
-```json
-{
-    "model": "text-embedding-v1",
-    "input": [
-        "Hello world!"
-    ]
-}
-```
-
-示例响应内容：
-
-```json
-{
-  "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "created": 1715175072,
-  "model": "qwen-turbo",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 24,
-    "completion_tokens": 33,
-    "total_tokens": 57
   }
 }
 ```
