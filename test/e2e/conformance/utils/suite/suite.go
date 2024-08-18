@@ -120,7 +120,7 @@ func New(s Options) *ConformanceTestSuite {
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
-		ExecuteTests:      sets.NewSet(),
+		ExecuteTests:      sets.New[string](),
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},
