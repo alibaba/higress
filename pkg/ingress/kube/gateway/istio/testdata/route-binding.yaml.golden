@@ -104,7 +104,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -126,13 +126,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: higress-system.same-namespace-valid.0
+  - name: same-namespace-valid
     route:
     - destination:
         host: httpbin.higress-system.svc.domain.suffix
@@ -154,7 +154,7 @@ spec:
   hosts:
   - alpha.foobar.example
   http:
-  - name: default.section-name-cross-namespace.0
+  - name: default/section-name-cross-namespace
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -176,13 +176,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: group-namespace1.bind-cross-namespace.0
+  - name: group-namespace1/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace1.svc.domain.suffix
         port:
           number: 86
-  - name: group-namespace2.bind-cross-namespace.0
+  - name: group-namespace2/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace2.svc.domain.suffix
@@ -204,7 +204,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: higress-system.same-namespace-valid.0
+  - name: same-namespace-valid
     route:
     - destination:
         host: httpbin.higress-system.svc.domain.suffix

@@ -86,7 +86,7 @@ spec:
   hosts:
   - first.domain.example
   http:
-  - name: default.invalid-backendRef-kind.0
+  - name: default/invalid-backendRef-kind
     route:
     - destination: {}
 ---
@@ -105,7 +105,7 @@ spec:
   hosts:
   - third.domain.example
   http:
-  - name: default.invalid-backendRef-mixed.0
+  - name: default/invalid-backendRef-mixed
     route:
     - destination:
         host: nonexistent.default.svc.domain.suffix
@@ -135,7 +135,7 @@ spec:
   hosts:
   - second.domain.example
   http:
-  - name: default.invalid-backendRef-notfound.0
+  - name: default/invalid-backendRef-notfound
     route:
     - destination:
         host: nonexistent.default.svc.domain.suffix
@@ -163,5 +163,5 @@ spec:
       host: httpbin.default.svc.domain.suffix
       port:
         number: 80
-    name: default.no-backend.0
+    name: default/no-backend
 ---

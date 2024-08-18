@@ -49,7 +49,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: apple.http.0
+  - name: apple/http
     route:
     - destination:
         host: httpbin-apple.apple.svc.domain.suffix
@@ -71,7 +71,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: banana.http.0
+  - name: banana/http
     route:
     - destination:
         host: httpbin-banana.banana.svc.domain.suffix

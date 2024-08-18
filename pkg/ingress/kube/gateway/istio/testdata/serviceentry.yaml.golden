@@ -32,7 +32,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.http.0
+  - name: default/http
     route:
     - destination:
         host: google.com
