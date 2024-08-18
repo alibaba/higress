@@ -26,6 +26,7 @@ import (
 	"github.com/alibaba/higress/pkg/cmd/hgctl/helm/object"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/hgctl/util"
+	"sigs.k8s.io/yaml"
 )
 
 type K8sInstaller struct {
@@ -34,6 +35,7 @@ type K8sInstaller struct {
 	kubeCli      kubernetes.CLIClient
 	profile      *helm.Profile
 	writer       io.Writer
+	upgrade      bool
 	profileStore ProfileStore
 }
 
@@ -41,9 +43,25 @@ func (o *K8sInstaller) Install() error {
 	// check if higress is installed by helm
 	fmt.Fprintf(o.writer, "\n⌛️ Detecting higress installed by helm or not... \n\n")
 	helmAgent := NewHelmAgent(o.profile, o.writer, false)
-	if helmInstalled, _ := helmAgent.IsHigressInstalled(); helmInstalled {
-		fmt.Fprintf(o.writer, "\n🧐 You have already installed higress by helm, please use \"helm upgrade\" to upgrade higress!\n")
-		return nil
+	if helmInstalled, valueMap, _ := helmAgent.GetHigressInformance(); helmInstalled {
+		if !o.upgrade {
+			fmt.Fprintf(o.writer, "\n🧐 You have already installed higress by helm, please use \"hgctl upgrade\" to upgrade higress!\n")
+			return nil
+		}
+		if o.profile.Values == nil {
+			o.profile.Values = valueMap
+		} else {
+			baseYaml := util.ToYAML(o.profile.Values)
+			overlayYaml := util.ToYAML(valueMap)
+			mergedYaml, err := util.OverlayYAML(baseYaml, overlayYaml)
+			if err != nil {
+				return err
+			}
+			err = yaml.Unmarshal([]byte(mergedYaml), &o.profile.Values)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := o.Run(); err != nil {
@@ -107,6 +125,7 @@ func (o *K8sInstaller) UnInstall() error {
 }
 
 func (o *K8sInstaller) Upgrade() error {
+	o.upgrade = true
 	return o.Install()
 }
 
