@@ -9,7 +9,6 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"google.golang.org/appengine/log"
 )
 
 func main() {
@@ -40,7 +39,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 	return types.ActionContinue
 }
 
-func decorateGeographicPrompt(entry *Message) (*Message, error) {
+func decorateGeographicPrompt(entry *Message, log wrapper.Log) (*Message, error) {
 	if strings.Contains(entry.Content, "${geo-country}") {
 		country, err := proxywasm.GetProperty([]string{"geo-country"})
 		if err != nil {
@@ -84,7 +83,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	messageJson := `{"messages":[]}`
 
 	for _, entry := range config.Prepend {
-		entry, err := decorateGeographicPrompt(&entry)
+		entry, err := decorateGeographicPrompt(&entry, log)
 		if err != nil {
 			log.Errorf("Failed to decorate geographic prompt in prepend, error: %v", err)
 			return types.ActionContinue
@@ -108,7 +107,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	}
 
 	for _, entry := range config.Append {
-		entry, err := decorateGeographicPrompt(&entry)
+		entry, err := decorateGeographicPrompt(&entry, log)
 		if err != nil {
 			log.Errorf("Failed to decorate geographic prompt in append, error: %v", err)
 			return types.ActionContinue
