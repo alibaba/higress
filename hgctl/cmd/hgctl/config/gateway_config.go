@@ -20,11 +20,14 @@ import (
 	"io"
 	"net/http"
 
+	"istio.io/istio/istioctl/pkg/writer/envoy/configdump"
+	"istio.io/istio/pkg/log"
+	"k8s.io/apimachinery/pkg/types"
+	controllruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
+
 	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
-	"istio.io/istio/istioctl/pkg/writer/envoy/configdump"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -49,6 +52,11 @@ type GetEnvoyConfigOptions struct {
 	BindAddress     string
 	Output          string
 	EnvoyConfigType EnvoyConfigType
+}
+
+func init() {
+	scope := log.RegisterScope("controlleruntime", "scope for controller runtime")
+	controllruntimelog.SetLogger(log.NewLogrAdapter(scope))
 }
 
 func NewDefaultGetEnvoyConfigOptions() *GetEnvoyConfigOptions {
