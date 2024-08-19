@@ -3,7 +3,7 @@
 *
 
 !/.gitignore
-
+!/.buildrc
 !*.go
 !go.sum
 !go.mod

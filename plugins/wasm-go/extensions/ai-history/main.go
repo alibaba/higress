@@ -7,14 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
-	"net/url"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -36,7 +37,8 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onHttpResponseBody),
+		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamResponseBody),
 	)
 }
 
@@ -114,8 +116,11 @@ type PluginConfig struct {
 	IdentityHeader string `required:"false" yaml:"identityHeader" json:"identityHeader"`
 	// @Title zh-CN 默认填充历史对话轮数
 	// @Description zh-CN 默认值是 3
-	FillHistoryCnt int                 `required:"false" yaml:"fillHistoryCnt" json:"fillHistoryCnt"`
-	redisClient    wrapper.RedisClient `yaml:"-" json:"-"`
+	FillHistoryCnt int `required:"false" yaml:"fillHistoryCnt" json:"fillHistoryCnt"`
+	// @Title zh-CN 缓存的过期时间
+	// @Description zh-CN 单位是秒，默认值为0，即永不过期
+	CacheTTL    int                 `required:"false" yaml:"cacheTTL" json:"cacheTTL"`
+	redisClient wrapper.RedisClient `yaml:"-" json:"-"`
 }
 
 type ChatHistory struct {
@@ -159,6 +164,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	if c.FillHistoryCnt == 0 {
 		c.FillHistoryCnt = 3
 	}
+	c.CacheTTL = int(json.Get("cacheTTL").Int())
 	c.redisClient = wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 		FQDN: c.RedisInfo.ServiceName,
 		Port: int64(c.RedisInfo.ServicePort),
@@ -336,8 +342,22 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 	}
 	return types.ActionContinue
 }
-
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+	if ctx.GetContext(ToolCallsContextKey) != nil {
+		// we should not cache tool call result
+		return types.ActionContinue
+	}
+	questionI := ctx.GetContext(QuestionContextKey)
+	if questionI == nil {
+		return types.ActionContinue
+	}
+	if isQueryHistory(ctx.Path()) {
+		return types.ActionContinue
+	}
+	saveChatHistory(ctx, config, questionI, string(body), log)
+	return types.ActionContinue
+}
+func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
 		return chunk
@@ -383,8 +403,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 		}
 		return chunk
 	}
-	// last chunk
-	question := questionI.(string)
+
 	stream := ctx.GetContext(StreamContextKey)
 	var value string
 	if stream == nil {
@@ -426,6 +445,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 			value = tempContentI.(string)
 		}
 	}
+	saveChatHistory(ctx, config, questionI, value, log)
+	return chunk
+}
+
+func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any, value string, log wrapper.Log) {
+	question := questionI.(string)
 	identityKey := ctx.GetStringContext(IdentityKey, "")
 	var chat []ChatHistory
 	chatHistories := ctx.GetStringContext(ChatHistories, "")
@@ -440,5 +465,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []by
 	str, _ := json.Marshal(chat)
 	log.Infof("start to Set history, identityKey:%s, chat:%s", identityKey, string(str))
 	_ = config.redisClient.Set(config.CacheKeyPrefix+identityKey, string(str), nil)
-	return chunk
+	if config.CacheTTL != 0 {
+		_ = config.redisClient.Expire(config.CacheKeyPrefix+identityKey, config.CacheTTL, nil)
+	}
 }

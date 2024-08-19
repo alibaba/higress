@@ -1,5 +1,12 @@
-## 简介
+---
+title: AI 历史对话
+keywords: [ AI网关, AI历史对话 ]
+description: AI 历史对话插件配置参考
+---
 
+## 功能说明
+
+`AI 历史对话` 基于请求头实现用户身份识别，并自动缓存对应用户的历史对话,且在后续对话中自动填充到上下文。同时支持用户主动查询历史对话。
 **Note**
 
 > 需要数据面的proxy wasm版本大于等于0.2.100
@@ -7,20 +14,21 @@
 > 编译时，需要带上版本的tag，例如：
 `tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
 
-LLM 对话历史保存插件，用于保存对话历史，同时支持流式和非流式响应的缓存。
+> 路径后缀匹配 `ai-history/query` 时，会返回历史对话
 
-## 配置说明
+## 配置字段
 
-| Name              | Type    | Requirement | Default               | Description                                                               |
-|-------------------|---------|-------------|-----------------------|---------------------------------------------------------------------------|
-| identityHeader    | string  | optional    | "Authorization"       | 身份解析对应的请求头                                                                |
-| fillHistoryCnt    | integer | optional    | 3                     | 默认填充历史对话轮次                                                                |
-| cacheKeyPrefix    | string  | optional    | "higress-ai-history:" | Redis缓存Key的前缀                                                             |
-| redis.serviceName | string  | required    | -                     | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
-| redis.servicePort | integer | optional    | 6379                  | redis 服务端口                                                                |
-| redis.timeout     | integer | optional    | 1000                  | 请求 redis 的超时时间，单位为毫秒                                                      |
-| redis.username    | string  | optional    | -                     | 登陆 redis 的用户名                                                             |
-| redis.password    | string  | optional    | -                     | 登陆 redis 的密码                                                              |
+| 名称                | 数据类型    | 填写要求     | 默认值                   | Description                                                               |
+|-------------------|---------|----------|-----------------------|---------------------------------------------------------------------------|
+| identityHeader    | string  | optional | "Authorization"       | 身份解析对应的请求头                                                                |
+| fillHistoryCnt    | integer | optional | 3                     | 默认填充历史对话轮次                                                                |
+| cacheKeyPrefix    | string  | optional | "higress-ai-history:" | Redis缓存Key的前缀                                                             |
+| cacheTTL          | integer | optional | 0                     | 缓存的过期时间，单位是秒，默认值为0，即永不过期                                                  |
+| redis.serviceName | string  | required | -                     | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
+| redis.servicePort | integer | optional | 6379                  | redis 服务端口                                                                |
+| redis.timeout     | integer | optional | 1000                  | 请求 redis 的超时时间，单位为毫秒                                                      |
+| redis.username    | string  | optional | -                     | 登陆 redis 的用户名                                                             |
+| redis.password    | string  | optional | -                     | 登陆 redis 的密码                                                              |
 
 > identity_type 可选项:
 >
@@ -28,7 +36,9 @@ LLM 对话历史保存插件，用于保存对话历史，同时支持流式和�
 >
 >- X-Mse-Consumer
 
-## 配置示例
+## 用法示例
+
+### 配置信息
 
 ```yaml
 redis:
@@ -36,7 +46,7 @@ redis:
   timeout: 2000
 ```
 
-## 请求说明
+### 请求示例
 
 **自动填充请求示例：**
 
