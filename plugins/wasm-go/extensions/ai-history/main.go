@@ -37,7 +37,6 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamResponseBody),
 	)
 }
@@ -340,21 +339,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
-	return types.ActionContinue
-}
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	if ctx.GetContext(ToolCallsContextKey) != nil {
-		// we should not cache tool call result
-		return types.ActionContinue
-	}
-	questionI := ctx.GetContext(QuestionContextKey)
-	if questionI == nil {
-		return types.ActionContinue
-	}
-	if isQueryHistory(ctx.Path()) {
-		return types.ActionContinue
-	}
-	saveChatHistory(ctx, config, questionI, string(body), log)
 	return types.ActionContinue
 }
 func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
