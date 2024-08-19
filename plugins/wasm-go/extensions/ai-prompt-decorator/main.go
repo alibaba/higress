@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -42,6 +43,42 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	messageJson := `{"messages":[]}`
 
 	for _, entry := range config.Prepend {
+		if strings.Contains(entry.Content, "${geo-country}") {
+			country, err := proxywasm.GetProperty([]string{"geo-country"})
+			if err != nil {
+				log.Errorf("get property geo-country for prepend failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-country}", string(country))
+		}
+
+		if strings.Contains(entry.Content, "${geo-province}") {
+			province, err := proxywasm.GetProperty([]string{"geo-province"})
+			if err != nil {
+				log.Errorf("get property geo-province for prepend failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-province}", string(province))
+		}
+
+		if strings.Contains(entry.Content, "${geo-city}") {
+			city, err := proxywasm.GetProperty([]string{"geo-city"})
+			if err != nil {
+				log.Errorf("get property geo-city for prepend failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-city}", string(city))
+		}
+
+		if strings.Contains(entry.Content, "${geo-isp}") {
+			isp, err := proxywasm.GetProperty([]string{"geo-isp"})
+			if err != nil {
+				log.Errorf("get property geo-isp for prepend failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-isp}", string(isp))
+		}
+
 		msg, err := json.Marshal(entry)
 		if err != nil {
 			log.Errorf("Failed to add prepend message, error: %v", err)
@@ -60,6 +97,42 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	}
 
 	for _, entry := range config.Append {
+		if strings.Contains(entry.Content, "${geo-country}") {
+			country, err := proxywasm.GetProperty([]string{"geo-country"})
+			if err != nil {
+				log.Errorf("get property geo-country for append failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-country}", string(country))
+		}
+
+		if strings.Contains(entry.Content, "${geo-province}") {
+			province, err := proxywasm.GetProperty([]string{"geo-province"})
+			if err != nil {
+				log.Errorf("get property geo-province for append failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-province}", string(province))
+		}
+
+		if strings.Contains(entry.Content, "${geo-city}") {
+			city, err := proxywasm.GetProperty([]string{"geo-city"})
+			if err != nil {
+				log.Errorf("get property geo-city for append failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-city}", string(city))
+		}
+
+		if strings.Contains(entry.Content, "${geo-isp}") {
+			isp, err := proxywasm.GetProperty([]string{"geo-isp"})
+			if err != nil {
+				log.Errorf("get property geo-isp for append failed.%v", err)
+				return types.ActionContinue
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, "${geo-isp}", string(isp))
+		}
+
 		msg, err := json.Marshal(entry)
 		if err != nil {
 			log.Errorf("Failed to add prepend message, error: %v", err)
