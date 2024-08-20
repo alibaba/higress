@@ -39,7 +39,7 @@ const (
 type PluginConfig struct {
 	// @Title zh-CN: 自定义JsonSchema
 	// @Description zh-CN: 自定义JsonSchema
-	CustomJsonSchema map[string]interface{} `required:"false" yaml:"customJsonSchema" json:"customJsonSchema"`
+	CustomJsonSchema map[string]interface{} `required:"false" yaml:"custom_json_schema" json:"custom_json_schema"`
 	// @Title zh-CN: JsonSchema编译器
 	// @Description zh-CN: JsonSchema编译器
 	draft *jsonschema.Draft
@@ -56,9 +56,9 @@ type PluginConfig struct {
 
 type RequestInfom struct {
 	Desc       string `json:"desc"`
-	Case       string `json:"case"`
+	Doc       string `json:"json_doc"`
 	Type       string `json:"type"`
-	JsonSchema string `json:"jsonSchema"`
+	JsonSchema string `json:"json_schema"`
 }
 
 func main() {
@@ -77,8 +77,8 @@ func askJson(log wrapper.Log, config PluginConfig, rinfo RequestInfom) chatCompl
 	content := rinfo.Desc
 
 	// Append example case if it's provided
-	if rinfo.Case != "" {
-		content += " Given an example case: " + rinfo.Case
+	if rinfo.Doc != "" {
+		content += " Given an example case: " + rinfo.Doc
 	}
 
 	// Append JSON schema if it's provided
@@ -113,7 +113,7 @@ func askVerify(log wrapper.Log, config PluginConfig, rinfo RequestInfom) chatCom
 		},
 		{
 			Role:    "user",
-			Content: "Given the case" + rinfo.Case + " and the JSON schema" + rinfo.JsonSchema + ", they are not matched, please tell me the reason and how to fix it",
+			Content: "Given the case" + rinfo.Doc + " and the JSON schema" + rinfo.JsonSchema + ", they are not matched, please tell me the reason and how to fix it",
 		},
 	}
 	request.Model = config.Model
@@ -131,8 +131,8 @@ func askJsonSchema(log wrapper.Log, config PluginConfig, rinfo RequestInfom) cha
 	content := rinfo.Desc
 
 	// Append example case if it's provided
-	if rinfo.Case != "" {
-		content += " Given an example case: " + rinfo.Case
+	if rinfo.Doc != "" {
+		content += " Given an example case: " + rinfo.Doc
 	}
 
 	// Append JSON schema if it's provided
@@ -197,14 +197,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	if rinfo.Type != "val" {
 		// default to gen json/jsonSchema
-		if rinfo.Case != "" {
+		if rinfo.Doc != "" {
 			adjustBody = askJsonSchema(log, config, rinfo)
 		} else {
 			adjustBody = askJson(log, config, rinfo)
 		}
 	} else {
-		// Check if both Case and JsonSchema are provided
-		if rinfo.Case == "" || rinfo.JsonSchema == "" {
+		// Check if both Doc and JsonSchema are provided
+		if rinfo.Doc == "" || rinfo.JsonSchema == "" {
 			proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("{\"reason\": \"case and jsonSchema are required for validation\"}"), -1)
 			return types.ActionContinue
 		}
@@ -217,13 +217,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			return types.ActionContinue
 		}
 
-		// Validate the Case against the JSON Schema
+		// Validate the Doc against the JSON Schema
 		comile, err := comiler.Compile("customJsonSchema")
 		if err != nil {
 			proxywasm.SendHttpResponse(http.StatusBadRequest, nil, []byte("{\"reason\": \"failed to compile json schema, please check the json schema you provided\"}"), -1)
 			return types.ActionContinue
 		}
-		err = comile.Validate(strings.NewReader(rinfo.Case))
+		err = comile.Validate(strings.NewReader(rinfo.Doc))
 		if err == nil {
 			proxywasm.SendHttpResponse(http.StatusOK, nil, []byte("{\"reason\": \"case is valid\"}"), -1)
 			return types.ActionContinue
