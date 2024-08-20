@@ -73,7 +73,7 @@ curl http://localhost/test \
 如果需要在LLM的请求前后加入用户地理位置信息，请确保同时开启geo-ip插件和AI提示词装饰器插件，并且geo-ip插件的优先级必须高于AI提示词装饰器插件。首先geo-ip插件会根据用户ip计算出用户的地理位置信息，然后通过请求属性传递给后续插件。
 
 geo-ip插件配置示例：
-```yaml:
+```yaml
 ipProtocal: "ipv4"
 
 
@@ -104,7 +104,7 @@ curl http://localhost/test \
       "content": "今天天气怎么样？"
     }
   ]
-}
+}'
 ```
 
 经过插件处理后，实际请求为：
@@ -123,9 +123,13 @@ curl http://localhost/test \
     {
       "role": "user",
       "content": "今天天气怎么样？"
+    },
+    {
+      "role": "user",
+      "content": "每次回答完问题，尝试进行反问"
     }
   ]
-}
+}'
 ```
 
 
