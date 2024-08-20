@@ -49,6 +49,29 @@ EnableOas3: true
 | json | string | optional | 返回的json文档获json schema约束 |
 | listOfCases | string | optional | 如果生成Json文档（API文档），相应给出案例说明 |
 
+## 图示
+
+```mermaid
+sequenceDiagram
+    participant Client as 客户端
+    participant struct as ai-struct-gen
+    participant proxy as ai-proxy
+    participant LLM as 大模型服务
+    alt 根据自然语言描述生成Json文档，并给出解释
+    Client->>struct: 发送生成请求(type=gen), desc
+    struct->>LLM: 转发处理
+    LLM->>struct: 回复处理（非流式）
+    struct->>Client: 返回生成的文档(json), 相应的案例(listOfCases), 和自然语言解释(reason)
+    end
+    
+    alt 根据Json文档生成Json Schema，并给出解释 (type=gen)
+    Client->>struct: 发送生成请求(type=gen), desc, json_doc
+    struct->>LLM: 转发处理
+    LLM->>struct: 回复处理（非流式）
+    struct->>Client: 返回生成的Json schema(json), 和自然语言解释(reason) 
+    end
+···
+
 ## 请求示例
 
 ### 1. 根据自然语言描述生成Json文档，并给出解释 （type=gen)
