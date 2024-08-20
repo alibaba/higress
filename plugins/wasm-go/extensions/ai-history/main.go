@@ -58,14 +58,6 @@ func main() {
 // redis:
 //   serviceName: my-redis.dns
 //   timeout: 2000
-// question:
-//   requestBody: "messages.@reverse.0.content"
-// response:
-//   responseBody: "choices.0.message.content"
-// responseStream:
-//   responseBody: "choices.0.delta.content"
-//
-//   data:[DONE]
 //
 // @End
 
@@ -204,12 +196,8 @@ func TrimQuote(source string) string {
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	bodyJson := gjson.ParseBytes(body)
 	// TODO: It may be necessary to support stream mode determination for different LLM providers.
-	stream := false
 	if bodyJson.Get("stream").Bool() {
-		stream = true
 		ctx.SetContext(StreamContextKey, struct{}{})
-	} else if ctx.GetContext(StreamContextKey) != nil {
-		stream = true
 	}
 	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).Raw)
 	if question == "" {
@@ -241,21 +229,25 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			}
 			chat = chat[len(chat)-cnt:]
 			res, _ := json.Marshal(chat)
-			if !stream {
-				proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
-			} else {
-				proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, res, -1)
-			}
+			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
+		}
+		currJson := bodyJson.Get("messages").String()
+		var currMessage []ChatHistory
+		_ = json.Unmarshal([]byte(currJson), &currMessage)
+		for len(chat) >= 2 && len(currMessage) >= 3 {
+			currUserLast := currMessage[len(currMessage)-3]
+			if currUserLast == chat[len(chat)-2] {
+				chat = chat[:len(chat)-2]
+			} else {
+				break
+			}
 		}
 		fillHistoryCnt := getIntQueryParameter(config.FillHistoryCnt, path, "fill_history_cnt") * 2
 		if fillHistoryCnt > len(chat) {
 			fillHistoryCnt = len(chat)
 		}
 		chat = chat[len(chat)-fillHistoryCnt:]
-		currJson := bodyJson.Get("messages").String()
-		var currMessage []ChatHistory
-		_ = json.Unmarshal([]byte(currJson), &currMessage)
 		finalChat := append(chat, currMessage...)
 		var parameter map[string]any
 		_ = json.Unmarshal(body, &parameter)

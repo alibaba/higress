@@ -50,6 +50,8 @@ redis:
 
 **自动填充请求示例：**
 
+第一轮请求:
+
 ```
  curl 'http://example.com/api/openai/v1/chat/completions?fill_history_cnt=3' \
   -H 'Accept: application/json, text/event-stream' \
@@ -58,7 +60,75 @@ redis:
   --data-raw '{"model":"qwen-long","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[
         {
             "role": "user",
-            "content": "用最简短的一句话概述Higress 的全局资源限制怎么设定？"
+            "content": "Higress 可以替换 Nginx 吗？"
+        }
+    ],"presence_penalty":0,"temperature":0.7,"top_p":0.95}'
+```
+
+请求填充之后:
+> 第一轮请求，无填充。和原始请求一致。
+
+第一轮响应：
+
+```json
+{
+  "id": "02f4c621-820e-97d4-a905-1e3d0d8f59c6",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Higress 和 Nginx 虽然都有作为网关的功能，但它们的设计理念和应用场景有所不同。Nginx 更多是作为一个高性能的 HTTP 和反向代理服务器被大家熟知，而 Higress 是一个云原生网关，除了基础的路由转发能力外，还集成了服务网格、可观测性、安全管理等众多云原生特性。\n\n因此，如果你想在云原生环境中部署应用，并且希望获得现代应用所需的高级功能，比如服务治理、灰度发布、熔断限流、安全认证等功能，那么 Higress 可以作为一个很好的 Nginx 替代方案。但如果是较为简单的静态网站或者仅需要基本的反向代理功能，传统的 Nginx 配置可能会更为简单直接。"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1724077770,
+  "model": "qwen-long",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 7316,
+    "completion_tokens": 164,
+    "total_tokens": 7480
+  }
+}
+```
+
+第二轮请求:
+
+```
+ curl 'http://example.com/api/openai/v1/chat/completions?fill_history_cnt=3' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer sk-Nzf7RtkdS4s0zFyn5575124129254d9bAf9473A5D7D06dD3'
+  --data-raw '{"model":"qwen-long","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[
+        {
+            "role": "user",
+            "content": "Spring Cloud GateWay 呢？"
+        }
+    ],"presence_penalty":0,"temperature":0.7,"top_p":0.95}'
+```
+
+请求填充之后:
+> 第二轮请求，自动填充上一轮的历史对话。
+
+```
+ curl 'http://example.com/api/openai/v1/chat/completions?fill_history_cnt=3' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer sk-Nzf7RtkdS4s0zFyn5575124129254d9bAf9473A5D7D06dD3'
+  --data-raw '{"model":"qwen-long","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[
+         {
+            "role": "user",
+            "content": "Higress 可以替换 Nginx 吗？"
+        },
+        {
+            "role": "assistant",
+            "content": "Higress 和 Nginx 虽然都有作为网关的功能，但它们的设计理念和应用场景有所不同。Nginx 更多是作为一个高性能的 HTTP 和反向代理服务器被大家熟知，而 Higress 是一个云原生网关，除了基础的路由转发能力外，还集成了服务网格、可观测性、安全管理等众多云原生特性。\n\n因此，如果你想在云原生环境中部署应用，并且希望获得现代应用所需的高级功能，比如服务治理、灰度发布、熔断限流、安全认证等功能，那么 Higress 可以作为一个很好的 Nginx 替代方案。但如果是较为简单的静态网站或者仅需要基本的反向代理功能，传统的 Nginx 配置可能会更为简单直接。"
+        },
+        {
+            "role": "user",
+            "content": "Spring Cloud GateWay 呢？"
         }
     ],"presence_penalty":0,"temperature":0.7,"top_p":0.95}'
 ```
