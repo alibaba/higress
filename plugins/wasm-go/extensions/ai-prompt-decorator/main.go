@@ -40,17 +40,26 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 	return types.ActionContinue
 }
 
+func replaceVariable(variable string, entry *Message) (*Message, error) {
+	key := fmt.Sprintf("${%s}", variable)
+	if strings.Contains(entry.Content, key) {
+		value, err := proxywasm.GetProperty([]string{variable})
+		if err != nil {
+			return nil, err
+		}
+		entry.Content = strings.ReplaceAll(entry.Content, key, string(value))
+	}
+	return entry, nil
+}
+
 func decorateGeographicPrompt(entry *Message) (*Message, error) {
 	geoArr := []string{"geo-country", "geo-province", "geo-city", "geo-isp"}
 
+	var err error
 	for _, geo := range geoArr {
-		key := fmt.Sprintf("${%s}", geo)
-		if strings.Contains(entry.Content, key) {
-			geoVal, err := proxywasm.GetProperty([]string{geo})
-			if err != nil {
-				return nil, err
-			}
-			entry.Content = strings.ReplaceAll(entry.Content, key, string(geoVal))
+		entry, err = replaceVariable(geo, entry)
+		if err != nil {
+			return nil, err
 		}
 	}
 
