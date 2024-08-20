@@ -20,9 +20,9 @@ AI 结构化Json文档生成和验证，可根据自然语言描述生成Json文
 | model | string | optional | "gpt-4o-2024-08-06" | 指定的模型服务，注意需选择支持结构化输出接口的模型 |
 | enable_swagger | bool | optional | false | 是否启用swagger验证文档 |
 | enable_oas3 | bool | optional | true | 是否启用oas3验证文档 |
-| custom_askjson | string | optional | “” | 生成Json文档时使用的JsonSchema约束，此设置会覆盖默认设置 |
-| custom_askjsonschema | string | optional | “” | 生成Json Schema约束时使用的JsonSchema约束，此设置会覆盖默认设置 |
-| custom_askverify | string | optional | “” | 当验证Json文档不符合给定的Json Schema约束时，传入后续模型服务使用的JsonSchema约束，此设置会覆盖默认设置 |
+| custom_askjson | object | optional | “” | 生成Json文档时使用的JsonSchema约束，此设置会覆盖默认设置 |
+| custom_askjsonschema | object | optional | “” | 生成Json Schema约束时使用的JsonSchema约束，此设置会覆盖默认设置 |
+| custom_askverify | object | optional | “” | 当验证Json文档不符合给定的Json Schema约束时，传入后续模型服务使用的JsonSchema约束，此设置会覆盖默认设置 |
 
 ## 配置示例
 

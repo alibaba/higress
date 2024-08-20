@@ -36,10 +36,42 @@ const (
 	PartialMessageContextKey = "partialMessage"
 )
 
+func main() {
+	wrapper.SetCtx(
+		"ai-struct-gen",
+		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ProcessStreamingResponseBodyBy(onHttpResponseBody),
+	)
+}
+
+// @Name ai-struct-gen
+// @Category protocol
+// @Phase AUTHN
+// @Priority 15
+// @Title zh-CN AI 结构化文档生成
+// @Description zh-CN 通过AI生成结构化文档，支持生成JSON Schema，验证JSON文档，生成JSON文档
+// @IconUrl
+// @Version 0.0.1
+//
+// @Contact.name Suchun-SV
+// @Contact.url
+// @Contact.email suchunsv@outlook.com
+//
+// @Example
+// Model: "gpt-4o-2024-08-06"
+// @End
+
 type PluginConfig struct {
-	// @Title zh-CN: 自定义JsonSchema
-	// @Description zh-CN: 自定义JsonSchema
-	CustomJsonSchema map[string]interface{} `required:"false" yaml:"custom_json_schema" json:"custom_json_schema"`
+	// @Title zh-CN: 自定义 [AskJson] JSON Schema 约束
+	// @Description zh-CN: 自定义在请求生成Json文档时候的JsonSchema约束
+	CustomAskjsonTemp map[string]interface{} `required:"false" yaml:"custom_json_schema" json:"custom_json_schema"`
+	// @Title zh-CN: 自定义 [AskjsonSchema] JSON Schema 约束
+	// @Description zh-CN: 自定义在请求生成JsonSchema时候的JsonSchema约束
+	CustomAskjsonSchemaTemp map[string]interface{} `required:"false" yaml:"custom_askjsonschema" json:"custom_askjsonschema"`
+	// @Title zh-CN: 自定义 [AskVerify] JSON Schema 约束
+	// @Description zh-CN: 自定义在请求验证Json文档时候的JsonSchema约束
+	CustomAskVerifyTemp map[string]interface{} `required:"false" yaml:"custom_askverify" json:"custom_askverify"`
 	// @Title zh-CN: JsonSchema编译器
 	// @Description zh-CN: JsonSchema编译器
 	draft *jsonschema.Draft
@@ -56,18 +88,51 @@ type PluginConfig struct {
 
 type RequestInfom struct {
 	Desc       string `json:"desc"`
-	Doc       string `json:"json_doc"`
+	Doc        string `json:"json_doc"`
 	Type       string `json:"type"`
 	JsonSchema string `json:"json_schema"`
 }
 
-func main() {
-	wrapper.SetCtx(
-		"ai-struct-gen",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessStreamingResponseBodyBy(onHttpResponseBody),
-	)
+func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
+	config.Model = json.Get("model").String()
+	if config.Model == "" {
+		config.Model = "gpt-4o-2024-08-06"
+	}
+	if custom_askjson, ok := json.Get("custom_json_schema").Value().(map[string]interface{}); ok {
+		config.CustomAskjsonTemp = custom_askjson
+	} else {
+		log.Debugf("[ai-struct-gen] custom_json_schema is not provided or invalid")
+		config.CustomAskjsonTemp = nil
+	}
+
+	if custom_askjsonschema, ok := json.Get("custom_askjsonschema").Value().(map[string]interface{}); ok {
+		config.CustomAskjsonSchemaTemp = custom_askjsonschema
+	} else {
+		log.Debugf("[ai-struct-gen] custom_askjsonschema is not provided or invalid")
+		config.CustomAskjsonSchemaTemp = nil
+	}
+
+	if custom_askverify, ok := json.Get("custom_askverify").Value().(map[string]interface{}); ok {
+		config.CustomAskVerifyTemp = custom_askverify
+	} else {
+		log.Debugf("[ai-struct-gen] custom_askverify is not provided or invalid")
+		config.CustomAskVerifyTemp = nil
+	}
+
+	config.EnableSwagger = json.Get("enable_swagger").Bool()
+	config.EnableOas3 = json.Get("enable_oas3").Bool()
+
+	// set draft version ref: request-validation/main.go
+	if config.EnableSwagger {
+		config.draft = jsonschema.Draft4
+	}
+	if config.EnableOas3 {
+		config.draft = jsonschema.Draft7
+	}
+	if !config.EnableOas3 && !config.EnableSwagger {
+		config.draft = jsonschema.Draft7
+	}
+	return nil
 }
 
 func askJson(log wrapper.Log, config PluginConfig, rinfo RequestInfom) chatCompletionRequest {
@@ -98,7 +163,11 @@ func askJson(log wrapper.Log, config PluginConfig, rinfo RequestInfom) chatCompl
 	request.Model = config.Model
 	request.Messages = messages
 	if request.ResponseFormat == nil {
-		request.ResponseFormat = string2JsonObj(templates.AskJsonTemp, log)
+		if config.CustomAskjsonTemp != nil {
+			request.ResponseFormat = config.CustomAskjsonTemp
+		} else {
+			request.ResponseFormat = string2JsonObj(templates.AskJsonTemp, log)
+		}
 	}
 	return request
 
@@ -119,7 +188,11 @@ func askVerify(log wrapper.Log, config PluginConfig, rinfo RequestInfom) chatCom
 	request.Model = config.Model
 	request.Messages = messages
 	if request.ResponseFormat == nil {
-		request.ResponseFormat = string2JsonObj(templates.AskVerifyTemp, log)
+		if config.CustomAskVerifyTemp != nil {
+			request.ResponseFormat = config.CustomAskVerifyTemp
+		} else {
+			request.ResponseFormat = string2JsonObj(templates.AskVerifyTemp, log)
+		}
 	}
 
 	return request
@@ -152,37 +225,14 @@ func askJsonSchema(log wrapper.Log, config PluginConfig, rinfo RequestInfom) cha
 	request.Model = config.Model
 	request.Messages = messages
 	if request.ResponseFormat == nil {
-		request.ResponseFormat = string2JsonObj(templates.AskJsonSchemaTemp, log)
+		if config.CustomAskjsonSchemaTemp != nil {
+			request.ResponseFormat = config.CustomAskjsonSchemaTemp
+		} else {
+			request.ResponseFormat = string2JsonObj(templates.AskJsonSchemaTemp, log)
+		}
 	}
 
 	return request
-}
-
-func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
-	config.Model = json.Get("model").String()
-	if config.Model == "" {
-		config.Model = "gpt-4o-2024-08-06"
-	}
-	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
-		config.CustomJsonSchema = schemaValue
-	} else {
-		config.CustomJsonSchema = nil
-	}
-
-	config.EnableSwagger = json.Get("enable_swagger").Bool()
-	config.EnableOas3 = json.Get("enable_oas3").Bool()
-
-	// set draft version ref: request-validation/main.go
-	if config.EnableSwagger {
-		config.draft = jsonschema.Draft4
-	}
-	if config.EnableOas3 {
-		config.draft = jsonschema.Draft7
-	}
-	if !config.EnableOas3 && !config.EnableSwagger {
-		config.draft = jsonschema.Draft7
-	}
-	return nil
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
