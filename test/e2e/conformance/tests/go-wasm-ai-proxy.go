@@ -36,15 +36,12 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "case 1: ai-proxy basic",
 					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/api/openai/v1/chat/completions",
-						Headers:          map[string]string{"Accept": "application/json, text/event-stream"},
+						Path:             "/v1/chat/completions",
 						ContentType:      http.ContentTypeApplicationJson,
-						UnfollowRedirect: true,
 						Body: []byte(`{
                             "model": "gpt-3",
                             "messages": [{"role":"user","content":"hi"}]}`),
@@ -52,13 +49,12 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
 							Host:        "foo.com",
-							Path:        "/api/openai/v1/chat/completions",
+							Path:        "/v1/chat/completions",
 							ContentType: http.ContentTypeApplicationJson,
-							Headers:     map[string]string{"Accept": "application/json, text/event-stream"},
 							Body: []byte(`{
                                 "model": "gpt-3",
                                 "messages": [{"role":"user","content":"hi"}],
-                                "max_tokens": 200}`),
+                                "max_tokens": 123}`),
 						},
 					},
 				},
@@ -69,7 +65,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 				},
 			},
 		}
-		t.Run("WasmPlugin ai-proxy", func(t *testing.T) {
+		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}

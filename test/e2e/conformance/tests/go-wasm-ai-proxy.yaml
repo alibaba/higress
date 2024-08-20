@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,16 +20,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: "foo.com"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/api/openai/v1/chat/completions"
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
+    - host: "foo.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -39,11 +38,14 @@ metadata:
   namespace: higress-system
 spec:
   priority: 200
-  defaultConfigDisable: false
-  defaultConfig:
-    provider:
-      type: "openai"
-      customSettings:
-      - name: "max_tokens"
-        value: 200
+  matchRules:
+    - config:
+        provider:
+          type: "openai"
+          customSettings:
+            - name: "max_tokens"
+              value: 123
+      configDisable: false
+      ingress:
+        - higress-conformance-infra/wasmplugin-ai-proxy-basic
   url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
