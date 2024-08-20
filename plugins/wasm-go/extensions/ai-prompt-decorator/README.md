@@ -69,8 +69,18 @@ curl http://localhost/test \
 ```
 
 
-# 基于geo-ip 插件的能力，扩展AI 提示词装饰器插件携带用户地理位置信息
-配置示例如下：
+# 基于geo-ip插件的能力，扩展AI提示词装饰器插件携带用户地理位置信息
+如果需要在LLM的请求前后加入用户地理位置信息，请确保同时开启geo-ip插件和AI提示词装饰器插件，并且geo-ip插件的优先级必须高于AI提示词装饰器插件。首先geo-ip插件会根据用户ip计算出用户的地理位置信息，然后通过请求属性传递给后续插件。
+
+geo-ip插件配置示例：
+```yaml:
+ipProtocal: "ipv4"
+
+
+
+
+
+AI提示词装饰器插件的配置示例如下：
 ```yaml
 prepend:
 - role: system
@@ -85,6 +95,7 @@ append:
 ```bash
 curl http://localhost/test \
 -H "content-type: application/json" \
+-H "x-forwarded-for: 87.254.207.100,4.5.6.7" \
 -d '{
   "model": "gpt-3.5-turbo",
   "messages": [
@@ -101,6 +112,7 @@ curl http://localhost/test \
 ```bash
 curl http://localhost/test \
 -H "content-type: application/json" \
+-H "x-forwarded-for: 87.254.207.100,4.5.6.7" \
 -d '{
   "model": "gpt-3.5-turbo",
   "messages": [
