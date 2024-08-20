@@ -10,7 +10,6 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"google.golang.org/appengine/log"
 )
 
 func main() {
@@ -41,45 +40,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 	return types.ActionContinue
 }
 
-func substituteGeographicVariable(cnt, geo string) (string, error) {
-	out := ""
-	key := fmt.Sprintf("${%s}", geo)
-	if strings.Contains(cnt, key) {
-		country, err := proxywasm.GetProperty([]string{geo})
-		if err != nil {
-			log.Errorf("get property geo data failed.%v", err)
-			return "", err
-		}
-		out = strings.ReplaceAll(cnt, key, string(country))
-	}
-	return out, nil
-}
+func decorateGeographicPrompt(entry *Message) (*Message, error) {
+	geoArr := []string{"geo-country", "geo-province", "geo-city", "geo-isp"}
 
-func decorateGeographicPrompt(entry *Message, log wrapper.Log) (*Message, error) {
-	cnt, err := substituteGeographicVariable(entry.Content, "geo-country")
-	if err != nil {
-		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-country")
-		return nil, err
+	for _, geo := range geoArr {
+		key := fmt.Sprintf("${%s}", geo)
+		if strings.Contains(entry.Content, key) {
+			geoVal, err := proxywasm.GetProperty([]string{geo})
+			if err != nil {
+				return nil, err
+			}
+			entry.Content = strings.ReplaceAll(entry.Content, key, string(geoVal))
+		}
 	}
-	entry.Content = cnt
-	cnt, err = substituteGeographicVariable(entry.Content, "geo-province")
-	if err != nil {
-		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-province")
-		return nil, err
-	}
-	entry.Content = cnt
-	cnt, err = substituteGeographicVariable(entry.Content, "geo-city")
-	if err != nil {
-		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-city")
-		return nil, err
-	}
-	entry.Content = cnt
-	cnt, err = substituteGeographicVariable(entry.Content, "geo-isp")
-	if err != nil {
-		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-isp")
-		return nil, err
-	}
-	entry.Content = cnt
 
 	return entry, nil
 }
@@ -88,7 +61,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	messageJson := `{"messages":[]}`
 
 	for _, entry := range config.Prepend {
-		entry, err := decorateGeographicPrompt(&entry, log)
+		entry, err := decorateGeographicPrompt(&entry)
 		if err != nil {
 			log.Errorf("Failed to decorate geographic prompt in prepend, error: %v", err)
 			return types.ActionContinue
@@ -112,7 +85,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	}
 
 	for _, entry := range config.Append {
-		entry, err := decorateGeographicPrompt(&entry, log)
+		entry, err := decorateGeographicPrompt(&entry)
 		if err != nil {
 			log.Errorf("Failed to decorate geographic prompt in append, error: %v", err)
 			return types.ActionContinue
