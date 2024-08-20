@@ -38,8 +38,7 @@ EnableOas3: true
 | --- | --- | --- | --- |
 | desc | string | required | 自然语言描述，需要用户提供，单独提供可以根据默认Json Schema生成Json文档 |
 | json_doc | string | optional | json文档，和 desc 搭配可以生成相应的Json Schema约束 |
-| json_schema | string | optional | [type=val] 用于验证 json_doc 是否满足约束
-[type=gen] 和 json_doc 一起提示LLM生成相应的Json Schema约束 |
+| json_schema | string | optional | [type=val] 用于验证 json_doc 是否满足约束 [type=gen] 和 json_doc 一起提示LLM生成相应的Json Schema约束 |
 | type | string | required | 指定为 gen 或者 val ，分别代表生成和验证模式 |
 
 返回参数
@@ -124,7 +123,7 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 
 ```
 
-> 默认使用 `templates\askjson.go` 中定义的json schema来生成Json文档，可以使用配置中的 `custom_askjsonschema` 来替换
+> 默认使用 `templates\askjson.go` 中定义的json schema来生成Json文档，可以使用配置中的 `custom_askjsonschema` 来替换，注意由于现有的结构化输出接口不支持所有的Json Schema语法，所以这里生成的Json Schema仅为String类型，用户使用时需要根据实际情况进行验证并调整
 > 
 
 ```json
