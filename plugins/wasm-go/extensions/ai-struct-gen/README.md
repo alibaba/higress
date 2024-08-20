@@ -8,7 +8,7 @@
 > 编译时，需要带上版本的tag，例如：tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./
 > 
 
-> 需搭配[AI-Proxy插件]([higress/plugins/wasm-go/extensions/ai-proxy at main · alibaba/higress (github.com)](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy)) ，并且需要配置 `provider = openai`, `model=gpt-4o-2024-08-06` 以支持结构化输出接口
+> 需搭配[AI-Proxy插件](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy)，并且需要配置 `provider = openai`, `model=gpt-4o-2024-08-06` 以支持结构化输出接口
 > 
 
 AI 结构化Json文档生成和验证，可根据自然语言描述生成Json文档或者Json Schema，或根据预先定义的JsonSchema验证Json文档是否正确，并给出解释。
