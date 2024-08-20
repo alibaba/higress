@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -9,6 +10,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"google.golang.org/appengine/log"
 )
 
 func main() {
@@ -39,42 +41,45 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 	return types.ActionContinue
 }
 
+func substituteGeographicVariable(cnt, geo string) (string, error) {
+	out := ""
+	key := fmt.Sprintf("${%s}", geo)
+	if strings.Contains(cnt, key) {
+		country, err := proxywasm.GetProperty([]string{geo})
+		if err != nil {
+			log.Errorf("get property geo data failed.%v", err)
+			return "", err
+		}
+		out = strings.ReplaceAll(cnt, key, string(country))
+	}
+	return out, nil
+}
+
 func decorateGeographicPrompt(entry *Message, log wrapper.Log) (*Message, error) {
-	if strings.Contains(entry.Content, "${geo-country}") {
-		country, err := proxywasm.GetProperty([]string{"geo-country"})
-		if err != nil {
-			log.Errorf("get property geo-country for prepend failed.%v", err)
-			return nil, err
-		}
-		entry.Content = strings.ReplaceAll(entry.Content, "${geo-country}", string(country))
+	cnt, err := substituteGeographicVariable(entry.Content, "geo-country")
+	if err != nil {
+		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-country")
+		return nil, err
 	}
-
-	if strings.Contains(entry.Content, "${geo-province}") {
-		province, err := proxywasm.GetProperty([]string{"geo-province"})
-		if err != nil {
-			log.Errorf("get property geo-province for prepend failed.%v", err)
-			return nil, err
-		}
-		entry.Content = strings.ReplaceAll(entry.Content, "${geo-province}", string(province))
+	entry.Content = cnt
+	cnt, err = substituteGeographicVariable(entry.Content, "geo-province")
+	if err != nil {
+		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-province")
+		return nil, err
 	}
-
-	if strings.Contains(entry.Content, "${geo-city}") {
-		city, err := proxywasm.GetProperty([]string{"geo-city"})
-		if err != nil {
-			log.Errorf("get property geo-city for prepend failed.%v", err)
-			return nil, err
-		}
-		entry.Content = strings.ReplaceAll(entry.Content, "${geo-city}", string(city))
+	entry.Content = cnt
+	cnt, err = substituteGeographicVariable(entry.Content, "geo-city")
+	if err != nil {
+		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-city")
+		return nil, err
 	}
-
-	if strings.Contains(entry.Content, "${geo-isp}") {
-		isp, err := proxywasm.GetProperty([]string{"geo-isp"})
-		if err != nil {
-			log.Errorf("get property geo-isp for prepend failed.%v", err)
-			return nil, err
-		}
-		entry.Content = strings.ReplaceAll(entry.Content, "${geo-isp}", string(isp))
+	entry.Content = cnt
+	cnt, err = substituteGeographicVariable(entry.Content, "geo-isp")
+	if err != nil {
+		log.Errorf("decorateGeographicPrompt failed.%v %s", err, "geo-isp")
+		return nil, err
 	}
+	entry.Content = cnt
 
 	return entry, nil
 }
