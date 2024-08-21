@@ -34,6 +34,8 @@ func main() {
 const (
 	HeaderAuthorization    string = "authorization"
 	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
+	HeaderOriginalMethod   string = "x-original-method"
+	HeaderOriginalUri      string = "x-original-uri"
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
@@ -86,6 +88,12 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	authorization := extractFromHeader(reqHeaders, HeaderAuthorization)
 	if authorization != "" {
 		extAuthReqHeaders.Set(HeaderAuthorization, authorization)
+	}
+
+	// when endpoint_mode is forward_auth, add x-original-method and x-original-uri headers
+	if httpServiceConfig.endpointMode == EndpointModeForwardAuth {
+		extAuthReqHeaders.Set(HeaderOriginalMethod, ctx.Method())
+		extAuthReqHeaders.Set(HeaderOriginalUri, ctx.Path())
 	}
 
 	requestMethod := httpServiceConfig.requestMethod
@@ -142,8 +150,8 @@ func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuth
 		}
 	}
 
-	// Rejects client requests with statusOnError on extAuth unavailability or 5xx.
-	// Otherwise, uses the extAuth's returned status code to reject requests.
+	// rejects client requests with statusOnError on extAuth unavailability or 5xx.
+	// otherwise, uses the extAuth's returned status code to reject requests
 	statusToUse := statusCode
 	if statusCode >= http.StatusInternalServerError {
 		statusToUse = int(config.statusOnError)

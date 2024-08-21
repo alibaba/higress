@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -38,10 +40,42 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfi
 	return types.ActionContinue
 }
 
+func replaceVariable(variable string, entry *Message) (*Message, error) {
+	key := fmt.Sprintf("${%s}", variable)
+	if strings.Contains(entry.Content, key) {
+		value, err := proxywasm.GetProperty([]string{variable})
+		if err != nil {
+			return nil, err
+		}
+		entry.Content = strings.ReplaceAll(entry.Content, key, string(value))
+	}
+	return entry, nil
+}
+
+func decorateGeographicPrompt(entry *Message) (*Message, error) {
+	geoArr := []string{"geo-country", "geo-province", "geo-city", "geo-isp"}
+
+	var err error
+	for _, geo := range geoArr {
+		entry, err = replaceVariable(geo, entry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return entry, nil
+}
+
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, body []byte, log wrapper.Log) types.Action {
 	messageJson := `{"messages":[]}`
 
 	for _, entry := range config.Prepend {
+		entry, err := decorateGeographicPrompt(&entry)
+		if err != nil {
+			log.Errorf("Failed to decorate geographic prompt in prepend, error: %v", err)
+			return types.ActionContinue
+		}
+
 		msg, err := json.Marshal(entry)
 		if err != nil {
 			log.Errorf("Failed to add prepend message, error: %v", err)
@@ -60,6 +94,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, 
 	}
 
 	for _, entry := range config.Append {
+		entry, err := decorateGeographicPrompt(&entry)
+		if err != nil {
+			log.Errorf("Failed to decorate geographic prompt in append, error: %v", err)
+			return types.ActionContinue
+		}
+
 		msg, err := json.Marshal(entry)
 		if err != nil {
 			log.Errorf("Failed to add prepend message, error: %v", err)
