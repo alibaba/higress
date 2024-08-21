@@ -293,19 +293,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log w
 }
 
 func deniedNoBasicAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "basic-auth.no_auth_data", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Basic Auth check. No Basic Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedInvalidCredentials() types.Action {
-	_ = proxywasm.SendHttpResponse(http.StatusUnauthorized, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "basic-auth.bad_credential", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Basic Auth check. Invalid username and/or password."), -1)
 	return types.ActionContinue
 }
 
 func deniedUnauthorizedConsumer() types.Action {
-	_ = proxywasm.SendHttpResponse(http.StatusForbidden, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusForbidden, "basic-auth.unauthorized", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Basic Auth check. Unauthorized consumer."), -1)
 	return types.ActionContinue
 }

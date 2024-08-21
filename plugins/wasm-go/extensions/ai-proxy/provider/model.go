@@ -60,7 +60,7 @@ type chatCompletionResponse struct {
 	Model             string                 `json:"model,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
-	Usage             chatCompletionUsage    `json:"usage,omitempty"`
+	Usage             usage                  `json:"usage,omitempty"`
 }
 
 type chatCompletionChoice struct {
@@ -70,7 +70,7 @@ type chatCompletionChoice struct {
 	FinishReason string       `json:"finish_reason,omitempty"`
 }
 
-type chatCompletionUsage struct {
+type usage struct {
 	PromptTokens     int `json:"prompt_tokens,omitempty"`
 	CompletionTokens int `json:"completion_tokens,omitempty"`
 	TotalTokens      int `json:"total_tokens,omitempty"`
@@ -139,4 +139,44 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+type embeddingsRequest struct {
+	Input          interface{} `json:"input"`
+	Model          string      `json:"model"`
+	EncodingFormat string      `json:"encoding_format,omitempty"`
+	Dimensions     int         `json:"dimensions,omitempty"`
+	User           string      `json:"user,omitempty"`
+}
+
+type embeddingsResponse struct {
+	Object string      `json:"object"`
+	Data   []embedding `json:"data"`
+	Model  string      `json:"model"`
+	Usage  usage       `json:"usage"`
+}
+
+type embedding struct {
+	Object    string    `json:"object"`
+	Index     int       `json:"index"`
+	Embedding []float64 `json:"embedding"`
+}
+
+func (r embeddingsRequest) ParseInput() []string {
+	if r.Input == nil {
+		return nil
+	}
+	var input []string
+	switch r.Input.(type) {
+	case string:
+		input = []string{r.Input.(string)}
+	case []any:
+		input = make([]string, 0, len(r.Input.([]any)))
+		for _, item := range r.Input.([]any) {
+			if str, ok := item.(string); ok {
+				input = append(input, str)
+			}
+		}
+	}
+	return input
 }
