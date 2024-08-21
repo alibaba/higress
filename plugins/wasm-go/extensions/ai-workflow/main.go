@@ -15,6 +15,7 @@
 package main
 
 import (
+	ejson "encoding/json"
 	"errors"
 	"fmt"
 	. "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow/workflow"
@@ -26,12 +27,13 @@ import (
 )
 
 const (
-	maxDepth uint = 100
+	maxDepth           uint   = 100
+	WorkflowExecStatus string = "workflowExecStatus"
 )
 
 func main() {
 	wrapper.SetCtx(
-		"ai-workflow",
+		"api-workflow",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 	)
@@ -39,218 +41,239 @@ func main() {
 
 func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 
-	workflows := make([]WorkFlow, 0)
-	tools := make(map[string]Tool)
+	edges := make([]Edge, 0)
+	nodes := make(map[string]Node)
+	var err error
 
-	dsl := json.Get("dsl")
-	if !dsl.Exists() {
-		return errors.New("dsl is empty")
+	workflow := json.Get("workflow")
+	if !workflow.Exists() {
+		return errors.New("workflow is empty")
 	}
-	//处理dsl.workflow
-	workFlows_ := dsl.Get("workflow")
-	if workFlows_.Exists() && workFlows_.IsArray() {
-		for _, w := range workFlows_.Array() {
+	//workflow.edges
+	edges_ := workflow.Get("edges")
+	if edges_.Exists() && edges_.IsArray() {
+		for _, w := range edges_.Array() {
 			task := Task{}
-			workflow := WorkFlow{}
-			workflow.Source = w.Get("source").String()
-			if workflow.Source == "" {
+			edge := Edge{}
+			edge.Source = w.Get("source").String()
+			if edge.Source == "" {
 				return errors.New("source is empty")
 			}
-			workflow.Target = w.Get("target").String()
-			if workflow.Target == "" {
+			edge.Target = w.Get("target").String()
+			if edge.Target == "" {
 				return errors.New("target is empty")
 			}
-			workflow.Task = &task
-			//workflow.Context = make(map[string]string)
-			workflow.Input = w.Get("input").String()
-			workflow.Output = w.Get("output").String()
-			workflow.Conditional = w.Get("conditional").String()
-			workflows = append(workflows, workflow)
+			edge.Task = &task
+
+			edge.Conditional = w.Get("conditional").String()
+			edges = append(edges, edge)
 		}
 	}
-	c.DSL.WorkFlow = workflows
+	c.Workflow.Edges = edges
 
-	//处理tools
-	tools_ := json.Get("tools")
-	if tools_.Exists() && tools_.IsArray() {
+	nodes_ := workflow.Get("nodes")
+	if nodes_.Exists() && nodes_.IsArray() {
 
-		for _, value := range tools_.Array() {
-			tool := Tool{}
-			tool.Name = value.Get("name").String()
-			if tool.Name == "" {
+		for _, value := range nodes_.Array() {
+			node := Node{}
+			node.Name = value.Get("name").String()
+			if node.Name == "" {
 				return errors.New("tool name is empty")
 			}
-			tool.ServiceType = value.Get("service_type").String()
-			if tool.ServiceType == "" {
+			node.ServiceType = value.Get("service_type").String()
+			if node.ServiceType == "" {
 				return errors.New("tool service type is empty")
 			}
-			tool.ServiceName = value.Get("service_name").String()
-			if tool.ServiceName == "" {
+			node.ServiceName = value.Get("service_name").String()
+			if node.ServiceName == "" {
 				return errors.New("tool service name is empty")
 			}
-			tool.ServicePort = value.Get("service_port").Int()
-			if tool.ServicePort == 0 {
-				if tool.ServiceType == ToolServiceTypeStatic {
-					tool.ServicePort = 80
+			node.ServicePort = value.Get("service_port").Int()
+			if node.ServicePort == 0 {
+				if node.ServiceType == ToolServiceTypeStatic {
+					node.ServicePort = 80
 				} else {
 					return errors.New("tool service port is empty")
 				}
 
 			}
-			tool.ServiceDomain = value.Get("service_domain").String()
-			tool.ServicePath = value.Get("service_path").String()
-			if tool.ServicePath == "" {
-				tool.ServicePath = "/"
+			node.ServiceDomain = value.Get("service_domain").String()
+			node.ServicePath = value.Get("service_path").String()
+			if node.ServicePath == "" {
+				node.ServicePath = "/"
 			}
-			tool.ServiceMethod = value.Get("service_method").String()
-			if tool.ServiceMethod == "" {
+			node.ServiceMethod = value.Get("service_method").String()
+			if node.ServiceMethod == "" {
 				return errors.New("service_method is empty")
 			}
 			serviceHeaders := value.Get("service_headers")
 			if serviceHeaders.Exists() && serviceHeaders.IsArray() {
-				tool.ServiceHeaders = make([][2]string, 0)
-				for _, serviceHeader := range serviceHeaders.Array() {
-					if serviceHeader.IsArray() && len(serviceHeader.Array()) == 2 {
-						kv := serviceHeader.Array()
-						tool.ServiceHeaders = append(tool.ServiceHeaders, [2]string{kv[0].String(), kv[1].String()})
-					} else {
-						return errors.New("service_headers is not allow")
-					}
-
-				}
+				serviceHeaders_ := []ServiceHeader{}
+				err = ejson.Unmarshal([]byte(serviceHeaders.Raw), &serviceHeaders_)
+				node.ServiceHeaders = serviceHeaders_
 			}
-			tool.ServiceBodyTmpl = value.Get("service_body_tmpl").String()
+
+			node.ServiceBodyTmpl = value.Get("service_body_tmpl").String()
 			serviceBodyReplaceKeys := value.Get("service_body_replace_keys")
 			if serviceBodyReplaceKeys.Exists() && serviceBodyReplaceKeys.IsArray() {
-				tool.ServiceBodyReplaceKeys = make([][2]string, 0)
-				for _, serviceBodyReplaceKey := range serviceBodyReplaceKeys.Array() {
-					if serviceBodyReplaceKey.IsArray() && len(serviceBodyReplaceKey.Array()) == 2 {
-						keys := serviceBodyReplaceKey.Array()
-						tool.ServiceBodyReplaceKeys = append(tool.ServiceBodyReplaceKeys, [2]string{keys[0].String(), keys[1].String()})
-					} else {
-						return errors.New("service body replace keys is not allow")
-					}
+				serviceBodyReplaceKeys_ := []BodyReplaceKeyPair{}
+				err = ejson.Unmarshal([]byte(serviceBodyReplaceKeys.Raw), &serviceBodyReplaceKeys_)
+				node.ServiceBodyReplaceKeys = serviceBodyReplaceKeys_
+				if err != nil {
+					return fmt.Errorf("unmarshal service body replace keys failed, err:%v", err)
 				}
 			}
-			tools[tool.Name] = tool
+
+			nodes[node.Name] = node
 		}
-		c.Tools = tools
+		c.Workflow.Nodes = nodes
 	}
 	log.Debugf("config : %v", c)
 	return nil
 }
 
+func initWorkflowExecStatus(config PluginConfig) (map[string]int, error) {
+	result := make(map[string]int)
+
+	for name, _ := range config.Workflow.Nodes {
+		result[name] = 0
+	}
+	for _, edge := range config.Workflow.Edges {
+
+		if edge.Source == TaskStart || edge.Target == TaskContinue || edge.Target == TaskEnd {
+			continue
+		}
+
+		count, ok := result[edge.Target]
+		if !ok {
+			return nil, fmt.Errorf("Target %s is not exist in nodes", edge.Target)
+		}
+		result[edge.Target] = count + 1
+
+	}
+	return result, nil
+}
+
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 
 	initHeader := make([][2]string, 0)
-	err := recursive(config.DSL.WorkFlow, initHeader, body, 1, maxDepth, config, log, ctx)
+	//初始化运行状态
+	workflowExecStatus, err := initWorkflowExecStatus(config)
+	log.Errorf("init status : %v", workflowExecStatus)
 	if err != nil {
-		log.Errorf("recursive failed: %v", err)
+		log.Errorf("init workflow exec status failed, err:%v", err)
+		return types.ActionContinue
 	}
+	ctx.SetContext(WorkflowExecStatus, workflowExecStatus)
+
+	//执行工作流
+	for _, edge := range config.Workflow.Edges {
+
+		if edge.Source == TaskStart {
+			ctx.SetContext(fmt.Sprintf("%s", TaskStart), body)
+			err := recursive(edge, initHeader, body, 1, maxDepth, config, log, ctx)
+			if err != nil {
+				log.Errorf("recursive failed: %v", err)
+			}
+		}
+	}
+
 	return types.ActionPause
 }
 
-func recursive(workflows []WorkFlow, headers [][2]string, body []byte, depth uint, maxDepth uint, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
+// 放入符合条件的edge
+func recursive(edge Edge, headers [][2]string, body []byte, depth uint, maxDepth uint, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
 
 	var err error
 	// 防止递归次数太多
 	if depth > maxDepth {
 		return fmt.Errorf("maximum recursion depth reached")
 	}
-	step := depth - 1
 
-	log.Debugf("workflow is %v", workflows[step])
-	workflow := workflows[step]
-
-	// 执行判断Conditional
-	if workflow.Conditional != "" {
-		//填充Conditional
-		workflow.Conditional, err = workflow.WrapperDataByTmplStr(workflow.Conditional, body, ctx)
-		if err != nil {
-			log.Errorf("workflow WrapperDateByTmplStr %s failed: %v", workflow.Conditional, err)
-			return fmt.Errorf("workflow WrapperDateByTmplStr %s failed: %v", workflow.Conditional, err)
-		}
-		log.Debugf("Exec Conditional is %s", workflow.Conditional)
-		ok, err := workflow.ExecConditional()
-		if err != nil {
-			log.Errorf("wl exec conditional %s failed: %v", workflow.Conditional, err)
-			return fmt.Errorf("wl exec conditional %s failed: %v", workflow.Conditional, err)
-		}
-		//如果不通过直接跳过这步
-		if !ok {
-			log.Debugf("workflow is pass")
-			err = recursive(workflows, headers, body, depth+1, maxDepth, config, log, ctx)
-			if err != nil {
-
-				return err
-			}
-			return nil
-		}
-	}
 	//判断是不是end
-	if workflow.IsEnd() {
+	if edge.IsEnd() {
 		log.Debugf("workflow is end")
 		log.Debugf("body is %s", string(body))
 		proxywasm.SendHttpResponse(200, headers, body, -1)
 		return nil
 	}
 	//判断是不是continue
-	if workflow.IsContinue() {
+	if edge.IsContinue() {
 		log.Debugf("workflow is continue")
 		proxywasm.ResumeHttpRequest()
 		return nil
 	}
 
-	// 过滤input
-	if workflow.Input != "" {
-		inputJson := gjson.GetBytes(body, workflow.Input)
-		if inputJson.Exists() {
-			body = []byte(inputJson.Raw)
-		} else {
-			return fmt.Errorf("input filter get path %s is not found,json is  %s", workflow.Input, string(body))
-		}
-	}
-	// 存入这轮请求的body
-	ctx.SetContext(fmt.Sprintf("%s-input", workflow.Target), body)
 	// 封装task
-	err = workflow.WrapperTask(config, ctx)
+	err = edge.WrapperTask(config, ctx)
 	if err != nil {
-		log.Errorf("workflow exec wrapperTask find error,source is %s,target is %s,error is %v ", workflow.Source, workflow.Target, err)
-		return fmt.Errorf("workflow exec wrapperTask find error,source is %s,target is %s,error is %v ", workflow.Source, workflow.Target, err)
+		log.Errorf("workflow exec wrapperTask find error,source is %s,target is %s,error is %v ", edge.Source, edge.Target, err)
+		return fmt.Errorf("workflow exec wrapperTask find error,source is %s,target is %s,error is %v ", edge.Source, edge.Target, err)
 	}
 
 	//执行task
-	log.Debugf("workflow exec task,source is %s,target is %s, body is %s,header is %v", workflow.Source, workflow.Target, string(workflow.Task.Body), workflow.Task.Headers)
-	err = wrapper.HttpCall(workflow.Task.Cluster, workflow.Task.Method, workflow.Task.ServicePath, workflow.Task.Headers, workflow.Task.Body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+	log.Debugf("workflow exec task,source is %s,target is %s, body is %s,header is %v", edge.Source, edge.Target, string(edge.Task.Body), edge.Task.Headers)
+	err = wrapper.HttpCall(edge.Task.Cluster, edge.Task.Method, edge.Task.ServicePath, edge.Task.Headers, edge.Task.Body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		log.Debugf("code:%d", statusCode)
 		//判断response code
 		if statusCode < 400 {
-			if workflow.Output != "" {
-				out := gjson.GetBytes(responseBody, workflow.Output)
-				if out.Exists() {
-					responseBody = []byte(out.Raw)
-				} else {
-					log.Errorf("workflow get path %s exec response body %s not found", workflow.Output, string(responseBody))
-					proxywasm.ResumeHttpRequest()
-					return
-				}
-			}
+
 			//存入 这轮返回的body
-			ctx.SetContext(fmt.Sprintf("%s-output", workflow.Target), responseBody)
+			ctx.SetContext(fmt.Sprintf("%s", edge.Target), responseBody)
 
 			headers_ := make([][2]string, len(responseHeaders))
 			for key, value := range responseHeaders {
 				headers_ = append(headers_, [2]string{key, value[0]})
 			}
-			//进入下一步
-			log.Debugf("workflow exec response body %s ", string(responseBody))
-			err = recursive(workflows, headers_, responseBody, depth+1, maxDepth, config, log, ctx)
+			//判断是否进入下一步
+			nextStatus := ctx.GetContext(WorkflowExecStatus).(map[string]int)
 
-			if err != nil {
-				log.Errorf("recursive error:%v", err)
-				proxywasm.ResumeHttpRequest()
-				return
+			//进入下一步
+			for _, next := range config.Workflow.Edges {
+				if next.Source == edge.Target {
+					//更新workflow status
+					if next.Target != TaskContinue && next.Target != TaskEnd {
+
+						nextStatus[next.Target] = nextStatus[next.Target] - 1
+						log.Debugf("======source is %s,target is %s,stauts is %v", next.Source, next.Target, nextStatus)
+						// 还有没执行完的边
+						if nextStatus[next.Target] > 0 {
+							ctx.SetContext(WorkflowExecStatus, nextStatus)
+							return
+						}
+						// 执行出了问题
+						if nextStatus[next.Target] < 0 {
+							log.Errorf("workflow exec status find  error  %v", nextStatus)
+							proxywasm.ResumeHttpRequest()
+							return
+						}
+					}
+					//判断是否执行
+					isPass, err2 := next.IsPass(ctx)
+					if err2 != nil {
+						log.Errorf("check pass find error:%v", err2)
+						proxywasm.ResumeHttpRequest()
+						return
+					}
+					if isPass {
+						log.Debugf("workflow is pass ")
+						nextStatus := ctx.GetContext(WorkflowExecStatus).(map[string]int)
+						nextStatus[next.Target] = nextStatus[next.Target] - 1
+						ctx.SetContext(WorkflowExecStatus, nextStatus)
+						continue
+
+					}
+
+					//执行下一步
+					err = recursive(next, headers_, responseBody, depth+1, maxDepth, config, log, ctx)
+					if err != nil {
+						log.Errorf("recursive error:%v", err)
+						proxywasm.ResumeHttpRequest()
+						return
+					}
+				}
 			}
+
 		} else {
 			//statusCode >= 400 ,task httpCall执行失败，放行请求，打印错误，结束workflow
 			log.Errorf("workflow exec task find error,code is %d,body is %s", statusCode, string(responseBody))
@@ -258,7 +281,7 @@ func recursive(workflows []WorkFlow, headers [][2]string, body []byte, depth uin
 		}
 		return
 
-	}, uint32(maxDepth-step)*5000)
+	}, uint32(maxDepth)*5000)
 	if err != nil {
 		log.Errorf("httpcall error:%v", err)
 	}

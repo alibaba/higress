@@ -10,57 +10,47 @@ import (
 )
 
 const (
-	TaskTypeModel         string = "model"
-	TaskTypeTool          string = "tool"
+	TaskTypeHTTP          string = "http"
 	TaskStart             string = "start"
 	TaskEnd               string = "end"
 	TaskContinue          string = "continue"
 	ToolServiceTypeStatic string = "static"
 	ToolServiceTypeDomain string = "domain"
-	ModelTypeLLM          string = "llm"
-	ModelTypeEmbeddings   string = "embeddings"
-	ModelTypeRerank       string = "rerank"
-	ModelTypeImage        string = "image"
-	ModelTypeAudio        string = "audio"
 	UseContextFlag        string = "||"
 	AllFlag               string = "@all"
 )
 
 type PluginConfig struct {
-	// @Title zh-CN 工具集
-	// @Description zh-CN 工作流里可用的工具
-	Tools map[string]Tool `json:"tools" yaml:"tools"`
+	//// @Title zh-CN 工具集
+	//// @Description zh-CN 工作流里可用的工具
+	//Tools map[string]Node `json:"tools" yaml:"tools"`
 	// @Title zh-CN 工作流
 	// @Description zh-CN 工作流的具体描述
-	DSL DSL `json:"dsl" yaml:"dsl"`
+	Workflow Workflow `json:"workflow" yaml:"workflow"`
 }
 
-type DSL struct {
+type Workflow struct {
 	// @Title zh-CN 工作列表
 	// @Description zh-CN 工作列表
-	WorkFlow []WorkFlow `json:"workflow" yaml:"workflow"`
+	Edges []Edge          `json:"edges" yaml:"edges"`
+	Nodes map[string]Node `json:"nodes" yaml:"nodes"`
 }
 
-type WorkFlow struct {
-	// @Title zh-CN 上一步的操作
-	// @Description zh-CN 上一步的操作，必须是定义的model或者tool的name，或者初始化工作流的start
+type Edge struct {
+	// @Title zh-CN 这一步节点
+	// @Description zh-CN 这一步节点，必须是定义node的name，或者初始化工作流的start
 	Source string `json:"source" yaml:"source"`
-	// @Title zh-CN 当前的操作
-	// @Description zh-CN 当前的操作，必须是定义的model或者tool的name，或者结束工作流的关键字 end continue
+	// @Title zh-CN 下一步节点
+	// @Description zh-CN 下一步节点，必须是定义的node的name，或者结束工作流的关键字 end continue
 	Target string `json:"target" yaml:"target"`
-	// @Title zh-CN 执行单元
+	// @Title zh-CN 执行操作
 	// @Description zh-CN 执行单元，里面实时封装需要的数据
 	Task *Task
-	// @Title zh-CN 进入的本轮操作数据的过滤方式
-	// @Description zh-CN 进入的本轮操作数据过滤方式，为空就不过滤。使用标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
-	Input string `json:"input" yaml:"input"`
-	// @Title zh-CN 流出的本轮操作数据的过滤方式
-	// @Description zh-CN 流出的本轮操作数据过滤方式，为空就不过滤。使用标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
-	Output string `json:"output" yaml:"output"`
 	// @Title zh-CN 判断表达式
-	// @Description zh-CN 流出的本轮操作数据的过滤方式这一步是否执行的判断条件
+	// @Description zh-CN 是否执行下一步的判断条件
 	Conditional string `json:"conditional" yaml:"conditional"`
 }
+
 type Task struct {
 	Cluster     wrapper.Cluster `json:"-" yaml:"-"`
 	ServicePath string          `json:"service_path" yaml:"service_path"`
@@ -72,7 +62,7 @@ type Task struct {
 	TaskType    string          `json:"task_type" yaml:"task_type"`
 }
 
-type Tool struct {
+type Node struct {
 	Name string `json:"name" yaml:"name"`
 	// @Title zh-CN 服务类型
 	// @Description zh-CN 支持两个值 static domain 对于固定ip地址和域名
@@ -94,57 +84,84 @@ type Tool struct {
 	ServiceMethod string `json:"service_method" yaml:"service_method"`
 	// @Title zh-CN http 请求头文件
 	// @Description zh-CN 请求头文件
-	ServiceHeaders [][2]string `json:"service_headers" yaml:"service_headers"`
+	ServiceHeaders []ServiceHeader `json:"service_headers" yaml:"service_headers"`
 	// @Title zh-CN http 请求body模板
 	// @Description zh-CN 请求body模板，用来构造请求
 	ServiceBodyTmpl string `json:"service_body_tmpl" yaml:"service_body_tmpl"`
 	// @Title zh-CN http 请求body模板替换键值对
 	// @Description zh-CN 请求body模板替换键值对，用来构造请求。前面一个表示填充的位置，后面一个标识数据从哪里，
 	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
-	ServiceBodyReplaceKeys [][2]string `json:"service_body_replace_keys" yaml:"service_body_replace_keys"`
+	ServiceBodyReplaceKeys []BodyReplaceKeyPair `json:"service_body_replace_keys" yaml:"service_body_replace_keys"`
+}
+type BodyReplaceKeyPair struct {
+	From string `json:"from" yaml:"from"`
+	To   string `json:"to" yaml:"to"`
+}
+type ServiceHeader struct {
+	Key   string `json:"key" yaml:"key"`
+	Value string `json:"value" yaml:"value"`
 }
 
-func (w *WorkFlow) IsEnd() bool {
+func (w *Edge) IsEnd() bool {
 	if w.Target == TaskEnd {
 		return true
 	}
 	return false
 }
-func (w *WorkFlow) IsContinue() bool {
+func (w *Edge) IsContinue() bool {
 	if w.Target == TaskContinue {
 		return true
 	}
 	return false
 }
+func (e *Edge) IsPass(ctx wrapper.HttpContext) (bool, error) {
+	// 执行判断Conditional
+	if e.Conditional != "" {
 
-func (w *WorkFlow) WrapperTask(config PluginConfig, ctx wrapper.HttpContext) error {
+		var err error
+		//获取模板里的表达式
 
-	//判断 tool 是否存在
-	tool, isTool := config.Tools[w.Target]
+		e.Conditional, err = e.WrapperDataByTmplStr(e.Conditional, ctx)
+		if err != nil {
+			return false, fmt.Errorf("workflow WrapperDateByTmplStr %s failed: %v", e.Conditional, err)
+		}
+		ok, err := e.ExecConditional()
+		if err != nil {
+
+			return false, fmt.Errorf("wl exec conditional %s failed: %v", e.Conditional, err)
+		}
+		return ok, nil
+
+	}
+	return false, nil
+}
+
+func (w *Edge) WrapperTask(config PluginConfig, ctx wrapper.HttpContext) error {
+
+	//判断 node 是否存在
+	node, isTool := config.Workflow.Nodes[w.Target]
 
 	if isTool {
-		w.Task.TaskType = TaskTypeTool
+		w.Task.TaskType = TaskTypeHTTP
 	} else {
 		return fmt.Errorf("do not find target :%s", w.Target)
 	}
 
 	switch w.Task.TaskType {
 	default:
-		return fmt.Errorf("unknown task type :%s", w.Task.TaskType)
-	case TaskTypeTool:
-		err := w.wrapperToolTask(tool, ctx)
+		return fmt.Errorf("unknown node type :%s", w.Task.TaskType)
+	case TaskTypeHTTP:
+		err := w.wrapperNodeTask(node, ctx)
 		if err != nil {
 			return err
 		}
-	case TaskTypeModel:
-		//todo 下一步添加 官方 model的封装
-		return fmt.Errorf("task type %s is not allow now ", w.Task.TaskType)
+
 	}
 	return nil
 
 }
 
-func (w *WorkFlow) wrapperBody(requestBodyTemplate string, keyPairs [][2]string, ctx wrapper.HttpContext) error {
+func (w *Edge) wrapperBody(requestBodyTemplate string, keyPairs []BodyReplaceKeyPair, ctx wrapper.HttpContext) error {
 
 	requestBody, err := w.WrapperDataByTmplStrAndKeys(requestBodyTemplate, keyPairs, ctx)
 	if err != nil {
@@ -155,62 +172,66 @@ func (w *WorkFlow) wrapperBody(requestBodyTemplate string, keyPairs [][2]string,
 	return nil
 }
 
-func (w *WorkFlow) wrapperToolTask(tool Tool, ctx wrapper.HttpContext) error {
+func (w *Edge) wrapperNodeTask(node Node, ctx wrapper.HttpContext) error {
 	// 封装cluster
-	switch tool.ServiceType {
+	switch node.ServiceType {
 	default:
-		return fmt.Errorf("unknown tool type: %s", tool.ServiceType)
+		return fmt.Errorf("unknown tool type: %s", node.ServiceType)
 	case ToolServiceTypeStatic:
 		w.Task.Cluster = wrapper.FQDNCluster{
-			FQDN: tool.ServiceName,
-			Port: tool.ServicePort,
+			FQDN: node.ServiceName,
+			Port: node.ServicePort,
 		}
 	case ToolServiceTypeDomain:
 		w.Task.Cluster = wrapper.DnsCluster{
-			ServiceName: tool.ServiceName,
-			Domain:      tool.ServiceDomain,
-			Port:        tool.ServicePort,
+			ServiceName: node.ServiceName,
+			Domain:      node.ServiceDomain,
+			Port:        node.ServicePort,
 		}
 	}
 	//封装请求body
-	err := w.wrapperBody(tool.ServiceBodyTmpl, tool.ServiceBodyReplaceKeys, ctx)
+	err := w.wrapperBody(node.ServiceBodyTmpl, node.ServiceBodyReplaceKeys, ctx)
 	if err != nil {
 		return fmt.Errorf("wrapper body parse failed: %v", err)
 	}
 
 	//封装请求Method path headers
-	w.Task.Method = tool.ServiceMethod
-	w.Task.ServicePath = tool.ServicePath
-	w.Task.Headers = tool.ServiceHeaders
+	w.Task.Method = node.ServiceMethod
+	w.Task.ServicePath = node.ServicePath
+	w.Task.Headers = make([][2]string, 0)
+	if len(node.ServiceHeaders) > 0 {
+		for _, header := range node.ServiceHeaders {
+			w.Task.Headers = append(w.Task.Headers, [2]string{header.Key, header.Value})
+		}
+	}
 
 	return nil
 }
 
 /*
-利用模板和替换键值对构造请求
+利用模板和替换键值对构造请求，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
 */
-
-func (w *WorkFlow) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs [][2]string, ctx wrapper.HttpContext) ([]byte, error) {
+func (w *Edge) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs []BodyReplaceKeyPair, ctx wrapper.HttpContext) ([]byte, error) {
 	var err error
-	//不需要替换
+	//不需要替换 node.service_body_replace_keys 为空
 	if len(keyPairs) == 0 {
 		return []byte(tmpl), nil
 	}
 
 	for _, keyPair := range keyPairs {
 
-		target := keyPair[0]
-		path := keyPair[1]
+		jsonPath := keyPair.From
+		target := keyPair.To
 		var contextValueRaw []byte
 		//获取上下文数据
-		if strings.Contains(path, UseContextFlag) {
-			pathStr := strings.Split(path, UseContextFlag)
+		if strings.Contains(jsonPath, UseContextFlag) {
+			pathStr := strings.Split(jsonPath, UseContextFlag)
 			if len(pathStr) == 2 {
 				contextKey := pathStr[0]
 				contextBody := ctx.GetContext(contextKey)
 				if contextValue, ok := contextBody.([]byte); ok {
 					contextValueRaw = contextValue
-					path = pathStr[1]
+					jsonPath = pathStr[1]
 				} else {
 					return nil, fmt.Errorf("context value is not []byte,key is %s", contextKey)
 				}
@@ -219,7 +240,7 @@ func (w *WorkFlow) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs [][2]string
 
 		//执行封装 ， `@all`代表全都要
 		requestBody := gjson.ParseBytes(contextValueRaw)
-		if path == AllFlag {
+		if jsonPath == AllFlag {
 
 			tmpl, err = sjson.SetRaw(tmpl, target, requestBody.Raw)
 			if err != nil {
@@ -227,7 +248,7 @@ func (w *WorkFlow) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs [][2]string
 			}
 			continue
 		}
-		requestBodyJson := requestBody.Get(path)
+		requestBodyJson := requestBody.Get(jsonPath)
 		if requestBodyJson.Exists() {
 			tmpl, err = sjson.SetRaw(tmpl, target, requestBodyJson.Raw)
 			if err != nil {
@@ -235,7 +256,7 @@ func (w *WorkFlow) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs [][2]string
 			}
 
 		} else {
-			return nil, fmt.Errorf("wrapper body parse failed: not exists %s", path)
+			return nil, fmt.Errorf("wrapper body parse failed: not exists %s", jsonPath)
 		}
 	}
 	return []byte(tmpl), nil
@@ -243,18 +264,18 @@ func (w *WorkFlow) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs [][2]string
 }
 
 /*
-变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用前面命名为name的操作(tool/model)。`name-input`或者`name-output` 代表它的输入和输出，str2代表如何取数据，使用gjson的表达式，`@all`代表全都要
+变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
 */
-func (w *WorkFlow) WrapperDataByTmplStr(tmpl string, body []byte, ctx wrapper.HttpContext) (string, error) {
+func (w *Edge) WrapperDataByTmplStr(tmpl string, ctx wrapper.HttpContext) (string, error) {
+	var body []byte
 	//获取模板里的表达式
 	TmplKeyAndPath := utils.ParseTmplStr(tmpl)
 	if len(TmplKeyAndPath) == 0 {
 		return tmpl, nil
 	}
-	//解析表达式
+	//解析表达式 { "{{str1||str2}}":"str1||str2" }
 	for k, path := range TmplKeyAndPath {
-		//判断是否需要使用上下文数据
-		//变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用前面命名为name的数据(tool.name/model.name)。
+		//变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用前面命名为name的数据()。
 		if strings.Contains(path, UseContextFlag) {
 			pathStr := strings.Split(path, UseContextFlag)
 			if len(pathStr) == 2 {
@@ -267,24 +288,27 @@ func (w *WorkFlow) WrapperDataByTmplStr(tmpl string, body []byte, ctx wrapper.Ht
 					return tmpl, fmt.Errorf("context value is not []byte,key is %s", contextKey)
 				}
 			}
-		}
-		//执行封装 ， `@all`代表全都要
-		requestBody := gjson.ParseBytes(body)
-		if path == AllFlag {
-			tmpl = strings.Replace(tmpl, k, utils.TrimQuote(requestBody.Raw), -1)
-			continue
-		}
-		requestBodyJson := requestBody.Get(path)
-		if requestBodyJson.Exists() {
-			tmpl = utils.ReplacedStr(tmpl, map[string]string{k: utils.TrimQuote(requestBodyJson.Raw)})
+			//执行封装 ， `@all`代表全都要
+			requestBody := gjson.ParseBytes(body)
+			if path == AllFlag {
+				tmpl = strings.Replace(tmpl, k, utils.TrimQuote(requestBody.Raw), -1)
+				continue
+			}
+			requestBodyJson := requestBody.Get(path)
+			if requestBodyJson.Exists() {
+				tmpl = utils.ReplacedStr(tmpl, map[string]string{k: utils.TrimQuote(requestBodyJson.Raw)})
+			} else {
+				return tmpl, fmt.Errorf("use path {{%s}} get value is not exists,json is:%s", path, requestBody.Raw)
+			}
 		} else {
-			return tmpl, fmt.Errorf("use path {{%s}} get value is not exists,json is:%s", path, requestBody.Raw)
+			return "", fmt.Errorf("tmpl parse find error: || is not exists %s", path)
 		}
+
 	}
 	return tmpl, nil
 }
 
-func (w *WorkFlow) ExecConditional() (bool, error) {
+func (w *Edge) ExecConditional() (bool, error) {
 
 	ConditionalResult, err := utils.ExecConditionalStr(w.Conditional)
 	if err != nil {
