@@ -34,27 +34,31 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: ai-proxy basic",
+					TestCaseName:    "case 1: openai",
 					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
+						Host:             "openai.ai.com",
 						Path:             "/v1/chat/completions",
+						Method:"POST",
 						ContentType:      http.ContentTypeApplicationJson,
 						Body: []byte(`{
-                            "model": "gpt-3",
+							"model": "gpt-3",
                             "messages": [{"role":"user","content":"hi"}]}`),
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
-							Host:        "foo.com",
+							Host:        "api.openai.com",
 							Path:        "/v1/chat/completions",
+							Method:      "POST",
 							ContentType: http.ContentTypeApplicationJson,
 							Body: []byte(`{
-                                "model": "gpt-3",
+								"model": "gpt-3",
                                 "messages": [{"role":"user","content":"hi"}],
-                                "max_tokens": 123}`),
+                                "max_tokens": 123,
+								"temperature": 0.66}`),
 						},
 					},
 				},
@@ -64,6 +68,43 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 2: qwen",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "qwen.ai.com",
+						Path:             "/v1/chat/completions",
+						Method:"POST",
+						ContentType:      http.ContentTypeApplicationJson,
+						Body: []byte(`{
+							"model": "qwen-long",
+							"input": {"messages": [{"role":"user","content":"hi"}]},
+							"parameters": {"max_tokens": 321, "temperature": 0.7}}`),
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:        "dashscope.aliyuncs.com",
+							Path:        "/api/v1/services/aigc/text-generation/generation",
+							Method:      "POST",
+							ContentType: http.ContentTypeApplicationJson,
+							Body: []byte(`{
+							"model": "qwen-long",
+							"input": {"messages": [{"role":"user","content":"hi"}]},
+							"parameters": {"max_tokens": 321, "temperature": 0.66}}`),
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 500,
+					},
+				},
+			},
+			
 		}
 		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
