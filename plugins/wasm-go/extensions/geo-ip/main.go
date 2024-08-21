@@ -93,7 +93,7 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 func SearchGeoIpDataInRdxtree(ip string, log wrapper.Log) (*GeoIpData, error) {
 	val, found, err := GeoIpRdxTree.GetByString(ip)
 	if err != nil {
-		log.Errorf("search geo ip data in raditree failed. %v %s %d", err, ip)
+		log.Errorf("search geo ip data in raditree failed. %v %s", err, ip)
 		return nil, err
 	}
 
