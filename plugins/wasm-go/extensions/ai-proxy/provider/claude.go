@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -227,36 +226,11 @@ func (c *claudeProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiN
 }
 
 func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if isLastChunk || len(chunk) == 0 {
-		return nil, nil
-	}
-
-	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		// only process the line starting with "data:"
-		if strings.HasPrefix(data, "data:") {
-			// extract json data from the line
-			jsonData := strings.TrimPrefix(data, "data:")
-			var claudeResponse claudeTextGenStreamResponse
-			if err := json.Unmarshal([]byte(jsonData), &claudeResponse); err != nil {
-				log.Errorf("unable to unmarshal claude response: %v", err)
-				continue
-			}
-			response := c.streamResponseClaude2OpenAI(ctx, &claudeResponse, log)
-			if response != nil {
-				responseBody, err := json.Marshal(response)
-				if err != nil {
-					log.Errorf("unable to marshal response: %v", err)
-					return nil, err
-				}
-				c.appendResponse(responseBuilder, string(responseBody))
-			}
-		}
-	}
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
+	// claude 的流式返回
+	// event: content_block_delta
+	// data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"司开发的"}            }
+	modifiedResponseChunk := processStreamEvent(ctx, chunk, isLastChunk, log, c.streamResponseClaude2OpenAI)
+	return modifiedResponseChunk, nil
 }
 
 func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRequest) *claudeTextGenRequest {
@@ -324,36 +298,40 @@ func stopReasonClaude2OpenAI(reason *string) string {
 	}
 }
 
-func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenStreamResponse, log wrapper.Log) *chatCompletionResponse {
-	switch origResponse.Type {
+func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) *chatCompletionResponse {
+	var response claudeTextGenStreamResponse
+	if err := json.Unmarshal(chunk, &response); err != nil {
+		log.Errorf("unable to unmarshal claude response: %v", err)
+		return nil
+	}
+
+	var choice chatCompletionChoice
+	switch response.Type {
 	case "message_start":
-		choice := chatCompletionChoice{
+		choice = chatCompletionChoice{
 			Index: 0,
 			Delta: &chatMessage{Role: roleAssistant, Content: ""},
 		}
-		return createChatCompletionResponse(ctx, origResponse, choice)
-
 	case "content_block_delta":
-		choice := chatCompletionChoice{
+		choice = chatCompletionChoice{
 			Index: 0,
-			Delta: &chatMessage{Content: origResponse.Delta.Text},
+			Delta: &chatMessage{Content: response.Delta.Text},
 		}
-		return createChatCompletionResponse(ctx, origResponse, choice)
-
 	case "message_delta":
-		choice := chatCompletionChoice{
+		choice = chatCompletionChoice{
 			Index:        0,
 			Delta:        &chatMessage{},
-			FinishReason: stopReasonClaude2OpenAI(origResponse.Delta.StopReason),
+			FinishReason: stopReasonClaude2OpenAI(response.Delta.StopReason),
 		}
-		return createChatCompletionResponse(ctx, origResponse, choice)
 	case "content_block_stop", "message_stop":
-		log.Debugf("skip processing response type: %s", origResponse.Type)
+		log.Debugf("skip processing response type: %s", response.Type)
 		return nil
 	default:
-		log.Errorf("Unexpected response type: %s", origResponse.Type)
+		log.Errorf("Unexpected response type: %s", response.Type)
 		return nil
 	}
+
+	return createChatCompletionResponse(ctx, &response, choice)
 }
 
 func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextGenStreamResponse, choice chatCompletionChoice) *chatCompletionResponse {
@@ -364,8 +342,4 @@ func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextG
 		Object:  objectChatCompletionChunk,
 		Choices: []chatCompletionChoice{choice},
 	}
-}
-
-func (c *claudeProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }
