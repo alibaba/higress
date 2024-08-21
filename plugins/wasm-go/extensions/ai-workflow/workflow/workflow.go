@@ -21,27 +21,27 @@ const (
 )
 
 type PluginConfig struct {
-	//// @Title zh-CN 工具集
-	//// @Description zh-CN 工作流里可用的工具
-	//Tools map[string]Node `json:"tools" yaml:"tools"`
+
 	// @Title zh-CN 工作流
 	// @Description zh-CN 工作流的具体描述
 	Workflow Workflow `json:"workflow" yaml:"workflow"`
 }
 
 type Workflow struct {
-	// @Title zh-CN 工作列表
-	// @Description zh-CN 工作列表
-	Edges []Edge          `json:"edges" yaml:"edges"`
+	// @Title zh-CN 边的列表
+	// @Description zh-CN 边的列表
+	Edges []Edge `json:"edges" yaml:"edges"`
+	// @Title zh-CN 节点的列表
+	// @Description zh-CN 节点的列表
 	Nodes map[string]Node `json:"nodes" yaml:"nodes"`
 }
 
 type Edge struct {
-	// @Title zh-CN 这一步节点
-	// @Description zh-CN 这一步节点，必须是定义node的name，或者初始化工作流的start
+	// @Title zh-CN 上一步节点
+	// @Description zh-CN 上一步节点，必须是定义node的name，或者初始化工作流的start
 	Source string `json:"source" yaml:"source"`
-	// @Title zh-CN 下一步节点
-	// @Description zh-CN 下一步节点，必须是定义的node的name，或者结束工作流的关键字 end continue
+	// @Title zh-CN 当前执行的节点
+	// @Description zh-CN 当前执行节点，必须是定义的node的name，或者结束工作流的关键字 end continue
 	Target string `json:"target" yaml:"target"`
 	// @Title zh-CN 执行操作
 	// @Description zh-CN 执行单元，里面实时封装需要的数据
@@ -63,6 +63,8 @@ type Task struct {
 }
 
 type Node struct {
+	// @Title zh-CN 节点名称
+	// @Description zh-CN 节点名称全局唯一
 	Name string `json:"name" yaml:"name"`
 	// @Title zh-CN 服务类型
 	// @Description zh-CN 支持两个值 static domain 对于固定ip地址和域名
@@ -89,13 +91,19 @@ type Node struct {
 	// @Description zh-CN 请求body模板，用来构造请求
 	ServiceBodyTmpl string `json:"service_body_tmpl" yaml:"service_body_tmpl"`
 	// @Title zh-CN http 请求body模板替换键值对
-	// @Description zh-CN 请求body模板替换键值对，用来构造请求。前面一个表示填充的位置，后面一个标识数据从哪里，
+	// @Description zh-CN 请求body模板替换键值对，用来构造请求。to表示填充的位置，from表示数据从哪里，
 	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 	ServiceBodyReplaceKeys []BodyReplaceKeyPair `json:"service_body_replace_keys" yaml:"service_body_replace_keys"`
 }
 type BodyReplaceKeyPair struct {
+	// @Title zh-CN from表示数据从哪里，
+	// @Description zh-CN from表示数据从哪里
+	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 	From string `json:"from" yaml:"from"`
-	To   string `json:"to" yaml:"to"`
+	// @Title zh-CN to表示填充的位置
+	// @Description zh-CN to表示填充的位置，
+	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
+	To string `json:"to" yaml:"to"`
 }
 type ServiceHeader struct {
 	Key   string `json:"key" yaml:"key"`

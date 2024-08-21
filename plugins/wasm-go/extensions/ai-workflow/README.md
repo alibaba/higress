@@ -97,15 +97,14 @@ BodyReplaceKeyPair object 配置说明
 
 参数可以使用{{xxx}}标注，具体定义见数据流`模板和变量`
 
-支持比较表达式如下：
-```
-eq arg1 arg2： arg1 == arg2时为true 
-ne arg1 arg2： arg1 != arg2时为true 
-lt arg1 arg2： arg1 < arg2时为true 
-le arg1 arg2： arg1 <= arg2时为true 
-gt arg1 arg2： arg1 > arg2时为true 
-ge arg1 arg2： arg1 >= arg2时为true
-```
+支持比较表达式和例子如下：
+`eq arg1 arg2`： arg1 == arg2时为true 
+`ne arg1 arg2`： arg1 != arg2时为true 
+`lt arg1 arg2`： arg1 < arg2时为true 
+`le arg1 arg2`： arg1 <= arg2时为true 
+`gt arg1 arg2`： arg1 > arg2时为true 
+`ge arg1 arg2`： arg1 >= arg2时为true
+
 
 #### 结束和执行工作流 target
 当target为`name`,执行name的操作
@@ -114,14 +113,13 @@ ge arg1 arg2： arg1 >= arg2时为true
 
 ### 数据流
 
-进入plugin的数据（request body）， 会依次传递给所有的执行的node，并把结果存在key为`nodeName`的上下文里，只支持json格式的数据。
-过滤表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
+进入plugin的数据（request body）,会根据编和构造模板递给的执行的node，并把结果存在key为`nodeName`的上下文里，只支持json格式的数据。
 
 #### 模板和变量
 
 ##### edge.conditional
 配置文件的定义中，`edge.conditional`  支持模板，方便根据数据流的数据来构建
-在模板里使用变量来代表数据和过滤。变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用那个node的执行数据，str2代表如何取数据，过滤表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串，`@all`代表全都要
+在模板里使用变量来代表数据和过滤。变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用那个node的输出数据，str2代表如何取数据，过滤表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串，`@all`代表全都要
 
 例子
 ```yaml
@@ -134,7 +132,7 @@ node D 的返回值是
 构造表达式
 
 ##### node.service_body_tmpl 和 node.service_body_replace_keys
-这组配置用来构造请求body，`tool.service_body_tmpl`是模板文件 ，`service_body_replace_keys`用来描述如何填充body，是一个object的数组，from一个表示填充的位置，to一个标识数据从哪里来。
+这组配置用来构造请求body，`tool.service_body_tmpl`是模板文件 ，`service_body_replace_keys`用来描述如何填充body，是一个object的数组，from标识数据从哪里来，to表示填充的位置
 `from`是使用`str1||str2`的字符串，str1代表使用那个node的执行数据，str2代表如何取数据，表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 `to`标识数据放哪,表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串，使用的是sjson来拼接json
 
@@ -164,7 +162,7 @@ node D 的返回值是
 ```json
 ["higress项目主仓库的github地址是什么"]
 ```
-根据 service_body_tmpl 和 service_body_replace_keys 解析后的例子
+根据 service_body_tmpl 和 service_body_replace_keys 解析后的request body如下
 ```json
 {"embeddings":{"result":"[0.014398524595686043，......]"},"msg":["higress项目主仓库的github地址是什么"],"sk":"sk-xxxxxx"}
 ```
@@ -213,14 +211,69 @@ node D 的返回值是
         - key: "Content-Type"
           value:  "application/json"
 ```
-这是请求官方 text-embedding-v2模型的请求样例
+这是请求官方 text-embedding-v2模型的请求样例  https://help.aliyun.com/zh/dashscope/developer-reference/text-embedding-api-details?spm=a2c22.12281978.0.0.4d596ea2lRn8xW
 ## 一个工作流的例子
 从三个节点ABC获取信息，等到数据都就位了，再执行D。 并根据D的输出判断是否需要执行E还是直接结束
-
 ![dag.png](img/dag.png)
-
-
-配置文件如下：
+start的返回值(请求plugin的body)
+```json
+{
+  "model":"qwen-7b-chat-xft",
+  "frequency_penalty":0,
+  "max_tokens":800,
+  "stream":false,
+  "messages": [{"role":"user","content":"higress项目主仓库的github地址是什么"}],
+  "presence_penalty":0,"temperature":0.7,"top_p":0.95
+}
+```
+A的返回值是
+```json
+{
+    "output":{
+        "embeddings": [
+          {
+             "text_index": 0,
+             "embedding": [-0.006929283495992422,-0.005336422007530928]
+          }, 
+          {
+             "text_index": 1,
+             "embedding": [-0.006929283495992422,-0.005336422007530928]
+          },
+          {
+             "text_index": 2,
+             "embedding": [-0.006929283495992422,-0.005336422007530928]
+          },
+          {
+             "text_index": 3,
+             "embedding": [-0.006929283495992422,-0.005336422007530928]
+          }
+        ]
+    },
+    "usage":{
+        "total_tokens":12
+    },
+    "request_id":"d89c06fb-46a1-47b6-acb9-bfb17f814969"
+}
+```
+B的返回值是
+```json
+{"llm":"this is b"}
+```
+C的返回值是
+```json
+{
+  "get": "this is c"
+}
+```
+D的返回值是
+```json
+{"check": 0.99, "llm":{}}
+```
+E的返回值是
+```json
+{"save": "ok", "date":{}}
+```
+这个工作流的配置文件如下：
 ```yaml
 workflow:
   edges:
