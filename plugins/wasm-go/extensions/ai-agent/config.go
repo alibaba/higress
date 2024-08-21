@@ -47,16 +47,16 @@ type Response struct {
 
 // 用于存放拆解出来的工具相关信息
 type Tool_Param struct {
-	ToolName   string   `yaml:"toolName"`
-	Path       string   `yaml:"path"`
-	Method     string   `yaml:"method"`
-	ParamName  []string `yaml:"paramName"`
-	Parameter  string   `yaml:"parameter"`
-	Desciption string   `yaml:"description"`
+	ToolName    string   `yaml:"toolName"`
+	Path        string   `yaml:"path"`
+	Method      string   `yaml:"method"`
+	ParamName   []string `yaml:"paramName"`
+	Parameter   string   `yaml:"parameter"`
+	Description string   `yaml:"description"`
 }
 
 // 用于存放拆解出来的api相关信息
-type API_Param struct {
+type APIParam struct {
 	APIKey     APIKey       `yaml:"apiKey"`
 	URL        string       `yaml:"url"`
 	Tool_Param []Tool_Param `yaml:"tool_Param"`
@@ -222,7 +222,7 @@ type PluginConfig struct {
 	// @Description zh-CN 用于存储llm使用信息
 	LLMInfo        LLMInfo            `required:"true" yaml:"llm" json:"llm"`
 	LLMClient      wrapper.HttpClient `yaml:"-" json:"-"`
-	API_Param      []API_Param        `yaml:"-" json:"-"`
+	APIParam       []APIParam         `yaml:"-" json:"-"`
 	PromptTemplate PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
 }
 
@@ -283,23 +283,23 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			return errors.New("api is required")
 		}
 
-		var apiStrcut API
-		err := yaml.Unmarshal([]byte(api.String()), &apiStrcut)
+		var apiStruct API
+		err := yaml.Unmarshal([]byte(api.String()), &apiStruct)
 		if err != nil {
 			return err
 		}
 
 		var allTool_param []Tool_Param
 		//拆除服务下面的每个api的path
-		for path, pathmap := range apiStrcut.Paths {
+		for path, pathmap := range apiStruct.Paths {
 			//拆解出每个api对应的参数
 			for method, submap := range pathmap {
 				//把参数列表存起来
 				var param Tool_Param
 				param.Path = path
-				param.Method = method
 				param.ToolName = submap.OperationID
 				if method == "get" {
+					param.Method = "GET"
 					paramName := make([]string, 0)
 					for _, parammeter := range submap.Parameters {
 						paramName = append(paramName, parammeter.Name)
@@ -307,24 +307,25 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 					param.ParamName = paramName
 					out, _ := json.Marshal(submap.Parameters)
 					param.Parameter = string(out)
-					param.Desciption = submap.Description
+					param.Description = submap.Description
 				} else if method == "post" {
+					param.Method = "POST"
 					schema := submap.RequestBody.Content["application/json"].Schema
 					param.ParamName = schema.Required
-					param.Desciption = submap.Summary
+					param.Description = submap.Summary
 					out, _ := json.Marshal(schema.Properties)
 					param.Parameter = string(out)
 				}
 				allTool_param = append(allTool_param, param)
 			}
 		}
-		api_param := API_Param{
+		apiParam := APIParam{
 			APIKey:     APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
-			URL:        apiStrcut.Servers[0].URL,
+			URL:        apiStruct.Servers[0].URL,
 			Tool_Param: allTool_param,
 		}
 
-		c.API_Param = append(c.API_Param, api_param)
+		c.APIParam = append(c.APIParam, apiParam)
 	}
 	return nil
 }
