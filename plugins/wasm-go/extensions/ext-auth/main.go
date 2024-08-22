@@ -15,11 +15,12 @@
 package main
 
 import (
+	"net/http"
+	"net/url"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-	"net/url"
 )
 
 func main() {

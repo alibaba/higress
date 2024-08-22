@@ -404,19 +404,19 @@ func (m *minimaxProvider) buildMinimaxChatCompletionV2Request(request *chatCompl
 			botName = determineName(message.Name, defaultBotName)
 			botSetting = append(botSetting, minimaxBotSetting{
 				BotName: botName,
-				Content: message.Content,
+				Content: message.StringContent(),
 			})
 		case roleAssistant:
 			messages = append(messages, minimaxMessage{
 				SenderType: senderTypeBot,
 				SenderName: determineName(message.Name, defaultBotName),
-				Text:       message.Content,
+				Text:       message.StringContent(),
 			})
 		case roleUser:
 			messages = append(messages, minimaxMessage{
 				SenderType: senderTypeUser,
 				SenderName: determineName(message.Name, defaultSenderName),
-				Text:       message.Content,
+				Text:       message.StringContent(),
 			})
 		}
 	}
