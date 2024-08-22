@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
-	"ext-auth/expr"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"strings"
+
+	"ext-auth/expr"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
