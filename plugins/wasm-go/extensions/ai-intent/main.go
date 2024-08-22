@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	DefaultPrompt = "你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回具体类别，如果没有找到就返回'NotFound'。"
+	DefaultPrompt  = "你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回一种具体类别，如果没有找到就返回'NotFound'。"
+	defaultTimeout = 10 * 1000 // ms
 )
 
 func main() {
@@ -46,39 +47,36 @@ func main() {
 // @Contact.url
 // @Contact.email
 //@Example
-// dashscope:
-//   ServiceName: "dashscope"
-//   model: "qwen-xxx"
 
 // scene:
 //   category: ['金融','电商','法律','Higress']
 //   prompt:你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回具体类别，如果没有找到就返回'NotFound'。
 // 例："你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:今天天气怎么样？,预设的类别为 ["金融","电商","法律"]，直接返回具体类别，如果没有找到就返回"NotFound"。"
 
-type DashScopeInfo struct {
-	DashScopeServiceName string             `require:"true" yaml:"DashScopeServiceName" json:"DashScopeServiceName"`
-	DashScopeDomain      string             `require:"true" yaml:"DashScopeDomain" json:"DashScopeDomain"`
-	DashScopeKey         string             `require:"true" yaml:"DashScopeKey" json:"DashScopeKey"`
-	Url                  string             `require:"true" yaml:"Url" json:"Url"`
-	Model                string             `require:"Model" yaml:"Model" json:"Model"`
-	DashScopeClient      wrapper.HttpClient `yaml:"-" json:"-"`
+type SceneInfo struct {
+	Category string `require:"true" yaml:"category" json:"category"`
+	Prompt   string `require:"false" yaml:"prompt" json:"prompt"`
 }
 
-type SceneInfo struct {
-	Category string `require:"true" yaml:"Category" json:"Category"`
-	Prompt   string `require:"false" yaml:"Prompt" json:"Prompt"`
+type LLMInfo struct {
+	ProxyServiceName string             `require:"true" yaml:"proxyServiceName" json:"proxyServiceName"`
+	ProxyUrl         string             `require:"false" yaml:"proxyUrl" json:"proxyUrl"`
+	ProxyModel       string             `require:"false" yaml:"proxyModel" json:"proxyModel"`
+	ProxyTimeout     uint32             `require:"false" yaml:"proxyTimeout" json:"proxyTimeout"`
+	ProxyClient      wrapper.HttpClient `yaml:"-" json:"-"`
 }
 
 type PluginConfig struct {
 	// @Title zh-CN 意图相关配置
 	// @Description zh-CN SceneInfo
-	SceneInfo SceneInfo `required:"true" yaml:"Scene" json:"Scene"`
-	// @Title zh-CN 通义千问 地址信息
-	// @Description zh-CN 用于意图类型获取
-	DashScopeInfo DashScopeInfo `required:"true" yaml:"dashScopeInfo" json:"dashScopeInfo"`
-	// @Title zh-CN 缓存 key 的来源
-	// @Description zh-CN 往 redis 里存时，使用的 key 的提取方式
-	CacheKeyFrom KVExtractor `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
+	SceneInfo SceneInfo `required:"true" yaml:"scene" json:"scene"`
+	// @Title zh-CN 大模型相关配置
+	// @Description zh-CN LLMInfo
+	LLMInfo LLMInfo `required:"true" yaml:"llm" json:"llm"`
+
+	// @Title zh-CN  key 的来源
+	// @Description zh-CN 使用的 key 的提取方式
+	KeyFrom KVExtractor `required:"true" yaml:"keyFrom" json:"keyFrom"`
 }
 
 type KVExtractor struct {
@@ -88,178 +86,166 @@ type KVExtractor struct {
 	ResponseBody string `required:"false" yaml:"responseBody" json:"responseBody"`
 }
 
-type DashScopeRequest struct {
-	Model    string                    `json:"model"`
-	Messages []DashScopeRequestMessage `json:"messages"`
-	//Input      Input                     `json:"input"`
-	//Parameters Parameters                `json:"parameters"`
+type ProxyRequest struct {
+	Model    string                `json:"model"`
+	Messages []ProxyRequestMessage `json:"messages"`
 }
 
-type DashScopeRequestMessage struct {
+type ProxyRequestMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type Parameters struct {
-	//TextType     string `json:"text_type"`
-	ResultFormat string `json:"result_format"`
-	//Temperature  string `json:"temperature"`
-}
-
-type Usage struct {
-	TotalTokens int `json:"total_tokens"`
-}
-
 func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
-
 	log.Infof("config:%s", json.Raw)
 	// init scene
-	c.SceneInfo.Category = json.Get("Scene.Category").String()
+	c.SceneInfo.Category = json.Get("scene.category").String()
 	log.Infof("SceneInfo.Category:%s", c.SceneInfo.Category)
-	c.SceneInfo.Prompt = json.Get("Scene.Prompt").String()
+	if c.SceneInfo.Category == "" {
+		return errors.New("SceneInfo.Category must not by empty")
+	}
+	c.SceneInfo.Prompt = json.Get("scene.prompt").String()
 	if c.SceneInfo.Prompt == "" {
 		c.SceneInfo.Prompt = DefaultPrompt
 	}
 	log.Infof("SceneInfo.Prompt:%s", c.SceneInfo.Prompt)
-	// init DashScope http client
-	log.Infof("Start to init DashScope's http client.")
-	c.DashScopeInfo.DashScopeServiceName = json.Get("DashScope.DashScopeServiceName").String()
-	log.Infof("DashScopeServiceName:%s", c.DashScopeInfo.DashScopeServiceName)
-	if c.DashScopeInfo.DashScopeServiceName == "" {
-		return errors.New("DashScope.DashScopeServiceName must not by empty")
+	// init llm
+	log.Debug("Start to init proxyService's http client.")
+	c.LLMInfo.ProxyServiceName = json.Get("llm.proxyServiceName").String()
+	log.Infof("ProxyServiceName:%s", c.LLMInfo.ProxyServiceName)
+	if c.LLMInfo.ProxyServiceName == "" {
+		return errors.New("LLMInfo.ProxyServiceName must not by empty")
 	}
-	c.DashScopeInfo.DashScopeDomain = json.Get("DashScope.DashScopeDomain").String()
-	log.Infof("DashScopeDomain:%s", c.DashScopeInfo.DashScopeDomain)
-	if c.DashScopeInfo.DashScopeDomain == "" {
-		return errors.New("DashScope.DashScopeDomain must not by empty")
+	c.LLMInfo.ProxyUrl = json.Get("llm.proxyUrl").String()
+	log.Infof("c.LLMInfo.ProxyUrl:%s", c.LLMInfo.ProxyUrl)
+	if c.LLMInfo.ProxyUrl == "" {
+		c.LLMInfo.ProxyUrl = "/intent/compatible-mode/v1/chat/completions"
 	}
-	c.DashScopeInfo.DashScopeKey = json.Get("DashScope.DashScopeKey").String()
-	log.Infof("DashScopeKey:%s", c.DashScopeInfo.DashScopeKey)
-	if c.DashScopeInfo.DashScopeKey == "" {
-		return errors.New("DashScope.DashScopeKey must not by empty")
+	c.LLMInfo.ProxyModel = json.Get("llm.proxyModel").String()
+	log.Infof("c.LLMInfo.ProxyModel:%s", c.LLMInfo.ProxyModel)
+	if c.LLMInfo.ProxyModel == "" {
+		c.LLMInfo.ProxyModel = "qwen-long"
 	}
-	c.DashScopeInfo.Url = json.Get("DashScope.Url").String()
-	log.Infof("c.DashScopeInfo.Url:%s", c.DashScopeInfo.Url)
-	if c.DashScopeInfo.Url == "" {
-		c.DashScopeInfo.Url = "/compatible-mode/v1/chat/completions"
+	c.LLMInfo.ProxyTimeout = uint32(json.Get("llm.proxyTimeout").Uint())
+	log.Infof("c.LLMInfo.ProxyTimeout:%s", c.LLMInfo.ProxyTimeout)
+	if c.LLMInfo.ProxyTimeout == 0 {
+		c.LLMInfo.ProxyTimeout = defaultTimeout
 	}
-	c.DashScopeInfo.Model = json.Get("DashScope.Model").String()
-	log.Infof("c.DashScopeInfo.Model:%s", c.DashScopeInfo.Model)
-	if c.DashScopeInfo.Model == "" {
-		c.DashScopeInfo.Model = "qwen-long"
-	}
-	c.DashScopeInfo.DashScopeClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
-		ServiceName: c.DashScopeInfo.DashScopeServiceName,
+	c.LLMInfo.ProxyClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
+		ServiceName: c.LLMInfo.ProxyServiceName,
 		Port:        80,
 		Host:        "127.0.0.1",
 	})
-	c.CacheKeyFrom.RequestBody = json.Get("cacheKeyFrom.requestBody").String()
-	if c.CacheKeyFrom.RequestBody == "" {
-		c.CacheKeyFrom.RequestBody = "messages.@reverse.0.content"
+	c.KeyFrom.RequestBody = json.Get("keyFrom.requestBody").String()
+	if c.KeyFrom.RequestBody == "" {
+		c.KeyFrom.RequestBody = "messages.@reverse.0.content"
 	}
-	log.Info("Init ai intent's components successfully.")
+	c.KeyFrom.ResponseBody = json.Get("keyFrom.responseBody").String()
+	if c.KeyFrom.ResponseBody == "" {
+		c.KeyFrom.ResponseBody = "choices.0.message.content"
+	}
+	log.Debug("Init ai intent's components successfully.")
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Infof("start onHttpRequestHeaders function.")
+	log.Debug("start onHttpRequestHeaders function.")
 
-	log.Infof("end onHttpRequestHeaders function.")
-	return types.ActionContinue
+	log.Debug("end onHttpRequestHeaders function.")
+	return types.HeaderStopIteration
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Infof("start onHttpRequestBody function.")
+	log.Debug("start onHttpRequestBody function.")
 	bodyJson := gjson.ParseBytes(body)
-	TempKey := strings.Trim(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw, `"`)
+	TempKey := strings.Trim(bodyJson.Get(config.KeyFrom.RequestBody).Raw, `"`)
 	//原始问题
 	originalQuestion, _ := zhToUnicode([]byte(TempKey))
-	log.Infof("originalQuestion is:  %s", string(originalQuestion))
-	//prompt拼接,替换问题和预设的场景类别
-	//参数占位替换
+	log.Infof("[onHttpRequestBody] originalQuestion is:  %s", string(originalQuestion))
+	//prompt拼接,替换问题和预设的场景类别，参数占位替换
 	promptStr := fmt.Sprintf(config.SceneInfo.Prompt, string(originalQuestion), config.SceneInfo.Category)
-	log.Infof("after prompt is:  %s", promptStr)
-	dashscopeUrl, dashscopeRequestBody, dashscopeHeader := GenerateDashScopeRequest(&config, []string{string(promptStr)}, log)
-	log.Infof("dashscopeUrl is:  %s", dashscopeUrl)
-	log.Infof("dashscopeRequestBody is:  %s", string(dashscopeRequestBody))
+	log.Infof("[onHttpRequestBody] after prompt is:  %s", promptStr)
+	proxyUrl, proxyRequestBody, proxyRequestHeader := generateProxyRequest(&config, []string{string(promptStr)}, log)
+	log.Infof("[onHttpRequestBody] proxyUrl is:  %s", proxyUrl)
+	log.Infof("[onHttpRequestBody] proxyRequestBody is:  %s", string(proxyRequestBody))
 	//调用大模型 获取意向类型
-	dashscopeErr := config.DashScopeInfo.DashScopeClient.Post(
-		dashscopeUrl,
-		dashscopeHeader,
-		dashscopeRequestBody,
+	llmProxyErr := config.LLMInfo.ProxyClient.Post(
+		proxyUrl,
+		proxyRequestHeader,
+		proxyRequestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("DashScopeInfo.DashScopeClient statusCode is:%s", statusCode)
-			log.Infof("DashScopeInfo intent responseBody is: %s", string(responseBody))
-			log.Infof("Start DashScopeInfo.DashScopeClient func")
+			log.Debug("Start llm.llmProxyClient func")
+			log.Infof("llm.llmProxyClient statusCode is:%s", statusCode)
+			log.Infof("llm.llmProxyClient intent responseBody is: %s", string(responseBody))
 			if statusCode == 200 {
-				DashScopeResponseBody, _ := DashScopeResponseHandle(ctx, responseBody, log)
+				proxyResponseBody, _ := proxyResponseHandler(responseBody, log)
 				//大模型返回的识别到的意图类型
-				if nil != DashScopeResponseBody && nil != DashScopeResponseBody.Choices && len(DashScopeResponseBody.Choices) > 0 {
-					category := DashScopeResponseBody.Choices[0].Message.Content
-					log.Infof("DashScopeInfo intent category is: %s", category)
-					if "NotFound" == category {
-						log.Infof("DashScopeInfo intent NotFound")
-					} else {
+				if nil != proxyResponseBody && nil != proxyResponseBody.Choices && len(proxyResponseBody.Choices) > 0 {
+					category := proxyResponseBody.Choices[0].Message.Content
+					log.Infof("llmProxyClient intent response category is: %s", category)
+					//验证返回结果是否为 定义的枚举值结果集合，判断返回结果是否在预设的类型中。在给大模型的提问中，限定了只能回答一种类型，没有对应类型时返回NotFound
+					isLegal := strings.Contains(config.SceneInfo.Category, category)
+					if isLegal {
 						// 把意图类型加入到Property中
-						log.Infof("DashScopeInfo intent category set to Property")
+						log.Debug("llmProxyClient intent category set to Property")
 						proErr := proxywasm.SetProperty([]string{"intent_category"}, []byte(category))
 						if proErr != nil {
-							log.Errorf("dashscope proxywasm SetProperty error: %s", proErr.Error())
+							log.Errorf("llmProxyClient proxywasm SetProperty error: %s", proErr.Error())
 						}
 					}
 				}
 			}
 			_ = proxywasm.ResumeHttpRequest()
 			return
-		}, 10000)
-	if dashscopeErr != nil {
-		log.Errorf("dashscope intent error: %s", dashscopeErr.Error())
+		}, config.LLMInfo.ProxyTimeout)
+	if llmProxyErr != nil {
+		log.Errorf("llmProxy intent error: %s", llmProxyErr.Error())
 		_ = proxywasm.ResumeHttpRequest()
 	}
-	log.Infof("end onHttpRequestHeaders function.")
+	log.Debug("end onHttpRequestHeaders function.")
 	return types.ActionPause
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Infof("start onHttpResponseHeaders function.")
+	log.Debug("start onHttpResponseHeaders function.")
 
-	log.Infof("end onHttpResponseHeaders function.")
+	log.Debug("end onHttpResponseHeaders function.")
 	return types.ActionContinue
 }
 
 func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Infof("start onStreamingResponseBody function.")
+	log.Debug("start onStreamingResponseBody function.")
 
-	log.Infof("end onStreamingResponseBody function.")
+	log.Debug("end onStreamingResponseBody function.")
 	return chunk
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Infof("start onHttpResponseBody function.")
+	log.Debug("start onHttpResponseBody function.")
 
-	log.Infof("end onHttpResponseBody function.")
+	log.Debug("end onHttpResponseBody function.")
 	return types.ActionContinue
 }
 
-func GenerateDashScopeRequest(c *PluginConfig, texts []string, log wrapper.Log) (string, []byte, [][2]string) {
-	url := c.DashScopeInfo.Url
-	var userMessage DashScopeRequestMessage
+func generateProxyRequest(c *PluginConfig, texts []string, log wrapper.Log) (string, []byte, [][2]string) {
+	url := c.LLMInfo.ProxyUrl
+	var userMessage ProxyRequestMessage
 	userMessage.Role = "user"
 	userMessage.Content = texts[0]
-	var messages []DashScopeRequestMessage
+	var messages []ProxyRequestMessage
 	messages = append(messages, userMessage)
-	data := DashScopeRequest{
-		Model:    c.DashScopeInfo.Model,
+	data := ProxyRequest{
+		Model:    c.LLMInfo.ProxyModel,
 		Messages: messages,
 	}
 	requestBody, err := json.Marshal(data)
 	if err != nil {
-		log.Errorf("Marshal json error:%s, data:%s.", err, data)
+		log.Errorf("[generateProxyRequest] Marshal json error:%s, data:%s.", err, data)
 		return "", nil, nil
 	}
 
 	headers := [][2]string{
-		{"Authorization", "Bearer " + c.DashScopeInfo.DashScopeKey},
+		{"Accept", "application/json, text/event-stream"},
 		{"Content-Type", "application/json"},
 	}
 	return url, requestBody, headers
@@ -273,26 +259,36 @@ func zhToUnicode(raw []byte) ([]byte, error) {
 	return []byte(str), nil
 }
 
-type DashScopeResponse struct {
-	Status  int                              `json:"code"`
-	Id      string                           `json:"id"`
-	Choices []DashScopeResponseOutputChoices `json:"choices"`
+type ProxyResponse struct {
+	Status  int                          `json:"code"`
+	Id      string                       `json:"id"`
+	Choices []ProxyResponseOutputChoices `json:"choices"`
 }
-type DashScopeResponseOutputChoices struct {
-	FinishReason string                                `json:"finish_reason"`
-	Message      DashScopeResponseOutputChoicesMessage `json:"message"`
+
+type ProxyResponseOutputChoices struct {
+	FinishReason string                            `json:"finish_reason"`
+	Message      ProxyResponseOutputChoicesMessage `json:"message"`
 }
-type DashScopeResponseOutputChoicesMessage struct {
+
+type ProxyResponseOutputChoicesMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-func DashScopeResponseHandle(ctx wrapper.HttpContext, responseBody []byte, log wrapper.Log) (*DashScopeResponse, error) {
-	var response DashScopeResponse
+func proxyResponseHandler(responseBody []byte, log wrapper.Log) (*ProxyResponse, error) {
+	var response ProxyResponse
 	err := json.Unmarshal(responseBody, &response)
 	if err != nil {
-		log.Errorf("[DashScopeResponseHandle]Unmarshal json error:%s", err)
+		log.Errorf("[proxyResponseHandler]Unmarshal json error:%s", err)
 		return nil, err
 	}
 	return &response, nil
+}
+
+func getProxyResponseByExtractor(c *PluginConfig, responseBody []byte, log wrapper.Log) string {
+	bodyJson := gjson.ParseBytes(responseBody)
+	responseContent := strings.Trim(bodyJson.Get(c.KeyFrom.ResponseBody).Raw, `"`)
+	// llm返回的结果
+	originalAnswer, _ := zhToUnicode([]byte(responseContent))
+	return string(originalAnswer)
 }
