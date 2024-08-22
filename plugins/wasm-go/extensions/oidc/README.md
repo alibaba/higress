@@ -1,4 +1,4 @@
-# OIDC Wasm 插件
+\# OIDC Wasm 插件
 
 ## 简介
 
@@ -7,8 +7,9 @@
 ### OIDC 流程图
 
 <p align="center">
-  <img src="https://gw.alicdn.com/imgextra/i2/O1CN01HnvggM1WhbtBb6HdF_!!6000000002820-2-tps-1807-1828.png" alt="oidc_process" style="zoom: 33%;" />
+  <img src="https://gw.alicdn.com/imgextra/i2/O1CN01r3ssN81cuKaJAevdC_!!6000000003660-2-tps-1807-1828.png" alt="oidc_process" style="zoom: 33%;" />
 </p>
+
 
 ### OIDC 流程解析
 
