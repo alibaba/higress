@@ -46,8 +46,9 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 
 ```
 
-返回Json为
-
+## 返回格式说明
+### 正常返回
+在正常情况下，系统应返回经过 JSON Schema 验证的 JSON 数据。如果未配置 JSON Schema，系统将返回符合 JSON 标准的合法 JSON 数据。
 ```json
 {
   "apiVersion": "1.0",
@@ -64,3 +65,22 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
   }
 }
 ```
+
+### 异常返回
+在发生错误时，返回状态码为 `500`，返回内容为 JSON 格式的错误信息。包含错误码 `Code` 和错误信息 `Msg` 两个字段。
+```json
+{
+  "Code": 1006,
+  "Msg": "retry count exceed max retry count"
+}
+```
+
+### 错误码说明
+| 错误码 | 说明 |
+| --- | --- |
+| 1001 | 配置的Json Schema不是合法Json格式|
+| 1002 | 配置的Json Schema编译失败，不是合法的Json Schema格式|
+| 1003 | 无法在响应中提取合法的Json|
+| 1004 | 响应为空字符串|
+| 1005 | 响应不符合Json Schema定义|
+| 1006 | 重试次数超过最大限制|
