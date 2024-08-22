@@ -2,13 +2,14 @@ package provider
 
 import (
 	"errors"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-// ai360Provider is the provider for Azure OpenAI service.
+// ai360Provider is the provider for 360 OpenAI service.
 const (
 	ai360Domain = "api.360.cn"
 )
