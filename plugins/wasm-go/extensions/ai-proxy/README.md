@@ -134,6 +134,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
 
+#### 360智脑
+
+360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
+
 #### MiniMax
 
 MiniMax所对应的 `type` 为 `minimax`。它特有的配置字段如下：
@@ -873,6 +877,77 @@ provider:
         "status_code": 0,
         "status_msg": ""
     }
+}
+```
+
+### 使用 OpenAI 协议代理360智脑服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: ai360
+  apiTokens:
+    - "YOUR_MINIMAX_API_TOKEN"
+  modelMapping:
+    "gpt-4o": "360gpt-turbo-responsibility-8k"
+    "gpt-4": "360gpt2-pro"
+    "gpt-3.5": "360gpt-turbo"
+    "*": "360gpt-pro"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ]
+}
+```
+
+**响应示例**
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "你好，我是360智脑，一个大型语言模型。我可以帮助回答各种问题、提供信息、进行对话等。有什么可以帮助你的吗？"
+      },
+      "finish_reason": "",
+      "index": 0
+    }
+  ],
+  "created": 1724257207,
+  "id": "5e5c94a2-d989-40b5-9965-5b971db941fe",
+  "model": "360gpt-turbo",
+  "object": "",
+  "usage": {
+    "completion_tokens": 33,
+    "prompt_tokens": 24,
+    "total_tokens": 57
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "context": null
 }
 ```
 
