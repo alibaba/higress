@@ -89,6 +89,10 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
+	if m.config.responseJsonSchema != nil {
+		log.Debugf("[ai-proxy] set response format to %s", m.config.responseJsonSchema)
+		request.ResponseFormat = m.config.responseJsonSchema
+	}
 	if request.Stream {
 		// For stream requests, we need to include usage in the response.
 		if request.StreamOptions == nil {
