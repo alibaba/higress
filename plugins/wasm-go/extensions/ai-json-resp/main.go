@@ -58,6 +58,15 @@ type PluginConfig struct {
 	// @Title zh-CN 服务端口
 	// @Description zh-CN 用以请求服务的端口
 	servicePort int `required:"true" json:"servicePort" yaml:"servicePort"`
+	// @Title zh-CN 服务URL
+	// @Description zh-CN 用以请求服务的URL，若提供则会覆盖serviceDomain和servicePort
+	serviceUrl string `required:"false" json:"serviceUrl" yaml:"serviceUrl"`
+	// @Title zh-CN API Key
+	// @Description zh-CN 若使用AI服务，需要填写请求服务的API Key
+	apiKey string `required:"false" json: "apiKey" yaml:"apiKey"`
+	// @Title zh-CN 请求端点
+	// @Description zh-CN 用以请求服务的端点, 默认为"/v1/chat/completions"
+	baseUrl string `required:"false" json: "baseUrl" yaml:"baseUrl"`
 	// @Title zh-CN 服务超时时间
 	// @Description zh-CN 用以请求服务的超时时间
 	serviceTimeout int `required:"false" json:"serviceTimeout" yaml:"serviceTimeout"`
@@ -106,6 +115,8 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	config.serviceDomain = result.Get("serviceDomain").String()
 	config.servicePort = int(result.Get("servicePort").Int())
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
+	config.apiKey = result.Get("apiKey").String()
+	config.baseUrl = result.Get("endpoint").String()
 	config.rejStruct = RejStruct{uint32(200), ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
@@ -165,7 +176,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	// Test if the Json Schema is valid
 	compile, err := config.compiler.Compile(DefaultSchema)
 	if err != nil {
-		log.Debugf("Json Schema compile failed: %v", err)
+		log.Infof("Json Schema compile failed: %v", err)
 		config.rejStruct = RejStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
 		config.compile = nil
 	} else {
@@ -179,7 +190,6 @@ func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 	var reqBodystrut chatCompletionRequest
 	json.Unmarshal(r.ReqBody, &reqBodystrut)
 	content := gjson.ParseBytes(r.RespBody).Get(config.contentPath).String()
-
 	jsonSchemaBytes, _ := json.Marshal(config.jsonSchema)
 	jsonSchemaStr := string(jsonSchemaBytes)
 
@@ -199,31 +209,38 @@ func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 
 func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []byte) {
 	r.RespBody = respBody
+	lastUserMessage := ""
+	lastSystemMessage := ""
 
 	var reqBodystrut chatCompletionRequest
 	err := json.Unmarshal(reqBody, &reqBodystrut)
 	if err != nil {
 		log.Debugf("unmarshal reqBody failed: %v", err)
+	} else {
+		lastUserMessage = reqBodystrut.Messages[len(reqBodystrut.Messages)-1].Content
 	}
 
 	var respBodystrut chatCompletionResponse
 	err = json.Unmarshal(respBody, &respBodystrut)
 	if err != nil {
 		log.Debugf("unmarshal respBody failed: %v", err)
+	} else {
+		lastSystemMessage = respBodystrut.Choices[len(respBodystrut.Choices)-1].Message.Content
 	}
 
-	lastUserMessage := reqBodystrut.Messages[len(reqBodystrut.Messages)-1].Content
-	lastSystemMessage := respBodystrut.Choices[len(respBodystrut.Choices)-1].Message.Content
+	if lastUserMessage != "" {
+		r.HisMsg = append(r.HisMsg, chatMessage{
+			Role:    "user",
+			Content: lastUserMessage,
+		})
+	}
 
-	r.HisMsg = append(r.HisMsg, chatMessage{
-		Role:    "user",
-		Content: lastUserMessage,
-	})
-
-	r.HisMsg = append(r.HisMsg, chatMessage{
-		Role:    "system",
-		Content: lastSystemMessage,
-	})
+	if lastSystemMessage != "" {
+		r.HisMsg = append(r.HisMsg, chatMessage{
+			Role:    "system",
+			Content: lastSystemMessage,
+		})
+	}
 }
 
 func (r *ReplayBuffer) SaveHisStr(log wrapper.Log, errMsg string) {
@@ -237,14 +254,14 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	content := gjson.ParseBytes(body).Get(c.contentPath).String()
 	// first extract json from response body
 	if content == "" {
-		log.Debugf("response body does not contain the content")
+		log.Infof("response body does not contain the content")
 		c.rejStruct = RejStruct{ReturnContentisEmpytCode, "response body does not contain the content"}
 		return "", errors.New(c.rejStruct.RejMsg)
 	}
 	jsonStr, err := c.ExtractJson(content)
 
 	if err != nil {
-		log.Debugf("response body does not contain the valid json: %v", err)
+		log.Infof("response body does not contain the valid json: %v", err)
 		c.rejStruct = RejStruct{CannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
 		return "", errors.New(c.rejStruct.RejMsg)
 	}
@@ -254,7 +271,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 		// validate the json
 		err = c.compile.Validate(strings.NewReader(jsonStr))
 		if err != nil {
-			log.Debugf("response body does not match the Json Schema: %v", err)
+			log.Infof("response body does not match the Json Schema: %v", err)
 			c.rejStruct = RejStruct{ReturnJsonMisMatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
 			return "", errors.New(c.rejStruct.RejMsg)
 		}
@@ -351,6 +368,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	if err != nil {
 		log.Infof("get request header failed: %v", err)
 	}
+
+	apiKey, _ := proxywasm.GetHttpRequestHeader("Authorization")
+	if apiKey == "" && config.apiKey != "" {
+		header = append(header, [2]string{"Authorization", "Bearer " + config.apiKey})
+	}
 	ctx.SetContext("headers", header)
 
 	return types.ActionContinue
@@ -379,6 +401,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	if url == "" {
 		log.Debugf("get request url failed")
 		url = "/v1/chat/completions"
+	}
+
+	if config.baseUrl != "" {
+		url = config.baseUrl
 	}
 
 	header = append(header, [2]string{"isBuffer", "true"})
