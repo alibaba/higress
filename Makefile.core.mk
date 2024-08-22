@@ -181,7 +181,7 @@ install: pre-install
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
 ENVOY_LATEST_IMAGE_TAG ?= 899c8c948da0f655b3817f22930ce0730d846bad
-ISTIO_LATEST_IMAGE_TAG ?= ea256cf2a8d85ae4cccd8f7a519e02447f44b980
+ISTIO_LATEST_IMAGE_TAG ?= 3016c7c12f11787d037446e593599ec85321af75
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
