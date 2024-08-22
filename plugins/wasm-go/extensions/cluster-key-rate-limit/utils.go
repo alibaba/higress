@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/zmap/go-iptree/iptree"
 	"sort"
 	"strings"
+
+	"github.com/zmap/go-iptree/iptree"
 )
 
 // parseIPNet 解析Ip段配置

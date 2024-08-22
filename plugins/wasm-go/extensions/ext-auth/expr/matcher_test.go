@@ -1,9 +1,10 @@
 package expr
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
-	"testing"
 )
 
 func TestStringMatcher(t *testing.T) {
