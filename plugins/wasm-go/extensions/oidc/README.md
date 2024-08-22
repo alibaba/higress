@@ -2,14 +2,13 @@
 
 ## 简介
 
-本仓库提供了一个高度可集成的Wasm插件支持OpenID Connect（OIDC）身份认证，同时强化了对跨站请求伪造（CSRF）攻击的防御能力，支持OpenID Connect协议中的Logout Endpoint。在通过Wasm插件OIDC验证后的请求会携带 `Authorization`的标头对应ID Token。
+本仓库提供了一个高度可集成的Wasm插件支持OpenID Connect（OIDC）身份认证，同时强化了对跨站请求伪造（CSRF）攻击的防御能力，支持OpenID Connect协议中的Logout Endpoint。在通过Wasm插件OIDC验证后的请求会携带 `Authorization`的标头对应Access Token。
 
 ### OIDC 流程图
 
 <p align="center">
-  <img src="https://gw.alicdn.com/imgextra/i4/O1CN01McjXP51EWT9dMxQm4_!!6000000000359-2-tps-1803-2018.png" alt="oidc_process" style="zoom: 33%;" />
+  <img src="https://gw.alicdn.com/imgextra/i2/O1CN01HnvggM1WhbtBb6HdF_!!6000000002820-2-tps-1807-1828.png" alt="oidc_process" style="zoom: 33%;" />
 </p>
-
 
 ### OIDC 流程解析
 
@@ -78,14 +77,14 @@
    ]
    ```
 
-7. 携带 Authorization的标头对应id_token访问对应api
+7. 携带 Authorization的标头对应access_token访问对应api
 
    ```shell
    curl --url "foo.bar.com/headers"
-     --header "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imc1Z1ExSF9ZbTY0WUlvVkQwSVpXTCJ9.eyJlbWFpbCI6IjE2MDExNTYyNjhAcXEuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJpc3MiOiJodHRwczovL2Rldi1vNDN4YjFtejd5YTdhY2g0LnVzLmF1dGgwLmNvbS8iLCJhdWQiOiJZYWdGcVJEOXRmTklhYWM1QmFtamhzU2F0anJBbnNuWiIsImlhdCI6MTcxOTE5ODYzOCwiZXhwIjoxNzE5MjM0NjM4LCJzdWIiOiJhdXRoMHw2NjVkNzFlNzRjMTMxMTc3YmU2NmU2MDciLCJzaWQiOiJjdDJVOF9ZUS16VDdFOGkwRTNNeUstejc5ZGlWUWhhVSJ9.gfzXKJ0FeqzYqOUDLQHWcUG19IOLqkpLN09xTmIat0umrlGV5VNSumgWH3XJmmwnhdb8AThH3Jf-7kbRJzu4rM-BbGbFTRBTzNHeUajFOFrIgld5VENQ_M_sXHkTp0psWKSr9vF24kmilCfSbvC5lBKjt878ljZ7-xteWuaUYOMUdcJb4DSv0-zjX01sonJxYamTlhji3M4TAW7VwhwqyZt8dBhVSNaRw1wUKj-M1JrBDLyx65sroZtSqVA0udIrqMHEbWYb2de7JjzlqG003HRMzwOm7OXgEd5ZVFqgmBLosgixOU5DJ4A26nlqK92Sp6VqDMRvA-3ym8W_m-wJ_A"
+     --header "Authorization: Bearer eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiaXNzIjoiaHR0cHM6Ly9kZXYtbzQzeGIxbXo3eWE3YWNoNC51cy5hdXRoMC5jb20vIn0..WP_WRVM-y3fM1sN4.fAQqtKoKZNG9Wj0OhtrMgtsjTJ2J72M2klDRd9SvUKGbiYsZNPmIl_qJUf81D3VIjD59o9xrOOJIzXTgsfFVA2x15g-jBlNh68N7dyhXu9237Tbplweu1jA25IZDSnjitQ3pbf7xJVIfPnWcrzl6uT8G1EP-omFcl6AQprV2FoKFMCGFCgeafuttppKe1a8mpJDj7AFLPs-344tT9mvCWmI4DuoLFh0PiqMMJBByoijRSxcSdXLPxZng84j8JVF7H6mFa-dj-icP-KLy6yvzEaRKz_uwBzQCzgYK434LIpqw_PRuN3ClEsenwRgIsNdVjvKcoAysfoZhmRy9BQaE0I7qTohSBFNX6A.mgGGeeWgugfXcUcsX4T5dQ"
    ```
 
-8. 后端服务根据id_token获取用户信息并返回对应的Http响应
+8. 后端服务根据access_token获取用户信息并返回对应的Http响应
 
    ```json
    {
@@ -240,8 +239,8 @@ spec:
 ```yaml
 redirect_url: 'http://foo.bar.com/oauth2/callback'
 oidc_issuer_url: 'https://dev-o43xb1mz7ya7ach4.us.auth0.com/'
-client_id: 'YagFqRD9tfNIaac5BamjhsSatjrAnsnZ'
-client_secret: 'ekqv5XoZuMFtYms1NszEqRx03qct6BPvGeJUeptNG4y09PrY16BKT9IWezTrrhJJ'
+client_id: 'XXXXXXXXXXXXXXXX'
+client_secret: 'XXXXXXXXXXXXXXXX'
 scope: 'openid email offline_access'
 cookie_secret: 'nqavJrGvRmQxWwGNptLdyUVKcBNZ2b18Guc1n_8DCfY='
 service_name: 'auth.dns'
@@ -302,8 +301,8 @@ http://foo.bar.com/oauth2/sign_out?rd=https%3A%2F%2Fdev-o43xb1mz7ya7ach4.us.auth
 ```yaml
 redirect_url: 'http://foo.bar.com/oauth2/callback'
 oidc_issuer_url: 'http://127.0.0.1:9090/realms/myrealm'
-client_id: 'myclient'
-client_secret: 'PgSvuK7M4GYMPUaO0naQteKhpWYDpBYE'
+client_id: 'XXXXXXXXXXXXXXXX'
+client_secret: 'XXXXXXXXXXXXXXXX'
 scope: 'openid email'
 cookie_secret: 'nqavJrGvRmQxWwGNptLdyUVKcBNZ2b18Guc1n_8DCfY='
 service_name: 'keycloak.static'
@@ -339,3 +338,44 @@ http://foo.bar.com/oauth2/sign_out?rd=http%3A%2F%2F127.0.0.1:9090%2Frealms%2Fmyr
 ```
 
 ![keycloak logout redirect](https://gw.alicdn.com/imgextra/i1/O1CN01AtZ2cd1JlBxsgyCjG_!!6000000001068-0-tps-3840-2160.jpg)
+
+### Aliyun 配置示例
+
+#### Step 1: 配置 Auth0 账户
+
+参考[Web应用登录阿里云](https://help.aliyun.com/zh/ram/user-guide/access-alibaba-cloud-apis-from-a-web-application)流程配置 OAuth 应用
+
+#### Step 2: Higress 配置服务来源
+
+* 在Higress服务来源中创建Aliyun DNS服务
+
+#### Step 3: Wasm 插件配置
+
+```yaml
+redirect_url: 'http://foo.bar.com/oauth2/callback'
+provider: aliyun
+oidc_issuer_url: 'https://oauth.aliyun.com/'
+client_id: 'XXXXXXXXXXXXXXXX'
+client_secret: 'XXXXXXXXXXXXXXXX'
+scope: 'openid'
+cookie_secret: 'nqavJrGvRmQxWwGNptLdyUVKcBNZ2b18Guc1n_8DCfY='
+service_name: 'aliyun.dns'
+service_port: 443
+match_type: whitelist
+match_list:
+ - match_rule_domain: 'foo.bar.com'
+   match_rule_path: /foo
+   match_rule_type: prefix
+```
+
+#### 访问服务页面，未登陆的话进行跳转
+
+![aliyun_login_1](https://gw.alicdn.com/imgextra/i1/O1CN01L379Uk1b2umAraylT_!!6000000003408-0-tps-3840-2160.jpg)
+
+直接使用RAM用户登录或者点击主账户登录
+
+![aliyun_login_2](https://gw.alicdn.com/imgextra/i1/O1CN01pfdA3l27Dy2TL83NA_!!6000000007764-0-tps-3840-2160.jpg)
+
+#### 登陆成功跳转到服务页面
+
+![aliyun_result](https://gw.alicdn.com/imgextra/i3/O1CN015pGvi51eakt3pFS8Y_!!6000000003888-0-tps-3840-2160.jpg)
