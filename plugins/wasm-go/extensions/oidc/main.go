@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	oidc "github.com/Jing-ze/oauth2-proxy"
-	"github.com/Jing-ze/oauth2-proxy/pkg/apis/options"
-	"github.com/Jing-ze/oauth2-proxy/pkg/util"
+	oidc "github.com/higress-group/oauth2-proxy"
+	"github.com/higress-group/oauth2-proxy/pkg/apis/options"
+	"github.com/higress-group/oauth2-proxy/pkg/util"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
