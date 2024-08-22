@@ -28,9 +28,16 @@ import (
 )
 
 const (
-	BufferBody    = "bufferBody"
-	DefaultSchema = "defaultSchema"
+	BufferBody       = "bufferBody"
+	DefaultSchema    = "defaultSchema"
+	BadRequestCode   = 400
+	InteralErrorCode = 500
 )
+
+type RejStruct struct {
+	rejCode uint32
+	rejMesg string
+}
 
 type PluginConfig struct {
 	serviceName    string                 `required:"true" json:"serviceName" yaml:"serviceName"`
@@ -45,6 +52,7 @@ type PluginConfig struct {
 	serviceClient  wrapper.HttpClient
 	draft          *jsonschema.Draft
 	compiler       *jsonschema.Compiler
+	rejStruct      RejStruct
 }
 
 func main() {
@@ -66,12 +74,10 @@ type ReplayBuffer struct {
 
 func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) error {
 	config.serviceName = result.Get("serviceName").String()
-	log.Debugf("Service name: %s", config.serviceName)
 	config.serviceDomain = result.Get("serviceDomain").String()
-	log.Debugf("Service domain: %s", config.serviceDomain)
 	config.servicePort = int(result.Get("servicePort").Int())
-	log.Debugf("Service port: %d", config.servicePort)
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
+	config.rejStruct = RejStruct{uint32(200), ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
 	}
@@ -84,10 +90,14 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 		config.contentPath = "choices.0.message.content"
 	}
 
-	if schemaValue, ok := result.Get("jsonSchema").Value().(map[string]interface{}); ok {
-		config.jsonSchema = schemaValue
+	if jsonSchemaValue := result.Get("jsonSchema"); jsonSchemaValue.Exists() {
+		if schemaValue, ok := jsonSchemaValue.Value().(map[string]interface{}); ok {
+			config.jsonSchema = schemaValue
+		} else {
+			config.rejStruct = RejStruct{BadRequestCode, "json schema is not valid"}
+		}
 	} else {
-		config.jsonSchema = ApiTemp
+		config.jsonSchema = nil
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -115,7 +125,11 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	compiler.Draft = config.draft
 	config.compiler = compiler
 
-	jsonSchemaBytes, _ := json.Marshal(config.jsonSchema)
+	jsonSchemaBytes, err := json.Marshal(config.jsonSchema)
+	if err != nil {
+		config.rejStruct = RejStruct{InteralErrorCode, "json schema marshal failed"}
+		return err
+	}
 	jsonSchemaStr := string(jsonSchemaBytes)
 	config.compiler.AddResource(DefaultSchema, strings.NewReader(jsonSchemaStr))
 
@@ -125,14 +139,11 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 	var reqBodystrut chatCompletionRequest
 	json.Unmarshal(r.ReqBody, &reqBodystrut)
-	// 从响应体中提取所需的内容
 	content := gjson.ParseBytes(r.RespBody).Get(config.contentPath).String()
 
-	// 将jsonSchema转换为字符串
 	jsonSchemaBytes, _ := json.Marshal(config.jsonSchema)
 	jsonSchemaStr := string(jsonSchemaBytes)
 
-	// 组合成一个问题
 	askQuestion := "Given the json schema: " + jsonSchemaStr + ", please help me construct the following content to a pure json: " + content
 	askQuestion += "\n Do not response other content except the pure json!!!!"
 
@@ -143,7 +154,6 @@ func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 		},
 	}
 
-	// 将结构体转换为byte
 	reqBody, _ := json.Marshal(reqBodystrut)
 	return reqBody
 }
@@ -152,24 +162,30 @@ func (c PluginConfig) ValidateJson(body []byte, log wrapper.Log) string {
 	content := gjson.ParseBytes(body).Get(c.contentPath).String()
 	// first extract json from response body
 	if content == "" {
+		c.rejStruct = RejStruct{BadRequestCode, "response body does not contain the content"}
 		return ""
 	}
 	jsonStr := c.ExtractJson(content)
 
 	if jsonStr == "" {
-		return ""
-	}
-	// second use json schema to validate the json
-	compile, err := c.compiler.Compile(DefaultSchema)
-	if err != nil {
+		c.rejStruct = RejStruct{InteralErrorCode, "response body does not contain the valid json"}
 		return ""
 	}
 
-	// validate the json
-	err = compile.Validate(strings.NewReader(jsonStr))
-	if err != nil {
-		log.Debugf("json schema validate failed: %v", err)
-		return ""
+	if c.jsonSchema != nil {
+		// second use json schema to validate the json
+		compile, err := c.compiler.Compile(DefaultSchema)
+		if err != nil {
+			c.rejStruct = RejStruct{InteralErrorCode, "json schema compile failed"}
+			return ""
+		}
+
+		// validate the json
+		err = compile.Validate(strings.NewReader(jsonStr))
+		if err != nil {
+			c.rejStruct = RejStruct{InteralErrorCode, "response body does not match the json schema"}
+			return ""
+		}
 	}
 	return jsonStr
 }
@@ -195,7 +211,7 @@ func (c PluginConfig) ExtractJson(bodyStr string) string {
 	return jsonStr
 }
 
-func sendResponse(ctx wrapper.HttpContext, log wrapper.Log, body []byte, bodyStr string) {
+func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte, bodyStr string) {
 	log.Debugf("final send response: %s", body)
 	if body == nil && bodyStr != "" {
 		body = []byte(bodyStr)
@@ -206,16 +222,19 @@ func sendResponse(ctx wrapper.HttpContext, log wrapper.Log, body []byte, bodyStr
 	if body != nil {
 		header = append(header, [2]string{"Content-Disposition", "attachment; filename=\"response.json\""})
 	}
-
-	proxywasm.SendHttpResponse(uint32(200), header, body, -1)
+	if config.rejStruct.rejCode != uint32(200) {
+		proxywasm.SendHttpResponseWithDetail(config.rejStruct.rejCode, config.rejStruct.rejMesg, nil, []byte(""), -1)
+	} else {
+		proxywasm.SendHttpResponse(uint32(200), header, body, -1)
+	}
 }
 
 func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, bufferRB *ReplayBuffer) {
 	// if retry count exceed max retry count, return the response
 	if retryCount >= config.maxRetry {
 		log.Debugf("retry count exceed max retry count")
-		// TODO: should we return some meaningful message?
-		sendResponse(ctx, log, nil, "")
+		config.rejStruct = RejStruct{InteralErrorCode, "retry count exceed max retry count"}
+		sendResponse(ctx, config, log, nil, "")
 		return
 	}
 
@@ -227,7 +246,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 			bufferRB.RespBody = responseBody
 			validateJson := config.ValidateJson(responseBody, log)
 			if validateJson != "" {
-				sendResponse(ctx, log, nil, validateJson)
+				sendResponse(ctx, config, log, nil, validateJson)
 			} else {
 				recursiveRefineJson(ctx, config, log, retryCount, bufferRB)
 			}
@@ -235,6 +254,10 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	if config.rejStruct.rejCode != uint32(200) {
+		sendResponse(ctx, config, log, nil, "")
+		return types.ActionPause
+	}
 
 	isBuffer, err := proxywasm.GetHttpRequestHeader("isBuffer")
 	if err != nil {
@@ -289,7 +312,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			log.Debugf("[first request] resp code: %d, resp headers: %v, resp body: %s", statusCode, responseHeaders, responseBody)
 			validateJson := config.ValidateJson(responseBody, log)
 			if validateJson != "" {
-				sendResponse(ctx, log, nil, validateJson)
+				sendResponse(ctx, config, log, nil, validateJson)
 				return
 			} else {
 				retryCount := 0
