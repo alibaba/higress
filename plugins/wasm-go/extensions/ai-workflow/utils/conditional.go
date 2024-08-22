@@ -52,7 +52,7 @@ func ExecConditionalStr(ConditionalStr string) (bool, error) {
 
 }
 
-// 通过正泽表达式寻找模板中的 ｛｛foo｝｝ 字符串foo
+// 通过正则表达式寻找模板中的 ｛｛foo｝｝ 字符串foo
 // 返回 {{foo}} : foo
 func ParseTmplStr(tmpl string) map[string]string {
 	result := make(map[string]string)
