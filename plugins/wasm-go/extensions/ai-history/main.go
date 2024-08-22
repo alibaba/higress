@@ -27,7 +27,6 @@ const (
 	DefaultCacheKeyPrefix    = "higress-ai-history:"
 	IdentityKey              = "identity"
 	ChatHistories            = "chatHistories"
-	MaxHistoryCnt            = 100
 )
 
 func main() {
@@ -235,14 +234,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
 		_ = json.Unmarshal([]byte(currJson), &currMessage)
-		for len(chat) >= 2 && len(currMessage) >= 3 {
-			currUserLast := currMessage[len(currMessage)-3]
-			if currUserLast == chat[len(chat)-2] {
-				chat = chat[:len(chat)-2]
-			} else {
-				break
-			}
-		}
+		chat = DistinctChat(chat, currMessage)
 		fillHistoryCnt := getIntQueryParameter(config.FillHistoryCnt, path, "fill_history_cnt") * 2
 		if fillHistoryCnt > len(chat) {
 			fillHistoryCnt = len(chat)
@@ -262,6 +254,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		return types.ActionContinue
 	}
 	return types.ActionPause
+}
+
+func DistinctChat(chat []ChatHistory, currMessage []ChatHistory) []ChatHistory {
+	i := 0
+	for len(chat) >= 2 && len(currMessage) >= 3+i*2 {
+		currUserLast := currMessage[len(currMessage)-3-i*2]
+		if currUserLast == chat[len(chat)-2] {
+			chat = chat[:len(chat)-2]
+		} else {
+			break
+		}
+		i++
+	}
+	return chat
 }
 
 func isQueryHistory(path string) bool {
@@ -435,8 +441,8 @@ func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any
 	}
 	chat = append(chat, ChatHistory{Role: "user", Content: question})
 	chat = append(chat, ChatHistory{Role: "assistant", Content: value})
-	if len(chat) > MaxHistoryCnt*2 {
-		chat = chat[len(chat)-MaxHistoryCnt*2:]
+	if len(chat) > config.FillHistoryCnt*2 {
+		chat = chat[len(chat)-config.FillHistoryCnt*2:]
 	}
 	str, _ := json.Marshal(chat)
 	log.Infof("start to Set history, identityKey:%s, chat:%s", identityKey, string(str))
