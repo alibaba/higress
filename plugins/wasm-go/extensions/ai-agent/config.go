@@ -47,16 +47,16 @@ type Response struct {
 
 // 用于存放拆解出来的工具相关信息
 type Tool_Param struct {
-	ToolName   string   `yaml:"toolName"`
-	Path       string   `yaml:"path"`
-	Method     string   `yaml:"method"`
-	ParamName  []string `yaml:"paramName"`
-	Parameter  string   `yaml:"parameter"`
-	Desciption string   `yaml:"description"`
+	ToolName    string   `yaml:"toolName"`
+	Path        string   `yaml:"path"`
+	Method      string   `yaml:"method"`
+	ParamName   []string `yaml:"paramName"`
+	Parameter   string   `yaml:"parameter"`
+	Description string   `yaml:"description"`
 }
 
 // 用于存放拆解出来的api相关信息
-type API_Param struct {
+type APIParam struct {
 	APIKey     APIKey       `yaml:"apiKey"`
 	URL        string       `yaml:"url"`
 	Tool_Param []Tool_Param `yaml:"tool_Param"`
@@ -72,6 +72,7 @@ type Server struct {
 	URL string `yaml:"url"`
 }
 
+// 给OpenAPI的get方法用的
 type Parameter struct {
 	Name        string `yaml:"name"`
 	In          string `yaml:"in"`
@@ -84,9 +85,41 @@ type Parameter struct {
 	} `yaml:"schema"`
 }
 
+type Items struct {
+	Type    string `yaml:"type"`
+	Example string `yaml:"example"`
+}
+
+type Property struct {
+	Description string   `yaml:"description"`
+	Type        string   `yaml:"type"`
+	Enum        []string `yaml:"enum,omitempty"`
+	Items       *Items   `yaml:"items,omitempty"`
+	MaxItems    int      `yaml:"maxItems,omitempty"`
+	Example     string   `yaml:"example,omitempty"`
+}
+
+type Schema struct {
+	Type       string              `yaml:"type"`
+	Required   []string            `yaml:"required"`
+	Properties map[string]Property `yaml:"properties"`
+}
+
+type MediaType struct {
+	Schema Schema `yaml:"schema"`
+}
+
+// 给OpenAPI的post方法用的
+type RequestBody struct {
+	Required bool                 `yaml:"required"`
+	Content  map[string]MediaType `yaml:"content"`
+}
+
 type PathItem struct {
 	Description string      `yaml:"description"`
+	Summary     string      `yaml:"summary"`
 	OperationID string      `yaml:"operationId"`
+	RequestBody RequestBody `yaml:"requestBody"`
 	Parameters  []Parameter `yaml:"parameters"`
 	Deprecated  bool        `yaml:"deprecated"`
 }
@@ -166,6 +199,15 @@ type LLMInfo struct {
 	// @Title zh-CN 大模型服务的模型名称
 	// @Description zh-CN 大模型服务的模型名称，如"qwen-max-0403"
 	Model string `required:"true" yaml:"model" json:"model"`
+	// @Title zh-CN 结束执行循环前的最大步数
+	// @Description zh-CN 结束执行循环前的最大步数，比如2，设置为0，可能会无限循环，直到超时退出，默认15
+	MaxIterations int64 `yaml:"maxIterations" json:"maxIterations"`
+	// @Title zh-CN 每一次请求大模型的超时时间
+	// @Description zh-CN 每一次请求大模型的超时时间，单位毫秒，默认50000
+	MaxExecutionTime int64 `yaml:"maxExecutionTime" json:"maxExecutionTime"`
+	// @Title zh-CN
+	// @Description zh-CN 每一次请求大模型的输出token限制，默认1000
+	MaxTokens int64 `yaml:"maxToken" json:"maxTokens"`
 }
 
 type PluginConfig struct {
@@ -180,7 +222,7 @@ type PluginConfig struct {
 	// @Description zh-CN 用于存储llm使用信息
 	LLMInfo        LLMInfo            `required:"true" yaml:"llm" json:"llm"`
 	LLMClient      wrapper.HttpClient `yaml:"-" json:"-"`
-	API_Param      []API_Param        `yaml:"-" json:"-"`
+	APIParam       []APIParam         `yaml:"-" json:"-"`
 	PromptTemplate PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
 }
 
@@ -188,7 +230,7 @@ func initResponsePromptTpl(gjson gjson.Result, c *PluginConfig) {
 	//设置回复模板
 	c.ReturnResponseTemplate = gjson.Get("returnResponseTemplate").String()
 	if c.ReturnResponseTemplate == "" {
-		c.ReturnResponseTemplate = `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
+		c.ReturnResponseTemplate = `{"id":"error","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	}
 }
 
@@ -241,40 +283,49 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			return errors.New("api is required")
 		}
 
-		var apiStrcut API
-		err := yaml.Unmarshal([]byte(api.String()), &apiStrcut)
+		var apiStruct API
+		err := yaml.Unmarshal([]byte(api.String()), &apiStruct)
 		if err != nil {
 			return err
 		}
 
 		var allTool_param []Tool_Param
 		//拆除服务下面的每个api的path
-		for path, pathmap := range apiStrcut.Paths {
+		for path, pathmap := range apiStruct.Paths {
 			//拆解出每个api对应的参数
 			for method, submap := range pathmap {
 				//把参数列表存起来
 				var param Tool_Param
 				param.Path = path
-				param.Method = method
 				param.ToolName = submap.OperationID
-				paramName := make([]string, 0)
-				for _, parammeter := range submap.Parameters {
-					paramName = append(paramName, parammeter.Name)
+				if method == "get" {
+					param.Method = "GET"
+					paramName := make([]string, 0)
+					for _, parammeter := range submap.Parameters {
+						paramName = append(paramName, parammeter.Name)
+					}
+					param.ParamName = paramName
+					out, _ := json.Marshal(submap.Parameters)
+					param.Parameter = string(out)
+					param.Description = submap.Description
+				} else if method == "post" {
+					param.Method = "POST"
+					schema := submap.RequestBody.Content["application/json"].Schema
+					param.ParamName = schema.Required
+					param.Description = submap.Summary
+					out, _ := json.Marshal(schema.Properties)
+					param.Parameter = string(out)
 				}
-				param.ParamName = paramName
-				out, _ := json.Marshal(submap.Parameters)
-				param.Parameter = string(out)
-				param.Desciption = submap.Description
 				allTool_param = append(allTool_param, param)
 			}
 		}
-		api_param := API_Param{
+		apiParam := APIParam{
 			APIKey:     APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
-			URL:        apiStrcut.Servers[0].URL,
+			URL:        apiStruct.Servers[0].URL,
 			Tool_Param: allTool_param,
 		}
 
-		c.API_Param = append(c.API_Param, api_param)
+		c.APIParam = append(c.APIParam, apiParam)
 	}
 	return nil
 }
@@ -352,6 +403,18 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 	c.LLMInfo.Domin = gjson.Get("llm.domain").String()
 	c.LLMInfo.Path = gjson.Get("llm.path").String()
 	c.LLMInfo.Model = gjson.Get("llm.model").String()
+	c.LLMInfo.MaxIterations = gjson.Get("llm.maxIterations").Int()
+	if c.LLMInfo.MaxIterations == 0 {
+		c.LLMInfo.MaxIterations = 15
+	}
+	c.LLMInfo.MaxExecutionTime = gjson.Get("llm.maxExecutionTime").Int()
+	if c.LLMInfo.MaxExecutionTime == 0 {
+		c.LLMInfo.MaxExecutionTime = 50000
+	}
+	c.LLMInfo.MaxTokens = gjson.Get("llm.maxTokens").Int()
+	if c.LLMInfo.MaxTokens == 0 {
+		c.LLMInfo.MaxTokens = 1000
+	}
 
 	c.LLMClient = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: c.LLMInfo.ServiceName,

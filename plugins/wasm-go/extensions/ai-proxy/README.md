@@ -34,6 +34,7 @@ description: AI 代理插件配置参考
 | `modelMapping` | map of string   | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。 |
 | `protocol`     | string          | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                                                                          |
 | `context`      | object          | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                                                                                                                         |
+| `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                                                                                                                 |
 
 `context`的配置字段说明如下：
 
@@ -42,6 +43,33 @@ description: AI 代理插件配置参考
 | `fileUrl`     | string | 必填   | -   | 保存 AI 对话上下文的文件 URL。仅支持纯文本类型的文件内容 |
 | `serviceName` | string | 必填   | -   | URL 所对应的 Higress 后端服务完整名称        |
 | `servicePort` | number | 必填   | -   | URL 所对应的 Higress 后端服务访问端口        |
+
+
+`customSettings`的配置字段说明如下：
+
+| 名称        | 数据类型              | 填写要求 | 默认值 | 描述                                                                                                                         |
+| ----------- | --------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | string                | 必填     | -      | 想要设置的参数的名称，例如`max_tokens`                                                                                       |
+| `value`     | string/int/float/bool | 必填     | -      | 想要设置的参数的值，例如0                                                                                                    |
+| `mode`      | string                | 非必填   | "auto" | 参数设置的模式，可以设置为"auto"或者"raw"，如果为"auto"则会自动根据协议对参数名做改写，如果为"raw"则不会有任何改写和限制检查 |
+| `overwrite` | bool                  | 非必填   | true   | 如果为false则只在用户没有设置这个参数时填充参数，否则会直接覆盖用户原有的参数设置                                            |
+
+
+custom-setting会遵循如下表格，根据`name`和协议来替换对应的字段，用户需要填写表格中`settingName`列中存在的值。例如用户将`name`设置为`max_tokens`，在openai协议中会替换`max_tokens`，在gemini中会替换`maxOutputTokens`。
+`none`表示该协议不支持此参数。如果`name`不在此表格中或者对应协议不支持此参数，同时没有设置raw模式，则配置不会生效。
+
+
+| settingName | openai      | baidu             | spark       | qwen        | gemini          | hunyuan     | claude      | minimax            |
+| ----------- | ----------- | ----------------- | ----------- | ----------- | --------------- | ----------- | ----------- | ------------------ |
+| max_tokens  | max_tokens  | max_output_tokens | max_tokens  | max_tokens  | maxOutputTokens | none        | max_tokens  | tokens_to_generate |
+| temperature | temperature | temperature       | temperature | temperature | temperature     | Temperature | temperature | temperature        |
+| top_p       | top_p       | top_p             | none        | top_p       | topP            | TopP        | top_p       | top_p              |
+| top_k       | none        | none              | top_k       | none        | topK            | none        | top_k       | none               |
+| seed        | seed        | none              | none        | seed        | none            | none        | none        | none               |
+
+如果启用了raw模式，custom-setting会直接用输入的`name`和`value`去更改请求中的json内容，而不对参数名称做任何限制和修改。
+对于大多数协议，custom-setting都会在json内容的根路径修改或者填充参数。对于`qwen`协议，ai-proxy会在json的`parameters`子路径下做配置。对于`gemini`协议，则会在`generation_config`子路径下做配置。
+
 
 ### 提供商特有配置
 
@@ -52,6 +80,7 @@ OpenAI 所对应的 `type` 为 `openai`。它特有的配置字段如下:
 | 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
 |-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
 | `openaiCustomUrl` | string   | 非必填   | -      | 基于OpenAI协议的自定义后端URL，例如: www.example.com/myai/v1/chat/completions |
+| `responseJsonSchema` | object | 非必填 | - | 预先定义OpenAI响应需满足的Json Schema, 注意目前仅特定的几种模型支持该用法|
 
 
 #### Azure OpenAI
