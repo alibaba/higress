@@ -17,7 +17,7 @@ ipProtocol: ipv4
 
 在generateCidr目录里包含的ip.merge.txt文件是github上ip2region项目的全世界的ip网段库。 ipRange2Cidr.go 是把ip网段转换成多个cidr的程序。转换出的cidr 和地理位置信息存在 /data/geoCidr.txt文件里。geo-ip插件会在Higress启动读配置阶段读取geoCidr.txt文件并且解析到radixtree数据结构的内存里，以便以后查询用户ip对应的地理位置信息。转换程序运行命令如下：
 
-```basg
+```bash
 go run generateCidr/ipRange2Cidr.go
 ```
 
