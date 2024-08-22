@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header) error {

@@ -13,6 +13,9 @@ const (
 	eventResult = "result"
 
 	httpStatus200 = "200"
+
+	contentTypeText     = "text"
+	contentTypeImageUrl = "image_url"
 )
 
 type chatCompletionRequest struct {
@@ -80,12 +83,27 @@ type usage struct {
 type chatMessage struct {
 	Name      string     `json:"name,omitempty"`
 	Role      string     `json:"role,omitempty"`
-	Content   string     `json:"content,omitempty"`
+	Content   any        `json:"content,omitempty"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
 }
 
+type messageContent struct {
+	Type     string    `json:"type,omitempty"`
+	Text     string    `json:"text"`
+	ImageUrl *imageUrl `json:"image_url,omitempty"`
+}
+
+type imageUrl struct {
+	Url    string `json:"url,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
 func (m *chatMessage) IsEmpty() bool {
-	if m.Content != "" {
+	if m.IsStringContent() && m.Content != "" {
+		return false
+	}
+	anyList, ok := m.Content.([]any)
+	if ok && len(anyList) > 0 {
 		return false
 	}
 	if len(m.ToolCalls) != 0 {
@@ -101,6 +119,76 @@ func (m *chatMessage) IsEmpty() bool {
 		}
 	}
 	return true
+}
+
+func (m *chatMessage) IsStringContent() bool {
+	_, ok := m.Content.(string)
+	return ok
+}
+
+func (m *chatMessage) StringContent() string {
+	content, ok := m.Content.(string)
+	if ok {
+		return content
+	}
+	contentList, ok := m.Content.([]any)
+	if ok {
+		var contentStr string
+		for _, contentItem := range contentList {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if contentMap["type"] == contentTypeText {
+				if subStr, ok := contentMap[contentTypeText].(string); ok {
+					contentStr += subStr + "\n"
+				}
+			}
+		}
+		return contentStr
+	}
+	return ""
+}
+
+func (m *chatMessage) ParseContent() []messageContent {
+	var contentList []messageContent
+	content, ok := m.Content.(string)
+	if ok {
+		contentList = append(contentList, messageContent{
+			Type: contentTypeText,
+			Text: content,
+		})
+		return contentList
+	}
+	anyList, ok := m.Content.([]any)
+	if ok {
+		for _, contentItem := range anyList {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			switch contentMap["type"] {
+			case contentTypeText:
+				if subStr, ok := contentMap[contentTypeText].(string); ok {
+					contentList = append(contentList, messageContent{
+						Type: contentTypeText,
+						Text: subStr,
+					})
+				}
+			case contentTypeImageUrl:
+				if subObj, ok := contentMap[contentTypeImageUrl].(map[string]any); ok {
+					contentList = append(contentList, messageContent{
+						Type: contentTypeImageUrl,
+						ImageUrl: &imageUrl{
+							Url: subObj["url"].(string),
+						},
+					})
+				}
+			}
+		}
+		return contentList
+	}
+	return nil
 }
 
 type toolCall struct {

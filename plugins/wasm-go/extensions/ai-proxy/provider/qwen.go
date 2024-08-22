@@ -22,17 +22,19 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDomain             = "dashscope.aliyuncs.com"
-	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
-	qwenTextEmbeddingPath  = "/api/v1/services/embeddings/text-embedding/text-embedding"
-	qwenCompatiblePath     = "/compatible-mode/v1/chat/completions"
+	qwenDomain                   = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
+	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
 
 	qwenDummySystemMessageContent = "You are a helpful assistant."
 
-	qwenLongModelName = "qwen-long"
+	qwenLongModelName     = "qwen-long"
+	qwenVlModelPrefixName = "qwen-vl"
 )
 
 type qwenProviderInitializer struct {
@@ -163,6 +165,10 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 	}
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+	// Use the qwen multimodal model generation API
+	if strings.HasPrefix(request.Model, qwenVlModelPrefixName) {
+		_ = util.OverwriteRequestPath(qwenMultimodalGenerationPath)
+	}
 
 	streaming := request.Stream
 	if streaming {
@@ -450,8 +456,29 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		if pushedMessage, ok := ctx.GetContext(ctxKeyPushedMessage).(qwenMessage); ok {
 			if message.Content == "" {
 				message.Content = pushedMessage.Content
+			} else if message.IsStringContent() {
+				deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.StringContent(), pushedMessage.StringContent())
+			} else if strings.HasPrefix(baseMessage.Model, qwenVlModelPrefixName) {
+				// Use the Qwen multimodal model generation API
+				deltaContentList, ok := deltaContentMessage.Content.([]qwenVlMessageContent)
+				if !ok {
+					log.Warnf("unexpected deltaContentMessage content type: %T", deltaContentMessage.Content)
+				} else {
+					pushedContentList, ok := pushedMessage.Content.([]qwenVlMessageContent)
+					if !ok {
+						log.Warnf("unexpected pushedMessage content type: %T", pushedMessage.Content)
+					} else {
+						for i, content := range deltaContentList {
+							if i >= len(pushedContentList) {
+								break
+							}
+							pushedText := pushedContentList[i].Text
+							content.Text = util.StripPrefix(content.Text, pushedText)
+							deltaContentList[i] = content
+						}
+					}
+				}
 			}
-			deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.Content, pushedMessage.Content)
 			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
 				for i, tc := range deltaToolCallsMessage.ToolCalls {
 					if i >= len(pushedMessage.ToolCalls) {
@@ -557,7 +584,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 			if builder.Len() != 0 {
 				builder.WriteString("\n")
 			}
-			builder.WriteString(message.Content)
+			builder.WriteString(message.StringContent())
 		}
 		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}, fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)
 		return 1
@@ -662,8 +689,13 @@ type qwenUsage struct {
 type qwenMessage struct {
 	Name      string     `json:"name,omitempty"`
 	Role      string     `json:"role"`
-	Content   string     `json:"content"`
+	Content   any        `json:"content"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type qwenVlMessageContent struct {
+	Image string `json:"image,omitempty"`
+	Text  string `json:"text,omitempty"`
 }
 
 type qwenTextEmbeddingRequest struct {
@@ -705,11 +737,58 @@ func qwenMessageToChatMessage(qwenMessage qwenMessage) chatMessage {
 	}
 }
 
+func (m *qwenMessage) IsStringContent() bool {
+	_, ok := m.Content.(string)
+	return ok
+}
+
+func (m *qwenMessage) StringContent() string {
+	content, ok := m.Content.(string)
+	if ok {
+		return content
+	}
+	contentList, ok := m.Content.([]any)
+	if ok {
+		var contentStr string
+		for _, contentItem := range contentList {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text, ok := contentMap["text"].(string); ok {
+				contentStr += text
+			}
+		}
+		return contentStr
+	}
+	return ""
+}
+
 func chatMessage2QwenMessage(chatMessage chatMessage) qwenMessage {
-	return qwenMessage{
-		Name:      chatMessage.Name,
-		Role:      chatMessage.Role,
-		Content:   chatMessage.Content,
-		ToolCalls: chatMessage.ToolCalls,
+	if chatMessage.IsStringContent() {
+		return qwenMessage{
+			Name:      chatMessage.Name,
+			Role:      chatMessage.Role,
+			Content:   chatMessage.StringContent(),
+			ToolCalls: chatMessage.ToolCalls,
+		}
+	} else {
+		var contents []qwenVlMessageContent
+		openaiContent := chatMessage.ParseContent()
+		for _, part := range openaiContent {
+			var content qwenVlMessageContent
+			if part.Type == contentTypeText {
+				content.Text = part.Text
+			} else if part.Type == contentTypeImageUrl {
+				content.Image = part.ImageUrl.Url
+			}
+			contents = append(contents, content)
+		}
+		return qwenMessage{
+			Name:      chatMessage.Name,
+			Role:      chatMessage.Role,
+			Content:   contents,
+			ToolCalls: chatMessage.ToolCalls,
+		}
 	}
 }
