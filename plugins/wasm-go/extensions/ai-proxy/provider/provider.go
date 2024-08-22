@@ -184,6 +184,9 @@ type ProviderConfig struct {
 	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
 	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
 	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
+	// @Title zh-CN 自定义大模型参数配置
+	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
+	customSettings []CustomSetting
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -239,6 +242,25 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.responseJsonSchema = nil 
 	}
 	
+
+	c.customSettings = make([]CustomSetting, 0)
+	customSettingsJson := json.Get("customSettings")
+	if customSettingsJson.Exists() {
+		protocol := protocolOpenAI
+		if c.protocol == protocolOriginal {
+			// use provider name to represent original protocol name
+			protocol = c.typ
+		}
+		for _, settingJson := range customSettingsJson.Array() {
+			setting := CustomSetting{}
+			setting.FromJson(settingJson)
+			// use protocol info to rewrite setting
+			setting.AdjustWithProtocol(protocol)
+			if setting.Validate() {
+				c.customSettings = append(c.customSettings, setting)
+			}
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -323,4 +345,8 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
+	return ReplaceByCustomSettings(body, c.customSettings)
 }
