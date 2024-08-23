@@ -19,6 +19,7 @@ const (
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
+	providerTypeAi360      = "ai360"
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
@@ -73,6 +74,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeMoonshot:   &moonshotProviderInitializer{},
 		providerTypeAzure:      &azureProviderInitializer{},
+		providerTypeAi360:      &ai360ProviderInitializer{},
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
@@ -235,13 +237,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		}
 	}
 	c.targetLang = json.Get("targetLang").String()
-	
+
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
 		c.responseJsonSchema = schemaValue
 	} else {
-		c.responseJsonSchema = nil 
+		c.responseJsonSchema = nil
 	}
-	
 
 	c.customSettings = make([]CustomSetting, 0)
 	customSettingsJson := json.Get("customSettings")
