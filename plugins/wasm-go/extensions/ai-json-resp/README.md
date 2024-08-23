@@ -22,14 +22,26 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | serviceTimeout | int |  optional | 50000 | 默认请求超时时间 |
 | maxRetry | int |  optional | 3 | 若回答无法正确提取格式化时重试次数 |
 | contentPath | str |  optional | "choices.0.message.content” | 从LLM回答中提取响应结果的gpath路径 |
-| jsonSchema | str (json) |  optional | APITemp, details in the “./templates.go” | 验证请求所参照的jsonSchema |
+| jsonSchema | str (json) |  optional | - | 验证请求所参照的jsonSchema, 为空只验证并返回合法Json格式响应 |
 | enableSwagger | bool |  optional | false | 是否启用Swagger协议进行验证 |
 | enableOas3 | bool |  optional | true | 是否启用Oas3协议进行验证 |
 
 ### 请求和返回参数说明
 
-- **请求参数**: 请参照ai-proxy的参数请求列表，本插件处理逻辑在ai-proxy返回的响应基础上进行Json提取，以及在提取或者验证失败时自动添加Prompt重试。因此无需特地配置针对本插件的请求参数。
-- **返回参数**: 返回满足定义的Json Schema约束的 `Json格式响应` 或 `空字符串`
+- **请求参数**: 本插件请求格式为openai请求格式，包含`model`和`messages`字段，其中`model`为AI模型名称，`messages`为对话消息列表，每个消息包含`role`和`content`字段，`role`为消息角色，`content`为消息内容。
+  ```json
+  {
+    "model": "gpt-4",
+    "messages": [
+      {"role": "user", "content": "give me a api doc for add the variable x to x+5"}
+    ]
+  }
+  ```
+  其他请求参数需参考配置的ai服务或网关服务的相应文档。
+- **返回参数**: 
+  - 返回满足定义的Json Schema约束的 `Json格式响应`
+  - 若未定义Json Schema，则返回合法的`Json格式响应`
+  - 若出现内部错误，则返回 `{ "Code": 10XX, "Msg": "错误信息提示" }`。
 
 ## 请求示例
 
@@ -45,7 +57,7 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 
 ```
 
-## 返回格式说明
+## 返回示例
 ### 正常返回
 在正常情况下，系统应返回经过 JSON Schema 验证的 JSON 数据。如果未配置 JSON Schema，系统将返回符合 JSON 标准的合法 JSON 数据。
 ```json
