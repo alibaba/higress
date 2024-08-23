@@ -2,9 +2,7 @@
 
 module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-intent
 
-go 1.21
-
-toolchain go1.22.5
+go 1.19
 
 replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
