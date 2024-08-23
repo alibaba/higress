@@ -40,18 +40,18 @@ const (
 	ServiceConfiginValidCode     = 1008
 )
 
-type RejStruct struct {
-	RejCode uint32 `json:"Code"`
-	RejMsg  string `json:"Msg"`
+type RejectStruct struct {
+	RejectCode uint32 `json:"Code"`
+	RejectMsg  string `json:"Msg"`
 }
 
-func (r RejStruct) Byte() []byte {
+func (r RejectStruct) Byte() []byte {
 	jsonData, _ := json.Marshal(r)
 	return jsonData
 }
 
-func (r RejStruct) GetShortMsg() string {
-	return "ai-json-resp." + strings.Split(r.RejMsg, ":")[0]
+func (r RejectStruct) GetShortMsg() string {
+	return "ai-json-resp." + strings.Split(r.RejectMsg, ":")[0]
 }
 
 type PluginConfig struct {
@@ -90,12 +90,20 @@ type PluginConfig struct {
 	enableSwagger bool `required:"false" json:"enableSwagger" yaml:"enableSwagger"`
 	// @Title zh-CN 是否启用oas3
 	// @Description zh-CN 是否启用oas3进行Json Schema验证
-	enableOas3    bool `required:"false" json:"enableOas3" yaml:"enableOas3"`
-	serviceClient wrapper.HttpClient
-	draft         *jsonschema.Draft
-	compiler      *jsonschema.Compiler
-	compile       *jsonschema.Schema
-	rejStruct     RejStruct
+	enableOas3 bool `required:"false" json:"enableOas3" yaml:"enableOas3"`
+	// @Title zh-CN Json Schema 最大深度
+	// @Description zh-CN 指定支持的 JSON Schema 最大深度，超过该深度的 Schema 不会用于验证响应, 只用来作为提示
+	jsonSchemaMaxDepth int `required:"false" json:"jsonSchemaMaxDepth" yaml:"jsonSchemaMaxDepth"`
+	// @Title zh-CN 超深时是否拒绝执行并返回
+	// @Description zh-CN 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于提示并继续执行
+	rejectOnDepthExceed bool `required:"false" json:"rejectOnDepthExceed" yaml:"rejectOnDepthExceed"`
+
+	serviceClient   wrapper.HttpClient
+	draft           *jsonschema.Draft
+	compiler        *jsonschema.Compiler
+	compile         *jsonschema.Schema
+	rejectStruct    RejectStruct
+	validJsonSchema bool
 }
 
 func main() {
@@ -150,7 +158,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	}
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
 	config.apiKey = result.Get("apiKey").String()
-	config.rejStruct = RejStruct{uint32(200), ""}
+	config.rejectStruct = RejectStruct{uint32(200), ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
 	}
@@ -168,14 +176,14 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 			config.jsonSchema = schemaValue
 
 		} else {
-			config.rejStruct = RejStruct{JsonSchemaNotValidCode, "Json Schema is not valid"}
+			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema is not valid"}
 		}
 	} else {
 		config.jsonSchema = nil
 	}
 
 	if config.serviceDomain == "" {
-		config.rejStruct = RejStruct{ServiceConfiginValidCode, "service domain is empty"}
+		config.rejectStruct = RejectStruct{ServiceConfiginValidCode, "service domain is empty"}
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -203,21 +211,48 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	compiler.Draft = config.draft
 	config.compiler = compiler
 
+	config.jsonSchemaMaxDepth = int(result.Get("jsonSchemaMaxDepth").Int())
+	if config.jsonSchemaMaxDepth == 0 {
+		config.jsonSchemaMaxDepth = 5
+	}
+
+	exceed := result.Get("rejectOnDepthExceed")
+	if !exceed.Exists() {
+		config.rejectOnDepthExceed = false
+	} else {
+		config.rejectOnDepthExceed = exceed.Bool()
+	}
+
+	config.validJsonSchema = true
+
 	jsonSchemaBytes, err := json.Marshal(config.jsonSchema)
 	if err != nil {
-		config.rejStruct = RejStruct{JsonSchemaNotValidCode, "Json Schema marshal failed"}
+		config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema marshal failed"}
 		return err
 	}
-	jsonSchemaStr := string(jsonSchemaBytes)
-	config.compiler.AddResource(DefaultSchema, strings.NewReader(jsonSchemaStr))
-	// Test if the Json Schema is valid
-	compile, err := config.compiler.Compile(DefaultSchema)
-	if err != nil {
-		log.Infof("Json Schema compile failed: %v", err)
-		config.rejStruct = RejStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
-		config.compile = nil
-	} else {
-		config.compile = compile
+	maxDepth := MaxDepthIterative(config.jsonSchema)
+	log.Debugf("max depth of json schema: %d", maxDepth)
+	if maxDepth > config.jsonSchemaMaxDepth {
+		if config.rejectOnDepthExceed {
+			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema depth exceed: " + string(maxDepth)}
+		} else {
+			log.Infof("Json Schema depth exceed: %d, do not valid json schema", maxDepth)
+			config.validJsonSchema = false
+		}
+	}
+
+	if config.validJsonSchema {
+		jsonSchemaStr := string(jsonSchemaBytes)
+		config.compiler.AddResource(DefaultSchema, strings.NewReader(jsonSchemaStr))
+		// Test if the Json Schema is valid
+		compile, err := config.compiler.Compile(DefaultSchema)
+		if err != nil {
+			log.Infof("Json Schema compile failed: %v", err)
+			config.rejectStruct = RejectStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			config.compile = nil
+		} else {
+			config.compile = compile
+		}
 	}
 
 	return nil
@@ -295,13 +330,13 @@ func (c *PluginConfig) ValidateBody(body []byte) error {
 	var respJsonStrct chatCompletionResponse
 	err := json.Unmarshal(body, &respJsonStrct)
 	if err != nil {
-		c.rejStruct = RejStruct{ServiceUnavailableCode, "service unavailable: " + string(body)}
-		return errors.New(c.rejStruct.RejMsg)
+		c.rejectStruct = RejectStruct{ServiceUnavailableCode, "service unavailable: " + string(body)}
+		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	content := gjson.ParseBytes(body).Get(c.contentPath)
 	if !content.Exists() {
-		c.rejStruct = RejStruct{ServiceUnavailableCode, "response body does not contain the content:" + string(body)}
-		return errors.New(c.rejStruct.RejMsg)
+		c.rejectStruct = RejectStruct{ServiceUnavailableCode, "response body does not contain the content:" + string(body)}
+		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	return nil
 }
@@ -311,28 +346,36 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	// first extract json from response body
 	if content == "" {
 		log.Infof("response body does not contain the content")
-		c.rejStruct = RejStruct{ReturnContentisEmpytCode, "response body does not contain the content"}
-		return "", errors.New(c.rejStruct.RejMsg)
+		c.rejectStruct = RejectStruct{ReturnContentisEmpytCode, "response body does not contain the content"}
+		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 	jsonStr, err := c.ExtractJson(content)
 
 	if err != nil {
 		log.Infof("response body does not contain the valid json: %v", err)
-		c.rejStruct = RejStruct{CannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
-		return "", errors.New(c.rejStruct.RejMsg)
+		c.rejectStruct = RejectStruct{CannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
+		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 
-	if c.jsonSchema != nil {
+	if c.jsonSchema != nil && c.validJsonSchema {
+		compile, err := c.compiler.Compile(DefaultSchema)
+		if err != nil {
+			log.Infof("Json Schema compile failed: %v", err)
+			c.rejectStruct = RejectStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			c.compile = nil
+		} else {
+			c.compile = compile
+		}
 
 		// validate the json
 		err = c.compile.Validate(strings.NewReader(jsonStr))
 		if err != nil {
 			log.Infof("response body does not match the Json Schema: %v", err)
-			c.rejStruct = RejStruct{ReturnJsonMisMatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
-			return "", errors.New(c.rejStruct.RejMsg)
+			c.rejectStruct = RejectStruct{ReturnJsonMisMatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
+			return "", errors.New(c.rejectStruct.RejectMsg)
 		}
 	}
-	c.rejStruct = RejStruct{uint32(200), ""}
+	c.rejectStruct = RejectStruct{uint32(200), ""}
 	return jsonStr, nil
 }
 
@@ -358,15 +401,15 @@ func (c PluginConfig) ExtractJson(bodyStr string) (string, error) {
 }
 
 func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte) {
-	log.Infof("Final send: Code %d, Message %s, Body: %s %s", config.rejStruct.RejCode, config.rejStruct.RejMsg, string(body))
+	log.Infof("Final send: Code %d, Message %s, Body: %s %s", config.rejectStruct.RejectCode, config.rejectStruct.RejectMsg, string(body))
 	header := [][2]string{
 		{"Content-Type", "application/json"},
 	}
 	if body != nil {
 		header = append(header, [2]string{"Content-Disposition", "attachment; filename=\"response.json\""})
 	}
-	if config.rejStruct.RejCode != uint32(200) {
-		proxywasm.SendHttpResponseWithDetail(uint32(500), config.rejStruct.GetShortMsg(), nil, config.rejStruct.Byte(), -1)
+	if config.rejectStruct.RejectCode != uint32(200) {
+		proxywasm.SendHttpResponseWithDetail(uint32(500), config.rejectStruct.GetShortMsg(), nil, config.rejectStruct.Byte(), -1)
 	} else {
 		proxywasm.SendHttpResponse(uint32(200), header, body, -1)
 	}
@@ -377,7 +420,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 	if retryCount >= config.maxRetry {
 		log.Debugf("retry count exceed max retry count")
 		// report more useful error by appending the last of previous error message
-		config.rejStruct = RejStruct{ReachMeaxRetryCountCode, "retry count exceed max retry count:" + config.rejStruct.RejMsg}
+		config.rejectStruct = RejectStruct{ReachMeaxRetryCountCode, "retry count exceed max retry count:" + config.rejectStruct.RejectMsg}
 		sendResponse(ctx, config, log, nil)
 		return
 	}
@@ -404,7 +447,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	if config.rejStruct.RejCode != uint32(200) {
+	if config.rejectStruct.RejectCode != uint32(200) {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionPause
 	}
@@ -448,7 +491,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	}
 
 	// if there is any error in the config, return the response directly
-	if config.rejStruct.RejCode != uint32(200) {
+	if config.rejectStruct.RejectCode != uint32(200) {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionContinue
 	}
