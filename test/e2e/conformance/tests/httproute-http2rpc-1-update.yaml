@@ -34,6 +34,20 @@ spec:
         paramType: "java.lang.String"
 ---
 apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+  - domain: nacos-standlone-rc3-service.higress-conformance-app-backend
+    nacosGroups:
+    - DEFAULT_GROUP
+    name: nacos-service-resource
+    port: 8848
+    type: nacos
+---
+apiVersion: networking.higress.io/v1
 kind: Http2Rpc
 metadata:
   name: httproute-http2rpc-healthservice
