@@ -37,11 +37,19 @@ type ProviderConfig struct {
 	typ string `json:"TextEmbeddingProviderType"`
 	// @Title zh-CN DashScope 阿里云大模型服务名
 	// @Description zh-CN 调用阿里云的大模型服务
+<<<<<<< HEAD
 	ServiceName       string             `require:"true" yaml:"DashScopeServiceName" jaon:"DashScopeServiceName"`
 	Client            wrapper.HttpClient `yaml:"-"`
 	DashScopeKey      string             `require:"true" yaml:"DashScopeKey" jaon:"DashScopeKey"`
 	DashScopeTimeout  uint32             `require:"false" yaml:"DashScopeTimeout" jaon:"DashScopeTimeout"`
 	QueryEmbeddingKey string             `require:"false" yaml:"QueryEmbeddingKey" jaon:"QueryEmbeddingKey"`
+=======
+	ServiceName       string             `require:"true" yaml:"DashScopeServiceName" json:"DashScopeServiceName"`
+	Client            wrapper.HttpClient `yaml:"-"`
+	DashScopeKey      string             `require:"true" yaml:"DashScopeKey" json:"DashScopeKey"`
+	DashScopeTimeout  uint32             `require:"false" yaml:"DashScopeTimeout" json:"DashScopeTimeout"`
+	QueryEmbeddingKey string             `require:"false" yaml:"QueryEmbeddingKey" json:"QueryEmbeddingKey"`
+>>>>>>> origin/feat/chroma
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -80,7 +88,11 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 type Provider interface {
 	GetProviderType() string
 	GetEmbedding(
+<<<<<<< HEAD
 		text string,
+=======
+		queryString string,
+>>>>>>> origin/feat/chroma
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
 		callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error

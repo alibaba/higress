@@ -7,7 +7,10 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
+<<<<<<< HEAD
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vectorDatabase"
+=======
+>>>>>>> origin/feat/chroma
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/resp"
@@ -76,6 +79,7 @@ func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config confi
 }
 
 func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
+<<<<<<< HEAD
 	log.Debugf("QueryVectorDB key:%s", key)
 	activeVectorDatabaseProvider := config.GetVectorDatabaseProvider()
 	log.Debugf("activeVectorDatabaseProvider:%v", activeVectorDatabaseProvider)
@@ -83,12 +87,29 @@ func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext
 		func(query_resp vectorDatabase.QueryResponse, ctx wrapper.HttpContext, log wrapper.Log) {
 			if len(query_resp.Output) < 1 {
 				log.Warnf("query response is empty")
+=======
+	log.Debugf("QueryVectorDB key: %s", key)
+	activeVectorDatabaseProvider := config.GetVectorDatabaseProvider()
+	log.Debugf("activeVectorDatabaseProvider: %+v", activeVectorDatabaseProvider)
+	activeVectorDatabaseProvider.QueryEmbedding(text_embedding, ctx, log,
+		func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) {
+			resp, err := activeVectorDatabaseProvider.ParseQueryResponse(responseBody, ctx, log)
+			if err != nil {
+				log.Errorf("Failed to query vector database, err: %v", err)
+				proxywasm.ResumeHttpRequest()
+				return
+			}
+
+			if len(resp.MostSimilarData) == 0 {
+				log.Warnf("Failed to query vector database, no most similar key found")
+>>>>>>> origin/feat/chroma
 				activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log,
 					func(ctx wrapper.HttpContext, log wrapper.Log) {
 						proxywasm.ResumeHttpRequest()
 					})
 				return
 			}
+<<<<<<< HEAD
 			mostSimilarKey := query_resp.Output[0].Fields["query"].(string)
 			log.Infof("most similar key:%s", mostSimilarKey)
 			mostSimilarScore := query_resp.Output[0].Score
@@ -98,15 +119,80 @@ func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext
 				RedisSearchHandler(mostSimilarKey, ctx, config, log, stream, false)
 			} else {
 				log.Infof("the most similar key's score is too high, key:%s, score:%f", mostSimilarKey, mostSimilarScore)
+=======
+
+			log.Infof("most similar key: %s", resp.MostSimilarData)
+			if resp.Score < activeVectorDatabaseProvider.GetThreshold() {
+				log.Infof("accept most similar key: %s, score: %f", resp.MostSimilarData, resp.Score)
+				// ctx.SetContext(embedding.CacheKeyContextKey, nil)
+				RedisSearchHandler(resp.MostSimilarData, ctx, config, log, stream, false)
+			} else {
+				log.Infof("the most similar key's score is too high, key: %s, score: %f", resp.MostSimilarData, resp.Score)
+>>>>>>> origin/feat/chroma
 				activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log,
 					func(ctx wrapper.HttpContext, log wrapper.Log) {
 						proxywasm.ResumeHttpRequest()
 					})
+<<<<<<< HEAD
 				proxywasm.ResumeHttpRequest()
+=======
+>>>>>>> origin/feat/chroma
 				return
 			}
 		},
 	)
+<<<<<<< HEAD
+=======
+
+	// resp, err := activeVectorDatabaseProvider.QueryEmbedding(text_embedding, ctx, log)
+	// if err != nil {
+	// 	log.Errorf("Failed to query vector database, err: %v", err)
+	// 	activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log)
+	// 	proxywasm.ResumeHttpRequest()
+	// 	return
+	// }
+
+	// log.Infof("most similar key: %s", resp.MostSimilarData)
+	// if resp.Score < activeVectorDatabaseProvider.GetThreshold() {
+	// 	log.Infof("accept most similar key: %s, score: %f", resp.MostSimilarData, resp.Score)
+	// 	// ctx.SetContext(embedding.CacheKeyContextKey, nil)
+	// 	RedisSearchHandler(resp.MostSimilarData, ctx, config, log, stream, false)
+	// } else {
+	// 	log.Infof("the most similar key's score is too high, key: %s, score: %f", resp.MostSimilarData, resp.Score)
+	// 	activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log)
+	// 	proxywasm.ResumeHttpRequest()
+	// 	return
+	// }
+
+	// activeVectorDatabaseProvider.QueryEmbedding(text_embedding, ctx, log,
+	// 	func(query_resp vectorDatabase.QueryResponse, ctx wrapper.HttpContext, log wrapper.Log) {
+	// 		if len(query_resp.Output) < 1 { // 向量库不存在查询向量
+	// 			log.Warnf("query response is empty")
+	// 			activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log,
+	// 				func(ctx wrapper.HttpContext, log wrapper.Log) {
+	// 					proxywasm.ResumeHttpRequest()
+	// 				})
+	// 			return
+	// 		}
+	// 		mostSimilarKey := query_resp.Output[0].Fields["query"].(string)
+	// 		log.Infof("most similar key:%s", mostSimilarKey)
+	// 		mostSimilarScore := query_resp.Output[0].Score
+	// 		if mostSimilarScore < 2000 { // 向量库存在满足相似度的向量
+	// 			log.Infof("accept most similar key:%s, score:%f", mostSimilarKey, mostSimilarScore)
+	// 			// ctx.SetContext(embedding.CacheKeyContextKey, nil)
+	// 			RedisSearchHandler(mostSimilarKey, ctx, config, log, stream, false)
+	// 		} else { // 向量库不存在满足相似度的向量
+	// 			log.Infof("the most similar key's score is too high, key:%s, score:%f", mostSimilarKey, mostSimilarScore)
+	// 			activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log,
+	// 				func(ctx wrapper.HttpContext, log wrapper.Log) {
+	// 					proxywasm.ResumeHttpRequest()
+	// 				})
+	// 			proxywasm.ResumeHttpRequest()
+	// 			return
+	// 		}
+	// 	},
+	// )
+>>>>>>> origin/feat/chroma
 	// activeVectorDatabaseProvider.QueryEmbedding(text_embedding, ctx, log,
 	// 	func(query_resp vectorDatabase.QueryResponse, ctx wrapper.HttpContext, log wrapper.Log) {
 	// 		if len(query_resp.Output) < 1 {

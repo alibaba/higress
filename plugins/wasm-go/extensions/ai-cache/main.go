@@ -26,7 +26,31 @@ const (
 	QueryEmbeddingKey        = "queryEmbedding"
 )
 
+// // Create the client
+// func CreateClient() {
+// 	cfg := weaviate.Config{
+// 		Host:    "172.17.0.1:8081",
+// 		Scheme:  "http",
+// 		Headers: nil,
+// 	}
+
+// 	client, err := weaviate.NewClient(cfg)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
+
+// 	// Check the connection
+// 	live, err := client.Misc().LiveChecker().Do(context.Background())
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	fmt.Printf("%v", live)
+
+// }
+
 func main() {
+	// CreateClient()
+
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseConfigBy(parseConfig),
@@ -45,6 +69,7 @@ func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log
 	if err := config.Validate(); err != nil {
 		return err
 	}
+	// 注意，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
 	if err := config.Complete(log); err != nil {
 		log.Errorf("complete config failed:%v", err)
 		return err
@@ -57,6 +82,21 @@ func TrimQuote(source string) string {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) types.Action {
+	// 这段代码是为了测试，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
+	// 但是在 onHttpRequestHeaders 中可以连接到 redis、
+	// 修复需要修改 envoy
+	// ----------------------------------------------------------------------------
+	// if err := config.Complete(log); err != nil {
+	// 	log.Errorf("complete config failed:%v", err)
+	// }
+	// activeCacheProvider := config.GetCacheProvider()
+	// if err := activeCacheProvider.Init("", "", 2000); err != nil {
+	// 	log.Errorf("init redis failed:%v", err)
+	// }
+	// activeCacheProvider.Set("test", "test", func(response resp.Value) {})
+	// log.Warnf("redis init success")
+	// ----------------------------------------------------------------------------
+
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -97,6 +137,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 
 	util.RedisSearchHandler(queryString, ctx, config, log, stream, true)
 
+	// 需要等待异步回调完成，返回 Pause 状态，可以被 ResumeHttpRequest 恢复
 	return types.ActionPause
 }
 

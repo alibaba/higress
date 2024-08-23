@@ -6,7 +6,10 @@ import (
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+<<<<<<< HEAD
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+=======
+>>>>>>> origin/feat/chroma
 )
 
 const (
@@ -137,6 +140,10 @@ type Result struct {
 	Score  float64                `json:"score"`
 }
 
+<<<<<<< HEAD
+=======
+// 返回指针防止拷贝 Embedding
+>>>>>>> origin/feat/chroma
 func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) {
 	var resp Response
 	err := json.Unmarshal(responseBody, &resp)
@@ -151,7 +158,10 @@ func (d *DSProvider) GetEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error {
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/feat/chroma
 	// 构建参数并处理错误
 	Emb_url, Emb_headers, Emb_requestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
@@ -159,25 +169,44 @@ func (d *DSProvider) GetEmbedding(
 		return err
 	}
 
+<<<<<<< HEAD
 	// 发起 POST 请求
 	d.client.Post(Emb_url, Emb_headers, Emb_requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			defer proxywasm.ResumeHttpRequest() // 确保 HTTP 请求被恢复
+=======
+	var resp *Response
+	// 发起 POST 请求
+	d.client.Post(Emb_url, Emb_headers, Emb_requestBody,
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			if statusCode != http.StatusOK {
+				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
+				err = errors.New("failed to get embedding")
+				return
+			}
+>>>>>>> origin/feat/chroma
 
 			// 日志记录响应
 			log.Infof("Get embedding response: %d, %s", statusCode, responseBody)
 
 			// 解析响应
+<<<<<<< HEAD
 			resp, err := d.parseTextEmbedding(responseBody)
 			if err != nil {
 				log.Errorf("Failed to parse response: %v", err)
 				callback(nil, statusCode, responseHeaders, responseBody)
+=======
+			resp, err = d.parseTextEmbedding(responseBody)
+			if err != nil {
+				log.Errorf("Failed to parse response: %v", err)
+>>>>>>> origin/feat/chroma
 				return
 			}
 
 			// 检查是否存在嵌入结果
 			if len(resp.Output.Embeddings) == 0 {
 				log.Errorf("No embedding found in response")
+<<<<<<< HEAD
 				callback(nil, statusCode, responseHeaders, responseBody)
 				return
 			}
@@ -186,5 +215,22 @@ func (d *DSProvider) GetEmbedding(
 			callback(resp.Output.Embeddings[0].Embedding, statusCode, responseHeaders, responseBody)
 		}, d.config.DashScopeTimeout)
 
+=======
+				err = errors.New("no embedding found in response")
+				return
+			}
+
+			// 回调函数
+			callback(resp.Output.Embeddings[0].Embedding, statusCode, responseHeaders, responseBody)
+
+			// proxywasm.ResumeHttpRequest() // 后续还有其他的 http 请求，所以先不能恢复
+		}, d.config.DashScopeTimeout)
+	// if err != nil {
+	// 	log.Errorf("Failed to call client.Post: %v", err)
+	// 	return nil, err
+	// }
+	// // 这里因为 d.client.Post 是异步的，所以会出现 resp 为 nil 的情况，需要等待回调函数完成
+	// return resp.Output.Embeddings[0].Embedding, nil
+>>>>>>> origin/feat/chroma
 	return nil
 }

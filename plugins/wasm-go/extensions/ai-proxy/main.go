@@ -66,7 +66,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	apiName := getOpenAiApiName(path.Path)
 	if apiName == "" {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
+		// _ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
+		log.Debugf("[onHttpRequestHeader] no send response")
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
@@ -140,24 +141,18 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		return types.ActionContinue
 	}
 
-	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
-	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
-		if err != nil {
-			log.Errorf("unable to load content-type header from response: %v", err)
-		}
-		ctx.BufferResponseBody()
-	}
-
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
 		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		action, err := handler.OnResponseHeaders(ctx, apiName, log)
 		if err == nil {
+			checkStream(&ctx, &log)
 			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_resp_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
 		return types.ActionContinue
 	}
 
+	checkStream(&ctx, &log)
 	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleBody && !needHandleStreamingBody {
@@ -222,4 +217,14 @@ func getOpenAiApiName(path string) provider.ApiName {
 		return provider.ApiNameEmbeddings
 	}
 	return ""
+}
+
+func checkStream(ctx *wrapper.HttpContext, log *wrapper.Log) {
+	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
+	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
+		if err != nil {
+			log.Errorf("unable to load content-type header from response: %v", err)
+		}
+		(*ctx).BufferResponseBody()
+	}
 }

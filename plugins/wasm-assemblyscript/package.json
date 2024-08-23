@@ -1,0 +1,37 @@
+{
+  "name": "@higress/wasm-assemblyscript",
+  "version": "0.0.4",
+  "main": "assembly/index.ts",
+  "scripts": {
+    "test": "node tests",
+    "asbuild:debug": "asc assembly/index.ts --target debug",
+    "asbuild:release": "asc assembly/index.ts --target release",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "start": "npx serve ."
+  },
+  "author": "jingze.dai",
+  "license": "Apache-2.0",
+  "description": "",
+  "devDependencies": {
+    "assemblyscript": "^0.27.29",
+    "as-uuid": "^0.0.4",
+    "assemblyscript-json": "^1.1.0",
+    "@higress/proxy-wasm-assemblyscript-sdk": "^0.0.2"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./build/release.js",
+      "types": "./build/release.d.ts"
+    }
+  },
+  "files": [
+    "/assembly",
+    "package-lock.json",
+    "index.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jing-ze/wasm-assemblyscript.git"
+  }
+}

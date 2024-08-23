@@ -27,6 +27,10 @@ type RedisConfig struct {
 }
 
 func CreateProvider(cf RedisConfig, log wrapper.Log) (Provider, error) {
+<<<<<<< HEAD
+=======
+	log.Warnf("redis config: %v", cf)
+>>>>>>> origin/feat/chroma
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
