@@ -19,7 +19,7 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | --- | --- | --- | --- | --- |
 | serviceName | str |  required | - | 网关服务名称 |
 | serviceDomain | str |  required | - | 网关服务域名/IP地址 |
-| servicePort | int |  required | - | 网关服务端口 |
+| servicePort | int |  optional | 443 | 网关服务端口 |
 | serviceTimeout | int |  optional | 50000 | 默认请求超时时间 |
 | maxRetry | int |  optional | 3 | 若回答无法正确提取格式化时重试次数 |
 | contentPath | str |  optional | "choices.0.message.content” | 从LLM回答中提取响应结果的gpath路径 |
@@ -84,6 +84,7 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 | 1004 | 响应为空字符串|
 | 1005 | 响应不符合Json Schema定义|
 | 1006 | 重试次数超过最大限制|
+| 1007 | 无法获取响应内容，可能是上游服务配置错误或获取内容的ContentPath路径错误|
 
 ## 服务配置说明
 本插件需要配置上游服务来支持出现异常时的自动重试机制, 支持的配置主要包括`支持openai接口的AI服务`或`本地网关服务`

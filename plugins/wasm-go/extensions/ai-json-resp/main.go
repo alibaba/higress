@@ -36,6 +36,7 @@ const (
 	ReturnContentisEmpytCode     = 1004
 	ReturnJsonMisMatchSchemaCode = 1005
 	ReachMeaxRetryCountCode      = 1006
+	ServiceUnavailableCode       = 1007
 )
 
 type RejStruct struct {
@@ -48,6 +49,10 @@ func (r RejStruct) Byte() []byte {
 	return jsonData
 }
 
+func (r RejStruct) GetShortMsg() string {
+	return "ai-json-resp." + strings.Split(r.RejMsg, ":")[0]
+}
+
 type PluginConfig struct {
 	// @Title zh-CN 服务名称
 	// @Description zh-CN 用以请求服务的名称(网关或其他AI服务)
@@ -57,7 +62,7 @@ type PluginConfig struct {
 	serviceDomain string `required:"true" json:"serviceDomain" yaml:"serviceDomain"`
 	// @Title zh-CN 服务端口
 	// @Description zh-CN 用以请求服务的端口
-	servicePort int `required:"true" json:"servicePort" yaml:"servicePort"`
+	servicePort int `required:"false" json:"servicePort" yaml:"servicePort"`
 	// @Title zh-CN 服务URL
 	// @Description zh-CN 用以请求服务的URL，若提供则会覆盖serviceDomain和servicePort
 	serviceUrl string `required:"false" json:"serviceUrl" yaml:"serviceUrl"`
@@ -114,9 +119,12 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	config.serviceName = result.Get("serviceName").String()
 	config.serviceDomain = result.Get("serviceDomain").String()
 	config.servicePort = int(result.Get("servicePort").Int())
+	if config.servicePort == 0 {
+		config.servicePort = 443
+	}
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
 	config.apiKey = result.Get("apiKey").String()
-	config.baseUrl = result.Get("endpoint").String()
+	config.baseUrl = result.Get("baseUrl").String()
 	config.rejStruct = RejStruct{uint32(200), ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
@@ -217,7 +225,9 @@ func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []b
 	if err != nil {
 		log.Debugf("unmarshal reqBody failed: %v", err)
 	} else {
-		lastUserMessage = reqBodystrut.Messages[len(reqBodystrut.Messages)-1].Content
+		if len(reqBodystrut.Messages) != 0 {
+			lastUserMessage = reqBodystrut.Messages[len(reqBodystrut.Messages)-1].Content
+		}
 	}
 
 	var respBodystrut chatCompletionResponse
@@ -225,7 +235,9 @@ func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []b
 	if err != nil {
 		log.Debugf("unmarshal respBody failed: %v", err)
 	} else {
-		lastSystemMessage = respBodystrut.Choices[len(respBodystrut.Choices)-1].Message.Content
+		if len(respBodystrut.Choices) != 0 {
+			lastSystemMessage = respBodystrut.Choices[len(respBodystrut.Choices)-1].Message.Content
+		}
 	}
 
 	if lastUserMessage != "" {
@@ -248,6 +260,21 @@ func (r *ReplayBuffer) SaveHisStr(log wrapper.Log, errMsg string) {
 		Role:    "system",
 		Content: errMsg,
 	})
+}
+
+func (c *PluginConfig) ValidateBody(body []byte) error {
+	var respJsonStrct chatCompletionResponse
+	err := json.Unmarshal(body, &respJsonStrct)
+	if err != nil {
+		c.rejStruct = RejStruct{ServiceUnavailableCode, "service unavailable: " + string(body)}
+		return errors.New(c.rejStruct.RejMsg)
+	}
+	content := gjson.ParseBytes(body).Get(c.contentPath)
+	if !content.Exists() {
+		c.rejStruct = RejStruct{ServiceUnavailableCode, "response body does not contain the content:" + string(body)}
+		return errors.New(c.rejStruct.RejMsg)
+	}
+	return nil
 }
 
 func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error) {
@@ -301,11 +328,8 @@ func (c PluginConfig) ExtractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte, bodyStr string) {
-	log.Debugf("Final send: Code %d, Message %s, Body: %s", config.rejStruct.RejCode, config.rejStruct.RejMsg, string(body))
-	if body == nil && bodyStr != "" {
-		body = []byte(bodyStr)
-	}
+func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte) {
+	log.Infof("Final send: Code %d, Message %s, Body: %s %s", config.rejStruct.RejCode, config.rejStruct.RejMsg, string(body))
 	header := [][2]string{
 		{"Content-Type", "application/json"},
 	}
@@ -313,7 +337,7 @@ func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log,
 		header = append(header, [2]string{"Content-Disposition", "attachment; filename=\"response.json\""})
 	}
 	if config.rejStruct.RejCode != uint32(200) {
-		proxywasm.SendHttpResponseWithDetail(uint32(500), config.rejStruct.RejMsg, nil, config.rejStruct.Byte(), -1)
+		proxywasm.SendHttpResponseWithDetail(uint32(500), config.rejStruct.GetShortMsg(), nil, config.rejStruct.Byte(), -1)
 	} else {
 		proxywasm.SendHttpResponse(uint32(200), header, body, -1)
 	}
@@ -325,19 +349,24 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 		log.Debugf("retry count exceed max retry count")
 		// report more useful error by appending the last of previous error message
 		config.rejStruct = RejStruct{ReachMeaxRetryCountCode, "retry count exceed max retry count:" + config.rejStruct.RejMsg}
-		sendResponse(ctx, config, log, nil, "")
+		sendResponse(ctx, config, log, nil)
 		return
 	}
 
 	// recursively refine json
 	config.serviceClient.Post(bufferRB.url, bufferRB.ReqHeader, bufferRB.assembleReqBody(config),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			err := config.ValidateBody(responseBody)
+			if err != nil {
+				sendResponse(ctx, config, log, nil)
+				return
+			}
 			retryCount++
 			bufferRB.SaveHisBody(log, bufferRB.assembleReqBody(config), responseBody)
 			log.Debugf("[retry request %d/%d] resp code: %d", retryCount, config.maxRetry, statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
-				sendResponse(ctx, config, log, nil, validateJson)
+				sendResponse(ctx, config, log, []byte(validateJson))
 			} else {
 				bufferRB.SaveHisStr(log, err.Error())
 				recursiveRefineJson(ctx, config, log, retryCount, bufferRB)
@@ -347,7 +376,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	if config.rejStruct.RejCode != uint32(200) {
-		sendResponse(ctx, config, log, nil, "")
+		sendResponse(ctx, config, log, nil)
 		return types.ActionPause
 	}
 
@@ -370,7 +399,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	}
 
 	apiKey, _ := proxywasm.GetHttpRequestHeader("Authorization")
-	if apiKey == "" && config.apiKey != "" {
+	if apiKey != "" {
+		// remove the Authorization header
+		proxywasm.RemoveHttpRequestHeader("Authorization")
+	}
+	if config.apiKey != "" {
+		log.Debugf("add Authorization header %s", "Bearer "+config.apiKey)
 		header = append(header, [2]string{"Authorization", "Bearer " + config.apiKey})
 	}
 	ctx.SetContext("headers", header)
@@ -386,7 +420,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	// if there is any error in the config, return the response directly
 	if config.rejStruct.RejCode != uint32(200) {
-		sendResponse(ctx, config, log, nil, "")
+		sendResponse(ctx, config, log, nil)
 		return types.ActionContinue
 	}
 
@@ -399,11 +433,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	url := ctx.GetContext("url").(string)
 	if url == "" {
-		log.Debugf("get request url failed")
 		url = "/v1/chat/completions"
 	}
 
 	if config.baseUrl != "" {
+		log.Debugf("use base url: %s", config.baseUrl)
 		url = config.baseUrl
 	}
 
@@ -416,11 +450,16 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	config.serviceClient.Post(bufferRB.url, bufferRB.ReqHeader, bufferRB.ReqBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			err := config.ValidateBody(responseBody)
+			if err != nil {
+				sendResponse(ctx, config, log, nil)
+				return
+			}
 			bufferRB.SaveHisBody(log, body, responseBody)
 			log.Debugf("[first request] resp code: %d", statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
-				sendResponse(ctx, config, log, nil, validateJson)
+				sendResponse(ctx, config, log, []byte(validateJson))
 				return
 			} else {
 				retryCount := 0
