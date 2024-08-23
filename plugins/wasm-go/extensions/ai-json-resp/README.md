@@ -8,17 +8,16 @@
 > 编译时，需要带上版本的tag，例如：tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./
 > 
 
-> 需要配合 [ai-proxy](../ai-proxy/README.md) 插件使用
-> 
-
 LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI的响应进行结构化，以便后续插件处理。注意目前只支持 `非流式响应`。
 
 ### 配置说明
 
 | Name | Type | Requirement | Default | **Description** |
 | --- | --- | --- | --- | --- |
-| serviceName | str |  required | - | 网关服务名称 |
-| serviceDomain | str |  required | - | 网关服务域名/IP地址 |
+| serviceName | str |  required | - | AI服务或支持AI-Proxy的网关服务名称 |
+| serviceDomain | str |  optional | - | AI服务或支持AI-Proxy的网关服务域名/IP地址 |
+| servicePath | str |  optional | '/v1/chat/completions' | AI服务或支持AI-Proxy的网关服务基础路径 |
+| serviceUrl | str |  optional | - | AI服务或支持AI-Proxy的网关服务URL, 插件将自动提取Domain和Path, 用于填充未配置的serviceDomain或servicePath|
 | servicePort | int |  optional | 443 | 网关服务端口 |
 | serviceTimeout | int |  optional | 50000 | 默认请求超时时间 |
 | maxRetry | int |  optional | 3 | 若回答无法正确提取格式化时重试次数 |
@@ -85,6 +84,102 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 | 1005 | 响应不符合Json Schema定义|
 | 1006 | 重试次数超过最大限制|
 | 1007 | 无法获取响应内容，可能是上游服务配置错误或获取内容的ContentPath路径错误|
+| 1008 | serciveDomain为空, 请注意serviceDomian或serviceUrl不能同时为空|
 
 ## 服务配置说明
 本插件需要配置上游服务来支持出现异常时的自动重试机制, 支持的配置主要包括`支持openai接口的AI服务`或`本地网关服务`
+
+### 支持openai接口的AI服务
+以qwen为例，基本配置如下：
+
+Yaml格式配置如下
+```yaml
+serviceName: qwen
+serviceDomain: dashscope.aliyuncs.com
+apiKey: [Your API Key]
+servicePath: /compatible-mode/v1/chat/completions
+jsonSchema:
+  title: ReasoningSchema
+  type: object
+  properties:
+    reasoning_steps:
+      type: array
+      items:
+        type: string
+      description: The reasoning steps leading to the final conclusion.
+    answer:
+      type: string
+      description: The final answer, taking into account the reasoning steps.
+  required:
+    - reasoning_steps
+    - answer
+  additionalProperties: false
+```
+
+JSON 格式配置
+```json
+{
+  "serviceName": "qwen",
+  "serviceUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+  "apiKey": "[Your API Key]",
+  "jsonSchema": {
+    "title": "ActionItemsSchema",
+    "type": "object",
+    "properties": {
+      "action_items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Description of the action item."
+            },
+            "due_date": {
+              "type": ["string", "null"],
+              "description": "Due date for the action item, can be null if not specified."
+            },
+            "owner": {
+              "type": ["string", "null"],
+              "description": "Owner responsible for the action item, can be null if not specified."
+            }
+          },
+          "required": ["description", "due_date", "owner"],
+          "additionalProperties": false
+        },
+        "description": "List of action items from the meeting."
+      }
+    },
+    "required": ["action_items"],
+    "additionalProperties": false
+  }
+}
+```
+
+### 本地网关服务
+为了能复用已经配置好的服务，本插件也支持配置本地网关服务。例如，若网关已经配置好了[AI-proxy服务](../ai-proxy/README.md)，则可以直接配置如下：
+1. 创建一个固定IP为127.0.0.1的服务，例如localservice.static
+```yaml
+- name: outbound|10000||localservice.static
+  connect_timeout: 30s
+  type: LOGICAL_DNS
+  dns_lookup_family: V4_ONLY
+  lb_policy: ROUND_ROBIN
+  load_assignment:
+    cluster_name: outbound|8001||localservice.static
+    endpoints:
+      - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 127.0.0.1
+                  port_value: 10000
+```
+2. 配置文件中添加localservice.static的服务配置
+```yaml
+serviceName: localservice
+serviceDomain: 127.0.0.1
+servicePort: 10000
+```
+3. 自动提取请求的Path，Header等信息
+插件会自动提取请求的Path，Header等信息，从而避免对AI服务的重复配置。

@@ -37,6 +37,7 @@ const (
 	ReturnJsonMisMatchSchemaCode = 1005
 	ReachMeaxRetryCountCode      = 1006
 	ServiceUnavailableCode       = 1007
+	ServiceConfiginValidCode     = 1008
 )
 
 type RejStruct struct {
@@ -59,7 +60,7 @@ type PluginConfig struct {
 	serviceName string `required:"true" json:"serviceName" yaml:"serviceName"`
 	// @Title zh-CN 服务域名
 	// @Description zh-CN 用以请求服务的域名
-	serviceDomain string `required:"true" json:"serviceDomain" yaml:"serviceDomain"`
+	serviceDomain string `required:"false" json:"serviceDomain" yaml:"serviceDomain"`
 	// @Title zh-CN 服务端口
 	// @Description zh-CN 用以请求服务的端口
 	servicePort int `required:"false" json:"servicePort" yaml:"servicePort"`
@@ -71,7 +72,7 @@ type PluginConfig struct {
 	apiKey string `required:"false" json: "apiKey" yaml:"apiKey"`
 	// @Title zh-CN 请求端点
 	// @Description zh-CN 用以请求服务的端点, 默认为"/v1/chat/completions"
-	baseUrl string `required:"false" json: "baseUrl" yaml:"baseUrl"`
+	servicePath string `required:"false" json: "servicePath" yaml:"servicePath"`
 	// @Title zh-CN 服务超时时间
 	// @Description zh-CN 用以请求服务的超时时间
 	serviceTimeout int `required:"false" json:"serviceTimeout" yaml:"serviceTimeout"`
@@ -115,16 +116,40 @@ type ReplayBuffer struct {
 	HisMsg     []chatMessage
 }
 
+func parseUrl(url string) (string, string) {
+	if url == "" {
+		return "", ""
+	}
+	url = strings.TrimPrefix(url, "http://")
+	url = strings.TrimPrefix(url, "https://")
+	index := strings.Index(url, "/")
+	if index == -1 {
+		return url, ""
+	}
+	return url[:index], url[index:]
+}
+
 func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) error {
 	config.serviceName = result.Get("serviceName").String()
+	config.serviceUrl = result.Get("serviceUrl").String()
 	config.serviceDomain = result.Get("serviceDomain").String()
+	config.servicePath = result.Get("servicePath").String()
 	config.servicePort = int(result.Get("servicePort").Int())
+	if config.serviceUrl != "" {
+		domain, url := parseUrl(config.serviceUrl)
+		log.Debugf("serviceUrl: %s, the parsed domain: %s, the parsed url: %s", config.serviceUrl, domain, url)
+		if config.serviceDomain == "" {
+			config.serviceDomain = domain
+		}
+		if config.servicePath == "" {
+			config.servicePath = url
+		}
+	}
 	if config.servicePort == 0 {
 		config.servicePort = 443
 	}
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
 	config.apiKey = result.Get("apiKey").String()
-	config.baseUrl = result.Get("baseUrl").String()
 	config.rejStruct = RejStruct{uint32(200), ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
@@ -147,6 +172,10 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 		}
 	} else {
 		config.jsonSchema = nil
+	}
+
+	if config.serviceDomain == "" {
+		config.rejStruct = RejStruct{ServiceConfiginValidCode, "service domain is empty"}
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -436,9 +465,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		url = "/v1/chat/completions"
 	}
 
-	if config.baseUrl != "" {
-		log.Debugf("use base url: %s", config.baseUrl)
-		url = config.baseUrl
+	if config.servicePath != "" {
+		log.Debugf("use base url: %s", config.servicePath)
+		url = config.servicePath
 	}
 
 	header = append(header, [2]string{"isBuffer", "true"})
