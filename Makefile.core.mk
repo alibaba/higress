@@ -138,11 +138,11 @@ export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
 
 external/package/envoy-amd64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-amd64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.0/envoy-symbol-amd64.tar.gz"
+	cd external/package; wget -O envoy-amd64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.1/envoy-symbol-amd64.tar.gz"
 
 external/package/envoy-arm64.tar.gz:
 #	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-arm64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.0/envoy-symbol-arm64.tar.gz"
+	cd external/package; wget -O envoy-arm64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.1/envoy-symbol-arm64.tar.gz"
 
 build-pilot:
 	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
@@ -177,8 +177,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-63539ca
-ISTIO_LATEST_IMAGE_TAG ?= sha-63539ca
+ENVOY_LATEST_IMAGE_TAG ?= sha-59acb61
+ISTIO_LATEST_IMAGE_TAG ?= sha-59acb61
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'

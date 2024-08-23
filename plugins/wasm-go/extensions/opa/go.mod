@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240327114451-d6b7174a84fc
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240711023527-ba358c48772f
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.14.4
 )

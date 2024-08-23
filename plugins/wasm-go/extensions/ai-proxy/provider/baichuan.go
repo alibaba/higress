@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -20,6 +21,9 @@ type baichuanProviderInitializer struct {
 }
 
 func (m *baichuanProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -45,14 +49,8 @@ func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	}
 	_ = util.OverwriteRequestPath(baichuanChatCompletionPath)
 	_ = util.OverwriteRequestHost(baichuanDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 
@@ -73,11 +71,11 @@ func (m *baichuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.baichuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.baichuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {

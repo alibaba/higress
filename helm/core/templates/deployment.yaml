@@ -1,3 +1,4 @@
+{{- if eq .Values.gateway.kind "Deployment" -}}
 {{- $o11y := .Values.global.o11y  }}
 {{- $unprivilegedPortSupported := true }}
 {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
@@ -58,6 +59,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "gateway.serviceAccountName" . }}
+      {{- if .Values.global.priorityClassName }}
+      priorityClassName: "{{ .Values.global.priorityClassName }}"
+      {{- end }}
       securityContext:
       {{- if .Values.gateway.securityContext }}
         {{- toYaml .Values.gateway.securityContext | nindent 8 }}
@@ -68,40 +72,6 @@ spec:
           value: "0"
       {{- end }}
       containers:
-        {{- if $o11y.enabled }}
-          {{- $config := $o11y.promtail }}
-        - name: promtail
-          image: {{ $config.image.repository }}:{{ $config.image.tag }}
-          imagePullPolicy: IfNotPresent
-          args:
-            - -config.file=/etc/promtail/promtail.yaml
-          env:
-            - name: 'HOSTNAME'
-              valueFrom:
-                fieldRef:
-                  fieldPath: 'spec.nodeName'
-          ports:
-            - containerPort: {{ $config.port }}
-              name: http-metrics
-              protocol: TCP
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /ready
-              port: {{ $config.port }}
-              scheme: HTTP
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          volumeMounts:
-            - name: promtail-config
-              mountPath: "/etc/promtail"
-            - name: log
-              mountPath: /var/log/proxy
-            - name: tmp
-              mountPath: /tmp
-        {{- end }}
         - name: higress-gateway
           image: "{{ .Values.gateway.hub | default .Values.global.hub }}/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
           args:
@@ -202,6 +172,9 @@ spec:
             value: {{ $val | quote }}
           {{- end }}
           ports:
+          - containerPort: 15020
+            protocol: TCP
+            name: istio-prom
           - containerPort: 15090
             protocol: TCP
             name: http-envoy-prom
@@ -241,7 +214,7 @@ spec:
             mountPath: /var/run/secrets/istio
           - name: istio-data
             mountPath: /var/lib/istio/data
-          - name: podinfo            
+          - name: podinfo
             mountPath: /etc/istio/pod
           - name: proxy-socket
             mountPath: /etc/istio/proxy
@@ -257,6 +230,40 @@ spec:
           - mountPath: /var/log/proxy
             name: log
           {{- end }}
+        {{- if $o11y.enabled }}
+          {{- $config := $o11y.promtail }}
+        - name: promtail
+          image: {{ $config.image.repository }}:{{ $config.image.tag }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          env:
+            - name: 'HOSTNAME'
+              valueFrom:
+                fieldRef:
+                  fieldPath: 'spec.nodeName'
+          ports:
+            - containerPort: {{ $config.port }}
+              name: http-metrics
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ready
+              port: {{ $config.port }}
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: promtail-config
+              mountPath: "/etc/promtail"
+            - name: log
+              mountPath: /var/log/proxy
+            - name: tmp
+              mountPath: /tmp
+        {{- end }}
       {{- if .Values.gateway.hostNetwork }}
       hostNetwork: {{ .Values.gateway.hostNetwork }}
       dnsPolicy: ClusterFirstWithHostNet
@@ -340,3 +347,4 @@ spec:
           path: /opt/plugins
           type: Directory
       {{- end }}
+{{- end }}

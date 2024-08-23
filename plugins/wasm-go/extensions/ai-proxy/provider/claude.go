@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
-	"time"
 )
 
 // claudeProvider is the provider for Claude service.
@@ -78,6 +79,9 @@ type claudeTextGenDelta struct {
 }
 
 func (c *claudeProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -139,10 +143,10 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -185,12 +189,12 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		claudeRequest := c.buildClaudeTextGenRequest(request)
 		if err := replaceJsonRequestBody(claudeRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -270,7 +274,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			claudeRequest.System = message.Content
+			claudeRequest.System = message.StringContent()
 			continue
 		}
 		claudeMessage := chatMessage{
@@ -292,11 +296,11 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 	return &chatCompletionResponse{
 		Id:                origResponse.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     origResponse.Usage.InputTokens,
 			CompletionTokens: origResponse.Usage.OutputTokens,
 			TotalTokens:      origResponse.Usage.InputTokens + origResponse.Usage.OutputTokens,
@@ -356,7 +360,7 @@ func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextG
 	return &chatCompletionResponse{
 		Id:      response.Message.Id,
 		Created: time.Now().UnixMilli() / 1000,
-		Model:   ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletionChunk,
 		Choices: []chatCompletionChoice{choice},
 	}

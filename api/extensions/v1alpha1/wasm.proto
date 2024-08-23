@@ -114,6 +114,7 @@ message MatchRule {
   repeated string domain = 2;
   google.protobuf.Struct config = 3;
   bool config_disable = 4;
+  repeated string service = 5;
 }
 
 // The phase in the filter chain where the plugin will be injected.

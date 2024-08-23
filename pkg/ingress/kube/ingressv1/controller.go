@@ -419,6 +419,11 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 						// If there is no matching secret, try to get it from configmap.
 						secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
 						secretNamespace = c.options.SystemNamespace
+						namespace, secret := cert.ParseTLSSecret(secretName)
+						if namespace != "" {
+							secretNamespace = namespace
+							secretName = secret
+						}
 					}
 				}
 			}
@@ -427,6 +432,11 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			if httpsCredentialConfig != nil {
 				secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
 				secretNamespace = c.options.SystemNamespace
+				namespace, secret := cert.ParseTLSSecret(secretName)
+				if namespace != "" {
+					secretNamespace = namespace
+					secretName = secret
+				}
 			}
 		}
 

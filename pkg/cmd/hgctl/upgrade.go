@@ -108,7 +108,7 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 func promptUpgrade(writer io.Writer) bool {
 	answer := ""
 	for {
-		fmt.Fprintf(writer, "All Higress resources will be upgraed from the cluster. \nProceed? (y/N)")
+		fmt.Fprintf(writer, "All Higress resources will be upgrade from the cluster. \nProceed? (y/N)")
 		fmt.Scanln(&answer)
 		if strings.TrimSpace(answer) == "y" {
 			fmt.Fprintf(writer, "\n")
@@ -170,7 +170,7 @@ func promptProfileContexts(writer io.Writer, profileContexts []*installer.Profil
 	if len(profileContexts) == 1 {
 		fmt.Fprintf(writer, "\nFound a profile::  ")
 	} else {
-		fmt.Fprintf(writer, "\nPlease select higress installed configration profiles:\n")
+		fmt.Fprintf(writer, "\nPlease select higress installed configuration profiles:\n")
 	}
 	index := 1
 	for _, profileContext := range profileContexts {

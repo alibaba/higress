@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // qwenProvider is the provider for Qwen service.
@@ -19,15 +22,19 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDomain             = "dashscope.aliyuncs.com"
-	qwenChatCompletionPath = "/api/v1/services/aigc/text-generation/generation"
+	qwenDomain                   = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
+	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
 
 	qwenDummySystemMessageContent = "You are a helpful assistant."
 
-	qwenLongModelName = "qwen-long"
+	qwenLongModelName     = "qwen-long"
+	qwenVlModelPrefixName = "qwen-vl"
 )
 
 type qwenProviderInitializer struct {
@@ -36,6 +43,9 @@ type qwenProviderInitializer struct {
 func (m *qwenProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.qwenFileIds) != 0 && config.context != nil {
 		return errors.New("qwenFileIds and context cannot be configured at the same time")
+	}
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
@@ -58,15 +68,19 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if m.config.qwenEnableCompatible {
+		_ = util.OverwriteRequestPath(qwenCompatiblePath)
+	} else if apiName == ApiNameChatCompletion {
+		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
+	} else if apiName == ApiNameEmbeddings {
+		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
+	} else {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 
-	if m.config.protocol == protocolOriginal && m.config.context == nil {
-		ctx.DontReadRequestBody()
+	if m.config.protocol == protocolOriginal {
 		return types.ActionContinue, nil
 	}
 
@@ -78,10 +92,33 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+	if m.config.qwenEnableCompatible {
+		if gjson.GetBytes(body, "model").Exists() {
+			rawModel := gjson.GetBytes(body, "model").String()
+			mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
+			newBody, err := sjson.SetBytes(body, "model", mappedModel)
+			if err != nil {
+				log.Errorf("Replace model error: %v", err)
+				return types.ActionContinue, err
+			}
+			err = proxywasm.ReplaceHttpRequestBody(newBody)
+			if err != nil {
+				log.Errorf("Replace request body error: %v", err)
+				return types.ActionContinue, err
+			}
+		}
+		return types.ActionContinue, nil
 	}
+	if apiName == ApiNameChatCompletion {
+		return m.onChatCompletionRequestBody(ctx, body, log)
+	}
+	if apiName == ApiNameEmbeddings {
+		return m.onEmbeddingsRequestBody(ctx, body, log)
+	}
+	return types.ActionContinue, errUnsupportedApiName
+}
 
+func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	if m.config.protocol == protocolOriginal {
 		if m.config.context == nil {
 			return types.ActionContinue, nil
@@ -99,11 +136,11 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.qwen.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			m.insertContextMessage(request, content, false)
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.qwen.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -128,6 +165,10 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	}
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+	// Use the qwen multimodal model generation API
+	if strings.HasPrefix(request.Model, qwenVlModelPrefixName) {
+		_ = util.OverwriteRequestPath(qwenMultimodalGenerationPath)
+	}
 
 	streaming := request.Stream
 	if streaming {
@@ -152,7 +193,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.qwen.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		qwenRequest := m.buildQwenTextGenerationRequest(request, streaming)
@@ -160,13 +201,40 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 			ctx.SetContext(ctxKeyIncrementalStreaming, qwenRequest.Parameters.IncrementalOutput)
 		}
 		if err := replaceJsonRequestBody(qwenRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.qwen.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
+}
+
+func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	request := &embeddingsRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	log.Debugf("=== embeddings request: %v", request)
+
+	model := request.Model
+	if model == "" {
+		return types.ActionContinue, errors.New("missing model in the request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	if qwenRequest, err := m.buildQwenTextEmbeddingRequest(request); err == nil {
+		return types.ActionContinue, replaceJsonRequestBody(qwenRequest, log)
+	} else {
+		return types.ActionContinue, err
+	}
 }
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -180,15 +248,16 @@ func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	if m.config.qwenEnableCompatible || name != ApiNameChatCompletion {
+		return chunk, nil
+	}
+
 	receivedBody := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		receivedBody = append(bufferedStreamingBody, chunk...)
 	}
 
-	incrementalStreaming, err := ctx.GetContext(ctxKeyIncrementalStreaming).(bool)
-	if !err {
-		incrementalStreaming = false
-	}
+	incrementalStreaming := ctx.GetBoolContext(ctxKeyIncrementalStreaming, false)
 
 	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
 
@@ -264,11 +333,33 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 }
 
 func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+	if m.config.qwenEnableCompatible {
+		return types.ActionContinue, nil
+	}
+	if apiName == ApiNameChatCompletion {
+		return m.onChatCompletionResponseBody(ctx, body, log)
+	}
+	if apiName == ApiNameEmbeddings {
+		return m.onEmbeddingsResponseBody(ctx, body, log)
+	}
+	return types.ActionContinue, errUnsupportedApiName
+}
+
+func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	qwenResponse := &qwenTextGenResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
 		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
 	response := m.buildChatCompletionResponse(ctx, qwenResponse)
+	return types.ActionContinue, replaceJsonResponseBody(response, log)
+}
+
+func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	qwenResponse := &qwenTextEmbeddingResponse{}
+	if err := json.Unmarshal(body, qwenResponse); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+	}
+	response := m.buildEmbeddingsResponse(ctx, qwenResponse)
 	return types.ActionContinue, replaceJsonResponseBody(response, log)
 }
 
@@ -324,11 +415,11 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	return &chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: chatCompletionUsage{
+		Usage: usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -340,7 +431,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices:           make([]chatCompletionChoice, 0),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
@@ -365,8 +456,29 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		if pushedMessage, ok := ctx.GetContext(ctxKeyPushedMessage).(qwenMessage); ok {
 			if message.Content == "" {
 				message.Content = pushedMessage.Content
+			} else if message.IsStringContent() {
+				deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.StringContent(), pushedMessage.StringContent())
+			} else if strings.HasPrefix(baseMessage.Model, qwenVlModelPrefixName) {
+				// Use the Qwen multimodal model generation API
+				deltaContentList, ok := deltaContentMessage.Content.([]qwenVlMessageContent)
+				if !ok {
+					log.Warnf("unexpected deltaContentMessage content type: %T", deltaContentMessage.Content)
+				} else {
+					pushedContentList, ok := pushedMessage.Content.([]qwenVlMessageContent)
+					if !ok {
+						log.Warnf("unexpected pushedMessage content type: %T", pushedMessage.Content)
+					} else {
+						for i, content := range deltaContentList {
+							if i >= len(pushedContentList) {
+								break
+							}
+							pushedText := pushedContentList[i].Text
+							content.Text = util.StripPrefix(content.Text, pushedText)
+							deltaContentList[i] = content
+						}
+					}
+				}
 			}
-			deltaContentMessage.Content = util.StripPrefix(deltaContentMessage.Content, pushedMessage.Content)
 			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
 				for i, tc := range deltaToolCallsMessage.ToolCalls {
 					if i >= len(pushedMessage.ToolCalls) {
@@ -396,10 +508,11 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 	if finished {
 		finishResponse := *&baseMessage
-		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{FinishReason: qwenChoice.FinishReason})
+		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: qwenChoice.FinishReason})
 
 		usageResponse := *&baseMessage
-		usageResponse.Usage = chatCompletionUsage{
+		usageResponse.Choices = []chatCompletionChoice{{Delta: &chatMessage{}}}
+		usageResponse.Usage = usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -471,7 +584,7 @@ func (m *qwenProvider) insertContextMessage(request *qwenTextGenRequest, content
 			if builder.Len() != 0 {
 				builder.WriteString("\n")
 			}
-			builder.WriteString(message.Content)
+			builder.WriteString(message.StringContent())
 		}
 		request.Input.Messages = append([]qwenMessage{{Role: roleSystem, Content: builder.String()}, fileMessage}, request.Input.Messages[firstNonSystemMessageIndex:]...)
 		return 1
@@ -482,6 +595,50 @@ func (m *qwenProvider) appendStreamEvent(responseBuilder *strings.Builder, event
 	responseBuilder.WriteString(streamDataItemKey)
 	responseBuilder.WriteString(event.Data)
 	responseBuilder.WriteString("\n\n")
+}
+
+func (m *qwenProvider) buildQwenTextEmbeddingRequest(request *embeddingsRequest) (*qwenTextEmbeddingRequest, error) {
+	var texts []string
+	if str, isString := request.Input.(string); isString {
+		texts = []string{str}
+	} else if strs, isArray := request.Input.([]interface{}); isArray {
+		texts = make([]string, 0, len(strs))
+		for _, item := range strs {
+			if str, isString := item.(string); isString {
+				texts = append(texts, str)
+			} else {
+				return nil, errors.New("unsupported input type in array: " + reflect.TypeOf(item).String())
+			}
+		}
+	} else {
+		return nil, errors.New("unsupported input type: " + reflect.TypeOf(request.Input).String())
+	}
+	return &qwenTextEmbeddingRequest{
+		Model: request.Model,
+		Input: qwenTextEmbeddingInput{
+			Texts: texts,
+		},
+	}, nil
+}
+
+func (m *qwenProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextEmbeddingResponse) *embeddingsResponse {
+	data := make([]embedding, 0, len(qwenResponse.Output.Embeddings))
+	for _, qwenEmbedding := range qwenResponse.Output.Embeddings {
+		data = append(data, embedding{
+			Object:    "embedding",
+			Index:     qwenEmbedding.TextIndex,
+			Embedding: qwenEmbedding.Embedding,
+		})
+	}
+	return &embeddingsResponse{
+		Object: "list",
+		Data:   data,
+		Model:  ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Usage: usage{
+			PromptTokens: qwenResponse.Usage.TotalTokens,
+			TotalTokens:  qwenResponse.Usage.TotalTokens,
+		},
+	}
 }
 
 type qwenTextGenRequest struct {
@@ -510,7 +667,7 @@ type qwenTextGenParameters struct {
 type qwenTextGenResponse struct {
 	RequestId string            `json:"request_id"`
 	Output    qwenTextGenOutput `json:"output"`
-	Usage     qwenTextGenUsage  `json:"usage"`
+	Usage     qwenUsage         `json:"usage"`
 }
 
 type qwenTextGenOutput struct {
@@ -523,7 +680,7 @@ type qwenTextGenChoice struct {
 	Message      qwenMessage `json:"message"`
 }
 
-type qwenTextGenUsage struct {
+type qwenUsage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
 	TotalTokens  int `json:"total_tokens"`
@@ -532,8 +689,43 @@ type qwenTextGenUsage struct {
 type qwenMessage struct {
 	Name      string     `json:"name,omitempty"`
 	Role      string     `json:"role"`
-	Content   string     `json:"content"`
+	Content   any        `json:"content"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type qwenVlMessageContent struct {
+	Image string `json:"image,omitempty"`
+	Text  string `json:"text,omitempty"`
+}
+
+type qwenTextEmbeddingRequest struct {
+	Model      string                      `json:"model"`
+	Input      qwenTextEmbeddingInput      `json:"input"`
+	Parameters qwenTextEmbeddingParameters `json:"parameters,omitempty"`
+}
+
+type qwenTextEmbeddingInput struct {
+	Texts []string `json:"texts"`
+}
+
+type qwenTextEmbeddingParameters struct {
+	TextType string `json:"text_type,omitempty"`
+}
+
+type qwenTextEmbeddingResponse struct {
+	RequestId string                  `json:"request_id"`
+	Output    qwenTextEmbeddingOutput `json:"output"`
+	Usage     qwenUsage               `json:"usage"`
+}
+
+type qwenTextEmbeddingOutput struct {
+	RequestId  string               `json:"request_id"`
+	Embeddings []qwenTextEmbeddings `json:"embeddings"`
+}
+
+type qwenTextEmbeddings struct {
+	TextIndex int       `json:"text_index"`
+	Embedding []float64 `json:"embedding"`
 }
 
 func qwenMessageToChatMessage(qwenMessage qwenMessage) chatMessage {
@@ -545,11 +737,58 @@ func qwenMessageToChatMessage(qwenMessage qwenMessage) chatMessage {
 	}
 }
 
+func (m *qwenMessage) IsStringContent() bool {
+	_, ok := m.Content.(string)
+	return ok
+}
+
+func (m *qwenMessage) StringContent() string {
+	content, ok := m.Content.(string)
+	if ok {
+		return content
+	}
+	contentList, ok := m.Content.([]any)
+	if ok {
+		var contentStr string
+		for _, contentItem := range contentList {
+			contentMap, ok := contentItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text, ok := contentMap["text"].(string); ok {
+				contentStr += text
+			}
+		}
+		return contentStr
+	}
+	return ""
+}
+
 func chatMessage2QwenMessage(chatMessage chatMessage) qwenMessage {
-	return qwenMessage{
-		Name:      chatMessage.Name,
-		Role:      chatMessage.Role,
-		Content:   chatMessage.Content,
-		ToolCalls: chatMessage.ToolCalls,
+	if chatMessage.IsStringContent() {
+		return qwenMessage{
+			Name:      chatMessage.Name,
+			Role:      chatMessage.Role,
+			Content:   chatMessage.StringContent(),
+			ToolCalls: chatMessage.ToolCalls,
+		}
+	} else {
+		var contents []qwenVlMessageContent
+		openaiContent := chatMessage.ParseContent()
+		for _, part := range openaiContent {
+			var content qwenVlMessageContent
+			if part.Type == contentTypeText {
+				content.Text = part.Text
+			} else if part.Type == contentTypeImageUrl {
+				content.Image = part.ImageUrl.Url
+			}
+			contents = append(contents, content)
+		}
+		return qwenMessage{
+			Name:      chatMessage.Name,
+			Role:      chatMessage.Role,
+			Content:   contents,
+			ToolCalls: chatMessage.ToolCalls,
+		}
 	}
 }
