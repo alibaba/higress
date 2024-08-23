@@ -274,7 +274,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			claudeRequest.System = message.Content
+			claudeRequest.System = message.StringContent()
 			continue
 		}
 		claudeMessage := chatMessage{

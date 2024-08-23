@@ -114,9 +114,9 @@ func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		}
 		for _, msg := range originRequest.Messages {
 			if msg.Role == roleSystem {
-				deeplRequest.Context = msg.Content
+				deeplRequest.Context = msg.StringContent()
 			} else {
-				deeplRequest.Text = append(deeplRequest.Text, msg.Content)
+				deeplRequest.Text = append(deeplRequest.Text, msg.StringContent())
 			}
 		}
 		return types.ActionContinue, replaceJsonRequestBody(deeplRequest, log)
