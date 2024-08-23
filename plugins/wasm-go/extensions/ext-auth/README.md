@@ -273,7 +273,7 @@ Content-Length: 0
 `ext-auth` 服务返回响应头中如果包含 `x-user-id` 和 `x-auth-version`，网关调用upstream时的请求中会带上这两个请求头
 
 #### x-forwarded-* header
-在endpoint_mode为envoy时，higress会自动生成并发送以下header至鉴权服务。
+在endpoint_mode为forward_auth时，higress会自动生成并发送以下header至鉴权服务。
 
 | Header             | 说明                                  |
 |--------------------|-------------------------------------|
