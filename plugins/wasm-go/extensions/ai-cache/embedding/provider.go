@@ -82,5 +82,5 @@ type Provider interface {
 		queryString string,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error
+		callback func(emb []float64)) error
 }

@@ -146,7 +146,7 @@ func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error {
+	callback func(emb []float64)) error {
 	Emb_url, Emb_headers, Emb_requestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
 		log.Errorf("Failed to construct parameters: %v", err)
@@ -159,7 +159,7 @@ func (d *DSProvider) GetEmbedding(
 			if statusCode != http.StatusOK {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
 				err = errors.New("failed to get embedding")
-				callback(nil, statusCode, responseHeaders, responseBody)
+				callback(nil)
 				return
 			}
 
@@ -168,18 +168,18 @@ func (d *DSProvider) GetEmbedding(
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
 				log.Errorf("Failed to parse response: %v", err)
-				callback(nil, statusCode, responseHeaders, responseBody)
+				callback(nil)
 				return
 			}
 
 			if len(resp.Output.Embeddings) == 0 {
 				log.Errorf("No embedding found in response")
 				err = errors.New("no embedding found in response")
-				callback(nil, statusCode, responseHeaders, responseBody)
+				callback(nil)
 				return
 			}
 
-			callback(resp.Output.Embeddings[0].Embedding, statusCode, responseHeaders, responseBody)
+			callback(resp.Output.Embeddings[0].Embedding)
 
 		}, d.config.timeout)
 	return nil

@@ -10,25 +10,24 @@ import (
 )
 
 const (
-	dashVectorPort = 443
-	threshold      = 2000
+	threshold = 2000
 )
 
 type dashVectorProviderInitializer struct {
 }
 
 func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if len(config.DashVectorKey) == 0 {
-		return errors.New("DashVectorKey is required")
+	if len(config.apiKey) == 0 {
+		return errors.New("[DashVector] apiKey is required")
 	}
-	if len(config.DashVectorAuthApiEnd) == 0 {
-		return errors.New("DashVectorEnd is required")
+	if len(config.collectionID) == 0 {
+		return errors.New("[DashVector] collectionID is required")
 	}
-	if len(config.DashVectorCollection) == 0 {
-		return errors.New("DashVectorCollection is required")
+	if len(config.serviceName) == 0 {
+		return errors.New("[DashVector] serviceName is required")
 	}
-	if len(config.DashVectorServiceName) == 0 {
-		return errors.New("DashVectorServiceName is required")
+	if len(config.serviceHost) == 0 {
+		return errors.New("[DashVector] endPoint is required")
 	}
 	return nil
 }
@@ -37,9 +36,9 @@ func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (P
 	return &DvProvider{
 		config: config,
 		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.DashVectorServiceName,
-			Port:        dashVectorPort,
-			Domain:      config.DashVectorAuthApiEnd,
+			ServiceName: config.serviceName,
+			Port:        config.servicePort,
+			Domain:      config.serviceHost,
 		}),
 	}, nil
 }
@@ -91,11 +90,11 @@ type result struct {
 }
 
 func (d *DvProvider) constructEmbeddingQueryParameters(vector []float64) (string, []byte, [][2]string, error) {
-	url := fmt.Sprintf("/v1/collections/%s/query", d.config.DashVectorCollection)
+	url := fmt.Sprintf("/v1/collections/%s/query", d.config.collectionID)
 
 	requestData := queryRequest{
 		Vector:        vector,
-		TopK:          d.config.DashVectorTopK,
+		TopK:          d.config.topK,
 		IncludeVector: false,
 	}
 
@@ -106,7 +105,7 @@ func (d *DvProvider) constructEmbeddingQueryParameters(vector []float64) (string
 
 	header := [][2]string{
 		{"Content-Type", "application/json"},
-		{"dashvector-auth-token", d.config.DashVectorKey},
+		{"dashvector-auth-token", d.config.apiKey},
 	}
 
 	return url, requestBody, header, nil
@@ -128,7 +127,7 @@ func (d *DvProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log)) {
+	callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log)) {
 	// 构造请求参数
 	url, body, headers, err := d.constructEmbeddingQueryParameters(emb)
 	if err != nil {
@@ -141,27 +140,42 @@ func (d *DvProvider) QueryEmbedding(
 				log.Infof("Failed to query embedding: %d", statusCode)
 				return
 			}
-			log.Infof("Query embedding response: %d, %s", statusCode, responseBody)
-			callback(responseBody, ctx, log)
+			log.Debugf("Query embedding response: %d, %s", statusCode, responseBody)
+			results, err := d.ParseQueryResponse(responseBody, ctx, log)
+			// TODO: 如果解析失败，应该如何处理？
+			if err != nil {
+				log.Infof("Failed to parse query response: %v", err)
+				return
+			}
+			callback(results, ctx, log)
 		},
-		d.config.DashVectorTimeout)
+		d.config.timeout)
 	if err != nil {
 		log.Infof("Failed to query embedding: %v", err)
 	}
 }
 
-func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) (QueryEmbeddingResult, error) {
+func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryEmbeddingResult, error) {
 	resp, err := d.parseQueryResponse(responseBody)
 	if err != nil {
-		return QueryEmbeddingResult{}, err
+		return nil, err
 	}
 	if len(resp.Output) == 0 {
-		return QueryEmbeddingResult{}, nil
+		return nil, nil
 	}
-	return QueryEmbeddingResult{
-		MostSimilarData: resp.Output[0].Fields["query"].(string),
-		Score:           resp.Output[0].Score,
-	}, nil
+
+	results := make([]QueryEmbeddingResult, 0, len(resp.Output))
+
+	for _, output := range resp.Output {
+		result := QueryEmbeddingResult{
+			Text:      output.Fields["query"].(string),
+			Embedding: output.Vector,
+			Score:     output.Score,
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }
 
 type document struct {
@@ -174,7 +188,7 @@ type insertRequest struct {
 }
 
 func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, query_string string) (string, []byte, [][2]string, error) {
-	url := "/v1/collections/" + d.config.DashVectorCollection + "/docs"
+	url := "/v1/collections/" + d.config.collectionID + "/docs"
 
 	doc := document{
 		Vector: emb,
@@ -190,14 +204,14 @@ func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, query_str
 
 	header := [][2]string{
 		{"Content-Type", "application/json"},
-		{"dashvector-auth-token", d.config.DashVectorKey},
+		{"dashvector-auth-token", d.config.apiKey},
 	}
 
 	return url, requestBody, header, err
 }
 
-func (d *DvProvider) UploadEmbedding(query_emb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	url, body, headers, _ := d.constructEmbeddingUploadParameters(query_emb, queryString)
+func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
+	url, body, headers, _ := d.constructEmbeddingUploadParameters(queryEmb, queryString)
 	d.client.Post(
 		url,
 		headers,
@@ -206,5 +220,5 @@ func (d *DvProvider) UploadEmbedding(query_emb []float64, queryString string, ct
 			log.Infof("statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log)
 		},
-		d.config.DashVectorTimeout)
+		d.config.timeout)
 }

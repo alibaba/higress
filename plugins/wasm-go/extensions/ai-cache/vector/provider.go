@@ -20,102 +20,100 @@ type providerInitializer interface {
 var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeDashVector: &dashVectorProviderInitializer{},
-		providerTypeChroma:     &chromaProviderInitializer{},
+		// providerTypeChroma:     &chromaProviderInitializer{},
 	}
 )
 
+// 定义通用的查询结果的结构体
+type QueryEmbeddingResult struct {
+	Text 		string  // 相似的文本
+	Embedding 	[]float64 // 相似文本的向量
+	Score       float64 // 文本的向量相似度或距离等度量
+}
+
 type Provider interface {
 	GetProviderType() string
+	// TODO: 考虑失败的场景
 	QueryEmbedding(
 		emb []float64,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log))
+		callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log))
+	// TODO: 考虑失败的场景
 	UploadEmbedding(
-		query_emb []float64,
+		queryEmb []float64,
 		queryString string,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
 		callback func(ctx wrapper.HttpContext, log wrapper.Log))
 	GetThreshold() float64
-	ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) (QueryEmbeddingResult, error)
-}
-
-// 定义通用的查询结果的结构体
-type QueryEmbeddingResult struct {
-	MostSimilarData string  // 相似的文本
-	Score           float64 // 文本的向量相似度或距离等度量
+	// ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) (QueryEmbeddingResult, error)
 }
 
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
 	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
-	typ string `json:"vectorStoreProviderType"`
-	// @Title zh-CN DashVector 阿里云向量搜索引擎
-	// @Description zh-CN 调用阿里云的向量搜索引擎
-	DashVectorServiceName string `require:"true" yaml:"DashVectorServiceName" json:"DashVectorServiceName"`
-	// @Title zh-CN DashVector Key
-	// @Description zh-CN 阿里云向量搜索引擎的 key
-	DashVectorKey string `require:"true" yaml:"DashVectorKey" json:"DashVectorKey"`
-	// @Title zh-CN DashVector AuthApiEnd
-	// @Description zh-CN 阿里云向量搜索引擎的 AuthApiEnd
-	DashVectorAuthApiEnd string `require:"true" yaml:"DashVectorEnd" json:"DashVectorEnd"`
-	// @Title zh-CN DashVector Collection
-	// @Description zh-CN 指定使用阿里云搜索引擎中的哪个向量集合
-	DashVectorCollection string `require:"true" yaml:"DashVectorCollection" json:"DashVectorCollection"`
-	// @Title zh-CN DashVector Client
-	// @Description zh-CN 阿里云向量搜索引擎的 Client
-	DashVectorTopK    int                `require:"false" yaml:"DashVectorTopK" json:"DashVectorTopK"`
-	DashVectorTimeout uint32             `require:"false" yaml:"DashVectorTimeout" json:"DashVectorTimeout"`
-	DashVectorClient  wrapper.HttpClient `yaml:"-" json:"-"`
+	typ          string `json:"vectorStoreProviderType"`
+	serviceName  string `require:"true" yaml:"serviceName" json:"serviceName"`
+	serviceHost  string `require:"false" yaml:"serviceHost" json:"serviceHost"`
+	servicePort  int64  `require:"false" yaml:"servicePort" json:"servicePort"`
+	apiKey       string `require:"false" yaml:"apiKey" json:"apiKey"`
+	topK         int    `require:"false" yaml:"topK" json:"topK"`
+	timeout      uint32 `require:"false" yaml:"timeout" json:"timeout"`
+	collectionID string `require:"false" yaml:"collectionID" json:"collectionID"`
 
-	// @Title zh-CN Chroma 的上游服务名称
-	// @Description zh-CN Chroma 服务所对应的网关内上游服务名称
-	ChromaServiceName string `require:"true" yaml:"ChromaServiceName" json:"ChromaServiceName"`
-	// @Title zh-CN Chroma Collection ID
-	// @Description zh-CN Chroma Collection 的 ID
-	ChromaCollectionID string `require:"false" yaml:"ChromaCollectionID" json:"ChromaCollectionID"`
+	// // @Title zh-CN Chroma 的上游服务名称
+	// // @Description zh-CN Chroma 服务所对应的网关内上游服务名称
+	// ChromaServiceName string `require:"true" yaml:"ChromaServiceName" json:"ChromaServiceName"`
+	// // @Title zh-CN Chroma Collection ID
+	// // @Description zh-CN Chroma Collection 的 ID
+	// ChromaCollectionID string `require:"false" yaml:"ChromaCollectionID" json:"ChromaCollectionID"`
 	// @Title zh-CN Chroma 距离阈值
 	// @Description zh-CN Chroma 距离阈值，默认为 2000
 	ChromaDistanceThreshold float64 `require:"false" yaml:"ChromaDistanceThreshold" json:"ChromaDistanceThreshold"`
-	// @Title zh-CN Chroma 搜索返回结果数量
-	// @Description zh-CN Chroma 搜索返回结果数量，默认为 1
-	ChromaNResult int `require:"false" yaml:"ChromaNResult" json:"ChromaNResult"`
-	// @Title zh-CN Chroma 超时设置
-	// @Description zh-CN Chroma 超时设置，默认为 10 秒
-	ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
+	// // @Title zh-CN Chroma 搜索返回结果数量
+	// // @Description zh-CN Chroma 搜索返回结果数量，默认为 1
+	// ChromaNResult int `require:"false" yaml:"ChromaNResult" json:"ChromaNResult"`
+	// // @Title zh-CN Chroma 超时设置
+	// // @Description zh-CN Chroma 超时设置，默认为 10 秒
+	// ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
+	vectorClient wrapper.HttpClient `yaml:"-" json:"-"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("vectorStoreProviderType").String()
 	// DashVector
-	c.DashVectorServiceName = json.Get("DashVectorServiceName").String()
-	c.DashVectorKey = json.Get("DashVectorKey").String()
-	c.DashVectorAuthApiEnd = json.Get("DashVectorEnd").String()
-	c.DashVectorCollection = json.Get("DashVectorCollection").String()
-	c.DashVectorTopK = int(json.Get("DashVectorTopK").Int())
-	if c.DashVectorTopK == 0 {
-		c.DashVectorTopK = 1
+	c.serviceName = json.Get("serviceName").String()
+	c.serviceHost = json.Get("serviceHost").String()
+	c.servicePort = int64(json.Get("servicePort").Int())
+	if c.servicePort == 0 {
+		c.servicePort = 443
 	}
-	c.DashVectorTimeout = uint32(json.Get("DashVectorTimeout").Int())
-	if c.DashVectorTimeout == 0 {
-		c.DashVectorTimeout = 10000
+	c.apiKey = json.Get("apiKey").String()
+	c.collectionID = json.Get("collectionID").String()
+	c.topK = int(json.Get("topK").Int())
+	if c.topK == 0 {
+		c.topK = 1
+	}
+	c.timeout = uint32(json.Get("timeout").Int())
+	if c.timeout == 0 {
+		c.timeout = 10000
 	}
 	// Chroma
-	c.ChromaCollectionID = json.Get("ChromaCollectionID").String()
-	c.ChromaServiceName = json.Get("ChromaServiceName").String()
-	c.ChromaDistanceThreshold = json.Get("ChromaDistanceThreshold").Float()
-	if c.ChromaDistanceThreshold == 0 {
-		c.ChromaDistanceThreshold = 2000
-	}
-	c.ChromaNResult = int(json.Get("ChromaNResult").Int())
-	if c.ChromaNResult == 0 {
-		c.ChromaNResult = 1
-	}
-	c.ChromaTimeout = uint32(json.Get("ChromaTimeout").Int())
-	if c.ChromaTimeout == 0 {
-		c.ChromaTimeout = 10000
-	}
+	// c.ChromaCollectionID = json.Get("ChromaCollectionID").String()
+	// c.ChromaServiceName = json.Get("ChromaServiceName").String()
+	// c.ChromaDistanceThreshold = json.Get("ChromaDistanceThreshold").Float()
+	// if c.ChromaDistanceThreshold == 0 {
+	// 	c.ChromaDistanceThreshold = 2000
+	// }
+	// c.ChromaNResult = int(json.Get("ChromaNResult").Int())
+	// if c.ChromaNResult == 0 {
+	// 	c.ChromaNResult = 1
+	// }
+	// c.ChromaTimeout = uint32(json.Get("ChromaTimeout").Int())
+	// if c.ChromaTimeout == 0 {
+	// 	c.ChromaTimeout = 10000
+	// }
 }
 
 func (c *ProviderConfig) Validate() error {
