@@ -7,7 +7,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -25,28 +24,6 @@ const (
 	DefaultCacheKeyPrefix    = "higressAiCache"
 	QueryEmbeddingKey        = "queryEmbedding"
 )
-
-// // Create the client
-// func CreateClient() {
-// 	cfg := weaviate.Config{
-// 		Host:    "172.17.0.1:8081",
-// 		Scheme:  "http",
-// 		Headers: nil,
-// 	}
-
-// 	client, err := weaviate.NewClient(cfg)
-// 	if err != nil {
-// 		fmt.Println(err)
-// 	}
-
-// 	// Check the connection
-// 	live, err := client.Misc().LiveChecker().Do(context.Background())
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Printf("%v", live)
-
-// }
 
 func main() {
 	// CreateClient()
@@ -135,7 +112,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 
 	queryString := config.CacheKeyPrefix + key
 
-	util.RedisSearchHandler(queryString, ctx, config, log, stream, true)
+	RedisSearchHandler(queryString, ctx, config, log, stream, true)
 
 	// 需要等待异步回调完成，返回 Pause 状态，可以被 ResumeHttpRequest 恢复
 	return types.ActionPause
@@ -185,14 +162,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	// log.Infof("I am here")
-	log.Debugf("[onHttpResponseBody] i am here")
+	log.Infof("[onHttpResponseBody] chunk:%s", string(chunk))
+	log.Infof("[onHttpResponseBody] isLastChunk:%v", isLastChunk)
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
 		return chunk
 	}
 	keyI := ctx.GetContext(CacheKeyContextKey)
-	// log.Infof("I am here 2: %v", keyI)
 	if keyI == nil {
 		return chunk
 	}
@@ -278,8 +254,5 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
 	config.GetCacheProvider().Set(embedding.CacheKeyPrefix+key, value, nil)
 	// TODO: 要不要加个Expire方法
-	// if config.RedisConfig.RedisTimeout != 0 {
-	// 	config.GetCacheProvider().Expire(config.CacheKeyPrefix+key, config.RedisConfig.RedisTimeout, nil)
-	// }
 	return chunk
 }

@@ -24,30 +24,19 @@ type RedisConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求 redis 的超时时间，单位为毫秒。默认值是1000，即1秒
 	RedisTimeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
+
+	RedisHost string `required:"false" yaml:"host" json:"host"`
 }
 
 func CreateProvider(cf RedisConfig, log wrapper.Log) (Provider, error) {
-<<<<<<< HEAD
-=======
 	log.Warnf("redis config: %v", cf)
->>>>>>> origin/feat/chroma
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 			FQDN: cf.RedisServiceName,
-			Host: "redis",
+			Host: cf.RedisHost,
 			Port: int64(cf.RedisServicePort)}),
-		// client: wrapper.NewRedisClusterClient(wrapper.DnsCluster{
-		// 	ServiceName: cf.RedisServiceName,
-		// 	Port:        int64(cf.RedisServicePort)}),
 	}
-	// FQDN := wrapper.FQDNCluster{
-	// 	FQDN: cf.RedisServiceName,
-	// 	Host: "redis",
-	// 	Port: int64(cf.RedisServicePort)}
-	// log.Debugf("test:%s", FQDN.ClusterName())
-	// log.Debugf("test:%d", cf.RedisServicePort)
-	// log.Debugf("test:%s", proxywasm.RedisInit(FQDN.ClusterName(), "", "", 100))
 	err := rp.Init(cf.RedisUsername, cf.RedisPassword, cf.RedisTimeout)
 	return &rp, err
 }

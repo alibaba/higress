@@ -1,4 +1,4 @@
-package vectorDatabase
+package vector
 
 import (
 	"encoding/json"

@@ -17,7 +17,7 @@ const (
 	StreamContextKey         = "stream"
 	CacheKeyPrefix           = "higressAiCache"
 	DefaultCacheKeyPrefix    = "higressAiCache"
-	QueryEmbeddingKey        = "queryEmbedding"
+	queryEmbeddingKey        = "queryEmbedding"
 )
 
 type providerInitializer interface {
@@ -34,41 +34,32 @@ var (
 type ProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务提供者类型
 	// @Description zh-CN 文本特征提取服务提供者类型，例如 DashScope
-	typ string `json:"TextEmbeddingProviderType"`
+	typ string `json:"type"`
 	// @Title zh-CN DashScope 阿里云大模型服务名
 	// @Description zh-CN 调用阿里云的大模型服务
-<<<<<<< HEAD
-	ServiceName       string             `require:"true" yaml:"DashScopeServiceName" jaon:"DashScopeServiceName"`
-	Client            wrapper.HttpClient `yaml:"-"`
-	DashScopeKey      string             `require:"true" yaml:"DashScopeKey" jaon:"DashScopeKey"`
-	DashScopeTimeout  uint32             `require:"false" yaml:"DashScopeTimeout" jaon:"DashScopeTimeout"`
-	QueryEmbeddingKey string             `require:"false" yaml:"QueryEmbeddingKey" jaon:"QueryEmbeddingKey"`
-=======
-	ServiceName       string             `require:"true" yaml:"DashScopeServiceName" json:"DashScopeServiceName"`
-	Client            wrapper.HttpClient `yaml:"-"`
-	DashScopeKey      string             `require:"true" yaml:"DashScopeKey" json:"DashScopeKey"`
-	DashScopeTimeout  uint32             `require:"false" yaml:"DashScopeTimeout" json:"DashScopeTimeout"`
-	QueryEmbeddingKey string             `require:"false" yaml:"QueryEmbeddingKey" json:"QueryEmbeddingKey"`
->>>>>>> origin/feat/chroma
+	serviceName string             `require:"true" yaml:"serviceName" json:"serviceName"`
+	serviceHost string             `require:"false" yaml:"serviceHost" json:"serviceHost"`
+	servicePort int64              `require:"false" yaml:"servicePort" json:"servicePort"`
+	apiKey      string             `require:"false" yaml:"apiKey" json:"apiKey"`
+	timeout     uint32             `require:"false" yaml:"timeout" json:"timeout"`
+	client      wrapper.HttpClient `yaml:"-"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
-	c.typ = json.Get("TextEmbeddingProviderType").String()
-	c.ServiceName = json.Get("DashScopeServiceName").String()
-	c.DashScopeKey = json.Get("DashScopeKey").String()
-	c.DashScopeTimeout = uint32(json.Get("DashScopeTimeout").Int())
-	if c.DashScopeTimeout == 0 {
-		c.DashScopeTimeout = 1000
+	c.typ = json.Get("type").String()
+	c.serviceName = json.Get("serviceName").String()
+	c.serviceHost = json.Get("serviceHost").String()
+	c.servicePort = json.Get("servicePort").Int()
+	c.apiKey = json.Get("apiKey").String()
+	c.timeout = uint32(json.Get("timeout").Int())
+	if c.timeout == 0 {
+		c.timeout = 1000
 	}
-	c.QueryEmbeddingKey = json.Get("QueryEmbeddingKey").String()
 }
 
 func (c *ProviderConfig) Validate() error {
-	if len(c.DashScopeKey) == 0 {
-		return errors.New("DashScopeKey is required")
-	}
-	if len(c.ServiceName) == 0 {
-		return errors.New("DashScopeServiceName is required")
+	if len(c.serviceName) == 0 {
+		return errors.New("serviceName is required")
 	}
 	return nil
 }
@@ -88,11 +79,7 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 type Provider interface {
 	GetProviderType() string
 	GetEmbedding(
-<<<<<<< HEAD
-		text string,
-=======
 		queryString string,
->>>>>>> origin/feat/chroma
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
 		callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error

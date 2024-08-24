@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/cache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vectorDatabase"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -16,11 +16,11 @@ type KVExtractor struct {
 }
 
 type PluginConfig struct {
-	EmbeddingProviderConfig      embedding.ProviderConfig      `required:"true" yaml:"embeddingProvider" json:"embeddingProvider"`
-	VectorDatabaseProviderConfig vectorDatabase.ProviderConfig `required:"true" yaml:"vectorBaseProvider" json:"vectorBaseProvider"`
-	CacheKeyFrom                 KVExtractor                   `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
-	CacheValueFrom               KVExtractor                   `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
-	CacheStreamValueFrom         KVExtractor                   `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
+	EmbeddingProviderConfig embedding.ProviderConfig `required:"true" yaml:"embeddingProvider" json:"embeddingProvider"`
+	vectorProviderConfig    vector.ProviderConfig    `required:"true" yaml:"vectorBaseProvider" json:"vectorBaseProvider"`
+	CacheKeyFrom            KVExtractor              `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
+	CacheValueFrom          KVExtractor              `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
+	CacheStreamValueFrom    KVExtractor              `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
 	ReturnResponseTemplate string `required:"true" yaml:"returnResponseTemplate" json:"returnResponseTemplate"`
@@ -39,14 +39,14 @@ type PluginConfig struct {
 
 	RedisConfig cache.RedisConfig `required:"true" yaml:"redisConfig" json:"redisConfig"`
 	// 现在只支持RedisClient作为cacheClient
-	redisProvider          cache.Provider          `yaml:"-"`
-	embeddingProvider      embedding.Provider      `yaml:"-"`
-	vectorDatabaseProvider vectorDatabase.Provider `yaml:"-"`
+	redisProvider     cache.Provider     `yaml:"-"`
+	embeddingProvider embedding.Provider `yaml:"-"`
+	vectorProvider    vector.Provider    `yaml:"-"`
 }
 
 func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
-	c.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
+	c.vectorProviderConfig.FromJson(json.Get("vectorProvider"))
 	c.RedisConfig.FromJson(json.Get("redis"))
 	if c.CacheKeyFrom.RequestBody == "" {
 		c.CacheKeyFrom.RequestBody = "messages.@reverse.0.content"
@@ -84,7 +84,7 @@ func (c *PluginConfig) Validate() error {
 	if err := c.EmbeddingProviderConfig.Validate(); err != nil {
 		return err
 	}
-	if err := c.VectorDatabaseProviderConfig.Validate(); err != nil {
+	if err := c.vectorProviderConfig.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -96,7 +96,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	if err != nil {
 		return err
 	}
-	c.vectorDatabaseProvider, err = vectorDatabase.CreateProvider(c.VectorDatabaseProviderConfig)
+	c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
 	if err != nil {
 		return err
 	}
@@ -111,8 +111,8 @@ func (c *PluginConfig) GetEmbeddingProvider() embedding.Provider {
 	return c.embeddingProvider
 }
 
-func (c *PluginConfig) GetVectorDatabaseProvider() vectorDatabase.Provider {
-	return c.vectorDatabaseProvider
+func (c *PluginConfig) GetvectorProvider() vector.Provider {
+	return c.vectorProvider
 }
 
 func (c *PluginConfig) GetCacheProvider() cache.Provider {

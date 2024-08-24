@@ -1,4 +1,4 @@
-// package vectorDatabase
+package vector
 
 // import (
 // 	"encoding/json"
@@ -169,4 +169,3 @@
 //			},
 //			d.config.DashVectorTimeout)
 //	}
-package vectorDatabase
