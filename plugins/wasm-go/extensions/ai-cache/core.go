@@ -55,6 +55,7 @@ func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config confi
 		func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != 200 {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
+				proxywasm.ResumeHttpRequest() // 当取 Embedding 失败了也继续流程
 			} else {
 				log.Debugf("Successfully fetched embeddings for key: %s", key)
 				QueryVectorDB(key, emb, ctx, config, log, stream)

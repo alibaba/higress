@@ -159,6 +159,7 @@ func (d *DSProvider) GetEmbedding(
 			if statusCode != http.StatusOK {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
 				err = errors.New("failed to get embedding")
+				callback(nil, statusCode, responseHeaders, responseBody)
 				return
 			}
 
@@ -167,12 +168,14 @@ func (d *DSProvider) GetEmbedding(
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
 				log.Errorf("Failed to parse response: %v", err)
+				callback(nil, statusCode, responseHeaders, responseBody)
 				return
 			}
 
 			if len(resp.Output.Embeddings) == 0 {
 				log.Errorf("No embedding found in response")
 				err = errors.New("no embedding found in response")
+				callback(nil, statusCode, responseHeaders, responseBody)
 				return
 			}
 

@@ -56,12 +56,12 @@ static_resources:
                     value: |
                       {
                         "embeddingProvider": {
-                          "TextEmbeddingProviderType": "dashscope",
-                          "ServiceName": "text-embedding-v2",
-                          "DashScopeKey": "sk-your-key",
+                          "type": "dashscope",
+                          "serviceName": "dashscope",
+                          "apiKey": "sk-your-key",
                           "DashScopeServiceName": "dashscope"
                         },
-                        "vectorBaseProvider": {
+                        "vectorProvider": {
                           "vectorStoreProviderType": "chroma",
                           "ChromaServiceName": "chroma",
                           "ChromaCollectionID": "0294deb1-8ef5-4582-b21c-75f23093db2c"
