@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -331,7 +332,10 @@ func TestRewriteApplyRoute(t *testing.T) {
 					},
 				},
 				Rewrite: &networking.HTTPRewrite{
-					Uri: "/test/",
+					UriRegexRewrite: &networking.RegexRewrite{
+						Match:   "^/hello(/.*)?",
+						Rewrite: `/test\1`,
+					},
 				},
 			},
 		},
@@ -399,7 +403,7 @@ func TestRewriteApplyRoute(t *testing.T) {
 				},
 				Rewrite: &networking.HTTPRewrite{
 					UriRegexRewrite: &networking.RegexRewrite{
-						Match:   "/prefix",
+						Match:   "^/prefix",
 						Rewrite: "/test",
 					},
 				},
@@ -410,9 +414,7 @@ func TestRewriteApplyRoute(t *testing.T) {
 	for _, inputCase := range inputCases {
 		t.Run("", func(t *testing.T) {
 			rewrite.ApplyRoute(inputCase.input, inputCase.config)
-			if !reflect.DeepEqual(inputCase.input, inputCase.expect) {
-				t.Fatal("Should be equal")
-			}
+			assert.Equal(t, inputCase.expect, inputCase.input)
 		})
 	}
 }
