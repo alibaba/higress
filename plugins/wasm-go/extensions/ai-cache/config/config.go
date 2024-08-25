@@ -18,6 +18,7 @@ type KVExtractor struct {
 type PluginConfig struct {
 	EmbeddingProviderConfig embedding.ProviderConfig `required:"true" yaml:"embeddingProvider" json:"embeddingProvider"`
 	VectorProviderConfig    vector.ProviderConfig    `required:"true" yaml:"vectorBaseProvider" json:"vectorBaseProvider"`
+	CacheProviderConfig     cache.ProviderConfig     `required:"true" yaml:"cache" json:"cache"`
 	CacheKeyFrom            KVExtractor              `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
 	CacheValueFrom          KVExtractor              `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
 	CacheStreamValueFrom    KVExtractor              `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
@@ -37,8 +38,6 @@ type PluginConfig struct {
 	// @Title zh-CN Redis缓存Key的前缀
 	// @Description zh-CN 默认值是"higress-ai-cache:"
 
-	RedisConfig cache.RedisConfig `required:"true" yaml:"redisConfig" json:"redisConfig"`
-	// 现在只支持RedisClient作为cacheClient
 	redisProvider     cache.Provider     `yaml:"-"`
 	embeddingProvider embedding.Provider `yaml:"-"`
 	vectorProvider    vector.Provider    `yaml:"-"`
@@ -47,7 +46,7 @@ type PluginConfig struct {
 func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
 	c.VectorProviderConfig.FromJson(json.Get("vectorProvider"))
-	c.RedisConfig.FromJson(json.Get("redis"))
+	c.CacheProviderConfig.FromJson(json.Get("redis"))
 	if c.CacheKeyFrom.RequestBody == "" {
 		c.CacheKeyFrom.RequestBody = "messages.@reverse.0.content"
 	}
@@ -78,7 +77,7 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 }
 
 func (c *PluginConfig) Validate() error {
-	if err := c.RedisConfig.Validate(); err != nil {
+	if err := c.CacheProviderConfig.Validate(); err != nil {
 		return err
 	}
 	if err := c.EmbeddingProviderConfig.Validate(); err != nil {
@@ -100,7 +99,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	if err != nil {
 		return err
 	}
-	c.redisProvider, err = cache.CreateProvider(c.RedisConfig, log)
+	c.redisProvider, err = cache.CreateProvider(c.CacheProviderConfig)
 	if err != nil {
 		return err
 	}
