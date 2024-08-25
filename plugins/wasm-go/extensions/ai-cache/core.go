@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
@@ -53,20 +52,15 @@ func HandleCacheMiss(key string, err error, response resp.Value, ctx wrapper.Htt
 func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) {
 	activeEmbeddingProvider := config.GetEmbeddingProvider()
 	activeEmbeddingProvider.GetEmbedding(queryString, ctx, log,
-		func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte) {
-			if statusCode != 200 {
-				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
-				proxywasm.ResumeHttpRequest() // 当取 Embedding 失败了也继续流程
-			} else {
-				log.Debugf("Successfully fetched embeddings for key: %s", key)
-				QueryVectorDB(key, emb, ctx, config, log, stream)
-			}
+		func(emb []float64) {
+			log.Debugf("Successfully fetched embeddings for key: %s", key)
+			QueryVectorDB(key, emb, ctx, config, log, stream)
 		})
 }
 
 func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
 	log.Debugf("QueryVectorDB key: %s", key)
-	activeVectorProvider := config.GetvectorProvider()
+	activeVectorProvider := config.GetVectorProvider()
 	log.Debugf("activeVectorProvider: %+v", activeVectorProvider)
 	activeVectorProvider.QueryEmbedding(text_embedding, ctx, log,
 		func(results []vector.QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log) {

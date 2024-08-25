@@ -2,7 +2,6 @@ package embedding
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"

@@ -101,21 +101,18 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		},
 	}
 
-	// 序列化请求体并处理错误
 	requestBody, err := json.Marshal(data)
 	if err != nil {
 		log.Errorf("Failed to marshal request data: %v", err)
 		return "", nil, nil, err
 	}
 
-	// 检查 DashScopeKey 是否为空
 	if d.config.apiKey == "" {
 		err := errors.New("DashScopeKey is empty")
 		log.Errorf("Failed to construct headers: %v", err)
 		return "", nil, nil, err
 	}
 
-	// 设置请求头
 	headers := [][2]string{
 		{"Authorization", "Bearer " + d.config.apiKey},
 		{"Content-Type", "application/json"},
@@ -147,14 +144,14 @@ func (d *DSProvider) GetEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(emb []float64)) error {
-	Emb_url, Emb_headers, Emb_requestBody, err := d.constructParameters([]string{queryString}, log)
+	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
 		log.Errorf("Failed to construct parameters: %v", err)
 		return err
 	}
 
 	var resp *Response
-	d.client.Post(Emb_url, Emb_headers, Emb_requestBody,
+	d.client.Post(embUrl, embHeaders, embRequestBody, // TODO: 函数调用返回的error要进行处理
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))

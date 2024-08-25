@@ -17,7 +17,7 @@ type KVExtractor struct {
 
 type PluginConfig struct {
 	EmbeddingProviderConfig embedding.ProviderConfig `required:"true" yaml:"embeddingProvider" json:"embeddingProvider"`
-	vectorProviderConfig    vector.ProviderConfig    `required:"true" yaml:"vectorBaseProvider" json:"vectorBaseProvider"`
+	VectorProviderConfig    vector.ProviderConfig    `required:"true" yaml:"vectorBaseProvider" json:"vectorBaseProvider"`
 	CacheKeyFrom            KVExtractor              `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
 	CacheValueFrom          KVExtractor              `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
 	CacheStreamValueFrom    KVExtractor              `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
@@ -46,7 +46,7 @@ type PluginConfig struct {
 
 func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
-	c.vectorProviderConfig.FromJson(json.Get("vectorProvider"))
+	c.VectorProviderConfig.FromJson(json.Get("vectorProvider"))
 	c.RedisConfig.FromJson(json.Get("redis"))
 	if c.CacheKeyFrom.RequestBody == "" {
 		c.CacheKeyFrom.RequestBody = "messages.@reverse.0.content"
@@ -84,7 +84,7 @@ func (c *PluginConfig) Validate() error {
 	if err := c.EmbeddingProviderConfig.Validate(); err != nil {
 		return err
 	}
-	if err := c.vectorProviderConfig.Validate(); err != nil {
+	if err := c.VectorProviderConfig.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -96,7 +96,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	if err != nil {
 		return err
 	}
-	c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
+	c.vectorProvider, err = vector.CreateProvider(c.VectorProviderConfig)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (c *PluginConfig) GetEmbeddingProvider() embedding.Provider {
 	return c.embeddingProvider
 }
 
-func (c *PluginConfig) GetvectorProvider() vector.Provider {
+func (c *PluginConfig) GetVectorProvider() vector.Provider {
 	return c.vectorProvider
 }
 
