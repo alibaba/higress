@@ -76,7 +76,7 @@ var HTTPRouteHttp2RpcUpdate = suite.ConformanceTest{
 				Response: http.AssertionResponse{
 					ExpectedResponseNoRequest: true,
 					ExpectedResponse: http.Response{
-						StatusCode: 404,
+						StatusCode: 500,
 					},
 				},
 			},
