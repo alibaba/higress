@@ -10,6 +10,7 @@ services:
     - httpbin
     - redis
     - chroma
+    - es
     networks:
     - wasmtest
     ports:
@@ -42,17 +43,48 @@ services:
     ports:
     - "12345:80"
 
-  lobechat:
-    # docker hub 如果访问不了，可以改用这个地址：registry.cn-hangzhou.aliyuncs.com/2456868764/lobe-chat:v1.1.3
-    image: lobehub/lobe-chat
+  es:
+    image: elasticsearch:8.15.0
     environment:
-      - CODE=admin
-      - OPENAI_API_KEY=unused
-      - OPENAI_PROXY_URL=http://envoy:10000/v1
+      - "TZ=Asia/Shanghai"
+      - "discovery.type=single-node"
+      - "xpack.security.http.ssl.enabled=false"
+      - "xpack.license.self_generated.type=trial"
+      - "ELASTIC_PASSWORD=123456"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
     networks:
       - wasmtest
-    ports:
-      - "3210:3210/tcp"
+
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:8.15.0
+  #   environment:
+  #     - "TZ=Asia/Shanghai"
+  #     - "ELASTICSEARCH_HOSTS=http://es:9200"
+  #     - "ELASTICSEARCH_URL=http://es:9200"
+  #     - "ELASTICSEARCH_USERNAME=kibana_system"
+  #     - "ELASTICSEARCH_PASSWORD=123456"
+  #     - "xpack.security.enabled=false"
+  #     - "xpack.license.self_generated.type=trial"
+  #   ports:
+  #     - "5601:5601"
+  #   networks:
+  #     - wasmtest
+  #   depends_on:
+  #     - es
+
+  # lobechat:
+  #   # docker hub 如果访问不了，可以改用这个地址：registry.cn-hangzhou.aliyuncs.com/2456868764/lobe-chat:v1.1.3
+  #   image: lobehub/lobe-chat
+  #   environment:
+  #     - CODE=admin
+  #     - OPENAI_API_KEY=unused
+  #     - OPENAI_PROXY_URL=http://envoy:10000/v1
+  #   networks:
+  #     - wasmtest
+  #   ports:
+  #     - "3210:3210/tcp"
 
   # weaviate:
   #   command:

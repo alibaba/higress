@@ -10,6 +10,7 @@ import (
 const (
 	providerTypeDashVector = "dashvector"
 	providerTypeChroma     = "chroma"
+	providerTypeES         = "elasticsearch"
 )
 
 type providerInitializer interface {
@@ -21,6 +22,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeDashVector: &dashVectorProviderInitializer{},
 		providerTypeChroma:     &chromaProviderInitializer{},
+		providerTypeES:         &esProviderInitializer{},
 	}
 )
 
@@ -51,6 +53,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
 	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
 	typ string `json:"vectorStoreProviderType"`
+	// @Title zh-CN ElasticSearch 需要满足的查询条件阈值关系
+	// @Title zh-CN ElasticSearch 需要满足的查询条件阈值关系，默认为 lt，所有条件包括 lt (less than，小于)、lte (less than or equal to，小等于)、gt (greater than，大于)、gte (greater than or equal to，大等于)
+	ThresholdRelation string `require:"false" yaml:"ThresholdRelation" json:"ThresholdRelation"`
 	// @Title zh-CN DashVector 阿里云向量搜索引擎
 	// @Description zh-CN 调用阿里云的向量搜索引擎
 	DashVectorServiceName string `require:"true" yaml:"DashVectorServiceName" json:"DashVectorServiceName"`
@@ -77,17 +82,42 @@ type ProviderConfig struct {
 	ChromaCollectionID string `require:"false" yaml:"ChromaCollectionID" json:"ChromaCollectionID"`
 	// @Title zh-CN Chroma 距离阈值
 	// @Description zh-CN Chroma 距离阈值，默认为 2000
-	ChromaDistanceThreshold float64 `require:"false" yaml:"ChromaDistanceThreshold" json:"ChromaDistanceThreshold"`
+	ChromaThreshold float64 `require:"false" yaml:"ChromaThreshold" json:"ChromaThreshold"`
 	// @Title zh-CN Chroma 搜索返回结果数量
 	// @Description zh-CN Chroma 搜索返回结果数量，默认为 1
 	ChromaNResult int `require:"false" yaml:"ChromaNResult" json:"ChromaNResult"`
 	// @Title zh-CN Chroma 超时设置
 	// @Description zh-CN Chroma 超时设置，默认为 10 秒
 	ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
+
+	// @Title zh-CN ElasticSearch 的上游服务名称
+	// @Description zh-CN ElasticSearch 服务所对应的网关内上游服务名称
+	ESServiceName string `require:"true" yaml:"ESServiceName" json:"ESServiceName"`
+	// @Title zh-CN ElasticSearch index
+	// @Description zh-CN ElasticSearch 的 index 名称
+	ESIndex string `require:"false" yaml:"ESIndex" json:"ESIndex"`
+	// @Title zh-CN ElasticSearch 距离阈值
+	// @Description zh-CN ElasticSearch 距离阈值，默认为 2000
+	ESThreshold float64 `require:"false" yaml:"ESThreshold" json:"ESThreshold"`
+	// @Description zh-CN ElasticSearch 搜索返回结果数量，默认为 1
+	ESNResult int `require:"false" yaml:"ESNResult" json:"ESNResult"`
+	// @Title zh-CN Chroma 超时设置
+	// @Description zh-CN Chroma 超时设置，默认为 10 秒
+	ESTimeout uint32 `require:"false" yaml:"ESTimeout" json:"ESTimeout"`
+	// @Title zh-CN ElasticSearch 用户名
+	// @Description zh-CN ElasticSearch 用户名，默认为 elastic
+	ESUsername string `require:"false" yaml:"ESUsername" json:"ESUsername"`
+	// @Title zh-CN ElasticSearch 密码
+	// @Description zh-CN ElasticSearch 密码，默认为 elastic
+	ESPassword string `require:"false" yaml:"ESPassword" json:"ESPassword"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
-	c.typ = json.Get("vectorStoreProviderType").String()
+	c.typ = json.Get("VectorStoreProviderType").String()
+	c.ThresholdRelation = json.Get("ThresholdRelation").String()
+	if c.ThresholdRelation == "" {
+		c.ThresholdRelation = "lt"
+	}
 	// DashVector
 	c.DashVectorServiceName = json.Get("DashVectorServiceName").String()
 	c.DashVectorKey = json.Get("DashVectorKey").String()
@@ -104,9 +134,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	// Chroma
 	c.ChromaCollectionID = json.Get("ChromaCollectionID").String()
 	c.ChromaServiceName = json.Get("ChromaServiceName").String()
-	c.ChromaDistanceThreshold = json.Get("ChromaDistanceThreshold").Float()
-	if c.ChromaDistanceThreshold == 0 {
-		c.ChromaDistanceThreshold = 2000
+	c.ChromaThreshold = json.Get("ChromaThreshold").Float()
+	if c.ChromaThreshold == 0 {
+		c.ChromaThreshold = 2000
 	}
 	c.ChromaNResult = int(json.Get("ChromaNResult").Int())
 	if c.ChromaNResult == 0 {
@@ -115,6 +145,29 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.ChromaTimeout = uint32(json.Get("ChromaTimeout").Int())
 	if c.ChromaTimeout == 0 {
 		c.ChromaTimeout = 10000
+	}
+	// ElasticSearch
+	c.ESServiceName = json.Get("ESServiceName").String()
+	c.ESIndex = json.Get("ESIndex").String()
+	c.ESThreshold = json.Get("ESThreshold").Float()
+	if c.ESThreshold == 0 {
+		c.ESThreshold = 2000
+	}
+	c.ESNResult = int(json.Get("ElasticSearchNResult").Int())
+	if c.ESNResult == 0 {
+		c.ESNResult = 1
+	}
+	c.ESTimeout = uint32(json.Get("ElasticSearchTimeout").Int())
+	if c.ESTimeout == 0 {
+		c.ESTimeout = 10000
+	}
+	c.ESUsername = json.Get("ESUser").String()
+	if c.ESUsername == "" {
+		c.ESUsername = "elastic"
+	}
+	c.ESPassword = json.Get("ESPassword").String()
+	if c.ESPassword == "" {
+		c.ESPassword = "elastic"
 	}
 }
 

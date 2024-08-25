@@ -58,13 +58,17 @@ static_resources:
                         "embeddingProvider": {
                           "type": "dashscope",
                           "serviceName": "dashscope",
-                          "apiKey": "sk-your-key",
+                          "apiKey": "sk-key",
                           "DashScopeServiceName": "dashscope"
                         },
                         "vectorProvider": {
-                          "vectorStoreProviderType": "chroma",
-                          "ChromaServiceName": "chroma",
-                          "ChromaCollectionID": "0294deb1-8ef5-4582-b21c-75f23093db2c"
+                          "VectorStoreProviderType": "elasticsearch",
+                          "ThresholdRelation": "gte",
+                          "ESThreshold": 0.7,
+                          "ESServiceName": "es",
+                          "ESIndex": "higress",
+                          "ESUsername": "elastic",
+                          "ESPassword": "123456"
                         },
                         "cacheKeyFrom": {
                           "requestBody": ""
@@ -83,8 +87,23 @@ static_resources:
                           "timeout": 2000
                         }
                       }
-          # 上面的配置中 redis 的配置名字是 redis，而不是 golang tag 中的 redisConfig
 
+          # 上面的配置中 redis 的配置名字是 redis，而不是 golang tag 中的 redisConfig
+                        # "vectorProvider": {
+                        #   "VectorStoreProviderType": "chroma",
+                        #   "ChromaServiceName": "chroma",
+                        #   "ChromaCollectionID": "0294deb1-8ef5-4582-b21c-75f23093db2c"
+                        # },
+
+                        # "vectorProvider": {
+                        #   "VectorStoreProviderType": "elasticsearch",
+                        #   "ThresholdRelation": "gte",
+                        #   "ESThreshold": 0.7,
+                        #   "ESServiceName": "es",
+                        #   "ESIndex": "higress",
+                        #   "ESUsername": "elastic",
+                        #   "ESPassword": "123456"
+                        # },
           # llm-proxy
           - name: llm-proxy
             typed_config:
@@ -174,6 +193,23 @@ static_resources:
                   socket_address:
                     address: 172.17.0.1 # 本地 API 服务地址，这里是 docker0
                     port_value: 8001
+
+  # es
+  - name: outbound|9200||es.dns
+    connect_timeout: 30s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: outbound|9200||es.dns
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 172.17.0.1 # 本地 API 服务地址，这里是 docker0
+                    port_value: 9200
+
   # llm
   - name: llm
     connect_timeout: 30s

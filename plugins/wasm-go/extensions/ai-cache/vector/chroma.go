@@ -44,7 +44,7 @@ func (c *ChromaProvider) GetProviderType() string {
 }
 
 func (d *ChromaProvider) GetThreshold() float64 {
-	return d.config.ChromaDistanceThreshold
+	return d.config.ChromaThreshold
 }
 
 func (d *ChromaProvider) QueryEmbedding(
@@ -52,7 +52,7 @@ func (d *ChromaProvider) QueryEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 最小需要填写的参数为 collection_id, embeddings 和 ids
+	// 最少需要填写的参数为 collection_id, embeddings 和 ids
 	// 下面是一个例子
 	// {
 	// 	"where": {}, 用于 metadata 过滤，可选参数
@@ -97,7 +97,7 @@ func (d *ChromaProvider) UploadEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 最小需要填写的参数为 collection_id, embeddings 和 ids
+	// 最少需要填写的参数为 collection_id, embeddings 和 ids
 	// 下面是一个例子
 	// {
 	// 	"embeddings": [

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -86,12 +87,18 @@ func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext
 			}
 
 			log.Infof("most similar key: %s", resp.MostSimilarData)
-			if resp.Score < activeVectorDatabaseProvider.GetThreshold() {
+			res, err := compare(config.VectorProviderConfig.ThresholdRelation, resp.Score, activeVectorDatabaseProvider.GetThreshold())
+			if err != nil {
+				log.Errorf("Failed to compare score, err: %v", err)
+				proxywasm.ResumeHttpRequest()
+				return
+			}
+			if res {
 				log.Infof("accept most similar key: %s, score: %f", resp.MostSimilarData, resp.Score)
 				// ctx.SetContext(embedding.CacheKeyContextKey, nil)
 				RedisSearchHandler(resp.MostSimilarData, ctx, config, log, stream, false)
 			} else {
-				log.Infof("the most similar key's score is too high, key: %s, score: %f", resp.MostSimilarData, resp.Score)
+				log.Infof("the most similar key's score does not meet the threshold, key: %s, score: %f", resp.MostSimilarData, resp.Score)
 				activeVectorDatabaseProvider.UploadEmbedding(text_embedding, key, ctx, log,
 					func(ctx wrapper.HttpContext, log wrapper.Log) {
 						proxywasm.ResumeHttpRequest()
@@ -100,4 +107,23 @@ func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext
 			}
 		},
 	)
+}
+
+// 主要用于相似度/距离/点积判断
+// 相似度度量的是两个向量在方向上的相似程度。相似度越高，两个向量越接近。
+// 距离度量的是两个向量在空间上的远近程度。距离越小，两个向量越接近。
+// compare 函数根据操作符进行判断并返回结果
+func compare(operator string, value1 float64, value2 float64) (bool, error) {
+	switch operator {
+	case "gt":
+		return value1 > value2, nil
+	case "gte":
+		return value1 >= value2, nil
+	case "lt":
+		return value1 < value2, nil
+	case "lte":
+		return value1 <= value2, nil
+	default:
+		return false, errors.New("unsupported operator: " + operator)
+	}
 }
