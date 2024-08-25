@@ -152,6 +152,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		return nil
 	}
 	ing.Status.InitializeConditions()
+
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.
 	if event != istiomodel.EventDelete {

@@ -5,10 +5,10 @@ description: AI Agent插件配置参考
 ---
 
 ## 功能说明
-一个可定制化的 API AI Agent，目前第一版本只支持配置 http method 类型为 GET 的 API，且只支持非流式模式。agent流程图如下：
+一个可定制化的 API AI Agent，支持配置 http method 类型为 GET 与 POST 的 API，目前只支持非流式模式。
+agent流程图如下：
 ![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)
 
-由于 Agent 是多轮对话场景，需要维护历史对话记录，本版本目前是在内存中维护历史对话记录，因此只支持单机。后续会支持通过 redis 存储回话记录
 
 ## 配置字段
 
@@ -21,14 +21,17 @@ description: AI Agent插件配置参考
 
 `llm`的配置字段说明如下：
 
-| 名称            | 数据类型   | 填写要求 | 默认值 | 描述                               |
-|-----------------|-----------|---------|--------|-----------------------------------|
-| `apiKey`        | string    | 必填    | -      | 用于在访问大模型服务时进行认证的令牌。|
-| `serviceName`   | string    | 必填    | -      | 大模型服务名                       |
-| `servicePort`   | int       | 必填    | -      | 大模型服务端口                     |
-| `domain`        | string    | 必填    | -      | 访问大模型服务时域名                |
-| `path`          | string    | 必填    | -      | 访问大模型服务时路径                |
-| `model`         | string    | 必填    | -      | 访问大模型服务时模型名              |
+| 名称               | 数据类型   | 填写要求 | 默认值 | 描述                               |
+|--------------------|-----------|---------|--------|-----------------------------------|
+| `apiKey`           | string    | 必填    | -      | 用于在访问大模型服务时进行认证的令牌。|
+| `serviceName`      | string    | 必填    | -      | 大模型服务名                        |
+| `servicePort`      | int       | 必填    | -      | 大模型服务端口                      |
+| `domain`           | string    | 必填    | -      | 访问大模型服务时域名                 |
+| `path`             | string    | 必填    | -      | 访问大模型服务时路径                 |
+| `model`            | string    | 必填    | -      | 访问大模型服务时模型名               |
+| `maxIterations`    | int       | 必填    | 15     | 结束执行循环前的最大步数             |
+| `maxExecutionTime` | int       | 必填    | 50000  | 每一次请求大模型的超时时间，单位毫秒  |
+| `maxTokens`        | int       | 必填    | 1000   | 每一次请求大模型的输出token限制      |
 
 `apis`的配置字段说明如下：
 
@@ -86,6 +89,7 @@ llm:
   servicePort: 443
   path: /compatible-mode/v1/chat/completions
   model: qwen-max-0403
+  maxIterations: 2
 promptTemplate:
   language: CH
 apis:
@@ -196,11 +200,91 @@ apis:
           deprecated: false
     components:
       schemas: {}
+- apiProvider:
+    apiKey:
+      in: "header"
+      name: "DeepL-Auth-Key"
+      value: "73xxxxxxxxxxxxxxx:fx"
+    domain: "api-free.deepl.com"
+    serviceName: "deepl.dns"
+    servicePort: 443
+  api: |
+    openapi: 3.1.0
+    info:
+      title: DeepL API Documentation
+      description: The DeepL API provides programmatic access to DeepL’s machine translation technology.
+      version: v1.0.0
+    servers:
+      - url: https://api-free.deepl.com/v2
+    paths:
+      /translate:
+        post:
+          summary: Request Translation
+          operationId: translateText
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - text
+                    - target_lang
+                  properties:
+                    text:
+                      description: |
+                        Text to be translated. Only UTF-8-encoded plain text is supported. The parameter may be specified
+                        up to 50 times in a single request. Translations are returned in the same order as they are requested.
+                      type: array
+                      maxItems: 50
+                      items:
+                        type: string
+                        example: Hello, World!
+                    target_lang:
+                      description: The language into which the text should be translated.
+                      type: string
+                      enum:
+                        - BG
+                        - CS
+                        - DA
+                        - DE
+                        - EL
+                        - EN-GB
+                        - EN-US
+                        - ES
+                        - ET
+                        - FI
+                        - FR
+                        - HU
+                        - ID
+                        - IT
+                        - JA
+                        - KO
+                        - LT
+                        - LV
+                        - NB
+                        - NL
+                        - PL
+                        - PT-BR
+                        - PT-PT
+                        - RO
+                        - RU
+                        - SK
+                        - SL
+                        - SV
+                        - TR
+                        - UK
+                        - ZH
+                        - ZH-HANS
+                      example: DE
+    components:
+      schemas: {}
 ```
 
-本示例配置了两个服务，一个是高德地图，另一个是心知天气，两个服务都需要现在Higress的服务中以DNS域名的方式配置好，并确保健康。
+本示例配置了三个服务，演示了get与post两种类型的工具。其中get类型的工具包括高德地图与心知天气，post类型的工具是deepl翻译。三个服务都需要现在Higress的服务中以DNS域名的方式配置好，并确保健康。
 高德地图提供了两个工具，分别是获取指定地点的坐标，以及搜索坐标附近的感兴趣的地点。文档：https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch
 心知天气提供了一个工具，用于获取指定城市的实时天气情况，支持中文，英文，日语返回，以及摄氏度和华氏度的表示。文档：https://seniverse.yuque.com/hyper_data/api_v3/nyiu3t
+deepl提供了一个工具，用于翻译给定的句子，支持多语言。。文档：https://developers.deepl.com/docs/v/zh/api-reference/translate?fallback=true
 
 
 以下为测试用例，为了效果的稳定性，建议保持大模型版本的稳定，本例子中使用的qwen-max-0403：
@@ -248,4 +332,19 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 
 ```json
 {"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content":" 济南市の現在の天気は雨曇りで、気温は88°Fです。この情報は2024年8月9日15時12分（東京時間）に更新されました。"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}
+```
+
+**请求示例**
+
+```shell
+curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"帮我用德语翻译以下句子：九头蛇万岁!"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**响应示例**
+
+```json
+{"id":"65dcf12c-61ff-9e68-bffa-44fc9e6070d5","choices":[{"index":0,"message":{"role":"assistant","content":" “九头蛇万岁!”的德语翻译为“Hoch lebe Hydra!”。"},"finish_reason":"stop"}],"created":1724043865,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":908,"completion_tokens":52,"total_tokens":960}}
 ```

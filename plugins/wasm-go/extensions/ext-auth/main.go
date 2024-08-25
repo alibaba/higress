@@ -15,11 +15,12 @@
 package main
 
 import (
+	"net/http"
+	"net/url"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-	"net/url"
 )
 
 func main() {
@@ -36,6 +37,12 @@ const (
 	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
 	HeaderOriginalMethod   string = "x-original-method"
 	HeaderOriginalUri      string = "x-original-uri"
+
+	// Currently, x-forwarded-xxx headers only apply for forward_auth.
+	HeaderXForwardedProto  = "x-forwarded-proto"
+	HeaderXForwardedMethod = "x-forwarded-method"
+	HeaderXForwardedUri    = "x-Forwarded-uri"
+	HeaderXForwardedHost   = "x-Forwarded-host"
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
@@ -94,6 +101,10 @@ func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, lo
 	if httpServiceConfig.endpointMode == EndpointModeForwardAuth {
 		extAuthReqHeaders.Set(HeaderOriginalMethod, ctx.Method())
 		extAuthReqHeaders.Set(HeaderOriginalUri, ctx.Path())
+		extAuthReqHeaders.Set(HeaderXForwardedProto, ctx.Scheme())
+		extAuthReqHeaders.Set(HeaderXForwardedMethod, ctx.Method())
+		extAuthReqHeaders.Set(HeaderXForwardedUri, ctx.Path())
+		extAuthReqHeaders.Set(HeaderXForwardedHost, ctx.Host())
 	}
 
 	requestMethod := httpServiceConfig.requestMethod

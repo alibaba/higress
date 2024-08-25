@@ -15,7 +15,7 @@
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, ContextType, LogLevel};
+use proxy_wasm::types::{ContextType, HeaderAction, LogLevel};
 use serde::Deserialize;
 use std::cell::RefCell;
 use std::ops::DerefMut;
@@ -75,12 +75,16 @@ impl RootContext for SayHelloRoot {
 impl Context for SayHello {}
 
 impl HttpContext for SayHello {
-    fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
+    fn on_http_request_headers(
+        &mut self,
+        _num_headers: usize,
+        _end_of_stream: bool,
+    ) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
         let config = match binding.get_match_config() {
             None => {
                 self.send_http_response(200, vec![], Some("Hello, World!".as_bytes()));
-                return Action::Continue;
+                return HeaderAction::Continue;
             }
             Some(config) => config.1,
         };
@@ -90,6 +94,6 @@ impl HttpContext for SayHello {
             vec![],
             Some(format!("Hello, {}!", config.name).as_bytes()),
         );
-        Action::Continue
+        HeaderAction::Continue
     }
 }

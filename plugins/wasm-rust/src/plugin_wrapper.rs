@@ -15,7 +15,7 @@
 use crate::rule_matcher::SharedRuleMatcher;
 use multimap::MultiMap;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, Bytes};
+use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction};
 use serde::de::DeserializeOwned;
 
 pub trait RootContextWrapper<PluginConfig>: RootContext
@@ -43,8 +43,17 @@ where
 }
 pub trait HttpContextWrapper<PluginConfig>: HttpContext {
     fn on_config(&mut self, _config: &PluginConfig) {}
-    fn on_http_request_headers_ok(&mut self, _headers: &MultiMap<String, String>) -> Action {
-        Action::Continue
+    fn on_http_request_complete_headers(
+        &mut self,
+        _headers: &MultiMap<String, String>,
+    ) -> HeaderAction {
+        HeaderAction::Continue
+    }
+    fn on_http_response_complete_headers(
+        &mut self,
+        _headers: &MultiMap<String, String>,
+    ) -> HeaderAction {
+        HeaderAction::Continue
     }
     fn cache_request_body(&self) -> bool {
         false
@@ -52,11 +61,11 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
     fn cache_response_body(&self) -> bool {
         false
     }
-    fn on_http_request_body_ok(&mut self, _req_body: &Bytes) -> Action {
-        Action::Continue
+    fn on_http_request_complete_body(&mut self, _req_body: &Bytes) -> DataAction {
+        DataAction::Continue
     }
-    fn on_http_response_body_ok(&mut self, _res_body: &Bytes) -> Action {
-        Action::Continue
+    fn on_http_response_complete_body(&mut self, _res_body: &Bytes) -> DataAction {
+        DataAction::Continue
     }
     fn replace_http_request_body(&mut self, body: &[u8]) {
         self.set_http_request_body(0, i32::MAX as usize, body)
@@ -67,6 +76,7 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
 }
 pub struct PluginHttpWrapper<PluginConfig> {
     req_headers: MultiMap<String, String>,
+    res_headers: MultiMap<String, String>,
     req_body_len: usize,
     res_body_len: usize,
     config: Option<PluginConfig>,
@@ -80,6 +90,7 @@ impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
     ) -> Self {
         PluginHttpWrapper {
             req_headers: MultiMap::new(),
+            res_headers: MultiMap::new(),
             req_body_len: 0,
             res_body_len: 0,
             config: None,
@@ -129,7 +140,7 @@ impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned + Clone,
 {
-    fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> Action {
+    fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
         self.config = binding.get_match_config().map(|config| config.1.clone());
         for (k, v) in self.get_http_request_headers() {
@@ -141,23 +152,22 @@ where
         let ret = self
             .http_content
             .on_http_request_headers(num_headers, end_of_stream);
-        if ret != Action::Continue {
+        if ret != HeaderAction::Continue {
             return ret;
         }
         self.http_content
-            .on_http_request_headers_ok(&self.req_headers)
+            .on_http_request_complete_headers(&self.req_headers)
     }
 
-    fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
+    fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
+        if !self.http_content.cache_request_body() {
+            return self
+                .http_content
+                .on_http_request_body(body_size, end_of_stream);
+        }
         self.req_body_len += body_size;
         if !end_of_stream {
-            return Action::Pause;
-        }
-        let ret = self
-            .http_content
-            .on_http_request_body(self.req_body_len, end_of_stream);
-        if ret != Action::Continue || !self.http_content.cache_request_body() {
-            return ret;
+            return DataAction::StopIterationAndBuffer;
         }
         let mut req_body = Bytes::new();
         if self.req_body_len > 0 {
@@ -165,29 +175,41 @@ where
                 req_body = body;
             }
         }
-        self.http_content.on_http_request_body_ok(&req_body)
+        self.http_content.on_http_request_complete_body(&req_body)
     }
 
     fn on_http_request_trailers(&mut self, num_trailers: usize) -> Action {
         self.http_content.on_http_request_trailers(num_trailers)
     }
 
-    fn on_http_response_headers(&mut self, num_headers: usize, end_of_stream: bool) -> Action {
-        self.http_content
-            .on_http_response_headers(num_headers, end_of_stream)
-    }
-
-    fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
-        self.res_body_len += body_size;
-
-        if !end_of_stream {
-            return Action::Pause;
+    fn on_http_response_headers(
+        &mut self,
+        num_headers: usize,
+        end_of_stream: bool,
+    ) -> HeaderAction {
+        for (k, v) in self.get_http_response_headers() {
+            self.res_headers.insert(k, v);
         }
         let ret = self
             .http_content
-            .on_http_response_body(self.res_body_len, end_of_stream);
-        if ret != Action::Continue || !self.http_content.cache_response_body() {
+            .on_http_response_headers(num_headers, end_of_stream);
+        if ret != HeaderAction::Continue {
             return ret;
+        }
+        self.http_content
+            .on_http_response_complete_headers(&self.res_headers)
+    }
+
+    fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
+        if !self.http_content.cache_response_body() {
+            return self
+                .http_content
+                .on_http_response_body(body_size, end_of_stream);
+        }
+        self.res_body_len += body_size;
+
+        if !end_of_stream {
+            return DataAction::StopIterationAndBuffer;
         }
 
         let mut res_body = Bytes::new();
@@ -196,7 +218,7 @@ where
                 res_body = body;
             }
         }
-        self.http_content.on_http_response_body_ok(&res_body)
+        self.http_content.on_http_response_complete_body(&res_body)
     }
 
     fn on_http_response_trailers(&mut self, num_trailers: usize) -> Action {

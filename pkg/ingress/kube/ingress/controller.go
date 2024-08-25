@@ -436,11 +436,14 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 				if err != nil {
 					if k8serrors.IsNotFound(err) {
 						// If there is no matching secret, try to get it from configmap.
-						secretName = httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
-						secretNamespace = c.options.SystemNamespace
-						namespace, secret := cert.ParseTLSSecret(secretName)
-						if namespace != "" {
-							secretNamespace = namespace
+						matchSecretName := httpsCredentialConfig.MatchSecretNameByDomain(rule.Host)
+						if matchSecretName != "" {
+							namespace, secret := cert.ParseTLSSecret(matchSecretName)
+							if namespace == "" {
+								secretNamespace = c.options.SystemNamespace
+							} else {
+								secretNamespace = namespace
+							}
 							secretName = secret
 						}
 					}
