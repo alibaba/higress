@@ -59,10 +59,20 @@ else
                 if [ "$file" == "waf" ]; then
                     continue
                 fi
-                if [ -d $EXTENSIONS_DIR$file ]; then 
+                if [ -d $EXTENSIONS_DIR$file ]; then
                     name=${file##*/}
-                    echo "🚀 Build Go WasmPlugin: $name"
-                    PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
+                    version_file="$EXTENSIONS_DIR$file/VERSION"
+                    if [ -f "$version_file" ]; then
+                        version=$(cat "$version_file")
+                        if ! [[ "$version" =~ -alpha$ ]]; then
+                            echo "🚀 Build Go WasmPlugin: $name (version $version)"
+                            PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
+                        else
+                            echo "Plugin version $version ends with '-alpha', skipping compilation for $name."
+                        fi
+                    else
+                        echo "VERSION file not found for plugin $name, skipping compilation."
+                    fi
                 fi
             done
     else

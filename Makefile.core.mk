@@ -180,8 +180,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 899c8c948da0f655b3817f22930ce0730d846bad
-ISTIO_LATEST_IMAGE_TAG ?= 3016c7c12f11787d037446e593599ec85321af75
+ENVOY_LATEST_IMAGE_TAG ?= 9189360b8e980a3125cb9bfbeebabadee61ecda0
+ISTIO_LATEST_IMAGE_TAG ?= bc70c1a01d4ce528696a37ea34ba23f021ee8f31
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
