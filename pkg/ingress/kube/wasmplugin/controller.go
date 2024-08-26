@@ -15,6 +15,7 @@
 package wasmplugin
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -25,7 +26,7 @@ import (
 
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]
 
-func NewController(client kubeclient.Client, clusterId string) WasmPluginController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) WasmPluginController {
 	informer := client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Informer()
 	return controller.NewCommonController("wasmplugin", client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Lister(),
 		informer, GetWasmPlugin, clusterId)

@@ -133,6 +133,12 @@ spec:
           env:
           - name: PILOT_ENABLE_HEADLESS_SERVICE_POD_LISTENERS
             value: "false"
+          - name: PILOT_ENABLE_ALPN_FILTER
+            value: "false"
+          - name: ENABLE_OPTIMIZED_CONFIG_REBUILD
+            value: "false"
+          - name: PILOT_ENABLE_K8S_SELECT_WORKLOAD_ENTRIES
+            value: "false"
           - name: HIGRESS_SYSTEM_NS
             value: "{{ .Release.Namespace }}"
           - name: DEFAULT_UPSTREAM_CONCURRENCY_THRESHOLD
