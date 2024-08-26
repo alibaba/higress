@@ -21,11 +21,12 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
+
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/schema/gvk"
 )
 
 const (

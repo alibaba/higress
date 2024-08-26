@@ -37,6 +37,13 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               defaultConfigDisable:
                 type: boolean
+              failStrategy:
+                description: Specifies the failure behavior for the plugin due to
+                  fatal errors.
+                enum:
+                - FAIL_CLOSE
+                - FAIL_OPEN
+                type: string
               imagePullPolicy:
                 description: The pull behaviour to be applied when fetching an OCI
                   image.
@@ -98,6 +105,27 @@ spec:
                 type: string
               verificationKey:
                 type: string
+              vmConfig:
+                description: Configuration for a Wasm VM.
+                properties:
+                  env:
+                    description: Specifies environment variables to be injected to
+                      this VM.
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          description: Value for the environment variable.
+                          type: string
+                        valueFrom:
+                          enum:
+                          - INLINE
+                          - HOST
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             type: object

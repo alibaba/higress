@@ -39,6 +39,7 @@ shift
 
 set -e
 
+PROJECT_DIR=${PROJECT_DIR:-"."}
 BUILD_GOOS=${GOOS:-linux}
 BUILD_GOARCH=${GOARCH:-amd64}
 GOBINARY=${GOBINARY:-go}
@@ -78,9 +79,14 @@ if [ "${DEBUG}" == "1" ]; then
     OPTIMIZATION_FLAGS=()
 fi
 
+pushd "$PROJECT_DIR"
+
 time GOOS=${BUILD_GOOS} GOARCH=${BUILD_GOARCH} ${GOBINARY} build \
         ${V} "${GOBUILDFLAGS_ARRAY[@]}" ${GCFLAGS:+-gcflags "${GCFLAGS}"} \
         -o "${OUT}" \
         "${OPTIMIZATION_FLAGS[@]}" \
         -pkgdir="${GOPKG}/${BUILD_GOOS}_${BUILD_GOARCH}" \
         -ldflags "${LDFLAGS} ${LD_EXTRAFLAGS}" "${@}"
+
+popd
+
