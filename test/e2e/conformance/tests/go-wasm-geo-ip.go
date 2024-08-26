@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
@@ -51,10 +52,10 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 							Path: "/info",
 							Host: "foo.com",
 							Headers: map[string]string{
-								"X-Higress-Geo-Isp":      "美国电话电报",
+								"X-Higress-Geo-Isp":      url.QueryEscape("美国电话电报"),
 								"X-Higress-Geo-City":     "",
-								"X-Higress-Geo-Province": "密西西比",
-								"X-Higress-Geo-Country":  "美国",
+								"X-Higress-Geo-Province": url.QueryEscape("密西西比"),
+								"X-Higress-Geo-Country":  url.QueryEscape("美国"),
 							},
 						},
 					},
@@ -85,10 +86,10 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 							Path: "/info",
 							Host: "foo.com",
 							Headers: map[string]string{
-								"X-Higress-Geo-Isp":      "橘子电信",
+								"X-Higress-Geo-Isp":      url.QueryEscape("橘子电信"),
 								"X-Higress-Geo-City":     "",
-								"X-Higress-Geo-Province": "Var",
-								"X-Higress-Geo-Country":  "法国",
+								"X-Higress-Geo-Province": url.QueryEscape("Var"),
+								"X-Higress-Geo-Country":  url.QueryEscape("法国"),
 							},
 						},
 					},
