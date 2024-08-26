@@ -341,7 +341,7 @@ http://foo.bar.com/oauth2/sign_out?rd=http%3A%2F%2F127.0.0.1:9090%2Frealms%2Fmyr
 
 ### Aliyun 配置示例
 
-#### Step 1: 配置 Auth0 账户
+#### Step 1: 配置 Aliyun OAuth应用
 
 参考[Web应用登录阿里云](https://help.aliyun.com/zh/ram/user-guide/access-alibaba-cloud-apis-from-a-web-application)流程配置 OAuth 应用
 
