@@ -24,17 +24,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/options"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/cli/cli/flags"
-	types2 "github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alibaba/higress/pkg/cmd/hgctl/docker"
-	"github.com/alibaba/higress/pkg/cmd/hgctl/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/docker"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/alibaba/higress/pkg/cmd/options"
 )
 
