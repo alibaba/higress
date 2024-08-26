@@ -349,6 +349,8 @@ http://foo.bar.com/oauth2/sign_out?rd=http%3A%2F%2F127.0.0.1:9090%2Frealms%2Fmyr
 
 * 在Higress服务来源中创建Aliyun DNS服务
 
+![Aliyun service](https://gw.alicdn.com/imgextra/i3/O1CN01PMNGFS1mHXBtsEvEq_!!6000000004929-0-tps-3312-718.jpg)
+
 #### Step 3: Wasm 插件配置
 
 ```yaml
