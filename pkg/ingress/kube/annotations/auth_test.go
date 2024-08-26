@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/cluster"
+	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	listerv1 "k8s.io/client-go/listers/core/v1"
@@ -83,7 +84,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar",
 					},
@@ -112,7 +113,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "foo",
 						Name:      "bar",
 					},
@@ -140,7 +141,7 @@ func TestAuthParse(t *testing.T) {
 			expect: &AuthConfig{
 				AuthType: defaultAuthType,
 				AuthSecret: util.ClusterNamespacedName{
-					NamespacedName: model.NamespacedName{
+					NamespacedName: types.NamespacedName{
 						Namespace: "default",
 						Name:      "bar",
 					},
@@ -188,8 +189,8 @@ func initGlobalContext(secret *v1.Secret) (*GlobalContext, context.CancelFunc) {
 	cache.WaitForCacheSync(ctx.Done(), secretInformer.Informer().HasSynced)
 
 	return &GlobalContext{
-		WatchedSecrets: sets.NewSet(),
-		ClusterSecretLister: map[string]listerv1.SecretLister{
+		WatchedSecrets: sets.New[string](),
+		ClusterSecretLister: map[cluster.ID]listerv1.SecretLister{
 			"cluster": secretInformer.Lister(),
 		},
 	}, cancel

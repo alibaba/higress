@@ -84,4 +84,4 @@ spec:
               overwrite: true
       ingress:
         - higress-conformance-infra/wasmplugin-ai-proxy-qwen
-  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
