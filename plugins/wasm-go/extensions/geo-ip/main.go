@@ -42,10 +42,10 @@ type GeoIpData struct {
 
 func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error {
 	ipProtocol := json.Get("ipProtocol")
-	if !ipProtocol.Exists() {
+	if !ipProtocol.Exists() || ipProtocol.String() == "" {
 		config.IpProtocol = "ipv4"
 	} else {
-		config.IpProtocol = strings.ToLower(json.Get("ipProtocol").String())
+		config.IpProtocol = strings.ToLower(ipProtocol.String())
 	}
 
 	if HaveInitGeoIpDb {
