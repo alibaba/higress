@@ -70,7 +70,7 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error 
 		config.IPHeaderName = DefaultRealIpHeader
 	}
 
-	ipProtocol := json.Get("ipProtocol")
+	ipProtocol := json.Get("ip_protocol")
 	if !ipProtocol.Exists() || ipProtocol.String() == "" {
 		config.IpProtocol = "ipv4"
 	} else {
