@@ -113,10 +113,6 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 				}
 			}
 
-			if err != nil {
-				log.Errorf("Replace top_p error: %v", err)
-				return types.ActionContinue, err
-			}
 			err = proxywasm.ReplaceHttpRequestBody(newBody)
 			if err != nil {
 				log.Errorf("Replace request body error: %v", err)
