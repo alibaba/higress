@@ -10,6 +10,12 @@ import (
 	"github.com/tidwall/gjson"
 	"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	StatisticsRequestStartTime = "ai-statistics-request-start-time"
+	StatisticsFirstTokenTime   = "ai-statistics-first-token-time"
 )
 
 func main() {
@@ -24,8 +30,8 @@ func main() {
 	)
 }
 
-// TracingLabel is the tracing label configuration.
-type TracingLabel struct {
+// TracingSpan is the tracing span configuration.
+type TracingSpan struct {
 	Key         string `required:"true" yaml:"key" json:"key"`
 	ValueSource string `required:"true" yaml:"valueSource" json:"valueSource"`
 	Value       string `required:"true" yaml:"value" json:"value"`
@@ -33,9 +39,9 @@ type TracingLabel struct {
 
 type AIStatisticsConfig struct {
 	Enable bool `required:"true" yaml:"enable" json:"enable"`
-	// TracingLabel array define the tracing label.
-	TracingLabel map[string]TracingLabel            `required:"true" yaml:"tracingLabel" json:"tracingLabel"`
-	Metrics      map[string]proxywasm.MetricCounter `required:"true" yaml:"metrics" json:"metrics"`
+	// TracingSpan array define the tracing span.
+	TracingSpan []TracingSpan                      `required:"true" yaml:"tracingSpan" json:"tracingSpan"`
+	Metrics     map[string]proxywasm.MetricCounter `required:"true" yaml:"metrics" json:"metrics"`
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64, log wrapper.Log) {
@@ -50,16 +56,16 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
 	config.Enable = configJson.Get("enable").Bool()
 
-	// Parse tracing label.
-	traceLabelConfigArray := configJson.Get("tracing_label").Array()
-	config.TracingLabel = make(map[string]TracingLabel)
-	for _, traceLabel := range traceLabelConfigArray {
-		traceLabel := TracingLabel{
-			Key:         traceLabel.Get("key").String(),
-			ValueSource: traceLabel.Get("value_source").String(),
-			Value:       traceLabel.Get("value").String(),
+	// Parse tracing span.
+	tracingSpanConfigArray := configJson.Get("tracing_span").Array()
+	config.TracingSpan = make([]TracingSpan, len(tracingSpanConfigArray))
+	for i, tracingSpanConfig := range tracingSpanConfigArray {
+		tracingSpan := TracingSpan{
+			Key:         tracingSpanConfig.Get("key").String(),
+			ValueSource: tracingSpanConfig.Get("value_source").String(),
+			Value:       tracingSpanConfig.Get("value").String(),
 		}
-		config.TracingLabel[traceLabel.ValueSource] = traceLabel
+		config.TracingSpan[i] = tracingSpan
 	}
 
 	config.Metrics = make(map[string]proxywasm.MetricCounter)
@@ -75,11 +81,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	// Fetch request header tracing label value.
-	fetchTracingLabelValue(config, "request_header", nil, "", log)
+
+	// Fetch request header tracing span value.
+	setTracingSpanValueBySource(config, "request_header", nil, log)
 	// Fetch request process proxy wasm property.
 	// Warn: The property may be modified by response process , so the value of the property may be overwritten.
-	fetchTracingLabelValue(config, "property", nil, "", log)
+	setTracingSpanValueBySource(config, "property", nil, log)
+
+	// Set request start time.
+	ctx.SetContext(StatisticsRequestStartTime, strconv.FormatUint(uint64(time.Now().UnixMilli()), 10))
 
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
@@ -87,8 +97,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
-	// Fetch request body tracing label value.
-	fetchTracingLabelValue(config, "request_body", body, "", log)
+	// Set request body tracing span value.
+	setTracingSpanValueBySource(config, "request_body", body, log)
 	return types.ActionContinue
 }
 
@@ -102,28 +112,28 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, l
 		ctx.BufferResponseBody()
 	}
 
-	// calculate total cost time and set tracing span tag.
-	startTimeStr, _ := proxywasm.GetHttpResponseHeader("req-arrive-time")
-	startTime, _ := strconv.ParseInt(startTimeStr, 10, 64)
-	endTimeStr, _ := proxywasm.GetHttpResponseHeader("resp-start-time")
-	endTime, _ := strconv.ParseInt(endTimeStr, 10, 64)
-	totalTime := endTime - startTime
-
-	fetchTracingLabelValue(config, "total_time", nil, fmt.Sprintf("%d", totalTime), log)
-
-	// Fetch response body tracing label value.
-	fetchTracingLabelValue(config, "response_header", nil, "", log)
-	// Fetch response process proxy wasm property.
-	fetchTracingLabelValue(config, "property", nil, "", log)
+	// Set response header tracing span value.
+	setTracingSpanValueBySource(config, "response_header", nil, log)
 
 	return types.ActionContinue
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
-	// Get first token time from response header and set tracing span tag first_token_time.
+
+	// If the end of the stream is reached, calculate the total time and set tracing span tag total_time.
+	// Otherwise, set tracing span tag first_token_time.
 	if endOfStream {
-		firstTokenTime, _ := proxywasm.GetHttpResponseHeader("req-cost-time")
-		fetchTracingLabelValue(config, "first_token_time", nil, firstTokenTime, log)
+		requestStartTimeStr := ctx.GetContext(StatisticsRequestStartTime).(string)
+		requestStartTime, _ := strconv.ParseInt(requestStartTimeStr, 10, 64)
+		responseEndTime := time.Now().UnixMilli()
+		setTracingSpanValue("total_time", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
+	} else {
+		firstTokenTime := ctx.GetContext(StatisticsFirstTokenTime)
+		if firstTokenTime == nil {
+			firstTokenTimeStr := strconv.FormatInt(time.Now().UnixMilli(), 10)
+			ctx.SetContext(StatisticsFirstTokenTime, firstTokenTimeStr)
+			setTracingSpanValue("first_token_time", firstTokenTimeStr, log)
+		}
 	}
 
 	model, inputToken, outputToken, ok := getUsage(data)
@@ -132,20 +142,34 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	}
 	setFilterStateData(model, inputToken, outputToken, log)
 	incrementCounter(config, model, inputToken, outputToken, log)
-	// add inputTokens and outputTokens tracing span tag.
-	setTracingTokenCostTag(config, inputToken, outputToken, log)
+	// Set tracing span tag input_tokens and output_tokens.
+	setTracingSpanValue("input_tokens", strconv.FormatInt(inputToken, 10), log)
+	setTracingSpanValue("output_tokens", strconv.FormatInt(outputToken, 10), log)
+	// Set response process proxy wasm property.
+	setTracingSpanValueBySource(config, "property", nil, log)
+
 	return data
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
+
+	// Calculate the total time and set tracing span tag total_time.
+	requestStartTimeStr := ctx.GetContext(StatisticsRequestStartTime).(string)
+	requestStartTime, _ := strconv.ParseInt(requestStartTimeStr, 10, 64)
+	responseEndTime := time.Now().UnixMilli()
+	setTracingSpanValue("total_time", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
+
 	model, inputToken, outputToken, ok := getUsage(body)
 	if !ok {
 		return types.ActionContinue
 	}
 	setFilterStateData(model, inputToken, outputToken, log)
 	incrementCounter(config, model, inputToken, outputToken, log)
-	// add inputTokens and outputTokens tracing span tag.
-	setTracingTokenCostTag(config, inputToken, outputToken, log)
+	// Set tracing span tag input_tokens and output_tokens.
+	setTracingSpanValue("input_tokens", strconv.FormatInt(inputToken, 10), log)
+	setTracingSpanValue("output_tokens", strconv.FormatInt(outputToken, 10), log)
+	// Set response process proxy wasm property.
+	setTracingSpanValueBySource(config, "property", nil, log)
 	return types.ActionContinue
 }
 
@@ -200,44 +224,35 @@ func incrementCounter(config AIStatisticsConfig, model string, inputToken int64,
 	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(outputToken), log)
 }
 
-// sets the input_tokens and output_tokens tags in the tracing span.
-func setTracingTokenCostTag(config AIStatisticsConfig, inputToken int64, outputToken int64, log wrapper.Log) {
-	fetchTracingLabelValue(config, "input_tokens", nil, fmt.Sprintf("%d", inputToken), log)
-	fetchTracingLabelValue(config, "output_tokens", nil, fmt.Sprintf("%d", outputToken), log)
-}
-
-// fetches the tracing label value from the specified source.
-func fetchTracingLabelValue(config AIStatisticsConfig, tracingSource string, body []byte, defaultValue string, log wrapper.Log) {
-	var tracingValue string
-	var tracingKey string
-	tracingLabelEle, ok := config.TracingLabel[tracingSource]
-	if ok {
-		switch tracingLabelEle.ValueSource {
+// fetches the tracing span value from the specified source.
+func setTracingSpanValueBySource(config AIStatisticsConfig, tracingSource string, body []byte, log wrapper.Log) {
+	for _, tracingSpanEle := range config.TracingSpan {
+		switch tracingSource {
 		case "response_header":
-			if value, err := proxywasm.GetHttpResponseHeader(tracingLabelEle.Value); err == nil {
-				tracingValue = value
+			if value, err := proxywasm.GetHttpResponseHeader(tracingSpanEle.Value); err == nil {
+				setTracingSpanValue(tracingSpanEle.Key, value, log)
 			}
 		case "request_body":
 			bodyJson := gjson.ParseBytes(body)
-			tracingValue = trimQuote(bodyJson.Get(tracingLabelEle.Value).String())
+			value := trimQuote(bodyJson.Get(tracingSpanEle.Value).String())
+			setTracingSpanValue(tracingSpanEle.Key, value, log)
 		case "request_header":
-			if value, err := proxywasm.GetHttpRequestHeader(tracingLabelEle.Value); err == nil {
-				tracingValue = value
+			if value, err := proxywasm.GetHttpRequestHeader(tracingSpanEle.Value); err == nil {
+				setTracingSpanValue(tracingSpanEle.Key, value, log)
 			}
 		case "property":
-			if raw, err := proxywasm.GetProperty([]string{tracingLabelEle.Value}); err == nil {
-				tracingValue = string(raw)
+			if raw, err := proxywasm.GetProperty([]string{tracingSpanEle.Value}); err == nil {
+				setTracingSpanValue(tracingSpanEle.Key, string(raw), log)
 			}
 		default:
-			tracingValue = ""
-		}
-		tracingKey = tracingLabelEle.Key
-	} else {
-		tracingValue = defaultValue
-		tracingKey = tracingSource
-	}
 
-	log.Debugf("try to set trace label [%s] with value [%s].", tracingKey, tracingValue)
+		}
+	}
+}
+
+// Set the tracing span with value.
+func setTracingSpanValue(tracingKey, tracingValue string, log wrapper.Log) {
+	log.Debugf("try to set trace span [%s] with value [%s].", tracingKey, tracingValue)
 
 	if tracingValue != "" {
 		traceSpanTag := "trace_span_tag." + tracingKey
@@ -253,8 +268,6 @@ func fetchTracingLabelValue(config AIStatisticsConfig, tracingSource string, bod
 		}
 		log.Debugf("successed to set trace span [%s] with value [%s].", traceSpanTag, tracingValue)
 	}
-
-	return
 }
 
 // trims the quote from the source string.
