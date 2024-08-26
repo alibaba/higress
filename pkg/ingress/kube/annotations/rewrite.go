@@ -15,6 +15,7 @@
 package annotations
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -79,8 +80,13 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		route.Rewrite.Uri = rewriteConfig.RewritePath
 		for _, match := range route.Match {
 			if strings.HasSuffix(match.Uri.GetPrefix(), "/") {
-				if !strings.HasSuffix(route.Rewrite.Uri, "/") {
-					route.Rewrite.Uri += "/"
+				if !strings.HasSuffix(rewriteConfig.RewritePath, "/") {
+					route.Rewrite.Uri = ""
+					matchPattern := fmt.Sprintf("^%s(/.*)?", strings.TrimSuffix(match.Uri.GetPrefix(), "/"))
+					route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+						Match:   matchPattern,
+						Rewrite: fmt.Sprintf(`%s\1`, rewriteConfig.RewritePath),
+					}
 				}
 				break
 			}
@@ -88,19 +94,19 @@ func (r rewrite) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 	} else if rewriteConfig.RewriteTarget != "" {
 		uri := route.Match[0].Uri
 		if uri.GetExact() != "" {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetExact(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   uri.GetExact(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		} else if uri.GetPrefix() != "" {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetPrefix(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   "^" + uri.GetPrefix(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		} else {
-			route.Rewrite.UriRegex = &networking.RegexMatchAndSubstitute{
-				Pattern:      uri.GetRegex(),
-				Substitution: rewriteConfig.RewriteTarget,
+			route.Rewrite.UriRegexRewrite = &networking.RegexRewrite{
+				Match:   uri.GetRegex(),
+				Rewrite: rewriteConfig.RewriteTarget,
 			}
 		}
 	}
