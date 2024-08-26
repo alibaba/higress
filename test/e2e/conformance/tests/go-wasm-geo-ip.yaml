@@ -40,7 +40,7 @@ spec:
   defaultConfigDisable: true
   matchRules:
   - config:
-      ipProtocol: ipv4
+      ip_protocol: ipv4
     ingress:
     - higress-conformance-infra/wasmplugin-geo-ip
   url: file:///opt/plugins/wasm-go/extensions/geo-ip/plugin.wasm
