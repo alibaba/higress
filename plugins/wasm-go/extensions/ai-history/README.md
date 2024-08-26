@@ -20,7 +20,7 @@ description: AI 历史对话插件配置参考
 
 | 名称                | 数据类型    | 填写要求     | 默认值                   | Description                                                               |
 |-------------------|---------|----------|-----------------------|---------------------------------------------------------------------------|
-| identityHeader    | string  | optional | "Authorization"       | 身份解析对应的请求头                                                                |
+| identityHeader    | string  | optional | "Authorization"       | 身份解析对应的请求头,可用 Authorization,X-Mse-Consumer等                               |
 | fillHistoryCnt    | integer | optional | 3                     | 默认填充历史对话轮次                                                                |
 | cacheKeyPrefix    | string  | optional | "higress-ai-history:" | Redis缓存Key的前缀                                                             |
 | cacheTTL          | integer | optional | 0                     | 缓存的过期时间，单位是秒，默认值为0，即永不过期                                                  |
@@ -29,12 +29,6 @@ description: AI 历史对话插件配置参考
 | redis.timeout     | integer | optional | 1000                  | 请求 redis 的超时时间，单位为毫秒                                                      |
 | redis.username    | string  | optional | -                     | 登陆 redis 的用户名                                                             |
 | redis.password    | string  | optional | -                     | 登陆 redis 的密码                                                              |
-
-> identity_type 可选项:
->
->- Authorization
->
->- X-Mse-Consumer
 
 ## 用法示例
 

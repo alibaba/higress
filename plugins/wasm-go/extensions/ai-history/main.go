@@ -121,7 +121,7 @@ type ChatHistory struct {
 func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	c.RedisInfo.ServiceName = json.Get("redis.serviceName").String()
 	if c.RedisInfo.ServiceName == "" {
-		return errors.New("redis service name must not by empty")
+		return errors.New("redis service name must not be empty")
 	}
 	c.RedisInfo.ServicePort = int(json.Get("redis.servicePort").Int())
 	if c.RedisInfo.ServicePort == 0 {
@@ -164,10 +164,6 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
-	// The request does not have a body.
-	if contentType == "" {
-		return types.ActionContinue
-	}
 	if !strings.Contains(contentType, "application/json") {
 		log.Warnf("content is not json, can't process:%s", contentType)
 		ctx.DontReadRequestBody()
@@ -198,7 +194,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	if bodyJson.Get("stream").Bool() {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
-	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).Raw)
+	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
 	if question == "" {
 		log.Debug("parse question from request body failed")
 		return types.ActionContinue
@@ -219,27 +215,52 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		chatHistories := response.String()
 		ctx.SetContext(ChatHistories, chatHistories)
 		var chat []ChatHistory
-		_ = json.Unmarshal([]byte(chatHistories), &chat)
+		err := json.Unmarshal([]byte(chatHistories), &chat)
+		if err != nil {
+			log.Errorf("unmarshal chatHistories:%s failed, err:%v", chatHistories, err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
 		path := ctx.Path()
 		if isQueryHistory(path) {
-			cnt := getIntQueryParameter(len(chat)/2, path, "cnt") * 2
+			cnt := getIntQueryParameter("cnt", path, len(chat)/2) * 2
 			if cnt > len(chat) {
 				cnt = len(chat)
 			}
 			chat = chat[len(chat)-cnt:]
-			res, _ := json.Marshal(chat)
+			res, err := json.Marshal(chat)
+			if err != nil {
+				log.Errorf("marshal chat:%v failed, err:%v", chat, err)
+				proxywasm.ResumeHttpRequest()
+				return
+			}
 			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
 		}
-		fillHistoryCnt := getIntQueryParameter(config.FillHistoryCnt, path, "fill_history_cnt") * 2
+		fillHistoryCnt := getIntQueryParameter("fill_history_cnt", path, config.FillHistoryCnt) * 2
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
-		_ = json.Unmarshal([]byte(currJson), &currMessage)
+		err = json.Unmarshal([]byte(currJson), &currMessage)
+		if err != nil {
+			log.Errorf("unmarshal currMessage:%s failed, err:%v", currJson, err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
 		finalChat := fillHistory(chat, currMessage, fillHistoryCnt)
 		var parameter map[string]any
-		_ = json.Unmarshal(body, &parameter)
+		err = json.Unmarshal(body, &parameter)
+		if err != nil {
+			log.Errorf("unmarshal body:%s failed, err:%v", body, err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
 		parameter["messages"] = finalChat
-		parameterJson, _ := json.Marshal(parameter)
+		parameterJson, err := json.Marshal(parameter)
+		if err != nil {
+			log.Errorf("marshal parameter:%v failed, err:%v", parameter, err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
 		log.Infof("start to replace request body, parameter:%s", string(parameterJson))
 		_ = proxywasm.ReplaceHttpRequestBody(parameterJson)
 		_ = proxywasm.ResumeHttpRequest()
@@ -252,20 +273,19 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 func fillHistory(chat []ChatHistory, currMessage []ChatHistory, fillHistoryCnt int) []ChatHistory {
-	finalChat := currMessage
-	for i := len(chat) - 2; i >= 0 && fillHistoryCnt > 0; i -= 2 {
-		existCurrent := false
-		for _, curr := range currMessage {
-			if curr == chat[i] {
-				existCurrent = true
-				break
-			}
-		}
-		if !existCurrent {
-			finalChat = append(chat[i:i+2], finalChat...)
-			fillHistoryCnt--
+	userInputCnt := 0
+	for i := 0; i < len(currMessage); i++ {
+		if currMessage[i].Role == "user" {
+			userInputCnt++
 		}
 	}
+	if userInputCnt > 1 {
+		return currMessage
+	}
+	if fillHistoryCnt > len(chat) {
+		fillHistoryCnt = len(chat)
+	}
+	finalChat := append(chat[len(chat)-fillHistoryCnt:], currMessage...)
 	return finalChat
 }
 
@@ -273,7 +293,7 @@ func isQueryHistory(path string) bool {
 	return strings.Contains(path, "ai-history/query")
 }
 
-func getIntQueryParameter(defaultValue int, path string, name string) int {
+func getIntQueryParameter(name string, path string, defaultValue int) int {
 	// 解析 URL
 	parsedURL, err := url.ParseRequestURI(path)
 	if err != nil {
@@ -436,14 +456,22 @@ func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any
 	var chat []ChatHistory
 	chatHistories := ctx.GetStringContext(ChatHistories, "")
 	if chatHistories != "" {
-		_ = json.Unmarshal([]byte(chatHistories), &chat)
+		err := json.Unmarshal([]byte(chatHistories), &chat)
+		if err != nil {
+			log.Errorf("unmarshal chatHistories:%s failed, err:%v", chatHistories, err)
+			return
+		}
 	}
 	chat = append(chat, ChatHistory{Role: "user", Content: question})
 	chat = append(chat, ChatHistory{Role: "assistant", Content: value})
 	if len(chat) > config.FillHistoryCnt*2 {
 		chat = chat[len(chat)-config.FillHistoryCnt*2:]
 	}
-	str, _ := json.Marshal(chat)
+	str, err := json.Marshal(chat)
+	if err != nil {
+		log.Errorf("marshal chat:%v failed, err:%v", chat, err)
+		return
+	}
 	log.Infof("start to Set history, identityKey:%s, chat:%s", identityKey, string(str))
 	_ = config.redisClient.Set(config.CacheKeyPrefix+identityKey, string(str), nil)
 	if config.CacheTTL != 0 {

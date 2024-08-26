@@ -12,25 +12,19 @@ func TestDistinctChat(t *testing.T) {
 	}
 	firstChat := []ChatHistory{{Role: "user", Content: "userInput1"}, {Role: "assistant", Content: "assistantOutput1"}}
 	sendUser := []ChatHistory{{Role: "user", Content: "userInput2"}}
-	secondChat := []ChatHistory{{Role: "user", Content: "userInput2"}, {Role: "assistant", Content: "assistantOutput2"}}
-	thirdUser := []ChatHistory{{Role: "user", Content: "userInput3"}}
 	tests := []struct {
 		name string
 		args args
 		want []ChatHistory
 	}{
-		{name: "无去重", args: args{
+		{name: "填充历史", args: args{
 			chat:        append([]ChatHistory{}, firstChat...),
 			currMessage: append([]ChatHistory{}, sendUser...)},
 			want: append(append([]ChatHistory{}, firstChat...), sendUser...)},
-		{name: "单次去重", args: args{
+		{name: "无需填充", args: args{
 			chat:        append([]ChatHistory{}, firstChat...),
 			currMessage: append(append([]ChatHistory{}, firstChat...), sendUser...)},
 			want: append(append([]ChatHistory{}, firstChat...), sendUser...)},
-		{name: "两次去重", args: args{
-			chat:        append(append([]ChatHistory{}, firstChat...), secondChat...),
-			currMessage: append(append([]ChatHistory{}, secondChat...), thirdUser...)},
-			want: append(append(append([]ChatHistory{}, firstChat...), secondChat...), thirdUser...)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
