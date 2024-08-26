@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -29,7 +30,11 @@ import (
 )
 
 const (
-	DefaultSchema                = "defaultSchema"
+	DefaultSchema                 = "defaultSchema"
+	httpStatusOK                  = uint32(200)
+	httpStatusBadRequest          = uint32(400)
+	httpStatusInternalServerError = uint32(500)
+
 	JsonSchemaNotValidCode       = 1001
 	JsonSchemaCompileFailedCode  = 1002
 	CannotFindJsonInResponseCode = 1003
@@ -45,7 +50,7 @@ type RejectStruct struct {
 	RejectMsg  string `json:"Msg"`
 }
 
-func (r RejectStruct) Byte() []byte {
+func (r RejectStruct) GetBytes() []byte {
 	jsonData, _ := json.Marshal(r)
 	return jsonData
 }
@@ -96,14 +101,14 @@ type PluginConfig struct {
 	jsonSchemaMaxDepth int `required:"false" json:"jsonSchemaMaxDepth" yaml:"jsonSchemaMaxDepth"`
 	// @Title zh-CN 超深时是否拒绝执行并返回
 	// @Description zh-CN 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于提示并继续执行
-	rejectOnDepthExceed bool `required:"false" json:"rejectOnDepthExceed" yaml:"rejectOnDepthExceed"`
+	rejectOnDepthExceeded bool `required:"false" json:"rejectOnDepthExceeded" yaml:"rejectOnDepthExceeded"`
 
-	serviceClient   wrapper.HttpClient
-	draft           *jsonschema.Draft
-	compiler        *jsonschema.Compiler
-	compile         *jsonschema.Schema
-	rejectStruct    RejectStruct
-	validJsonSchema bool
+	serviceClient wrapper.HttpClient
+	draft         *jsonschema.Draft
+	compiler      *jsonschema.Compiler
+	compile       *jsonschema.Schema
+	rejectStruct  RejectStruct
+	useJSinVal    bool
 }
 
 func main() {
@@ -158,7 +163,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	}
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
 	config.apiKey = result.Get("apiKey").String()
-	config.rejectStruct = RejectStruct{uint32(200), ""}
+	config.rejectStruct = RejectStruct{httpStatusOK, ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
 	}
@@ -216,32 +221,33 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 		config.jsonSchemaMaxDepth = 5
 	}
 
-	exceed := result.Get("rejectOnDepthExceed")
+	exceed := result.Get("rejectOnDepthExceeded")
 	if !exceed.Exists() {
-		config.rejectOnDepthExceed = false
+		config.rejectOnDepthExceeded = false
 	} else {
-		config.rejectOnDepthExceed = exceed.Bool()
+		config.rejectOnDepthExceeded = exceed.Bool()
 	}
 
-	config.validJsonSchema = true
+	config.useJSinVal = true
 
 	jsonSchemaBytes, err := json.Marshal(config.jsonSchema)
 	if err != nil {
 		config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema marshal failed"}
 		return err
 	}
-	maxDepth := MaxDepthIterative(config.jsonSchema)
+	maxDepth := GetMaxDepth(config.jsonSchema)
 	log.Debugf("max depth of json schema: %d", maxDepth)
 	if maxDepth > config.jsonSchemaMaxDepth {
-		if config.rejectOnDepthExceed {
-			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema depth exceed: " + string(maxDepth)}
+		config.useJSinVal = false
+		if config.rejectOnDepthExceeded {
+			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
+			log.Infof("Json Schema depth exceeded: %d from %d , reject the request", maxDepth, config.jsonSchemaMaxDepth)
 		} else {
-			log.Infof("Json Schema depth exceed: %d, do not valid json schema", maxDepth)
-			config.validJsonSchema = false
+			log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
 		}
 	}
 
-	if config.validJsonSchema {
+	if config.useJSinVal {
 		jsonSchemaStr := string(jsonSchemaBytes)
 		config.compiler.AddResource(DefaultSchema, strings.NewReader(jsonSchemaStr))
 		// Test if the Json Schema is valid
@@ -357,7 +363,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 
-	if c.jsonSchema != nil && c.validJsonSchema {
+	if c.jsonSchema != nil && c.useJSinVal {
 		compile, err := c.compiler.Compile(DefaultSchema)
 		if err != nil {
 			log.Infof("Json Schema compile failed: %v", err)
@@ -375,7 +381,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 			return "", errors.New(c.rejectStruct.RejectMsg)
 		}
 	}
-	c.rejectStruct = RejectStruct{uint32(200), ""}
+	c.rejectStruct = RejectStruct{httpStatusOK, ""}
 	return jsonStr, nil
 }
 
@@ -401,17 +407,17 @@ func (c PluginConfig) ExtractJson(bodyStr string) (string, error) {
 }
 
 func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte) {
-	log.Infof("Final send: Code %d, Message %s, Body: %s %s", config.rejectStruct.RejectCode, config.rejectStruct.RejectMsg, string(body))
+	log.Infof("Final send: Code %d, Message %s, Body: %s", config.rejectStruct.RejectCode, config.rejectStruct.RejectMsg, string(body))
 	header := [][2]string{
 		{"Content-Type", "application/json"},
 	}
 	if body != nil {
 		header = append(header, [2]string{"Content-Disposition", "attachment; filename=\"response.json\""})
 	}
-	if config.rejectStruct.RejectCode != uint32(200) {
-		proxywasm.SendHttpResponseWithDetail(uint32(500), config.rejectStruct.GetShortMsg(), nil, config.rejectStruct.Byte(), -1)
+	if config.rejectStruct.RejectCode != httpStatusOK {
+		proxywasm.SendHttpResponseWithDetail(httpStatusInternalServerError, config.rejectStruct.GetShortMsg(), nil, config.rejectStruct.GetBytes(), -1)
 	} else {
-		proxywasm.SendHttpResponse(uint32(200), header, body, -1)
+		proxywasm.SendHttpResponse(httpStatusOK, header, body, -1)
 	}
 }
 
@@ -447,7 +453,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	if config.rejectStruct.RejectCode != uint32(200) {
+	if config.rejectStruct.RejectCode != httpStatusOK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionPause
 	}
@@ -491,7 +497,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	}
 
 	// if there is any error in the config, return the response directly
-	if config.rejectStruct.RejectCode != uint32(200) {
+	if config.rejectStruct.RejectCode != httpStatusOK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionContinue
 	}

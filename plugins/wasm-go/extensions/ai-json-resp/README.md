@@ -26,7 +26,7 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | enableSwagger | bool |  optional | false | 是否启用Swagger协议进行验证 |
 | enableOas3 | bool |  optional | true | 是否启用Oas3协议进行验证 |
 | jsonSchemaMaxDepth | int |  optional | 5 | 由于插件性能限制，为防止递归耗尽资源，需指定支持的 JSON Schema 最大深度，超过该深度的 Schema 不会用于验证响应|
-| rejectOnDepthExceed | bool |  optional | false | 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于LLM提示构造并继续执行 |
+| rejectOnDepthExceeded | bool |  optional | false | 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于LLM提示构造并继续执行 |
 
 ### 请求和返回参数说明
 
@@ -92,7 +92,7 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 | 错误码 | 说明 |
 | --- | --- |
 | 1001 | 配置的Json Schema不是合法Json格式|
-| 1002 | 配置的Json Schema编译失败，不是合法的Json Schema格式或深度超出jsonSchemaMaxDepth且rejectOnDepthExceed为true|
+| 1002 | 配置的Json Schema编译失败，不是合法的Json Schema 格式或深度超出 jsonSchemaMaxDepth 且 rejectOnDepthExceeded 为true|
 | 1003 | 无法在响应中提取合法的Json|
 | 1004 | 响应为空字符串|
 | 1005 | 响应不符合Json Schema定义|

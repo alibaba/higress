@@ -1,6 +1,6 @@
 package main
 
-func MaxDepthIterative(data interface{}) int {
+func GetMaxDepth(data interface{}) int {
 	type item struct {
 		value interface{}
 		depth int
