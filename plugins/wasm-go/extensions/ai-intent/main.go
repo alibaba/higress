@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	DefaultPrompt  = "你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回一种具体类别，如果没有找到就返回'NotFound'。"
+	DefaultPrompt  = "你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:'%s',预设的类别为'%s'，直接返回一种具体类别，如果没有找到就返回'NotFound'。"
 	defaultTimeout = 10 * 1000 // ms
 )
 
@@ -49,21 +50,35 @@ func main() {
 //@Example
 
 // scene:
-//   category: ['金融','电商','法律','Higress']
-//   prompt:你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回具体类别，如果没有找到就返回'NotFound'。
-// 例："你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:今天天气怎么样？,预设的类别为 ["金融","电商","法律"]，直接返回具体类别，如果没有找到就返回"NotFound"。"
+//   category: "金融|电商|法律|Higress"
+//   prompt:"你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回一种具体类别，如果没有找到就返回'NotFound'。"
+// 例："你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:今天天气怎么样？,预设的类别为 ["金融","电商","法律"]，直接返回一种具体类别，如果没有找到就返回"NotFound"。"
 
 type SceneInfo struct {
 	Category string `require:"true" yaml:"category" json:"category"`
 	Prompt   string `require:"false" yaml:"prompt" json:"prompt"`
+	//解析category后的数组
+	CategoryArr []string `yaml:"-" json:"-"`
 }
 
 type LLMInfo struct {
-	ProxyServiceName string             `require:"true" yaml:"proxyServiceName" json:"proxyServiceName"`
-	ProxyUrl         string             `require:"false" yaml:"proxyUrl" json:"proxyUrl"`
-	ProxyModel       string             `require:"false" yaml:"proxyModel" json:"proxyModel"`
-	ProxyTimeout     uint32             `require:"false" yaml:"proxyTimeout" json:"proxyTimeout"`
-	ProxyClient      wrapper.HttpClient `yaml:"-" json:"-"`
+	ProxyServiceName string `require:"true" yaml:"proxyServiceName" json:"proxyServiceName"`
+	ProxyUrl         string `require:"false" yaml:"proxyUrl" json:"proxyUrl"`
+	ProxyModel       string `require:"false" yaml:"proxyModel" json:"proxyModel"`
+	// @Title zh-CN 大模型服务端口
+	// @Description zh-CN 服务端口
+	ProxyPort int64 `required:"false" yaml:"proxyPort" json:"proxyPort"`
+	// @Title zh-CN 大模型服务域名
+	// @Description zh-CN 大模型服务域名
+	ProxyDomain  string `required:"false" yaml:"proxyDomain" json:"proxyDomain"`
+	ProxyTimeout uint32 `require:"false" yaml:"proxyTimeout" json:"proxyTimeout"`
+	// @Title zh-CN 大模型服务的API_KEY
+	// @Description zh-CN 大模型服务的API_KEY
+	ProxyApiKey string             `require:"false" yaml:"proxyApiKey" json:"proxyApiKey"`
+	ProxyClient wrapper.HttpClient `yaml:"-" json:"-"`
+	// @Title zh-CN 大模型接口路径
+	// @Description zh-CN 大模型接口路径
+	ProxyPath string `yaml:"-" json:"-"`
 }
 
 type PluginConfig struct {
@@ -73,7 +88,6 @@ type PluginConfig struct {
 	// @Title zh-CN 大模型相关配置
 	// @Description zh-CN LLMInfo
 	LLMInfo LLMInfo `required:"true" yaml:"llm" json:"llm"`
-
 	// @Title zh-CN  key 的来源
 	// @Description zh-CN 使用的 key 的提取方式
 	KeyFrom KVExtractor `required:"true" yaml:"keyFrom" json:"keyFrom"`
@@ -86,41 +100,76 @@ type KVExtractor struct {
 	ResponseBody string `required:"false" yaml:"responseBody" json:"responseBody"`
 }
 
-type ProxyRequest struct {
-	Model    string                `json:"model"`
-	Messages []ProxyRequestMessage `json:"messages"`
-}
-
-type ProxyRequestMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
 func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	log.Infof("config:%s", json.Raw)
 	// init scene
 	c.SceneInfo.Category = json.Get("scene.category").String()
 	log.Infof("SceneInfo.Category:%s", c.SceneInfo.Category)
 	if c.SceneInfo.Category == "" {
-		return errors.New("SceneInfo.Category must not by empty")
+		return errors.New("scene.category must not by empty")
+	}
+	c.SceneInfo.CategoryArr = strings.Split(c.SceneInfo.Category, "|")
+	if len(c.SceneInfo.CategoryArr) <= 0 {
+		return errors.New("scene.category resolve exception, should use '|' split")
 	}
 	c.SceneInfo.Prompt = json.Get("scene.prompt").String()
 	if c.SceneInfo.Prompt == "" {
 		c.SceneInfo.Prompt = DefaultPrompt
 	}
 	log.Infof("SceneInfo.Prompt:%s", c.SceneInfo.Prompt)
-	// init llm
+	// init llmProxy
 	log.Debug("Start to init proxyService's http client.")
 	c.LLMInfo.ProxyServiceName = json.Get("llm.proxyServiceName").String()
-	log.Infof("ProxyServiceName:%s", c.LLMInfo.ProxyServiceName)
+	log.Infof("ProxyServiceName: %s", c.LLMInfo.ProxyServiceName)
 	if c.LLMInfo.ProxyServiceName == "" {
-		return errors.New("LLMInfo.ProxyServiceName must not by empty")
+		return errors.New("llm.proxyServiceName must not by empty")
 	}
 	c.LLMInfo.ProxyUrl = json.Get("llm.proxyUrl").String()
 	log.Infof("c.LLMInfo.ProxyUrl:%s", c.LLMInfo.ProxyUrl)
 	if c.LLMInfo.ProxyUrl == "" {
-		c.LLMInfo.ProxyUrl = "/intent/compatible-mode/v1/chat/completions"
+		return errors.New("llm.proxyUrl must not by empty")
 	}
+	//解析域名和path
+	parsedURL, err := url.Parse(c.LLMInfo.ProxyUrl)
+	if err != nil {
+		return errors.New("llm.proxyUrl parsing error")
+	}
+	c.LLMInfo.ProxyPath = parsedURL.Path
+	log.Infof("c.LLMInfo.ProxyPath:%s", c.LLMInfo.ProxyPath)
+	c.LLMInfo.ProxyDomain = json.Get("llm.proxyDomain").String()
+	//没有配置llm.proxyDomain时，则从proxyUrl中解析获取
+	if c.LLMInfo.ProxyDomain == "" {
+		hostName := parsedURL.Hostname()
+		log.Infof("llm.proxyUrl.hostName:%s", hostName)
+		if hostName != "" {
+			c.LLMInfo.ProxyDomain = hostName
+		}
+	}
+	log.Infof("c.LLMInfo.ProxyDomain:%s", c.LLMInfo.ProxyDomain)
+	c.LLMInfo.ProxyPort = json.Get("llm.proxyPort").Int()
+	// 没有配置llm.proxyPort时，则从proxyUrl中解析获取,如果解析的port为空，则http协议端口默认80，https端口默认443
+	if c.LLMInfo.ProxyPort <= 0 {
+		port := parsedURL.Port()
+		log.Infof("llm.proxyUrl.port:%s", port)
+		if port == "" {
+			c.LLMInfo.ProxyPort = 80
+			if parsedURL.Scheme == "https" {
+				c.LLMInfo.ProxyPort = 443
+			}
+		} else {
+			portNum, err := strconv.ParseInt(port, 10, 64)
+			if err != nil {
+				return errors.New("llm.proxyUrl.port parsing error")
+			}
+			c.LLMInfo.ProxyPort = portNum
+		}
+	}
+	log.Infof("c.LLMInfo.ProxyPort:%s", c.LLMInfo.ProxyPort)
+	c.LLMInfo.ProxyClient = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: c.LLMInfo.ProxyServiceName,
+		Port: c.LLMInfo.ProxyPort,
+		Host: c.LLMInfo.ProxyDomain,
+	})
 	c.LLMInfo.ProxyModel = json.Get("llm.proxyModel").String()
 	log.Infof("c.LLMInfo.ProxyModel:%s", c.LLMInfo.ProxyModel)
 	if c.LLMInfo.ProxyModel == "" {
@@ -128,14 +177,11 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	}
 	c.LLMInfo.ProxyTimeout = uint32(json.Get("llm.proxyTimeout").Uint())
 	log.Infof("c.LLMInfo.ProxyTimeout:%s", c.LLMInfo.ProxyTimeout)
-	if c.LLMInfo.ProxyTimeout == 0 {
+	if c.LLMInfo.ProxyTimeout <= 0 {
 		c.LLMInfo.ProxyTimeout = defaultTimeout
 	}
-	c.LLMInfo.ProxyClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
-		ServiceName: c.LLMInfo.ProxyServiceName,
-		Port:        80,
-		Host:        "127.0.0.1",
-	})
+	c.LLMInfo.ProxyApiKey = json.Get("llm.proxyApiKey").String()
+	log.Infof("c.LLMInfo.ProxyApiKey:%s", c.LLMInfo.ProxyApiKey)
 	c.KeyFrom.RequestBody = json.Get("keyFrom.requestBody").String()
 	if c.KeyFrom.RequestBody == "" {
 		c.KeyFrom.RequestBody = "messages.@reverse.0.content"
@@ -183,14 +229,21 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 				if nil != proxyResponseBody && nil != proxyResponseBody.Choices && len(proxyResponseBody.Choices) > 0 {
 					category := proxyResponseBody.Choices[0].Message.Content
 					log.Infof("llmProxyClient intent response category is: %s", category)
-					//验证返回结果是否为 定义的枚举值结果集合，判断返回结果是否在预设的类型中。在给大模型的提问中，限定了只能回答一种类型，没有对应类型时返回NotFound
-					isLegal := strings.Contains(config.SceneInfo.Category, category)
-					if isLegal {
-						// 把意图类型加入到Property中
-						log.Debug("llmProxyClient intent category set to Property")
-						proErr := proxywasm.SetProperty([]string{"intent_category"}, []byte(category))
-						if proErr != nil {
-							log.Errorf("llmProxyClient proxywasm SetProperty error: %s", proErr.Error())
+					//验证返回结果是否为 定义的枚举值结果集合，判断返回结果是否在预设的类型中。
+					for i := range config.SceneInfo.CategoryArr {
+						//防止空格、空字符串
+						if strings.TrimSpace(config.SceneInfo.CategoryArr[i]) == "" {
+							continue
+						}
+						//2种判定条件，1.返回的category与该预设的场景完全一致 2.返回的category包含该预设的场景
+						if config.SceneInfo.CategoryArr[i] == category || strings.Contains(category, config.SceneInfo.CategoryArr[i]) {
+							// 把意图类型加入到Property中
+							log.Debug("llmProxyClient intent category set to Property")
+							proErr := proxywasm.SetProperty([]string{"intent_category"}, []byte(config.SceneInfo.CategoryArr[i]))
+							if proErr != nil {
+								log.Errorf("llmProxyClient proxywasm SetProperty error: %s", proErr.Error())
+							}
+							break
 						}
 					}
 				}
@@ -227,8 +280,18 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	return types.ActionContinue
 }
 
+type ProxyRequest struct {
+	Model    string                `json:"model"`
+	Messages []ProxyRequestMessage `json:"messages"`
+}
+
+type ProxyRequestMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 func generateProxyRequest(c *PluginConfig, texts []string, log wrapper.Log) (string, []byte, [][2]string) {
-	url := c.LLMInfo.ProxyUrl
+	url := c.LLMInfo.ProxyPath
 	var userMessage ProxyRequestMessage
 	userMessage.Role = "user"
 	userMessage.Content = texts[0]
@@ -245,8 +308,8 @@ func generateProxyRequest(c *PluginConfig, texts []string, log wrapper.Log) (str
 	}
 
 	headers := [][2]string{
-		{"Accept", "application/json, text/event-stream"},
 		{"Content-Type", "application/json"},
+		{"Authorization", "Bearer " + c.LLMInfo.ProxyApiKey},
 	}
 	return url, requestBody, headers
 }
