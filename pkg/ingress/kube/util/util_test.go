@@ -15,22 +15,23 @@
 package util
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
-	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
-	"istio.io/istio/pilot/pkg/model"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestString(t *testing.T) {
 	assert.Equal(t, "cluster/foo/bar", ClusterNamespacedName{
-		NamespacedName: model.NamespacedName{
+		NamespacedName: types.NamespacedName{
 			Name:      "bar",
 			Namespace: "foo",
 		},
@@ -41,33 +42,33 @@ func TestString(t *testing.T) {
 func TestSplitNamespacedName(t *testing.T) {
 	testCases := []struct {
 		input  string
-		expect model.NamespacedName
+		expect types.NamespacedName
 	}{
 		{
 			input: "",
 		},
 		{
 			input: "a/",
-			expect: model.NamespacedName{
+			expect: types.NamespacedName{
 				Namespace: "a",
 			},
 		},
 		{
 			input: "a/b",
-			expect: model.NamespacedName{
+			expect: types.NamespacedName{
 				Namespace: "a",
 				Name:      "b",
 			},
 		},
 		{
 			input: "/b",
-			expect: model.NamespacedName{
+			expect: types.NamespacedName{
 				Name: "b",
 			},
 		},
 		{
 			input: "b",
-			expect: model.NamespacedName{
+			expect: types.NamespacedName{
 				Name: "b",
 			},
 		},
@@ -84,7 +85,7 @@ func TestSplitNamespacedName(t *testing.T) {
 }
 
 func TestCreateDestinationRuleName(t *testing.T) {
-	istioCluster := "gw-123-istio"
+	istioCluster := cluster.ID("gw-123-istio")
 	namespace := "default"
 	serviceName := "go-httpbin-v1"
 	t.Log(CreateDestinationRuleName(istioCluster, namespace, serviceName))
@@ -95,7 +96,7 @@ func TestMessageToGoGoStruct(t *testing.T) {
 	testCases := []struct {
 		name    string
 		getMsg  func() (proto.Message, error)
-		expect  *types.Struct
+		expect  *structpb.Struct
 		wantErr bool
 	}{
 		{
@@ -153,40 +154,40 @@ func TestMessageToGoGoStruct(t *testing.T) {
 					},
 				}, nil
 			},
-			expect: &types.Struct{
-				Fields: map[string]*types.Value{
+			expect: &structpb.Struct{
+				Fields: map[string]*structpb.Value{
 					"config": {
-						Kind: &types.Value_StructValue{
-							StructValue: &types.Struct{
-								Fields: map[string]*types.Value{
+						Kind: &structpb.Value_StructValue{
+							StructValue: &structpb.Struct{
+								Fields: map[string]*structpb.Value{
 									"name": {
-										Kind: &types.Value_StringValue{
+										Kind: &structpb.Value_StringValue{
 											StringValue: "basic-auth",
 										},
 									},
 									"fail_open": {
-										Kind: &types.Value_BoolValue{
+										Kind: &structpb.Value_BoolValue{
 											BoolValue: true,
 										},
 									},
 									"vm_config": {
-										Kind: &types.Value_StructValue{
-											StructValue: &types.Struct{
-												Fields: map[string]*types.Value{
+										Kind: &structpb.Value_StructValue{
+											StructValue: &structpb.Struct{
+												Fields: map[string]*structpb.Value{
 													"runtime": {
-														Kind: &types.Value_StringValue{
+														Kind: &structpb.Value_StringValue{
 															StringValue: "envoy.wasm.runtime.null",
 														}},
 													"code": {
-														Kind: &types.Value_StructValue{
-															StructValue: &types.Struct{
-																Fields: map[string]*types.Value{
+														Kind: &structpb.Value_StructValue{
+															StructValue: &structpb.Struct{
+																Fields: map[string]*structpb.Value{
 																	"local": {
-																		Kind: &types.Value_StructValue{
-																			StructValue: &types.Struct{
-																				Fields: map[string]*types.Value{
+																		Kind: &structpb.Value_StructValue{
+																			StructValue: &structpb.Struct{
+																				Fields: map[string]*structpb.Value{
 																					"inline_string": {
-																						Kind: &types.Value_StringValue{
+																						Kind: &structpb.Value_StringValue{
 																							StringValue: "envoy.wasm.basic_auth",
 																						},
 																					},
@@ -203,16 +204,16 @@ func TestMessageToGoGoStruct(t *testing.T) {
 										},
 									},
 									"configuration": {
-										Kind: &types.Value_StructValue{
-											StructValue: &types.Struct{
-												Fields: map[string]*types.Value{
+										Kind: &structpb.Value_StructValue{
+											StructValue: &structpb.Struct{
+												Fields: map[string]*structpb.Value{
 													"@type": {
-														Kind: &types.Value_StringValue{
+														Kind: &structpb.Value_StringValue{
 															StringValue: "type.googleapis.com/google.protobuf.StringValue",
 														},
 													},
 													"value": {
-														Kind: &types.Value_StringValue{
+														Kind: &structpb.Value_StringValue{
 															StringValue: testStr,
 														},
 													},
@@ -237,13 +238,13 @@ func TestMessageToGoGoStruct(t *testing.T) {
 				t.Fatalf("getMsg() error = %v", err)
 			}
 
-			got, err := MessageToGoGoStruct(msg)
+			got, err := MessageToStruct(msg)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("MessageToGoGoStruct() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("MessageToStruct() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !proto.Equal(got, tt.expect) {
-				t.Errorf("MessageToGoGoStruct() got = %v, want %v", got, tt.expect)
+				t.Errorf("MessageToStruct() got = %v, want %v", got, tt.expect)
 			}
 		})
 	}
