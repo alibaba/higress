@@ -40,4 +40,4 @@ spec:
   defaultConfig:
     token_headers: token
     token_secret_key: Dav7kfq3iA8S!JUj8&CUkdnQe72E@Cw6
-  url: file:///opt/plugins/wasm-go/extensions/simple-jwt-auth/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/simple-jwt-auth:1.0.0

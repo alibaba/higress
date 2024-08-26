@@ -15,6 +15,7 @@
 package http2rpc
 
 import (
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -25,7 +26,7 @@ import (
 
 type Http2RpcController controller.Controller[listersv1.Http2RpcLister]
 
-func NewController(client kubeclient.Client, clusterId string) Http2RpcController {
+func NewController(client kubeclient.Client, clusterId cluster.ID) Http2RpcController {
 	informer := client.HigressInformer().Networking().V1().Http2Rpcs().Informer()
 	return controller.NewCommonController("http2rpc", client.HigressInformer().Networking().V1().Http2Rpcs().Lister(),
 		informer, GetHttp2Rpc, clusterId)

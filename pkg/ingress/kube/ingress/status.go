@@ -16,20 +16,21 @@ package ingress
 
 import (
 	"context"
-	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
-	. "github.com/alibaba/higress/pkg/ingress/log"
 	"reflect"
 	"sort"
 	"time"
 
 	kubelib "istio.io/istio/pkg/kube"
-	coreV1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	listerv1 "k8s.io/client-go/listers/core/v1"
+	corelist "k8s.io/client-go/listers/core/v1"
 	ingresslister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 // statusSyncer keeps the status IP in each Ingress resource updated
@@ -41,25 +42,26 @@ type statusSyncer struct {
 
 	ingressLister ingresslister.IngressLister
 	// search service in the mse vpc
-	serviceLister listerv1.ServiceLister
+	serviceLister corelist.ServiceLister
 }
 
 // newStatusSyncer creates a new instance
-func newStatusSyncer(localKubeClient, client kubelib.Client, controller *controller, namespace string) *statusSyncer {
+func newStatusSyncer(localKubeClient, client kubelib.Client, controller *controller, namespace string,
+	ingressLister ingresslister.IngressLister, serviceLister corelist.ServiceLister) *statusSyncer {
 	return &statusSyncer{
-		client:           client,
+		client:           client.Kube(),
 		controller:       controller,
 		watchedNamespace: namespace,
-		ingressLister:    client.KubeInformer().Networking().V1beta1().Ingresses().Lister(),
+		ingressLister:    ingressLister,
 		// search service in the mse vpc
-		serviceLister: localKubeClient.KubeInformer().Core().V1().Services().Lister(),
+		serviceLister: serviceLister,
 	}
 }
 
 func (s *statusSyncer) run(stopCh <-chan struct{}) {
 	cache.WaitForCacheSync(stopCh, s.controller.HasSynced)
 
-	ticker := time.NewTicker(common2.DefaultStatusUpdateInterval)
+	ticker := time.NewTicker(common.DefaultStatusUpdateInterval)
 	for {
 		select {
 		case <-stopCh:
@@ -74,14 +76,14 @@ func (s *statusSyncer) run(stopCh <-chan struct{}) {
 }
 
 func (s *statusSyncer) runUpdateStatus() error {
-	svcList, err := s.serviceLister.Services(s.watchedNamespace).List(common2.SvcLabelSelector)
+	svcList, err := s.serviceLister.Services(s.watchedNamespace).List(common.SvcLabelSelector)
 	if err != nil {
 		return err
 	}
 
 	IngressLog.Debugf("found number %d of svc", len(svcList))
 
-	lbStatusList := common2.GetLbStatusList(svcList)
+	lbStatusList := common.GetLbStatusListV1Beta1(svcList)
 	if len(lbStatusList) == 0 {
 		return nil
 	}
@@ -90,7 +92,7 @@ func (s *statusSyncer) runUpdateStatus() error {
 }
 
 // updateStatus updates ingress status with the list of IP
-func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
+func (s *statusSyncer) updateStatus(status []networkingv1beta1.IngressLoadBalancerIngress) error {
 	ingressList, err := s.ingressLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -108,7 +110,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 		}
 
 		curIPs := ingress.Status.LoadBalancer.Ingress
-		sort.SliceStable(curIPs, common2.SortLbIngressList(curIPs))
+		sort.SliceStable(curIPs, common.SortLbIngressListV1Beta1(curIPs))
 
 		if reflect.DeepEqual(status, curIPs) {
 			IngressLog.Debugf("skipping update of Ingress %v/%v within cluster %s (no change)",
@@ -119,7 +121,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 		ingress.Status.LoadBalancer.Ingress = status
 		IngressLog.Infof("Update Ingress %v/%v within cluster %s status",
 			ingress.Namespace, ingress.Name, s.controller.options.ClusterId)
-		_, err = s.client.NetworkingV1beta1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metaV1.UpdateOptions{})
+		_, err = s.client.NetworkingV1beta1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metav1.UpdateOptions{})
 		if err != nil {
 			IngressLog.Warnf("error updating ingress %s/%s within cluster %s status: %v",
 				ingress.Namespace, ingress.Name, s.controller.options.ClusterId, err)
