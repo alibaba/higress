@@ -18,11 +18,13 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
-	networkingv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	networkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -34,25 +36,25 @@ type FakeHttp2Rpcs struct {
 	ns   string
 }
 
-var http2rpcsResource = schema.GroupVersionResource{Group: "networking.higress.io", Version: "v1", Resource: "http2rpcs"}
+var http2rpcsResource = v1.SchemeGroupVersion.WithResource("http2rpcs")
 
-var http2rpcsKind = schema.GroupVersionKind{Group: "networking.higress.io", Version: "v1", Kind: "Http2Rpc"}
+var http2rpcsKind = v1.SchemeGroupVersion.WithKind("Http2Rpc")
 
 // Get takes name of the http2Rpc, and returns the corresponding http2Rpc object, and an error if there is any.
-func (c *FakeHttp2Rpcs) Get(ctx context.Context, name string, options v1.GetOptions) (result *networkingv1.Http2Rpc, err error) {
+func (c *FakeHttp2Rpcs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Http2Rpc, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(http2rpcsResource, c.ns, name), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewGetAction(http2rpcsResource, c.ns, name), &v1.Http2Rpc{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*networkingv1.Http2Rpc), err
+	return obj.(*v1.Http2Rpc), err
 }
 
 // List takes label and field selectors, and returns the list of Http2Rpcs that match those selectors.
-func (c *FakeHttp2Rpcs) List(ctx context.Context, opts v1.ListOptions) (result *networkingv1.Http2RpcList, err error) {
+func (c *FakeHttp2Rpcs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.Http2RpcList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(http2rpcsResource, http2rpcsKind, c.ns, opts), &networkingv1.Http2RpcList{})
+		Invokes(testing.NewListAction(http2rpcsResource, http2rpcsKind, c.ns, opts), &v1.Http2RpcList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +64,8 @@ func (c *FakeHttp2Rpcs) List(ctx context.Context, opts v1.ListOptions) (result *
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &networkingv1.Http2RpcList{ListMeta: obj.(*networkingv1.Http2RpcList).ListMeta}
-	for _, item := range obj.(*networkingv1.Http2RpcList).Items {
+	list := &v1.Http2RpcList{ListMeta: obj.(*v1.Http2RpcList).ListMeta}
+	for _, item := range obj.(*v1.Http2RpcList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -72,69 +74,114 @@ func (c *FakeHttp2Rpcs) List(ctx context.Context, opts v1.ListOptions) (result *
 }
 
 // Watch returns a watch.Interface that watches the requested http2Rpcs.
-func (c *FakeHttp2Rpcs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeHttp2Rpcs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(http2rpcsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a http2Rpc and creates it.  Returns the server's representation of the http2Rpc, and an error, if there is any.
-func (c *FakeHttp2Rpcs) Create(ctx context.Context, http2Rpc *networkingv1.Http2Rpc, opts v1.CreateOptions) (result *networkingv1.Http2Rpc, err error) {
+func (c *FakeHttp2Rpcs) Create(ctx context.Context, http2Rpc *v1.Http2Rpc, opts metav1.CreateOptions) (result *v1.Http2Rpc, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(http2rpcsResource, c.ns, http2Rpc), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewCreateAction(http2rpcsResource, c.ns, http2Rpc), &v1.Http2Rpc{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*networkingv1.Http2Rpc), err
+	return obj.(*v1.Http2Rpc), err
 }
 
 // Update takes the representation of a http2Rpc and updates it. Returns the server's representation of the http2Rpc, and an error, if there is any.
-func (c *FakeHttp2Rpcs) Update(ctx context.Context, http2Rpc *networkingv1.Http2Rpc, opts v1.UpdateOptions) (result *networkingv1.Http2Rpc, err error) {
+func (c *FakeHttp2Rpcs) Update(ctx context.Context, http2Rpc *v1.Http2Rpc, opts metav1.UpdateOptions) (result *v1.Http2Rpc, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(http2rpcsResource, c.ns, http2Rpc), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewUpdateAction(http2rpcsResource, c.ns, http2Rpc), &v1.Http2Rpc{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*networkingv1.Http2Rpc), err
+	return obj.(*v1.Http2Rpc), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeHttp2Rpcs) UpdateStatus(ctx context.Context, http2Rpc *networkingv1.Http2Rpc, opts v1.UpdateOptions) (*networkingv1.Http2Rpc, error) {
+func (c *FakeHttp2Rpcs) UpdateStatus(ctx context.Context, http2Rpc *v1.Http2Rpc, opts metav1.UpdateOptions) (*v1.Http2Rpc, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(http2rpcsResource, "status", c.ns, http2Rpc), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewUpdateSubresourceAction(http2rpcsResource, "status", c.ns, http2Rpc), &v1.Http2Rpc{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*networkingv1.Http2Rpc), err
+	return obj.(*v1.Http2Rpc), err
 }
 
 // Delete takes name of the http2Rpc and deletes it. Returns an error if one occurs.
-func (c *FakeHttp2Rpcs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeHttp2Rpcs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(http2rpcsResource, c.ns, name), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewDeleteActionWithOptions(http2rpcsResource, c.ns, name, opts), &v1.Http2Rpc{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeHttp2Rpcs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeHttp2Rpcs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(http2rpcsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &networkingv1.Http2RpcList{})
+	_, err := c.Fake.Invokes(action, &v1.Http2RpcList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched http2Rpc.
-func (c *FakeHttp2Rpcs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *networkingv1.Http2Rpc, err error) {
+func (c *FakeHttp2Rpcs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Http2Rpc, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(http2rpcsResource, c.ns, name, pt, data, subresources...), &networkingv1.Http2Rpc{})
+		Invokes(testing.NewPatchSubresourceAction(http2rpcsResource, c.ns, name, pt, data, subresources...), &v1.Http2Rpc{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*networkingv1.Http2Rpc), err
+	return obj.(*v1.Http2Rpc), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied http2Rpc.
+func (c *FakeHttp2Rpcs) Apply(ctx context.Context, http2Rpc *networkingv1.Http2RpcApplyConfiguration, opts metav1.ApplyOptions) (result *v1.Http2Rpc, err error) {
+	if http2Rpc == nil {
+		return nil, fmt.Errorf("http2Rpc provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(http2Rpc)
+	if err != nil {
+		return nil, err
+	}
+	name := http2Rpc.Name
+	if name == nil {
+		return nil, fmt.Errorf("http2Rpc.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(http2rpcsResource, c.ns, *name, types.ApplyPatchType, data), &v1.Http2Rpc{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1.Http2Rpc), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeHttp2Rpcs) ApplyStatus(ctx context.Context, http2Rpc *networkingv1.Http2RpcApplyConfiguration, opts metav1.ApplyOptions) (result *v1.Http2Rpc, err error) {
+	if http2Rpc == nil {
+		return nil, fmt.Errorf("http2Rpc provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(http2Rpc)
+	if err != nil {
+		return nil, err
+	}
+	name := http2Rpc.Name
+	if name == nil {
+		return nil, fmt.Errorf("http2Rpc.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(http2rpcsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1.Http2Rpc{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1.Http2Rpc), err
 }

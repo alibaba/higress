@@ -16,15 +16,16 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
-	"net"
-	"net/url"
-	"strconv"
-	"strings"
 )
 
 func main() {
@@ -88,12 +89,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	args := []interface{}{configItem.count, configItem.timeWindow}
 	// 执行限流逻辑
 	err := config.redisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
+			proxywasm.ResumeHttpRequest()
 			return
 		}
 		context := LimitContext{
@@ -106,6 +105,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 			rejected(config, context)
 		} else {
 			ctx.SetContext(LimitContextKey, context)
+			proxywasm.ResumeHttpRequest()
 		}
 	})
 	if err != nil {

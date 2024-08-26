@@ -19,6 +19,7 @@ const (
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
+	providerTypeAi360      = "ai360"
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
@@ -33,6 +34,9 @@ const (
 	providerTypeStepfun    = "stepfun"
 	providerTypeMinimax    = "minimax"
 	providerTypeCloudflare = "cloudflare"
+	providerTypeSpark      = "spark"
+	providerTypeGemini     = "gemini"
+	providerTypeDeepl      = "deepl"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -70,6 +74,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeMoonshot:   &moonshotProviderInitializer{},
 		providerTypeAzure:      &azureProviderInitializer{},
+		providerTypeAi360:      &ai360ProviderInitializer{},
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
@@ -84,6 +89,9 @@ var (
 		providerTypeStepfun:    &stepfunProviderInitializer{},
 		providerTypeMinimax:    &minimaxProviderInitializer{},
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
+		providerTypeSpark:      &sparkProviderInitializer{},
+		providerTypeGemini:     &geminiProviderInitializer{},
+		providerTypeDeepl:      &deeplProviderInitializer{},
 	}
 )
 
@@ -121,6 +129,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN 基于OpenAI协议的自定义后端URL
+	// @Description zh-CN 仅适用于支持 openai 协议的服务。
+	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
 	// @Title zh-CN Moonshot File ID
 	// @Description zh-CN 仅适用于Moonshot AI服务。Moonshot AI服务的文件ID，其内容用于补充AI请求上下文
 	moonshotFileId string `required:"false" yaml:"moonshotFileId" json:"moonshotFileId"`
@@ -133,6 +144,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 开启通义千问兼容模式
+	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
+	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
 	// @Title zh-CN Ollama Server IP/Domain
 	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的主机地址。
 	ollamaServerHost string `required:"false" yaml:"ollamaServerHost" json:"ollamaServerHost"`
@@ -163,6 +177,18 @@ type ProviderConfig struct {
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
+	// @Title zh-CN Gemini AI内容过滤和安全级别设定
+	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
+	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN 翻译服务需指定的目标语种
+	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
+	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
+	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
+	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
+	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
+	// @Title zh-CN 自定义大模型参数配置
+	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
+	customSettings []CustomSetting
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -175,6 +201,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = defaultTimeout
 	}
+	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
 	c.qwenFileIds = make([]string, 0)
@@ -182,6 +209,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
+	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -202,12 +230,41 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
+	if c.typ == providerTypeGemini {
+		c.geminiSafetySetting = make(map[string]string)
+		for k, v := range json.Get("geminiSafetySetting").Map() {
+			c.geminiSafetySetting[k] = v.String()
+		}
+	}
+	c.targetLang = json.Get("targetLang").String()
+
+	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
+		c.responseJsonSchema = schemaValue
+	} else {
+		c.responseJsonSchema = nil
+	}
+
+	c.customSettings = make([]CustomSetting, 0)
+	customSettingsJson := json.Get("customSettings")
+	if customSettingsJson.Exists() {
+		protocol := protocolOpenAI
+		if c.protocol == protocolOriginal {
+			// use provider name to represent original protocol name
+			protocol = c.typ
+		}
+		for _, settingJson := range customSettingsJson.Array() {
+			setting := CustomSetting{}
+			setting.FromJson(settingJson)
+			// use protocol info to rewrite setting
+			setting.AdjustWithProtocol(protocol)
+			if setting.Validate() {
+				c.customSettings = append(c.customSettings, setting)
+			}
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
-	if c.apiTokens == nil || len(c.apiTokens) == 0 {
-		return errors.New("no apiToken found in provider config")
-	}
 	if c.timeout < 0 {
 		return errors.New("invalid timeout in config")
 	}
@@ -298,4 +355,8 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
+	return ReplaceByCustomSettings(body, c.customSettings)
 }

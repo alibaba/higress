@@ -94,4 +94,4 @@ spec:
     rejected_msg: "customize reject message"
     enable_swagger: true
     enable_oas3: false
-  url: file:///opt/plugins/wasm-go/extensions/request-validation/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/request-validation:1.0.0

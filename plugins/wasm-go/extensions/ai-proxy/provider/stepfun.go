@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -18,6 +19,9 @@ type stepfunProviderInitializer struct {
 }
 
 func (m *stepfunProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -43,14 +47,8 @@ func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	}
 	_ = util.OverwriteRequestPath(stepfunChatCompletionPath)
 	_ = util.OverwriteRequestHost(stepfunDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
-
-	if m.contextCache == nil {
-		ctx.DontReadRequestBody()
-	} else {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	}
-
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
 

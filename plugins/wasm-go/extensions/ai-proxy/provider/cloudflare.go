@@ -3,11 +3,12 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
 )
 
 const (
@@ -20,6 +21,9 @@ type cloudflareProviderInitializer struct {
 }
 
 func (c *cloudflareProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -45,11 +49,8 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	}
 	_ = util.OverwriteRequestPath(strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	_ = util.OverwriteRequestHost(cloudflareDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+c.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetRandomToken())
 
-	if c.config.context == nil && c.config.protocol == protocolOriginal {
-		ctx.DontReadRequestBody()
-	}
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 

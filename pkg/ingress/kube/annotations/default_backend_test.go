@@ -21,9 +21,10 @@ import (
 	"time"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	listerv1 "k8s.io/client-go/listers/core/v1"
@@ -64,7 +65,7 @@ func TestFallbackParse(t *testing.T) {
 				buildNginxAnnotationKey(annDefaultBackend): "test/app",
 			},
 			expect: &FallbackConfig{
-				DefaultBackend: model.NamespacedName{
+				DefaultBackend: types.NamespacedName{
 					Namespace: "test",
 					Name:      "app",
 				},
@@ -76,7 +77,7 @@ func TestFallbackParse(t *testing.T) {
 				buildHigressAnnotationKey(annDefaultBackend): "app",
 			},
 			expect: &FallbackConfig{
-				DefaultBackend: model.NamespacedName{
+				DefaultBackend: types.NamespacedName{
 					Namespace: "test",
 					Name:      "app",
 				},
@@ -94,7 +95,7 @@ func TestFallbackParse(t *testing.T) {
 				buildNginxAnnotationKey(customHTTPError):     "404,503",
 			},
 			expect: &FallbackConfig{
-				DefaultBackend: model.NamespacedName{
+				DefaultBackend: types.NamespacedName{
 					Namespace: "test",
 					Name:      "app",
 				},
@@ -108,7 +109,7 @@ func TestFallbackParse(t *testing.T) {
 				buildNginxAnnotationKey(customHTTPError):     "404,5ac",
 			},
 			expect: &FallbackConfig{
-				DefaultBackend: model.NamespacedName{
+				DefaultBackend: types.NamespacedName{
 					Namespace: "test",
 					Name:      "app",
 				},
@@ -152,7 +153,7 @@ func TestFallbackApplyRoute(t *testing.T) {
 		{
 			config: &Ingress{
 				Fallback: &FallbackConfig{
-					DefaultBackend: model.NamespacedName{
+					DefaultBackend: types.NamespacedName{
 						Namespace: "test",
 						Name:      "app",
 					},
@@ -222,7 +223,7 @@ func initGlobalContextForService() (*GlobalContext, context.CancelFunc) {
 	cache.WaitForCacheSync(ctx.Done(), serviceInformer.Informer().HasSynced)
 
 	return &GlobalContext{
-		ClusterServiceList: map[string]listerv1.ServiceLister{
+		ClusterServiceList: map[cluster.ID]listerv1.ServiceLister{
 			"cluster": serviceInformer.Lister(),
 		},
 	}, cancel

@@ -15,16 +15,16 @@
 package main
 
 import (
-	"regexp"
 	"strings"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	regexp "github.com/wasilibs/go-re2"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -291,6 +291,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	ctx.SetContext("path", path)
 
 	if config.reqTrans == nil {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -299,15 +300,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Warn("failed to get request headers")
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
 	if hs[":authority"] == nil {
 		log.Warn(errGetRequestHost.Error())
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	if hs[":path"] == nil {
 		log.Warn(errGetRequestPath.Error())
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	contentType := ""
@@ -330,6 +334,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	qs, err := parseQueryByPath(path)
 	if err != nil {
 		log.Warnf("failed to parse query params by path: %v", err)
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -358,6 +363,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	if config.reqTrans.IsHeaderChange() {
 		if err = config.reqTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request headers: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 	}
@@ -365,11 +371,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	if config.reqTrans.IsQueryChange() {
 		if err = config.reqTrans.TransformQuerys(host, path, qs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request query params: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 		path, err = constructPath(path, qs)
 		if err != nil {
 			log.Warnf("failed to construct path: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 		hs[":path"] = []string{path}
@@ -378,6 +386,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	headers = reconvertHeaders(hs)
 	if err = proxywasm.ReplaceHttpRequestHeaders(headers); err != nil {
 		log.Warnf("failed to replace request headers: %v", err)
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -507,6 +516,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, log wrapper.Log) types.Action {
 	if config.respTrans == nil {
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -515,11 +525,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	host, path, err := getHostAndPathFromHttpCtx(ctx)
 	if err != nil {
 		log.Warn(err.Error())
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
 		log.Warnf("failed to get response headers: %v", err)
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
@@ -555,6 +567,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	if config.respTrans.IsHeaderChange() {
 		if err = config.respTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
 			log.Warnf("failed to transform response headers: %v", err)
+			ctx.DontReadResponseBody()
 			return types.ActionContinue
 		}
 	}
@@ -562,6 +575,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	headers = reconvertHeaders(hs)
 	if err = proxywasm.ReplaceHttpResponseHeaders(headers); err != nil {
 		log.Warnf("failed to replace response headers: %v", err)
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
