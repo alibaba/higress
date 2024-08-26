@@ -42,7 +42,7 @@ const (
 	ReturnJsonMisMatchSchemaCode = 1005
 	ReachMeaxRetryCountCode      = 1006
 	ServiceUnavailableCode       = 1007
-	ServiceConfiginValidCode     = 1008
+	ServiceConfigNotValidCode    = 1008
 )
 
 type RejectStruct struct {
@@ -188,7 +188,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	}
 
 	if config.serviceDomain == "" {
-		config.rejectStruct = RejectStruct{ServiceConfiginValidCode, "service domain is empty"}
+		config.rejectStruct = RejectStruct{ServiceConfigNotValidCode, "service domain is empty"}
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
