@@ -190,26 +190,19 @@ func TrimQuote(source string) string {
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	bodyJson := gjson.ParseBytes(body)
-	// TODO: It may be necessary to support stream mode determination for different LLM providers.
 	if bodyJson.Get("stream").Bool() {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
-	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
-	if question == "" {
-		log.Debug("parse question from request body failed")
-		return types.ActionContinue
-	}
-	ctx.SetContext(QuestionContextKey, question)
 	identityKey := ctx.GetStringContext(IdentityKey, "")
 	err := config.redisClient.Get(config.CacheKeyPrefix+identityKey, func(response resp.Value) {
 		if err := response.Error(); err != nil {
-			log.Errorf("redis get question:%s failed, err:%v", question, err)
-			proxywasm.ResumeHttpRequest()
+			log.Errorf("redis get  failed, err:%v", err)
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		if response.IsNull() {
-			log.Debugf("cache miss, question:%s", question)
-			proxywasm.ResumeHttpRequest()
+			log.Debugf("cache miss, identityKey:%s", identityKey)
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		chatHistories := response.String()
@@ -218,7 +211,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		err := json.Unmarshal([]byte(chatHistories), &chat)
 		if err != nil {
 			log.Errorf("unmarshal chatHistories:%s failed, err:%v", chatHistories, err)
-			proxywasm.ResumeHttpRequest()
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		path := ctx.Path()
@@ -231,19 +224,26 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			res, err := json.Marshal(chat)
 			if err != nil {
 				log.Errorf("marshal chat:%v failed, err:%v", chat, err)
-				proxywasm.ResumeHttpRequest()
+				_ = proxywasm.ResumeHttpRequest()
 				return
 			}
 			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
 		}
+		question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
+		if question == "" {
+			log.Debug("parse question from request body failed")
+			_ = proxywasm.ResumeHttpRequest()
+			return
+		}
+		ctx.SetContext(QuestionContextKey, question)
 		fillHistoryCnt := getIntQueryParameter("fill_history_cnt", path, config.FillHistoryCnt) * 2
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
 		err = json.Unmarshal([]byte(currJson), &currMessage)
 		if err != nil {
 			log.Errorf("unmarshal currMessage:%s failed, err:%v", currJson, err)
-			proxywasm.ResumeHttpRequest()
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		finalChat := fillHistory(chat, currMessage, fillHistoryCnt)
@@ -251,14 +251,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		err = json.Unmarshal(body, &parameter)
 		if err != nil {
 			log.Errorf("unmarshal body:%s failed, err:%v", body, err)
-			proxywasm.ResumeHttpRequest()
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		parameter["messages"] = finalChat
 		parameterJson, err := json.Marshal(parameter)
 		if err != nil {
 			log.Errorf("marshal parameter:%v failed, err:%v", parameter, err)
-			proxywasm.ResumeHttpRequest()
+			_ = proxywasm.ResumeHttpRequest()
 			return
 		}
 		log.Infof("start to replace request body, parameter:%s", string(parameterJson))
