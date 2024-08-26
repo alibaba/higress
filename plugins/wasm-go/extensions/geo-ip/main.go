@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net"
 	"net/url"
 	"strings"
 
@@ -20,6 +21,12 @@ var geoipdata string
 var GeoIpRdxTree *iptree.IPTree
 var HaveInitGeoIpDb bool = false
 
+const (
+	DefaultRealIpHeader = "X-Forwarded-For"
+	OriginSourceType    = "origin-source"
+	HeaderSourceType    = "header"
+)
+
 func main() {
 	wrapper.SetCtx(
 		"geo-ip",
@@ -29,7 +36,9 @@ func main() {
 }
 
 type GeoIpConfig struct {
-	IpProtocol string `json:"ip_protocol"`
+	IpProtocol   string `json:"ip_protocol"`
+	IPSourceType string `json:"ip_source_type"`
+	IPHeaderName string `json:"ip_header_name"`
 }
 
 type GeoIpData struct {
@@ -41,6 +50,26 @@ type GeoIpData struct {
 }
 
 func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error {
+	sourceType := json.Get("ip_source_type")
+	if sourceType.Exists() && sourceType.String() != "" {
+		switch sourceType.String() {
+		case HeaderSourceType:
+			config.IPSourceType = HeaderSourceType
+		case OriginSourceType:
+		default:
+			config.IPSourceType = OriginSourceType
+		}
+	} else {
+		config.IPSourceType = OriginSourceType
+	}
+
+	header := json.Get("ip_header_name")
+	if header.Exists() && header.String() != "" {
+		config.IPHeaderName = header.String()
+	} else {
+		config.IPHeaderName = DefaultRealIpHeader
+	}
+
 	ipProtocol := json.Get("ipProtocol")
 	if !ipProtocol.Exists() || ipProtocol.String() == "" {
 		config.IpProtocol = "ipv4"
@@ -113,22 +142,42 @@ func SearchGeoIpDataInRdxtree(ip string, log wrapper.Log) (*GeoIpData, error) {
 	return nil, errors.New("geo ip data not found")
 }
 
+func parseIP(source string) string {
+	if strings.Contains(source, ".") {
+		// parse ipv4
+		return strings.Split(source, ":")[0]
+	}
+	//parse ipv6
+	if strings.Contains(source, "]") {
+		return strings.Split(source, "]")[0][1:]
+	}
+	return source
+}
+
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapper.Log) types.Action {
-	var clientIp string
-	xffHdr, err := proxywasm.GetHttpRequestHeader("x-forwarded-for")
-	if err != nil {
-		log.Errorf("no request header x-forwarded-for.%v", err)
-		remoteAddr, err := proxywasm.GetProperty([]string{"source", "address"})
-		if err != nil {
-			log.Errorf("get property source address failed.%v", err)
-			return types.ActionContinue
-		} else {
-			clientIp = string(remoteAddr)
-			log.Infof("client ip:%s", clientIp)
+	var (
+		s   string
+		err error
+	)
+	if config.IPSourceType == HeaderSourceType {
+		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
+		if err == nil {
+			s = strings.Split(strings.Trim(s, " "), ",")[0]
 		}
 	} else {
-		log.Infof("xff header: %s", xffHdr)
-		clientIp = strings.Trim((strings.Split(xffHdr, ","))[0], " ")
+		var bs []byte
+		bs, err = proxywasm.GetProperty([]string{"source", "address"})
+		s = string(bs)
+	}
+	if err != nil {
+		log.Errorf("get client ip failed. %s %v", config.IPSourceType, err)
+		return types.ActionContinue
+	}
+	clientIp := parseIP(s)
+	chkIp := net.ParseIP(clientIp)
+	if chkIp == nil {
+		log.Errorf("invalid ip[%s].", clientIp)
+		return types.ActionContinue
 	}
 
 	if config.IpProtocol == "ipv4" && !strings.Contains(clientIp, ".") {
