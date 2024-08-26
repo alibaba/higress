@@ -101,6 +101,18 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 				log.Errorf("Replace model error: %v", err)
 				return types.ActionContinue, err
 			}
+
+			// TODO: Temporary fix to clamp top_p value to the range [qwenTopPMin, qwenTopPMax].
+			if topPValue := gjson.GetBytes(body, "top_p"); topPValue.Exists() {
+				rawTopP := topPValue.Float()
+				scaledTopP := math.Max(qwenTopPMin, math.Min(rawTopP, qwenTopPMax))
+				newBody, err = sjson.SetBytes(newBody, "top_p", scaledTopP)
+				if err != nil {
+					log.Errorf("Failed to replace top_p: %v", err)
+					return types.ActionContinue, err
+				}
+			}
+
 			err = proxywasm.ReplaceHttpRequestBody(newBody)
 			if err != nil {
 				log.Errorf("Replace request body error: %v", err)
