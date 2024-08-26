@@ -22,20 +22,28 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
+	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/config/schema/gvr"
+	schemakubeclient "istio.io/istio/pkg/config/schema/kubeclient"
 	"istio.io/istio/pkg/kube/controllers"
+	ktypes "istio.io/istio/pkg/kube/kubetypes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/networking/v1beta1"
 	ingress "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/util/workqueue"
+	"k8s.io/apimachinery/pkg/watch"
+	listerv1 "k8s.io/client-go/listers/core/v1"
+	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/alibaba/higress/pkg/kube"
 	"github.com/stretchr/testify/require"
 )
@@ -1135,24 +1143,33 @@ func TestIngressControllerProcessing(t *testing.T) {
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
 	secretController := secret.NewController(localKubeClient, options.ClusterId)
-	q := workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
 
-	ingressInformer := fakeClient.KubeInformer().Networking().V1beta1().Ingresses()
-	serviceInformer := fakeClient.KubeInformer().Core().V1().Services()
+	opts := ktypes.InformerOptions{}
+	ingressInformer := util.GetInformerFiltered(fakeClient, opts, gvrIngressV1Beta1, &ingress.Ingress{},
+		func(options metav1.ListOptions) (runtime.Object, error) {
+			return fakeClient.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).List(context.Background(), options)
+		},
+		func(options metav1.ListOptions) (watch.Interface, error) {
+			return fakeClient.Kube().NetworkingV1beta1().Ingresses(opts.Namespace).Watch(context.Background(), options)
+		})
+	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
+	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(fakeClient, opts, gvr.Service)
+	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
 	ingressController := &controller{
 		options:          options,
-		queue:            q,
 		ingresses:        make(map[string]*ingress.Ingress),
-		ingressInformer:  ingressInformer.Informer(),
-		ingressLister:    ingressInformer.Lister(),
-		serviceInformer:  serviceInformer.Informer(),
-		serviceLister:    serviceInformer.Lister(),
+		ingressInformer:  ingressInformer,
+		ingressLister:    ingressLister,
+		serviceInformer:  serviceInformer,
+		serviceLister:    serviceLister,
 		secretController: secretController,
 	}
 
-	handler := controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q))
-	ingressController.ingressInformer.AddEventHandler(handler)
+	ingressController.queue = controllers.NewQueue("ingress-test",
+		controllers.WithReconciler(ingressController.onEvent),
+		controllers.WithMaxAttempts(5))
+	_, _ = ingressController.ingressInformer.Informer.AddEventHandler(controllers.ObjectHandler(ingressController.queue.AddObject))
 
 	stopChan := make(chan struct{})
 	t.Cleanup(func() {
@@ -1160,22 +1177,20 @@ func TestIngressControllerProcessing(t *testing.T) {
 		stopChan <- struct{}{}
 	})
 
-	go ingressController.ingressInformer.Run(stopChan)
-	go ingressController.serviceInformer.Run(stopChan)
+	go ingressController.ingressInformer.Start(stopChan)
+	go ingressController.serviceInformer.Start(stopChan)
 	go ingressController.secretController.Informer().Run(stopChan)
 
 	go ingressController.Run(stopChan)
-	go secretController.Run(stopChan)
 
-	ingressController.RegisterEventHandler(gvk.VirtualService, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.DestinationRule, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.EnvoyFilter, func(c1, c2 config.Config, e model.Event) {})
-	ingressController.RegisterEventHandler(gvk.Gateway, func(c1, c2 config.Config, e model.Event) {})
+	ingressController.RegisterEventHandler(gvk.VirtualService, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.DestinationRule, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.EnvoyFilter, func(c1, c2 config.Config, e istiomodel.Event) {})
+	ingressController.RegisterEventHandler(gvk.Gateway, func(c1, c2 config.Config, e istiomodel.Event) {})
 
-	serviceLister := ingressController.ServiceLister()
-	svcObj, err := fakeClient.CoreV1().Services("default").Create(context.Background(), &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "test"}}, metav1.CreateOptions{})
+	svcObj, err := fakeClient.Kube().CoreV1().Services("default").Create(context.Background(), &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "test"}}, metav1.CreateOptions{})
 	require.NoError(t, err)
-	err = serviceInformer.Informer().GetStore().Add(svcObj)
+	err = serviceInformer.Informer.GetStore().Add(svcObj)
 	require.NoError(t, err)
 	services, err := serviceLister.List(labels.Everything())
 	require.NoError(t, err)
@@ -1203,9 +1218,9 @@ func TestIngressControllerProcessing(t *testing.T) {
 			},
 		},
 	}
-	ingressObj, err := fakeClient.NetworkingV1beta1().Ingresses("default").Create(context.Background(), ingress1, metav1.CreateOptions{})
+	ingressObj, err := fakeClient.Kube().NetworkingV1beta1().Ingresses("default").Create(context.Background(), ingress1, metav1.CreateOptions{})
 	require.NoError(t, err)
-	err = ingressController.ingressInformer.GetStore().Add(ingressObj)
+	err = ingressController.ingressInformer.Informer.GetStore().Add(ingressObj)
 	require.NoError(t, err)
 	ingresses := ingressController.List()
 	require.Equal(t, 1, len(ingresses))
@@ -1233,7 +1248,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 			},
 		},
 	}
-	err = ingressController.ingressInformer.GetStore().Add(ingress2)
+	err = ingressController.ingressInformer.Informer.GetStore().Add(ingress2)
 	require.NoError(t, err)
 	ingresses = ingressController.List()
 	require.Equal(t, 2, len(ingresses))

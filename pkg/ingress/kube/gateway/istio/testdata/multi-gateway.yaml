@@ -1,0 +1,32 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GatewayClass
+metadata:
+  name: higress
+spec:
+  controllerName: higress.io/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: higress-system
+spec:
+  gatewayClassName: higress
+  addresses:
+  - type: Hostname
+    value: higress-gateway
+  - type: Hostname
+    value: higress-gateway.not-default.svc.domain.suffix
+  - type: Hostname
+    value: example.com
+  listeners:
+  - name: http
+    hostname: "*.domain.example"
+    port: 80
+    protocol: HTTP
+  - name: tcp
+    port: 34000
+    protocol: TCP
+    allowedRoutes:
+      namespaces:
+        from: All

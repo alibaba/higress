@@ -21,11 +21,11 @@ import (
 	"time"
 
 	kubelib "istio.io/istio/pkg/kube"
-	coreV1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	listerv1 "k8s.io/client-go/listers/core/v1"
+	corelister "k8s.io/client-go/listers/core/v1"
 	ingresslister "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -42,18 +42,19 @@ type statusSyncer struct {
 
 	ingressLister ingresslister.IngressLister
 	// search service in the mse vpc
-	serviceLister listerv1.ServiceLister
+	serviceLister corelister.ServiceLister
 }
 
 // newStatusSyncer creates a new instance
-func newStatusSyncer(localKubeClient, client kubelib.Client, controller *controller, namespace string) *statusSyncer {
+func newStatusSyncer(localKubeClient, client kubelib.Client, controller *controller, namespace string,
+	ingressLister ingresslister.IngressLister, serviceLister corelister.ServiceLister) *statusSyncer {
 	return &statusSyncer{
-		client:           client,
+		client:           client.Kube(),
 		controller:       controller,
 		watchedNamespace: namespace,
-		ingressLister:    client.KubeInformer().Networking().V1().Ingresses().Lister(),
+		ingressLister:    ingressLister,
 		// search service in the mse vpc
-		serviceLister: localKubeClient.KubeInformer().Core().V1().Services().Lister(),
+		serviceLister: serviceLister,
 	}
 }
 
@@ -82,7 +83,7 @@ func (s *statusSyncer) runUpdateStatus() error {
 
 	IngressLog.Debugf("found number %d of svc", len(svcList))
 
-	lbStatusList := common.GetLbStatusList(svcList)
+	lbStatusList := common.GetLbStatusListV1(svcList)
 	if len(lbStatusList) == 0 {
 		return nil
 	}
@@ -91,7 +92,7 @@ func (s *statusSyncer) runUpdateStatus() error {
 }
 
 // updateStatus updates ingress status with the list of IP
-func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
+func (s *statusSyncer) updateStatus(status []networkingv1.IngressLoadBalancerIngress) error {
 	ingressList, err := s.ingressLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -109,7 +110,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 		}
 
 		curIPs := ingress.Status.LoadBalancer.Ingress
-		sort.SliceStable(curIPs, common.SortLbIngressList(curIPs))
+		sort.SliceStable(curIPs, common.SortLbIngressListV1(curIPs))
 
 		if reflect.DeepEqual(status, curIPs) {
 			IngressLog.Debugf("skipping update of Ingress %v/%v within cluster %s (no change)",
@@ -120,7 +121,7 @@ func (s *statusSyncer) updateStatus(status []coreV1.LoadBalancerIngress) error {
 		ingress.Status.LoadBalancer.Ingress = status
 		IngressLog.Infof("Update Ingress %v/%v within cluster %s status",
 			ingress.Namespace, ingress.Name, s.controller.options.ClusterId)
-		_, err = s.client.NetworkingV1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metaV1.UpdateOptions{})
+		_, err = s.client.NetworkingV1().Ingresses(ingress.Namespace).UpdateStatus(context.TODO(), ingress, metav1.UpdateOptions{})
 		if err != nil {
 			IngressLog.Warnf("error updating ingress %s/%s within cluster %s status: %v",
 				ingress.Namespace, ingress.Name, s.controller.options.ClusterId, err)

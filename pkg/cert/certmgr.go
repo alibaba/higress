@@ -25,7 +25,7 @@ import (
 	"github.com/mholt/acmez"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"istio.io/istio/pilot/pkg/model"
+	istiomodel "istio.io/istio/pilot/pkg/model"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -48,10 +48,10 @@ type CertMgr struct {
 	ingressSolver acmez.Solver
 	configMgr     *ConfigMgr
 	secretMgr     *SecretMgr
-	XDSUpdater    model.XDSUpdater
+	XDSUpdater    istiomodel.XDSUpdater
 }
 
-func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, XDSUpdater model.XDSUpdater, configMgr *ConfigMgr) (*CertMgr, error) {
+func InitCertMgr(opts *Option, clientSet kubernetes.Interface, config *Config, XDSUpdater istiomodel.XDSUpdater, configMgr *ConfigMgr) (*CertMgr, error) {
 	CertLog.Infof("certmgr init config: %+v", config)
 	// Init certmagic config
 	// First make a pointer to a Cache as we need to reference the same Cache in
@@ -185,9 +185,9 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 	if oldConfig != nil && newConfig != nil {
 		if oldConfig.FallbackForInvalidSecret != newConfig.FallbackForInvalidSecret || !reflect.DeepEqual(oldConfig.CredentialConfig, newConfig.CredentialConfig) {
 			CertLog.Infof("ingress need to full push")
-			s.XDSUpdater.ConfigUpdate(&model.PushRequest{
+			s.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full:   true,
-				Reason: []model.TriggerReason{"higress-https-updated"},
+				Reason: istiomodel.NewReasonStats("higress-https-updated"),
 			})
 		}
 	}
