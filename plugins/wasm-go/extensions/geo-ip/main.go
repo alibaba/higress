@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 
 	_ "embed"
@@ -27,7 +28,7 @@ func main() {
 	)
 }
 
-type AIGeoIpConfig struct {
+type GeoIpConfig struct {
 	IpProtocol string `json:"ip_protocol"`
 }
 
@@ -39,8 +40,13 @@ type GeoIpData struct {
 	Isp      string `json:"isp"`
 }
 
-func parseConfig(json gjson.Result, config *AIGeoIpConfig, log wrapper.Log) error {
-	config.IpProtocol = json.Get("ipProtocol").String()
+func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error {
+	ipProtocol := json.Get("ipProtocol")
+	if !ipProtocol.Exists() {
+		config.IpProtocol = "ipv4"
+	} else {
+		config.IpProtocol = strings.ToLower(json.Get("ipProtocol").String())
+	}
 
 	if HaveInitGeoIpDb {
 		return nil
@@ -61,9 +67,12 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 
 	//eg., cidr country province city isp
 	geoIpRows := strings.Split(geoipdata, "\n")
-	geoIpRows = geoIpRows[:(len(geoIpRows) - 1)]
 	for _, row := range geoIpRows {
-		//log.Errorf("geoip cidr row: %s", row)
+		if row == "" {
+			log.Infof("parsed empty line.")
+			continue
+		}
+
 		pureRow := strings.Trim(row, " ")
 		tmpArr := strings.Split(pureRow, "|")
 		if len(tmpArr) < 5 {
@@ -83,7 +92,7 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 			return errors.New("add geoipdata into radix treefailed " + err.Error())
 		}
 
-		log.Errorf("added geoip data into radixtree: %v", *geoIpData)
+		log.Infof("added geoip data into radixtree: %v", *geoIpData)
 	}
 
 	return nil
@@ -104,7 +113,7 @@ func SearchGeoIpDataInRdxtree(ip string, log wrapper.Log) (*GeoIpData, error) {
 	return nil, errors.New("geo ip data not found")
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIGeoIpConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapper.Log) types.Action {
 	var clientIp string
 	xffHdr, err := proxywasm.GetHttpRequestHeader("x-forwarded-for")
 	if err != nil {
@@ -115,10 +124,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIGeoIpConfig, log wra
 			return types.ActionContinue
 		} else {
 			clientIp = string(remoteAddr)
-			log.Errorf("client ip:%s", clientIp)
+			log.Infof("client ip:%s", clientIp)
 		}
 	} else {
-		log.Errorf("xff header: %s", xffHdr)
+		log.Infof("xff header: %s", xffHdr)
 		clientIp = strings.Trim((strings.Split(xffHdr, ","))[0], " ")
 	}
 
@@ -129,7 +138,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIGeoIpConfig, log wra
 
 	//ipv6 will be implemented in the future.
 	if config.IpProtocol == "ipv6" || strings.Contains(clientIp, ":") {
-		log.Errorf("ipv6 and will be implemented in the future.%s %s", clientIp, config.IpProtocol)
+		log.Infof("ipv6 will be implemented in the future.%s %s", clientIp, config.IpProtocol)
 		return types.ActionContinue
 	}
 
@@ -144,10 +153,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIGeoIpConfig, log wra
 	proxywasm.SetProperty([]string{"geo-country"}, []byte(geoIpData.Country))
 	proxywasm.SetProperty([]string{"geo-isp"}, []byte(geoIpData.Isp))
 
-	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Country", geoIpData.Country)
-	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Province", geoIpData.Province)
-	proxywasm.AddHttpRequestHeader("X-Higress-Geo-City", geoIpData.City)
-	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Isp", geoIpData.Isp)
+	countryEnc := url.QueryEscape(geoIpData.Country)
+	provinceEnc := url.QueryEscape(geoIpData.Province)
+	cityEnc := url.QueryEscape(geoIpData.City)
+	ispEnc := url.QueryEscape(geoIpData.Isp)
+
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Country", countryEnc)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Province", provinceEnc)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-City", cityEnc)
+	proxywasm.AddHttpRequestHeader("X-Higress-Geo-Isp", ispEnc)
 
 	return types.ActionContinue
 }
