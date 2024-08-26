@@ -231,16 +231,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
 		}
+		fillHistoryCnt := getIntQueryParameter(config.FillHistoryCnt, path, "fill_history_cnt") * 2
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
 		_ = json.Unmarshal([]byte(currJson), &currMessage)
-		chat = DistinctChat(chat, currMessage)
-		fillHistoryCnt := getIntQueryParameter(config.FillHistoryCnt, path, "fill_history_cnt") * 2
-		if fillHistoryCnt > len(chat) {
-			fillHistoryCnt = len(chat)
-		}
-		chat = chat[len(chat)-fillHistoryCnt:]
-		finalChat := append(chat, currMessage...)
+		finalChat := fillHistory(chat, currMessage, fillHistoryCnt)
 		var parameter map[string]any
 		_ = json.Unmarshal(body, &parameter)
 		parameter["messages"] = finalChat
@@ -256,18 +251,22 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	return types.ActionPause
 }
 
-func DistinctChat(chat []ChatHistory, currMessage []ChatHistory) []ChatHistory {
-	i := 0
-	for len(chat) >= 2 && len(currMessage) >= 3+i*2 {
-		currUserLast := currMessage[len(currMessage)-3-i*2]
-		if currUserLast == chat[len(chat)-2] {
-			chat = chat[:len(chat)-2]
-		} else {
-			break
+func fillHistory(chat []ChatHistory, currMessage []ChatHistory, fillHistoryCnt int) []ChatHistory {
+	finalChat := currMessage
+	for i := len(chat) - 2; i >= 0 && fillHistoryCnt > 0; i -= 2 {
+		existCurrent := false
+		for _, curr := range currMessage {
+			if curr == chat[i] {
+				existCurrent = true
+				break
+			}
 		}
-		i++
+		if !existCurrent {
+			finalChat = append(chat[i:i+2], finalChat...)
+			fillHistoryCnt--
+		}
 	}
-	return chat
+	return finalChat
 }
 
 func isQueryHistory(path string) bool {
