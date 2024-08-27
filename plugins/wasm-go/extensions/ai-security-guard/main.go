@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -39,9 +38,30 @@ type AISecurityConfig struct {
 }
 
 type StandardResponse struct {
-	Code    int    `json:"Code"`
-	Phase   string `json:"BlockPhase"`
-	Message string `json:"Message"`
+	ID                string              `json:"id"`
+	Choices           []Choice            `json:"choices"`
+	Created           int64               `json:"created,omitempty"`
+	Model             string              `json:"model,omitempty"`
+	SystemFingerprint string              `json:"system_fingerprint,omitempty"`
+	Object            string              `json:"object,omitempty"`
+	Usage             chatCompletionUsage `json:"usage,omitempty"`
+}
+
+type Choice struct {
+	Index        int     `json:"index"`
+	Message      Message `json:"message"`
+	FinishReason string  `json:"finish_reason"`
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type chatCompletionUsage struct {
+	PromptTokens     int `json:"prompt_tokens,omitempty"`
+	CompletionTokens int `json:"completion_tokens,omitempty"`
+	TotalTokens      int `json:"total_tokens,omitempty"`
 }
 
 func urlEncoding(rawStr string) string {
@@ -101,6 +121,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
+	ctx.DontReadResponseBody()
 	return types.ActionContinue
 }
 
@@ -139,24 +160,51 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Request",
-							Message: respAdvice.Array()[0].Get("Answer").String(),
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						label := respResult.Array()[0].Get("Label").String()
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(label))
-						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.label."+label, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Request",
-							Message: "risk detected",
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						// sr := StandardResponse{
+						// 	ID:     uuid.New().String(),
+						// 	Object: "chat.completion",
+						// 	Choices: []Choice{{
+						// 		Index: 0,
+						// 		Message: Message{
+						// 			Role:    "assistant",
+						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
+						// 		},
+						// 		FinishReason: "stop",
+						// 	}},
+						// 	Model:   "qwen-max",
+						// 	Created: time.Now().Unix(),
+						// 	// SystemFingerprint: nil,
+						// 	Usage: chatCompletionUsage{},
+						// }
+						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
+						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+						jsonData := []byte(piece1 + "\n\n" + piece2)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.risk_detected", [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
+						// sr := StandardResponse{
+						// 	ID:     uuid.New().String(),
+						// 	Object: "chat.completion",
+						// 	Choices: []Choice{{
+						// 		Index: 0,
+						// 		Message: Message{
+						// 			Role:    "assistant",
+						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
+						// 		},
+						// 		FinishReason: "stop",
+						// 	}},
+						// 	Model:   "qwen-max",
+						// 	Created: time.Now().Unix(),
+						// 	// SystemFingerprint: nil,
+						// 	Usage: chatCompletionUsage{},
+						// }
+						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
+						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+						jsonData := []byte(piece1 + "\n\n" + piece2)
+						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}
@@ -237,28 +285,56 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Response",
-							Message: respAdvice.Array()[0].Get("Answer").String(),
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						// sr := StandardResponse{
+						// 	ID:     uuid.New().String(),
+						// 	Object: "chat.completion",
+						// 	Choices: []Choice{{
+						// 		Index: 0,
+						// 		Message: Message{
+						// 			Role:    "assistant",
+						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
+						// 		},
+						// 		FinishReason: "stop",
+						// 	}},
+						// 	Model:   "qwen-max",
+						// 	Created: time.Now().Unix(),
+						// 	// SystemFingerprint: nil,
+						// 	Usage: chatCompletionUsage{},
+						// }
+						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
+						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+						jsonData := []byte(piece1 + "\n\n" + piece2)
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						delete(hdsMap, "content-length")
-						hdsMap[":status"] = []string{"403"}
+						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Response",
-							Message: "risk detected",
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						// sr := StandardResponse{
+						// 	ID:     uuid.New().String(),
+						// 	Object: "chat.completion",
+						// 	Choices: []Choice{{
+						// 		Index: 0,
+						// 		Message: Message{
+						// 			Role:    "assistant",
+						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
+						// 		},
+						// 		FinishReason: "stop",
+						// 	}},
+						// 	Model:   "qwen-max",
+						// 	Created: time.Now().Unix(),
+						// 	// SystemFingerprint: nil,
+						// 	Usage: chatCompletionUsage{},
+						// }
+						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
+						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
+						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+						jsonData := []byte(piece1 + "\n\n" + piece2)
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						delete(hdsMap, "content-length")
-						hdsMap[":status"] = []string{"403"}
+						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
