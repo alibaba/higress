@@ -12,7 +12,8 @@
 # 配置示例
 
 ```yaml
-ip_protocol: ipv4
+ip_source_type: header
+ip_header_name: X-Real-Ip
 ```
 
 # 生成geoCidr.txt的说明
