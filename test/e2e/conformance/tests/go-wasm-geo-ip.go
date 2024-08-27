@@ -98,7 +98,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 					},
-					ExpectedResponseNoRequest: true,
+					ExpectedResponseNoRequest: false,
 				},
 			},
 		}
