@@ -38,8 +38,6 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	// log.Debugf("loading config: %s", json.String())
-
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
 		return err
@@ -47,6 +45,10 @@ func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapp
 	if err := pluginConfig.Complete(); err != nil {
 		return err
 	}
+
+	providerConfig := pluginConfig.GetProviderConfig()
+	providerConfig.SetApiTokensFailover(log)
+
 	return nil
 }
 
@@ -72,8 +74,18 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	ctx.SetContext(ctxKeyApiName, apiName)
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
-		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
+		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
+
+		log.Debugf("ApiTokens: %s, UnavailableApiTokens: %s", provider.ApiTokens, provider.UnavailableApiTokens)
+		apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check")
+		if apiTokenHealthCheck != "" {
+			ctx.SetContext(provider.ApiTokenInUse, apiTokenHealthCheck)
+		} else {
+			providerConfig := pluginConfig.GetProviderConfig()
+			ctx.SetContext(provider.ApiTokenInUse, providerConfig.GetRandomToken())
+		}
+
 		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
@@ -85,6 +97,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 			}
 			return action
 		}
+
 		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue
 	}
@@ -145,6 +158,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 			log.Errorf("unable to load :status header from response: %v", err)
 		}
 		ctx.DontReadResponseBody()
+
+		if ctx.GetContext(provider.ApiTokenHealthCheck) == nil {
+			unavailableApiToken := ctx.GetContext(provider.ApiTokenInUse).(string)
+			providerConfig := pluginConfig.GetProviderConfig()
+			providerConfig.HandleUnavailableApiToken(unavailableApiToken, log)
+		}
+
 		return types.ActionContinue
 	}
 
