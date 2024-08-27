@@ -3,9 +3,34 @@
 
 # 配置说明
 
-| 名称         | 数据类型   | 填写要求 | 默认值 | 描述               |
-|------------|--------|------|-----|------------------|
-| `enable` | bool | 必填   | -   | 是否开启ai统计功能 |
+| 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
+|----------------|-------|------|-----|------------------------|
+| `enable`       | bool  | 必填   | -   | 是否开启ai统计功能             |
+| `tracing_span` | array | 非必填  | -   | 自定义tracing span tag 配置 |
+
+## tracing_span 配置说明
+| 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
+|----------------|-------|-----|-----|------------------------|
+| `key`         | string | 必填  | -   | tracing tag 名称           |
+| `value_source`        | string | 必填  | -   | tag 取值来源             |
+| `value`      | string | 必填  | -   | tag 取值 key value/path           |
+
+value_source为 tag 值的取值来源，可选配置值有 4 个：
+- property ： tag 值通过proxywasm.GetProperty()方法获取，value配置GetProperty()方法要提取的key名
+- requeset_header ： tag 值通过http请求头获取，value配置为header key
+- request_body ：tag 值通过请求body获取，value配置格式为 gjson的 GJSON PATH 语法
+- response_header ： tag 值通过http响应头获取，value配置为header key
+
+举例如下： 
+```yaml
+tracing_label:
+- key: "session_id"
+  value_source: "requeset_header"
+  value: "session_id"
+- key: "user_content"
+  value_source: "request_body"
+  value: "input.messages.1.content"
+```
 
 开启后 metrics 示例：
 ```
