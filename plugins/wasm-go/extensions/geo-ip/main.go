@@ -180,11 +180,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapp
 		return types.ActionContinue
 	}
 
-	if config.IpProtocol == "ipv4" && !strings.Contains(clientIp, ".") {
-		log.Errorf("client ip is not ipv4 format.%s", clientIp)
-		return types.ActionContinue
-	}
-
 	//ipv6 will be implemented in the future.
 	if config.IpProtocol == "ipv6" || strings.Contains(clientIp, ":") {
 		log.Infof("ipv6 will be implemented in the future.%s %s", clientIp, config.IpProtocol)
