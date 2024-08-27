@@ -10,28 +10,24 @@ const (
 	streamHttpStatusValuePrefix = "HTTP_STATUS/"
 	streamDataItemKey           = "data:"
 	streamEndDataValue          = "[DONE]"
-
-	eventResult = "result"
-
-	httpStatus200 = "200"
 )
 
 type chatCompletionRequest struct {
-	Model            string         `json:"model"`
-	Messages         []chatMessage  `json:"messages"`
-	MaxTokens        int            `json:"max_tokens,omitempty"`
-	FrequencyPenalty float64        `json:"frequency_penalty,omitempty"`
-	N                int            `json:"n,omitempty"`
-	PresencePenalty  float64        `json:"presence_penalty,omitempty"`
-	Seed             int            `json:"seed,omitempty"`
-	Stream           bool           `json:"stream,omitempty"`
-	StreamOptions    *streamOptions `json:"stream_options,omitempty"`
-	Temperature      float64        `json:"temperature,omitempty"`
-	TopP             float64        `json:"top_p,omitempty"`
-	Tools            []tool         `json:"tools,omitempty"`
-	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
-	User             string         `json:"user,omitempty"`
-	Stop             []string       `json:"stop,omitempty"`
+	Model            string                 `json:"model"`
+	Messages         []chatMessage          `json:"messages"`
+	MaxTokens        int                    `json:"max_tokens,omitempty"`
+	FrequencyPenalty float64                `json:"frequency_penalty,omitempty"`
+	N                int                    `json:"n,omitempty"`
+	PresencePenalty  float64                `json:"presence_penalty,omitempty"`
+	Seed             int                    `json:"seed,omitempty"`
+	Stream           bool                   `json:"stream,omitempty"`
+	StreamOptions    *streamOptions         `json:"stream_options,omitempty"`
+	Temperature      float64                `json:"temperature,omitempty"`
+	TopP             float64                `json:"top_p,omitempty"`
+	Tools            []tool                 `json:"tools,omitempty"`
+	ToolChoice       *toolChoice            `json:"tool_choice,omitempty"`
+	User             string                 `json:"user,omitempty"`
+	Stop             []string               `json:"stop,omitempty"`
 	ResponseFormat   map[string]interface{} `json:"response_format,omitempty"`
 }
 

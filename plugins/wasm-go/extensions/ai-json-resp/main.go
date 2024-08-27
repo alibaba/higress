@@ -30,19 +30,18 @@ import (
 )
 
 const (
-	DefaultSchema                 = "defaultSchema"
+	defaultSchema                 = "defaultSchema"
 	httpStatusOK                  = uint32(200)
-	httpStatusBadRequest          = uint32(400)
 	httpStatusInternalServerError = uint32(500)
 
-	JsonSchemaNotValidCode       = 1001
-	JsonSchemaCompileFailedCode  = 1002
-	CannotFindJsonInResponseCode = 1003
-	ReturnContentisEmpytCode     = 1004
-	ReturnJsonMisMatchSchemaCode = 1005
-	ReachMeaxRetryCountCode      = 1006
-	ServiceUnavailableCode       = 1007
-	ServiceConfigNotValidCode    = 1008
+	jsonSchemaNotValidCode       = 1001
+	jsonSchemaCompileFailedCode  = 1002
+	cannotFindJsonInResponseCode = 1003
+	contentisEmpytCode           = 1004
+	jsonMismatchSchemaCode       = 1005
+	reachMaxRetryCountCode       = 1006
+	serviceUnavailableCode       = 1007
+	serviceConfigInvalidCode     = 1008
 )
 
 type RejectStruct struct {
@@ -121,12 +120,12 @@ func main() {
 }
 
 type ReplayBuffer struct {
-	url        string
+	Path       string
 	ReqHeader  [][2]string
 	ReqBody    []byte
 	RespHeader [][2]string
 	RespBody   []byte
-	HisMsg     []chatMessage
+	HistoryMessages     []chatMessage
 }
 
 func parseUrl(url string) (string, string) {
@@ -181,14 +180,14 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 			config.jsonSchema = schemaValue
 
 		} else {
-			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema is not valid"}
+			config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema is not valid"}
 		}
 	} else {
 		config.jsonSchema = nil
 	}
 
 	if config.serviceDomain == "" {
-		config.rejectStruct = RejectStruct{ServiceConfigNotValidCode, "service domain is empty"}
+		config.rejectStruct = RejectStruct{serviceConfigInvalidCode, "service domain is empty"}
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -232,7 +231,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 
 	jsonSchemaBytes, err := json.Marshal(config.jsonSchema)
 	if err != nil {
-		config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema marshal failed"}
+		config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema marshal failed"}
 		return err
 	}
 	maxDepth := GetMaxDepth(config.jsonSchema)
@@ -240,7 +239,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	if maxDepth > config.jsonSchemaMaxDepth {
 		config.useJSinVal = false
 		if config.rejectOnDepthExceeded {
-			config.rejectStruct = RejectStruct{JsonSchemaNotValidCode, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
+			config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
 			log.Infof("Json Schema depth exceeded: %d from %d , reject the request", maxDepth, config.jsonSchemaMaxDepth)
 		} else {
 			log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
@@ -249,12 +248,12 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 
 	if config.useJSinVal {
 		jsonSchemaStr := string(jsonSchemaBytes)
-		config.compiler.AddResource(DefaultSchema, strings.NewReader(jsonSchemaStr))
+		config.compiler.AddResource(defaultSchema, strings.NewReader(jsonSchemaStr))
 		// Test if the Json Schema is valid
-		compile, err := config.compiler.Compile(DefaultSchema)
+		compile, err := config.compiler.Compile(defaultSchema)
 		if err != nil {
 			log.Infof("Json Schema compile failed: %v", err)
-			config.rejectStruct = RejectStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			config.rejectStruct = RejectStruct{jsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
 			config.compile = nil
 		} else {
 			config.compile = compile
@@ -274,7 +273,7 @@ func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 	askQuestion := "Given the Json Schema: " + jsonSchemaStr + ", please help me construct the following content to a pure json: " + content
 	askQuestion += "\n Do not response other content except the pure json!!!!"
 
-	reqBodystrut.Messages = append(r.HisMsg, []chatMessage{
+	reqBodystrut.Messages = append(r.HistoryMessages, []chatMessage{
 		{
 			Role:    "user",
 			Content: askQuestion,
@@ -311,14 +310,14 @@ func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []b
 	}
 
 	if lastUserMessage != "" {
-		r.HisMsg = append(r.HisMsg, chatMessage{
+		r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 			Role:    "user",
 			Content: lastUserMessage,
 		})
 	}
 
 	if lastSystemMessage != "" {
-		r.HisMsg = append(r.HisMsg, chatMessage{
+		r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 			Role:    "system",
 			Content: lastSystemMessage,
 		})
@@ -326,7 +325,7 @@ func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []b
 }
 
 func (r *ReplayBuffer) SaveHisStr(log wrapper.Log, errMsg string) {
-	r.HisMsg = append(r.HisMsg, chatMessage{
+	r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 		Role:    "system",
 		Content: errMsg,
 	})
@@ -336,12 +335,12 @@ func (c *PluginConfig) ValidateBody(body []byte) error {
 	var respJsonStrct chatCompletionResponse
 	err := json.Unmarshal(body, &respJsonStrct)
 	if err != nil {
-		c.rejectStruct = RejectStruct{ServiceUnavailableCode, "service unavailable: " + string(body)}
+		c.rejectStruct = RejectStruct{serviceUnavailableCode, "service unavailable: " + string(body)}
 		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	content := gjson.ParseBytes(body).Get(c.contentPath)
 	if !content.Exists() {
-		c.rejectStruct = RejectStruct{ServiceUnavailableCode, "response body does not contain the content:" + string(body)}
+		c.rejectStruct = RejectStruct{serviceUnavailableCode, "response body does not contain the content:" + string(body)}
 		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	return nil
@@ -352,22 +351,22 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	// first extract json from response body
 	if content == "" {
 		log.Infof("response body does not contain the content")
-		c.rejectStruct = RejectStruct{ReturnContentisEmpytCode, "response body does not contain the content"}
+		c.rejectStruct = RejectStruct{contentisEmpytCode, "response body does not contain the content"}
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 	jsonStr, err := c.ExtractJson(content)
 
 	if err != nil {
 		log.Infof("response body does not contain the valid json: %v", err)
-		c.rejectStruct = RejectStruct{CannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
+		c.rejectStruct = RejectStruct{cannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 
 	if c.jsonSchema != nil && c.useJSinVal {
-		compile, err := c.compiler.Compile(DefaultSchema)
+		compile, err := c.compiler.Compile(defaultSchema)
 		if err != nil {
 			log.Infof("Json Schema compile failed: %v", err)
-			c.rejectStruct = RejectStruct{JsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			c.rejectStruct = RejectStruct{jsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
 			c.compile = nil
 		} else {
 			c.compile = compile
@@ -377,7 +376,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 		err = c.compile.Validate(strings.NewReader(jsonStr))
 		if err != nil {
 			log.Infof("response body does not match the Json Schema: %v", err)
-			c.rejectStruct = RejectStruct{ReturnJsonMisMatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
+			c.rejectStruct = RejectStruct{jsonMismatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
 			return "", errors.New(c.rejectStruct.RejectMsg)
 		}
 	}
@@ -385,7 +384,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	return jsonStr, nil
 }
 
-func (c PluginConfig) ExtractJson(bodyStr string) (string, error) {
+func (c *PluginConfig) ExtractJson(bodyStr string) (string, error) {
 	// simply extract json from response body string
 	startIndex := strings.Index(bodyStr, "{")
 	endIndex := strings.LastIndex(bodyStr, "}") + 1
@@ -422,17 +421,17 @@ func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log,
 }
 
 func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, bufferRB *ReplayBuffer) {
-	// if retry count exceed max retry count, return the response
+	// if retry count exceeds max retry count, return the response
 	if retryCount >= config.maxRetry {
-		log.Debugf("retry count exceed max retry count")
+		log.Debugf("retry count exceeds max retry count")
 		// report more useful error by appending the last of previous error message
-		config.rejectStruct = RejectStruct{ReachMeaxRetryCountCode, "retry count exceed max retry count:" + config.rejectStruct.RejectMsg}
+		config.rejectStruct = RejectStruct{reachMaxRetryCountCode, "retry count exceeds max retry count:" + config.rejectStruct.RejectMsg}
 		sendResponse(ctx, config, log, nil)
 		return
 	}
 
 	// recursively refine json
-	config.serviceClient.Post(bufferRB.url, bufferRB.ReqHeader, bufferRB.assembleReqBody(config),
+	config.serviceClient.Post(bufferRB.Path, bufferRB.ReqHeader, bufferRB.assembleReqBody(config),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
@@ -465,13 +464,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 
 	if isBuffer == "true" {
 		ctx.SetContext("isBuffer", "true")
-		proxywasm.ResumeHttpRequest()
 		return types.ActionContinue
 	}
-	url, _ := proxywasm.GetHttpRequestHeader(":path")
-	ctx.SetContext("url", url)
+	path, _ := proxywasm.GetHttpRequestHeader(":path")
+	ctx.SetContext("path", path)
 
-	header, err := proxywasm.GetHttpRequestHeaders()
+	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Infof("get request header failed: %v", err)
 	}
@@ -483,9 +481,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	}
 	if config.apiKey != "" {
 		log.Debugf("add Authorization header %s", "Bearer "+config.apiKey)
-		header = append(header, [2]string{"Authorization", "Bearer " + config.apiKey})
+		headers = append(headers, [2]string{"Authorization", "Bearer " + config.apiKey})
 	}
-	ctx.SetContext("headers", header)
+	ctx.SetContext("headers", headers)
 
 	return types.ActionContinue
 }
@@ -509,24 +507,24 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		}
 	}
 
-	url := ctx.GetContext("url").(string)
-	if url == "" {
-		url = "/v1/chat/completions"
+	path := ctx.GetContext("path").(string)
+	if path == "" {
+		path = "/v1/chat/completions"
 	}
 
 	if config.servicePath != "" {
-		log.Debugf("use base url: %s", config.servicePath)
-		url = config.servicePath
+		log.Debugf("use base path: %s", config.servicePath)
+		path = config.servicePath
 	}
 
 	header = append(header, [2]string{"isBuffer", "true"})
 	bufferRB := &ReplayBuffer{
-		url:       url,
+		Path:      path,
 		ReqHeader: header,
 		ReqBody:   body,
 	}
 
-	config.serviceClient.Post(bufferRB.url, bufferRB.ReqHeader, bufferRB.ReqBody,
+	config.serviceClient.Post(bufferRB.Path, bufferRB.ReqHeader, bufferRB.ReqBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
