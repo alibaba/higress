@@ -27,6 +27,12 @@ const (
 	HeaderSourceType    = "header"
 )
 
+var internalIpCidr []string = []string{"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/11", "100.96.0.0/12",
+	"100.112.0.0/13", "100.120.0.0/15", "100.122.0.0/16", "100.123.0.0/16", "100.124.0.0/14",
+	"127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24",
+	"192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/3",
+}
+
 func main() {
 	wrapper.SetCtx(
 		"geo-ip",
@@ -154,6 +160,35 @@ func parseIP(source string) string {
 	return source
 }
 
+func isInternalIp(ip string) (bool, error) {
+	if ip == "" {
+		return false, errors.New("empty ip")
+	}
+
+	ipBt := net.ParseIP(ip)
+	if ipBt == nil {
+		return false, errors.New("invalid ip format")
+	}
+
+	ip4B := ipBt.To4()
+	if ip4B == nil {
+		return false, errors.New("not ipv4 format")
+	}
+
+	for _, cidr := range internalIpCidr {
+		_, networkIp, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return false, err
+		}
+
+		if networkIp.Contains(ip4B) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapper.Log) types.Action {
 	var (
 		s   string
@@ -174,11 +209,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapp
 		return types.ActionContinue
 	}
 	clientIp := parseIP(s)
-	chkIp := net.ParseIP(clientIp)
-	if chkIp == nil {
-		log.Warnf("invalid ip[%s].", clientIp)
-		return types.ActionContinue
-	}
 
 	//ipv6 will be implemented in the future.
 	if config.IpProtocol == "ipv6" || strings.Contains(clientIp, ":") {
@@ -186,10 +216,27 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapp
 		return types.ActionContinue
 	}
 
-	geoIpData, err := SearchGeoIpDataInRdxtree(clientIp, log)
+	isItn, err := isInternalIp(clientIp)
 	if err != nil {
-		log.Errorf("search geo info failed.%v", err)
+		log.Errorf("check internal ip failed. error: %v", err)
 		return types.ActionContinue
+	}
+
+	var geoIpData *GeoIpData
+	if isItn {
+		geoIpData = &GeoIpData{
+			Cidr:     "",
+			City:     "内网IP",
+			Province: "内网IP",
+			Country:  "内网IP",
+			Isp:      "内网IP",
+		}
+	} else {
+		geoIpData, err = SearchGeoIpDataInRdxtree(clientIp, log)
+		if err != nil {
+			log.Errorf("search geo info failed.%v", err)
+			return types.ActionContinue
+		}
 	}
 
 	proxywasm.SetProperty([]string{"geo-city"}, []byte(geoIpData.City))
