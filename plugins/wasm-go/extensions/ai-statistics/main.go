@@ -227,25 +227,27 @@ func incrementCounter(config AIStatisticsConfig, model string, inputToken int64,
 // fetches the tracing span value from the specified source.
 func setTracingSpanValueBySource(config AIStatisticsConfig, tracingSource string, body []byte, log wrapper.Log) {
 	for _, tracingSpanEle := range config.TracingSpan {
-		switch tracingSource {
-		case "response_header":
-			if value, err := proxywasm.GetHttpResponseHeader(tracingSpanEle.Value); err == nil {
+		if tracingSource == tracingSpanEle.ValueSource {
+			switch tracingSource {
+			case "response_header":
+				if value, err := proxywasm.GetHttpResponseHeader(tracingSpanEle.Value); err == nil {
+					setTracingSpanValue(tracingSpanEle.Key, value, log)
+				}
+			case "request_body":
+				bodyJson := gjson.ParseBytes(body)
+				value := trimQuote(bodyJson.Get(tracingSpanEle.Value).String())
 				setTracingSpanValue(tracingSpanEle.Key, value, log)
-			}
-		case "request_body":
-			bodyJson := gjson.ParseBytes(body)
-			value := trimQuote(bodyJson.Get(tracingSpanEle.Value).String())
-			setTracingSpanValue(tracingSpanEle.Key, value, log)
-		case "request_header":
-			if value, err := proxywasm.GetHttpRequestHeader(tracingSpanEle.Value); err == nil {
-				setTracingSpanValue(tracingSpanEle.Key, value, log)
-			}
-		case "property":
-			if raw, err := proxywasm.GetProperty([]string{tracingSpanEle.Value}); err == nil {
-				setTracingSpanValue(tracingSpanEle.Key, string(raw), log)
-			}
-		default:
+			case "request_header":
+				if value, err := proxywasm.GetHttpRequestHeader(tracingSpanEle.Value); err == nil {
+					setTracingSpanValue(tracingSpanEle.Key, value, log)
+				}
+			case "property":
+				if raw, err := proxywasm.GetProperty([]string{tracingSpanEle.Value}); err == nil {
+					setTracingSpanValue(tracingSpanEle.Key, string(raw), log)
+				}
+			default:
 
+			}
 		}
 	}
 }
