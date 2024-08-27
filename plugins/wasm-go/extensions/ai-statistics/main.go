@@ -2,20 +2,15 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-	"strconv"
-	"strings"
-	"time"
-)
-
-const (
-	StatisticsRequestStartTime = "ai-statistics-request-start-time"
-	StatisticsFirstTokenTime   = "ai-statistics-first-token-time"
 )
 
 func main() {
@@ -30,6 +25,12 @@ func main() {
 	)
 }
 
+const (
+	StatisticsRequestStartTime = "ai-statistics-request-start-time"
+	StatisticsFirstTokenTime   = "ai-statistics-first-token-time"
+	TracePrefix                = "trace_span_tag."
+)
+
 // TracingSpan is the tracing span configuration.
 type TracingSpan struct {
 	Key         string `required:"true" yaml:"key" json:"key"`
@@ -38,24 +39,62 @@ type TracingSpan struct {
 }
 
 type AIStatisticsConfig struct {
-	Enable bool `required:"true" yaml:"enable" json:"enable"`
+	// Metrics
+	counterMetrics   map[string]proxywasm.MetricCounter
+	gaugeMetrics     map[string]proxywasm.MetricGauge
+	histogramMetrics map[string]proxywasm.MetricHistogram
 	// TracingSpan array define the tracing span.
-	TracingSpan []TracingSpan                      `required:"true" yaml:"tracingSpan" json:"tracingSpan"`
-	Metrics     map[string]proxywasm.MetricCounter `required:"true" yaml:"metrics" json:"metrics"`
+	TracingSpan []TracingSpan
 }
 
-func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64, log wrapper.Log) {
-	counter, ok := config.Metrics[metricName]
+func generateMetricName(route, cluster, model, metricName string) string {
+	return fmt.Sprintf("route.%s.upstream.%s.model.%s.%s", route, cluster, model, metricName)
+}
+
+func getRouteName() string {
+	var route string
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err == nil {
+		route = string(raw)
+	}
+	return route
+}
+
+func getClusterName() string {
+	var cluster string
+	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err == nil {
+		cluster = string(raw)
+	}
+	return cluster
+}
+
+func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64) {
+	counter, ok := config.counterMetrics[metricName]
 	if !ok {
 		counter = proxywasm.DefineCounterMetric(metricName)
-		config.Metrics[metricName] = counter
+		config.counterMetrics[metricName] = counter
 	}
 	counter.Increment(inc)
 }
 
-func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
-	config.Enable = configJson.Get("enable").Bool()
+func (config *AIStatisticsConfig) addGauge(metricName string, inc int64) {
+	gauge, ok := config.gaugeMetrics[metricName]
+	if !ok {
+		gauge = proxywasm.DefineGaugeMetric(metricName)
+		config.gaugeMetrics[metricName] = gauge
+	}
+	gauge.Add(inc)
+}
 
+func (config *AIStatisticsConfig) recodeHistogram(metricName string, value uint64) {
+	histogram, ok := config.histogramMetrics[metricName]
+	if !ok {
+		histogram = proxywasm.DefineHistogramMetric(metricName)
+		config.histogramMetrics[metricName] = histogram
+	}
+	histogram.Record(value)
+}
+
+func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
 	// Parse tracing span.
 	tracingSpanConfigArray := configJson.Get("tracing_span").Array()
 	config.TracingSpan = make([]TracingSpan, len(tracingSpanConfigArray))
@@ -68,20 +107,13 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 		config.TracingSpan[i] = tracingSpan
 	}
 
-	config.Metrics = make(map[string]proxywasm.MetricCounter)
-
-	configStr, _ := json.Marshal(config)
-	log.Infof("Init ai-statistics config success, config: %s.", configStr)
+	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
+	config.gaugeMetrics = make(map[string]proxywasm.MetricGauge)
+	config.histogramMetrics = make(map[string]proxywasm.MetricHistogram)
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
-
-	if !config.Enable {
-		ctx.DontReadRequestBody()
-		return types.ActionContinue
-	}
-
 	// Fetch request header tracing span value.
 	setTracingSpanValueBySource(config, "request_header", nil, log)
 	// Fetch request process proxy wasm property.
@@ -89,7 +121,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 	setTracingSpanValueBySource(config, "property", nil, log)
 
 	// Set request start time.
-	ctx.SetContext(StatisticsRequestStartTime, strconv.FormatUint(uint64(time.Now().UnixMilli()), 10))
+	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
@@ -103,10 +135,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
-	if !config.Enable {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
@@ -119,32 +147,55 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, l
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+	requestStartTime, ok := ctx.GetContext(StatisticsRequestStartTime).(int64)
+	if !ok {
+		return data
+	}
 
-	// If the end of the stream is reached, calculate the total time and set tracing span tag total_time.
-	// Otherwise, set tracing span tag first_token_time.
+	// If the end of the stream is reached, calculate the total time and set metric and span attribute.
 	if endOfStream {
-		requestStartTimeStr := ctx.GetContext(StatisticsRequestStartTime).(string)
-		requestStartTime, _ := strconv.ParseInt(requestStartTimeStr, 10, 64)
-		responseEndTime := time.Now().UnixMilli()
-		setTracingSpanValue("total_time", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
-	} else {
-		firstTokenTime := ctx.GetContext(StatisticsFirstTokenTime)
-		if firstTokenTime == nil {
-			firstTokenTimeStr := strconv.FormatInt(time.Now().UnixMilli(), 10)
-			ctx.SetContext(StatisticsFirstTokenTime, firstTokenTimeStr)
-			setTracingSpanValue("first_token_time", firstTokenTimeStr, log)
+		if model, ok := ctx.GetContext("model").(string); ok {
+			route := getRouteName()
+			cluster := getClusterName()
+			responseEndTime := time.Now().UnixMilli()
+			setTracingSpanValue("llm_service_duration", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
+			config.recodeHistogram(generateMetricName(route, cluster, model, "llm_service_duration"),
+				uint64(responseEndTime-requestStartTime))
 		}
 	}
 
+	// Get infomations about this request
 	model, inputToken, outputToken, ok := getUsage(data)
 	if !ok {
 		return data
 	}
-	setFilterStateData(model, inputToken, outputToken, log)
-	incrementCounter(config, model, inputToken, outputToken, log)
-	// Set tracing span tag input_tokens and output_tokens.
-	setTracingSpanValue("input_tokens", strconv.FormatInt(inputToken, 10), log)
-	setTracingSpanValue("output_tokens", strconv.FormatInt(outputToken, 10), log)
+	route := getRouteName()
+	cluster := getClusterName()
+	// Set model context used in the last chunk which can be empty
+	if ctx.GetContext("model") == nil {
+		ctx.SetContext("model", model)
+	}
+
+	// If this is the first chunk, record first token duration metric and span attribute
+	firstTokenTime, ok := ctx.GetContext(StatisticsFirstTokenTime).(int64)
+	if !ok {
+		firstTokenTime = time.Now().UnixMilli()
+		ctx.SetContext(StatisticsFirstTokenTime, firstTokenTime)
+		setTracingSpanValue("llm_first_token_duration", fmt.Sprint(firstTokenTime-requestStartTime), log)
+		config.recodeHistogram(generateMetricName(route, cluster, model, "llm_first_token_duration"),
+			uint64(firstTokenTime-requestStartTime))
+	}
+
+	// Set token usage metrics
+	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
+	// Set filter states which can be used by other plugins.
+	setFilterState("model", model, log)
+	setFilterState("input_token", inputToken, log)
+	setFilterState("output_token", outputToken, log)
+	// Set tracing span tag input_token and output_token.
+	setTracingSpanValue("input_token", strconv.FormatInt(inputToken, 10), log)
+	setTracingSpanValue("output_token", strconv.FormatInt(outputToken, 10), log)
 	// Set response process proxy wasm property.
 	setTracingSpanValueBySource(config, "property", nil, log)
 
@@ -152,22 +203,31 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
-
 	// Calculate the total time and set tracing span tag total_time.
-	requestStartTimeStr := ctx.GetContext(StatisticsRequestStartTime).(string)
-	requestStartTime, _ := strconv.ParseInt(requestStartTimeStr, 10, 64)
+	requestStartTime, ok := ctx.GetContext(StatisticsRequestStartTime).(int64)
+	if !ok {
+		return types.ActionContinue
+	}
 	responseEndTime := time.Now().UnixMilli()
-	setTracingSpanValue("total_time", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
-
+	setTracingSpanValue("llm_service_duration", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
+	// Get infomations about this request
 	model, inputToken, outputToken, ok := getUsage(body)
 	if !ok {
 		return types.ActionContinue
 	}
-	setFilterStateData(model, inputToken, outputToken, log)
-	incrementCounter(config, model, inputToken, outputToken, log)
+	route := getRouteName()
+	cluster := getClusterName()
+	// Set metrics
+	config.recodeHistogram(generateMetricName(route, cluster, model, "llm_service_duration"), uint64(responseEndTime-requestStartTime))
+	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
+	// Set filter states which can be used by other plugins.
+	setFilterState("model", model, log)
+	setFilterState("input_token", inputToken, log)
+	setFilterState("output_token", outputToken, log)
 	// Set tracing span tag input_tokens and output_tokens.
-	setTracingSpanValue("input_tokens", strconv.FormatInt(inputToken, 10), log)
-	setTracingSpanValue("output_tokens", strconv.FormatInt(outputToken, 10), log)
+	setTracingSpanValue("input_token", strconv.FormatInt(inputToken, 10), log)
+	setTracingSpanValue("output_token", strconv.FormatInt(outputToken, 10), log)
 	// Set response process proxy wasm property.
 	setTracingSpanValueBySource(config, "property", nil, log)
 	return types.ActionContinue
@@ -198,30 +258,10 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 	return
 }
 
-// setFilterData sets the input_token and output_token in the filter state.
-// ai-token-ratelimit will use these values to calculate the total token usage.
-func setFilterStateData(model string, inputToken int64, outputToken int64, log wrapper.Log) {
-	if e := proxywasm.SetProperty([]string{"model"}, []byte(model)); e != nil {
-		log.Errorf("failed to set model in filter state: %v", e)
+func setFilterState(key string, value interface{}, log wrapper.Log) {
+	if e := proxywasm.SetProperty([]string{key}, []byte(fmt.Sprint(value))); e != nil {
+		log.Errorf("failed to set %s in filter state: %v", key, e)
 	}
-	if e := proxywasm.SetProperty([]string{"input_token"}, []byte(fmt.Sprintf("%d", inputToken))); e != nil {
-		log.Errorf("failed to set input_token in filter state: %v", e)
-	}
-	if e := proxywasm.SetProperty([]string{"output_token"}, []byte(fmt.Sprintf("%d", outputToken))); e != nil {
-		log.Errorf("failed to set output_token in filter state: %v", e)
-	}
-}
-
-func incrementCounter(config AIStatisticsConfig, model string, inputToken int64, outputToken int64, log wrapper.Log) {
-	var route, cluster string
-	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err == nil {
-		route = string(raw)
-	}
-	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err == nil {
-		cluster = string(raw)
-	}
-	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".input_token", uint64(inputToken), log)
-	config.incrementCounter("route."+route+".upstream."+cluster+".model."+model+".output_token", uint64(outputToken), log)
 }
 
 // fetches the tracing span value from the specified source.
@@ -235,7 +275,7 @@ func setTracingSpanValueBySource(config AIStatisticsConfig, tracingSource string
 				}
 			case "request_body":
 				bodyJson := gjson.ParseBytes(body)
-				value := trimQuote(bodyJson.Get(tracingSpanEle.Value).String())
+				value := bodyJson.Get(tracingSpanEle.Value).String()
 				setTracingSpanValue(tracingSpanEle.Key, value, log)
 			case "request_header":
 				if value, err := proxywasm.GetHttpRequestHeader(tracingSpanEle.Value); err == nil {
@@ -257,7 +297,7 @@ func setTracingSpanValue(tracingKey, tracingValue string, log wrapper.Log) {
 	log.Debugf("try to set trace span [%s] with value [%s].", tracingKey, tracingValue)
 
 	if tracingValue != "" {
-		traceSpanTag := "trace_span_tag." + tracingKey
+		traceSpanTag := TracePrefix + tracingKey
 
 		if raw, err := proxywasm.GetProperty([]string{traceSpanTag}); err == nil {
 			if raw != nil {
@@ -270,20 +310,4 @@ func setTracingSpanValue(tracingKey, tracingValue string, log wrapper.Log) {
 		}
 		log.Debugf("successed to set trace span [%s] with value [%s].", traceSpanTag, tracingValue)
 	}
-}
-
-// trims the quote from the source string.
-func trimQuote(source string) string {
-	TempKey := strings.Trim(source, `"`)
-	Key, _ := zhToUnicode([]byte(TempKey))
-	return string(Key)
-}
-
-// converts the zh string to Unicode.
-func zhToUnicode(raw []byte) ([]byte, error) {
-	str, err := strconv.Unquote(strings.Replace(strconv.Quote(string(raw)), `\\u`, `\u`, -1))
-	if err != nil {
-		return nil, err
-	}
-	return []byte(str), nil
 }
