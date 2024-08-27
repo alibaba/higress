@@ -37,6 +37,7 @@ const (
 	providerTypeSpark      = "spark"
 	providerTypeGemini     = "gemini"
 	providerTypeDeepl      = "deepl"
+	providerTypeMistral    = "mistral"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -92,6 +93,7 @@ var (
 		providerTypeSpark:      &sparkProviderInitializer{},
 		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeDeepl:      &deeplProviderInitializer{},
+		providerTypeMistral:    &mistralProviderInitializer{},
 	}
 )
 
