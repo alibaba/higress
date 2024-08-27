@@ -36,8 +36,12 @@ func main() {
 	defer f.Close()
 
 	geoIpRows := strings.Split(geoipdata, "\n")
-	geoIpRows = geoIpRows[:len(geoIpRows)-1]
 	for _, row := range geoIpRows {
+		if row == "" {
+			log.Println("this row is empty.")
+			continue
+		}
+
 		log.Println("geoip segment: ", row)
 		tmpArr := strings.Split(row, "|")
 		if len(tmpArr) < 7 {
