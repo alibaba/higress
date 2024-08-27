@@ -176,13 +176,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapp
 	clientIp := parseIP(s)
 	chkIp := net.ParseIP(clientIp)
 	if chkIp == nil {
-		log.Errorf("invalid ip[%s].", clientIp)
+		log.Warnf("invalid ip[%s].", clientIp)
 		return types.ActionContinue
 	}
 
 	//ipv6 will be implemented in the future.
 	if config.IpProtocol == "ipv6" || strings.Contains(clientIp, ":") {
-		log.Infof("ipv6 will be implemented in the future.%s %s", clientIp, config.IpProtocol)
+		log.Warnf("ipv6 will be implemented in the future.%s %s", clientIp, config.IpProtocol)
 		return types.ActionContinue
 	}
 
