@@ -41,7 +41,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/info",
+						Path:             "/get",
 						UnfollowRedirect: true,
 						Headers: map[string]string{
 							"X-Forwarded-For": "70.155.208.224,10.1.1.1",
@@ -49,7 +49,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
-							Path: "/info",
+							Path: "/get",
 							Host: "foo.com",
 							Headers: map[string]string{
 								"X-Higress-Geo-Isp":      url.QueryEscape("美国电话电报"),
@@ -75,7 +75,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:             "foo.com",
-						Path:             "/info",
+						Path:             "/get",
 						UnfollowRedirect: true,
 						Headers: map[string]string{
 							"X-Forwarded-For": "2.2.128.100,10.1.1.2",
@@ -83,7 +83,7 @@ var WasmPluginsGeoIPPlugin = suite.ConformanceTest{
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
-							Path: "/info",
+							Path: "/get",
 							Host: "foo.com",
 							Headers: map[string]string{
 								"X-Higress-Geo-Isp":      url.QueryEscape("橘子电信"),
