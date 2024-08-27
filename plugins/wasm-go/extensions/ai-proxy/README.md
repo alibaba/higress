@@ -957,6 +957,7 @@ provider:
     "gpt-4o": "360gpt-turbo-responsibility-8k"
     "gpt-4": "360gpt2-pro"
     "gpt-3.5": "360gpt-turbo"
+    "text-embedding-3-small": "embedding_s1_v1.2"
     "*": "360gpt-pro"
 ```
 
@@ -1012,6 +1013,48 @@ provider:
     }
   ],
   "context": null
+}
+```
+
+**文本向量请求示例**
+
+URL: http://your-domain/v1/embeddings
+
+请求示例：
+
+```json
+{
+  "input":["你好"],
+  "model":"text-embedding-3-small"
+}
+```
+
+响应示例：
+
+```json
+{
+  "data": [
+    {
+      "embedding": [
+        -0.011237,
+        -0.015433,
+        ...,
+        -0.028946,
+        -0.052778,
+        0.003768,
+        -0.007917,
+        -0.042201
+      ],
+      "index": 0,
+      "object": ""
+    }
+  ],
+  "model": "embedding_s1_v1.2",
+  "object": "",
+  "usage": {
+    "prompt_tokens": 2,
+    "total_tokens": 2
+  }
 }
 ```
 
