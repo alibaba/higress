@@ -138,6 +138,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
 
+#### Mistral
+
+Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
+
 #### MiniMax
 
 MiniMax所对应的 `type` 为 `minimax`。它特有的配置字段如下：
