@@ -40,10 +40,8 @@ type TracingSpan struct {
 
 type AIStatisticsConfig struct {
 	// Metrics
-	counterMetrics   map[string]proxywasm.MetricCounter
-	gaugeMetrics     map[string]proxywasm.MetricGauge
-	histogramMetrics map[string]proxywasm.MetricHistogram
-	// TracingSpan array define the tracing span.
+	counterMetrics map[string]proxywasm.MetricCounter
+	// TODO: add more metrics in Gauge and Histogram format
 	TracingSpan []TracingSpan
 }
 
@@ -76,24 +74,6 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 	counter.Increment(inc)
 }
 
-func (config *AIStatisticsConfig) addGauge(metricName string, inc int64) {
-	gauge, ok := config.gaugeMetrics[metricName]
-	if !ok {
-		gauge = proxywasm.DefineGaugeMetric(metricName)
-		config.gaugeMetrics[metricName] = gauge
-	}
-	gauge.Add(inc)
-}
-
-func (config *AIStatisticsConfig) recodeHistogram(metricName string, value uint64) {
-	histogram, ok := config.histogramMetrics[metricName]
-	if !ok {
-		histogram = proxywasm.DefineHistogramMetric(metricName)
-		config.histogramMetrics[metricName] = histogram
-	}
-	histogram.Record(value)
-}
-
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
 	// Parse tracing span.
 	tracingSpanConfigArray := configJson.Get("tracing_span").Array()
@@ -108,8 +88,6 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 	}
 
 	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
-	config.gaugeMetrics = make(map[string]proxywasm.MetricGauge)
-	config.histogramMetrics = make(map[string]proxywasm.MetricHistogram)
 	return nil
 }
 
@@ -152,6 +130,14 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		return data
 	}
 
+	// If this is the first chunk, record first token duration metric and span attribute
+	firstTokenTime, ok := ctx.GetContext(StatisticsFirstTokenTime).(int64)
+	if !ok {
+		firstTokenTime = time.Now().UnixMilli()
+		ctx.SetContext(StatisticsFirstTokenTime, firstTokenTime)
+		setTracingSpanValue("llm_first_token_duration", fmt.Sprint(firstTokenTime-requestStartTime), log)
+	}
+
 	// If the end of the stream is reached, calculate the total time and set metric and span attribute.
 	if endOfStream {
 		if model, ok := ctx.GetContext("model").(string); ok {
@@ -159,7 +145,10 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 			cluster := getClusterName()
 			responseEndTime := time.Now().UnixMilli()
 			setTracingSpanValue("llm_service_duration", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
-			config.recodeHistogram(generateMetricName(route, cluster, model, "llm_service_duration"),
+			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_duration_count"), 1)
+			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_first_token_duration"),
+				uint64(firstTokenTime-requestStartTime))
+			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_service_duration"),
 				uint64(responseEndTime-requestStartTime))
 		}
 	}
@@ -176,19 +165,9 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		ctx.SetContext("model", model)
 	}
 
-	// If this is the first chunk, record first token duration metric and span attribute
-	firstTokenTime, ok := ctx.GetContext(StatisticsFirstTokenTime).(int64)
-	if !ok {
-		firstTokenTime = time.Now().UnixMilli()
-		ctx.SetContext(StatisticsFirstTokenTime, firstTokenTime)
-		setTracingSpanValue("llm_first_token_duration", fmt.Sprint(firstTokenTime-requestStartTime), log)
-		config.recodeHistogram(generateMetricName(route, cluster, model, "llm_first_token_duration"),
-			uint64(firstTokenTime-requestStartTime))
-	}
-
 	// Set token usage metrics
-	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
-	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.output_token"), uint64(outputToken))
 	// Set filter states which can be used by other plugins.
 	setFilterState("model", model, log)
 	setFilterState("input_token", inputToken, log)
@@ -218,9 +197,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	route := getRouteName()
 	cluster := getClusterName()
 	// Set metrics
-	config.recodeHistogram(generateMetricName(route, cluster, model, "llm_service_duration"), uint64(responseEndTime-requestStartTime))
-	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
-	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_duration_count"), 1)
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_service_duration"), uint64(responseEndTime-requestStartTime))
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "metric.output_token"), uint64(outputToken))
 	// Set filter states which can be used by other plugins.
 	setFilterState("model", model, log)
 	setFilterState("input_token", inputToken, log)
