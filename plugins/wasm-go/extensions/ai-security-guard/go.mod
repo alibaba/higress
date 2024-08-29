@@ -1,4 +1,4 @@
-module myplugin
+module ai-security-guard
 
 go 1.18
 

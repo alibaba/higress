@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -31,10 +32,19 @@ func main() {
 	)
 }
 
+const (
+	normalResponseFormat = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
+	streamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
+	streamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+	streamResponseFormat = streamResponseChunk + "\n\n" + streamResponseEnd
+)
+
 type AISecurityConfig struct {
-	client wrapper.HttpClient
-	ak     string
-	sk     string
+	client        wrapper.HttpClient
+	ak            string
+	sk            string
+	checkRequest  bool
+	checkResponse bool
 }
 
 type StandardResponse struct {
@@ -91,7 +101,7 @@ func getSign(params map[string]string, secret string) string {
 	})
 	canonicalStr := strings.Join(paramArray, "&")
 	signStr := "POST&%2F&" + urlEncoding(canonicalStr)
-	fmt.Println(signStr)
+	// proxywasm.LogInfo(signStr)
 	return hmacSha1(signStr, secret)
 }
 
@@ -107,11 +117,16 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
 	domain := json.Get("domain").String()
-	config.ak = json.Get("ak").String()
-	config.sk = json.Get("sk").String()
 	if serviceName == "" || servicePort == 0 || domain == "" {
 		return errors.New("invalid service config")
 	}
+	config.ak = json.Get("ak").String()
+	config.sk = json.Get("sk").String()
+	if config.ak == "" || config.sk == "" {
+		return errors.New("invalid AK/SK config")
+	}
+	config.checkRequest = json.Get("checkRequest").Bool()
+	config.checkResponse = json.Get("checkResponse").Bool()
 	config.client = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: serviceName,
 		Port:        servicePort,
@@ -121,12 +136,18 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
-	ctx.DontReadResponseBody()
+	if !config.checkRequest {
+		ctx.DontReadRequestBody()
+	}
+	if !config.checkResponse {
+		ctx.DontReadResponseBody()
+	}
 	return types.ActionContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	messages := gjson.GetBytes(body, "messages").Array()
+	stream := gjson.GetBytes(body, "stream").Bool()
 	if len(messages) > 0 {
 		role := messages[len(messages)-1].Get("role").String()
 		content := messages[len(messages)-1].Get("content").String()
@@ -160,51 +181,23 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						// sr := StandardResponse{
-						// 	ID:     uuid.New().String(),
-						// 	Object: "chat.completion",
-						// 	Choices: []Choice{{
-						// 		Index: 0,
-						// 		Message: Message{
-						// 			Role:    "assistant",
-						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
-						// 		},
-						// 		FinishReason: "stop",
-						// 	}},
-						// 	Model:   "qwen-max",
-						// 	Created: time.Now().Unix(),
-						// 	// SystemFingerprint: nil,
-						// 	Usage: chatCompletionUsage{},
-						// }
-						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
-						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-						jsonData := []byte(piece1 + "\n\n" + piece2)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+						if stream {
+							jsonData := []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+						} else {
+							jsonData := []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						}
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						// sr := StandardResponse{
-						// 	ID:     uuid.New().String(),
-						// 	Object: "chat.completion",
-						// 	Choices: []Choice{{
-						// 		Index: 0,
-						// 		Message: Message{
-						// 			Role:    "assistant",
-						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
-						// 		},
-						// 		FinishReason: "stop",
-						// 	}},
-						// 	Model:   "qwen-max",
-						// 	Created: time.Now().Unix(),
-						// 	// SystemFingerprint: nil,
-						// 	Usage: chatCompletionUsage{},
-						// }
-						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
-						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-						jsonData := []byte(piece1 + "\n\n" + piece2)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						if stream {
+							jsonData := []byte(fmt.Sprintf(streamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+						} else {
+							jsonData := []byte(fmt.Sprintf(normalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+						}
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}
@@ -254,9 +247,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	messages := gjson.GetBytes(body, "choices").Array()
-	if len(messages) > 0 {
-		content := messages[0].Get("message").Get("content").String()
+	content := extractResponseMessage(body)
+	log.Debugf("Raw response content is: %s", content)
+	if len(content) > 0 {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 		randomID, _ := generateHexID(16)
 		params := map[string]string{
@@ -285,54 +278,26 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						// sr := StandardResponse{
-						// 	ID:     uuid.New().String(),
-						// 	Object: "chat.completion",
-						// 	Choices: []Choice{{
-						// 		Index: 0,
-						// 		Message: Message{
-						// 			Role:    "assistant",
-						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
-						// 		},
-						// 		FinishReason: "stop",
-						// 	}},
-						// 	Model:   "qwen-max",
-						// 	Created: time.Now().Unix(),
-						// 	// SystemFingerprint: nil,
-						// 	Usage: chatCompletionUsage{},
-						// }
-						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
-						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-						jsonData := []byte(piece1 + "\n\n" + piece2)
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
+						var jsonData []byte
+						if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+							jsonData = []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+						} else {
+							jsonData = []byte(fmt.Sprintf(normalResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
 						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						// sr := StandardResponse{
-						// 	ID:     uuid.New().String(),
-						// 	Object: "chat.completion",
-						// 	Choices: []Choice{{
-						// 		Index: 0,
-						// 		Message: Message{
-						// 			Role:    "assistant",
-						// 			Content: respAdvice.Array()[0].Get("Answer").String(),
-						// 		},
-						// 		FinishReason: "stop",
-						// 	}},
-						// 	Model:   "qwen-max",
-						// 	Created: time.Now().Unix(),
-						// 	// SystemFingerprint: nil,
-						// 	Usage: chatCompletionUsage{},
-						// }
-						// jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						piece1 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"` + respAdvice.Array()[0].Get("Answer").String() + `"},"logprobs":null,"finish_reason":null}]}`
-						piece2 := `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-3.5-turbo-0125", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-						jsonData := []byte(piece1 + "\n\n" + piece2)
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
+						var jsonData []byte
+						if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+							jsonData = []byte(fmt.Sprintf(streamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+						} else {
+							jsonData = []byte(fmt.Sprintf(normalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
@@ -346,4 +311,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 	} else {
 		return types.ActionContinue
 	}
+}
+
+func extractResponseMessage(data []byte) string {
+	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
+	strChunks := []string{}
+	for _, chunk := range chunks {
+		// example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
+		jsonObj := gjson.GetBytes(chunk, "choices.0.delta.content")
+		if jsonObj.Exists() {
+			strChunks = append(strChunks, jsonObj.String())
+		}
+	}
+	return strings.Join(strChunks, "")
 }
