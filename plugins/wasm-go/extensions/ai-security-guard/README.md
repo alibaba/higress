@@ -7,7 +7,7 @@
 | `serviceSource` | string | requried | - | 服务来源，填dns |
 | `serviceName` | string | requried | - | 服务名 |
 | `servicePort` | string | requried | - | 服务端口 |
-| `domain` | string | requried | - | 阿里云内容安全endpoint |
+| `domain` | string | requried | - | 阿里云内容安全endpoint的域名 |
 | `ak` | string | requried | - | 阿里云AK |
 | `sk` | string | requried | - | 阿里云SK |
 | `checkRequest` | bool | optional | - | 检查提问内容是否合规 |
