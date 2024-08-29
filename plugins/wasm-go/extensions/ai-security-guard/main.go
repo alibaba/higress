@@ -46,6 +46,16 @@ type AISecurityConfig struct {
 	sk            string
 	checkRequest  bool
 	checkResponse bool
+	metrics       map[string]proxywasm.MetricCounter
+}
+
+func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) {
+	counter, ok := config.metrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		config.metrics[metricName] = counter
+	}
+	counter.Increment(inc)
 }
 
 type StandardResponse struct {
@@ -133,6 +143,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 		Port:        servicePort,
 		Domain:      domain,
 	})
+	config.metrics = make(map[string]proxywasm.MetricCounter)
 	return nil
 }
 
@@ -186,9 +197,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						if stream {
 							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
 							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
@@ -196,9 +209,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						if stream {
 							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
 							jsonData := []byte(fmt.Sprintf(NormalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
 					} else {
@@ -294,6 +309,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						proxywasm.ReplaceHttpResponseBody(jsonData)
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("response"))
+						config.incrementCounter("ai_sec_response_deny", 1)
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						var jsonData []byte
@@ -308,6 +324,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						proxywasm.ReplaceHttpResponseBody(jsonData)
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("response"))
+						config.incrementCounter("ai_sec_response_deny", 1)
 					}
 				}
 			},
