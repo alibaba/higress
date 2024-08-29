@@ -33,10 +33,11 @@ func main() {
 }
 
 const (
-	normalResponseFormat = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
-	streamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
-	streamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-	streamResponseFormat = streamResponseChunk + "\n\n" + streamResponseEnd
+	NormalResponseFormat = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
+	StreamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
+	StreamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+	StreamResponseFormat = StreamResponseChunk + "\n\n" + StreamResponseEnd
+	TracingPrefix        = "trace_span_tag."
 )
 
 type AISecurityConfig struct {
@@ -181,21 +182,23 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						if stream {
-							jsonData := []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							jsonData := []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						if stream {
-							jsonData := []byte(fmt.Sprintf(streamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							jsonData := []byte(fmt.Sprintf(normalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData := []byte(fmt.Sprintf(NormalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
 					} else {
@@ -281,28 +284,30 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						var jsonData []byte
 						if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-							jsonData = []byte(fmt.Sprintf(streamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData = []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 						} else {
-							jsonData = []byte(fmt.Sprintf(normalResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData = []byte(fmt.Sprintf(NormalResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("response"))
 					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						var jsonData []byte
 						if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-							jsonData = []byte(fmt.Sprintf(streamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData = []byte(fmt.Sprintf(StreamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
 						} else {
-							jsonData = []byte(fmt.Sprintf(normalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData = []byte(fmt.Sprintf(NormalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{"200"}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("response"))
 					}
 				}
 			},
@@ -317,7 +322,7 @@ func extractResponseMessage(data []byte) string {
 	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
 	strChunks := []string{}
 	for _, chunk := range chunks {
-		// example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
+		// Example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
 		jsonObj := gjson.GetBytes(chunk, "choices.0.delta.content")
 		if jsonObj.Exists() {
 			strChunks = append(strChunks, jsonObj.String())
