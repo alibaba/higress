@@ -46,23 +46,23 @@ type AIStatisticsConfig struct {
 }
 
 func generateMetricName(route, cluster, model, metricName string) string {
-	return fmt.Sprintf("route.%s.upstream.%s.model.%s.%s", route, cluster, model, metricName)
+	return fmt.Sprintf("route.%s.upstream.%s.model.%s.metric.%s", route, cluster, model, metricName)
 }
 
-func getRouteName() string {
-	var route string
-	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err == nil {
-		route = string(raw)
+func getRouteName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "", err
+	} else {
+		return string(raw), nil
 	}
-	return route
 }
 
-func getClusterName() string {
-	var cluster string
-	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err == nil {
-		cluster = string(raw)
+func getClusterName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err != nil {
+		return "", err
+	} else {
+		return string(raw), nil
 	}
-	return cluster
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64) {
@@ -141,15 +141,21 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	// If the end of the stream is reached, calculate the total time and set metric and span attribute.
 	if endOfStream {
 		if model, ok := ctx.GetContext("model").(string); ok {
-			route := getRouteName()
-			cluster := getClusterName()
+			route, err := getRouteName()
+			if err != nil {
+				return data
+			}
+			cluster, err := getClusterName()
+			if err != nil {
+				return data
+			}
 			responseEndTime := time.Now().UnixMilli()
-			setTracingSpanValue("llm_service_duration", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
-			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_duration_count"), 1)
-			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_first_token_duration"),
-				uint64(firstTokenTime-requestStartTime))
-			config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_service_duration"),
-				uint64(responseEndTime-requestStartTime))
+			setTracingSpanValue("llm_service_duration", fmt.Sprint(responseEndTime-requestStartTime), log)
+			config.incrementCounter(generateMetricName(route, cluster, model, "llm_duration_count"), 1)
+			llm_first_token_duration := uint64(firstTokenTime - requestStartTime)
+			config.incrementCounter(generateMetricName(route, cluster, model, "llm_first_token_duration"), llm_first_token_duration)
+			llm_service_duration := uint64(responseEndTime - requestStartTime)
+			config.incrementCounter(generateMetricName(route, cluster, model, "llm_service_duration"), llm_service_duration)
 		}
 	}
 
@@ -158,16 +164,22 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	if !ok {
 		return data
 	}
-	route := getRouteName()
-	cluster := getClusterName()
+	route, err := getRouteName()
+	if err != nil {
+		return data
+	}
+	cluster, err := getClusterName()
+	if err != nil {
+		return data
+	}
 	// Set model context used in the last chunk which can be empty
 	if ctx.GetContext("model") == nil {
 		ctx.SetContext("model", model)
 	}
 
 	// Set token usage metrics
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.input_token"), uint64(inputToken))
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.output_token"), uint64(outputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
 	// Set filter states which can be used by other plugins.
 	setFilterState("model", model, log)
 	setFilterState("input_token", inputToken, log)
@@ -188,19 +200,26 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 		return types.ActionContinue
 	}
 	responseEndTime := time.Now().UnixMilli()
-	setTracingSpanValue("llm_service_duration", fmt.Sprintf("%d", responseEndTime-requestStartTime), log)
+	setTracingSpanValue("llm_service_duration", fmt.Sprint(responseEndTime-requestStartTime), log)
 	// Get infomations about this request
 	model, inputToken, outputToken, ok := getUsage(body)
 	if !ok {
 		return types.ActionContinue
 	}
-	route := getRouteName()
-	cluster := getClusterName()
+	route, err := getRouteName()
+	if err != nil {
+		return types.ActionContinue
+	}
+	cluster, err := getClusterName()
+	if err != nil {
+		return types.ActionContinue
+	}
 	// Set metrics
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_duration_count"), 1)
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.llm_service_duration"), uint64(responseEndTime-requestStartTime))
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.input_token"), uint64(inputToken))
-	config.incrementCounter(generateMetricName(route, cluster, model, "metric.output_token"), uint64(outputToken))
+	llm_service_duration := uint64(responseEndTime - requestStartTime)
+	config.incrementCounter(generateMetricName(route, cluster, model, "llm_service_duration"), llm_service_duration)
+	config.incrementCounter(generateMetricName(route, cluster, model, "llm_duration_count"), 1)
+	config.incrementCounter(generateMetricName(route, cluster, model, "input_token"), uint64(inputToken))
+	config.incrementCounter(generateMetricName(route, cluster, model, "output_token"), uint64(outputToken))
 	// Set filter states which can be used by other plugins.
 	setFilterState("model", model, log)
 	setFilterState("input_token", inputToken, log)
