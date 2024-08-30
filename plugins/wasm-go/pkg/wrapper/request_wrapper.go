@@ -24,7 +24,7 @@ import (
 func GetRequestScheme() string {
 	scheme, err := proxywasm.GetHttpRequestHeader(":scheme")
 	if err != nil {
-		proxywasm.LogError("parse request scheme failed")
+		proxywasm.LogErrorf("get request scheme failed: %v", err)
 		return ""
 	}
 	return scheme
@@ -33,7 +33,7 @@ func GetRequestScheme() string {
 func GetRequestHost() string {
 	host, err := proxywasm.GetHttpRequestHeader(":authority")
 	if err != nil {
-		proxywasm.LogError("parse request host failed")
+		proxywasm.LogErrorf("get request host failed: %v", err)
 		return ""
 	}
 	return host
@@ -42,7 +42,7 @@ func GetRequestHost() string {
 func GetRequestPath() string {
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
-		proxywasm.LogError("parse request path failed")
+		proxywasm.LogErrorf("get request path failed: %v", err)
 		return ""
 	}
 	return path
@@ -51,7 +51,7 @@ func GetRequestPath() string {
 func GetRequestMethod() string {
 	method, err := proxywasm.GetHttpRequestHeader(":method")
 	if err != nil {
-		proxywasm.LogError("parse request path failed")
+		proxywasm.LogErrorf("get request method failed: %v", err)
 		return ""
 	}
 	return method
