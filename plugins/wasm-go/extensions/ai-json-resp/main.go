@@ -30,18 +30,20 @@ import (
 )
 
 const (
-	defaultSchema                 = "defaultSchema"
-	httpStatusOK                  = uint32(200)
-	httpStatusInternalServerError = uint32(500)
+	DEFAULT_SCHEMA                    = "defaultSchema"
+	HTTP_STATUS_OK                    = uint32(200)
+	HTTP_STATUS_INTERNAL_SERVER_ERROR = uint32(500)
+	FROM_THIS_PLUGIN_KEY              = "fromThisPlugin"
+	EXTEND_HEADER_KEY                 = "X-HIGRESS-AI-JSON-RESP"
 
-	jsonSchemaNotValidCode       = 1001
-	jsonSchemaCompileFailedCode  = 1002
-	cannotFindJsonInResponseCode = 1003
-	contentisEmpytCode           = 1004
-	jsonMismatchSchemaCode       = 1005
-	reachMaxRetryCountCode       = 1006
-	serviceUnavailableCode       = 1007
-	serviceConfigInvalidCode     = 1008
+	JSON_SCHEMA_INVALID_CODE          = 1001
+	JSON_SCHEMA_COMPILE_FAILED_CODE   = 1002
+	CANNOT_FIND_JSON_IN_RESPONSE_CODE = 1003
+	CONTENT_IS_EMPTY_CODE             = 1004
+	JSON_MISMATCH_SCHEMA_CODE         = 1005
+	REACH_MAX_RETRY_COUNT_CODE        = 1006
+	SERVICE_UNAVAILABLE_CODE          = 1007
+	SERVICE_CONFIG_INVALID_CODE       = 1008
 )
 
 type RejectStruct struct {
@@ -101,13 +103,16 @@ type PluginConfig struct {
 	// @Title zh-CN 超深时是否拒绝执行并返回
 	// @Description zh-CN 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于提示并继续执行
 	rejectOnDepthExceeded bool `required:"false" json:"rejectOnDepthExceeded" yaml:"rejectOnDepthExceeded"`
+	// @Title zh-CN 是否启用Content-Disposition
+	// @Description zh-CN 是否启用Content-Disposition, 若启用则会在响应头中添加Content-Disposition: attachment; filename="response.json"
+	enableContentDisposition bool `required:"false" json:"enableContentDisposition" yaml:"enableContentDisposition"`
 
-	serviceClient wrapper.HttpClient
-	draft         *jsonschema.Draft
-	compiler      *jsonschema.Compiler
-	compile       *jsonschema.Schema
-	rejectStruct  RejectStruct
-	useJSinVal    bool
+	serviceClient              wrapper.HttpClient
+	draft                      *jsonschema.Draft
+	compiler                   *jsonschema.Compiler
+	compile                    *jsonschema.Schema
+	rejectStruct               RejectStruct
+	enableJsonSchemaValidation bool
 }
 
 func main() {
@@ -119,13 +124,13 @@ func main() {
 	)
 }
 
-type ReplayBuffer struct {
-	Path       string
-	ReqHeader  [][2]string
-	ReqBody    []byte
-	RespHeader [][2]string
-	RespBody   []byte
-	HistoryMessages     []chatMessage
+type RetryContext struct {
+	Path            string
+	ReqHeaders      [][2]string
+	ReqBody         []byte
+	RespHeader      [][2]string
+	RespBody        []byte
+	HistoryMessages []chatMessage
 }
 
 func parseUrl(url string) (string, string) {
@@ -162,7 +167,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	}
 	config.serviceTimeout = int(result.Get("serviceTimeout").Int())
 	config.apiKey = result.Get("apiKey").String()
-	config.rejectStruct = RejectStruct{httpStatusOK, ""}
+	config.rejectStruct = RejectStruct{HTTP_STATUS_OK, ""}
 	if config.serviceTimeout == 0 {
 		config.serviceTimeout = 50000
 	}
@@ -180,14 +185,14 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 			config.jsonSchema = schemaValue
 
 		} else {
-			config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema is not valid"}
+			config.rejectStruct = RejectStruct{JSON_SCHEMA_INVALID_CODE, "Json Schema is not valid"}
 		}
 	} else {
 		config.jsonSchema = nil
 	}
 
 	if config.serviceDomain == "" {
-		config.rejectStruct = RejectStruct{serviceConfigInvalidCode, "service domain is empty"}
+		config.rejectStruct = RejectStruct{JSON_SCHEMA_INVALID_CODE, "service domain is empty"}
 	}
 
 	config.serviceClient = wrapper.NewClusterClient(wrapper.DnsCluster{
@@ -220,6 +225,13 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 		config.jsonSchemaMaxDepth = 5
 	}
 
+	enableContentDispositionValue := result.Get("enableContentDisposition")
+	if !enableContentDispositionValue.Exists() {
+		config.enableContentDisposition = true
+	} else {
+		config.enableContentDisposition = enableContentDispositionValue.Bool()
+	}
+
 	exceed := result.Get("rejectOnDepthExceeded")
 	if !exceed.Exists() {
 		config.rejectOnDepthExceeded = false
@@ -227,33 +239,34 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 		config.rejectOnDepthExceeded = exceed.Bool()
 	}
 
-	config.useJSinVal = true
+	config.enableJsonSchemaValidation = true
 
 	jsonSchemaBytes, err := json.Marshal(config.jsonSchema)
 	if err != nil {
-		config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema marshal failed"}
+		config.rejectStruct = RejectStruct{JSON_SCHEMA_INVALID_CODE, "Json Schema marshal failed"}
 		return err
 	}
+
 	maxDepth := GetMaxDepth(config.jsonSchema)
 	log.Debugf("max depth of json schema: %d", maxDepth)
 	if maxDepth > config.jsonSchemaMaxDepth {
-		config.useJSinVal = false
+		config.enableJsonSchemaValidation = false
 		if config.rejectOnDepthExceeded {
-			config.rejectStruct = RejectStruct{jsonSchemaNotValidCode, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
+			config.rejectStruct = RejectStruct{JSON_SCHEMA_INVALID_CODE, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
 			log.Infof("Json Schema depth exceeded: %d from %d , reject the request", maxDepth, config.jsonSchemaMaxDepth)
 		} else {
 			log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
 		}
 	}
 
-	if config.useJSinVal {
+	if config.enableJsonSchemaValidation {
 		jsonSchemaStr := string(jsonSchemaBytes)
-		config.compiler.AddResource(defaultSchema, strings.NewReader(jsonSchemaStr))
+		config.compiler.AddResource(DEFAULT_SCHEMA, strings.NewReader(jsonSchemaStr))
 		// Test if the Json Schema is valid
-		compile, err := config.compiler.Compile(defaultSchema)
+		compile, err := config.compiler.Compile(DEFAULT_SCHEMA)
 		if err != nil {
 			log.Infof("Json Schema compile failed: %v", err)
-			config.rejectStruct = RejectStruct{jsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			config.rejectStruct = RejectStruct{JSON_SCHEMA_COMPILE_FAILED_CODE, "Json Schema compile failed: " + err.Error()}
 			config.compile = nil
 		} else {
 			config.compile = compile
@@ -263,15 +276,15 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	return nil
 }
 
-func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
+func (r *RetryContext) assembleReqBody(config PluginConfig) []byte {
 	var reqBodystrut chatCompletionRequest
 	json.Unmarshal(r.ReqBody, &reqBodystrut)
 	content := gjson.ParseBytes(r.RespBody).Get(config.contentPath).String()
 	jsonSchemaBytes, _ := json.Marshal(config.jsonSchema)
 	jsonSchemaStr := string(jsonSchemaBytes)
 
-	askQuestion := "Given the Json Schema: " + jsonSchemaStr + ", please help me construct the following content to a pure json: " + content
-	askQuestion += "\n Do not response other content except the pure json!!!!"
+	askQuestion := "Given the Json Schema: " + jsonSchemaStr + ", please help me convert the following content to a pure json: " + content
+	askQuestion += "\n Do not respond other content except the pure json!!!!"
 
 	reqBodystrut.Messages = append(r.HistoryMessages, []chatMessage{
 		{
@@ -284,7 +297,7 @@ func (r *ReplayBuffer) assembleReqBody(config PluginConfig) []byte {
 	return reqBody
 }
 
-func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []byte) {
+func (r *RetryContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, respBody []byte) {
 	r.RespBody = respBody
 	lastUserMessage := ""
 	lastSystemMessage := ""
@@ -324,7 +337,7 @@ func (r *ReplayBuffer) SaveHisBody(log wrapper.Log, reqBody []byte, respBody []b
 	}
 }
 
-func (r *ReplayBuffer) SaveHisStr(log wrapper.Log, errMsg string) {
+func (r *RetryContext) SaveStrToHistMsg(log wrapper.Log, errMsg string) {
 	r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 		Role:    "system",
 		Content: errMsg,
@@ -335,12 +348,12 @@ func (c *PluginConfig) ValidateBody(body []byte) error {
 	var respJsonStrct chatCompletionResponse
 	err := json.Unmarshal(body, &respJsonStrct)
 	if err != nil {
-		c.rejectStruct = RejectStruct{serviceUnavailableCode, "service unavailable: " + string(body)}
+		c.rejectStruct = RejectStruct{SERVICE_UNAVAILABLE_CODE, "service unavailable: " + string(body)}
 		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	content := gjson.ParseBytes(body).Get(c.contentPath)
 	if !content.Exists() {
-		c.rejectStruct = RejectStruct{serviceUnavailableCode, "response body does not contain the content:" + string(body)}
+		c.rejectStruct = RejectStruct{SERVICE_UNAVAILABLE_CODE, "response body does not contain the content: " + string(body)}
 		return errors.New(c.rejectStruct.RejectMsg)
 	}
 	return nil
@@ -351,22 +364,22 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	// first extract json from response body
 	if content == "" {
 		log.Infof("response body does not contain the content")
-		c.rejectStruct = RejectStruct{contentisEmpytCode, "response body does not contain the content"}
+		c.rejectStruct = RejectStruct{CONTENT_IS_EMPTY_CODE, "response body does not contain the content"}
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 	jsonStr, err := c.ExtractJson(content)
 
 	if err != nil {
 		log.Infof("response body does not contain the valid json: %v", err)
-		c.rejectStruct = RejectStruct{cannotFindJsonInResponseCode, "response body does not contain the valid json: " + err.Error()}
+		c.rejectStruct = RejectStruct{CANNOT_FIND_JSON_IN_RESPONSE_CODE, "response body does not contain the valid json: " + err.Error()}
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
 
-	if c.jsonSchema != nil && c.useJSinVal {
-		compile, err := c.compiler.Compile(defaultSchema)
+	if c.jsonSchema != nil && c.enableJsonSchemaValidation {
+		compile, err := c.compiler.Compile(DEFAULT_SCHEMA)
 		if err != nil {
 			log.Infof("Json Schema compile failed: %v", err)
-			c.rejectStruct = RejectStruct{jsonSchemaCompileFailedCode, "Json Schema compile failed: " + err.Error()}
+			c.rejectStruct = RejectStruct{JSON_SCHEMA_COMPILE_FAILED_CODE, "Json Schema compile failed: " + err.Error()}
 			c.compile = nil
 		} else {
 			c.compile = compile
@@ -376,11 +389,11 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 		err = c.compile.Validate(strings.NewReader(jsonStr))
 		if err != nil {
 			log.Infof("response body does not match the Json Schema: %v", err)
-			c.rejectStruct = RejectStruct{jsonMismatchSchemaCode, "response body does not match the Json Schema" + err.Error()}
+			c.rejectStruct = RejectStruct{JSON_MISMATCH_SCHEMA_CODE, "response body does not match the Json Schema: " + err.Error()}
 			return "", errors.New(c.rejectStruct.RejectMsg)
 		}
 	}
-	c.rejectStruct = RejectStruct{httpStatusOK, ""}
+	c.rejectStruct = RejectStruct{HTTP_STATUS_OK, ""}
 	return jsonStr, nil
 }
 
@@ -410,28 +423,28 @@ func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log,
 	header := [][2]string{
 		{"Content-Type", "application/json"},
 	}
-	if body != nil {
+	if body != nil && config.enableContentDisposition {
 		header = append(header, [2]string{"Content-Disposition", "attachment; filename=\"response.json\""})
 	}
-	if config.rejectStruct.RejectCode != httpStatusOK {
-		proxywasm.SendHttpResponseWithDetail(httpStatusInternalServerError, config.rejectStruct.GetShortMsg(), nil, config.rejectStruct.GetBytes(), -1)
+	if config.rejectStruct.RejectCode != HTTP_STATUS_OK {
+		proxywasm.SendHttpResponseWithDetail(HTTP_STATUS_INTERNAL_SERVER_ERROR, config.rejectStruct.GetShortMsg(), nil, config.rejectStruct.GetBytes(), -1)
 	} else {
-		proxywasm.SendHttpResponse(httpStatusOK, header, body, -1)
+		proxywasm.SendHttpResponse(HTTP_STATUS_OK, header, body, -1)
 	}
 }
 
-func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, bufferRB *ReplayBuffer) {
+func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, RC *RetryContext) {
 	// if retry count exceeds max retry count, return the response
 	if retryCount >= config.maxRetry {
 		log.Debugf("retry count exceeds max retry count")
 		// report more useful error by appending the last of previous error message
-		config.rejectStruct = RejectStruct{reachMaxRetryCountCode, "retry count exceeds max retry count:" + config.rejectStruct.RejectMsg}
+		config.rejectStruct = RejectStruct{REACH_MAX_RETRY_COUNT_CODE, "retry count exceeds max retry count: " + config.rejectStruct.RejectMsg}
 		sendResponse(ctx, config, log, nil)
 		return
 	}
 
 	// recursively refine json
-	config.serviceClient.Post(bufferRB.Path, bufferRB.ReqHeader, bufferRB.assembleReqBody(config),
+	config.serviceClient.Post(RC.Path, RC.ReqHeaders, RC.assembleReqBody(config),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
@@ -439,45 +452,68 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 				return
 			}
 			retryCount++
-			bufferRB.SaveHisBody(log, bufferRB.assembleReqBody(config), responseBody)
+			RC.SaveBodyToHistMsg(log, RC.assembleReqBody(config), responseBody)
 			log.Debugf("[retry request %d/%d] resp code: %d", retryCount, config.maxRetry, statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
 				sendResponse(ctx, config, log, []byte(validateJson))
 			} else {
-				bufferRB.SaveHisStr(log, err.Error())
-				recursiveRefineJson(ctx, config, log, retryCount, bufferRB)
+				RC.SaveStrToHistMsg(log, err.Error())
+				recursiveRefineJson(ctx, config, log, retryCount, RC)
 			}
 		}, uint32(config.serviceTimeout))
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	if config.rejectStruct.RejectCode != httpStatusOK {
+	if config.rejectStruct.RejectCode != HTTP_STATUS_OK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionPause
 	}
 
-	isBuffer, err := proxywasm.GetHttpRequestHeader("isBuffer")
-	if err != nil {
-		ctx.SetContext("isBuffer", "false")
+	// verify if the request is a retry request
+	extendHeaderValue, err := proxywasm.GetHttpRequestHeader(EXTEND_HEADER_KEY)
+	if err == nil {
+		isRetryReq, convErr := strconv.ParseBool(extendHeaderValue)
+		if convErr != nil {
+			log.Debugf("Failed to parse header value as bool: %v", convErr)
+			ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
+		}
+		if isRetryReq {
+			ctx.SetContext(FROM_THIS_PLUGIN_KEY, true)
+			return types.ActionContinue
+		}
+	} else {
+		ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
 	}
 
-	if isBuffer == "true" {
-		ctx.SetContext("isBuffer", "true")
-		return types.ActionContinue
+	path, err := proxywasm.GetHttpRequestHeader(":path")
+	if err != nil {
+		log.Infof("get request path failed: %v", err)
+		path = ""
+	} else {
+		ctx.SetContext("path", path)
 	}
-	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	ctx.SetContext("path", path)
 
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Infof("get request header failed: %v", err)
 	}
 
-	apiKey, _ := proxywasm.GetHttpRequestHeader("Authorization")
+	apiKey, err := proxywasm.GetHttpRequestHeader("Authorization")
+	if err != nil {
+		log.Infof("get request header failed: %v", err)
+		apiKey = ""
+	}
 	if apiKey != "" {
 		// remove the Authorization header
 		proxywasm.RemoveHttpRequestHeader("Authorization")
+		// remove the Authorization header from the headers
+		for i, header := range headers {
+			if header[0] == "Authorization" {
+				headers = append(headers[:i], headers[i+1:]...)
+				break
+			}
+		}
 	}
 	if config.apiKey != "" {
 		log.Debugf("add Authorization header %s", "Bearer "+config.apiKey)
@@ -489,26 +525,34 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	if ctx.GetContext("isBuffer").(string) == "true" {
+	isBuffer := ctx.GetContext(FROM_THIS_PLUGIN_KEY)
+	if isBufferStr, ok := isBuffer.(string); ok && isBufferStr == "true" {
 		log.Debugf("detect buffer_request, sending request to AI service")
 		return types.ActionContinue
 	}
 
+	var headers [][2]string
+	if h, ok := ctx.GetContext("headers").([][2]string); ok {
+		headers = append(h, [2]string{EXTEND_HEADER_KEY, "true"})
+	} else {
+		log.Debugf("cannot get headers from context, use default headers")
+		headers = [][2]string{
+			{"Content-Type", "application/json"},
+			{EXTEND_HEADER_KEY, "true"},
+		}
+	}
+
 	// if there is any error in the config, return the response directly
-	if config.rejectStruct.RejectCode != httpStatusOK {
+	if config.rejectStruct.RejectCode != HTTP_STATUS_OK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionContinue
 	}
 
-	header := ctx.GetContext("headers").([][2]string)
-	if header == nil {
-		header = [][2]string{
-			{"Content-Type", "application/json"},
-		}
-	}
-
-	path := ctx.GetContext("path").(string)
-	if path == "" {
+	var path string
+	if path, ok := ctx.GetContext("path").(string); ok {
+		log.Debugf("use path: %s", path)
+	} else {
+		log.Debugf("cannot get path from context, use default path")
 		path = "/v1/chat/completions"
 	}
 
@@ -517,21 +561,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		path = config.servicePath
 	}
 
-	header = append(header, [2]string{"isBuffer", "true"})
-	bufferRB := &ReplayBuffer{
-		Path:      path,
-		ReqHeader: header,
-		ReqBody:   body,
+	RC := &RetryContext{
+		Path:       path,
+		ReqHeaders: headers,
+		ReqBody:    body,
 	}
 
-	config.serviceClient.Post(bufferRB.Path, bufferRB.ReqHeader, bufferRB.ReqBody,
+	config.serviceClient.Post(RC.Path, RC.ReqHeaders, RC.ReqBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
 				sendResponse(ctx, config, log, nil)
 				return
 			}
-			bufferRB.SaveHisBody(log, body, responseBody)
+			RC.SaveBodyToHistMsg(log, body, responseBody)
 			log.Debugf("[first request] resp code: %d", statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
@@ -539,8 +582,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 				return
 			} else {
 				retryCount := 0
-				bufferRB.SaveHisStr(log, err.Error())
-				recursiveRefineJson(ctx, config, log, retryCount, bufferRB)
+				RC.SaveStrToHistMsg(log, err.Error())
+				recursiveRefineJson(ctx, config, log, retryCount, RC)
 			}
 		}, uint32(config.serviceTimeout))
 

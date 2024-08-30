@@ -17,16 +17,17 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | serviceName | str |  required | - | AI服务或支持AI-Proxy的网关服务名称 |
 | serviceDomain | str |  optional | - | AI服务或支持AI-Proxy的网关服务域名/IP地址 |
 | servicePath | str |  optional | '/v1/chat/completions' | AI服务或支持AI-Proxy的网关服务基础路径 |
-| serviceUrl | str |  optional | - | AI服务或支持AI-Proxy的网关服务URL, 插件将自动提取Domain和Path, 用于填充未配置的serviceDomain或servicePath|
+| serviceUrl | str |  optional | - | AI服务或支持 AI-Proxy 的网关服务URL, 插件将自动提取Domain 和 Path, 用于填充未配置的 serviceDomain 或 servicePath |
 | servicePort | int |  optional | 443 | 网关服务端口 |
 | serviceTimeout | int |  optional | 50000 | 默认请求超时时间 |
 | maxRetry | int |  optional | 3 | 若回答无法正确提取格式化时重试次数 |
 | contentPath | str |  optional | "choices.0.message.content” | 从LLM回答中提取响应结果的gpath路径 |
-| jsonSchema | str (json) |  optional | - | 验证请求所参照的jsonSchema, 为空只验证并返回合法Json格式响应 |
-| enableSwagger | bool |  optional | false | 是否启用Swagger协议进行验证 |
-| enableOas3 | bool |  optional | true | 是否启用Oas3协议进行验证 |
+| jsonSchema | str (json) |  optional | - | 验证请求所参照的 jsonSchema, 为空只验证并返回合法Json格式响应 |
+| enableSwagger | bool |  optional | false | 是否启用 Swagger 协议进行验证 |
+| enableOas3 | bool |  optional | true | 是否启用 Oas3 协议进行验证 |
 | jsonSchemaMaxDepth | int |  optional | 5 | 由于插件性能限制，为防止递归耗尽资源，需指定支持的 JSON Schema 最大深度，超过该深度的 Schema 不会用于验证响应|
-| rejectOnDepthExceeded | bool |  optional | false | 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于LLM提示构造并继续执行 |
+| rejectOnDepthExceeded | bool |  optional | false | 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将 Json Schema 用于LLM提示构造并继续执行 |
+| enableContentDisposition | bool | optional | true | 是否启用 Content-Disposition 头部, 若启用则会在响应头中添加 `Content-Disposition: attachment; filename="response.json"` |
 
 ### 请求和返回参数说明
 
