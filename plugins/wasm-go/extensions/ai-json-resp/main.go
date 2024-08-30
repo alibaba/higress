@@ -525,9 +525,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	isBuffer := ctx.GetContext(FROM_THIS_PLUGIN_KEY)
-	if isBufferStr, ok := isBuffer.(string); ok && isBufferStr == "true" {
-		log.Debugf("detect buffer_request, sending request to AI service")
+	fromThisPlugin, ok := ctx.GetContext(FROM_THIS_PLUGIN_KEY).(bool)
+	if ok && fromThisPlugin {
+		log.Debugf("Detected buffer_request, sending request to AI service")
 		return types.ActionContinue
 	}
 
