@@ -77,10 +77,16 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error 
 	}
 
 	ipProtocol := json.Get("ip_protocol")
-	if !ipProtocol.Exists() || ipProtocol.String() == "" {
+	if !ipProtocol.Exists() {
 		config.IpProtocol = "ipv4"
 	} else {
-		config.IpProtocol = strings.ToLower(ipProtocol.String())
+		switch ipProtocol.String() {
+		case "ipv6":
+			config.IpProtocol = "ipv6"
+		case "ipv4":
+		default:
+			config.IpProtocol = "ipv4"
+		}
 	}
 
 	if HaveInitGeoIpDb {
@@ -127,7 +133,7 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 			return errors.New("add geoipdata into radix treefailed " + err.Error())
 		}
 
-		log.Infof("added geoip data into radixtree: %v", *geoIpData)
+		log.Debugf("added geoip data into radixtree: %v", *geoIpData)
 	}
 
 	return nil
@@ -160,33 +166,33 @@ func parseIP(source string) string {
 	return source
 }
 
-func isInternalIp(ip string) (bool, error) {
+func isInternalIp(ip string) (string, error) {
 	if ip == "" {
-		return false, errors.New("empty ip")
+		return "", errors.New("empty ip")
 	}
 
 	ipBt := net.ParseIP(ip)
 	if ipBt == nil {
-		return false, errors.New("invalid ip format")
+		return "", errors.New("invalid ip format")
 	}
 
 	ip4B := ipBt.To4()
 	if ip4B == nil {
-		return false, errors.New("not ipv4 format")
+		return "", errors.New("not ipv4 format")
 	}
 
 	for _, cidr := range internalIpCidr {
 		_, networkIp, err := net.ParseCIDR(cidr)
 		if err != nil {
-			return false, err
+			return "", err
 		}
 
 		if networkIp.Contains(ip4B) {
-			return true, nil
+			return cidr, nil
 		}
 	}
 
-	return false, nil
+	return "", nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapper.Log) types.Action {
@@ -216,16 +222,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapp
 		return types.ActionContinue
 	}
 
-	isItn, err := isInternalIp(clientIp)
+	internalCidr, err := isInternalIp(clientIp)
 	if err != nil {
 		log.Errorf("check internal ip failed. error: %v", err)
 		return types.ActionContinue
 	}
 
 	var geoIpData *GeoIpData
-	if isItn {
+	if internalCidr != "" {
 		geoIpData = &GeoIpData{
-			Cidr:     "",
+			Cidr:     internalCidr,
 			City:     "内网IP",
 			Province: "内网IP",
 			Country:  "内网IP",

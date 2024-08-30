@@ -5,6 +5,7 @@
 # 配置字段
 | 名称            | 数据类型     | 填写要求   |  默认值          | 描述      |
 | --------        | --------    | -------- | --------          | -------- |
+|  ip_protocol    |  string     |  否     |   ipv4             |  可选值：1. ipv4：只对ipv4用户请求查找地理位置信息，传递给后续插件。 2. ipv6：只对ipv6用户查找地理位置信息，传递给后续插件。
 |  ip_source_type |  string     |  否     |   origin-source    |  可选值：1. 对端socket ip：`origin-source`; 2. 通过header获取：`header`  |
 |  ip_header_name |  string     |  否     |   x-forwarded-for  |  当`ip_source_type`为`header`时，指定自定义IP来源头                      |
 
@@ -12,6 +13,7 @@
 # 配置示例
 
 ```yaml
+ip_protocol: ipv4
 ip_source_type: header
 ip_header_name: X-Real-Ip
 ```
