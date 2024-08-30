@@ -93,6 +93,12 @@ func parseConfig(json gjson.Result, config *OpaConfig, log wrapper.Log) error {
 		}
 	}
 
+	config.extratHeaders = make(map[string]string)
+	extratHeaders := json.Get("extratHeaders").Map()
+	for k, v := range extratHeaders {
+		config.extratHeaders[k] = v.String()
+	}
+
 	var uint32Duration uint32
 
 	if duration.Milliseconds() > int64(^uint32(0)) {
@@ -134,6 +140,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config OpaConfig, log wrapper
 	if config.skipHeader {
 		if !config.skipBody {
 			setCtx(ctx)
+		}
+		if len(config.extratHeaders) > 0 {
+			return types.HeaderStopIteration
 		}
 		return types.ActionContinue
 	}

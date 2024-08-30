@@ -45,6 +45,11 @@ type OpaConfig struct {
 	no200Code       uint32
 	no200ContenType string
 
+	// after authz, allow add extra headers by result path
+	// eg: {"result.user_id": "x-user-real-id"}
+	// get result.user-realid from opa response, and add to request header x-user-realid
+	extratHeaders map[string]string
+
 	client wrapper.HttpClient
 }
 
@@ -142,6 +147,15 @@ func (config OpaConfig) rspCall(statusCode int, _ http.Header, responseBody []by
 			proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "opa.server_not_allowed", nil, []byte("opa server not allowed"), -1)
 		}
 		return
+	}
+	if len(config.extratHeaders) > 0 {
+		for k, v := range config.extratHeaders {
+			rv := gjson.GetBytes(responseBody, k).String()
+			if rv != "" {
+				proxywasm.LogDebugf("opa add header %s: %s", v, rv)
+				proxywasm.AddHttpRequestHeader(v, rv)
+			}
+		}
 	}
 	proxywasm.ResumeHttpRequest()
 }
