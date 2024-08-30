@@ -470,7 +470,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 		return types.ActionPause
 	}
 
-	// verify if the request is a retry request
+	// verify if the request is from this plugin
 	extendHeaderValue, err := proxywasm.GetHttpRequestHeader(EXTEND_HEADER_KEY)
 	if err == nil {
 		fromThisPlugin, convErr := strconv.ParseBool(extendHeaderValue)
@@ -525,6 +525,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+	// if the request is from this plugin, continue the request
 	fromThisPlugin, ok := ctx.GetContext(FROM_THIS_PLUGIN_KEY).(bool)
 	if ok && fromThisPlugin {
 		log.Debugf("Detected buffer_request, sending request to AI service")
