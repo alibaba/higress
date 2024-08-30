@@ -124,7 +124,7 @@ func main() {
 	)
 }
 
-type RetryContext struct {
+type RequestContext struct {
 	Path            string
 	ReqHeaders      [][2]string
 	ReqBody         []byte
@@ -276,7 +276,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	return nil
 }
 
-func (r *RetryContext) assembleReqBody(config PluginConfig) []byte {
+func (r *RequestContext) assembleReqBody(config PluginConfig) []byte {
 	var reqBodystrut chatCompletionRequest
 	json.Unmarshal(r.ReqBody, &reqBodystrut)
 	content := gjson.ParseBytes(r.RespBody).Get(config.contentPath).String()
@@ -297,7 +297,7 @@ func (r *RetryContext) assembleReqBody(config PluginConfig) []byte {
 	return reqBody
 }
 
-func (r *RetryContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, respBody []byte) {
+func (r *RequestContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, respBody []byte) {
 	r.RespBody = respBody
 	lastUserMessage := ""
 	lastSystemMessage := ""
@@ -337,7 +337,7 @@ func (r *RetryContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, respBo
 	}
 }
 
-func (r *RetryContext) SaveStrToHistMsg(log wrapper.Log, errMsg string) {
+func (r *RequestContext) SaveStrToHistMsg(log wrapper.Log, errMsg string) {
 	r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 		Role:    "system",
 		Content: errMsg,
@@ -370,7 +370,7 @@ func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error
 	jsonStr, err := c.ExtractJson(content)
 
 	if err != nil {
-		log.Infof("response body does not contain the valid json: %v", err)
+		log.Infof("response body does not contain the valid json: %v", err.Error())
 		c.rejectStruct = RejectStruct{CANNOT_FIND_JSON_IN_RESPONSE_CODE, "response body does not contain the valid json: " + err.Error()}
 		return "", errors.New(c.rejectStruct.RejectMsg)
 	}
@@ -433,7 +433,7 @@ func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log,
 	}
 }
 
-func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, RC *RetryContext) {
+func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, requestContext *RequestContext) {
 	// if retry count exceeds max retry count, return the response
 	if retryCount >= config.maxRetry {
 		log.Debugf("retry count exceeds max retry count")
@@ -444,7 +444,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 	}
 
 	// recursively refine json
-	config.serviceClient.Post(RC.Path, RC.ReqHeaders, RC.assembleReqBody(config),
+	config.serviceClient.Post(requestContext.Path, requestContext.ReqHeaders, requestContext.assembleReqBody(config),
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
@@ -452,14 +452,14 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 				return
 			}
 			retryCount++
-			RC.SaveBodyToHistMsg(log, RC.assembleReqBody(config), responseBody)
+			requestContext.SaveBodyToHistMsg(log, requestContext.assembleReqBody(config), responseBody)
 			log.Debugf("[retry request %d/%d] resp code: %d", retryCount, config.maxRetry, statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
 				sendResponse(ctx, config, log, []byte(validateJson))
 			} else {
-				RC.SaveStrToHistMsg(log, err.Error())
-				recursiveRefineJson(ctx, config, log, retryCount, RC)
+				requestContext.SaveStrToHistMsg(log, err.Error())
+				recursiveRefineJson(ctx, config, log, retryCount, requestContext)
 			}
 		}, uint32(config.serviceTimeout))
 }
@@ -473,12 +473,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	// verify if the request is a retry request
 	extendHeaderValue, err := proxywasm.GetHttpRequestHeader(EXTEND_HEADER_KEY)
 	if err == nil {
-		isRetryReq, convErr := strconv.ParseBool(extendHeaderValue)
+		fromThisPlugin, convErr := strconv.ParseBool(extendHeaderValue)
 		if convErr != nil {
 			log.Debugf("Failed to parse header value as bool: %v", convErr)
 			ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
 		}
-		if isRetryReq {
+		if fromThisPlugin {
 			ctx.SetContext(FROM_THIS_PLUGIN_KEY, true)
 			return types.ActionContinue
 		}
@@ -561,20 +561,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		path = config.servicePath
 	}
 
-	RC := &RetryContext{
+	requestContext := &RequestContext{
 		Path:       path,
 		ReqHeaders: headers,
 		ReqBody:    body,
 	}
 
-	config.serviceClient.Post(RC.Path, RC.ReqHeaders, RC.ReqBody,
+	config.serviceClient.Post(requestContext.Path, requestContext.ReqHeaders, requestContext.ReqBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			err := config.ValidateBody(responseBody)
 			if err != nil {
 				sendResponse(ctx, config, log, nil)
 				return
 			}
-			RC.SaveBodyToHistMsg(log, body, responseBody)
+			requestContext.SaveBodyToHistMsg(log, body, responseBody)
 			log.Debugf("[first request] resp code: %d", statusCode)
 			validateJson, err := config.ValidateJson(responseBody, log)
 			if err == nil {
@@ -582,8 +582,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 				return
 			} else {
 				retryCount := 0
-				RC.SaveStrToHistMsg(log, err.Error())
-				recursiveRefineJson(ctx, config, log, retryCount, RC)
+				requestContext.SaveStrToHistMsg(log, err.Error())
+				recursiveRefineJson(ctx, config, log, retryCount, requestContext)
 			}
 		}, uint32(config.serviceTimeout))
 
