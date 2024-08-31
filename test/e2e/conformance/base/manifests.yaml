@@ -64,7 +64,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -113,7 +113,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -162,7 +162,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -209,7 +209,7 @@ spec:
       containers:
       - name: infra-backend-echo-body-v1
         # FROM https://github.com/higress-group/echo-body
-        image: 873292889/echo-body:1.0.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body:1.0.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -311,7 +311,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -360,7 +360,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -416,7 +416,7 @@ spec:
         # image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echoserver:v20221109-7ee2f3e
 
         # From https://github.com/Uncle-Justice/echo-server
-        image: 873292889/echo-server:1.3.0
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
         env:
         - name: POD_NAME
           valueFrom:

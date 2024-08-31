@@ -43,4 +43,4 @@ metadata:
   name: sni-misdirect
   namespace: higress-system
 spec:
-  url: file:///opt/plugins/wasm-go/extensions/sni-misdirect/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-sni-misdirect:1.0.0

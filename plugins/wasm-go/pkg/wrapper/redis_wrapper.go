@@ -142,7 +142,9 @@ func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback
 					}
 				}
 			}
-			callback(responseValue)
+			if callback != nil {
+				callback(responseValue)
+			}
 		})
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)

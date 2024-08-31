@@ -30,7 +30,7 @@ type Cache interface {
 	UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper)
 	DeleteServiceEntryWrapper(service string)
 	PurgeStaleService()
-	UpdateServiceEntryEnpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
+	UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
 	GetServiceByEndpoints(requestVersions, endpoints map[string]bool, versionKey string, protocol common.Protocol) map[string][]string
 	GetAllServiceEntry() []*v1alpha3.ServiceEntry
 	GetAllServiceEntryWrapper() []*ServiceEntryWrapper
@@ -58,7 +58,7 @@ type store struct {
 	deferedDelete map[string]struct{}
 }
 
-func (s *store) UpdateServiceEntryEnpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string) {
+func (s *store) UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	if se, exist := s.sew[service]; exist {

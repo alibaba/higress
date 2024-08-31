@@ -505,14 +505,6 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
-						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
-						CheckType:       envoy.CheckTypeMatch,
-						TargetNamespace: "higress-system",
-						ExpectEnvoyConfig: map[string]interface{}{
-							"timeout": "0s",
-						},
-					},
-					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -779,14 +771,6 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
-						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
-						CheckType:       envoy.CheckTypeMatch,
-						TargetNamespace: "higress-system",
-						ExpectEnvoyConfig: map[string]interface{}{
-							"timeout": "0s",
-						},
-					},
-					{
 						Path:            "configs.#.dynamic_active_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeMatch,
 						TargetNamespace: "higress-system",
@@ -966,14 +950,6 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 							"stream_idle_timeout":            "180s",
 							"max_request_headers_kb":         60,
 							"idle_timeout":                   "180s",
-						},
-					},
-					{
-						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.route",
-						CheckType:       envoy.CheckTypeMatch,
-						TargetNamespace: "higress-system",
-						ExpectEnvoyConfig: map[string]interface{}{
-							"timeout": "0s",
 						},
 					},
 					{

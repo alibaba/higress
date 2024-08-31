@@ -100,6 +100,13 @@ message WasmPlugin {
   // namespace of the `WasmPlugins`. Defaults to `0`.
   google.protobuf.Int32Value priority = 10;
 
+  // Specifies the failure behavior for the plugin due to fatal errors.
+  FailStrategy fail_strategy = 13;
+
+  // Configuration for a Wasm VM.
+  // more details can be found [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/wasm/v3/wasm.proto#extensions-wasm-v3-vmconfig).
+  VmConfig vm_config = 11;
+
   // Extended by Higress, the default configuration takes effect globally
   google.protobuf.Struct default_config = 101;
   // Extended by Higress, matching rules take effect
@@ -114,6 +121,7 @@ message MatchRule {
   repeated string domain = 2;
   google.protobuf.Struct config = 3;
   bool config_disable = 4;
+  repeated string service = 5;
 }
 
 // The phase in the filter chain where the plugin will be injected.
@@ -152,4 +160,47 @@ enum PullPolicy {
   // We will always pull the latest version of an image when applying
   // this plugin.
   Always = 2;
+}
+
+// Configuration for a Wasm VM.
+// more details can be found [here](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/wasm/v3/wasm.proto#extensions-wasm-v3-vmconfig).
+message VmConfig {
+  // Specifies environment variables to be injected to this VM.
+  // Note that if a key does not exist, it will be ignored.
+  repeated EnvVar env = 1;
+}
+
+message EnvVar {
+  // Required
+  // Name of the environment variable. Must be a C_IDENTIFIER.
+  string name = 1;
+
+  // Required
+  // Source for the environment variable's value.
+  EnvValueSource value_from = 3;
+
+  // Value for the environment variable.
+  // Note that if `value_from` is `HOST`, it will be ignored.
+  // Defaults to "".
+  string value = 2;
+}
+
+enum EnvValueSource {
+  // Explicitly given key-value pairs to be injected to this VM
+  INLINE = 0;
+
+  // *Istio-proxy's* environment variables exposed to this VM.
+  HOST = 1;
+}
+
+enum FailStrategy {
+  // A fatal error in the binary fetching or during the plugin execution causes
+  // all subsequent requests to fail with 5xx.
+  FAIL_CLOSE = 0;
+
+  // Enables the fail open behavior for the Wasm plugin fatal errors to bypass
+  // the plugin execution. A fatal error can be a failure to fetch the remote
+  // binary, an exception, or abort() on the VM. This flag is not recommended
+  // for the authentication or the authorization plugins.
+  FAIL_OPEN = 1;
 }

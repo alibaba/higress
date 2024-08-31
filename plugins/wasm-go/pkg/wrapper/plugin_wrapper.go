@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -38,6 +39,8 @@ type HttpContext interface {
 	Method() string
 	SetContext(key string, value interface{})
 	GetContext(key string) interface{}
+	GetBoolContext(key string, defaultValue bool) bool
+	GetStringContext(key, defaultValue string) string
 	// If the onHttpRequestBody handle is not set, the request body will not be read by default
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
@@ -46,6 +49,13 @@ type HttpContext interface {
 	BufferRequestBody()
 	// If the onHttpStreamingResponseBody handle is not set, and the onHttpResponseBody handle is set, the response body will be buffered by default
 	BufferResponseBody()
+	// If any request header is changed in onHttpRequestHeaders, envoy will re-calculate the route. Call this function to disable the re-routing.
+	// You need to call this before making any header modification operations.
+	DisableReroute()
+	// Note that this parameter affects the gateway's memory usage！Support setting a maximum buffer size for each request body individually in request phase.
+	SetRequestBodyBufferLimit(size uint32)
+	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
+	SetResponseBodyBufferLimit(size uint32)
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
@@ -295,6 +305,20 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
 }
 
+func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue bool) bool {
+	if b, ok := ctx.userContext[key].(bool); ok {
+		return b
+	}
+	return defaultValue
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetStringContext(key, defaultValue string) string {
+	if s, ok := ctx.userContext[key].(string); ok {
+		return s
+	}
+	return defaultValue
+}
+
 func (ctx *CommonHttpCtx[PluginConfig]) Scheme() string {
 	proxywasm.SetEffectiveContext(ctx.contextID)
 	return GetRequestScheme()
@@ -329,6 +353,20 @@ func (ctx *CommonHttpCtx[PluginConfig]) BufferRequestBody() {
 
 func (ctx *CommonHttpCtx[PluginConfig]) BufferResponseBody() {
 	ctx.streamingResponseBody = false
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) DisableReroute() {
+	_ = proxywasm.SetProperty([]string{"clear_route_cache"}, []byte("off"))
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetRequestBodyBufferLimit(size uint32) {
+	ctx.plugin.vm.log.Infof("SetRequestBodyBufferLimit: %d", size)
+	_ = proxywasm.SetProperty([]string{"set_decoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) {
+	ctx.plugin.vm.log.Infof("SetResponseBodyBufferLimit: %d", size)
+	_ = proxywasm.SetProperty([]string{"set_encoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {

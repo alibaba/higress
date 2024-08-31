@@ -45,11 +45,12 @@ const (
 
 // Config is the configuration of automatic https.
 type Config struct {
-	AutomaticHttps   bool              `json:"automaticHttps"`
-	RenewBeforeDays  int               `json:"renewBeforeDays"`
-	CredentialConfig []CredentialEntry `json:"credentialConfig"`
-	ACMEIssuer       []ACMEIssuerEntry `json:"acmeIssuer"`
-	Version          string            `json:"version"`
+	AutomaticHttps           bool              `json:"automaticHttps"`
+	FallbackForInvalidSecret bool              `json:"fallbackForInvalidSecret"`
+	RenewBeforeDays          int               `json:"renewBeforeDays"`
+	CredentialConfig         []CredentialEntry `json:"credentialConfig"`
+	ACMEIssuer               []ACMEIssuerEntry `json:"acmeIssuer"`
+	Version                  string            `json:"version"`
 }
 
 func (c *Config) GetIssuer(issuerName IssuerName) *ACMEIssuerEntry {
@@ -85,22 +86,35 @@ func (c *Config) GetSecretNameByDomain(issuerName IssuerName, domain string) str
 	return ""
 }
 
+func ParseTLSSecret(tlsSecret string) (string, string) {
+	secrets := strings.Split(tlsSecret, "/")
+	switch len(secrets) {
+	case 1:
+		return "", tlsSecret
+	case 2:
+		return secrets[0], secrets[1]
+	}
+	return "", ""
+}
+
 func (c *Config) Validate() error {
 	// check acmeIssuer
-	if len(c.ACMEIssuer) == 0 {
-		return fmt.Errorf("acmeIssuer is empty")
-	}
-	for _, issuer := range c.ACMEIssuer {
-		switch issuer.Name {
-		case IssuerTypeLetsencrypt:
-			if issuer.Email == "" {
-				return fmt.Errorf("acmeIssuer %s email is empty", issuer.Name)
+	if c.AutomaticHttps {
+		if len(c.ACMEIssuer) == 0 {
+			return fmt.Errorf("no acmeIssuer configuration found when automaticHttps is enable")
+		}
+		for _, issuer := range c.ACMEIssuer {
+			switch issuer.Name {
+			case IssuerTypeLetsencrypt:
+				if issuer.Email == "" {
+					return fmt.Errorf("acmeIssuer %s email is empty", issuer.Name)
+				}
+				if !ValidateEmail(issuer.Email) {
+					return fmt.Errorf("acmeIssuer %s email %s is invalid", issuer.Name, issuer.Email)
+				}
+			default:
+				return fmt.Errorf("acmeIssuer name %s is not supported", issuer.Name)
 			}
-			if !ValidateEmail(issuer.Email) {
-				return fmt.Errorf("acmeIssuer %s email %s is invalid", issuer.Name, issuer.Email)
-			}
-		default:
-			return fmt.Errorf("acmeIssuer name %s is not supported", issuer.Name)
 		}
 	}
 	// check credentialConfig
@@ -110,14 +124,20 @@ func (c *Config) Validate() error {
 		}
 		if credential.TLSSecret == "" {
 			return fmt.Errorf("credentialConfig tlsSecret is empty")
+		} else {
+			ns, secret := ParseTLSSecret(credential.TLSSecret)
+			if ns == "" && secret == "" {
+				return fmt.Errorf("credentialConfig tlsSecret %s is not supported", credential.TLSSecret)
+			}
 		}
+
 		if credential.TLSIssuer == IssuerTypeLetsencrypt {
 			if len(credential.Domains) > 1 {
 				return fmt.Errorf("credentialConfig tlsIssuer %s only support one domain", credential.TLSIssuer)
 			}
 		}
 		if credential.TLSIssuer != IssuerTypeLetsencrypt && len(credential.TLSIssuer) > 0 {
-			return fmt.Errorf("credential tls issuer %s is not support", credential.TLSIssuer)
+			return fmt.Errorf("credential tls issuer %s is not supported", credential.TLSIssuer)
 		}
 	}
 
@@ -274,11 +294,12 @@ func newDefaultConfig(email string) *Config {
 	}
 	defaultCredentialConfig := make([]CredentialEntry, 0)
 	config := &Config{
-		AutomaticHttps:   true,
-		RenewBeforeDays:  DefaultRenewBeforeDays,
-		ACMEIssuer:       defaultIssuer,
-		CredentialConfig: defaultCredentialConfig,
-		Version:          time.Now().Format("20060102030405"),
+		AutomaticHttps:           true,
+		FallbackForInvalidSecret: false,
+		RenewBeforeDays:          DefaultRenewBeforeDays,
+		ACMEIssuer:               defaultIssuer,
+		CredentialConfig:         defaultCredentialConfig,
+		Version:                  time.Now().Format("20060102030405"),
 	}
 	return config
 }

@@ -1,5 +1,6 @@
 revision: ""
 global:
+  liteMetrics: true
   xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
   enableSRDS: true
@@ -177,9 +178,9 @@ global:
     # Default port for Pilot agent health checks. A value of 0 will disable health checking.
     statusPort: 15020
 
-    # Specify which tracer to use. One of: zipkin, lightstep, datadog, stackdriver.
+    # Specify which tracer to use. One of: lightstep, datadog, stackdriver.
     # If using stackdriver tracer outside GCP, set env GOOGLE_APPLICATION_CREDENTIALS to the GCP credential file.
-    tracer: "zipkin"
+    tracer: ""
 
     # Controls if sidecar is injected at the front of the container list and blocks the start of the other containers until the proxy is ready
     holdApplicationUntilProxyStarts: false
@@ -329,13 +330,23 @@ global:
       maxNumberOfAnnotations: 200
       # The global default max number of attributes per span.
       maxNumberOfAttributes: 200
-    zipkin:
-      # Host:Port for reporting trace data in zipkin format. If not specified, will default to
-      # zipkin service (port 9411) in the same namespace as the other istio components.
-      address: ""
-
   # Use the Mesh Control Protocol (MCP) for configuring Istiod. Requires an MCP source.
+
   useMCP: false
+
+  # Observability (o11y) configurations
+  o11y:
+    enabled: false
+    promtail:
+      image:
+        repository: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/promtail
+        tag: 2.9.4
+      port: 3101
+      resources:
+        limits:
+          cpu: 500m
+          memory: 2Gi
+      securityContext: {}
 
   # The name of the CA for workload certificates.
   # For example, when caName=GkeWorkloadCertificate, GKE workload certificates
@@ -380,6 +391,9 @@ gateway:
   name: "higress-gateway"
   replicas: 2
   image: gateway
+
+  # -- Use a `DaemonSet` or `Deployment`
+  kind: Deployment
 
   # The number of successive failed probes before indicating readiness failure.
   readinessFailureThreshold: 30
@@ -453,6 +467,7 @@ gateway:
       targetPort: 443
     annotations: {}
     loadBalancerIP: ""
+    loadBalancerClass: ""
     loadBalancerSourceRanges: []
     externalTrafficPolicy: ""
 
@@ -574,7 +589,7 @@ controller:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 80
   automaticHttps:
-    enabled: false
+    enabled: true
     email: ""
   
 ## Discovery Settings
@@ -649,9 +664,15 @@ pilot:
   podLabels: {}
 
 
-# Skywalking config settings
-skywalking:
-  enabled: false
-  service:
-    address: ~
-    port: 11800
+# Tracing config settings
+tracing:
+  enable: false
+  sampling: 100
+  timeout: 500
+  skywalking:
+   # access_token: ""
+   service: ""
+   port: 11800
+  # zipkin:
+    # service: ""
+    # port: 9411

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -14,7 +13,7 @@ func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) er
 		return fmt.Errorf("unable to unmarshal request: %v", err)
 	}
 	if request.Messages == nil || len(request.Messages) == 0 {
-		return errors.New("no message found in the request body")
+		return fmt.Errorf("no message found in the request body: %s", body)
 	}
 	return nil
 }
@@ -37,15 +36,15 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 		Role:    roleSystem,
 		Content: content,
 	}
-	firstNonSystemMessageIndex := -1
+	var firstNonSystemMessageIndex int
 	for i, message := range request.Messages {
 		if message.Role != roleSystem {
 			firstNonSystemMessageIndex = i
 			break
 		}
 	}
-	if firstNonSystemMessageIndex == -1 {
-		request.Messages = append(request.Messages, fileMessage)
+	if firstNonSystemMessageIndex == 0 {
+		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
 	} else {
 		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
 	}

@@ -241,7 +241,7 @@ func (w *watcher) fetchAllServices(firstFetch ...bool) error {
 			case SpringCloudService:
 				serviceConfig.UrlIndex = path.Join(serviceInfo.rootPath, serviceInfo.service)
 			default:
-				return errors.New("unkown type")
+				return errors.New("unknown type")
 			}
 			serviceConfigs = append(serviceConfigs, serviceConfig)
 		}
@@ -275,7 +275,7 @@ func (w *watcher) ListenService() {
 						}
 						log.Errorf("[Zookeeper][ListenService] Get children of path zkRootPath with watcher failed, err:%v, index:%s", err, listIndex.UrlIndex)
 
-						// May be the provider does not ready yet, sleep failTimes * ConnDelay senconds to wait
+						// May be the provider does not ready yet, sleep failTimes * ConnDelay seconds to wait
 						after := time.After(timeSecondDuration(failTimes * ConnDelay))
 						select {
 						case <-after:
@@ -384,7 +384,7 @@ func (w *watcher) GetInterfaceConfig(event Event) (string, *InterfaceConfig, err
 	}
 }
 
-func (w *watcher) GetSpringCloudConfig(intefaceName string, content []byte) (string, *InterfaceConfig, error) {
+func (w *watcher) GetSpringCloudConfig(interfaceName string, content []byte) (string, *InterfaceConfig, error) {
 	var instance SpringCloudInstance
 	err := json.Unmarshal(content, &instance)
 	if err != nil {
@@ -392,7 +392,7 @@ func (w *watcher) GetSpringCloudConfig(intefaceName string, content []byte) (str
 		return "", nil, err
 	}
 	var config InterfaceConfig
-	host := intefaceName
+	host := interfaceName
 	config.Host = host
 	config.Protocol = common.HTTP.String()
 	if len(instance.Payload.Metadata) > 0 && instance.Payload.Metadata["protocol"] != "" {
@@ -622,7 +622,7 @@ func (w *watcher) DubboChildToServiceEntry(serviceEntry map[string]InterfaceConf
 }
 
 func (w *watcher) generateServiceEntry(config InterfaceConfig) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range config.Endpoints {
@@ -631,7 +631,7 @@ func (w *watcher) generateServiceEntry(config InterfaceConfig) *v1alpha3.Service
 			protocol = common.ParseProtocol(service.Metadata[PROTOCOL])
 		}
 		portNumber, _ := strconv.Atoi(service.Port)
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(portNumber),
 			Protocol: protocol.String(),

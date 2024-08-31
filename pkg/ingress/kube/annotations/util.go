@@ -17,20 +17,20 @@ package annotations
 import (
 	"strings"
 
-	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/model/credentials"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-func extraSecret(name string) model.NamespacedName {
-	result := model.NamespacedName{}
+func extraSecret(name string) types.NamespacedName {
+	result := types.NamespacedName{}
 	res := strings.TrimPrefix(name, credentials.KubernetesIngressSecretTypeURI)
 	split := strings.Split(res, "/")
 	if len(split) != 3 {
 		return result
 	}
 
-	return model.NamespacedName{
+	return types.NamespacedName{
 		Namespace: split[1],
 		Name:      split[2],
 	}
@@ -49,6 +49,6 @@ func splitBySeparator(content, separator string) []string {
 	return result
 }
 
-func toSet(slice []string) sets.Set {
-	return sets.NewSet(slice...)
+func toSet(slice []string) sets.Set[string] {
+	return sets.New[string](slice...)
 }

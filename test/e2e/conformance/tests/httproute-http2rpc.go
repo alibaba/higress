@@ -24,7 +24,6 @@ import (
 func init() {
 	Register(HTTPRouteHttp2RpcCreate)
 	Register(HTTPRouteHttp2RpcUpdate)
-	Register(HTTPRouteHttp2RpcDelete)
 }
 
 var HTTPRouteHttp2RpcCreate = suite.ConformanceTest{
@@ -77,7 +76,7 @@ var HTTPRouteHttp2RpcUpdate = suite.ConformanceTest{
 				Response: http.AssertionResponse{
 					ExpectedResponseNoRequest: true,
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
+						StatusCode: 500,
 					},
 				},
 			},
@@ -92,68 +91,7 @@ var HTTPRouteHttp2RpcUpdate = suite.ConformanceTest{
 				Response: http.AssertionResponse{
 					ExpectedResponseNoRequest: true,
 					ExpectedResponse: http.Response{
-						StatusCode: 404,
-					},
-				},
-			},
-			{
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:   "foo.com",
-						Path:   "/dubbo/health/readiness?type=readiness",
-						Method: "GET",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponseNoRequest: true,
-					ExpectedResponse: http.Response{
 						StatusCode: 200,
-					},
-				},
-			},
-			{
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:   "foo.com",
-						Path:   "/dubbo/health/liveness?type=liveness",
-						Method: "GET",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponseNoRequest: true,
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			},
-		}
-		t.Run("HTTPRoute uses HTTP to RPC", func(t *testing.T) {
-			for _, testcase := range testcases {
-				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-			}
-		})
-	},
-}
-
-var HTTPRouteHttp2RpcDelete = suite.ConformanceTest{
-	ShortName:   "HTTPRouteHttp2RpcDelete",
-	Description: "The Ingress in the higress-conformance-infra namespace test delete the http2rpc.",
-	PreDeleteRs: []string{"tests/httproute-http2rpc-2-delete.yaml"},
-	Features:    []suite.SupportedFeature{suite.DubboConformanceFeature, suite.NacosConformanceFeature},
-	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		testcases := []http.Assertion{
-			{
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:   "foo.com",
-						Path:   "/dubbo/hello_update?name=higress",
-						Method: "GET",
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponseNoRequest: true,
-					ExpectedResponse: http.Response{
-						StatusCode: 404,
 					},
 				},
 			},

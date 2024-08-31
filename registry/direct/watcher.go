@@ -143,8 +143,8 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 		log.Errorf("empty endpoints will not be pushed, host:%s", host)
 		return nil
 	}
-	var ports []*v1alpha3.Port
-	ports = append(ports, &v1alpha3.Port{
+	var ports []*v1alpha3.ServicePort
+	ports = append(ports, &v1alpha3.ServicePort{
 		Number:   w.Port,
 		Name:     "http",
 		Protocol: string(protocol.HTTP),

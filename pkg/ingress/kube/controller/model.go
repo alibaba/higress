@@ -16,16 +16,12 @@ package controller
 
 import (
 	"errors"
-	"time"
 
-	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/kube/controllers"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
@@ -49,28 +45,29 @@ type GetObjectFunc[lister any] func(lister, types.NamespacedName) (controllers.O
 
 type CommonController[lister any] struct {
 	typeName      string
-	queue         workqueue.RateLimitingInterface
+	queue         controllers.Queue
 	informer      cache.SharedIndexInformer
 	lister        lister
 	updateHandler func(util.ClusterNamespacedName)
 	removeHandler func(util.ClusterNamespacedName)
 	getFunc       GetObjectFunc[lister]
-	clusterId     string
+	clusterId     cluster.ID
 }
 
 func NewCommonController[lister any](typeName string, listerObj lister, informer cache.SharedIndexInformer,
-	getFunc GetObjectFunc[lister], clusterId string) Controller[lister] {
-	q := workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter())
-	handler := controllers.LatestVersionHandlerFuncs(controllers.EnqueueForSelf(q))
-	informer.AddEventHandler(handler)
-	return &CommonController[lister]{
+	getFunc GetObjectFunc[lister], clusterId cluster.ID) Controller[lister] {
+	c := &CommonController[lister]{
 		typeName:  typeName,
-		queue:     q,
 		lister:    listerObj,
 		informer:  informer,
 		clusterId: clusterId,
 		getFunc:   getFunc,
 	}
+	c.queue = controllers.NewQueue(typeName,
+		controllers.WithReconciler(c.onEvent),
+		controllers.WithMaxAttempts(5))
+	_, _ = c.informer.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
+	return c
 }
 
 func (c *CommonController[lister]) Lister() lister {
@@ -89,37 +86,11 @@ func (c *CommonController[lister]) AddEventHandler(addOrUpdate func(util.Cluster
 }
 
 func (c *CommonController[lister]) Run(stop <-chan struct{}) {
-	defer utilruntime.HandleCrash()
-	defer c.queue.ShutDown()
-	if !cache.WaitForCacheSync(stop, c.HasSynced) {
+	if !cache.WaitForCacheSync(stop, c.informer.HasSynced) {
 		IngressLog.Errorf("Failed to sync %s controller cache", c.typeName)
 		return
 	}
-	IngressLog.Debugf("%s cache has synced", c.typeName)
-	go wait.Until(c.worker, time.Second, stop)
-	<-stop
-}
-
-func (c *CommonController[lister]) worker() {
-	for c.processNextWorkItem() {
-	}
-}
-
-func (c *CommonController[lister]) processNextWorkItem() bool {
-	key, quit := c.queue.Get()
-	if quit {
-		return false
-	}
-	defer c.queue.Done(key)
-	ingressNamespacedName := key.(types.NamespacedName)
-	IngressLog.Debugf("%s %s push to queue", c.typeName, ingressNamespacedName)
-	if err := c.onEvent(ingressNamespacedName); err != nil {
-		IngressLog.Errorf("error processing %s item (%v) (retrying): %v", c.typeName, key, err)
-		c.queue.AddRateLimited(key)
-	} else {
-		c.queue.Forget(key)
-	}
-	return true
+	c.queue.Run(stop)
 }
 
 func (c *CommonController[lister]) onEvent(namespacedName types.NamespacedName) error {
@@ -127,7 +98,7 @@ func (c *CommonController[lister]) onEvent(namespacedName types.NamespacedName) 
 		return errors.New("getFunc is nil")
 	}
 	obj := util.ClusterNamespacedName{
-		NamespacedName: model.NamespacedName{
+		NamespacedName: types.NamespacedName{
 			Namespace: namespacedName.Namespace,
 			Name:      namespacedName.Name,
 		},
@@ -154,5 +125,5 @@ func (c *CommonController[lister]) Get(namespacedName types.NamespacedName) (con
 }
 
 func (c *CommonController[lister]) HasSynced() bool {
-	return c.informer.HasSynced()
+	return c.queue.HasSynced()
 }

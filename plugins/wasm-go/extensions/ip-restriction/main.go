@@ -123,17 +123,17 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log wrapper.Log) types.Action {
 	realIp, err := getDownStreamIp(config)
 	if err != nil {
-		return deniedUnauthorized(config)
+		return deniedUnauthorized(config, "get_ip_failed")
 	}
 	allow := config.Allow
 	deny := config.Deny
 	if allow != nil {
 		if realIp == nil {
 			log.Error("realIp is nil, blocked")
-			return deniedUnauthorized(config)
+			return deniedUnauthorized(config, "empty_ip")
 		}
 		if _, found, _ := allow.Get(realIp); !found {
-			return deniedUnauthorized(config)
+			return deniedUnauthorized(config, "ip_not_allowed")
 		}
 	}
 	if deny != nil {
@@ -142,16 +142,16 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig,
 			return types.ActionContinue
 		}
 		if _, found, _ := deny.Get(realIp); found {
-			return deniedUnauthorized(config)
+			return deniedUnauthorized(config, "ip_denied")
 		}
 	}
 	return types.ActionContinue
 }
 
-func deniedUnauthorized(config RestrictionConfig) types.Action {
+func deniedUnauthorized(config RestrictionConfig, reason string) types.Action {
 	body, _ := json.Marshal(map[string]string{
 		"message": config.Message,
 	})
-	_ = proxywasm.SendHttpResponse(config.Status, nil, body, -1)
+	_ = proxywasm.SendHttpResponseWithDetail(config.Status, "key-auth."+reason, nil, body, -1)
 	return types.ActionContinue
 }

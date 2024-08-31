@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	ConuslHealthPassing         = "passing"
+	ConsulHealthPassing         = "passing"
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 )
@@ -310,12 +310,12 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 }
 
 func (w *watcher) generateServiceEntry(host string, services []*consulapi.ServiceEntry) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range services {
 		// service status: maintenance > critical > warning > passing
-		if service.Checks.AggregatedStatus() != ConuslHealthPassing {
+		if service.Checks.AggregatedStatus() != ConsulHealthPassing {
 			continue
 		}
 
@@ -329,7 +329,7 @@ func (w *watcher) generateServiceEntry(host string, services []*consulapi.Servic
 			protocol = common.ParseProtocol(metaData["protocol"])
 		}
 
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(service.Service.Port),
 			Protocol: protocol.String(),
