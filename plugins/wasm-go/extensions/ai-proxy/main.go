@@ -77,14 +77,19 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
 
-		log.Debugf("ApiTokens: %s, UnavailableApiTokens: %s", provider.ApiTokens, provider.UnavailableApiTokens)
-		apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check")
-		if apiTokenHealthCheck != "" {
-			ctx.SetContext(provider.ApiTokenInUse, apiTokenHealthCheck)
-		} else {
-			providerConfig := pluginConfig.GetProviderConfig()
-			ctx.SetContext(provider.ApiTokenInUse, providerConfig.GetRandomToken())
+		providerConfig := pluginConfig.GetProviderConfig()
+		apiTokenInUse := providerConfig.GetRandomToken()
+		if providerConfig.IsFailoverEnabled() {
+			// Use the health check token if it is a health check request.
+			if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check"); apiTokenHealthCheck != "" {
+				apiTokenInUse = apiTokenHealthCheck
+			} else {
+				// if enable apiToken failover, only use available apiToken
+				apiTokenInUse = providerConfig.GetGlobalRandomToken(log)
+			}
 		}
+		log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiTokenInUse)
+		ctx.SetContext(provider.ApiTokenInUse, apiTokenInUse)
 
 		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
@@ -159,9 +164,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		}
 		ctx.DontReadResponseBody()
 
-		if ctx.GetContext(provider.ApiTokenHealthCheck) == nil {
+		providerConfig := pluginConfig.GetProviderConfig()
+		// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
+		if providerConfig.IsFailoverEnabled() && ctx.GetContext(provider.ApiTokenHealthCheck) == nil {
 			unavailableApiToken := ctx.GetContext(provider.ApiTokenInUse).(string)
-			providerConfig := pluginConfig.GetProviderConfig()
 			providerConfig.HandleUnavailableApiToken(unavailableApiToken, log)
 		}
 

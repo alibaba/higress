@@ -315,14 +315,15 @@ func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) strin
 }
 
 func (c *ProviderConfig) GetRandomToken() string {
-	count := len(ApiTokens)
+	apiTokens := c.apiTokens
+	count := len(apiTokens)
 	switch count {
 	case 0:
 		return ""
 	case 1:
-		return ApiTokens[0]
+		return apiTokens[0]
 	default:
-		return ApiTokens[rand.Intn(count)]
+		return apiTokens[rand.Intn(count)]
 	}
 }
 
