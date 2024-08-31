@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -117,7 +119,7 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 	}
 	kingressV1Controller := kcontrollerv1.NewController(fake, fake, v1Options, nil)
 	m := NewKIngressConfig(fake, nil, "wakanda", "gw-123-istio")
-	m.remoteIngressControllers = map[string]common.KIngressController{
+	m.remoteIngressControllers = map[cluster.ID]common.KIngressController{
 		"kingress": kingressV1Controller,
 	}
 
@@ -465,6 +467,13 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 		},
 	}
 
+	unexportedIgnoredTypes := []interface{}{
+		networking.Gateway{},
+		networking.Server{},
+		networking.Port{},
+		networking.ServerTLSSettings{},
+	}
+
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			result := m.convertGateways(testCase.inputConfig)
@@ -473,9 +482,14 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 			for _, item := range result {
 				host := common.GetHost(item.Annotations)
 				fmt.Print(item)
+				//assert.Equal(t, testCase.expect[host], item)
 				target[host] = item
+				//break
 			}
-			assert.Equal(t, testCase.expect, target)
+			//assert.Equal(t, testCase.expect, target)
+			if diff := cmp.Diff(target, testCase.expect, cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
+				t.Errorf("convertGateways() mismatch (-want +got):\n%s", diff)
+			}
 		})
 	}
 }

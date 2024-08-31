@@ -37,8 +37,9 @@ type Usage struct {
 
 // completion
 type Completion struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Model     string    `json:"model"`
+	Messages  []Message `json:"messages"`
+	MaxTokens int64     `json:"max_tokens"`
 }
 
 type Message struct {
@@ -66,10 +67,4 @@ type CompletionUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
-}
-
-type Content struct {
-	CH_Question string `json:"ch_question"`
-	Core        string `json:"core"`
-	// EN_Question string `json:"en_question"`
 }

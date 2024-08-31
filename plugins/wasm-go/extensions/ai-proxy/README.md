@@ -34,6 +34,7 @@ description: AI 代理插件配置参考
 | `modelMapping` | map of string   | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。 |
 | `protocol`     | string          | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                                                                          |
 | `context`      | object          | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                                                                                                                         |
+| `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                                                                                                                 |
 
 `context`的配置字段说明如下：
 
@@ -42,6 +43,33 @@ description: AI 代理插件配置参考
 | `fileUrl`     | string | 必填   | -   | 保存 AI 对话上下文的文件 URL。仅支持纯文本类型的文件内容 |
 | `serviceName` | string | 必填   | -   | URL 所对应的 Higress 后端服务完整名称        |
 | `servicePort` | number | 必填   | -   | URL 所对应的 Higress 后端服务访问端口        |
+
+
+`customSettings`的配置字段说明如下：
+
+| 名称        | 数据类型              | 填写要求 | 默认值 | 描述                                                                                                                         |
+| ----------- | --------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | string                | 必填     | -      | 想要设置的参数的名称，例如`max_tokens`                                                                                       |
+| `value`     | string/int/float/bool | 必填     | -      | 想要设置的参数的值，例如0                                                                                                    |
+| `mode`      | string                | 非必填   | "auto" | 参数设置的模式，可以设置为"auto"或者"raw"，如果为"auto"则会自动根据协议对参数名做改写，如果为"raw"则不会有任何改写和限制检查 |
+| `overwrite` | bool                  | 非必填   | true   | 如果为false则只在用户没有设置这个参数时填充参数，否则会直接覆盖用户原有的参数设置                                            |
+
+
+custom-setting会遵循如下表格，根据`name`和协议来替换对应的字段，用户需要填写表格中`settingName`列中存在的值。例如用户将`name`设置为`max_tokens`，在openai协议中会替换`max_tokens`，在gemini中会替换`maxOutputTokens`。
+`none`表示该协议不支持此参数。如果`name`不在此表格中或者对应协议不支持此参数，同时没有设置raw模式，则配置不会生效。
+
+
+| settingName | openai      | baidu             | spark       | qwen        | gemini          | hunyuan     | claude      | minimax            |
+| ----------- | ----------- | ----------------- | ----------- | ----------- | --------------- | ----------- | ----------- | ------------------ |
+| max_tokens  | max_tokens  | max_output_tokens | max_tokens  | max_tokens  | maxOutputTokens | none        | max_tokens  | tokens_to_generate |
+| temperature | temperature | temperature       | temperature | temperature | temperature     | Temperature | temperature | temperature        |
+| top_p       | top_p       | top_p             | none        | top_p       | topP            | TopP        | top_p       | top_p              |
+| top_k       | none        | none              | top_k       | none        | topK            | none        | top_k       | none               |
+| seed        | seed        | none              | none        | seed        | none            | none        | none        | none               |
+
+如果启用了raw模式，custom-setting会直接用输入的`name`和`value`去更改请求中的json内容，而不对参数名称做任何限制和修改。
+对于大多数协议，custom-setting都会在json内容的根路径修改或者填充参数。对于`qwen`协议，ai-proxy会在json的`parameters`子路径下做配置。对于`gemini`协议，则会在`generation_config`子路径下做配置。
+
 
 ### 提供商特有配置
 
@@ -52,6 +80,7 @@ OpenAI 所对应的 `type` 为 `openai`。它特有的配置字段如下:
 | 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
 |-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
 | `openaiCustomUrl` | string   | 非必填   | -      | 基于OpenAI协议的自定义后端URL，例如: www.example.com/myai/v1/chat/completions |
+| `responseJsonSchema` | object | 非必填 | - | 预先定义OpenAI响应需满足的Json Schema, 注意目前仅特定的几种模型支持该用法|
 
 
 #### Azure OpenAI
@@ -104,6 +133,14 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
+
+#### 360智脑
+
+360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
+
+#### Mistral
+
+Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
 
 #### MiniMax
 
@@ -289,6 +326,7 @@ provider:
     'gpt-35-turbo': "qwen-plus"
     'gpt-4-turbo': "qwen-max"
     'gpt-4-*': "qwen-max"
+    'gpt-4o': "qwen-vl-plus"
     'text-embedding-v1': 'text-embedding-v1'
     '*': "qwen-turbo"
 ```
@@ -297,7 +335,111 @@ provider:
 
 URL: http://your-domain/v1/chat/completions
 
-请求体：
+请求示例：
+
+```json
+{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.3
+}
+```
+
+响应示例：
+
+```json
+{
+  "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1715175072,
+  "model": "qwen-turbo",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 33,
+    "total_tokens": 57
+  }
+}
+```
+
+**多模态模型 API 请求示例（适用于 `qwen-vl-plus` 和 `qwen-vl-max` 模型）**
+
+URL: http://your-domain/v1/chat/completions
+
+请求示例：
+
+```json
+{
+    "model": "gpt-4o",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": "这个图片是哪里？"
+                }
+            ]
+        }
+    ],
+    "temperature": 0.3
+}
+```
+
+响应示例：
+
+```json
+{
+    "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": "这张照片显示的是一位女士和一只狗在海滩上。由于我无法获取具体的地理位置信息，所以不能确定这是哪个地方的海滩。但是从视觉内容来看，它可能是一个位于沿海地区的沙滩海岸线，并且有海浪拍打着岸边。这样的场景在全球许多美丽的海滨地区都可以找到。如果您需要更精确的信息，请提供更多的背景或细节描述。"
+                    }
+                ]
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1723949230,
+    "model": "qwen-vl-plus",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 1279,
+        "completion_tokens": 78
+    }
+}
+```
+
+**文本向量请求示例**
+
+URL: http://your-domain/v1/embeddings
+
+请求示例：
 
 ```json
 {
@@ -306,7 +448,7 @@ URL: http://your-domain/v1/chat/completions
 }
 ```
 
-响应体示例：
+响应示例：
 
 ```json
 {
@@ -334,47 +476,6 @@ URL: http://your-domain/v1/chat/completions
   "usage": {
     "prompt_tokens": 1,
     "total_tokens": 1
-  }
-}
-```
-
-**请求示例**
-
-URL: http://your-domain/v1/embeddings
-
-示例请求内容：
-
-```json
-{
-    "model": "text-embedding-v1",
-    "input": [
-        "Hello world!"
-    ]
-}
-```
-
-示例响应内容：
-
-```json
-{
-  "id": "c2518bd3-0f46-97d1-be34-bb5777cb3108",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "我是通义千问，由阿里云开发的AI助手。我可以回答各种问题、提供信息和与用户进行对话。有什么我可以帮助你的吗？"
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "created": 1715175072,
-  "model": "qwen-turbo",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 24,
-    "completion_tokens": 33,
-    "total_tokens": 57
   }
 }
 ```
@@ -844,6 +945,120 @@ provider:
         "status_code": 0,
         "status_msg": ""
     }
+}
+```
+
+### 使用 OpenAI 协议代理360智脑服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: ai360
+  apiTokens:
+    - "YOUR_MINIMAX_API_TOKEN"
+  modelMapping:
+    "gpt-4o": "360gpt-turbo-responsibility-8k"
+    "gpt-4": "360gpt2-pro"
+    "gpt-3.5": "360gpt-turbo"
+    "text-embedding-3-small": "embedding_s1_v1.2"
+    "*": "360gpt-pro"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ]
+}
+```
+
+**响应示例**
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "你好，我是360智脑，一个大型语言模型。我可以帮助回答各种问题、提供信息、进行对话等。有什么可以帮助你的吗？"
+      },
+      "finish_reason": "",
+      "index": 0
+    }
+  ],
+  "created": 1724257207,
+  "id": "5e5c94a2-d989-40b5-9965-5b971db941fe",
+  "model": "360gpt-turbo",
+  "object": "",
+  "usage": {
+    "completion_tokens": 33,
+    "prompt_tokens": 24,
+    "total_tokens": 57
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "context": null
+}
+```
+
+**文本向量请求示例**
+
+URL: http://your-domain/v1/embeddings
+
+请求示例：
+
+```json
+{
+  "input":["你好"],
+  "model":"text-embedding-3-small"
+}
+```
+
+响应示例：
+
+```json
+{
+  "data": [
+    {
+      "embedding": [
+        -0.011237,
+        -0.015433,
+        ...,
+        -0.028946,
+        -0.052778,
+        0.003768,
+        -0.007917,
+        -0.042201
+      ],
+      "index": 0,
+      "object": ""
+    }
+  ],
+  "model": "embedding_s1_v1.2",
+  "object": "",
+  "usage": {
+    "prompt_tokens": 2,
+    "total_tokens": 2
+  }
 }
 ```
 

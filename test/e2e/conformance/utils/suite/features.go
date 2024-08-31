@@ -14,7 +14,7 @@
 
 package suite
 
-import "istio.io/istio/pilot/pkg/util/sets"
+import "istio.io/istio/pkg/util/sets"
 
 type SupportedFeature string
 
@@ -44,7 +44,7 @@ var WasmPluginTypeMap = map[string]SupportedFeature{
 	"RUST": WASMRustConformanceFeature,
 }
 
-var AllFeatures = sets.Set{}.
+var AllFeatures = sets.Set[string]{}.
 	Insert(string(HTTPConformanceFeature)).
 	Insert(string(DubboConformanceFeature)).
 	Insert(string(EurekaConformanceFeature)).
@@ -52,7 +52,7 @@ var AllFeatures = sets.Set{}.
 	Insert(string(NacosConformanceFeature)).
 	Insert(string(EnvoyConfigConformanceFeature))
 
-var ExperimentFeatures = sets.Set{}.
+var ExperimentFeatures = sets.Set[string]{}.
 	Insert(string(WASMGoConformanceFeature)).
 	Insert(string(WASMCPPConformanceFeature)).
 	Insert(string(WASMRustConformanceFeature))
