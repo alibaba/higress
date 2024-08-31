@@ -15,7 +15,7 @@ for repo in ${envoy_repos[@]}; do
     if [ -e external/$repo ];then
         continue
     fi
-    cp -r envoy/$repo  external/$repo
+    cp -rP envoy/$repo  external/$repo
     cd external/$repo
     echo "gitdir: /parent/.git/modules/envoy/$repo" > .git
     if [ -f "go.mod" ]; then
@@ -30,7 +30,7 @@ for repo in ${istio_repos[@]}; do
     if [ -e external/$repo ];then
         continue
     fi
-    cp -r istio/$repo external/$repo
+    cp -rP istio/$repo external/$repo
     cd external/$repo
     echo "gitdir: /parent/.git/modules/istio/$repo" > .git
     if [ -f "go.mod" ]; then
