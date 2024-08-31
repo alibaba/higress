@@ -96,10 +96,17 @@ build-linux-hgctl: prebuild $(OUT)
 build-hgctl-multiarch: prebuild $(OUT)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
 	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-arm64
+build-hgctl-macos-arm64: prebuild $(OUT)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-amd64
+build-hgctl-macos-amd64: prebuild $(OUT)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
+
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
