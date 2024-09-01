@@ -27,7 +27,7 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | enableSwagger | bool |  optional | false | 是否启用 Swagger 协议进行验证 |
 | enableOas3 | bool |  optional | true | 是否启用 Oas3 协议进行验证 |
 | enableContentDisposition | bool | optional | true | 是否启用 Content-Disposition 头部, 若启用则会在响应头中添加 `Content-Disposition: attachment; filename="response.json"` |
-> 由于插件性能限制，默认支持的最大 JSON Schema 深度为 6。超过此深度的 JSON Schema 将不用于验证响应，插件只会检查返回的响应是否为合法的 JSON 格式。
+> 由于插件性能限制，默认支持的最大 Json Schema 深度为 6。超过此深度的 Json Schema 将不用于验证响应，插件只会检查返回的响应是否为合法的 Json 格式。
 
 
 ### 请求和返回参数说明
