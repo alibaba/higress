@@ -237,7 +237,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	log.Debugf("max depth of json schema: %d", maxDepth)
 	if maxDepth > config.jsonSchemaMaxDepth {
 		config.enableJsonSchemaValidation = false
-		log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
+		log.Infof("Json Schema depth exceeded: %d from %d , Json Schema validation will not be used.", maxDepth, config.jsonSchemaMaxDepth)
 	}
 
 	if config.enableJsonSchemaValidation {
