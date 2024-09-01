@@ -97,12 +97,6 @@ type PluginConfig struct {
 	// @Title zh-CN 是否启用oas3
 	// @Description zh-CN 是否启用oas3进行Json Schema验证
 	enableOas3 bool `required:"false" json:"enableOas3" yaml:"enableOas3"`
-	// @Title zh-CN Json Schema 最大深度
-	// @Description zh-CN 指定支持的 JSON Schema 最大深度，超过该深度的 Schema 不会用于验证响应, 只用来作为提示
-	jsonSchemaMaxDepth int `required:"false" json:"jsonSchemaMaxDepth" yaml:"jsonSchemaMaxDepth"`
-	// @Title zh-CN 超深时是否拒绝执行并返回
-	// @Description zh-CN 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将Json Schema用于提示并继续执行
-	rejectOnDepthExceeded bool `required:"false" json:"rejectOnDepthExceeded" yaml:"rejectOnDepthExceeded"`
 	// @Title zh-CN 是否启用Content-Disposition
 	// @Description zh-CN 是否启用Content-Disposition, 若启用则会在响应头中添加Content-Disposition: attachment; filename="response.json"
 	enableContentDisposition bool `required:"false" json:"enableContentDisposition" yaml:"enableContentDisposition"`
@@ -112,6 +106,7 @@ type PluginConfig struct {
 	compiler                   *jsonschema.Compiler
 	compile                    *jsonschema.Schema
 	rejectStruct               RejectStruct
+	jsonSchemaMaxDepth         int
 	enableJsonSchemaValidation bool
 }
 
@@ -220,23 +215,14 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	compiler.Draft = config.draft
 	config.compiler = compiler
 
-	config.jsonSchemaMaxDepth = int(result.Get("jsonSchemaMaxDepth").Int())
-	if config.jsonSchemaMaxDepth == 0 {
-		config.jsonSchemaMaxDepth = 5
-	}
+	// set max depth of json schema
+	config.jsonSchemaMaxDepth = 6
 
 	enableContentDispositionValue := result.Get("enableContentDisposition")
 	if !enableContentDispositionValue.Exists() {
 		config.enableContentDisposition = true
 	} else {
 		config.enableContentDisposition = enableContentDispositionValue.Bool()
-	}
-
-	exceed := result.Get("rejectOnDepthExceeded")
-	if !exceed.Exists() {
-		config.rejectOnDepthExceeded = false
-	} else {
-		config.rejectOnDepthExceeded = exceed.Bool()
 	}
 
 	config.enableJsonSchemaValidation = true
@@ -251,12 +237,7 @@ func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) err
 	log.Debugf("max depth of json schema: %d", maxDepth)
 	if maxDepth > config.jsonSchemaMaxDepth {
 		config.enableJsonSchemaValidation = false
-		if config.rejectOnDepthExceeded {
-			config.rejectStruct = RejectStruct{JSON_SCHEMA_INVALID_CODE, "Json Schema depth exceeded: " + strconv.Itoa(maxDepth)}
-			log.Infof("Json Schema depth exceeded: %d from %d , reject the request", maxDepth, config.jsonSchemaMaxDepth)
-		} else {
-			log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
-		}
+		log.Infof("Json Schema depth exceeded: %d from %d , not using Json schema for validation", maxDepth, config.jsonSchemaMaxDepth)
 	}
 
 	if config.enableJsonSchemaValidation {
@@ -475,7 +456,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	if err == nil {
 		fromThisPlugin, convErr := strconv.ParseBool(extendHeaderValue)
 		if convErr != nil {
-			log.Debugf("Failed to parse header value as bool: %v", convErr)
+			log.Debugf("failed to parse header value as bool: %v", convErr)
 			ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
 		}
 		if fromThisPlugin {
@@ -528,7 +509,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	// if the request is from this plugin, continue the request
 	fromThisPlugin, ok := ctx.GetContext(FROM_THIS_PLUGIN_KEY).(bool)
 	if ok && fromThisPlugin {
-		log.Debugf("Detected buffer_request, sending request to AI service")
+		log.Debugf("detected buffer_request, sending request to AI service")
 		return types.ActionContinue
 	}
 

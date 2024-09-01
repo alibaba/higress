@@ -6,9 +6,10 @@
 > 
 
 > 编译时，需要带上版本的tag，例如：tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./
-> 
+
 
 LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI的响应进行结构化，以便后续插件处理。注意目前只支持 `非流式响应`。
+
 
 ### 配置说明
 
@@ -25,9 +26,9 @@ LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI�
 | jsonSchema | str (json) |  optional | - | 验证请求所参照的 jsonSchema, 为空只验证并返回合法Json格式响应 |
 | enableSwagger | bool |  optional | false | 是否启用 Swagger 协议进行验证 |
 | enableOas3 | bool |  optional | true | 是否启用 Oas3 协议进行验证 |
-| jsonSchemaMaxDepth | int |  optional | 5 | 由于插件性能限制，为防止递归耗尽资源，需指定支持的 JSON Schema 最大深度，超过该深度的 Schema 不会用于验证响应|
-| rejectOnDepthExceeded | bool |  optional | false | 若为 true，当 JSON Schema 的深度超过 maxJsonSchemaDepth 时，插件将直接返回错误；若为 false，则将仍将 Json Schema 用于LLM提示构造并继续执行 |
 | enableContentDisposition | bool | optional | true | 是否启用 Content-Disposition 头部, 若启用则会在响应头中添加 `Content-Disposition: attachment; filename="response.json"` |
+> 由于插件性能限制，默认支持的最大 JSON Schema 深度为 6。超过此深度的 JSON Schema 将不用于验证响应，插件只会检查返回的响应是否为合法的 JSON 格式。
+
 
 ### 请求和返回参数说明
 
