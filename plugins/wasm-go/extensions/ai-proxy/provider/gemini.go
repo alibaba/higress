@@ -52,7 +52,7 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		return types.ActionContinue, errUnsupportedApiName
 	}
 
-	_ = proxywasm.ReplaceHttpRequestHeader(geminiApiKeyHeader, g.config.GetRandomToken())
+	_ = proxywasm.ReplaceHttpRequestHeader(geminiApiKeyHeader, ctx.GetContext(ApiTokenInUse).(string))
 	_ = util.OverwriteRequestHost(geminiDomain)
 
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")

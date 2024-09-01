@@ -44,7 +44,7 @@ func (m *mistralProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(mistralDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }

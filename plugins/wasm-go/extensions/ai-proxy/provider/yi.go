@@ -47,7 +47,7 @@ func (m *yiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, 
 	}
 	_ = util.OverwriteRequestPath(yiChatCompletionPath)
 	_ = util.OverwriteRequestHost(yiDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }

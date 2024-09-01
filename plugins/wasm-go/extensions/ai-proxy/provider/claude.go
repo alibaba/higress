@@ -108,7 +108,7 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 	_ = util.OverwriteRequestPath(claudeChatCompletionPath)
 	_ = util.OverwriteRequestHost(claudeDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("x-api-key", c.config.GetRandomToken())
+	_ = proxywasm.ReplaceHttpRequestHeader("x-api-key", ctx.GetContext(ApiTokenInUse).(string))
 
 	if c.config.claudeVersion == "" {
 		c.config.claudeVersion = defaultVersion
