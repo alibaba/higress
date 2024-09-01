@@ -94,12 +94,19 @@ build-linux-hgctl: prebuild $(OUT)
 
 .PHONY: build-hgctl-multiarch
 build-hgctl-multiarch: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/linux_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/linux_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/windows_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/windows_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-arm64
+build-hgctl-macos-arm64: prebuild $(OUT)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-amd64
+build-hgctl-macos-amd64: prebuild $(OUT)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
@@ -180,8 +187,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 580eb0ffc45b1f62a79744f3ae0e6463bf539931
-ISTIO_LATEST_IMAGE_TAG ?= 580eb0ffc45b1f62a79744f3ae0e6463bf539931
+ENVOY_LATEST_IMAGE_TAG ?= a6c313d41b3b54f0e3ed81fc676c520160cfed05
+ISTIO_LATEST_IMAGE_TAG ?= a6c313d41b3b54f0e3ed81fc676c520160cfed05
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
