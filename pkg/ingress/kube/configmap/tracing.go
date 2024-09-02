@@ -334,7 +334,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 					"@type": "type.googleapis.com/envoy.config.trace.v3.SkyWalkingConfig",
 					"client_config": {
 						"service_name": "higress-gateway.%s",
-                        "backend_token": "%s"
+                                                "backend_token": "%s"
 					},
 					"grpc_service": {
 						"envoy_grpc": {
@@ -363,11 +363,11 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 				"name": "envoy.tracers.zipkin",
 				"typed_config": {
 					"@type": "type.googleapis.com/envoy.config.trace.v3.ZipkinConfig",
-                    "collector_cluster": "outbound|%s||%s",
-                    "collector_endpoint": "/api/v2/spans",
-                    "collector_hostname": "higress-gateway",
-                    "collector_endpoint_version": "HTTP_JSON",
-                    "split_spans_for_request": true
+                                        "collector_cluster": "outbound|%s||%s",
+                                        "collector_endpoint": "/api/v2/spans",
+                                        "collector_hostname": "higress-gateway",
+                                        "collector_endpoint_version": "HTTP_JSON",
+                                        "split_spans_for_request": true
 				}
 			},
 			"random_sampling": {

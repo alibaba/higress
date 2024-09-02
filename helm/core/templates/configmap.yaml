@@ -32,6 +32,10 @@
       - address: "k8s://"
     {{- end }}
 
+    mseIngressGlobalConfig:
+      enableH3: {{ .Values.global.enableH3 }}
+      enableProxyProtocol: {{ .Values.global.enableProxyProtocol }}
+
     defaultConfig:
       {{- if .Values.global.disableAlpnH2 }}
       disableAlpnH2: true
