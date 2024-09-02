@@ -29,6 +29,8 @@ import (
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"istio.io/istio/pkg/cluster"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 const (
@@ -105,6 +107,9 @@ func CreateServiceFQDN(namespace, name string) string {
 
 func BuildPatchStruct(config string) *_struct.Struct {
 	val := &_struct.Struct{}
-	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
+	err := jsonpb.Unmarshal(strings.NewReader(config), val)
+	if err != nil {
+		IngressLog.Errorf("build patch struct failed, err:%v", err)
+	}
 	return val
 }
