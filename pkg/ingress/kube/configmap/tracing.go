@@ -389,7 +389,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 				"name": "envoy.tracers.opentelemetry",
 				"typed_config": {
 					"@type": "type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig",
-					"service_name": "higress-gateway.%s"
+					"service_name": "higress-gateway.%s",
 					"grpc_service": {
 						"envoy_grpc": {
 							"cluster_name": "outbound|%s||%s"
