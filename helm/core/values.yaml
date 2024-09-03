@@ -1,5 +1,8 @@
 revision: ""
 global:
+  enableH3: false
+  enableIPv6: false
+  enableProxyProtocol: false
   liteMetrics: true
   xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
