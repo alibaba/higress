@@ -42,7 +42,7 @@ then
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
                     PLUGIN_NAME=${name} make lint 
-                    PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-rust-" make build
+                    PLUGIN_NAME=${name} make build
                 fi
             done
             cd ../wasm-go/
@@ -76,7 +76,7 @@ else
                         version=$(cat "$version_file")
                         if [[ "$version" =~ -alpha$ ]]; then
                             echo "🚀 Build Go WasmPlugin: $name (version $version)"
-                            PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
+                            PLUGIN_NAME=${name} make build
                         else
                             echo "Plugin version $version not ends with '-alpha', skipping compilation for $name."
                         fi
