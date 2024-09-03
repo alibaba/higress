@@ -894,16 +894,16 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 				continue
 			}
-			// match domain
-			for _, domain := range rule.Domain {
+			// match service
+			for _, service := range rule.Service {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
-						StringValue: domain,
+						StringValue: service,
 					},
 				})
 			}
 			if len(matchItems) > 0 {
-				v.StructValue.Fields["_match_domain_"] = &_struct.Value{
+				v.StructValue.Fields["_match_service_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
 							Values: matchItems,
@@ -915,18 +915,18 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 				continue
 			}
-			// match service
-			for _, service := range rule.Service {
+			// match domain
+			for _, domain := range rule.Domain {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
-						StringValue: service,
+						StringValue: domain,
 					},
 				})
 			}
 			if len(matchItems) == 0 {
 				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
 			}
-			v.StructValue.Fields["_match_service_"] = &_struct.Value{
+			v.StructValue.Fields["_match_domain_"] = &_struct.Value{
 				Kind: &_struct.Value_ListValue{
 					ListValue: &_struct.ListValue{
 						Values: matchItems,
