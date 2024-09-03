@@ -33,11 +33,12 @@ func main() {
 }
 
 const (
-	NormalResponseFormat = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
-	StreamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
-	StreamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-	StreamResponseFormat = StreamResponseChunk + "\n\n" + StreamResponseEnd
-	TracingPrefix        = "trace_span_tag."
+	NormalResponseFormat      = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
+	StreamResponseChunk       = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
+	StreamResponseEnd         = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+	StreamResponseFormat      = StreamResponseChunk + "\n\n" + StreamResponseEnd
+	TracingPrefix             = "trace_span_tag."
+	DefaultResponseIfNoAdvice = "很抱歉，我不能对您的问题做出回答。"
 )
 
 type AISecurityConfig struct {
@@ -127,21 +128,21 @@ func generateHexID(length int) (string, error) {
 func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) error {
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
-	domain := json.Get("domain").String()
-	if serviceName == "" || servicePort == 0 || domain == "" {
+	serviceHost := json.Get("serviceHost").String()
+	if serviceName == "" || servicePort == 0 || serviceHost == "" {
 		return errors.New("invalid service config")
 	}
-	config.ak = json.Get("ak").String()
-	config.sk = json.Get("sk").String()
+	config.ak = json.Get("accessKey").String()
+	config.sk = json.Get("secretKey").String()
 	if config.ak == "" || config.sk == "" {
 		return errors.New("invalid AK/SK config")
 	}
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
-	config.client = wrapper.NewClusterClient(wrapper.DnsCluster{
-		ServiceName: serviceName,
-		Port:        servicePort,
-		Domain:      domain,
+	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: servicePort,
+		Host: serviceHost,
 	})
 	config.metrics = make(map[string]proxywasm.MetricCounter)
 	return nil
@@ -208,11 +209,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						if stream {
-							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, DefaultResponseIfNoAdvice))
 							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							jsonData := []byte(fmt.Sprintf(NormalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData := []byte(fmt.Sprintf(NormalResponseFormat, DefaultResponseIfNoAdvice))
 							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
@@ -314,9 +315,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						var jsonData []byte
 						if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-							jsonData = []byte(fmt.Sprintf(StreamResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData = []byte(fmt.Sprintf(StreamResponseFormat, DefaultResponseIfNoAdvice))
 						} else {
-							jsonData = []byte(fmt.Sprintf(NormalResponseFormat, "很抱歉，我不能对您的问题做出回答。"))
+							jsonData = []byte(fmt.Sprintf(NormalResponseFormat, DefaultResponseIfNoAdvice))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{"200"}

@@ -4,40 +4,37 @@
 ## 配置说明
 | Name | Type | Requirement | Default | Description |
 | ------------ | ------------ | ------------ | ------------ | ------------ |
-| `serviceSource` | string | requried | - | 服务来源，填dns |
 | `serviceName` | string | requried | - | 服务名 |
 | `servicePort` | string | requried | - | 服务端口 |
-| `domain` | string | requried | - | 阿里云内容安全endpoint的域名 |
-| `ak` | string | requried | - | 阿里云AK |
-| `sk` | string | requried | - | 阿里云SK |
-| `checkRequest` | bool | optional | - | 检查提问内容是否合规 |
-| `checkresponse` | bool | optional | - | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
+| `serviceHost` | string | requried | - | 阿里云内容安全endpoint的域名 |
+| `accessKey` | string | requried | - | 阿里云AK |
+| `secretKey` | string | requried | - | 阿里云SK |
+| `checkRequest` | bool | optional | false | 检查提问内容是否合规 |
+| `checkResponse` | bool | optional | false | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
 
 
 ## 配置示例
 ### 检测输入内容是否合规
 
 ```yaml
-serviceSource: "dns"
-serviceName: "safecheck"
+serviceName: safecheck.dns
 servicePort: 443
-domain: "green-cip.cn-shanghai.aliyuncs.com"
-ak: "XXXXXXXXX"
-sk: "XXXXXXXXXXXXXXX"
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 ```
 
 ### 检测输入与输出是否合规
 
 ```yaml
-serviceSource: "dns"
-serviceName: "safecheck"
+serviceName: safecheck.dns
 servicePort: 443
-domain: "green-cip.cn-shanghai.aliyuncs.com"
-ak: "XXXXXXXXX"
-sk: "XXXXXXXXXXXXXXX"
+serviceHost: green-cip.cn-shanghai.aliyuncs.com
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
-checkresponse: true
+checkResponse: true
 ```
 
 ## 可观测

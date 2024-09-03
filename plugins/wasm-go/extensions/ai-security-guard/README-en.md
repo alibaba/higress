@@ -1,46 +1,43 @@
-## 简介
+## Introduction
 Integrate with Aliyun content security service for detections of input and output of LLMs, ensuring that application content is legal and compliant.
 
-## 配置说明
+## Configuration
 | Name | Type | Requirement | Default | Description |
 | ------------ | ------------ | ------------ | ------------ | ------------ |
-| `serviceSource` | string | requried | - | service source, such as `dns` |
 | `serviceName` | string | requried | - | service name |
 | `servicePort` | string | requried | - | service port |
-| `domain` | string | requried | - | Host of Aliyun content security service endpoint |
-| `ak` | string | requried | - | Aliyun accesskey |
-| `sk` | string | requried | - | Aliyun secretkey |
-| `checkRequest` | bool | optional | - | check if the input is leagal |
-| `checkresponse` | bool | optional | - | check if the output is leagal |
+| `serviceHost` | string | requried | - | Host of Aliyun content security service endpoint |
+| `accessKey` | string | requried | - | Aliyun accesskey |
+| `secretKey` | string | requried | - | Aliyun secretkey |
+| `checkRequest` | bool | optional | false | check if the input is leagal |
+| `checkResponse` | bool | optional | false | check if the output is leagal |
 
 
-## 配置示例
-### check if the input is leagal
+## Examples of configuration
+### Check if the input is leagal
 
 ```yaml
-serviceSource: "dns"
-serviceName: "safecheck"
+serviceName: safecheck.dns
 servicePort: 443
-domain: "green-cip.cn-shanghai.aliyuncs.com"
-ak: "XXXXXXXXX"
-sk: "XXXXXXXXXXXXXXX"
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 ```
 
-### check if both the input and output are leagal
+### Check if both the input and output are leagal
 
 ```yaml
-serviceSource: "dns"
-serviceName: "safecheck"
+serviceName: safecheck.dns
 servicePort: 443
-domain: "green-cip.cn-shanghai.aliyuncs.com"
-ak: "XXXXXXXXX"
-sk: "XXXXXXXXXXXXXXX"
+serviceHost: green-cip.cn-shanghai.aliyuncs.com
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
-checkresponse: true
+checkResponse: true
 ```
 
-## observability
+## Observability
 ### Metric
 ai-security-guard plugin provides following metrics:
 - `ai_sec_request_deny`: count of requests denied at request phase
