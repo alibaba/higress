@@ -112,8 +112,7 @@ spec:
         headers:
           - Content-Type=application/json
         "body": "{\"res\":\"costom_word\"}"
-    
-  url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:1.0.0
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -146,5 +145,4 @@ spec:
       - regex: "sk-[0-9a-zA-Z]*"
         restore: true
         type: "hash"
-
   url: file:///opt/plugins/wasm-rust/extensions/ai-data-masking/plugin.wasm
