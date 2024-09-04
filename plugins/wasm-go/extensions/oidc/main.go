@@ -42,6 +42,7 @@ func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error
 	if err != nil {
 		return err
 	}
+	opts.Providers[0].Scope = strings.Replace(opts.Providers[0].Scope, ";", " ", -1)
 	config.options = opts
 
 	oidcHandler, err = oidc.NewOAuthProxy(opts)
