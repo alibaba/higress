@@ -2,23 +2,25 @@
 
 ## 简介
 
-本仓库提供了一个高度可集成的Wasm插件支持OpenID Connect（OIDC）身份认证，同时强化了对跨站请求伪造（CSRF）攻击的防御能力，支持OpenID Connect协议中的Logout Endpoint。在通过Wasm插件OIDC验证后的请求会携带 `Authorization`的标头对应Access Token。
+本仓库提供了一个高度可集成的Wasm插件，以支持OpenID Connect（OIDC）身份认证。同时，该插件强化了对跨站请求伪造（CSRF）攻击的防御能力，并支持OpenID Connect协议中的注销端点（Logout Endpoint）以及刷新令牌（Refresh Token）机制。在经过Wasm插件进行OIDC验证后的请求将携带 `Authorization` 头部，包含相应的访问令牌（Access Token）。
 
 ### OIDC 流程图
 
 <p align="center">
-  <img src="https://gw.alicdn.com/imgextra/i4/O1CN01TlwBDY280yPxwr4Di_!!6000000007871-2-tps-1807-1828.png" alt="oidc_process" style="zoom: 33%;" />
+  <img src="https://gw.alicdn.com/imgextra/i3/O1CN01TJSh9c1VwR61Q2nek_!!6000000002717-55-tps-1807-2098.svg" alt="oidc_process" width="600" />
 </p>
 
 ### OIDC 流程解析
 
-1. 模拟用户访问对应服务api
+#### 用户未登录
+
+1. 模拟用户访问对应服务 API
 
    ```shell
    curl --url "foo.bar.com/headers"
    ```
 
-2. Higress重定向到OIDC Provider登录页同时携带client_id、response_type、scope等OIDC认证的参数并设置csrf cookie防御CSRF攻击
+2. Higress 重定向到 OIDC Provider 登录页同时携带 client_id、response_type、scope 等 OIDC 认证的参数并设置 csrf cookie 防御CSRF 攻击
 
    ```shell
    curl --url "https://dev-o43xb1mz7ya7ach4.us.auth0.com/authorize"\
@@ -31,11 +33,13 @@
      --header "Set-Cookie: _oauth2_proxy_csrf=LPruATEDgcdmelr8zScD_ObhsbP4zSzvcgmPlcNDcJpFJ0OvhxP2hFotsU-kZnYxd5KsIjzeIXGTOjf8TKcbTHbDIt-aQoZORXI_0id3qeY0Jt78223DPeJ1xBqa8VO0UiEOUFOR53FGxirJOdKFxaAvxDFb1Ok=|1718962455|V1QGWyjQ4hMNOQ4Jtf17HeQJdVqHdt5d65uraFduMIU=; Path=/; Expires=Fri, 21 Jun 2024 08:06:20 GMT; HttpOnly"
    ```
 
-3. 用户在登录页进行登录
+3. 重定向到登录页
 
 ![keycloak_login](https://gw.alicdn.com/imgextra/i4/O1CN01HLcl7r1boXwwnzGqA_!!6000000003512-0-tps-3840-2160.jpg)
 
-4. 携带授权重定向到Higress并携带了state参数用于验证CSRF Cookie，授权code用于交换Token
+4. 用户输入用户名密码登录完成
+
+5. 携带授权重定向到 Higress 并携带了 state 参数用于验证 csrf cookie ，授权码用于交换 token
 
    ```shell
    curl --url "http://foo.bar.com/oauth2/callback" \
@@ -43,7 +47,9 @@
      --url-query "code=0bdopoS2c2lx95u7iO0OH9kY1TvaEdJHo4lB6CT2_qVFm"
    ```
 
-5. 利用授权交换id_token和access_token
+6. 校验 csrf cookie 中加密存储的 state 值与 url 参数中的 state 值必须相同
+
+7. 利用授权交换 id_token 和 access_token
 
    ```shell
    curl -X POST \
@@ -55,7 +61,7 @@
      --data "code=0bdopoS2c2lx95u7iO0OH9kY1TvaEdJHo4lB6CT2_qVFm" \
    ```
 
-   返回的请求里包含了id_token, access_token，refresh_token用于后续刷新access_token
+   返回的请求里包含了 id_token, access_token，refresh_token 用于后续刷新 token
 
    ```json
    {
@@ -68,7 +74,9 @@
    }
    ```
 
-6. 将获得的id_token和access_token加密存储在Cookie _oauth2_proxy中，用于后续用户登录状态的验证，同时清除Cookie _oauth2_proxy_csrf
+8. 将获得的 id_token, access_token, refresh_token 加密存储在cookie _oauth2_proxy中
+
+9. 重定向到用户访问的后端服务并设置 cookie，用于后续用户登录状态的验证，同时清除 cookie _oauth2_proxy_csrf
 
    ```json
    "Set-Cookie": [
@@ -77,27 +85,52 @@
    ]
    ```
 
-7. 携带 Authorization的标头对应access_token访问对应api
+10. 校验是否存在 cookie 存储了用户的 token 信息同时查看是否过期
 
-   ```shell
-   curl --url "foo.bar.com/headers"
-     --header "Authorization: Bearer eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiaXNzIjoiaHR0cHM6Ly9kZXYtbzQzeGIxbXo3eWE3YWNoNC51cy5hdXRoMC5jb20vIn0..WP_WRVM-y3fM1sN4.fAQqtKoKZNG9Wj0OhtrMgtsjTJ2J72M2klDRd9SvUKGbiYsZNPmIl_qJUf81D3VIjD59o9xrOOJIzXTgsfFVA2x15g-jBlNh68N7dyhXu9237Tbplweu1jA25IZDSnjitQ3pbf7xJVIfPnWcrzl6uT8G1EP-omFcl6AQprV2FoKFMCGFCgeafuttppKe1a8mpJDj7AFLPs-344tT9mvCWmI4DuoLFh0PiqMMJBByoijRSxcSdXLPxZng84j8JVF7H6mFa-dj-icP-KLy6yvzEaRKz_uwBzQCzgYK434LIpqw_PRuN3ClEsenwRgIsNdVjvKcoAysfoZhmRy9BQaE0I7qTohSBFNX6A.mgGGeeWgugfXcUcsX4T5dQ"
-   ```
+11. 使用含有 Authorization 头部存储用户的 access_token 访问相应的 API
 
-8. 后端服务根据access_token获取用户信息并返回对应的Http响应
+    ```shell
+    curl --url "foo.bar.com/headers"
+      --header "Authorization: Bearer eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiaXNzIjoiaHR0cHM6Ly9kZXYtbzQzeGIxbXo3eWE3YWNoNC51cy5hdXRoMC5jb20vIn0..WP_WRVM-y3fM1sN4.fAQqtKoKZNG9Wj0OhtrMgtsjTJ2J72M2klDRd9SvUKGbiYsZNPmIl_qJUf81D3VIjD59o9xrOOJIzXTgsfFVA2x15g-jBlNh68N7dyhXu9237Tbplweu1jA25IZDSnjitQ3pbf7xJVIfPnWcrzl6uT8G1EP-omFcl6AQprV2FoKFMCGFCgeafuttppKe1a8mpJDj7AFLPs-344tT9mvCWmI4DuoLFh0PiqMMJBByoijRSxcSdXLPxZng84j8JVF7H6mFa-dj-icP-KLy6yvzEaRKz_uwBzQCzgYK434LIpqw_PRuN3ClEsenwRgIsNdVjvKcoAysfoZhmRy9BQaE0I7qTohSBFNX6A.mgGGeeWgugfXcUcsX4T5dQ"
+    ```
 
-   ```json
-   {
-       "email": "******",
-       "email_verified": false,
-       "iss": "https://dev-o43xb1mz7ya7ach4.us.auth0.com/",
-       "aud": "YagFqRD9tfNIaac5BamjhsSatjrAnsnZ",
-       "iat": 1719198638,
-       "exp": 1719234638,
-       "sub": "auth0|665d71e74c131177be66e607",
-       "sid": "ct2U8_YQ-zT7E8i0E3MyK-z79diVQhaU"
-   }
-   ```
+12. 后端服务根据 access_token 获取用户授权信息并返回对应的 HTTP 响应
+
+    ```json
+    {
+        "email": "******",
+        "email_verified": false,
+        "iss": "https://dev-o43xb1mz7ya7ach4.us.auth0.com/",
+        "aud": "YagFqRD9tfNIaac5BamjhsSatjrAnsnZ",
+        "iat": 1719198638,
+        "exp": 1719234638,
+        "sub": "auth0|665d71e74c131177be66e607",
+        "sid": "ct2U8_YQ-zT7E8i0E3MyK-z79diVQhaU"
+    }
+    ```
+
+#### 用户令牌刷新
+
+1. 模拟用户访问对应服务 API
+
+```shell
+curl --url "foo.bar.com/headers"
+```
+
+2. 验证令牌的过期时间
+3. 如果在 cookie 中检测到存在 refresh_token，则可以访问相应的接口以交换新的 id_token 和 access_token
+
+```shell
+curl -X POST \
+  --url "https://dev-o43xb1mz7ya7ach4.us.auth0.com/oauth/token" \
+  --data "grant_type=refresh_token" \
+  --data "client_id=YagFqRD9tfNIaac5BamjhsSatjrAnsnZ" \
+  --data "client_secret=ekqv5XoZuMFtYms1NszEqRx03qct6BPvGeJUeptNG4y09PrY16BKT9IWezTrrhJJ" \
+  --data "refresh_token=GrZ1f2JvzjAZQzSXmyr1ScWbv8aMFBvzAXHBUSiILcDEG"
+```
+
+4. 携带 Authorization 的标头对应 access_token 访问对应 API
+5. 后端服务根据 access_token 获取用户授权信息并返回对应的 HTTP 响应
 
 ## 配置
 
