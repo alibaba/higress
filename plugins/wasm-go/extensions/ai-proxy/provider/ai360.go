@@ -1,7 +1,9 @@
 package provider
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
@@ -41,7 +43,7 @@ func (m *ai360Provider) GetProviderType() string {
 }
 
 func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(ai360Domain)
@@ -53,15 +55,43 @@ func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *ai360Provider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	if apiName == ApiNameChatCompletion {
+		return m.onChatCompletionRequestBody(ctx, body, log)
+	}
+	if apiName == ApiNameEmbeddings {
+		return m.onEmbeddingsRequestBody(ctx, body, log)
+	}
+	return types.ActionContinue, errUnsupportedApiName
+}
+
+func (m *ai360Provider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
 	if request.Model == "" {
 		return types.ActionContinue, errors.New("missing model in chat completion request")
+	}
+	// 映射模型
+	mappedModel := getMappedModel(request.Model, m.config.modelMapping, log)
+	if mappedModel == "" {
+		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
+	}
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+	request.Model = mappedModel
+	return types.ActionContinue, replaceJsonRequestBody(request, log)
+}
+
+func (m *ai360Provider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+	request := &embeddingsRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	if request.Model == "" {
+		return types.ActionContinue, errors.New("missing model in embeddings request")
 	}
 	// 映射模型
 	mappedModel := getMappedModel(request.Model, m.config.modelMapping, log)

@@ -37,6 +37,7 @@ const (
 	providerTypeSpark      = "spark"
 	providerTypeGemini     = "gemini"
 	providerTypeDeepl      = "deepl"
+	providerTypeMistral    = "mistral"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -92,6 +93,7 @@ var (
 		providerTypeSpark:      &sparkProviderInitializer{},
 		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeDeepl:      &deeplProviderInitializer{},
+		providerTypeMistral:    &mistralProviderInitializer{},
 	}
 )
 
@@ -288,6 +290,15 @@ func (c *ProviderConfig) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
+	ctxApiKey := ctx.GetContext(ctxKeyApiName)
+	if ctxApiKey == nil {
+		ctxApiKey = c.GetRandomToken()
+		ctx.SetContext(ctxKeyApiName, ctxApiKey)
+	}
+	return ctxApiKey.(string)
 }
 
 func (c *ProviderConfig) GetRandomToken() string {

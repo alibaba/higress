@@ -94,7 +94,7 @@ spec:
         headers:
           - key5=value5
         "body": "{\"hello\":\"qux\"}"
-  url: file:///opt/plugins/wasm-go/extensions/custom-response/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:1.0.0
 ---
 # test enable_on_status 401
 apiVersion: extensions.higress.io/v1alpha1
@@ -115,4 +115,4 @@ spec:
           - consumer1
       domain:
         - baz.com
-  url: file:///opt/plugins/wasm-go/extensions/basic-auth/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/basic-auth:1.0.0
