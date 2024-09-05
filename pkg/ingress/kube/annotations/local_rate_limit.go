@@ -15,10 +15,9 @@
 package annotations
 
 import (
-	types "github.com/gogo/protobuf/types"
-
+	"github.com/golang/protobuf/ptypes/duration"
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
+	//"istio.io/istio/pilot/pkg/networking/core/v1alpha3/mseingress"
 )
 
 const (
@@ -34,11 +33,11 @@ var (
 	_ Parser       = localRateLimit{}
 	_ RouteHandler = localRateLimit{}
 
-	second = &types.Duration{
+	second = &duration.Duration{
 		Seconds: 1,
 	}
 
-	minute = &types.Duration{
+	minute = &duration.Duration{
 		Seconds: 60,
 	}
 )
@@ -46,7 +45,7 @@ var (
 type localRateLimitConfig struct {
 	TokensPerFill uint32
 	MaxTokens     uint32
-	FillInterval  *types.Duration
+	FillInterval  *duration.Duration
 }
 
 type localRateLimit struct{}
@@ -90,7 +89,8 @@ func (l localRateLimit) ApplyRoute(route *networking.HTTPRoute, config *Ingress)
 	}
 
 	route.RouteHTTPFilters = append(route.RouteHTTPFilters, &networking.HTTPFilter{
-		Name: mseingress.LocalRateLimit,
+		// TODO: hardcode
+		Name: "local-rate-limit",
 		Filter: &networking.HTTPFilter_LocalRateLimit{
 			LocalRateLimit: &networking.LocalRateLimit{
 				TokenBucket: &networking.TokenBucket{

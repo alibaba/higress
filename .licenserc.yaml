@@ -7,6 +7,8 @@ header:
     - '.gitignore'
     - '*.md'
     - '*.yml'
+    - '*.yaml'
+    - '*.golden'
     - 'LICENSE'
     - 'api/**'
     - 'samples/**'
@@ -27,8 +29,9 @@ header:
     - 'tools/'
     - 'test/README.md'
     - 'test/README_CN.md'
-    - 'cmd/hgctl/config/testdata/config'
-    - 'pkg/cmd/hgctl/manifests'
+    - 'hgctl/cmd/hgctl/config/testdata/config'
+    - 'hgctl/pkg/manifests'
+    - 'pkg/ingress/kube/gateway/istio/testdata'
 
   comment: on-failure
 dependency:
