@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -13,13 +12,14 @@ import (
 
 func RedisSearchHandler(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, ifUseEmbedding bool) {
 	activeCacheProvider := config.GetCacheProvider()
+	key = activeCacheProvider.GetCacheKeyPrefix() + ":" + key
 	log.Debugf("activeCacheProvider:%v", activeCacheProvider)
-	activeCacheProvider.Get(embedding.CacheKeyPrefix+key, func(response resp.Value) {
+	activeCacheProvider.Get(key, func(response resp.Value) {
 		if err := response.Error(); err == nil && !response.IsNull() {
-			log.Warnf("cache hit, key:%s", key)
+			log.Debugf("cache hit, key:%s", key)
 			HandleCacheHit(key, response, stream, ctx, config, log)
 		} else {
-			log.Warnf("cache miss, key:%s", key)
+			log.Debugf("cache miss, key:%s", key)
 			if ifUseEmbedding {
 				HandleCacheMiss(key, err, response, ctx, config, log, key, stream)
 			} else {
@@ -31,11 +31,11 @@ func RedisSearchHandler(key string, ctx wrapper.HttpContext, config config.Plugi
 }
 
 func HandleCacheHit(key string, response resp.Value, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
-	ctx.SetContext(embedding.CacheKeyContextKey, nil)
+	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 	if !stream {
-		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, "[Test, this is cache]"+response.String())), -1)
+		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, response.String())), -1)
 	} else {
-		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnStreamResponseTemplate, "[Test, this is cache]"+response.String())), -1)
+		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(config.StreamResponseTemplate, response.String())), -1)
 	}
 }
 
@@ -58,16 +58,16 @@ func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config confi
 		})
 }
 
-func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
+func QueryVectorDB(key string, textEmbedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
 	log.Debugf("QueryVectorDB key: %s", key)
 	activeVectorProvider := config.GetVectorProvider()
 	log.Debugf("activeVectorProvider: %+v", activeVectorProvider)
-	activeVectorProvider.QueryEmbedding(text_embedding, ctx, log,
+	activeVectorProvider.QueryEmbedding(textEmbedding, ctx, log,
 		func(results []vector.QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log) {
 			// The baisc logic is to compare the similarity of the embedding with the most similar key in the database
 			if len(results) == 0 {
 				log.Warnf("Failed to query vector database, no similar key found")
-				activeVectorProvider.UploadEmbedding(text_embedding, key, ctx, log,
+				activeVectorProvider.UploadEmbedding(textEmbedding, key, ctx, log,
 					func(ctx wrapper.HttpContext, log wrapper.Log) {
 						proxywasm.ResumeHttpRequest()
 					})
@@ -82,7 +82,7 @@ func QueryVectorDB(key string, text_embedding []float64, ctx wrapper.HttpContext
 				RedisSearchHandler(mostSimilarData.Text, ctx, config, log, stream, false)
 			} else {
 				log.Infof("the most similar key's score is too high, key: %s, score: %f", mostSimilarData.Text, mostSimilarData.Score)
-				activeVectorProvider.UploadEmbedding(text_embedding, key, ctx, log,
+				activeVectorProvider.UploadEmbedding(textEmbedding, key, ctx, log,
 					func(ctx wrapper.HttpContext, log wrapper.Log) {
 						proxywasm.ResumeHttpRequest()
 					})

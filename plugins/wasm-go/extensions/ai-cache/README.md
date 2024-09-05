@@ -8,6 +8,8 @@
 
 LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的结果缓存，同时支持流式和非流式响应的缓存。
 
+## 简介
+
 ## 配置说明
 
 | Name                              | Type     | Requirement | Default                                                                                                                                                                                                                                                 | Description                                                                                                |

@@ -26,9 +26,9 @@ var (
 
 // 定义通用的查询结果的结构体
 type QueryEmbeddingResult struct {
-	Text 		string  // 相似的文本
-	Embedding 	[]float64 // 相似文本的向量
-	Score       float64 // 文本的向量相似度或距离等度量
+	Text      string    // 相似的文本
+	Embedding []float64 // 相似文本的向量
+	Score     float64   // 文本的向量相似度或距离等度量
 }
 
 type Provider interface {
@@ -53,14 +53,14 @@ type Provider interface {
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
 	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
-	typ          string `json:"vectorStoreProviderType"`
-	serviceName  string `require:"true" yaml:"serviceName" json:"serviceName"`
-	serviceHost  string `require:"false" yaml:"serviceHost" json:"serviceHost"`
-	servicePort  int64  `require:"false" yaml:"servicePort" json:"servicePort"`
-	apiKey       string `require:"false" yaml:"apiKey" json:"apiKey"`
-	topK         int    `require:"false" yaml:"topK" json:"topK"`
-	timeout      uint32 `require:"false" yaml:"timeout" json:"timeout"`
-	collectionID string `require:"false" yaml:"collectionID" json:"collectionID"`
+	typ           string
+	serviceName   string
+	serviceDomain string
+	servicePort   int64
+	apiKey        string
+	topK          int
+	timeout       uint32
+	collectionID  string
 
 	// // @Title zh-CN Chroma 的上游服务名称
 	// // @Description zh-CN Chroma 服务所对应的网关内上游服务名称
@@ -77,14 +77,13 @@ type ProviderConfig struct {
 	// // @Title zh-CN Chroma 超时设置
 	// // @Description zh-CN Chroma 超时设置，默认为 10 秒
 	// ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
-	vectorClient wrapper.HttpClient `yaml:"-" json:"-"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
-	c.typ = json.Get("vectorStoreProviderType").String()
+	c.typ = json.Get("type").String()
 	// DashVector
 	c.serviceName = json.Get("serviceName").String()
-	c.serviceHost = json.Get("serviceHost").String()
+	c.serviceDomain = json.Get("serviceDomain").String()
 	c.servicePort = int64(json.Get("servicePort").Int())
 	if c.servicePort == 0 {
 		c.servicePort = 443
@@ -118,11 +117,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 
 func (c *ProviderConfig) Validate() error {
 	if c.typ == "" {
-		return errors.New("[ai-cache] missing type in provider config")
+		return errors.New("vector database service is required")
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
-		return errors.New("unknown provider type: " + c.typ)
+		return errors.New("unknown vector database service provider type: " + c.typ)
 	}
 	if err := initializer.ValidateConfig(*c); err != nil {
 		return err

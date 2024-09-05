@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	domain    = "dashscope.aliyuncs.com"
-	port      = 443
-	modelName = "text-embedding-v1"
-	endpoint  = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	DOMAIN     = "dashscope.aliyuncs.com"
+	PORT       = 443
+	MODEL_NAME = "text-embedding-v1"
+	END_POINT  = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
 type dashScopeProviderInitializer struct {
@@ -20,30 +20,30 @@ type dashScopeProviderInitializer struct {
 
 func (d *dashScopeProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if config.apiKey == "" {
-		return errors.New("DashScopeKey is required")
+		return errors.New("[DashScope] apiKey is required")
 	}
 	return nil
 }
 
 func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
-		c.servicePort = port
+		c.servicePort = PORT
 	}
-	if c.serviceHost == "" {
-		c.serviceHost = domain
+	if c.serviceDomain == "" {
+		c.serviceDomain = DOMAIN
 	}
 	return &DSProvider{
 		config: c,
 		client: wrapper.NewClusterClient(wrapper.DnsCluster{
 			ServiceName: c.serviceName,
 			Port:        c.servicePort,
-			Domain:      c.serviceHost,
+			Domain:      c.serviceDomain,
 		}),
 	}, nil
 }
 
 func (d *DSProvider) GetProviderType() string {
-	return providerTypeDashScope
+	return PROVIDER_TYPE_DASHSCOPE
 }
 
 type Embedding struct {
@@ -92,7 +92,7 @@ type DSProvider struct {
 func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
 
 	data := EmbeddingRequest{
-		Model: modelName,
+		Model: MODEL_NAME,
 		Input: Input{
 			Texts: texts,
 		},
@@ -118,18 +118,16 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		{"Content-Type", "application/json"},
 	}
 
-	return endpoint, headers, requestBody, err
+	return END_POINT, headers, requestBody, err
 }
 
-// Result 定义查询结果的结构
 type Result struct {
 	ID     string                 `json:"id"`
-	Vector []float64              `json:"vector,omitempty"` // omitempty 使得如果 vector 是空，它将不会被序列化
+	Vector []float64              `json:"vector,omitempty"`
 	Fields map[string]interface{} `json:"fields"`
 	Score  float64                `json:"score"`
 }
 
-// 返回指针防止拷贝 Embedding
 func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) {
 	var resp Response
 	err := json.Unmarshal(responseBody, &resp)
@@ -151,7 +149,7 @@ func (d *DSProvider) GetEmbedding(
 	}
 
 	var resp *Response
-	d.client.Post(embUrl, embHeaders, embRequestBody, // TODO: 函数调用返回的error要进行处理
+	d.client.Post(embUrl, embHeaders, embRequestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))

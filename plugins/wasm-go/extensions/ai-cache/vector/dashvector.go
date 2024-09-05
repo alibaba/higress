@@ -26,7 +26,7 @@ func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) er
 	if len(config.serviceName) == 0 {
 		return errors.New("[DashVector] serviceName is required")
 	}
-	if len(config.serviceHost) == 0 {
+	if len(config.serviceDomain) == 0 {
 		return errors.New("[DashVector] endPoint is required")
 	}
 	return nil
@@ -38,7 +38,7 @@ func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (P
 		client: wrapper.NewClusterClient(wrapper.DnsCluster{
 			ServiceName: config.serviceName,
 			Port:        config.servicePort,
-			Domain:      config.serviceHost,
+			Domain:      config.serviceDomain,
 		}),
 	}, nil
 }
