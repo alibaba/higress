@@ -1,6 +1,10 @@
 # 功能说明
 
   对请求/返回中的敏感词拦截、替换
+
+![image](https://github.com/user-attachments/assets/f281c8c3-9613-4053-94aa-067694cc5fd4)
+
+  
 ```mermaid
 sequenceDiagram
     participant 用户
@@ -18,6 +22,7 @@ sequenceDiagram
     敏感词插件->>用户: 数据恢复后的相应数据(将****@gmail.com恢复为admin@gmail.com)
     end
 ```
+
 ## 处理数据范围
   - openai协议：请求/返回对话内容
   - jsonpath：只处理指定字段
