@@ -77,6 +77,10 @@ weaviate-search:
 redis-cli:
 	docker run -it --network docker-compose-test_wasmtest --rm redis redis-cli -h docker-compose-test-redis-1
 
+# redis flushall
+redis-flushall:
+	docker run -it --network docker-compose-test_wasmtest --rm redis redis-cli -h docker-compose-test-redis-1 flushall
+
 # llm request
 llm:
 	curl -X POST http://localhost:10000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "你好"}]}'

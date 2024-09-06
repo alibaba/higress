@@ -53,7 +53,7 @@ func (d *WeaviateProvider) QueryEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 最少需要填写的参数为 class, vector 和 question
+	// 最少需要填写的参数为 class, vector
 	// 下面是一个例子
 	// {"query": "{ Get { Higress ( limit: 2 nearVector: { vector: [0.1, 0.2, 0.3] } ) { question _additional { distance } } } }"}
 	embString, err := json.Marshal(emb)

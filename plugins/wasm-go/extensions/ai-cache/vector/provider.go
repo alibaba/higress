@@ -12,6 +12,7 @@ const (
 	providerTypeChroma     = "chroma"
 	providerTypeES         = "elasticsearch"
 	providerTypeWeaviate   = "weaviate"
+	providerTypePinecone   = "pinecone"
 )
 
 type providerInitializer interface {
@@ -25,6 +26,7 @@ var (
 		providerTypeChroma:     &chromaProviderInitializer{},
 		providerTypeES:         &esProviderInitializer{},
 		providerTypeWeaviate:   &weaviateProviderInitializer{},
+		providerTypePinecone:   &pineconeProviderInitializer{},
 	}
 )
 
@@ -128,6 +130,28 @@ type ProviderConfig struct {
 	// @Title zh-CN Chroma 超时设置
 	// @Description zh-CN Chroma 超时设置，默认为 10 秒
 	WeaviateTimeout uint32 `require:"false" yaml:"WeaviateTimeout" json:"WeaviateTimeout"`
+
+	// @Title zh-CN Pinecone 的 upstream service name
+	// @Description zh-CN Pinecone 服务所对应的网关内上游服务名称
+	PineconeServiceName string `require:"true" yaml:"PineconeServiceName" json:"PineconeServiceName"`
+	// @Title zh-CN Pinecone 的 api endpoint
+	// @Description zh-CN Pinecone 的 index host endpoint，例如 https://us-west4-gcp-free.pinecone.io
+	PineconeApiEndpoint string `require:"true" yaml:"PineconeApiEndpoint" json:"PineconeApiEndpoint"`
+	// @Title zh-CN Pinecone 的 api key
+	// @Description zh-CN Pinecone 的 api key
+	PineconeApiKey string `require:"true" yaml:"PineconeApiKey" json:"PineconeApiKey"`
+	// @Title zh-CN Pinecone 的 namespace
+	// @Description zh-CN Pinecone 的 namespace，默认为 higress
+	PineconeNamespace string `require:"false" yaml:"PineconeNamespace" json:"PineconeNamespace"`
+	// @Title zh-CN Pinecone 的超时设置
+	// @Description zh-CN Pinecone 的超时设置，默认为 10 秒
+	PineconeTimeout uint32 `require:"false" yaml:"PineconeTimeout" json:"PineconeTimeout"`
+	// @Title zh-CN Pinecone 的 TopK
+	// @Description zh-CN Pinecone 的 TopK，默认为 1
+	PineconeTopK int `require:"false" yaml:"PineconeTopK" json:"PineconeTopK"`
+	// @Title zh-CN Pinecone 的距离阈值
+	// @Description zh-CN Pinecone 的距离阈值，默认为 0.5，具体见 https://docs.pinecone.io/guides/indexes/understanding-indexes#distance-metrics
+	PineconeThreshold float64 `require:"false" yaml:"PineconeThreshold" json:"PineconeThreshold"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -201,6 +225,26 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.WeaviateTimeout = uint32(json.Get("WeaviateTimeout").Int())
 	if c.WeaviateTimeout == 0 {
 		c.WeaviateTimeout = 10000
+	}
+	// Pinecone
+	c.PineconeServiceName = json.Get("PineconeServiceName").String()
+	c.PineconeApiEndpoint = json.Get("PineconeApiEndpoint").String()
+	c.PineconeApiKey = json.Get("PineconeApiKey").String()
+	c.PineconeNamespace = json.Get("PineconeNamespace").String()
+	if c.PineconeNamespace == "" {
+		c.PineconeNamespace = "higress"
+	}
+	c.PineconeTimeout = uint32(json.Get("PineconeTimeout").Int())
+	if c.PineconeTimeout == 0 {
+		c.PineconeTimeout = 10000
+	}
+	c.PineconeTopK = int(json.Get("PineconeTopK").Int())
+	if c.PineconeTopK == 0 {
+		c.PineconeTopK = 1
+	}
+	c.PineconeThreshold = json.Get("PineconeThreshold").Float()
+	if c.PineconeThreshold == 0 {
+		c.PineconeThreshold = 0.5
 	}
 }
 

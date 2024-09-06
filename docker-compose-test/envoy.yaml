@@ -58,14 +58,16 @@ static_resources:
                         "embeddingProvider": {
                           "type": "dashscope",
                           "serviceName": "dashscope",
-                          "apiKey": "sk-key",
+                          "apiKey": "sk-",
                           "DashScopeServiceName": "dashscope"
                         },
                         "vectorProvider": {
-                          "VectorStoreProviderType": "weaviate",
-                          "WeaviateServiceName": "weaviate",
-                          "WeaviateCollection": "Higress",
-                          "WeaviateThreshold": "0.3"
+                          "VectorStoreProviderType": "pinecone",
+                          "PineconeServiceName": "pinecone",
+                          "PineconeApiEndpoint": "higress-2bdfipe.svc.aped-4627-b74a.pinecone.io",
+                          "PineconeThreshold": "0.7",
+                          "ThresholdRelation": "gte",
+                          "PineconeApiKey": "key"
                         },
                         "cacheKeyFrom": {
                           "requestBody": ""
@@ -100,6 +102,13 @@ static_resources:
                         #   "ESIndex": "higress",
                         #   "ESUsername": "elastic",
                         #   "ESPassword": "123456"
+                        # },
+
+                        # "vectorProvider": {
+                        #   "VectorStoreProviderType": "weaviate",
+                        #   "WeaviateServiceName": "weaviate",
+                        #   "WeaviateCollection": "Higress",
+                        #   "WeaviateThreshold": "0.3"
                         # },
           # llm-proxy
           - name: llm-proxy
@@ -277,3 +286,23 @@ static_resources:
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
         "sni": "dashscope.aliyuncs.com"
+  # pinecone
+  - name: outbound|443||pinecone.dns
+    connect_timeout: 30s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: outbound|443||pinecone.dns
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: higress-2bdfipe.svc.aped-4627-b74a.pinecone.io
+                    port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        "sni": "higress-2bdfipe.svc.aped-4627-b74a.pinecone.io"  
