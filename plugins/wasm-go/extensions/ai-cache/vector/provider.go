@@ -33,13 +33,11 @@ type QueryEmbeddingResult struct {
 
 type Provider interface {
 	GetProviderType() string
-	// TODO: 考虑失败的场景
 	QueryEmbedding(
 		emb []float64,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
 		callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log))
-	// TODO: 考虑失败的场景
 	UploadEmbedding(
 		queryEmb []float64,
 		queryString string,
@@ -53,14 +51,28 @@ type Provider interface {
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
 	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
-	typ           string
-	serviceName   string
+	typ string
+	// @Title zh-CN 向量存储服务名称
+	// @Description zh-CN 向量存储服务名称
+	serviceName string
+	// @Title zh-CN 向量存储服务域名
+	// @Description zh-CN 向量存储服务域名
 	serviceDomain string
-	servicePort   int64
-	apiKey        string
-	topK          int
-	timeout       uint32
-	collectionID  string
+	// @Title zh-CN 向量存储服务端口
+	// @Description zh-CN 向量存储服务端口
+	servicePort int64
+	// @Title zh-CN 向量存储服务 API Key
+	// @Description zh-CN 向量存储服务 API Key
+	apiKey string
+	// @Title zh-CN 返回TopK结果
+	// @Description zh-CN 返回TopK结果，默认为 1
+	topK int
+	// @Title zh-CN 请求超时
+	// @Description zh-CN 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒
+	timeout uint32
+	// @Title zh-CN DashVector 向量存储服务 Collection ID
+	// @Description zh-CN DashVector 向量存储服务 Collection ID
+	collectionID string
 
 	// // @Title zh-CN Chroma 的上游服务名称
 	// // @Description zh-CN Chroma 服务所对应的网关内上游服务名称

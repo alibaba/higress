@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	PROVIDER_TYPE_REDIS = "redis"
+	PROVIDER_TYPE_REDIS  = "redis"
+	DEFAULT_CACHE_PREFIX = "higressAiCache:"
 )
 
 type providerInitializer interface {
@@ -42,13 +43,13 @@ type ProviderConfig struct {
 	// @Description zh-CN 缓存服务密码，非必填
 	password string
 	// @Title zh-CN 请求超时
-	// @Description zh-CN 请求缓存服务的超时时间，单位为毫秒。默认值是1000，即1秒
+	// @Description zh-CN 请求缓存服务的超时时间，单位为毫秒。默认值是10000，即10秒
 	timeout uint32
 	// @Title zh-CN 缓存过期时间
-	// @Description zh-CN 缓存过期时间，单位为秒。默认值是0，即永不过期
+	// @Description zh-CN 缓存过期时间，单位为秒。默认值是3600000，即1小时
 	cacheTTL uint32
 	// @Title 缓存 Key 前缀
-	// @Description 缓存 Key 的前缀，默认值为 "higressAiCache"
+	// @Description 缓存 Key 的前缀，默认值为 "higressAiCache:"
 	cacheKeyPrefix string
 }
 
@@ -70,7 +71,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.timeout = uint32(json.Get("timeout").Int())
 	if !json.Get("timeout").Exists() {
-		c.timeout = 1000
+		c.timeout = 10000
 	}
 	c.cacheTTL = uint32(json.Get("cacheTTL").Int())
 	if !json.Get("cacheTTL").Exists() {
@@ -78,7 +79,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.cacheKeyPrefix = json.Get("cacheKeyPrefix").String()
 	if !json.Get("cacheKeyPrefix").Exists() {
-		c.cacheKeyPrefix = "higressAiCache"
+		c.cacheKeyPrefix = DEFAULT_CACHE_PREFIX
 	}
 }
 
