@@ -72,7 +72,7 @@ func (d *pineconeProvider) UploadEmbedding(
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
 	callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 最少需要填写的参数为 class, vector 和 question
+	// 最少需要填写的参数为 vector 和 question
 	// 下面是一个例子
 	// {
 	// 	"vectors": [
