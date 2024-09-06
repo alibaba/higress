@@ -58,9 +58,11 @@ func newServerArgs() *ServerArgs {
 		GrpcAddress:          ":15051",
 		GrpcKeepAliveOptions: keepalive.DefaultOption(),
 		XdsOptions: XdsOptions{
-			DebounceAfter:     features.DebounceAfter,
-			DebounceMax:       features.DebounceMax,
-			EnableEDSDebounce: features.EnableEDSDebounce,
+			DebounceAfter:         features.DebounceAfter,
+			DebounceMax:           features.DebounceMax,
+			EnableEDSDebounce:     features.EnableEDSDebounce,
+			KeepConfigLabels:      true,
+			KeepConfigAnnotations: true,
 		},
 	}
 }

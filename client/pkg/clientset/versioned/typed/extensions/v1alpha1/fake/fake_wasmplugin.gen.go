@@ -18,11 +18,13 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1alpha1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
+	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/applyconfiguration/extensions/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -34,9 +36,9 @@ type FakeWasmPlugins struct {
 	ns   string
 }
 
-var wasmpluginsResource = schema.GroupVersionResource{Group: "extensions.higress.io", Version: "v1alpha1", Resource: "wasmplugins"}
+var wasmpluginsResource = v1alpha1.SchemeGroupVersion.WithResource("wasmplugins")
 
-var wasmpluginsKind = schema.GroupVersionKind{Group: "extensions.higress.io", Version: "v1alpha1", Kind: "WasmPlugin"}
+var wasmpluginsKind = v1alpha1.SchemeGroupVersion.WithKind("WasmPlugin")
 
 // Get takes name of the wasmPlugin, and returns the corresponding wasmPlugin object, and an error if there is any.
 func (c *FakeWasmPlugins) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.WasmPlugin, err error) {
@@ -115,7 +117,7 @@ func (c *FakeWasmPlugins) UpdateStatus(ctx context.Context, wasmPlugin *v1alpha1
 // Delete takes name of the wasmPlugin and deletes it. Returns an error if one occurs.
 func (c *FakeWasmPlugins) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(wasmpluginsResource, c.ns, name), &v1alpha1.WasmPlugin{})
+		Invokes(testing.NewDeleteActionWithOptions(wasmpluginsResource, c.ns, name, opts), &v1alpha1.WasmPlugin{})
 
 	return err
 }
@@ -132,6 +134,51 @@ func (c *FakeWasmPlugins) DeleteCollection(ctx context.Context, opts v1.DeleteOp
 func (c *FakeWasmPlugins) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.WasmPlugin, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(wasmpluginsResource, c.ns, name, pt, data, subresources...), &v1alpha1.WasmPlugin{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.WasmPlugin), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied wasmPlugin.
+func (c *FakeWasmPlugins) Apply(ctx context.Context, wasmPlugin *extensionsv1alpha1.WasmPluginApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.WasmPlugin, err error) {
+	if wasmPlugin == nil {
+		return nil, fmt.Errorf("wasmPlugin provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(wasmPlugin)
+	if err != nil {
+		return nil, err
+	}
+	name := wasmPlugin.Name
+	if name == nil {
+		return nil, fmt.Errorf("wasmPlugin.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(wasmpluginsResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha1.WasmPlugin{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.WasmPlugin), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeWasmPlugins) ApplyStatus(ctx context.Context, wasmPlugin *extensionsv1alpha1.WasmPluginApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.WasmPlugin, err error) {
+	if wasmPlugin == nil {
+		return nil, fmt.Errorf("wasmPlugin provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(wasmPlugin)
+	if err != nil {
+		return nil, err
+	}
+	name := wasmPlugin.Name
+	if name == nil {
+		return nil, fmt.Errorf("wasmPlugin.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(wasmpluginsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1alpha1.WasmPlugin{})
 
 	if obj == nil {
 		return nil, err

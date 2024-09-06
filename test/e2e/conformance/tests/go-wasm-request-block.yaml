@@ -69,4 +69,4 @@ spec:
     - "/web/info"
     block_bodies:
     - "hello world"
-  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-request-block:1.0.0

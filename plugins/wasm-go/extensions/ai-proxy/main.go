@@ -75,16 +75,16 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
 		ctx.DisableReroute()
-
-		_, err := handler.OnRequestHeaders(ctx, apiName, log)
+		hasRequestBody := wrapper.HasRequestBody()
+		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
-			if wrapper.HasRequestBody() {
+			if hasRequestBody {
 				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 				// Always return types.HeaderStopIteration to support fallback routing,
 				// as long as onHttpRequestBody can be called.
 				return types.HeaderStopIteration
 			}
-			return types.ActionContinue
+			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue

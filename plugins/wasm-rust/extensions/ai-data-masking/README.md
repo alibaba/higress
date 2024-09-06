@@ -1,6 +1,10 @@
 # 功能说明
 
   对请求/返回中的敏感词拦截、替换
+
+![image](https://github.com/user-attachments/assets/f281c8c3-9613-4053-94aa-067694cc5fd4)
+
+  
 ```mermaid
 sequenceDiagram
     participant 用户
@@ -18,6 +22,7 @@ sequenceDiagram
     敏感词插件->>用户: 数据恢复后的相应数据(将****@gmail.com恢复为admin@gmail.com)
     end
 ```
+
 ## 处理数据范围
   - openai协议：请求/返回对话内容
   - jsonpath：只处理指定字段
@@ -151,5 +156,5 @@ curl -X POST \
  - 流模式中如果脱敏后的词被多个chunk拆分，可能无法进行还原
  - 流模式中，如果敏感词语被多个chunk拆分，可能会有敏感词的一部分返回给用户的情况
  - grok 内置规则列表 https://help.aliyun.com/zh/sls/user-guide/grok-patterns
- - 内置拦截规则数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
+ - 内置敏感词库数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
  

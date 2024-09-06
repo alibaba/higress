@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -148,11 +148,17 @@ func TestApplyTrafficPolicy(t *testing.T) {
 			},
 		},
 	}
+	unexportedIgnoredTypes := []interface{}{
+		networking.TrafficPolicy_PortTrafficPolicy{},
+		networking.ClientTLSSettings{},
+		networking.ConnectionPoolSettings{},
+		networking.ConnectionPoolSettings_HTTPSettings{},
+	}
 
 	for _, testCase := range testCases {
 		t.Run("", func(t *testing.T) {
 			parser.ApplyTrafficPolicy(nil, testCase.input, testCase.config)
-			if diff := cmp.Diff(testCase.expect, testCase.input); diff != "" {
+			if diff := cmp.Diff(testCase.expect, testCase.input, cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
 				t.Fatalf("TestApplyTrafficPolicy() mismatch (-want +got): \n%s", diff)
 			}
 		})
