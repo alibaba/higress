@@ -34,8 +34,8 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
 			return content
 		}
-		append := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
-		content := tempContentI.(string) + append
+		appendMsg := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
+		content := tempContentI.(string) + appendMsg
 		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
 		return content
 	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
