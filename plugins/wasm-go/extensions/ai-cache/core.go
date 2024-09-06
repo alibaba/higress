@@ -49,7 +49,8 @@ func HandleCacheMiss(key string, err error, response resp.Value, ctx wrapper.Htt
 
 func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) {
 	activeEmbeddingProvider := config.GetEmbeddingProvider()
-	activeEmbeddingProvider.GetEmbedding(queryString, ctx, log,
+	// The error will be handled within the callback function
+	_ = activeEmbeddingProvider.GetEmbedding(queryString, ctx, log,
 		func(emb []float64) {
 			log.Debugf("Successfully fetched embeddings for key: %s", key)
 			QueryVectorDB(key, emb, ctx, config, log, stream)

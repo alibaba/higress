@@ -24,7 +24,7 @@ var (
 	}
 )
 
-// 定义通用的查询结果的结构体
+// QueryEmbeddingResult 定义通用的查询结果的结构体
 type QueryEmbeddingResult struct {
 	Text      string    // 相似的文本
 	Embedding []float64 // 相似文本的向量

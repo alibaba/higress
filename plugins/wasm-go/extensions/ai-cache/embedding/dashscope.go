@@ -149,7 +149,7 @@ func (d *DSProvider) GetEmbedding(
 	}
 
 	var resp *Response
-	d.client.Post(embUrl, embHeaders, embRequestBody,
+	err = d.client.Post(embUrl, embHeaders, embRequestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))

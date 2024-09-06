@@ -76,7 +76,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, l
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
 	return types.HeaderStopIteration
@@ -98,7 +98,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, key)
 	log.Debugf("[onHttpRequestBody] key:%s", key)
 	if key == "" {
-		log.Debug("[onHttpRquestBody] parse key from request body failed")
+		log.Debug("[onHttpRequestBody] parse key from request body failed")
 		return types.ActionContinue
 	}
 
@@ -207,6 +207,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	}
 	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
 	activeCacheProvider := config.GetCacheProvider()
-	activeCacheProvider.Set(key, value, nil)
+	_ = activeCacheProvider.Set(key, value, nil)
 	return chunk
 }

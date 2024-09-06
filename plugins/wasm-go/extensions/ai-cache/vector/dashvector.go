@@ -134,7 +134,7 @@ func (d *DvProvider) QueryEmbedding(
 		log.Infof("Failed to construct embedding query parameters: %v", err)
 	}
 
-	d.client.Post(url, headers, body,
+	err = d.client.Post(url, headers, body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				log.Infof("Failed to query embedding: %d", statusCode)
@@ -142,7 +142,6 @@ func (d *DvProvider) QueryEmbedding(
 			}
 			log.Debugf("Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.ParseQueryResponse(responseBody, ctx, log)
-			// TODO: 如果解析失败，应该如何处理？
 			if err != nil {
 				log.Infof("Failed to parse query response: %v", err)
 				return
@@ -212,7 +211,7 @@ func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryStri
 
 func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
 	url, body, headers, _ := d.constructEmbeddingUploadParameters(queryEmb, queryString)
-	d.client.Post(
+	_ = d.client.Post(
 		url,
 		headers,
 		body,
