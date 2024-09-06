@@ -11,6 +11,7 @@ const (
 	providerTypeDashVector = "dashvector"
 	providerTypeChroma     = "chroma"
 	providerTypeES         = "elasticsearch"
+	providerTypeWeaviate   = "weaviate"
 )
 
 type providerInitializer interface {
@@ -23,6 +24,7 @@ var (
 		providerTypeDashVector: &dashVectorProviderInitializer{},
 		providerTypeChroma:     &chromaProviderInitializer{},
 		providerTypeES:         &esProviderInitializer{},
+		providerTypeWeaviate:   &weaviateProviderInitializer{},
 	}
 )
 
@@ -110,6 +112,22 @@ type ProviderConfig struct {
 	// @Title zh-CN ElasticSearch 密码
 	// @Description zh-CN ElasticSearch 密码，默认为 elastic
 	ESPassword string `require:"false" yaml:"ESPassword" json:"ESPassword"`
+
+	// @Title zh-CN Weaviate 的上游服务名称
+	// @Description zh-CN Weaviate 服务所对应的网关内上游服务名称
+	WeaviateServiceName string `require:"true" yaml:"WeaviateServiceName" json:"WeaviateServiceName"`
+	// @Title zh-CN Weaviate 的 Collection 名称
+	// @Description zh-CN Weaviate Collection 的名称（class name），注意这里 weaviate 会自动把首字母进行大写
+	WeaviateCollection string `require:"true" yaml:"WeaviateCollection" json:"WeaviateCollection"`
+	// @Title zh-CN Weaviate 的距离阈值
+	// @Description zh-CN Weaviate 距离阈值，默认为 0.5，具体见 https://weaviate.io/developers/weaviate/config-refs/distances
+	WeaviateThreshold float64 `require:"false" yaml:"WeaviateThreshold" json:"WeaviateThreshold"`
+	// @Title zh-CN 搜索返回结果数量
+	// @Description zh-CN 搜索返回结果数量，默认为 1
+	WeaviateNResult int `require:"false" yaml:"WeaviateNResult" json:"WeaviateNResult"`
+	// @Title zh-CN Chroma 超时设置
+	// @Description zh-CN Chroma 超时设置，默认为 10 秒
+	WeaviateTimeout uint32 `require:"false" yaml:"WeaviateTimeout" json:"WeaviateTimeout"`
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -168,6 +186,21 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.ESPassword = json.Get("ESPassword").String()
 	if c.ESPassword == "" {
 		c.ESPassword = "elastic"
+	}
+	// Weaviate
+	c.WeaviateServiceName = json.Get("WeaviateServiceName").String()
+	c.WeaviateCollection = json.Get("WeaviateCollection").String()
+	c.WeaviateThreshold = json.Get("WeaviateThreshold").Float()
+	if c.WeaviateThreshold == 0 {
+		c.WeaviateThreshold = 0.5
+	}
+	c.WeaviateNResult = int(json.Get("WeaviateNResult").Int())
+	if c.WeaviateNResult == 0 {
+		c.WeaviateNResult = 1
+	}
+	c.WeaviateTimeout = uint32(json.Get("WeaviateTimeout").Int())
+	if c.WeaviateTimeout == 0 {
+		c.WeaviateTimeout = 10000
 	}
 }
 

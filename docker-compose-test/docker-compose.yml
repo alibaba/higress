@@ -9,8 +9,9 @@ services:
     depends_on:
     - httpbin
     - redis
-    - chroma
-    - es
+    - weaviate
+    # - chroma
+    # - es
     networks:
     - wasmtest
     ports:
@@ -22,12 +23,12 @@ services:
     - ./ai-cache.wasm:/etc/envoy/ai-cache.wasm
     - ./ai-proxy.wasm:/etc/envoy/ai-proxy.wasm
 
-  chroma:
-    image: chromadb/chroma
-    ports:
-      - "8001:8000"
-    volumes:
-      - chroma-data:/chroma/chroma
+  # chroma:
+  #   image: chromadb/chroma
+  #   ports:
+  #     - "8001:8000"
+  #   volumes:
+  #     - chroma-data:/chroma/chroma
 
   redis:
     image: redis:latest
@@ -43,19 +44,19 @@ services:
     ports:
     - "12345:80"
 
-  es:
-    image: elasticsearch:8.15.0
-    environment:
-      - "TZ=Asia/Shanghai"
-      - "discovery.type=single-node"
-      - "xpack.security.http.ssl.enabled=false"
-      - "xpack.license.self_generated.type=trial"
-      - "ELASTIC_PASSWORD=123456"
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    networks:
-      - wasmtest
+  # es:
+  #   image: elasticsearch:8.15.0
+  #   environment:
+  #     - "TZ=Asia/Shanghai"
+  #     - "discovery.type=single-node"
+  #     - "xpack.security.http.ssl.enabled=false"
+  #     - "xpack.license.self_generated.type=trial"
+  #     - "ELASTIC_PASSWORD=123456"
+  #   ports:
+  #     - "9200:9200"
+  #     - "9300:9300"
+  #   networks:
+  #     - wasmtest
 
   # kibana:
   #   image: docker.elastic.co/kibana/kibana:8.15.0
@@ -94,7 +95,8 @@ services:
     - '8080'
     - --scheme
     - http
-    image: cr.weaviate.io/semitechnologies/weaviate:1.26.3
+    # 高于 1.24.x 的版本，单节点部署有问题
+    image: cr.weaviate.io/semitechnologies/weaviate:1.24.1
     ports:
     - 8081:8080
     - 50051:50051
@@ -110,7 +112,6 @@ services:
       DEFAULT_VECTORIZER_MODULE: 'none'
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
-      TRANSFORMERS_INFERENCE_API: http://t2v-transformers:8080  # Set the inference API endpoint
 
   # t2v-transformers:  # Set the name of the inference container
   #   image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1

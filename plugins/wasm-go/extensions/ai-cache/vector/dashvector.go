@@ -173,13 +173,13 @@ type insertRequest struct {
 	Docs []document `json:"docs"`
 }
 
-func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, query_string string) (string, []byte, [][2]string, error) {
+func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryString string) (string, []byte, [][2]string, error) {
 	url := "/v1/collections/" + d.config.DashVectorCollection + "/docs"
 
 	doc := document{
 		Vector: emb,
 		Fields: map[string]string{
-			"query": query_string,
+			"query": queryString,
 		},
 	}
 
@@ -196,8 +196,8 @@ func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, query_str
 	return url, requestBody, header, err
 }
 
-func (d *DvProvider) UploadEmbedding(query_emb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	url, body, headers, _ := d.constructEmbeddingUploadParameters(query_emb, queryString)
+func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
+	url, body, headers, _ := d.constructEmbeddingUploadParameters(queryEmb, queryString)
 	d.client.Post(
 		url,
 		headers,

@@ -92,7 +92,7 @@ func (d *ChromaProvider) QueryEmbedding(
 }
 
 func (d *ChromaProvider) UploadEmbedding(
-	query_emb []float64,
+	queryEmb []float64,
 	queryString string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
@@ -108,7 +108,7 @@ func (d *ChromaProvider) UploadEmbedding(
 	// 	]
 	// }
 	requestBody, err := json.Marshal(ChromaInsertRequest{
-		Embeddings: []ChromaEmbedding{query_emb},
+		Embeddings: []ChromaEmbedding{queryEmb},
 		IDs:        []string{queryString}, // queryString 指的是用户查询的问题
 	})
 
@@ -131,13 +131,8 @@ func (d *ChromaProvider) UploadEmbedding(
 	)
 }
 
-// ChromaEmbedding represents the embedding vector for a data point.
 type ChromaEmbedding []float64
-
-// ChromaMetadataMap is a map from key to value for metadata.
 type ChromaMetadataMap map[string]string
-
-// Dataset represents the entire dataset containing multiple data points.
 type ChromaInsertRequest struct {
 	Embeddings []ChromaEmbedding   `json:"embeddings"`
 	Metadatas  []ChromaMetadataMap `json:"metadatas,omitempty"` // Optional metadata map array
@@ -145,7 +140,6 @@ type ChromaInsertRequest struct {
 	IDs        []string            `json:"ids"`
 }
 
-// ChromaQueryRequest represents the query request structure.
 type ChromaQueryRequest struct {
 	Where           map[string]string `json:"where,omitempty"`          // Optional where filter
 	WhereDocument   map[string]string `json:"where_document,omitempty"` // Optional where_document filter
@@ -154,7 +148,6 @@ type ChromaQueryRequest struct {
 	Include         []string          `json:"include"`
 }
 
-// ChromaQueryResponse represents the search result structure.
 type ChromaQueryResponse struct {
 	Ids        [][]string          `json:"ids"`                  // 每一个 embedding 相似的 key 可能会有多个，然后会有多个 embedding，所以是一个二维数组
 	Distances  [][]float64         `json:"distances"`            // 与 Ids 一一对应

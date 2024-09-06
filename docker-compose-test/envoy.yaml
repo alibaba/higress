@@ -62,13 +62,10 @@ static_resources:
                           "DashScopeServiceName": "dashscope"
                         },
                         "vectorProvider": {
-                          "VectorStoreProviderType": "elasticsearch",
-                          "ThresholdRelation": "gte",
-                          "ESThreshold": 0.7,
-                          "ESServiceName": "es",
-                          "ESIndex": "higress",
-                          "ESUsername": "elastic",
-                          "ESPassword": "123456"
+                          "VectorStoreProviderType": "weaviate",
+                          "WeaviateServiceName": "weaviate",
+                          "WeaviateCollection": "Higress",
+                          "WeaviateThreshold": "0.3"
                         },
                         "cacheKeyFrom": {
                           "requestBody": ""

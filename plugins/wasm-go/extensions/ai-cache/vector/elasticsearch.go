@@ -105,7 +105,7 @@ func (d *ESProvider) getCredentials() string {
 }
 
 func (d *ESProvider) UploadEmbedding(
-	query_emb []float64,
+	queryEmb []float64,
 	queryString string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
@@ -122,7 +122,7 @@ func (d *ESProvider) UploadEmbedding(
 	// 	]
 	// }
 	requestBody, err := json.Marshal(esInsertRequest{
-		Embedding: query_emb,
+		Embedding: queryEmb,
 		Question:  queryString,
 	})
 	if err != nil {
