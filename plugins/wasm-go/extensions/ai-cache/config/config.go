@@ -23,6 +23,14 @@ func (e *KVExtractor) SetRequestBodyFromJson(json gjson.Result, key string, defa
 	}
 }
 
+func (e *KVExtractor) SetResponseBodyFromJson(json gjson.Result, key string, defaultValue string) {
+	if json.Get(key).Exists() {
+		e.ResponseBody = json.Get(key).String()
+	} else {
+		e.ResponseBody = defaultValue
+	}
+}
+
 type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
@@ -31,7 +39,7 @@ type PluginConfig struct {
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
 	StreamResponseTemplate string `required:"true" yaml:"streamResponseTemplate" json:"streamResponseTemplate"`
 
-	redisProvider     cache.Provider     `yaml:"-"`
+	cacheProvider     cache.Provider     `yaml:"-"`
 	embeddingProvider embedding.Provider `yaml:"-"`
 	vectorProvider    vector.Provider    `yaml:"-"`
 
@@ -50,8 +58,8 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
 
 	c.CacheKeyFrom.SetRequestBodyFromJson(json, "cacheKeyFrom.requestBody", "messages.@reverse.0.content")
-	c.CacheValueFrom.SetRequestBodyFromJson(json, "cacheValueFrom.requestBody", "choices.0.message.content")
-	c.CacheStreamValueFrom.SetRequestBodyFromJson(json, "cacheStreamValueFrom.requestBody", "choices.0.delta.content")
+	c.CacheValueFrom.SetResponseBodyFromJson(json, "cacheValueFrom.responseBody", "choices.0.message.content")
+	c.CacheStreamValueFrom.SetResponseBodyFromJson(json, "cacheStreamValueFrom.responseBody", "choices.0.delta.content")
 
 	c.StreamResponseTemplate = json.Get("streamResponseTemplate").String()
 	if c.StreamResponseTemplate == "" {
@@ -86,7 +94,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	if err != nil {
 		return err
 	}
-	c.redisProvider, err = cache.CreateProvider(c.cacheProviderConfig)
+	c.cacheProvider, err = cache.CreateProvider(c.cacheProviderConfig)
 	if err != nil {
 		return err
 	}
@@ -102,5 +110,5 @@ func (c *PluginConfig) GetVectorProvider() vector.Provider {
 }
 
 func (c *PluginConfig) GetCacheProvider() cache.Provider {
-	return c.redisProvider
+	return c.cacheProvider
 }

@@ -12,8 +12,6 @@ import (
 
 func RedisSearchHandler(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, ifUseEmbedding bool) {
 	activeCacheProvider := config.GetCacheProvider()
-	key = activeCacheProvider.GetCacheKeyPrefix() + ":" + key
-	log.Debugf("activeCacheProvider:%v", activeCacheProvider)
 	activeCacheProvider.Get(key, func(response resp.Value) {
 		if err := response.Error(); err == nil && !response.IsNull() {
 			log.Debugf("cache hit, key:%s", key)

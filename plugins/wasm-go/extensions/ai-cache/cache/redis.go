@@ -6,7 +6,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-const DEFAULT_CACHE_PREFIX = "higressAiCache"
+const DEFAULT_CACHE_PREFIX = "higressAiCache:"
 
 type redisProviderInitializer struct {
 }
@@ -44,11 +44,11 @@ func (rp *redisProvider) Init(username string, password string, timeout uint32) 
 }
 
 func (rp *redisProvider) Get(key string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.Get(key, cb)
+	return rp.client.Get(DEFAULT_CACHE_PREFIX+key, cb)
 }
 
 func (rp *redisProvider) Set(key string, value string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.SetEx(key, value, int(rp.config.cacheTTL), cb)
+	return rp.client.SetEx(DEFAULT_CACHE_PREFIX+key, value, int(rp.config.cacheTTL), cb)
 }
 
 func (rp *redisProvider) GetCacheKeyPrefix() string {

@@ -74,7 +74,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.cacheTTL = uint32(json.Get("cacheTTL").Int())
 	if !json.Get("cacheTTL").Exists() {
-		c.cacheTTL = 0
+		c.cacheTTL = 3600000
 	}
 	c.cacheKeyPrefix = json.Get("cacheKeyPrefix").String()
 	if !json.Get("cacheKeyPrefix").Exists() {

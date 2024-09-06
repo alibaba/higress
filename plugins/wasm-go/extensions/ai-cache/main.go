@@ -208,6 +208,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	}
 	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
 	activeCacheProvider := config.GetCacheProvider()
-	config.GetCacheProvider().Set(activeCacheProvider.GetCacheKeyPrefix()+":"+key, value, nil)
+	activeCacheProvider.Set(key, value, nil)
 	return chunk
 }
