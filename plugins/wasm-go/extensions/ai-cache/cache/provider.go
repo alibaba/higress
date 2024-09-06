@@ -90,9 +90,6 @@ func (c *ProviderConfig) Validate() error {
 	if c.serviceName == "" {
 		return errors.New("cache service name is required")
 	}
-	if c.timeout <= 0 {
-		return errors.New("cache service timeout must be greater than 0")
-	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
 		return errors.New("unknown cache service provider type: " + c.typ)

@@ -62,7 +62,7 @@ func QueryVectorDB(key string, textEmbedding []float64, ctx wrapper.HttpContext,
 	log.Debugf("activeVectorProvider: %+v", activeVectorProvider)
 	activeVectorProvider.QueryEmbedding(textEmbedding, ctx, log,
 		func(results []vector.QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log) {
-			// The baisc logic is to compare the similarity of the embedding with the most similar key in the database
+			// The basic logic is to compare the similarity of the embedding with the most similar key in the database
 			if len(results) == 0 {
 				log.Warnf("Failed to query vector database, no similar key found")
 				activeVectorProvider.UploadEmbedding(textEmbedding, key, ctx, log,

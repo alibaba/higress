@@ -187,13 +187,13 @@ type insertRequest struct {
 	Docs []document `json:"docs"`
 }
 
-func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, query_string string) (string, []byte, [][2]string, error) {
+func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryString string) (string, []byte, [][2]string, error) {
 	url := "/v1/collections/" + d.config.collectionID + "/docs"
 
 	doc := document{
 		Vector: emb,
 		Fields: map[string]string{
-			"query": query_string,
+			"query": queryString,
 		},
 	}
 

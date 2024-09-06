@@ -19,7 +19,6 @@ const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	TOOL_CALLS_CONTEXT_KEY      = "toolCalls"
 	STREAM_CONTEXT_KEY          = "stream"
-	QUERY_EMBEDDING_KEY         = "queryEmbedding"
 )
 
 func main() {
