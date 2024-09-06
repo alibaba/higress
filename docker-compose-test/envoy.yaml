@@ -209,6 +209,21 @@ static_resources:
                   socket_address:
                     address: 172.17.0.1 # 本地 API 服务地址，这里是 docker0
                     port_value: 9200
+  # weaviate
+  - name: outbound|8081||weaviate.dns
+    connect_timeout: 30s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: outbound|8081||weaviate.dns
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 172.17.0.1 # 本地 API 服务地址，这里是 docker0
+                    port_value: 8081
 
   # llm
   - name: llm
