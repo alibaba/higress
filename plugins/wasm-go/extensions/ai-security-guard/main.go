@@ -187,7 +187,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", "CIPFrom/AIGateway"}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
@@ -201,7 +201,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							jsonData := []byte(fmt.Sprintf(StreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData := []byte(fmt.Sprintf(NormalResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 							config.incrementCounter("ai_sec_request_deny", 1)
 							proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
@@ -289,7 +289,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", "CIPFrom/AIGateway"}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer proxywasm.ResumeHttpResponse()
 				respData := gjson.GetBytes(responseBody, "Data")

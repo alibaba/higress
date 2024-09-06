@@ -47,3 +47,41 @@ ai-security-guard 插件提供了以下监控指标：
 如果开启了链路追踪，ai-security-guard 插件会在请求 span 中添加以下 attributes:
 - `ai_sec_risklabel`: 表示请求命中的风险类型
 - `ai_sec_deny_phase`: 表示请求被检测到风险的阶段（取值为request或者response）
+
+## 请求示例
+```bash
+curl http://localhost/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "这是一段非法内容"
+    }
+  ]
+}'
+```
+
+请求内容会被发送到阿里云内容安全服务进行检测，如果请求内容检测结果为非法，网关将返回形如以下的回答：
+
+```json
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "model": "gpt-4o-mini",
+    "system_fingerprint": "fp_44709d6fcb",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "作为一名人工智能助手，我不能提供涉及色情、暴力、政治等敏感话题的内容。如果您有其他相关问题，欢迎您提问。",
+            },
+            "logprobs": null,
+            "finish_reason": "stop"
+        }
+    ]
+}
+```
