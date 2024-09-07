@@ -49,7 +49,7 @@ func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	}
 	_ = util.OverwriteRequestPath(baichuanChatCompletionPath)
 	_ = util.OverwriteRequestHost(baichuanDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
+	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }

@@ -47,7 +47,7 @@ func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	}
 	_ = util.OverwriteRequestPath(stepfunChatCompletionPath)
 	_ = util.OverwriteRequestHost(stepfunDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
+	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }

@@ -78,7 +78,7 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
+	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
 
 	if m.config.protocol == protocolOriginal {
 		return types.ActionContinue, nil

@@ -49,7 +49,7 @@ func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	_ = util.OverwriteRequestHost(ai360Domain)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", ctx.GetContext(ApiTokenInUse).(string))
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", getApiTokenInUse(ctx))
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
 }

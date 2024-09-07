@@ -421,6 +421,10 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	}
 }
 
+func getApiTokenInUse(ctx wrapper.HttpContext) string {
+	return ctx.GetContext(ApiTokenInUse).(string)
+}
+
 func (c *ProviderConfig) IsFailoverEnabled() bool {
 	return c.failover != nil && c.failover.enabled
 }

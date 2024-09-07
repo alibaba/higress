@@ -232,7 +232,7 @@ func (b *baiduProvider) getRequestPath(ctx wrapper.HttpContext, baiduModel strin
 	if !ok {
 		suffix = baiduModel
 	}
-	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, ctx.GetContext(ApiTokenInUse).(string))
+	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, getApiTokenInUse(ctx))
 }
 
 func (b *baiduProvider) setSystemContent(request *baiduTextGenRequest, content string) {

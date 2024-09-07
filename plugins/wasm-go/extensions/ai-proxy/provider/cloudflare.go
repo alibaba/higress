@@ -49,7 +49,7 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	}
 	_ = util.OverwriteRequestPath(strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	_ = util.OverwriteRequestHost(cloudflareDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + ctx.GetContext(ApiTokenInUse).(string))
+	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
 
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
