@@ -1,11 +1,14 @@
 package util
 
 import (
+	"fmt"
+	"math/rand"
 	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
@@ -14,22 +17,40 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func LogInfof(format string, args ...interface{}) {
+	format = fmt.Sprintf("[%s] %s", "frontend-gray", format)
+	proxywasm.LogInfof(format, args...)
+}
+
+// 从xff中获取真实的IP
+func GetRealIpFromXff(xff string) string {
+	if xff != "" {
+		// 通常客户端的真实 IP 是 XFF 头中的第一个 IP
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+	return ""
+}
+
 func IsGrayEnabled(grayConfig config.GrayConfig) bool {
 	// 检查是否存在重写主机
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		return true
 	}
 
-	// 检查灰度部署是否为 nil 或空
-	grayDeployments := grayConfig.GrayDeployments
-	if grayDeployments != nil && len(grayDeployments) > 0 {
-		for _, grayDeployment := range grayDeployments {
-			if grayDeployment.Enabled {
-				return true
-			}
+	// 检查是否存在灰度版本配置
+	return len(grayConfig.GrayDeployments) > 0
+}
+
+// 是否启用后端的灰度（全链路灰度）
+func IsBackendGrayEnabled(grayConfig config.GrayConfig) bool {
+	for _, deployment := range grayConfig.GrayDeployments {
+		if deployment.BackendVersion != "" {
+			return true
 		}
 	}
-
 	return false
 }
 
@@ -133,22 +154,25 @@ func PrefixFileRewrite(path, version string, matchRules map[string]string) strin
 	return filepath.Clean(newPath)
 }
 
-func GetVersion(version string, cookies string, isIndex bool) string {
+func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isIndex bool) *config.Deployment {
 	if isIndex {
-		return version
+		return deployment
 	}
-	// 来自Cookie中的版本
-	cookieVersion := ExtractCookieValueByKey(cookies, config.XPreHigressTag)
 	// cookie 中为空，返回当前版本
-	if cookieVersion == "" {
-		return version
+	if xPreHigressVersion == "" {
+		return deployment
 	}
 
 	// cookie 中和当前版本不相同，返回cookie中值
-	if cookieVersion != version {
-		return cookieVersion
+	if xPreHigressVersion != deployment.Version {
+		deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
+		for _, curDeployment := range deployments {
+			if curDeployment.Version == xPreHigressVersion {
+				return curDeployment
+			}
+		}
 	}
-	return version
+	return grayConfig.BaseDeployment
 }
 
 // 从cookie中解析出灰度信息
@@ -181,18 +205,13 @@ func GetGrayKey(grayKeyValue string, graySubKey string) string {
 }
 
 // FilterGrayRule 过滤灰度规则
-func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, logInfof func(format string, args ...interface{})) *config.GrayDeployment {
-	for _, grayDeployment := range grayConfig.GrayDeployments {
-		if !grayDeployment.Enabled {
-			// 跳过Enabled=false
-			continue
-		}
-		grayRule := GetRule(grayConfig.Rules, grayDeployment.Name)
+func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.Deployment {
+	for _, deployment := range grayConfig.GrayDeployments {
+		grayRule := GetRule(grayConfig.Rules, deployment.Name)
 		// 首先：先校验用户名单ID
 		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
 			if ContainsValue(grayRule.GrayKeyValue, grayKeyValue) {
-				logInfof("frontendVersion: %s, grayKeyValue: %s", grayDeployment.Version, grayKeyValue)
-				return grayDeployment
+				return deployment
 			}
 		}
 		//	第二：校验Cookie中的 GrayTagKey
@@ -200,11 +219,55 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, logInfof
 			cookieStr, _ := proxywasm.GetHttpRequestHeader("cookie")
 			grayTagValue := ExtractCookieValueByKey(cookieStr, grayRule.GrayTagKey)
 			if ContainsValue(grayRule.GrayTagValue, grayTagValue) {
-				logInfof("frontendVersion: %s, grayTag: %s=%s", grayDeployment.Version, grayRule.GrayTagKey, grayTagValue)
-				return grayDeployment
+				return deployment
 			}
 		}
 	}
-	logInfof("frontendVersion: %s, grayKeyValue: %s", grayConfig.BaseDeployment.Version, grayKeyValue)
+	return grayConfig.BaseDeployment
+}
+
+func FilterGrayWeight(grayConfig *config.GrayConfig, preVersions []string, xForwardedFor string) *config.Deployment {
+	deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
+	realIp := GetRealIpFromXff(xForwardedFor)
+
+	LogInfof("DebugGrayWeight enabled: %s, realIp: %s, preVersions: %v", grayConfig.DebugGrayWeight, realIp, preVersions)
+	// 开启Debug模式，否则无法观测到效果
+	if !grayConfig.DebugGrayWeight {
+		// 如果没有获取到真实IP，则返回不走灰度规则
+		if realIp == "" {
+			return grayConfig.BaseDeployment
+		}
+
+		// 确保每个用户每次访问的都是走同一版本
+		if len(preVersions) > 1 && preVersions[1] != "" && realIp == preVersions[1] {
+			for _, deployment := range deployments {
+				if deployment.Version == strings.Trim(preVersions[0], " ") {
+					return deployment
+				}
+			}
+		}
+		return grayConfig.BaseDeployment
+	}
+
+	if grayConfig.TotalGrayWeight == 0 {
+		return grayConfig.BaseDeployment
+	}
+
+	totalWeight := 100
+	// 如果总权重小于100，则将基础版本也加入到总版本列表中
+	if grayConfig.TotalGrayWeight <= totalWeight {
+		grayConfig.BaseDeployment.Weight = 100 - grayConfig.TotalGrayWeight
+	} else {
+		totalWeight = grayConfig.TotalGrayWeight
+	}
+	rand.Seed(time.Now().UnixNano())
+	randWeight := rand.Intn(totalWeight)
+	sumWeight := 0
+	for _, deployment := range deployments {
+		sumWeight += deployment.Weight
+		if randWeight < sumWeight {
+			return deployment
+		}
+	}
 	return nil
 }

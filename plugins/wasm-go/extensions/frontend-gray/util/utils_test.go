@@ -3,7 +3,9 @@ package util
 import (
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 )
 
 func TestExtractCookieValueByKey(t *testing.T) {
@@ -99,6 +101,24 @@ func TestIsIndexRequest(t *testing.T) {
 		t.Run(testPath, func(t *testing.T) {
 			output := IsIndexRequest(test.fetchMode, testPath)
 			assert.Equal(t, test.output, output)
+		})
+	}
+}
+
+func TestFilterGrayWeight(t *testing.T) {
+	var tests = []struct {
+		name  string
+		input string
+	}{
+		{"demo", `{"grayKey":"userId","rules":[{"name":"inner-user","grayKeyValue":["00000001","00000005"]},{"name":"beta-user","grayKeyValue":["noah","00000003"],"grayTagKey":"level","grayTagValue":["level3","level5"]}],"rewrite":{"host":"frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com","notFoundUri":"/mfe/app1/dev/404.html","indexRouting":{"/app1":"/mfe/app1/{version}/index.html","/":"/mfe/app1/{version}/index.html"},"fileRouting":{"/":"/mfe/app1/{version}","/app1":"/mfe/app1/{version}"}},"baseDeployment":{"version":"dev"},"grayDeployments":[{"name":"beta-user","version":"0.0.1","backendVersion":"beta","enabled":true,"weight":50}]}`},
+	}
+	for _, test := range tests {
+		testName := test.name
+		t.Run(testName, func(t *testing.T) {
+			grayConfig := &config.GrayConfig{}
+			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
+			reslut := FilterGrayWeight(grayConfig)
+			t.Logf("reslut-----: %v", reslut)
 		})
 	}
 }

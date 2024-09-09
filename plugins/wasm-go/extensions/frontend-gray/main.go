@@ -28,6 +28,7 @@ func main() {
 func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
 	// 解析json 为GrayConfig
 	config.JsonToGrayConfig(json, grayConfig)
+	log.Infof("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
 	return nil
 }
 
@@ -53,22 +54,30 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 删除Accept-Encoding，避免压缩， 如果是压缩的内容，后续插件就没法处理了
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	deployment := &config.Deployment{}
 
-	grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue, log.Infof)
-	frontendVersion := util.GetVersion(grayConfig.BaseDeployment.Version, cookies, isIndex)
-	backendVersion := ""
+	xPreHigressVersion := util.ExtractCookieValueByKey(cookies, config.XPreHigressTag)
+	preVersions := strings.Split(xPreHigressVersion, ",")
 
-	// 命中灰度规则
-	if grayDeployment != nil {
-		frontendVersion = util.GetVersion(grayDeployment.Version, cookies, isIndex)
-		backendVersion = grayDeployment.BackendVersion
+	xForwardedFor, _ := proxywasm.GetHttpRequestHeader("X-Forwarded-For")
+
+	// 如果没有配置比例，则进行灰度规则匹配
+	if isIndex {
+		if grayConfig.TotalGrayWeight > 0 {
+			deployment = util.FilterGrayWeight(&grayConfig, preVersions, xForwardedFor)
+		} else {
+			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
+		}
+		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %v", deployment, path, deployment.BackendVersion, xPreHigressVersion)
+	} else {
+		deployment = util.GetVersion(grayConfig, deployment, preVersions[0], isIndex)
 	}
+	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
-	proxywasm.AddHttpRequestHeader(config.XHigressTag, frontendVersion)
-
-	ctx.SetContext(config.XPreHigressTag, frontendVersion)
-	ctx.SetContext(config.XMseTag, backendVersion)
+	ctx.SetContext(config.XPreHigressTag, deployment.Version)
+	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	ctx.SetContext(config.IsIndex, isIndex)
+	ctx.SetContext(config.XForwardedFor, xForwardedFor)
 
 	rewrite := grayConfig.Rewrite
 	if rewrite.Host != "" {
@@ -78,11 +87,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if hasRewrite {
 		rewritePath := path
 		if isIndex {
-			rewritePath = util.IndexRewrite(path, frontendVersion, grayConfig.Rewrite.Index)
+			rewritePath = util.IndexRewrite(path, deployment.Version, grayConfig.Rewrite.Index)
 		} else {
-			rewritePath = util.PrefixFileRewrite(path, frontendVersion, grayConfig.Rewrite.File)
+			rewritePath = util.PrefixFileRewrite(path, deployment.Version, grayConfig.Rewrite.File)
 		}
-		log.Infof("rewrite path: %s %s %v", path, frontendVersion, rewritePath)
+		log.Infof("rewrite path: %s %s %v", path, deployment.Version, rewritePath)
 		proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
 	}
 
@@ -95,15 +104,32 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	contentType, _ := proxywasm.GetHttpResponseHeader("Content-Type")
+
+	// 只有200状态码才进行重写
+	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
+		// 删除Content-Disposition，避免自动下载文件
+		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
+	}
+
+	isIndex := ctx.GetContext(config.IsIndex).(bool)
+
 	if err != nil || status != "200" {
-		isIndex := ctx.GetContext(config.IsIndex)
 		if status == "404" {
-			if grayConfig.Rewrite.NotFound != "" && isIndex != nil && isIndex.(bool) {
+			if grayConfig.Rewrite.NotFound != "" && isIndex {
 				ctx.SetContext(config.NotFound, true)
 				responseHeaders, _ := proxywasm.GetHttpResponseHeaders()
 				headersMap := util.ConvertHeaders(responseHeaders)
-				headersMap[":status"][0] = "200"
-				headersMap["content-type"][0] = "text/html"
+				if _, ok := headersMap[":status"]; !ok {
+					headersMap[":status"] = []string{"200"} // 如果没有初始化，设定默认值
+				} else {
+					headersMap[":status"][0] = "200" // 修改现有值
+				}
+				if _, ok := headersMap["content-type"]; !ok {
+					headersMap["content-type"] = []string{"text/html"} // 如果没有初始化，设定默认值
+				} else {
+					headersMap["content-type"][0] = "text/html" // 修改现有值
+				}
+				// 删除 content-length 键
 				delete(headersMap, "content-length")
 				proxywasm.ReplaceHttpResponseHeaders(util.ReconvertHeaders(headersMap))
 				ctx.BufferResponseBody()
@@ -119,24 +145,22 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 删除content-length，可能要修改Response返回值
 	proxywasm.RemoveHttpResponseHeader("Content-Length")
 
-	// 删除Content-Disposition，避免自动下载文件
-	proxywasm.RemoveHttpResponseHeader("Content-Disposition")
-
-	if strings.HasPrefix(contentType, "text/html") {
-		ctx.SetContext(config.IsHTML, true)
+	if strings.HasPrefix(contentType, "text/html") || isIndex {
 		// 不会进去Streaming 的Body处理
 		ctx.BufferResponseBody()
 
-		// 添加Cache-Control 头部，禁止缓存
-		proxywasm.ReplaceHttpRequestHeader("Cache-Control", "no-cache, no-store")
+		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store")
 
 		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-		backendVersion := ctx.GetContext(config.XMseTag).(string)
+		xForwardedFor := ctx.GetContext(config.XForwardedFor).(string)
 
 		// 设置当前的前端版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=/;", config.XPreHigressTag, frontendVersion))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Path=/;", config.XPreHigressTag, frontendVersion, util.GetRealIpFromXff(xForwardedFor)))
 		// 设置后端的前端版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=/;", config.XMseTag, backendVersion))
+		if util.IsBackendGrayEnabled(grayConfig) {
+			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion))
+		}
 	}
 	return types.ActionContinue
 }
@@ -145,11 +169,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
-	backendVersion := ctx.GetContext(config.XMseTag)
-	isHtml := ctx.GetContext(config.IsHTML)
-	isIndex := ctx.GetContext(config.IsIndex)
+	isIndex := ctx.GetContext(config.IsIndex).(bool)
+
 	notFoundUri := ctx.GetContext(config.NotFound)
-	if isIndex != nil && isIndex.(bool) && notFoundUri != nil && notFoundUri.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	if isIndex && notFoundUri != nil && notFoundUri.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 		client.Get(grayConfig.Rewrite.NotFound, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			proxywasm.ReplaceHttpResponseBody(responseBody)
@@ -158,13 +181,31 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionPause
 	}
 
-	// 以text/html 开头，将 cookie转到cookie
-	if isHtml != nil && isHtml.(bool) && backendVersion != nil && backendVersion.(string) != "" {
-		newText := strings.ReplaceAll(string(body), "</head>", `<script>
-				!function(e,t){function n(e){var n="; "+t.cookie,r=n.split("; "+e+"=");return 2===r.length?r.pop().split(";").shift():null}var r=n("x-mse-tag");if(!r)return null;var s=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(e,t,n,a,i){return this._XHR=!0,this.addEventListener("readystatechange",function(){1===this.readyState&&r&&this.setRequestHeader("x-mse-tag",r)}),s.apply(this,arguments)};var a=e.fetch;e.fetch=function(e,t){return"undefined"==typeof t&&(t={}),"undefined"==typeof t.headers&&(t.headers={}),r&&(t.headers["x-mse-tag"]=r),a.apply(this,[e,t])}}(window,document);
-			</script>
-		</head>`)
-		if err := proxywasm.ReplaceHttpResponseBody([]byte(newText)); err != nil {
+	if isIndex {
+		// 将原始字节转换为字符串
+		newBody := string(body)
+
+		// 收集需要插入的内容
+		headerInjection := strings.Join(grayConfig.Injection.Header, "\n")
+		bodyFirstInjection := strings.Join(grayConfig.Injection.Body.First, "\n")
+		bodyLastInjection := strings.Join(grayConfig.Injection.Body.Last, "\n")
+
+		// 使用 strings.Builder 来提高性能
+		var sb strings.Builder
+		// 预分配内存，避免多次内存分配
+		sb.Grow(len(newBody) + len(headerInjection) + len(bodyFirstInjection) + len(bodyLastInjection))
+		sb.WriteString(newBody)
+
+		// 进行替换
+		content := sb.String()
+		content = strings.ReplaceAll(content, "</head>", fmt.Sprintf("%s\n</head>", headerInjection))
+		content = strings.ReplaceAll(content, "<body>", fmt.Sprintf("<body>\n%s", bodyFirstInjection))
+		content = strings.ReplaceAll(content, "</body>", fmt.Sprintf("%s\n</body>", bodyLastInjection))
+
+		// 最终结果
+		newBody = content
+
+		if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
 			return types.ActionContinue
 		}
 	}

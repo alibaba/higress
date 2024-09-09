@@ -1,16 +1,17 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/tidwall/gjson"
 )
 
 const (
 	XHigressTag    = "x-higress-tag"
+	XForwardedFor  = "x-forwarded-for"
 	XPreHigressTag = "x-pre-higress-tag"
-	XMseTag        = "x-mse-tag"
-	IsHTML         = "is_html"
-	IsIndex        = "is_index"
-	NotFound       = "not_found"
+	IsIndex        = "is-index"
+	NotFound       = "not-found"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -22,16 +23,12 @@ type GrayRule struct {
 	GrayTagValue []string
 }
 
-type BaseDeployment struct {
-	Name    string
-	Version string
-}
-
-type GrayDeployment struct {
+type Deployment struct {
 	Name           string
 	Enabled        bool
 	Version        string
 	BackendVersion string
+	Weight         int
 }
 
 type Rewrite struct {
@@ -41,13 +38,27 @@ type Rewrite struct {
 	File     map[string]string
 }
 
+type Injection struct {
+	Header []string
+	Body   *BodyInjection
+}
+
+type BodyInjection struct {
+	First []string
+	Last  []string
+}
+
 type GrayConfig struct {
+	TotalGrayWeight int
 	GrayKey         string
 	GraySubKey      string
 	Rules           []*GrayRule
 	Rewrite         *Rewrite
-	BaseDeployment  *BaseDeployment
-	GrayDeployments []*GrayDeployment
+	BaseDeployment  *Deployment
+	GrayDeployments []*Deployment
+	DebugGrayWeight bool
+	BackendGrayTag  string
+	Injection       *Injection
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -71,6 +82,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
 	grayConfig.GrayKey = json.Get("grayKey").String()
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
+	grayConfig.DebugGrayWeight = json.Get("debugGrayWeight").Bool()
+	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
+
+	if grayConfig.BackendGrayTag == "" {
+		grayConfig.BackendGrayTag = "x-mse-tag"
+	}
 
 	// 解析 Rules
 	rules := json.Get("rules").Array()
@@ -94,16 +111,30 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	baseDeployment := json.Get("baseDeployment")
 	grayDeployments := json.Get("grayDeployments").Array()
 
-	grayConfig.BaseDeployment = &BaseDeployment{
+	grayConfig.BaseDeployment = &Deployment{
 		Name:    baseDeployment.Get("name").String(),
-		Version: baseDeployment.Get("version").String(),
+		Version: strings.Trim(baseDeployment.Get("version").String(), " "),
 	}
 	for _, item := range grayDeployments {
-		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &GrayDeployment{
+		if !item.Get("enabled").Bool() {
+			continue
+		}
+		grayWeight := int(item.Get("weight").Int())
+		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &Deployment{
 			Name:           item.Get("name").String(),
 			Enabled:        item.Get("enabled").Bool(),
-			Version:        item.Get("version").String(),
+			Version:        strings.Trim(item.Get("version").String(), " "),
 			BackendVersion: item.Get("backendVersion").String(),
+			Weight:         grayWeight,
 		})
+		grayConfig.TotalGrayWeight += grayWeight
+	}
+
+	grayConfig.Injection = &Injection{
+		Header: convertToStringList(json.Get("injection.header").Array()),
+		Body: &BodyInjection{
+			First: convertToStringList(json.Get("injection.body.first").Array()),
+			Last:  convertToStringList(json.Get("injection.body.last").Array()),
+		},
 	}
 }
