@@ -569,4 +569,4 @@ spec:
                   strategy: RETAIN_LAST
                 - key: X-dedupe-unique
                   strategy: RETAIN_UNIQUE
-  url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/transformer:1.0.0

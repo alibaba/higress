@@ -16,6 +16,7 @@
 ########################
 # kubernetes code generators
 ########################
+applyconfiguration_gen = applyconfiguration-gen
 kubetype_gen = kubetype-gen
 deepcopy_gen = deepcopy-gen
 client_gen = client-gen
@@ -42,6 +43,8 @@ kube_api_packages = $(subst $(space),$(empty), \
 	$(kube_api_base_package)/networking/v1, \
 	$(kube_api_base_package)/extensions/v1alpha1 \
 	)
+# this is needed to properly generate ssa functions
+kube_api_applyconfiguration_packages = $(kube_api_packages),k8s.io/apimachinery/pkg/apis/meta/v1
 # base output package used by kubernetes client-gen
 kube_clientset_package = $(kube_base_output_package)/clientset
 # clientset name used by kubernetes client-gen
@@ -50,6 +53,8 @@ kube_clientset_name = versioned
 kube_listers_package = $(kube_base_output_package)/listers
 # base output package used by kubernetes informer-gen
 kube_informers_package = $(kube_base_output_package)/informers
+# base output package used by kubernetes applyconfiguration-gen
+kube_applyconfiguration_package = $(kube_base_output_package)/applyconfiguration
 
 # file header text
 kube_go_header_text = header.go.txt
@@ -73,12 +78,14 @@ rename_generated_files=\
 .PHONY: generate-k8s-client
 generate-k8s-client:
 	# generate kube api type wrappers for higress types
-	@$(kubetype_gen) --input-dirs $(kube_source_packages) --output-package $(kube_api_base_package) -h $(kube_go_header_text)
+	@KUBETYPE_GOLANG_PROTOBUF=true $(kubetype_gen) --input-dirs $(kube_source_packages) --output-package $(kube_api_base_package) -h $(kube_go_header_text)
 	@$(move_generated)
 	# generate deepcopy for kube api types
 	@$(deepcopy_gen) --input-dirs $(kube_api_packages) -O zz_generated.deepcopy  -h $(kube_go_header_text)
+	# generate ssa for kube api types
+	@$(applyconfiguration_gen) --input-dirs $(kube_api_applyconfiguration_packages) --output-package $(kube_applyconfiguration_package) -h $(kube_go_header_text)
 	# generate clientsets for kube api types
-	@$(client_gen) --clientset-name $(kube_clientset_name) --input-base "" --input  $(kube_api_packages) --output-package $(kube_clientset_package) -h $(kube_go_header_text)
+	@$(client_gen) --clientset-name $(kube_clientset_name) --input-base "" --input  $(kube_api_packages) --output-package $(kube_clientset_package) -h $(kube_go_header_text) --apply-configuration-package $(kube_applyconfiguration_package)
 	# generate listers for kube api types
 	@$(lister_gen) --input-dirs $(kube_api_packages) --output-package $(kube_listers_package) -h $(kube_go_header_text)
 	# generate informers for kube api types
@@ -88,6 +95,6 @@ generate-k8s-client:
 
 
 .PHONY: clean-k8s-client
-clean-k8s-client:
+clean-k8s-cliennt:
     # remove generated code
 	@rm -rf pkg/

@@ -19,6 +19,7 @@ const (
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
+	providerTypeAi360      = "ai360"
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
@@ -35,6 +36,8 @@ const (
 	providerTypeCloudflare = "cloudflare"
 	providerTypeSpark      = "spark"
 	providerTypeGemini     = "gemini"
+	providerTypeDeepl      = "deepl"
+	providerTypeMistral    = "mistral"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -72,6 +75,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeMoonshot:   &moonshotProviderInitializer{},
 		providerTypeAzure:      &azureProviderInitializer{},
+		providerTypeAi360:      &ai360ProviderInitializer{},
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
@@ -88,6 +92,8 @@ var (
 		providerTypeCloudflare: &cloudflareProviderInitializer{},
 		providerTypeSpark:      &sparkProviderInitializer{},
 		providerTypeGemini:     &geminiProviderInitializer{},
+		providerTypeDeepl:      &deeplProviderInitializer{},
+		providerTypeMistral:    &mistralProviderInitializer{},
 	}
 )
 
@@ -140,6 +146,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 开启通义千问兼容模式
+	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
+	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
 	// @Title zh-CN Ollama Server IP/Domain
 	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的主机地址。
 	ollamaServerHost string `required:"false" yaml:"ollamaServerHost" json:"ollamaServerHost"`
@@ -173,6 +182,15 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN 翻译服务需指定的目标语种
+	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
+	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
+	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
+	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
+	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
+	// @Title zh-CN 自定义大模型参数配置
+	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
+	customSettings []CustomSetting
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -193,6 +211,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
+	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -217,6 +236,32 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.geminiSafetySetting = make(map[string]string)
 		for k, v := range json.Get("geminiSafetySetting").Map() {
 			c.geminiSafetySetting[k] = v.String()
+		}
+	}
+	c.targetLang = json.Get("targetLang").String()
+
+	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
+		c.responseJsonSchema = schemaValue
+	} else {
+		c.responseJsonSchema = nil
+	}
+
+	c.customSettings = make([]CustomSetting, 0)
+	customSettingsJson := json.Get("customSettings")
+	if customSettingsJson.Exists() {
+		protocol := protocolOpenAI
+		if c.protocol == protocolOriginal {
+			// use provider name to represent original protocol name
+			protocol = c.typ
+		}
+		for _, settingJson := range customSettingsJson.Array() {
+			setting := CustomSetting{}
+			setting.FromJson(settingJson)
+			// use protocol info to rewrite setting
+			setting.AdjustWithProtocol(protocol)
+			if setting.Validate() {
+				c.customSettings = append(c.customSettings, setting)
+			}
 		}
 	}
 }
@@ -245,6 +290,15 @@ func (c *ProviderConfig) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
+	ctxApiKey := ctx.GetContext(ctxKeyApiName)
+	if ctxApiKey == nil {
+		ctxApiKey = c.GetRandomToken()
+		ctx.SetContext(ctxKeyApiName, ctxApiKey)
+	}
+	return ctxApiKey.(string)
 }
 
 func (c *ProviderConfig) GetRandomToken() string {
@@ -303,4 +357,8 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
+	return ReplaceByCustomSettings(body, c.customSettings)
 }
