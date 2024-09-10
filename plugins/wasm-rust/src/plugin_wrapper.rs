@@ -14,12 +14,11 @@
 
 use crate::rule_matcher::SharedRuleMatcher;
 use multimap::MultiMap;
+use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
+use proxy_wasm::types::LogLevel;
 use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction};
 use serde::de::DeserializeOwned;
-use proxy_wasm::hostcalls::log;
-use proxy_wasm::types::LogLevel;
-
 
 pub trait RootContextWrapper<PluginConfig>: RootContext
 where
@@ -155,8 +154,13 @@ where
                 Err(_) => {
                     log(
                         LogLevel::Warn,
-                        format!("request http header contains non-ASCII characters header: {}", k ).as_str(),
-                    ).unwrap();
+                        format!(
+                            "request http header contains non-ASCII characters header: {}",
+                            k
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -210,8 +214,13 @@ where
                 Err(_) => {
                     log(
                         LogLevel::Warn,
-                        format!("response http header contains non-ASCII characters header: {}", k ).as_str(),
-                    ).unwrap();
+                        format!(
+                            "response http header contains non-ASCII characters header: {}",
+                            k
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
                 }
             }
         }
