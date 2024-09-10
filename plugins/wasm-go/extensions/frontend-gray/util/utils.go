@@ -193,7 +193,12 @@ func getBySubKey(grayInfoStr string, graySubKey string) string {
 	return value.String()
 }
 
-func GetGrayKey(grayKeyValue string, graySubKey string) string {
+func GetGrayKey(grayKeyValueByCookie string, grayKeyValueByHeader string, graySubKey string) string {
+	grayKeyValue := grayKeyValueByCookie
+	if grayKeyValueByCookie == "" {
+		grayKeyValue = grayKeyValueByHeader
+	}
+
 	// 如果有子key, 尝试从子key中获取值
 	if graySubKey != "" {
 		subKeyValue := getBySubKey(grayKeyValue, graySubKey)

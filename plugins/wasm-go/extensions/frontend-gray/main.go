@@ -43,7 +43,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	isIndex := util.IsIndexRequest(fetchMode, path)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
-	grayKeyValue := util.GetGrayKey(util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey), grayConfig.GraySubKey)
+	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
+	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
+	// 优先从cookie中获取，否则从header中获取
+	grayKeyValue := util.GetGrayKey(grayKeyValueByCookie, grayKeyValueByHeader, grayConfig.GraySubKey)
 
 	// 如果有重写的配置，则进行重写
 	if hasRewrite {
