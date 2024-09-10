@@ -70,39 +70,31 @@ Each item in `weightGroups` has the following configuration fields:
 > When using `percentage` for condition matching, each request is evaluated to see if it meets a specific percentage condition; whereas `weight` statically randomly allocates the proportion of overall traffic.
 
 ## Configuration Example
-### Enable for Specific Routes
-`_match_route_` specifies the route names `route-a` and `route-b` filled during the creation of gateway routes; when these routes are matched, this configuration will be used;
-
-When multiple rules are configured, the effective order of matching follows the arrangement of rules under `_rules_`, with the first matched rule applying the corresponding configuration, and subsequent rules being ignored.
 
 **Example 1: Content-Based Matching**
 
-According to the following configuration, requests to routes `route-a` and `route-a` that meet both the condition of the request header `role` being one of `user`, `viewer`, or `editor` and the query parameter `foo=bar` will have the request header `x-mse-tag: gray` added. Since `defaultTagKey` and `defaultTagVal` are configured, when no conditions are matched, the request header `x-mse-tag: base` will be added to the request.
+According to the following configuration, requests that meet both the condition of the request header `role` being one of `user`, `viewer`, or `editor` and the query parameter `foo=bar` will have the request header `x-mse-tag: gray` added. Since `defaultTagKey` and `defaultTagVal` are configured, when no conditions are matched, the request header `x-mse-tag: base` will be added to the request.
+
 ```yaml
-# Use the _rules_ field for fine-grained rule configuration
-_rules_:
-- _match_route_:
-  - route-a
-  - route-b
-  defaultTagKey: x-mse-tag
-  defaultTagVal: base
-  conditionGroups:
-    - headerName: x-mse-tag
-      headerValue: gray
-      logic: and
-      conditions:
-        - conditionType: header
-          key: role
-          operator: in
-          value:
-            - user
-            - viewer
-            - editor
-        - conditionType: parameter
-          key: foo
-          operator: equal
-          value:
-          - bar
+defaultTagKey: x-mse-tag
+defaultTagVal: base
+conditionGroups:
+  - headerName: x-mse-tag
+    headerValue: gray
+    logic: and
+    conditions:
+      - conditionType: header
+        key: role
+        operator: in
+        value:
+          - user
+          - viewer
+          - editor
+      - conditionType: parameter
+        key: foo
+        operator: equal
+        value:
+        - bar
 ```
 
 **Example 2: Weight-Based Matching**
@@ -110,95 +102,12 @@ _rules_:
 According to the following configuration, requests have a 30% chance of having the request header `x-mse-tag: gray` added, a 30% chance of having `x-mse-tag: blue` added, and a 40% chance of not having any header added.
 
 ```yaml
-_rules_:
-- _match_route_:
-  - route-a
-  - route-b
-  # The total weight sums to 100, the unconfigured 40 weight will not add a header
-  weightGroups:
-    - headerName: x-mse-tag
-      headerValue: gray
-      weight: 30
-    - headerName: x-mse-tag
-      headerValue: blue
-      weight: 30
-```
-
-### Enable for Specific Domains
-`_match_domain_` specifies the domains `*.example.com` and `test.com` for matching request domains; when a matching domain is found, this configuration will be used;
-
-According to the following configuration, for requests targeted at `*.example.com` and `test.com`, if they contain the request header `role` and its value begins with `user`, such as `role: user_common`, the request will have the header `x-mse-tag: blue` added.
-
-```yaml
-_rules_:
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  conditionGroups:
-    - headerName: x-mse-tag
-      headerValue: blue
-      logic: and
-      conditions:
-        - conditionType: header
-          key: role
-          operator: prefix
-          value:
-            - user
-```
-
-### Enable for Gateway Instances
-The following configuration does not specify the rules field, thus it will be effective at the gateway instance level.
-It is possible to configure `conditionGroups` or `weightGroups` separately based on content or weight matching; if both are configured, the plugin will first match according to the conditions in `conditionGroups`, and if a match is successful, add the corresponding header and skip subsequent logic. If all `conditionGroups` do not match successfully, then `weightGroups` will add headers according to weight configuration.
-
-```yaml
-conditionGroups:
-  - headerName: x-mse-tag-1
-    headerValue: gray
-    # logic为or，则conditions中任一条件满足就命中匹配
-    logic: or
-    conditions:
-      - conditionType: header
-        key: x-user-type
-        operator: prefix
-        value:
-          - test
-      - conditionType: cookie
-        key: foo
-        operator: equal
-        value:
-          - bar
-  - headerName: x-mse-tag-2
-    headerValue: blue
-    # logic为and，需要conditions中所有条件满足才命中匹配
-    logic: and
-    conditions:
-      - conditionType: header
-        key: x-type
-        operator: in
-        value:
-          - type1
-          - type2
-          - type3
-      - conditionType: header
-        key: x-mod
-        operator: regex
-        value:
-          - "^[a-zA-Z0-9]{8}$"
-  - headerName: x-mse-tag-3
-    headerValue: green
-    logic: and
-    conditions:
-      - conditionType: header
-        key: user_id
-        operator: percentage
-        value:
-          - 60
-# 权重总和为100，下例中未配置的40权重将不添加header
+# The total weight sums to 100, the unconfigured 40 weight will not add a header
 weightGroups:
-  - headerName: x-higress-canary
+  - headerName: x-mse-tag
     headerValue: gray
     weight: 30
-  - headerName: x-higress-canary
-    headerValue: base
+  - headerName: x-mse-tag
+    headerValue: blue
     weight: 30
 ```

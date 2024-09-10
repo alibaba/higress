@@ -68,132 +68,43 @@
 > 使用`percentage`进行条件匹配时，判断每个请求是否满足特定百分比条件；而`weight`则是静态随机分配整体流量的比例。
 
 ## 配置示例
-### 对特定路由开启
-`_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将使用此段配置；
-
-当配置了多个规则时，配置的匹配生效顺序将按照 `_rules_` 下规则的排列顺序，第一个规则匹配后生效对应配置，后续规则将被忽略。
 
 **例1: 基于内容的匹配**
 
-按照下例的配置，路由`route-a`和`route-a`命中的请求中，同时满足请求头`role` 的值是`user`、`viwer`、`editor`其中之一且存在查询参数`foo=bar`的请求将被添加请求头`x-mse-tag: gray`。由于配置了`defaultTagKey`和`defaultTagVal`，当未匹配到任何条件时，请求将被添加请求头`x-mse-tag: base`。
+按照下例的配置，满足请求头`role` 的值是`user`、`viwer`、`editor`其中之一且存在查询参数`foo=bar`的请求将被添加请求头`x-mse-tag: gray`。由于配置了`defaultTagKey`和`defaultTagVal`，当未匹配到任何条件时，请求将被添加请求头`x-mse-tag: base`。
+
 ```yaml
-# 使用 _rules_ 字段进行细粒度规则配置
-_rules_:
-- _match_route_:
-  - route-a
-  - route-b
-  defaultTagKey: x-mse-tag
-  defaultTagVal: base
-  conditionGroups:
-    - headerName: x-mse-tag
-      headerValue: gray
-      logic: and
-      conditions:
-        - conditionType: header
-          key: role
-          operator: in
-          value:
-            - user
-            - viewer
-            - editor
-        - conditionType: parameter
-          key: foo
-          operator: equal
-          value:
-          - bar
+defaultTagKey: x-mse-tag
+defaultTagVal: base
+conditionGroups:
+  - headerName: x-mse-tag
+    headerValue: gray
+    logic: and
+    conditions:
+      - conditionType: header
+        key: role
+        operator: in
+        value:
+          - user
+          - viewer
+          - editor
+      - conditionType: parameter
+        key: foo
+        operator: equal
+        value:
+        - bar
 ```
 **例子2: 基于权重的匹配**
 
 按照下列配置，请求将有30%几率被添加请求头`x-mse-tag: gray`，30%几率被添加请求头`x-mse-tag: blue`，40%几率不添加请求头。
 
 ```yaml
-_rules_:
-- _match_route_:
-  - route-a
-  - route-b
-  # 权重总和为100，下例中未配置的40权重将不添加header
-  weightGroups:
-    - headerName: x-mse-tag
-      headerValue: gray
-      weight: 30
-    - headerName: x-mse-tag
-      headerValue: blue
-      weight: 30
-```
-### 对特定域名开启
- `_match_domain_` 中指定的 `*.example.com` 和 `test.com` 用于匹配请求的域名，当发现域名匹配时，将使用此段配置；
-
- 按照下例配置，对于目标为`*.example.com`和`test.com`的请求，当含有请求头`role`且其值以`user`为前缀，比如`role: user_common`，请求将被添加header`x-mse-tag: blue`。
-
-```yaml
-_rules_:
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  conditionGroups:
-    - headerName: x-mse-tag
-      headerValue: blue
-      logic: and
-      conditions:
-        - conditionType: header
-          key: role
-          operator: prefix
-          value:
-            - user
-```
-
-### 网关实例级别开启
-以下配置未指定_rules_字段，因此将对网关实例级别生效。
-可按照基于内容或基于权重的匹配单独配置`conditionGroups`或`weightGroups`，若同时配置，插件将先按照`conditionGroups`中的配置条件进行匹配，匹配成功添加相应header后跳过后续逻辑。若所有`conditionGroups`都未匹配成功，则进入`weightGroups`按照权重配置添加header。
-```yaml
-conditionGroups:
-  - headerName: x-mse-tag-1
-    headerValue: gray
-    # logic为or，则conditions中任一条件满足就命中匹配
-    logic: or
-    conditions:
-      - conditionType: header
-        key: foo
-        operator: equal
-        value:
-          - bar
-      - conditionType: cookie
-        key: x-user-type
-        operator: prefix
-        value:
-          - test
-  - headerName: x-mse-tag-2
-    headerValue: blue
-    # logic为and，需要conditions中所有条件满足才命中匹配
-    logic: and
-    conditions:
-      - conditionType: header
-        key: x-type
-        operator: in
-        value:
-          - type1
-          - type2
-          - type3
-      - conditionType: header
-        key: x-mod
-        operator: regex
-        value:
-          - "^[a-zA-Z0-9]{8}$"
-  - headerName: x-mse-tag-3
-    headerValue: green
-    logic: and
-    conditions:
-      - conditionType: header
-        key: user_id
-        operator: percentage
-        value:
-          - 60
 # 权重总和为100，下例中未配置的40权重将不添加header
 weightGroups:
   - headerName: x-mse-tag
     headerValue: gray
     weight: 30
   - headerName: x-mse-tag
-    headerValue: base
+    headerValue: blue
     weight: 30
 ```
