@@ -33,7 +33,7 @@ func main() {
 }
 
 const (
-	NormalResponseFormat      = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s",},"logprobs": null,"finish_reason": "stop"}]}`
+	NormalResponseFormat      = `{"id": "chatcmpl-123","object": "chat.completion","created": 1677652288,"model": "gpt-4o-mini","system_fingerprint": "fp_44709d6fcb","choices": [{"index": 0,"message": {"role": "assistant","content": "%s"},"logprobs": null,"finish_reason": "stop"}]}`
 	StreamResponseChunk       = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
 	StreamResponseEnd         = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","created":1694268190,"model":"gpt-4o-mini", "system_fingerprint": "fp_44709d6fcb", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
 	StreamResponseFormat      = StreamResponseChunk + "\n\n" + StreamResponseEnd
@@ -42,12 +42,14 @@ const (
 )
 
 type AISecurityConfig struct {
-	client        wrapper.HttpClient
-	ak            string
-	sk            string
-	checkRequest  bool
-	checkResponse bool
-	metrics       map[string]proxywasm.MetricCounter
+	client               wrapper.HttpClient
+	ak                   string
+	sk                   string
+	checkRequest         bool
+	requestCheckService  string
+	checkResponse        bool
+	responseCheckService string
+	metrics              map[string]proxywasm.MetricCounter
 }
 
 func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) {
@@ -57,33 +59,6 @@ func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) 
 		config.metrics[metricName] = counter
 	}
 	counter.Increment(inc)
-}
-
-type StandardResponse struct {
-	ID                string              `json:"id"`
-	Choices           []Choice            `json:"choices"`
-	Created           int64               `json:"created,omitempty"`
-	Model             string              `json:"model,omitempty"`
-	SystemFingerprint string              `json:"system_fingerprint,omitempty"`
-	Object            string              `json:"object,omitempty"`
-	Usage             chatCompletionUsage `json:"usage,omitempty"`
-}
-
-type Choice struct {
-	Index        int     `json:"index"`
-	Message      Message `json:"message"`
-	FinishReason string  `json:"finish_reason"`
-}
-
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type chatCompletionUsage struct {
-	PromptTokens     int `json:"prompt_tokens,omitempty"`
-	CompletionTokens int `json:"completion_tokens,omitempty"`
-	TotalTokens      int `json:"total_tokens,omitempty"`
 }
 
 func urlEncoding(rawStr string) string {
@@ -139,6 +114,16 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	}
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
+	if json.Get("requestCheckService").Exists() {
+		config.requestCheckService = json.Get("requestCheckService").String()
+	} else {
+		config.requestCheckService = "llm_query_moderation"
+	}
+	if json.Get("responseCheckService").Exists() {
+		config.responseCheckService = json.Get("responseCheckService").String()
+	} else {
+		config.responseCheckService = "llm_response_moderation"
+	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
@@ -164,6 +149,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 	if len(messages) > 0 {
 		role := messages[len(messages)-1].Get("role").String()
 		content := messages[len(messages)-1].Get("content").String()
+		log.Debugf("Raw request content is: %s", content)
 		if role != "user" {
 			return types.ActionContinue
 		}
@@ -178,7 +164,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			"Action":            "TextModerationPlus",
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
-			"Service":           "llm_query_moderation",
+			"Service":           config.requestCheckService,
 			"ServiceParameters": `{"content": "` + content + `"}`,
 		}
 		signature := getSign(params, config.sk+"&")
@@ -280,7 +266,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			"Action":            "TextModerationPlus",
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
-			"Service":           "llm_response_moderation",
+			"Service":           config.responseCheckService,
 			"ServiceParameters": `{"content": "` + content + `"}`,
 		}
 		signature := getSign(params, config.sk+"&")
@@ -337,6 +323,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 }
 
 func extractResponseMessage(data []byte) string {
+	// try to get llm-response
+	contentObj := gjson.GetBytes(data, "choices.0.message.content")
+	if contentObj.Exists() {
+		return contentObj.String()
+	}
+	// try to get llm-stream-response
 	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
 	strChunks := []string{}
 	for _, chunk := range chunks {

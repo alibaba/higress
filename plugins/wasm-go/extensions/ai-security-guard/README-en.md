@@ -9,12 +9,14 @@ Integrate with Aliyun content security service for detections of input and outpu
 | `serviceHost` | string | requried | - | Host of Aliyun content security service endpoint |
 | `accessKey` | string | requried | - | Aliyun accesskey |
 | `secretKey` | string | requried | - | Aliyun secretkey |
-| `checkRequest` | bool | optional | false | check if the input is leagal |
-| `checkResponse` | bool | optional | false | check if the output is leagal |
+| `checkRequest` | bool | optional | false | check if the input is legal |
+| `checkResponse` | bool | optional | false | check if the output is legal |
+| `requestCheckService` | bool | optional | llm_query_moderation | Aliyun yundun service name for input check |
+| `responseCheckService` | bool | optional | llm_response_moderation | Aliyun yundun service name for output check |
 
 
 ## Examples of configuration
-### Check if the input is leagal
+### Check if the input is legal
 
 ```yaml
 serviceName: safecheck.dns
@@ -25,7 +27,7 @@ secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 ```
 
-### Check if both the input and output are leagal
+### Check if both the input and output are legal
 
 ```yaml
 serviceName: safecheck.dns

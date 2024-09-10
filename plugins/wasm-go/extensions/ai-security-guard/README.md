@@ -11,9 +11,16 @@
 | `secretKey` | string | requried | - | 阿里云SK |
 | `checkRequest` | bool | optional | false | 检查提问内容是否合规 |
 | `checkResponse` | bool | optional | false | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
+| `requestCheckService` | bool | optional | llm_query_moderation | 指定阿里云内容安全用于检测输入内容的服务 |
+| `responseCheckService` | bool | optional | llm_response_moderation | 指定阿里云内容安全用于检测输出内容的服务 |
 
 
 ## 配置示例
+### 前提条件
+由于插件中需要调用阿里云内容安全服务，所以需要先创建一个DNS类型的服务，例如：
+
+![](https://img.alicdn.com/imgextra/i4/O1CN013AbDcn1slCY19inU2_!!6000000005806-0-tps-1754-1320.jpg)
+
 ### 检测输入内容是否合规
 
 ```yaml
@@ -35,6 +42,23 @@ accessKey: "XXXXXXXXX"
 secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 checkResponse: true
+```
+
+### 指定自定义内容安全检测服务
+用户可能需要根据不同的场景配置不同的检测规则，该问题可通过为不同域名/路由/服务配置不同的内容安全检测服务实现。如下图所示，我们创建了一个名为 llm_query_moderation_01 的检测服务，其中的检测规则在 llm_query_moderation 之上做了一些改动：
+
+![](https://img.alicdn.com/imgextra/i4/O1CN01bAtcvn1N9sB16iiZR_!!6000000001528-0-tps-2728-822.jpg)
+
+接下来在目标域名/路由/服务级别进行以下配置，指定使用我们自定义的 llm_query_moderation_01 中的规则进行检测：
+
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+checkRequest: true
+requestCheckService: llm_query_moderation_01
 ```
 
 ## 可观测
