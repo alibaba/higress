@@ -108,7 +108,6 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	contentType, _ := proxywasm.GetHttpResponseHeader("Content-Type")
 
-	// 只有200状态码才进行重写
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		// 删除Content-Disposition，避免自动下载文件
 		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
@@ -119,7 +118,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if err != nil || status != "200" {
 		if status == "404" {
 			if grayConfig.Rewrite.NotFound != "" && isIndex {
-				ctx.SetContext(config.NotFound, true)
+				ctx.SetContext(config.IsNotFound, true)
 				responseHeaders, _ := proxywasm.GetHttpResponseHeaders()
 				headersMap := util.ConvertHeaders(responseHeaders)
 				if _, ok := headersMap[":status"]; !ok {
@@ -157,12 +156,12 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 		xForwardedFor := ctx.GetContext(config.XForwardedFor).(string)
 
-		// 设置当前的前端版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Path=/;", config.XPreHigressTag, frontendVersion, util.GetRealIpFromXff(xForwardedFor)))
-		// 设置后端的前端版本
+		// 设置前端的版本
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, util.GetRealIpFromXff(xForwardedFor), config.MaxAgeCookie))
+		// 设置后端的版本
 		if util.IsBackendGrayEnabled(grayConfig) {
 			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, config.MaxAgeCookie))
 		}
 	}
 	return types.ActionContinue
@@ -173,11 +172,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionContinue
 	}
 	isIndex := ctx.GetContext(config.IsIndex).(bool)
+	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 
-	notFoundUri := ctx.GetContext(config.NotFound)
-	if isIndex && notFoundUri != nil && notFoundUri.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	isNotFound := ctx.GetContext(config.IsNotFound)
+	if isIndex && isNotFound != nil && isNotFound.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
-		client.Get(grayConfig.Rewrite.NotFound, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+
+		client.Get(strings.Replace(grayConfig.Rewrite.NotFound, "{version}", frontendVersion, -1), nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			proxywasm.ReplaceHttpResponseBody(responseBody)
 			proxywasm.ResumeHttpResponse()
 		}, 1500)
@@ -189,19 +190,19 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		newBody := string(body)
 
 		// 收集需要插入的内容
-		headerInjection := strings.Join(grayConfig.Injection.Header, "\n")
+		headInjection := strings.Join(grayConfig.Injection.Head, "\n")
 		bodyFirstInjection := strings.Join(grayConfig.Injection.Body.First, "\n")
 		bodyLastInjection := strings.Join(grayConfig.Injection.Body.Last, "\n")
 
 		// 使用 strings.Builder 来提高性能
 		var sb strings.Builder
 		// 预分配内存，避免多次内存分配
-		sb.Grow(len(newBody) + len(headerInjection) + len(bodyFirstInjection) + len(bodyLastInjection))
+		sb.Grow(len(newBody) + len(headInjection) + len(bodyFirstInjection) + len(bodyLastInjection))
 		sb.WriteString(newBody)
 
 		// 进行替换
 		content := sb.String()
-		content = strings.ReplaceAll(content, "</head>", fmt.Sprintf("%s\n</head>", headerInjection))
+		content = strings.ReplaceAll(content, "</head>", fmt.Sprintf("%s\n</head>", headInjection))
 		content = strings.ReplaceAll(content, "<body>", fmt.Sprintf("<body>\n%s", bodyFirstInjection))
 		content = strings.ReplaceAll(content, "</body>", fmt.Sprintf("%s\n</body>", bodyLastInjection))
 

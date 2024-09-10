@@ -11,7 +11,9 @@ const (
 	XForwardedFor  = "x-forwarded-for"
 	XPreHigressTag = "x-pre-higress-tag"
 	IsIndex        = "is-index"
-	NotFound       = "not-found"
+	IsNotFound     = "is-not-found"
+	// 2 days
+	MaxAgeCookie = "172800"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -39,8 +41,8 @@ type Rewrite struct {
 }
 
 type Injection struct {
-	Header []string
-	Body   *BodyInjection
+	Head []string
+	Body *BodyInjection
 }
 
 type BodyInjection struct {
@@ -131,7 +133,7 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	}
 
 	grayConfig.Injection = &Injection{
-		Header: convertToStringList(json.Get("injection.header").Array()),
+		Head: convertToStringList(json.Get("injection.head").Array()),
 		Body: &BodyInjection{
 			First: convertToStringList(json.Get("injection.body.first").Array()),
 			Last:  convertToStringList(json.Get("injection.body.last").Array()),

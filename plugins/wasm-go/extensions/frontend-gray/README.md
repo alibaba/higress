@@ -12,7 +12,7 @@
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |
 | `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                |
 | `backendGrayTag`     | string       | 非必填  | `x-mse-tag`   | 后端灰度版本Tag，如果配置了，cookie中将携带值为`${backendGrayTag}:${grayDeployments[].backendVersion}` |
-| `debugGrayWeight`     | boolean    | 非必填  | -   | 开启安比例灰度的Debug模式，用于观测按比例灰度效果 |
+| `debugGrayWeight`     | boolean    | 非必填  | -   | 开启按照比例灰度的Debug模式，用于观测按比例灰度效果， |
 | `injection`     | object    | 非必填  | -   | 往首页HTML中注入全局信息，比如`<script>window.global = {...}</script>` |
 
 
@@ -58,8 +58,8 @@
 
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
-| `header`  | array of string | 非必填   | -   | 注入header信息，比如`<link rel="stylesheet" href="https://cdn.example.com/styles.css">` |
-| `body`  | map of string to string | 非必填   | -   | 注入Body |
+| `head`  | array of string | 非必填   | -   | 注入head信息，比如`<link rel="stylesheet" href="https://cdn.example.com/styles.css">` |
+| `body`  | object | 非必填   | -   | 注入Body |
 
 `injection.body`字段配置说明：
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
@@ -218,7 +218,7 @@ grayDeployments:
     enabled: true
 		weight: 80
 injection:
-	header: 
+	head: 
 		- <script>console.log('Header')</script>
 	body:
 		first:
@@ -228,4 +228,4 @@ injection:
 			- <script>console.log('hello world after')</script>
 			- <script>console.log('hello world after2')</script>
 ```
-通过 `injection`往HTML首页注入代码，可以在`header`标签注入代码，也可以在`body`标签的`first`和`last`位置注入代码。
+通过 `injection`往HTML首页注入代码，可以在`head`标签注入代码，也可以在`body`标签的`first`和`last`位置注入代码。

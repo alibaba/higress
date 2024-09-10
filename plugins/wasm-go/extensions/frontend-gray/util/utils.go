@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -19,7 +20,9 @@ import (
 
 func LogInfof(format string, args ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", "frontend-gray", format)
-	proxywasm.LogInfof(format, args...)
+	if os.Getenv("TEST_MODE") != "" {
+		proxywasm.LogInfof(format, args...)
+	}
 }
 
 // 从xff中获取真实的IP

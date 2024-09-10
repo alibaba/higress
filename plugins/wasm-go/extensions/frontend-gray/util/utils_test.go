@@ -1,6 +1,7 @@
 package util
 
 import (
+	"os"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
@@ -116,8 +117,9 @@ func TestFilterGrayWeight(t *testing.T) {
 		testName := test.name
 		t.Run(testName, func(t *testing.T) {
 			grayConfig := &config.GrayConfig{}
+			os.Setenv("TEST_MODE", "true")
 			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
-			reslut := FilterGrayWeight(grayConfig)
+			reslut := FilterGrayWeight(grayConfig, []string{"base", "1.0.1"}, "192.168.1.1")
 			t.Logf("reslut-----: %v", reslut)
 		})
 	}

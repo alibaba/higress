@@ -72,7 +72,7 @@ static_resources:
                                 ],
                                 "rewrite": {
                                   "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
-                                  "notFoundUri": "/mfe/app1/dev/333.html",
+                                  "notFoundUri": "/mfe/app1/{version}/333.html",
                                   "indexRouting": {
                                     "/app1": "/mfe/app1/{version}/index.html",
                                     "/": "/mfe/app1/{version}/index.html"
@@ -89,13 +89,12 @@ static_resources:
                                   {
                                     "name": "beta-user",
                                     "version": "0.0.1",
-                                    "enabled": true,
-                                    "weight": 50
+                                    "enabled": true
                                   }
                                 ],
                                 "debugGrayWeight": true,
                                 "injection": {
-                                  "header": [
+                                  "head": [
                                     "<script>console.log('Header')</script>"
                                   ],
                                   "body": {
