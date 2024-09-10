@@ -15,8 +15,11 @@
 package wrapper
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -25,16 +28,16 @@ import (
 type ResponseCallback func(statusCode int, responseHeaders http.Header, responseBody []byte)
 
 type HttpClient interface {
-	Get(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Head(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Options(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Post(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Put(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Patch(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Delete(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Connect(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Trace(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
-	Call(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Get(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Head(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Options(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Post(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Put(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Patch(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Delete(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Connect(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Trace(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	Call(method, rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 }
 
 type ClusterClient[C Cluster] struct {
@@ -45,39 +48,39 @@ func NewClusterClient[C Cluster](cluster C) *ClusterClient[C] {
 	return &ClusterClient[C]{cluster: cluster}
 }
 
-func (c ClusterClient[C]) Get(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodGet, path, headers, nil, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Get(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodGet, rawURL, headers, nil, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Head(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodHead, path, headers, nil, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Head(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodHead, rawURL, headers, nil, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Options(path string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodOptions, path, headers, nil, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Options(rawURL string, headers [][2]string, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodOptions, rawURL, headers, nil, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Post(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodPost, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Post(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodPost, rawURL, headers, body, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Put(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodPut, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Put(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodPut, rawURL, headers, body, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Patch(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodPatch, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Patch(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodPatch, rawURL, headers, body, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Delete(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodDelete, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Delete(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodDelete, rawURL, headers, body, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Connect(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodConnect, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Connect(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodConnect, rawURL, headers, body, cb, timeoutMillisecond...)
 }
-func (c ClusterClient[C]) Trace(path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, http.MethodTrace, path, headers, body, cb, timeoutMillisecond...)
-}
-
-func (c ClusterClient[C]) Call(method, path string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
-	return HttpCall(c.cluster, method, path, headers, body, cb, timeoutMillisecond...)
+func (c ClusterClient[C]) Trace(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, http.MethodTrace, rawURL, headers, body, cb, timeoutMillisecond...)
 }
 
-func HttpCall(cluster Cluster, method, path string, headers [][2]string, body []byte,
+func (c ClusterClient[C]) Call(method, rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
+	return HttpCall(c.cluster, method, rawURL, headers, body, cb, timeoutMillisecond...)
+}
+
+func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body []byte,
 	callback ResponseCallback, timeoutMillisecond ...uint32) error {
 	for i := len(headers) - 1; i >= 0; i-- {
 		key := headers[i][0]
@@ -85,14 +88,27 @@ func HttpCall(cluster Cluster, method, path string, headers [][2]string, body []
 			headers = append(headers[:i], headers[i+1:]...)
 		}
 	}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		proxywasm.LogCriticalf("invalid rawURL:%s", rawURL)
+		return err
+	}
+	authority := cluster.HostName()
+	if parsedURL.Host != "" {
+		authority = parsedURL.Host
+	}
+	path := "/" + strings.TrimPrefix(parsedURL.Path, "/")
+	if parsedURL.RawQuery != "" {
+		path = fmt.Sprintf("%s?%s", path, parsedURL.RawQuery)
+	}
 	// default timeout is 500ms
 	var timeout uint32 = 500
 	if len(timeoutMillisecond) > 0 {
 		timeout = timeoutMillisecond[0]
 	}
-	headers = append(headers, [2]string{":method", method}, [2]string{":path", path}, [2]string{":authority", cluster.HostName()})
+	headers = append(headers, [2]string{":method", method}, [2]string{":path", path}, [2]string{":authority", authority})
 	requestID := uuid.New().String()
-	_, err := proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
+	_, err = proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
 		respBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
 		if err != nil {
 			proxywasm.LogCriticalf("failed to get response body: %v", err)
@@ -120,7 +136,7 @@ func HttpCall(cluster Cluster, method, path string, headers [][2]string, body []
 			requestID, code, normalResponse, respBody)
 		callback(code, headers, respBody)
 	})
-	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, path: %s, body: %s, timeout: %d",
-		requestID, cluster.ClusterName(), method, path, body, timeout)
+	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, body: %s, timeout: %d",
+		requestID, cluster.ClusterName(), method, rawURL, body, timeout)
 	return err
 }
