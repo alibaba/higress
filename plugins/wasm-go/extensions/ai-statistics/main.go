@@ -33,9 +33,10 @@ const (
 
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
-	Key         string `required:"true" yaml:"key" json:"key"`
-	ValueSource string `required:"true" yaml:"valueSource" json:"valueSource"`
-	Value       string `required:"true" yaml:"value" json:"value"`
+	Key         string
+	ValueSource string
+	Value       string
+	Rule        string
 }
 
 type AIStatisticsConfig struct {
@@ -85,6 +86,7 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 			Key:         traceAttributeConfig.Get("key").String(),
 			ValueSource: traceAttributeConfig.Get("value_source").String(),
 			Value:       traceAttributeConfig.Get("value").String(),
+			Rule:        traceAttributeConfig.Get("rule").String(),
 		}
 		if spanAttribute.ValueSource == "response_streaming_body" {
 			config.shouldBufferStreamingBody = true
@@ -99,6 +101,7 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 			Key:         logAttributeConfig.Get("key").String(),
 			ValueSource: logAttributeConfig.Get("value_source").String(),
 			Value:       logAttributeConfig.Get("value").String(),
+			Rule:        logAttributeConfig.Get("rule").String(),
 		}
 		if logAttribute.ValueSource == "response_streaming_body" {
 			config.shouldBufferStreamingBody = true
@@ -113,19 +116,17 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
 	logAttributes := make(map[string]string)
 	ctx.SetContext("logAttributes", logAttributes)
-	// Set user defined log & span attributes.
+	// Set base span attributes
+	setTracingSpanValue("gen_ai.span.kind", "LLM", log)
+	// Set user defined log & span attributes which type is request_header
 	setTraceAttributeValueBySource(config, "request_header", nil, log)
 	setLogAttributeValueBySource(ctx, config, "request_header", nil, log)
-	// Fetch log & trace attributes from wasm filter property.
-	// Warn: The property may be modified by response process , so the value of the property may be overwritten.
-	setTraceAttributeValueBySource(config, "property", nil, log)
-	setLogAttributeValueBySource(ctx, config, "property", nil, log)
-
+	// Set user defined log & span attributes which type is fixed_value
+	setTraceAttributeValueBySource(config, "fixed_value", nil, log)
+	setLogAttributeValueBySource(ctx, config, "fixed_value", nil, log)
 	// Set request start time.
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 
-	// The request has a body and requires delaying the header transmission until a cache miss occurs,
-	// at which point the header should be sent.
 	return types.ActionContinue
 }
 
@@ -133,6 +134,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	// Set user defined log & span attributes.
 	setTraceAttributeValueBySource(config, "request_body", body, log)
 	setLogAttributeValueBySource(ctx, config, "request_body", body, log)
+
 	return types.ActionContinue
 }
 
@@ -230,8 +232,10 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		config.incrementCounter(generateMetricName(route, cluster, logAttributes["model"], "llm_service_duration"), llm_service_duration)
 		config.incrementCounter(generateMetricName(route, cluster, logAttributes["model"], "llm_duration_count"), 1)
 		// Set tracing span attributes.
-		setTracingSpanValue("input_token", logAttributes["input_token"], log)
-		setTracingSpanValue("output_token", logAttributes["output_token"], log)
+		setTracingSpanValue("gen_ai.model_name", logAttributes["model"], log)
+		setTracingSpanValue("gen_ai.usage.input_tokens", logAttributes["input_token"], log)
+		setTracingSpanValue("gen_ai.usage.output_tokens", logAttributes["output_token"], log)
+		setTracingSpanValue("gen_ai.usage.total_tokens", fmt.Sprint(inputTokenUint64+outputTokenUint64), log)
 		setTracingSpanValue("llm_service_duration", fmt.Sprint(responseEndTime-requestStartTime), log)
 		// Set user defined log & span attributes.
 		if config.shouldBufferStreamingBody {
@@ -282,8 +286,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	config.incrementCounter(generateMetricName(route, cluster, model, "llm_service_duration"), llm_service_duration)
 	config.incrementCounter(generateMetricName(route, cluster, model, "llm_duration_count"), 1)
 	// Set tracing span tag input_tokens and output_tokens.
-	setTracingSpanValue("input_token", strconv.FormatInt(inputToken, 10), log)
-	setTracingSpanValue("output_token", strconv.FormatInt(outputToken, 10), log)
+	setTracingSpanValue("gen_ai.model_name", model, log)
+	setTracingSpanValue("gen_ai.usage.input_tokens", fmt.Sprint(inputToken), log)
+	setTracingSpanValue("gen_ai.usage.output_tokens", fmt.Sprint(outputToken), log)
+	setTracingSpanValue("gen_ai.usage.total_tokens", fmt.Sprint(inputToken+outputToken), log)
 	setTracingSpanValue("llm_service_duration", fmt.Sprint(responseEndTime-requestStartTime), log)
 	// Set Log Attributes
 	logAttributes["route"] = route
@@ -325,14 +331,34 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 	return
 }
 
-func extractDataByJsonPath(data []byte, jsonPath string) string {
+func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, log wrapper.Log) string {
 	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
 	value := ""
-	for _, chunk := range chunks {
-		raw := gjson.GetBytes(chunk, jsonPath).Raw
-		if len(raw) > 2 {
-			value += raw[1 : len(raw)-1]
+	if rule == "first" {
+		for _, chunk := range chunks {
+			jsonObj := gjson.GetBytes(chunk, jsonPath)
+			if jsonObj.Exists() {
+				value = jsonObj.String()
+				break
+			}
 		}
+	} else if rule == "replace" {
+		for _, chunk := range chunks {
+			jsonObj := gjson.GetBytes(chunk, jsonPath)
+			if jsonObj.Exists() {
+				value = jsonObj.String()
+			}
+		}
+	} else if rule == "append" {
+		// extract llm response
+		for _, chunk := range chunks {
+			raw := gjson.GetBytes(chunk, jsonPath).Raw
+			if len(raw) > 2 {
+				value += raw[1 : len(raw)-1]
+			}
+		}
+	} else {
+		log.Errorf("unsupported rule type: %s", rule)
 	}
 	return value
 }
@@ -348,6 +374,9 @@ func setTraceAttributeValueBySource(config AIStatisticsConfig, source string, bo
 	for _, spanAttribute := range config.spanAttributes {
 		if source == spanAttribute.ValueSource {
 			switch source {
+			case "fixed_value":
+				log.Debugf("[span attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, spanAttribute.Value)
+				setTracingSpanValue(spanAttribute.Key, spanAttribute.Value, log)
 			case "request_header":
 				if value, err := proxywasm.GetHttpRequestHeader(spanAttribute.Value); err == nil {
 					log.Debugf("[span attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, value)
@@ -363,7 +392,7 @@ func setTraceAttributeValueBySource(config AIStatisticsConfig, source string, bo
 					setTracingSpanValue(spanAttribute.Key, value, log)
 				}
 			case "response_streaming_body":
-				value := extractDataByJsonPath(body, spanAttribute.Value)
+				value := extractStreamingBodyByJsonPath(body, spanAttribute.Value, spanAttribute.Rule, log)
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, value)
 				setTracingSpanValue(spanAttribute.Key, value, log)
 			case "response_body":
@@ -379,20 +408,22 @@ func setTraceAttributeValueBySource(config AIStatisticsConfig, source string, bo
 
 // Set the tracing span with value.
 func setTracingSpanValue(tracingKey, tracingValue string, log wrapper.Log) {
-	if tracingValue != "" {
-		traceSpanTag := TracePrefix + tracingKey
-
-		if raw, err := proxywasm.GetProperty([]string{traceSpanTag}); err == nil {
-			if raw != nil {
-				log.Warnf("trace span [%s] already exists, value will be overwrite, orign value: %s.", traceSpanTag, string(raw))
-			}
-		}
-
-		if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(tracingValue)); e != nil {
-			log.Errorf("failed to set %s in filter state: %v", traceSpanTag, e)
-		}
-		log.Debugf("successed to set trace span [%s] with value [%s].", traceSpanTag, tracingValue)
+	if tracingValue == "" {
+		tracingValue = "-"
 	}
+
+	traceSpanTag := TracePrefix + tracingKey
+
+	if raw, err := proxywasm.GetProperty([]string{traceSpanTag}); err == nil {
+		if raw != nil {
+			log.Warnf("trace span [%s] already exists, value will be overwrite, orign value: %s.", traceSpanTag, string(raw))
+		}
+	}
+
+	if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(tracingValue)); e != nil {
+		log.Errorf("failed to set %s in filter state: %v", traceSpanTag, e)
+	}
+	log.Debugf("successed to set trace span [%s] with value [%s].", traceSpanTag, tracingValue)
 }
 
 // fetches the tracing span value from the specified source.
@@ -405,6 +436,9 @@ func setLogAttributeValueBySource(ctx wrapper.HttpContext, config AIStatisticsCo
 	for _, logAttribute := range config.logAttributes {
 		if source == logAttribute.ValueSource {
 			switch source {
+			case "fixed_value":
+				log.Debugf("[span attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, logAttribute.Value)
+				logAttributes[logAttribute.Key] = logAttribute.Value
 			case "request_header":
 				if value, err := proxywasm.GetHttpRequestHeader(logAttribute.Value); err == nil {
 					log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, value)
@@ -420,7 +454,7 @@ func setLogAttributeValueBySource(ctx wrapper.HttpContext, config AIStatisticsCo
 					logAttributes[logAttribute.Key] = value
 				}
 			case "response_streaming_body":
-				value := extractDataByJsonPath(body, logAttribute.Value)
+				value := extractStreamingBodyByJsonPath(body, logAttribute.Value, logAttribute.Rule, log)
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, value)
 				logAttributes[logAttribute.Key] = value
 			case "response_body":
