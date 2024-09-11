@@ -115,15 +115,20 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
 	logAttributes := make(map[string]string)
+	request_id, err := proxywasm.GetHttpRequestHeader("x-request-id")
+	if err != nil || request_id == "" {
+		log.Errorf("failed to get request_id, err: %v", err)
+	}
+	logAttributes["request_id"] = request_id
 	ctx.SetContext("logAttributes", logAttributes)
-	// Set base span attributes
+	// Set base log & span attributes
 	setTracingSpanValue("gen_ai.span.kind", "LLM", log)
-	// Set user defined log & span attributes which type is request_header
-	setTraceAttributeValueBySource(config, "request_header", nil, log)
-	setLogAttributeValueBySource(ctx, config, "request_header", nil, log)
 	// Set user defined log & span attributes which type is fixed_value
 	setTraceAttributeValueBySource(config, "fixed_value", nil, log)
 	setLogAttributeValueBySource(ctx, config, "fixed_value", nil, log)
+	// Set user defined log & span attributes which type is request_header
+	setTraceAttributeValueBySource(config, "request_header", nil, log)
+	setLogAttributeValueBySource(ctx, config, "request_header", nil, log)
 	// Set request start time.
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 
