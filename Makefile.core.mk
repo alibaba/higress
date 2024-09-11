@@ -25,7 +25,7 @@ TARGET_ARCH ?= amd64
 
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
-RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w -X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
+RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)
@@ -68,7 +68,7 @@ default: build
 
 .PHONY: go.test.coverage
 go.test.coverage: prebuild
-	go test -ldflags "-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
 
 .PHONY: build
 build: prebuild $(OUT)
@@ -101,11 +101,11 @@ build-hgctl-multiarch: prebuild $(OUT)
 
 .PHONY: build-hgctl-macos-arm64
 build-hgctl-macos-arm64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-macos-amd64
 build-hgctl-macos-amd64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
