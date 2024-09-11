@@ -38,7 +38,7 @@ type ProviderConfig struct {
 	serviceHost string
 	// @Title zh-CN 缓存服务用户名
 	// @Description zh-CN 缓存服务用户名，非必填
-	userName string
+	username string
 	// @Title zh-CN 缓存服务密码
 	// @Description zh-CN 缓存服务密码，非必填
 	password string
@@ -46,7 +46,7 @@ type ProviderConfig struct {
 	// @Description zh-CN 请求缓存服务的超时时间，单位为毫秒。默认值是10000，即10秒
 	timeout uint32
 	// @Title zh-CN 缓存过期时间
-	// @Description zh-CN 缓存过期时间，单位为秒。默认值是3600000，即1小时
+	// @Description zh-CN 缓存过期时间，单位为秒。默认值是0，即永不过期
 	cacheTTL uint32
 	// @Title 缓存 Key 前缀
 	// @Description 缓存 Key 的前缀，默认值为 "higressAiCache:"
@@ -61,9 +61,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.servicePort = 6379
 	}
 	c.serviceHost = json.Get("serviceHost").String()
-	c.userName = json.Get("username").String()
+	c.username = json.Get("username").String()
 	if !json.Get("username").Exists() {
-		c.userName = ""
+		c.username = ""
 	}
 	c.password = json.Get("password").String()
 	if !json.Get("password").Exists() {
@@ -75,12 +75,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.cacheTTL = uint32(json.Get("cacheTTL").Int())
 	if !json.Get("cacheTTL").Exists() {
-		c.cacheTTL = 3600000
+		c.cacheTTL = 0
 	}
-	c.cacheKeyPrefix = json.Get("cacheKeyPrefix").String()
-	if !json.Get("cacheKeyPrefix").Exists() {
+	if json.Get("cacheKeyPrefix").Exists() {
+		c.cacheKeyPrefix = json.Get("cacheKeyPrefix").String()
+	} else {
 		c.cacheKeyPrefix = DEFAULT_CACHE_PREFIX
 	}
+
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -113,5 +115,5 @@ type Provider interface {
 	Init(username string, password string, timeout uint32) error
 	Get(key string, cb wrapper.RedisResponseCallback) error
 	Set(key string, value string, cb wrapper.RedisResponseCallback) error
-	GetCacheKeyPrefix() string
+	getCacheKeyPrefix() string
 }

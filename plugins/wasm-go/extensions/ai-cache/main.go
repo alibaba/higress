@@ -44,7 +44,7 @@ func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log
 	}
 	// 注意，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
 	if err := config.Complete(log); err != nil {
-		log.Errorf("complete config failed:%v", err)
+		log.Errorf("complete config failed: %v", err)
 		return err
 	}
 	return nil
@@ -72,7 +72,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, l
 		return types.ActionContinue
 	}
 	if !strings.Contains(contentType, "application/json") {
-		log.Warnf("content is not json, can't process:%s", contentType)
+		log.Warnf("content is not json, can't process: %s", contentType)
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -90,19 +90,17 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	if bodyJson.Get("stream").Bool() {
 		stream = true
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
-	} else if ctx.GetContext(STREAM_CONTEXT_KEY) != nil {
-		stream = true
-	}
-	// key := TrimQuote(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw)
-	key := bodyJson.Get(config.CacheKeyFrom.RequestBody).String()
+	} 
+
+	key := bodyJson.Get(config.CacheKeyFrom.RequestPath).String()
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, key)
-	log.Debugf("[onHttpRequestBody] key:%s", key)
+	log.Debugf("[onHttpRequestBody] key: %s", key)
 	if key == "" {
 		log.Debug("[onHttpRequestBody] parse key from request body failed")
 		return types.ActionContinue
 	}
 
-	RedisSearchHandler(key, ctx, config, log, stream, true)
+	CheckCacheForKey(key, ctx, config, log, stream, true)
 
 	return types.ActionPause
 }
@@ -174,7 +172,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		}
 		bodyJson := gjson.ParseBytes(body)
 
-		value = TrimQuote(bodyJson.Get(config.CacheValueFrom.ResponseBody).Raw)
+		value = bodyJson.Get(config.CacheValueFrom.RequestPath).String()
 		if value == "" {
 			log.Warnf("parse value from response body failded, body:%s", body)
 			return chunk
@@ -205,7 +203,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 			value = tempContentI.(string)
 		}
 	}
-	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
+	log.Infof("[onHttpResponseBody] setting cache to redis, key:%s, value:%s", key, value)
 	activeCacheProvider := config.GetCacheProvider()
 	_ = activeCacheProvider.Set(key, value, nil)
 	return chunk

@@ -41,6 +41,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务超时时间
 	// @Description zh-CN 文本特征提取服务超时时间
 	timeout uint32
+	// @Title zh-CN 文本特征提取服务使用的模型
+	// @Description zh-CN 用于文本特征提取的模型名称, 在 DashScope 中默认为 "text-embedding-v1"
+	model string
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -50,6 +53,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.servicePort = json.Get("servicePort").Int()
 	c.apiKey = json.Get("apiKey").String()
 	c.timeout = uint32(json.Get("timeout").Int())
+	c.model = json.Get("model").String()
 	if c.timeout == 0 {
 		c.timeout = 1000
 	}
@@ -93,5 +97,5 @@ type Provider interface {
 		queryString string,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(emb []float64)) error
+		callback func(emb []float64, err error)) error
 }

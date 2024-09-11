@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
@@ -10,83 +11,105 @@ import (
 	"github.com/tidwall/resp"
 )
 
-func RedisSearchHandler(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, ifUseEmbedding bool) {
+func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) {
 	activeCacheProvider := config.GetCacheProvider()
-	activeCacheProvider.Get(key, func(response resp.Value) {
+	err := activeCacheProvider.Get(key, func(response resp.Value) {
 		if err := response.Error(); err == nil && !response.IsNull() {
-			log.Debugf("cache hit, key:%s", key)
-			HandleCacheHit(key, response, stream, ctx, config, log)
+			log.Infof("cache hit, key: %s", key)
+			ProcessCacheHit(key, response, stream, ctx, config, log)
 		} else {
-			log.Debugf("cache miss, key:%s", key)
-			if ifUseEmbedding {
-				HandleCacheMiss(key, err, response, ctx, config, log, key, stream)
+			log.Infof("cache miss, key: %s, error: %s", key, err.Error())
+			if useSimilaritySearch {
+				err = performSimilaritySearch(key, ctx, config, log, key, stream)
+				if err != nil {
+					log.Errorf("failed to perform similarity search for key: %s, error: %v", key, err)
+					proxywasm.ResumeHttpRequest()
+				}
 			} else {
 				proxywasm.ResumeHttpRequest()
 				return
 			}
 		}
 	})
+
+	if err != nil {
+		log.Errorf("Failed to retrieve key: %s from cache, error: %v", key, err)
+		proxywasm.ResumeHttpRequest()
+	}
 }
 
-func HandleCacheHit(key string, response resp.Value, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
+func ProcessCacheHit(key string, response resp.Value, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
+	escapedResponse, err := json.Marshal(response.String())
+	if err != nil {
+		proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "text/plain"}}, []byte("Internal Server Error"), -1)
+		return
+	}
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 	if !stream {
-		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, response.String())), -1)
+		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, escapedResponse)), -1)
 	} else {
-		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(config.StreamResponseTemplate, response.String())), -1)
+		proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(config.StreamResponseTemplate, escapedResponse)), -1)
 	}
 }
 
-func HandleCacheMiss(key string, err error, response resp.Value, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) {
-	if err != nil {
-		log.Warnf("redis get key:%s failed, err:%v", key, err)
-	}
-	if response.IsNull() {
-		log.Warnf("cache miss, key:%s", key)
-	}
-	FetchAndProcessEmbeddings(key, ctx, config, log, queryString, stream)
-}
-
-func FetchAndProcessEmbeddings(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) {
+func performSimilaritySearch(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) error {
 	activeEmbeddingProvider := config.GetEmbeddingProvider()
-	// The error will be handled within the callback function
-	_ = activeEmbeddingProvider.GetEmbedding(queryString, ctx, log,
-		func(emb []float64) {
-			log.Debugf("Successfully fetched embeddings for key: %s", key)
+	err := activeEmbeddingProvider.GetEmbedding(queryString, ctx, log,
+		func(emb []float64, err error) {
+			if err != nil {
+				log.Errorf("failed to fetch embeddings for key: %s, err: %v", key, err)
+				proxywasm.ResumeHttpRequest()
+				return
+			}
+			log.Debugf("successfully fetched embeddings for key: %s", key)
 			QueryVectorDB(key, emb, ctx, config, log, stream)
 		})
+	return err
 }
 
 func QueryVectorDB(key string, textEmbedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
-	log.Debugf("QueryVectorDB key: %s", key)
+	log.Debugf("starting query for key: %s", key)
 	activeVectorProvider := config.GetVectorProvider()
-	log.Debugf("activeVectorProvider: %+v", activeVectorProvider)
-	activeVectorProvider.QueryEmbedding(textEmbedding, ctx, log,
-		func(results []vector.QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log) {
-			// The basic logic is to compare the similarity of the embedding with the most similar key in the database
-			if len(results) == 0 {
-				log.Warnf("Failed to query vector database, no similar key found")
-				activeVectorProvider.UploadEmbedding(textEmbedding, key, ctx, log,
-					func(ctx wrapper.HttpContext, log wrapper.Log) {
-						proxywasm.ResumeHttpRequest()
-					})
-				return
-			}
+	log.Debugf("active vector provider configuration: %+v", activeVectorProvider)
 
-			mostSimilarData := results[0]
-			log.Infof("most similar key: %s", mostSimilarData.Text)
-			if mostSimilarData.Score < activeVectorProvider.GetThreshold() {
-				log.Infof("accept most similar key: %s, score: %f", mostSimilarData.Text, mostSimilarData.Score)
-				// ctx.SetContext(embedding.CacheKeyContextKey, nil)
-				RedisSearchHandler(mostSimilarData.Text, ctx, config, log, stream, false)
-			} else {
-				log.Infof("the most similar key's score is too high, key: %s, score: %f", mostSimilarData.Text, mostSimilarData.Score)
-				activeVectorProvider.UploadEmbedding(textEmbedding, key, ctx, log,
-					func(ctx wrapper.HttpContext, log wrapper.Log) {
-						proxywasm.ResumeHttpRequest()
-					})
-				return
-			}
-		},
-	)
+	err := activeVectorProvider.QueryEmbedding(textEmbedding, ctx, log, func(results []vector.QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error) {
+		if err != nil {
+			log.Errorf("error querying vector database: %v", err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+
+		if len(results) == 0 {
+			log.Warnf("no similar keys found in vector database for key: %s", key)
+			uploadEmbedding(textEmbedding, key, ctx, log, activeVectorProvider)
+			return
+		}
+
+		mostSimilarData := results[0]
+		log.Debugf("most similar key found: %s with score: %f", mostSimilarData.Text, mostSimilarData.Score)
+
+		if mostSimilarData.Score < activeVectorProvider.GetSimThreshold() {
+			log.Infof("key accepted: %s with score: %f below threshold", mostSimilarData.Text, mostSimilarData.Score)
+			CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
+		} else {
+			log.Infof("score too high for key: %s with score: %f above threshold", mostSimilarData.Text, mostSimilarData.Score)
+			uploadEmbedding(textEmbedding, key, ctx, log, activeVectorProvider)
+		}
+	})
+
+	if err != nil {
+		log.Errorf("error querying vector database: %v", err)
+		proxywasm.ResumeHttpRequest()
+	}
+}
+
+func uploadEmbedding(textEmbedding []float64, key string, ctx wrapper.HttpContext, log wrapper.Log, provider vector.Provider) {
+	provider.UploadEmbedding(textEmbedding, key, ctx, log, func(ctx wrapper.HttpContext, log wrapper.Log, err error) {
+		if err != nil {
+			log.Errorf("failed to upload embedding for key: %s, error: %v", key, err)
+		} else {
+			log.Debugf("successfully uploaded embedding for key: %s", key)
+		}
+		proxywasm.ResumeHttpRequest()
+	})
 }

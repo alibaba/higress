@@ -40,6 +40,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | embedding.servicePort | int64 | optional | 443 | 请求文本向量化服务端口 |
 | embedding.apiKey | string | optional | ""  | 请求文本向量化服务的 API Key |
 | embedding.timeout | uint32 | optional | 10000 | 请求文本向量化服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
+| embedding.model | string | optional | "" | 请求文本向量化服务的模型名称 |
 
 
 ## 缓存服务（cache）
@@ -48,10 +49,10 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | cache.serviceName | string | required | "" | 缓存服务名称 |
 | cache.serviceDomain | string | required | "" | 缓存服务域名 |
 | cache.servicePort | int64 | optional | 6379 | 缓存服务端口 |
-| cache.userName | string | optional | ""  | 缓存服务用户名 |
+| cache.username | string | optional | ""  | 缓存服务用户名 |
 | cache.password | string | optional | "" | 缓存服务密码 |
 | cache.timeout | uint32 | optional | 10000 | 缓存服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
-| cache.cacheTTL | uint32 | optional | 3600000 | 缓存过期时间，单位为秒。默认值是 3600000，即 1 小时 |
+| cache.cacheTTL | uint32 | optional | 0 | 缓存过期时间，单位为秒。默认值是 0，即 永不过期|
 | cacheKeyPrefix | string | optional | "higressAiCache:" | 缓存 Key 的前缀，默认值为 "higressAiCache:" |
 
 

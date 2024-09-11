@@ -120,38 +120,38 @@ func (d *DvProvider) parseQueryResponse(responseBody []byte) (queryResponse, err
 	return queryResp, nil
 }
 
-func (d *DvProvider) GetThreshold() float64 {
+func (d *DvProvider) GetSimThreshold() float64 {
 	return threshold
 }
 func (d *DvProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 构造请求参数
+	callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	url, body, headers, err := d.constructEmbeddingQueryParameters(emb)
 	if err != nil {
-		log.Infof("Failed to construct embedding query parameters: %v", err)
+		err = fmt.Errorf("failed to construct embedding query parameters: %v", err)
+		return err
 	}
 
 	err = d.client.Post(url, headers, body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			err = nil
 			if statusCode != http.StatusOK {
-				log.Infof("Failed to query embedding: %d", statusCode)
-				return
+				err = fmt.Errorf("failed to query embedding: %d", statusCode)
 			}
-			log.Debugf("Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.ParseQueryResponse(responseBody, ctx, log)
 			if err != nil {
-				log.Infof("Failed to parse query response: %v", err)
-				return
+				err = fmt.Errorf("failed to parse query response: %v", err)
 			}
-			callback(results, ctx, log)
+			callback(results, ctx, log, err)
 		},
 		d.config.timeout)
 	if err != nil {
-		log.Infof("Failed to query embedding: %v", err)
+		err = fmt.Errorf("failed to query embedding: %v", err)
 	}
+	return err
 }
 
 func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryEmbeddingResult, error) {
@@ -209,15 +209,22 @@ func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryStri
 	return url, requestBody, header, err
 }
 
-func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	url, body, headers, _ := d.constructEmbeddingUploadParameters(queryEmb, queryString)
-	_ = d.client.Post(
+func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	url, body, headers, err := d.constructEmbeddingUploadParameters(queryEmb, queryString)
+	if err != nil {
+		return err
+	}
+	err = d.client.Post(
 		url,
 		headers,
 		body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("statusCode:%d, responseBody:%s", statusCode, string(responseBody))
-			callback(ctx, log)
+			log.Debugf("statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			if statusCode != http.StatusOK {
+				err = fmt.Errorf("failed to upload embedding: %d", statusCode)
+			}
+			callback(ctx, log, err)
 		},
 		d.config.timeout)
+	return err
 }

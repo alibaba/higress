@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 const (
-	DOMAIN     = "dashscope.aliyuncs.com"
-	PORT       = 443
-	MODEL_NAME = "text-embedding-v1"
-	END_POINT  = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	DOMAIN             = "dashscope.aliyuncs.com"
+	PORT               = 443
+	DEFAULT_MODEL_NAME = "text-embedding-v1"
+	ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
 type dashScopeProviderInitializer struct {
@@ -91,8 +92,13 @@ type DSProvider struct {
 
 func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
 
+	model := d.config.model
+
+	if model == "" {
+		model = DEFAULT_MODEL_NAME
+	}
 	data := EmbeddingRequest{
-		Model: MODEL_NAME,
+		Model: model,
 		Input: Input{
 			Texts: texts,
 		},
@@ -103,13 +109,13 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 
 	requestBody, err := json.Marshal(data)
 	if err != nil {
-		log.Errorf("Failed to marshal request data: %v", err)
+		log.Errorf("failed to marshal request data: %v", err)
 		return "", nil, nil, err
 	}
 
 	if d.config.apiKey == "" {
-		err := errors.New("DashScopeKey is empty")
-		log.Errorf("Failed to construct headers: %v", err)
+		err := errors.New("dashScopeKey is empty")
+		log.Errorf("failed to construct headers: %v", err)
 		return "", nil, nil, err
 	}
 
@@ -118,7 +124,7 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		{"Content-Type", "application/json"},
 	}
 
-	return END_POINT, headers, requestBody, err
+	return ENDPOINT, headers, requestBody, err
 }
 
 type Result struct {
@@ -141,41 +147,40 @@ func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(emb []float64)) error {
+	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
-		log.Errorf("Failed to construct parameters: %v", err)
+		log.Errorf("failed to construct parameters: %v", err)
 		return err
 	}
 
 	var resp *Response
 	err = d.client.Post(embUrl, embHeaders, embRequestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+
 			if statusCode != http.StatusOK {
-				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
-				err = errors.New("failed to get embedding")
-				callback(nil)
+				err = errors.New("failed to get embedding due to status code: " + strconv.Itoa(statusCode))
+				callback(nil, err)
 				return
 			}
 
-			log.Infof("Get embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("get embedding response: %d, %s", statusCode, responseBody)
 
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
-				log.Errorf("Failed to parse response: %v", err)
-				callback(nil)
+				err = errors.New("failed to parse response")
+				callback(nil, err)
 				return
 			}
 
 			if len(resp.Output.Embeddings) == 0 {
-				log.Errorf("No embedding found in response")
 				err = errors.New("no embedding found in response")
-				callback(nil)
+				callback(nil, err)
 				return
 			}
 
-			callback(resp.Output.Embeddings[0].Embedding)
+			callback(resp.Output.Embeddings[0].Embedding, nil)
 
 		}, d.config.timeout)
-	return nil
+	return err
 }

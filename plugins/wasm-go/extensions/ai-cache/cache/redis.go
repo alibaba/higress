@@ -6,13 +6,12 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-
 type redisProviderInitializer struct {
 }
 
 func (r *redisProviderInitializer) ValidateConfig(cf ProviderConfig) error {
 	if len(cf.serviceName) == 0 {
-		return errors.New("[redis] cache service name is required")
+		return errors.New("cache service name is required")
 	}
 	return nil
 }
@@ -25,7 +24,7 @@ func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig) (Provider, 
 			Host: cf.serviceHost,
 			Port: int64(cf.servicePort)}),
 	}
-	err := rp.Init(cf.userName, cf.password, cf.timeout)
+	err := rp.Init(cf.username, cf.password, cf.timeout)
 	return &rp, err
 }
 
@@ -35,24 +34,21 @@ type redisProvider struct {
 }
 
 func (rp *redisProvider) GetProviderType() string {
-	return "redis"
+	return PROVIDER_TYPE_REDIS
 }
 
 func (rp *redisProvider) Init(username string, password string, timeout uint32) error {
-	return rp.client.Init(rp.config.userName, rp.config.password, int64(rp.config.timeout))
+	return rp.client.Init(rp.config.username, rp.config.password, int64(rp.config.timeout))
 }
 
 func (rp *redisProvider) Get(key string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.Get(rp.GetCacheKeyPrefix()+key, cb)
+	return rp.client.Get(rp.getCacheKeyPrefix()+key, cb)
 }
 
 func (rp *redisProvider) Set(key string, value string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.SetEx(rp.GetCacheKeyPrefix()+key, value, int(rp.config.cacheTTL), cb)
+	return rp.client.SetEx(rp.getCacheKeyPrefix()+key, value, int(rp.config.cacheTTL), cb)
 }
 
-func (rp *redisProvider) GetCacheKeyPrefix() string {
-	if len(rp.config.cacheKeyPrefix) == 0 {
-		return DEFAULT_CACHE_PREFIX
-	}
+func (rp *redisProvider) getCacheKeyPrefix() string {
 	return rp.config.cacheKeyPrefix
 }

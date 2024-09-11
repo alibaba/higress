@@ -37,15 +37,14 @@ type Provider interface {
 		emb []float64,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log))
+		callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 	UploadEmbedding(
 		queryEmb []float64,
 		queryString string,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(ctx wrapper.HttpContext, log wrapper.Log))
-	GetThreshold() float64
-	// ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) (QueryEmbeddingResult, error)
+		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
+	GetSimThreshold() float64
 }
 
 type ProviderConfig struct {

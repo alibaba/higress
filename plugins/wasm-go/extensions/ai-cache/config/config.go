@@ -8,26 +8,28 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type KVExtractor struct {
+type BodyPathMapper struct {
 	// @Title zh-CN 从请求 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
-	RequestBody string `required:"false" yaml:"requestBody" json:"requestBody"`
+	RequestPath string `required:"false" yaml:"requestBody" json:"requestBody"`
 	// @Title zh-CN 从响应 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
-	ResponseBody string `required:"false" yaml:"responseBody" json:"responseBody"`
+	ResponsePath string `required:"false" yaml:"responseBody" json:"responseBody"`
 }
 
-func (e *KVExtractor) SetRequestBodyFromJson(json gjson.Result, key string, defaultValue string) {
-	if json.Get(key).Exists() {
-		e.RequestBody = json.Get(key).String()
+func (e *BodyPathMapper) SetRequestPathFromJson(json gjson.Result, key string, defaultValue string) {
+	value := json.Get(key)
+	if value.Exists() {
+		e.RequestPath = value.String()
 	} else {
-		e.RequestBody = defaultValue
+		e.RequestPath = defaultValue
 	}
 }
 
-func (e *KVExtractor) SetResponseBodyFromJson(json gjson.Result, key string, defaultValue string) {
-	if json.Get(key).Exists() {
-		e.ResponseBody = json.Get(key).String()
+func (e *BodyPathMapper) SetResponsePathFromJson(json gjson.Result, key string, defaultValue string) {
+	value := json.Get(key)
+	if value.Exists() {
+		e.ResponsePath = value.String()
 	} else {
-		e.ResponseBody = defaultValue
+		e.ResponsePath = defaultValue
 	}
 }
 
@@ -47,9 +49,9 @@ type PluginConfig struct {
 	vectorProviderConfig    vector.ProviderConfig
 	cacheProviderConfig     cache.ProviderConfig
 
-	CacheKeyFrom         KVExtractor `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
-	CacheValueFrom       KVExtractor `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
-	CacheStreamValueFrom KVExtractor `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
+	CacheKeyFrom         BodyPathMapper `required:"true" yaml:"cacheKeyFrom" json:"cacheKeyFrom"`
+	CacheValueFrom       BodyPathMapper `required:"true" yaml:"cacheValueFrom" json:"cacheValueFrom"`
+	CacheStreamValueFrom BodyPathMapper `required:"true" yaml:"cacheStreamValueFrom" json:"cacheStreamValueFrom"`
 }
 
 func (c *PluginConfig) FromJson(json gjson.Result) {
@@ -57,9 +59,9 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.vectorProviderConfig.FromJson(json.Get("vector"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
 
-	c.CacheKeyFrom.SetRequestBodyFromJson(json, "cacheKeyFrom.requestBody", "messages.@reverse.0.content")
-	c.CacheValueFrom.SetResponseBodyFromJson(json, "cacheValueFrom.responseBody", "choices.0.message.content")
-	c.CacheStreamValueFrom.SetResponseBodyFromJson(json, "cacheStreamValueFrom.responseBody", "choices.0.delta.content")
+	c.CacheKeyFrom.SetRequestPathFromJson(json, "cacheKeyFrom.requestBody", "messages.@reverse.0.content")
+	c.CacheValueFrom.SetResponsePathFromJson(json, "cacheValueFrom.responseBody", "choices.0.message.content")
+	c.CacheStreamValueFrom.SetResponsePathFromJson(json, "cacheStreamValueFrom.responseBody", "choices.0.delta.content")
 
 	c.StreamResponseTemplate = json.Get("streamResponseTemplate").String()
 	if c.StreamResponseTemplate == "" {

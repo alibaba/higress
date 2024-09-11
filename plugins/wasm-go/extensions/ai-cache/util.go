@@ -8,41 +8,51 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TrimQuote(source string) string {
-	return strings.Trim(source, `"`)
-}
-
 func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseMessage string, log wrapper.Log) string {
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string
 	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data:") {
+		if strings.HasPrefix(msg, "data: ") {
 			message = msg
 			break
 		}
 	}
 	if len(message) < 6 {
-		log.Warnf("invalid message:%s", message)
+		log.Warnf("invalid message: %s", message)
 		return ""
 	}
+
 	// skip the prefix "data:"
 	bodyJson := message[5:]
-	if gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Exists() {
+	// Extract values from JSON fields
+	responseBody := gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponsePath)
+	toolCalls := gjson.Get(bodyJson, "choices.0.delta.content.tool_calls")
+
+	if toolCalls.Exists() {
+		// TODO: Temporarily store the tool_calls value in the context for processing
+		ctx.SetContext(TOOL_CALLS_CONTEXT_KEY, toolCalls.String())
+	}
+
+	// Check if the ResponseBody field exists
+	if !responseBody.Exists() {
+		// Return an empty string if we cannot extract the content
+		log.Warnf("cannot extract content from message: %s", message)
+		return ""
+	} else {
 		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+
+		// If there is no content in the cache, initialize and set the content
 		if tempContentI == nil {
-			content := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
+			content := responseBody.String()
 			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
 			return content
 		}
-		appendMsg := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
+
+		// Update the content in the cache
+		appendMsg := responseBody.String()
 		content := tempContentI.(string) + appendMsg
 		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
 		return content
-	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
-		// TODO: compatible with other providers
-		ctx.SetContext(TOOL_CALLS_CONTEXT_KEY, struct{}{})
-		return ""
 	}
-	log.Warnf("unknown message:%s", bodyJson)
-	return ""
+
 }
