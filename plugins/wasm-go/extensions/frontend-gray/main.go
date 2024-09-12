@@ -62,12 +62,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	xPreHigressVersion := util.ExtractCookieValueByKey(cookies, config.XPreHigressTag)
 	preVersions := strings.Split(xPreHigressVersion, ",")
 
-	xForwardedFor, _ := proxywasm.GetHttpRequestHeader("X-Forwarded-For")
+	// 客户端唯一ID，用于在按照比率灰度时候 客户访问黏贴
+	uniqueClientId := grayKeyValue
+	if uniqueClientId == "" {
+		xForwardedFor, _ := proxywasm.GetHttpRequestHeader("X-Forwarded-For")
+		uniqueClientId = util.GetRealIpFromXff(xForwardedFor)
+	}
 
 	// 如果没有配置比例，则进行灰度规则匹配
 	if isIndex {
+		log.Infof("grayConfig.TotalGrayWeight==== %v", grayConfig.TotalGrayWeight)
 		if grayConfig.TotalGrayWeight > 0 {
-			deployment = util.FilterGrayWeight(&grayConfig, preVersions, xForwardedFor)
+			deployment = util.FilterGrayWeight(&grayConfig, preVersions, uniqueClientId)
 		} else {
 			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
 		}
@@ -80,7 +86,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	ctx.SetContext(config.XPreHigressTag, deployment.Version)
 	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	ctx.SetContext(config.IsIndex, isIndex)
-	ctx.SetContext(config.XForwardedFor, xForwardedFor)
+	ctx.SetContext(config.XUniqueClient, uniqueClientId)
 
 	rewrite := grayConfig.Rewrite
 	if rewrite.Host != "" {
@@ -154,10 +160,10 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store")
 
 		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-		xForwardedFor := ctx.GetContext(config.XForwardedFor).(string)
+		xUniqueClient := ctx.GetContext(config.XUniqueClient).(string)
 
 		// 设置前端的版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, util.GetRealIpFromXff(xForwardedFor), config.MaxAgeCookie))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, config.MaxAgeCookie))
 		// 设置后端的版本
 		if util.IsBackendGrayEnabled(grayConfig) {
 			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)

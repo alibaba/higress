@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -20,9 +19,7 @@ import (
 
 func LogInfof(format string, args ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", "frontend-gray", format)
-	if os.Getenv("TEST_MODE") != "" {
-		proxywasm.LogInfof(format, args...)
-	}
+	proxywasm.LogInfof(format, args...)
 }
 
 // 从xff中获取真实的IP
@@ -234,31 +231,21 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.
 	return grayConfig.BaseDeployment
 }
 
-func FilterGrayWeight(grayConfig *config.GrayConfig, preVersions []string, xForwardedFor string) *config.Deployment {
-	deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
-	realIp := GetRealIpFromXff(xForwardedFor)
-
-	LogInfof("DebugGrayWeight enabled: %s, realIp: %s, preVersions: %v", grayConfig.DebugGrayWeight, realIp, preVersions)
-	// 开启Debug模式，否则无法观测到效果
-	if !grayConfig.DebugGrayWeight {
-		// 如果没有获取到真实IP，则返回不走灰度规则
-		if realIp == "" {
-			return grayConfig.BaseDeployment
-		}
-
-		// 确保每个用户每次访问的都是走同一版本
-		if len(preVersions) > 1 && preVersions[1] != "" && realIp == preVersions[1] {
-			for _, deployment := range deployments {
-				if deployment.Version == strings.Trim(preVersions[0], " ") {
-					return deployment
-				}
-			}
-		}
+func FilterGrayWeight(grayConfig *config.GrayConfig, preVersions []string, uniqueClientId string) *config.Deployment {
+	// 如果没有灰度权重，直接返回基础版本
+	if grayConfig.TotalGrayWeight == 0 {
 		return grayConfig.BaseDeployment
 	}
 
-	if grayConfig.TotalGrayWeight == 0 {
-		return grayConfig.BaseDeployment
+	deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
+	LogInfof("uniqueClientId: %s, preVersions: %v", uniqueClientId, preVersions)
+	// 用户粘滞，确保每个用户每次访问的都是走同一版本
+	if len(preVersions) > 1 && preVersions[1] != "" && uniqueClientId == preVersions[1] {
+		for _, deployment := range deployments {
+			if deployment.Version == strings.Trim(preVersions[0], " ") {
+				return deployment
+			}
+		}
 	}
 
 	totalWeight := 100

@@ -89,10 +89,10 @@ static_resources:
                                   {
                                     "name": "beta-user",
                                     "version": "0.0.1",
-                                    "enabled": true
+                                    "enabled": true,
+                                    "weight": 50
                                   }
                                 ],
-                                "debugGrayWeight": true,
                                 "injection": {
                                   "head": [
                                     "<script>console.log('Header')</script>"

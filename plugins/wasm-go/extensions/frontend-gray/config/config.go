@@ -8,7 +8,7 @@ import (
 
 const (
 	XHigressTag    = "x-higress-tag"
-	XForwardedFor  = "x-forwarded-for"
+	XUniqueClient  = "x-unique-client"
 	XPreHigressTag = "x-pre-higress-tag"
 	IsIndex        = "is-index"
 	IsNotFound     = "is-not-found"
@@ -58,7 +58,6 @@ type GrayConfig struct {
 	Rewrite         *Rewrite
 	BaseDeployment  *Deployment
 	GrayDeployments []*Deployment
-	DebugGrayWeight bool
 	BackendGrayTag  string
 	Injection       *Injection
 }
@@ -84,7 +83,6 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
 	grayConfig.GrayKey = json.Get("grayKey").String()
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
-	grayConfig.DebugGrayWeight = json.Get("debugGrayWeight").Bool()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 
 	if grayConfig.BackendGrayTag == "" {
