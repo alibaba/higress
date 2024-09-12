@@ -37,14 +37,6 @@ jobs:
         key: ${{ runner.os }}-go-${{ github.run_id }}
         restore-keys: ${{ runner.os }}-go
 
-    - name: Setup Submodule Caches
-      uses: actions/cache@v4
-      with:
-        path: |-
-            .git/modules
-        key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules-cache
-    
     - run: git stash # restore patch
 
     # test
@@ -82,14 +74,6 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
-
-      - name: Setup Submodule Caches
-        uses: actions/cache@v4
-        with:
-          path: |-
-            .git/modules
-          key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-cache
 
       - run: git stash # restore patch
 
@@ -137,14 +121,6 @@ jobs:
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ github.run_id }}
         restore-keys: ${{ runner.os }}-go
-      
-    - name: Setup Submodule Caches
-      uses: actions/cache@v4
-      with:
-        path: |-
-            .git/modules
-        key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
-        restore-keys: ${{ runner.os }}-submodules-cache
           
     - run: git stash # restore patch
 
