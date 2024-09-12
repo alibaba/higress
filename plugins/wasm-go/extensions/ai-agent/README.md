@@ -9,6 +9,10 @@ description: AI Agent插件配置参考
 agent流程图如下：
 ![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)
 
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`20`
 
 ## 配置字段
 
