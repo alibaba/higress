@@ -8,6 +8,10 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 `ext-auth` 插件实现了向外部授权服务发送鉴权请求，以检查客户端请求是否得到授权。该插件实现时参考了Envoy原生的[ext_authz filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter)，实现了原生filter中对接HTTP服务的部分能力
 
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`360`
 
 
 ## 配置字段
