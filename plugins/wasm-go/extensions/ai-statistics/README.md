@@ -1,69 +1,87 @@
 # 介绍
-提供AI可观测基础能力，其后需接ai-proxy插件，如果不接ai-proxy插件的话，则只支持openai协议。
+提供AI可观测基础能力，包括 metric, log, trace，其后需接ai-proxy插件，如果不接ai-proxy插件的话，则只支持openai协议。
 
 # 配置说明
+插件提供了以下基础可观测值，用户无需配置：
+- metric：提供了输入token、输出token、首个token的rt（流式请求）、请求总rt等指标，分别在网关、路由、服务、模型四个维度上生效
+- log：提供了 input_token, output_token, model, cluster, route, llm_service_duration, llm_first_token_duration 等字段
+- trace：提供了 input_token, output_token, model, cluster, route, llm_service_duration, llm_first_token_duration 等字段
+
+用户还可以通过配置的方式对可观测的值进行扩展：
 
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
-| `enable`       | bool  | 必填   | -   | 是否开启ai统计功能             |
-| `tracing_span` | array | 非必填  | -   | 自定义tracing span tag 配置 |
+| `spanAttributes` | []Attribute | 非必填  | -   | 自定义 ai 请求中日志字段 |
+| `logAttributes` | []Attribute | 非必填  | -   | 自定义 ai 请求中链路追踪 span attrribute |
 
-## tracing_span 配置说明
+## Attribute 配置说明
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|-----|-----|------------------------|
-| `key`         | string | 必填  | -   | tracing tag 名称           |
-| `value_source`        | string | 必填  | -   | tag 取值来源             |
-| `value`      | string | 必填  | -   | tag 取值 key value/path           |
+| `key`         | string | 必填  | -   | attrribute 名称           |
+| `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
+| `value`      | string | 必填  | -   | attrribute 取值 key value/path |
+| `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
 
-value_source为 tag 值的取值来源，可选配置值有 4 个：
-- property ： tag 值通过proxywasm.GetProperty()方法获取，value配置GetProperty()方法要提取的key名
-- requeset_header ： tag 值通过http请求头获取，value配置为header key
-- request_body ：tag 值通过请求body获取，value配置格式为 gjson的 GJSON PATH 语法
-- response_header ： tag 值通过http响应头获取，value配置为header key
+`value_source` 的各种取值含义如下：
+- `fixed_value`：固定值
+- `requeset_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
+- `request_body` ：attrribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_header` ：attrribute 值通过 http 响应头获取，value 配置为header key
+- `response_body` ：attrribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_streaming_body` ：attrribute 值通过流式响应 body 获取，value 配置格式为 gjson 的 jsonpath
 
+
+当 `value_source` 为 `response_streaming_body` 时，应当配置 `rule`，用于指定如何从流式body中获取指定值，取值含义如下：
+- `first`：（多个chunk中取第一个chunk的值），
+- `replace`：（多个chunk中取最后一个chunk的值），
+- `append`：（拼接多个chunk中的值，可用于获取回答内容）
+
+## 配置示例
 举例如下： 
 ```yaml
-tracing_label:
-- key: "session_id"
-  value_source: "requeset_header"
-  value: "session_id"
-- key: "user_content"
-  value_source: "request_body"
-  value: "input.messages.1.content"
+logAttributes:
+  - key: consumer # 配合认证鉴权记录consumer
+    value_source: request_header
+    value: x-mse-consumer
+  - key: question # 记录问题
+    value_source: request_body
+    value: messages.@reverse.0.content
+  - key: answer   # 在流式响应中提取大模型的回答
+    value_source: response_streaming_body
+    value: choices.0.delta.content
+    rule: append
+  - key: answer   # 在非流式响应中提取大模型的回答
+    value_source: response_body
+    value: choices.0.message.content
+spanAttributes:
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
 ```
 
+## 可观测指标示例
+### Metric
 开启后 metrics 示例：
 ```
-route_upstream_model_input_token{ai_route="openai",ai_cluster="qwen",ai_model="qwen-max"} 21
-route_upstream_model_output_token{ai_route="openai",ai_cluster="qwen",ai_model="qwen-max"} 17
+route_upstream_model_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-max"} 21
+route_upstream_model_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-max"} 17
 ```
 
+### Log
 日志示例：
 
 ```json
 {
-    "model": "qwen-max",
-    "input_token": "21",
+    "consumer": "21321r9fncsb2dq",
+    "route": "llm",
     "output_token": "17",
-    "authority": "dashscope.aliyuncs.com",
-    "bytes_received": "336",
-    "bytes_sent": "1675",
-    "duration": "1590",
-    "istio_policy_status": "-",
-    "method": "POST",
-    "path": "/v1/chat/completions",
-    "protocol": "HTTP/1.1",
-    "request_id": "5895f5a9-e4e3-425b-98db-6c6a926195b7",
-    "requested_server_name": "-",
-    "response_code": "200",
-    "response_flags": "-",
-    "route_name": "openai",
-    "start_time": "2024-06-18T09:37:14.078Z",
-    "trace_id": "-",
-    "upstream_cluster": "qwen",
-    "upstream_service_time": "496",
-    "upstream_transport_failure_reason": "-",
-    "user_agent": "PostmanRuntime/7.37.3",
-    "x_forwarded_for": "-"
+    "llm_service_duration": "3518",
+    "answer": "我是来自阿里云的超大规模语言模型，我叫通义千问。",
+    "request_id": "2d8ffda2-dc43-933d-ad72-7679cfbbaf15",
+    "question": "你是谁",
+    "cluster": "outbound|443||qwen.dns",
+    "model": "qwen-max",
+    "input_token": "10",
+    "llm_first_token_duration": "676"
 }
 ```
