@@ -1,6 +1,6 @@
-# 简介
+## 功能说明
 
-# 配置说明
+## 配置说明
 | Name | Type | Requirement | Default | Description |
 | :-: | :-:  | :-:  | :-: | :-: |
 | serviceSource | string | requried | - | 服务来源，填dns |
@@ -11,7 +11,7 @@
 | sk | string | requried | - | 阿里云SK |
 
 
-# 配置示例
+## 配置示例
 ```yaml
 serviceSource: "dns"
 serviceName: "safecheck"
