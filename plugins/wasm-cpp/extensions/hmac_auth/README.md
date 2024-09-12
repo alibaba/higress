@@ -1,13 +1,32 @@
-# 功能说明
+---
+title: HMAC 认证
+keywords: [higress,hmac auth]
+description: HMAC 认证插件配置参考
+---
+
+## 功能说明
 `hmac-auth`插件实现了基于 HMAC 算法为 HTTP 请求生成不可伪造的签名，并基于签名实现身份认证和鉴权
 
-# 配置字段
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`330`
+
+## 配置字段
+
+**注意：**
+
+- 在一个规则里，鉴权配置和认证配置不可同时存在
+- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
+
+### 认证配置
 
 | 名称          | 数据类型        | 填写要求 | 默认值 | 描述                                                                                                                |
 | ------------- | --------------- | -------- | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| `global_auth` | bool            | 选填（**仅实例级别配置**）                  | -      | 只能在实例级别配置，若配置为true，则全局生效认证机制; 若配置为false，则只对做了配置的域名和路由生效认证机制，若不配置则仅当没有域名和路由配置时全局生效（兼容老用户使用习惯）。 |
 | `consumers`   | array of object | 必填     | -      | 配置服务的调用者，用于对请求进行认证                                                                                |
 | `date_offset` | number          | 选填     | -      | 配置允许的客户端最大时间偏移，单位为秒，根据请求头`Date`解析客户端 UTC 时间，可用于避免请求重放；未配置时，不做校验 |
-| `_rules_`     | array of object | 选填     | -      | 配置特定路由或域名的访问权限列表，用于对请求进行鉴权                                                                |
+
 
 `consumers`中每一项的配置字段说明如下：
 
@@ -17,24 +36,21 @@
 | `secret` | string   | 必填     | -      | 配置用于生成签名的secret            |
 | `name`   | string   | 必填     | -      | 配置该consumer的名称                |
 
-`_rules_` 中每一项的配置字段说明如下：
+### 鉴权配置（非必需）
 
-| 名称             | 数据类型        | 填写要求                                          | 默认值 | 描述                                               |
-| ---------------- | --------------- | ------------------------------------------------- | ------ | -------------------------------------------------- |
-| `_match_route_`  | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的路由名称                               |
-| `_match_domain_` | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的域名                                   |
-| `allow`          | array of string | 必填                                              | -      | 对于符合匹配条件的请求，配置允许访问的consumer名称 |
+| 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                                                                                                                           |
+| ----------- | --------------- | ------------------------------------------- | ------ | -----------------------------------------------------------                                                                                                    |
+| `allow`     | array of string | 选填(**非实例级别配置**)                    | -      | 只能在路由或域名等细粒度规则上配置，对于符合匹配条件的请求，配置允许访问的 consumer，从而实现细粒度的权限控制 |
 
-**注意：**
-- 若不配置`_rules_`字段，则默认对当前网关实例的所有路由开启认证；
-- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
 
-# 配置示例
+## 配置示例
 
-以下配置将对网关特定路由或域名开启 Hmac Auth 认证和鉴权，注意`key`字段不能重复
+### 全局配置认证和路由粒度进行鉴权
 
-## 对特定路由或域名开启
+在实例级别做如下插件配置, 注意`key`字段不能重复:
+
 ```yaml
+global_auth: false
 consumers: 
 - key: appKey-example-1
   secret: appSecret-example-1
@@ -42,34 +58,33 @@ consumers:
 - key: appKey-example-2
   secret: appSecret-example-2
   name: consumer-2
-# 使用 _rules_ 字段进行细粒度规则配置
-_rules_:
-# 规则一：按路由名称匹配生效
-- _match_route_:
-  - route-a
-  - route-b
-  allow:
-  - consumer-1
-# 规则二：按域名匹配生效
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  allow:
-  - consumer-2
 ```
-每条匹配规则下的`allow`字段用于指定该匹配条件下允许访问的调用者列表；
 
-此例 `_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许`name`为`consumer-1`的调用者访问，其他调用者不允许访问；
-
-此例 `_match_domain_` 中指定的 `*.example.com` 和 `test.com` 用于匹配请求的域名，当发现域名匹配时，将允许`name`为`consumer-2`的调用者访问，其他调用者不允许访问；
-
-认证成功后，请求的header中会被添加一个`X-Mse-Consumer`字段，其值为调用方的名称，例如`consumer-1`。
-
-## 网关实例级别开启
-
-以下配置将对网关实例级别开启 Hamc Auth 认证
+route-a和route-b两个路由做如下插件配置：
 
 ```yaml
+allow:
+- consumer1
+```
+
+在*.example.com和test.com两个域名做如下插件配置：
+
+```yaml
+allow:
+- consumer2
+```
+
+若是在控制台进行配置，此例指定的route-a和route-b即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许name为consumer1的调用者访问，其他调用者不允许访问。
+
+此例指定的*.example.com和test.com用于匹配请求的域名，当发现域名匹配时，将允许name为consumer2的调用者访问，其他调用者不被允许访问。
+
+
+### 网关实例级别开启
+
+以下配置将对网关实例级别开启 Hamc Auth 认证，所有请求均需要经过认证后才能访问。
+
+```yaml
+global_auth: true
 consumers: 
 - key: appKey-example-1
   secret: appSecret-example-1
@@ -80,18 +95,18 @@ consumers:
 ```
 
 
-# 签名机制说明
+## 签名机制说明
 
-## 配置准备
+### 配置准备
 
 如上指引，在插件配置中配置生成和验证签名需要用的凭证配置
 
 - key: 用于请求头 `x-ca-key` 中设置
 - secret: 用于生成请求签名
 
-## 客户端签名生成方式
+### 客户端签名生成方式
 
-### 流程简介
+#### 流程简介
 
 客户端生成签名一共分三步处理：
 
@@ -104,7 +119,7 @@ consumers:
 如下图所示：
 ![](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/1745707061/p188113.png)
 
-### 签名串提取流程
+#### 签名串提取流程
 
 客户端需要从Http请求中提取出关键数据，组合成一个签名串，生成的签名串的格式如下：
 
@@ -160,7 +175,7 @@ Path + "?" + Key1 + "=" + Value1 + "&" + Key2 + "=" + Value2 + ... "&" + KeyN + 
    
 4. Query和Form存在数组参数时（key相同，value不同的参数） ，取第一个Value参与签名计算
     
-### 签名串提取示例
+#### 签名串提取示例
 
 初始的HTTP请求：
 ```text
@@ -190,7 +205,7 @@ x-ca-timestamp:1525872629832
 /http2test/test?param1=test&password=123456789&username=xiaoming
 ```
 
-### 签名计算流程
+#### 签名计算流程
 
 客户端从HTTP请求中提取出关键数据组装成签名串后，需要对签名串进行加密及编码处理，形成最终的签名
 
@@ -206,7 +221,7 @@ String sign = Base64.encodeBase64String(result);
 
 总结一下，就是将 `stringToSign` 使用UTF-8解码后得到Byte数组，然后使用加密算法对Byte数组进行加密，然后使用Base64算法进行编码，形成最终的签名。
 
-### 添加签名流程
+#### 添加签名流程
 
 客户端需要将以下四个Header放在HTTP请求中传输给API网关，进行签名校验：
 
@@ -238,9 +253,9 @@ content-length:33
 username=xiaoming&password=123456789
 ```
 
-## 服务端签名验证方式
+### 服务端签名验证方式
 
-### 流程简介
+#### 流程简介
 
 服务器验证客户端签名一共分四步处理：
 
@@ -256,7 +271,7 @@ username=xiaoming&password=123456789
 ![](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/1745707061/p188116.png)
 
 
-## 签名排错方法
+### 签名排错方法
 
 网关签名校验失败时，会将服务端的签名串（StringToSign）放到HTTP Response的Header中返回到客户端，Key为：X-Ca-Error-Message，用户只需要将本地计算的签名串（StringToSign）与服务端返回的签名串进行对比即可找到问题；
 
@@ -269,7 +284,7 @@ X-Ca-Error-Message:  Server StringToSign:`GET#application/json##application/json
 
 ```
 
-# 相关错误码
+## 相关错误码
 
 | HTTP 状态码 | 出错信息               | 原因说明                                                                         |
 | ----------- | ---------------------- | -------------------------------------------------------------------------------- |
@@ -281,5 +296,3 @@ X-Ca-Error-Message:  Server StringToSign:`GET#application/json##application/json
 | 413         | Request Body Too Large | 请求 Body 超过限制大小：32 MB                                                    |
 | 413         | Payload Too Large      | 请求 Body 超过全局配置 DownstreamConnectionBufferLimits                          |
 | 403         | Unauthorized Consumer  | 请求的调用方无访问权限                                                           |
-
-

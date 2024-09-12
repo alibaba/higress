@@ -1,10 +1,20 @@
-# 功能说明
+---
+title: AI Token限流
+keywords: [ AI网关, AI token限流 ]
+description: AI Token限流插件配置参考
+---
+
+
+## 功能说明
 
 `ai-token-ratelimit`插件实现了基于特定键值实现token限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称、cookie中 key 名称
 
+## 运行属性
 
+插件执行阶段：`默认阶段`
+插件执行优先级：`600`
 
-# 配置说明
+## 配置说明
 
 | 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                        |
 | ----------------------- | ------ | ---- | ------ |---------------------------------------------------------------------------|
@@ -51,9 +61,9 @@
 
 
 
-# 配置示例
+## 配置示例
 
-## 识别请求参数 apikey，进行区别限流
+### 识别请求参数 apikey，进行区别限流
 
 ```yaml
 rule_name: default_rule
@@ -81,7 +91,7 @@ redis:
 
 
 
-## 识别请求头 x-ca-key，进行区别限流
+### 识别请求头 x-ca-key，进行区别限流
 
 ```yaml
 rule_name: default_rule
@@ -109,7 +119,7 @@ redis:
 
 
 
-## 根据请求头 x-forwarded-for 获取对端IP，进行区别限流
+### 根据请求头 x-forwarded-for 获取对端IP，进行区别限流
 
 ```yaml
 rule_name: default_rule
@@ -129,7 +139,7 @@ redis:
   service_name: redis.static
 ```
 
-## 识别consumer，进行区别限流
+### 识别consumer，进行区别限流
 
 ```yaml
 rule_name: default_rule
@@ -157,7 +167,7 @@ redis:
 
 
 
-## 识别cookie中的键值对，进行区别限流
+### 识别cookie中的键值对，进行区别限流
 
 ```yaml
 rule_name: default_rule
