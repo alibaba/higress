@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -251,7 +252,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 			setTraceAttributeValueBySource(config, "response_streaming_body", streamingBodyBuffer, log)
 			setLogAttributeValueBySource(ctx, config, "response_streaming_body", streamingBodyBuffer, log)
 		}
-		writeLog(logAttributes, log)
+		writeLog(ctx, log)
 	}
 	return data
 }
@@ -303,11 +304,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	logAttributes["input_token"] = fmt.Sprint(inputToken)
 	logAttributes["output_token"] = fmt.Sprint(outputToken)
 	logAttributes["llm_service_duration"] = fmt.Sprint(llm_service_duration)
-	// Write log
-	writeLog(logAttributes, log)
+	ctx.SetContext("logAttributes", logAttributes)
 	// Set user defined log & span attributes.
 	setTraceAttributeValueBySource(config, "response_body", body, log)
 	setLogAttributeValueBySource(ctx, config, "response_body", body, log)
+	// Write log
+	writeLog(ctx, log)
 	return types.ActionContinue
 }
 
@@ -388,7 +390,11 @@ func setTraceAttributeValueBySource(config AIStatisticsConfig, source string, bo
 					setTracingSpanValue(spanAttribute.Key, value, log)
 				}
 			case "request_body":
-				value := gjson.GetBytes(body, spanAttribute.Value).String()
+				raw := gjson.GetBytes(body, spanAttribute.Value).Raw
+				var value string
+				if len(raw) > 2 {
+					value = raw[1 : len(raw)-1]
+				}
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, value)
 				setTracingSpanValue(spanAttribute.Key, value, log)
 			case "response_header":
@@ -401,7 +407,11 @@ func setTraceAttributeValueBySource(config AIStatisticsConfig, source string, bo
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, value)
 				setTracingSpanValue(spanAttribute.Key, value, log)
 			case "response_body":
-				value := gjson.GetBytes(body, spanAttribute.Value).String()
+				raw := gjson.GetBytes(body, spanAttribute.Value).Raw
+				var value string
+				if len(raw) > 2 {
+					value = raw[1 : len(raw)-1]
+				}
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, spanAttribute.Key, value)
 				setTracingSpanValue(spanAttribute.Key, value, log)
 			default:
@@ -450,7 +460,11 @@ func setLogAttributeValueBySource(ctx wrapper.HttpContext, config AIStatisticsCo
 					logAttributes[logAttribute.Key] = value
 				}
 			case "request_body":
-				value := gjson.GetBytes(body, logAttribute.Value).String()
+				raw := gjson.GetBytes(body, logAttribute.Value).Raw
+				var value string
+				if len(raw) > 2 {
+					value = raw[1 : len(raw)-1]
+				}
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, value)
 				logAttributes[logAttribute.Key] = value
 			case "response_header":
@@ -463,7 +477,11 @@ func setLogAttributeValueBySource(ctx wrapper.HttpContext, config AIStatisticsCo
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, value)
 				logAttributes[logAttribute.Key] = value
 			case "response_body":
-				value := gjson.GetBytes(body, logAttribute.Value).String()
+				raw := gjson.GetBytes(body, logAttribute.Value).Raw
+				var value string
+				if len(raw) > 2 {
+					value = raw[1 : len(raw)-1]
+				}
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, logAttribute.Key, value)
 				logAttributes[logAttribute.Key] = value
 			default:
@@ -474,10 +492,24 @@ func setLogAttributeValueBySource(ctx wrapper.HttpContext, config AIStatisticsCo
 	ctx.SetContext("logAttributes", logAttributes)
 }
 
-func writeLog(logAttributes map[string]string, log wrapper.Log) {
+func writeLog(ctx wrapper.HttpContext, log wrapper.Log) {
+	logAttributes, ok := ctx.GetContext("logAttributes").(map[string]string)
+	if !ok {
+		log.Error("failed to write log")
+	}
 	items := []string{}
 	for k, v := range logAttributes {
 		items = append(items, fmt.Sprintf(`"%s":"%s"`, k, v))
 	}
-	log.Infof("ai request json log: {%s}", strings.Join(items, ","))
+	aiLogField := fmt.Sprintf(`{%s}`, strings.Join(items, ","))
+	log.Infof("ai request json log: %s", aiLogField)
+	jsonMap := map[string]string{
+		"ai_log": aiLogField,
+	}
+	serialized, _ := json.Marshal(jsonMap)
+	jsonLogRaw := gjson.GetBytes(serialized, "ai_log").Raw
+	jsonLog := jsonLogRaw[1 : len(jsonLogRaw)-1]
+	if err := proxywasm.SetProperty([]string{"ai_log"}, []byte(jsonLog)); err != nil {
+		log.Errorf("failed to set ai_log in filter state: %v", err)
+	}
 }
