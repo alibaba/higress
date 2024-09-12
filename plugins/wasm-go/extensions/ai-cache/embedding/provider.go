@@ -55,7 +55,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.timeout = uint32(json.Get("timeout").Int())
 	c.model = json.Get("model").String()
 	if c.timeout == 0 {
-		c.timeout = 1000
+		c.timeout = 10000
 	}
 }
 

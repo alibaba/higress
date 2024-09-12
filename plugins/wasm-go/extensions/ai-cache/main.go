@@ -90,13 +90,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	if bodyJson.Get("stream").Bool() {
 		stream = true
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
-	} 
+	}
 
-	key := bodyJson.Get(config.CacheKeyFrom.RequestPath).String()
+	key := bodyJson.Get(config.CacheKeyFrom).String()
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, key)
 	log.Debugf("[onHttpRequestBody] key: %s", key)
 	if key == "" {
 		log.Debug("[onHttpRequestBody] parse key from request body failed")
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -114,8 +115,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Debugf("[onHttpResponseBody] chunk:%s", string(chunk))
-	log.Debugf("[onHttpResponseBody] isLastChunk:%v", isLastChunk)
+	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
+	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		// we should not cache tool call result
 		return chunk
@@ -159,7 +160,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		return chunk
 	}
 	// last chunk
-	key := keyI.(string)
 	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
 	if stream == nil {
@@ -172,9 +172,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		}
 		bodyJson := gjson.ParseBytes(body)
 
-		value = bodyJson.Get(config.CacheValueFrom.RequestPath).String()
+		value = bodyJson.Get(config.CacheValueFrom).String()
 		if value == "" {
-			log.Warnf("parse value from response body failded, body:%s", body)
+			log.Warnf("parse value from response body failded, body: %s", body)
 			return chunk
 		}
 	} else {
@@ -203,8 +203,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 			value = tempContentI.(string)
 		}
 	}
-	log.Infof("[onHttpResponseBody] setting cache to redis, key:%s, value:%s", key, value)
 	activeCacheProvider := config.GetCacheProvider()
-	_ = activeCacheProvider.Set(key, value, nil)
+	queryKey := activeCacheProvider.GetCacheKeyPrefix() + ctx.GetContext(CACHE_KEY_CONTEXT_KEY).(string)
+	// queryKey := keyI.(string)
+	log.Infof("[onHttpResponseBody] setting cache to redis, key: %s, value: %s", queryKey, value)
+	_ = activeCacheProvider.Set(queryKey, value, nil)
 	return chunk
 }

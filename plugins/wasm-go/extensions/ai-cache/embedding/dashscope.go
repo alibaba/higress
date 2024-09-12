@@ -168,7 +168,7 @@ func (d *DSProvider) GetEmbedding(
 
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
-				err = errors.New("failed to parse response")
+				err = errors.New("failed to parse response: " + err.Error())
 				callback(nil, err)
 				return
 			}

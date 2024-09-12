@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	threshold = 2000
+	threshold = 10000
 )
 
 type dashVectorProviderInitializer struct {
@@ -129,6 +129,7 @@ func (d *DvProvider) QueryEmbedding(
 	log wrapper.Log,
 	callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	url, body, headers, err := d.constructEmbeddingQueryParameters(emb)
+	log.Debugf("url:%s, body:%s, headers:%v", url, string(body), headers)
 	if err != nil {
 		err = fmt.Errorf("failed to construct embedding query parameters: %v", err)
 		return err
@@ -139,6 +140,8 @@ func (d *DvProvider) QueryEmbedding(
 			err = nil
 			if statusCode != http.StatusOK {
 				err = fmt.Errorf("failed to query embedding: %d", statusCode)
+				callback(nil, ctx, log, err)
+				return
 			}
 			log.Debugf("query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.ParseQueryResponse(responseBody, ctx, log)
@@ -159,8 +162,9 @@ func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpCon
 	if err != nil {
 		return nil, err
 	}
+
 	if len(resp.Output) == 0 {
-		return nil, nil
+		return nil, errors.New("no query results found in response")
 	}
 
 	results := make([]QueryEmbeddingResult, 0, len(resp.Output))

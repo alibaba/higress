@@ -42,13 +42,17 @@ func (rp *redisProvider) Init(username string, password string, timeout uint32) 
 }
 
 func (rp *redisProvider) Get(key string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.Get(rp.getCacheKeyPrefix()+key, cb)
+	return rp.client.Get(key, cb)
 }
 
 func (rp *redisProvider) Set(key string, value string, cb wrapper.RedisResponseCallback) error {
-	return rp.client.SetEx(rp.getCacheKeyPrefix()+key, value, int(rp.config.cacheTTL), cb)
+	if rp.config.cacheTTL == 0 {
+		return rp.client.Set(key, value, cb)
+	} else {
+		return rp.client.SetEx(key, value, rp.config.cacheTTL, cb)
+	}
 }
 
-func (rp *redisProvider) getCacheKeyPrefix() string {
+func (rp *redisProvider) GetCacheKeyPrefix() string {
 	return rp.config.cacheKeyPrefix
 }

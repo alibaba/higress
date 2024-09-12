@@ -25,8 +25,8 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 	// skip the prefix "data:"
 	bodyJson := message[5:]
 	// Extract values from JSON fields
-	responseBody := gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponsePath)
-	toolCalls := gjson.Get(bodyJson, "choices.0.delta.content.tool_calls")
+	responseBody := gjson.Get(bodyJson, config.CacheStreamValueFrom)
+	toolCalls := gjson.Get(bodyJson, config.CacheToolCallsFrom)
 
 	if toolCalls.Exists() {
 		// TODO: Temporarily store the tool_calls value in the context for processing

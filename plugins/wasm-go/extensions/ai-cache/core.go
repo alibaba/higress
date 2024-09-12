@@ -13,22 +13,30 @@ import (
 
 func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) {
 	activeCacheProvider := config.GetCacheProvider()
-	err := activeCacheProvider.Get(key, func(response resp.Value) {
+	queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
+	// queryKey := key
+	log.Debugf("query key: %s", queryKey)
+	err := activeCacheProvider.Get(queryKey, func(response resp.Value) {
 		if err := response.Error(); err == nil && !response.IsNull() {
 			log.Infof("cache hit, key: %s", key)
-			ProcessCacheHit(key, response, stream, ctx, config, log)
+			processCacheHit(key, response, stream, ctx, config, log)
 		} else {
-			log.Infof("cache miss, key: %s, error: %s", key, err.Error())
+			if err != nil {
+				log.Errorf("error retrieving key: %s from cache, error: %v", key, err)
+			}
+			if response.IsNull() {
+				log.Infof("cache miss, key: %s", key)
+			}
 			if useSimilaritySearch {
 				err = performSimilaritySearch(key, ctx, config, log, key, stream)
 				if err != nil {
 					log.Errorf("failed to perform similarity search for key: %s, error: %v", key, err)
 					proxywasm.ResumeHttpRequest()
+					return
 				}
-			} else {
-				proxywasm.ResumeHttpRequest()
-				return
 			}
+			proxywasm.ResumeHttpRequest()
+			return
 		}
 	})
 
@@ -38,9 +46,11 @@ func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginC
 	}
 }
 
-func ProcessCacheHit(key string, response resp.Value, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
+func processCacheHit(key string, response resp.Value, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
 	escapedResponse, err := json.Marshal(response.String())
+	log.Debugf("cached response: %s", escapedResponse)
 	if err != nil {
+		log.Errorf("failed to marshal cached response: %v", err)
 		proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "text/plain"}}, []byte("Internal Server Error"), -1)
 		return
 	}
@@ -62,12 +72,12 @@ func performSimilaritySearch(key string, ctx wrapper.HttpContext, config config.
 				return
 			}
 			log.Debugf("successfully fetched embeddings for key: %s", key)
-			QueryVectorDB(key, emb, ctx, config, log, stream)
+			queryVectorDB(key, emb, ctx, config, log, stream)
 		})
 	return err
 }
 
-func QueryVectorDB(key string, textEmbedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
+func queryVectorDB(key string, textEmbedding []float64, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) {
 	log.Debugf("starting query for key: %s", key)
 	activeVectorProvider := config.GetVectorProvider()
 	log.Debugf("active vector provider configuration: %+v", activeVectorProvider)

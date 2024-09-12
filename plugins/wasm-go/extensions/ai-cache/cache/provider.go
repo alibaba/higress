@@ -47,7 +47,7 @@ type ProviderConfig struct {
 	timeout uint32
 	// @Title zh-CN 缓存过期时间
 	// @Description zh-CN 缓存过期时间，单位为秒。默认值是0，即永不过期
-	cacheTTL uint32
+	cacheTTL int
 	// @Title 缓存 Key 前缀
 	// @Description 缓存 Key 的前缀，默认值为 "higressAiCache:"
 	cacheKeyPrefix string
@@ -73,9 +73,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if !json.Get("timeout").Exists() {
 		c.timeout = 10000
 	}
-	c.cacheTTL = uint32(json.Get("cacheTTL").Int())
+	c.cacheTTL = int(json.Get("cacheTTL").Int())
 	if !json.Get("cacheTTL").Exists() {
 		c.cacheTTL = 0
+		// c.cacheTTL = 3600000
 	}
 	if json.Get("cacheKeyPrefix").Exists() {
 		c.cacheKeyPrefix = json.Get("cacheKeyPrefix").String()
@@ -91,6 +92,9 @@ func (c *ProviderConfig) Validate() error {
 	}
 	if c.serviceName == "" {
 		return errors.New("cache service name is required")
+	}
+	if c.cacheTTL < 0 {
+		return errors.New("cache TTL must be greater than or equal to 0")
 	}
 	initializer, has := providerInitializers[c.typ]
 	if !has {
@@ -115,5 +119,5 @@ type Provider interface {
 	Init(username string, password string, timeout uint32) error
 	Get(key string, cb wrapper.RedisResponseCallback) error
 	Set(key string, value string, cb wrapper.RedisResponseCallback) error
-	getCacheKeyPrefix() string
+	GetCacheKeyPrefix() string
 }
