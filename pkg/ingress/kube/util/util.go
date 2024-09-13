@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"istio.io/istio/pilot/pkg/model"
 	"os"
 	"path"
 	"strconv"
@@ -148,7 +149,10 @@ func ParseServiceInfo(service string, ingressNamespace string) (ServiceInfo, err
 	}
 
 	return ServiceInfo{
-		NamespacedName: namespacedName,
-		Port:           port,
+		NamespacedName: model.NamespacedName{
+			Name:      namespacedName.Name,
+			Namespace: namespacedName.Namespace,
+		},
+		Port: port,
 	}, nil
 }
