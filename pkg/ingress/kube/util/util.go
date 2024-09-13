@@ -42,8 +42,6 @@ const (
 	IngressClassAnnotation = "kubernetes.io/ingress.class"
 )
 
-const DefaultDomainSuffix = "cluster.local"
-
 var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
