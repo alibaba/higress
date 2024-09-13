@@ -17,11 +17,10 @@ package annotations
 import (
 	"strconv"
 
-	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/model"
-
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	networking "istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -40,7 +39,7 @@ var (
 )
 
 type FallbackConfig struct {
-	DefaultBackend   model.NamespacedName
+	DefaultBackend   types.NamespacedName
 	Port             uint32
 	customHTTPErrors []uint32
 }
@@ -114,7 +113,6 @@ func (f fallback) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		return
 	}
 
-	// Add fallback svc
 	route.Route[0].FallbackClusters = []*networking.Destination{
 		{
 			Host: util.CreateServiceFQDN(fallback.DefaultBackend.Namespace, fallback.DefaultBackend.Name),

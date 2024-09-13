@@ -18,9 +18,12 @@ package v1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	networkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
 	scheme "github.com/alibaba/higress/client/pkg/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -45,6 +48,8 @@ type McpBridgeInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*v1.McpBridgeList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.McpBridge, err error)
+	Apply(ctx context.Context, mcpBridge *networkingv1.McpBridgeApplyConfiguration, opts metav1.ApplyOptions) (result *v1.McpBridge, err error)
+	ApplyStatus(ctx context.Context, mcpBridge *networkingv1.McpBridgeApplyConfiguration, opts metav1.ApplyOptions) (result *v1.McpBridge, err error)
 	McpBridgeExpansion
 }
 
@@ -186,6 +191,62 @@ func (c *mcpBridges) Patch(ctx context.Context, name string, pt types.PatchType,
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied mcpBridge.
+func (c *mcpBridges) Apply(ctx context.Context, mcpBridge *networkingv1.McpBridgeApplyConfiguration, opts metav1.ApplyOptions) (result *v1.McpBridge, err error) {
+	if mcpBridge == nil {
+		return nil, fmt.Errorf("mcpBridge provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(mcpBridge)
+	if err != nil {
+		return nil, err
+	}
+	name := mcpBridge.Name
+	if name == nil {
+		return nil, fmt.Errorf("mcpBridge.Name must be provided to Apply")
+	}
+	result = &v1.McpBridge{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("mcpbridges").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *mcpBridges) ApplyStatus(ctx context.Context, mcpBridge *networkingv1.McpBridgeApplyConfiguration, opts metav1.ApplyOptions) (result *v1.McpBridge, err error) {
+	if mcpBridge == nil {
+		return nil, fmt.Errorf("mcpBridge provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(mcpBridge)
+	if err != nil {
+		return nil, err
+	}
+
+	name := mcpBridge.Name
+	if name == nil {
+		return nil, fmt.Errorf("mcpBridge.Name must be provided to Apply")
+	}
+
+	result = &v1.McpBridge{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("mcpbridges").
+		Name(*name).
+		SubResource("status").
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

@@ -21,6 +21,8 @@ const (
 	pluginName = "ai-proxy"
 
 	ctxKeyApiName = "apiKey"
+
+	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
 )
 
 func main() {
@@ -64,7 +66,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	apiName := getOpenAiApiName(path.Path)
 	if apiName == "" {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		_ = util.SendResponse(404, util.MimeTypeTextPlain, "API not found: "+path.Path)
+		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
@@ -72,17 +74,19 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
 		ctx.DisableReroute()
-
+		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
+			if hasRequestBody {
+				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
+				// Always return types.HeaderStopIteration to support fallback routing,
+				// as long as onHttpRequestBody can be called.
+				return types.HeaderStopIteration
+			}
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_req_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request headers: %v", err))
 		return types.ActionContinue
-	}
-
-	if _, needHandleBody := activeProvider.(provider.RequestBodyHandler); needHandleBody {
-		ctx.DontReadRequestBody()
 	}
 
 	return types.ActionContinue
@@ -99,18 +103,32 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
-		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+
+		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
+		if settingErr != nil {
+			_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to rewrite request body by custom settings: %v", settingErr))
+			return types.ActionContinue
+		}
+
+		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
+		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
-		return types.ActionContinue
+		_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
 	}
 	return types.ActionContinue
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, log wrapper.Log) types.Action {
+	if !wrapper.IsResponseFromUpstream() {
+		// Response is not coming from the upstream. Let it pass through.
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	activeProvider := pluginConfig.GetProvider()
 
 	if activeProvider == nil {
@@ -130,24 +148,18 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		return types.ActionContinue
 	}
 
-	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
-	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
-		if err != nil {
-			log.Errorf("unable to load content-type header from response: %v", err)
-		}
-		ctx.BufferResponseBody()
-	}
-
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
-		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		action, err := handler.OnResponseHeaders(ctx, apiName, log)
 		if err == nil {
+			checkStream(&ctx, &log)
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_resp_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
 		return types.ActionContinue
 	}
 
+	checkStream(&ctx, &log)
 	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleBody && !needHandleStreamingBody {
@@ -171,7 +183,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	log.Debugf("isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
 
 	if handler, ok := activeProvider.(provider.StreamingResponseBodyHandler); ok {
-		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk, log)
 		if err == nil && modifiedChunk != nil {
 			return modifiedChunk
@@ -193,12 +205,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 	//log.Debugf("response body: %s", string(body))
 
 	if handler, ok := activeProvider.(provider.ResponseBodyHandler); ok {
-		apiName := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		action, err := handler.OnResponseBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
-		_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to process response body: %v", err))
+		_ = util.SendResponse(500, "ai-proxy.proc_resp_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response body: %v", err))
 		return types.ActionContinue
 	}
 	return types.ActionContinue
@@ -212,4 +224,14 @@ func getOpenAiApiName(path string) provider.ApiName {
 		return provider.ApiNameEmbeddings
 	}
 	return ""
+}
+
+func checkStream(ctx *wrapper.HttpContext, log *wrapper.Log) {
+	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
+	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
+		if err != nil {
+			log.Errorf("unable to load content-type header from response: %v", err)
+		}
+		(*ctx).BufferResponseBody()
+	}
 }

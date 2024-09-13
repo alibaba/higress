@@ -34,6 +34,9 @@ type baiduProviderInitializer struct {
 }
 
 func (b *baiduProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -80,7 +83,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 			return types.ActionContinue, errors.New("request model is empty")
 		}
 		// 根据模型重写requestPath
-		path := b.GetRequestPath(request.Model)
+		path := b.getRequestPath(request.Model)
 		_ = util.OverwriteRequestPath(path)
 
 		if b.config.context == nil {
@@ -94,11 +97,11 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			b.setSystemContent(request, content)
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -123,7 +126,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 	}
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := b.GetRequestPath(mappedModel)
+	path := b.getRequestPath(mappedModel)
 	_ = util.OverwriteRequestPath(path)
 
 	if b.config.context == nil {
@@ -137,12 +140,12 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		baiduRequest := b.baiduTextGenRequest(request)
 		if err := replaceJsonRequestBody(baiduRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -223,7 +226,7 @@ type baiduTextGenRequest struct {
 	UserId          string        `json:"user_id,omitempty"`
 }
 
-func (b *baiduProvider) GetRequestPath(baiduModel string) string {
+func (b *baiduProvider) getRequestPath(baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
 	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
 	if !ok {
@@ -250,7 +253,7 @@ func (b *baiduProvider) baiduTextGenRequest(request *chatCompletionRequest) *bai
 	}
 	for _, message := range request.Messages {
 		if message.Role == roleSystem {
-			baiduRequest.System = message.Content
+			baiduRequest.System = message.StringContent()
 		} else {
 			baiduRequest.Messages = append(baiduRequest.Messages, chatMessage{
 				Role:    message.Role,
@@ -298,7 +301,7 @@ func (b *baiduProvider) responseBaidu2OpenAI(ctx wrapper.HttpContext, response *
 	return &chatCompletionResponse{
 		Id:                response.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
@@ -321,9 +324,9 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 	return &chatCompletionResponse{
 		Id:                response.Id,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetContext(ctxKeyFinalRequestModel).(string),
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
-		Object:            objectChatCompletion,
+		Object:            objectChatCompletionChunk,
 		Choices:           []chatCompletionChoice{choice},
 		Usage: usage{
 			PromptTokens:     response.Usage.PromptTokens,

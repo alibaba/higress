@@ -1,12 +1,18 @@
-## 简介
+---
+title: AI 缓存
+keywords: [higress,ai cache]
+description: AI 缓存插件配置参考
+---
 
-**Note**
 
-> 需要数据面的proxy wasm版本大于等于0.2.100
-
-> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
+## 功能说明
 
 LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的结果缓存，同时支持流式和非流式响应的缓存。
+
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`10`
 
 ## 配置说明
 
@@ -32,3 +38,15 @@ redis:
   serviceName: my-redis.dns
   timeout: 2000
 ```
+
+## 进阶用法
+
+当前默认的缓存 key 是基于 GJSON PATH 的表达式：`messages.@reverse.0.content` 提取，含义是把 messages 数组反转后取第一项的 content；
+
+GJSON PATH 支持条件判断语法，例如希望取最后一个 role 为 user 的 content 作为 key，可以写成： `messages.@reverse.#(role=="user").content`；
+
+如果希望将所有 role 为 user 的 content 拼成一个数组作为 key，可以写成：`messages.@reverse.#(role=="user")#.content`；
+
+还可以支持管道语法，例如希望取到数第二个 role 为 user 的 content 作为 key，可以写成：`messages.@reverse.#(role=="user")#.content|1`。
+
+更多用法可以参考[官方文档](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，可以使用 [GJSON Playground](https://gjson.dev/) 进行语法测试。

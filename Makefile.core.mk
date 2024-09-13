@@ -1,12 +1,16 @@
 SHELL := /bin/bash -o pipefail
 
-export BASE_VERSION ?= 2022-10-27T19-02-22
+export HIGRESS_BASE_VERSION ?= 2023-07-20T20-50-43
 
 export HUB ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
+export ISTIO_BASE_REGISTRY ?= $(HUB)
+
+export BASE_VERSION ?= $(HIGRESS_BASE_VERSION)
+
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/version
+VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 
@@ -45,6 +49,7 @@ HIGRESS_DOCKER_BUILD_TOP:=${OUT_LINUX}/docker_build
 
 HIGRESS_BINARIES:=./cmd/higress
 
+HGCTL_PROJECT_DIR=./hgctl
 HGCTL_BINARIES:=./cmd/hgctl
 
 $(OUT):
@@ -52,6 +57,7 @@ $(OUT):
 
 submodule:
 	git submodule update --init
+#	git submodule update --remote
 
 .PHONY: prebuild
 prebuild: submodule
@@ -80,20 +86,27 @@ $(ARM64_OUT_LINUX)/higress:
 
 .PHONY: build-hgctl
 build-hgctl: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh $(OUT)/ $(HGCTL_BINARIES)
 
 .PHONY: build-linux-hgctl
 build-linux-hgctl: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh $(OUT_LINUX)/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-multiarch
 build-hgctl-multiarch: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/darwin_arm64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_amd64/ $(HGCTL_BINARIES)
-	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/windows_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/linux_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/linux_arm64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/windows_amd64/ $(HGCTL_BINARIES)
+	GOPROXY=$(GOPROXY) GOOS=windows GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/windows_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-arm64
+build-hgctl-macos-arm64: prebuild $(OUT)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+
+.PHONY: build-hgctl-macos-amd64
+build-hgctl-macos-amd64: prebuild $(OUT)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
 # * Building all docker images (generally in CI). In this case we want to build everything at once, so they share work
@@ -128,40 +141,37 @@ docker-build: docker.higress ## Build and push docker images to registry defined
 
 docker-buildx-push: clean-env docker.higress-buildx
 
-docker-build-base:
-	docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t ${HUB}/base:${BASE_VERSION} -f docker/Dockerfile.base . --push
-
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_TAR_PATH:=/home/package/envoy.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0/envoy-symbol-ARCH.tar.gz
 
-external/package/envoy-amd64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-amd64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.0/envoy-symbol-amd64.tar.gz"
+build-envoy: prebuild
+	./tools/hack/build-envoy.sh
 
-external/package/envoy-arm64.tar.gz:
-#	cd external/proxy; BUILD_WITH_CONTAINER=1  make test_release
-	cd external/package; wget -O envoy-arm64.tar.gz "https://github.com/alibaba/higress/releases/download/v1.4.0/envoy-symbol-arm64.tar.gz"
+build-pilot: prebuild
+	TARGET_ARCH=amd64 ./tools/hack/build-istio-pilot.sh
+	TARGET_ARCH=arm64 ./tools/hack/build-istio-pilot.sh
 
-build-pilot:
-	cd external/istio; rm -rf out/linux_amd64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=amd64 BUILD_WITH_CONTAINER=1 make build-linux
-	cd external/istio; rm -rf out/linux_arm64; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=arm64 BUILD_WITH_CONTAINER=1 make build-linux
+build-pilot-local: prebuild
+	TARGET_ARCH=${TARGET_ARCH} ./tools/hack/build-istio-pilot.sh
 
-build-pilot-local:
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${GOARCH_LOCAL} BUILD_WITH_CONTAINER=1 make build-linux
+buildx-prepare:
+	docker buildx inspect multi-arch >/dev/null 2>&1 || docker buildx create --name multi-arch --platform linux/amd64,linux/arm64 --use
 
-build-gateway: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz build-pilot
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+build-gateway: prebuild buildx-prepare
+	USE_REAL_USER=1 TARGET_ARCH=amd64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
+	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
+	DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker.buildx
 
-build-gateway-local: prebuild external/package/envoy-amd64.tar.gz external/package/envoy-arm64.tar.gz
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.proxyv2" make docker
+build-gateway-local: prebuild
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
 
-build-istio: prebuild build-pilot
-	cd external/istio; BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=true DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+build-istio: prebuild buildx-prepare
+	DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker.buildx
 
 build-istio-local: prebuild
-	cd external/istio; rm -rf out/linux_${GOARCH_LOCAL}; GOOS_LOCAL=linux TARGET_OS=linux BUILD_WITH_CONTAINER=1 BUILDX_PLATFORM=false DOCKER_BUILD_VARIANTS=default DOCKER_TARGETS="docker.pilot" make docker
+	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker
 
 build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh
@@ -177,8 +187,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= sha-63539ca
-ISTIO_LATEST_IMAGE_TAG ?= sha-63539ca
+ENVOY_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
+ISTIO_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -275,17 +285,29 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
-	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/httpbin 1.0.2
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
+	tools/hack/docker-pull-image.sh openpolicyagent/opa latest
+	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
+	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
-	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
+	tools/hack/kind-load-image.sh openpolicyagent/opa latest
+	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
+	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 
 # run-higress-e2e-test-setup starts to setup ingress e2e tests.
 .PHONT: run-higress-e2e-test-setup

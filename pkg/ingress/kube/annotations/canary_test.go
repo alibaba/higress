@@ -15,11 +15,11 @@
 package annotations
 
 import (
-	"reflect"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
+	"github.com/stretchr/testify/assert"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -125,87 +125,14 @@ func TestCanaryParse(t *testing.T) {
 }
 
 func TestApplyWeight(t *testing.T) {
-	route := &networking.HTTPRoute{
-		Headers: &networking.Headers{
-			Request: &networking.Headers_HeaderOperations{
-				Add: map[string]string{
-					"normal": "true",
-				},
-			},
-		},
-		Route: []*networking.HTTPRouteDestination{
-			{
-				Destination: &networking.Destination{
-					Host: "normal",
-					Port: &networking.PortSelector{
-						Number: 80,
-					},
-				},
-			},
-		},
-	}
-
-	canary1 := &networking.HTTPRoute{
-		Headers: &networking.Headers{
-			Request: &networking.Headers_HeaderOperations{
-				Add: map[string]string{
-					"canary1": "true",
-				},
-			},
-		},
-		Route: []*networking.HTTPRouteDestination{
-			{
-				Destination: &networking.Destination{
-					Host: "canary1",
-					Port: &networking.PortSelector{
-						Number: 80,
-					},
-				},
-			},
-		},
-	}
-
-	canary2 := &networking.HTTPRoute{
-		Headers: &networking.Headers{
-			Request: &networking.Headers_HeaderOperations{
-				Add: map[string]string{
-					"canary2": "true",
-				},
-			},
-		},
-		Route: []*networking.HTTPRouteDestination{
-			{
-				Destination: &networking.Destination{
-					Host: "canary2",
-					Port: &networking.PortSelector{
-						Number: 80,
-					},
-				},
-			},
-		},
-	}
-
-	ApplyByWeight(canary1, route, &Ingress{
-		Canary: &CanaryConfig{
-			Weight: 30,
-		},
-	})
-
-	ApplyByWeight(canary2, route, &Ingress{
-		Canary: &CanaryConfig{
-			Weight: 20,
-		},
-	})
-
-	expect := &networking.HTTPRoute{
-		Route: []*networking.HTTPRouteDestination{
-			{
-				Destination: &networking.Destination{
-					Host: "normal",
-					Port: &networking.PortSelector{
-						Number: 80,
-					},
-				},
+	testCases := []struct {
+		normal *networking.HTTPRoute
+		canary []*networking.HTTPRoute
+		config []*Ingress
+		expect *networking.HTTPRoute
+	}{
+		{
+			normal: &networking.HTTPRoute{
 				Headers: &networking.Headers{
 					Request: &networking.Headers_HeaderOperations{
 						Add: map[string]string{
@@ -213,51 +140,132 @@ func TestApplyWeight(t *testing.T) {
 						},
 					},
 				},
-			},
-			{
-				Destination: &networking.Destination{
-					Host: "canary1",
-					Port: &networking.PortSelector{
-						Number: 80,
-					},
-				},
-				Headers: &networking.Headers{
-					Request: &networking.Headers_HeaderOperations{
-						Add: map[string]string{
-							"canary1": "true",
-						},
-					},
-				},
-				Weight: 30,
-				FallbackClusters: []*networking.Destination{
+				Route: []*networking.HTTPRouteDestination{
 					{
-						Host: "normal",
-						Port: &networking.PortSelector{
-							Number: 80,
+						Destination: &networking.Destination{
+							Host: "normal",
+							Port: &networking.PortSelector{
+								Number: 80,
+							},
 						},
 					},
 				},
 			},
-			{
-				Destination: &networking.Destination{
-					Host: "canary2",
-					Port: &networking.PortSelector{
-						Number: 80,
+			canary: []*networking.HTTPRoute{
+				{
+					Headers: &networking.Headers{
+						Request: &networking.Headers_HeaderOperations{
+							Add: map[string]string{
+								"canary1": "true",
+							},
+						},
 					},
-				},
-				Headers: &networking.Headers{
-					Request: &networking.Headers_HeaderOperations{
-						Add: map[string]string{
-							"canary2": "true",
+					Route: []*networking.HTTPRouteDestination{
+						{
+							Destination: &networking.Destination{
+								Host: "canary1",
+								Port: &networking.PortSelector{
+									Number: 80,
+								},
+							},
 						},
 					},
 				},
-				Weight: 20,
-				FallbackClusters: []*networking.Destination{
+				{
+					Headers: &networking.Headers{
+						Request: &networking.Headers_HeaderOperations{
+							Add: map[string]string{
+								"canary2": "true",
+							},
+						},
+					},
+					Route: []*networking.HTTPRouteDestination{
+						{
+							Destination: &networking.Destination{
+								Host: "canary2",
+								Port: &networking.PortSelector{
+									Number: 80,
+								},
+							},
+						},
+					},
+				},
+			},
+			config: []*Ingress{
+				{
+					Canary: &CanaryConfig{
+						Weight: 30,
+					},
+				},
+				{
+					Canary: &CanaryConfig{
+						Weight: 20,
+					},
+				},
+			},
+			expect: &networking.HTTPRoute{
+				Route: []*networking.HTTPRouteDestination{
 					{
-						Host: "normal",
-						Port: &networking.PortSelector{
-							Number: 80,
+						Destination: &networking.Destination{
+							Host: "normal",
+							Port: &networking.PortSelector{
+								Number: 80,
+							},
+						},
+						Headers: &networking.Headers{
+							Request: &networking.Headers_HeaderOperations{
+								Add: map[string]string{
+									"normal": "true",
+								},
+							},
+						},
+					},
+					{
+						Destination: &networking.Destination{
+							Host: "canary1",
+							Port: &networking.PortSelector{
+								Number: 80,
+							},
+						},
+						Headers: &networking.Headers{
+							Request: &networking.Headers_HeaderOperations{
+								Add: map[string]string{
+									"canary1": "true",
+								},
+							},
+						},
+						Weight: 30,
+						FallbackClusters: []*networking.Destination{
+							{
+								Host: "normal",
+								Port: &networking.PortSelector{
+									Number: 80,
+								},
+							},
+						},
+					},
+					{
+						Destination: &networking.Destination{
+							Host: "canary2",
+							Port: &networking.PortSelector{
+								Number: 80,
+							},
+						},
+						Headers: &networking.Headers{
+							Request: &networking.Headers_HeaderOperations{
+								Add: map[string]string{
+									"canary2": "true",
+								},
+							},
+						},
+						Weight: 20,
+						FallbackClusters: []*networking.Destination{
+							{
+								Host: "normal",
+								Port: &networking.PortSelector{
+									Number: 80,
+								},
+							},
 						},
 					},
 				},
@@ -265,7 +273,22 @@ func TestApplyWeight(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(route, expect) {
-		t.Fatal("Should be equal")
+	for _, testCase := range testCases {
+		t.Run("", func(t *testing.T) {
+			for i := range testCase.canary {
+				canary := testCase.canary[i]
+				config := testCase.config[i]
+				ApplyByWeight(canary, testCase.normal, config)
+			}
+			for index, route := range testCase.normal.Route {
+				fmt.Printf("actual route %d: %+v\n", index, route)
+
+			}
+			for index, route := range testCase.expect.Route {
+				fmt.Printf("expect route %d: %+v\n", index, route)
+
+			}
+			assert.Equal(t, testCase.expect, testCase.normal)
+		})
 	}
 }

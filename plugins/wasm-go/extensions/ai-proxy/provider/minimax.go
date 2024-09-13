@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"strings"
 )
 
 // minimaxProvider is the provider for minimax service.
@@ -51,6 +52,9 @@ func (m *minimaxProviderInitializer) ValidateConfig(config ProviderConfig) error
 			}
 		}
 	}
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
+	}
 	return nil
 }
 
@@ -75,7 +79,7 @@ func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(minimaxDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
@@ -135,11 +139,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 			}
 			m.setBotSettings(request, content)
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -168,11 +172,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, content)
 		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -202,11 +206,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, log w
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
 		insertContextMessage(request, content)
 		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -222,9 +226,9 @@ func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName Api
 		return types.ActionContinue, nil
 	}
 	// 模型对应接口为ChatCompletion v2,跳过OnStreamingResponseBody()和OnResponseBody()
-	model := ctx.GetContext(ctxKeyFinalRequestModel)
-	if model != nil {
-		_, ok := chatCompletionProModels[model.(string)]
+	model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
+	if model != "" {
+		_, ok := chatCompletionProModels[model]
 		if !ok {
 			ctx.DontReadResponseBody()
 			return types.ActionContinue, nil
@@ -400,19 +404,19 @@ func (m *minimaxProvider) buildMinimaxChatCompletionV2Request(request *chatCompl
 			botName = determineName(message.Name, defaultBotName)
 			botSetting = append(botSetting, minimaxBotSetting{
 				BotName: botName,
-				Content: message.Content,
+				Content: message.StringContent(),
 			})
 		case roleAssistant:
 			messages = append(messages, minimaxMessage{
 				SenderType: senderTypeBot,
 				SenderName: determineName(message.Name, defaultBotName),
-				Text:       message.Content,
+				Text:       message.StringContent(),
 			})
 		case roleUser:
 			messages = append(messages, minimaxMessage{
 				SenderType: senderTypeUser,
 				SenderName: determineName(message.Name, defaultSenderName),
-				Text:       message.Content,
+				Text:       message.StringContent(),
 			})
 		}
 	}

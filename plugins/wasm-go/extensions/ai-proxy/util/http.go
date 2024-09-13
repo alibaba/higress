@@ -9,8 +9,8 @@ const (
 	MimeTypeApplicationJson = "application/json"
 )
 
-func SendResponse(statusCode uint32, contentType, body string) error {
-	return proxywasm.SendHttpResponse(statusCode, CreateHeaders(HeaderContentType, contentType), []byte(body), -1)
+func SendResponse(statusCode uint32, statusCodeDetails string, contentType, body string) error {
+	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetails, CreateHeaders(HeaderContentType, contentType), []byte(body), -1)
 }
 
 func CreateHeaders(kvs ...string) [][2]string {
@@ -33,4 +33,13 @@ func OverwriteRequestPath(path string) error {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	return proxywasm.ReplaceHttpRequestHeader(":path", path)
+}
+
+func OverwriteRequestAuthorization(credential string) error {
+	if exist, _ := proxywasm.GetHttpRequestHeader("X-HI-ORIGINAL-AUTH"); exist == "" {
+		if originAuth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil {
+			_ = proxywasm.AddHttpRequestHeader("X-HI-ORIGINAL-AUTH", originAuth)
+		}
+	}
+	return proxywasm.ReplaceHttpRequestHeader("Authorization", credential)
 }

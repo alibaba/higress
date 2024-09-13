@@ -114,6 +114,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
+			proxywasm.ResumeHttpRequest()
 			return
 		}
 		context := LimitContext{
@@ -162,11 +163,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 	keys := []interface{}{limitRedisContext.key}
 	args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
 
-	err = config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
-		if response.Error() != nil {
-			log.Errorf("call Eval error: %v", response.Error())
-		}
-	})
+	err = config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
 	if err != nil {
 		log.Errorf("redis call failed: %v", err)
 		return data
@@ -297,6 +294,6 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
-	_ = proxywasm.SendHttpResponse(
-		config.rejectedCode, reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+	_ = proxywasm.SendHttpResponseWithDetail(
+		config.rejectedCode, "ai-token-ratelimit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
 }

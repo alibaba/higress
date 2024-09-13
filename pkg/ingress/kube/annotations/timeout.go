@@ -16,6 +16,7 @@ package annotations
 
 import (
 	types "github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/duration"
 
 	networking "istio.io/api/networking/v1alpha3"
 )
@@ -54,7 +55,9 @@ func (t timeout) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		return
 	}
 
-	route.Timeout = timeout.time
+	route.Timeout = &duration.Duration{
+		Seconds: timeout.time.Seconds,
+	}
 }
 
 func needTimeoutConfig(annotations Annotations) bool {

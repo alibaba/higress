@@ -21,7 +21,7 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -43,16 +43,16 @@ type ConformanceTestSuite struct {
 	Cleanup           bool
 	BaseManifests     []string
 	Applier           kubernetes.Applier
-	SkipTests         sets.Set
-	ExecuteTests      sets.Set
+	SkipTests         sets.Set[string]
+	ExecuteTests      sets.Set[string]
 	TimeoutConfig     config.TimeoutConfig
-	SupportedFeatures sets.Set
+	SupportedFeatures sets.Set[string]
 }
 
 // Options can be used to initialize a ConformanceTestSuite.
 type Options struct {
-	SupportedFeatures sets.Set
-	ExemptFeatures    sets.Set
+	SupportedFeatures sets.Set[string]
+	ExemptFeatures    sets.Set[string]
 	ExecuteTests      string
 
 	EnableAllSupportedFeatures bool
@@ -91,14 +91,15 @@ func New(s Options) *ConformanceTestSuite {
 	}
 
 	if s.SupportedFeatures == nil {
-		s.SupportedFeatures = sets.Set{}
+		s.SupportedFeatures = sets.Set[string]{}
 	}
 
 	if s.IsWasmPluginTest {
-		if s.WasmPluginType == "CPP" {
-			s.SupportedFeatures.Insert(string(WASMCPPConformanceFeature))
+		feature, ok := WasmPluginTypeMap[s.WasmPluginType]
+		if ok {
+			s.SupportedFeatures.Insert(string(feature))
 		} else {
-			s.SupportedFeatures.Insert(string(WASMGoConformanceFeature))
+			panic("WasmPluginType [" + s.WasmPluginType + "] not support")
 		}
 	} else if s.IsEnvoyConfigTest {
 		s.SupportedFeatures.Insert(string(EnvoyConfigConformanceFeature))
@@ -119,7 +120,7 @@ func New(s Options) *ConformanceTestSuite {
 		BaseManifests:     s.BaseManifests,
 		SupportedFeatures: s.SupportedFeatures,
 		GatewayAddress:    s.GatewayAddress,
-		ExecuteTests:      sets.NewSet(),
+		ExecuteTests:      sets.New[string](),
 		Applier: kubernetes.Applier{
 			NamespaceLabels: s.NamespaceLabels,
 		},

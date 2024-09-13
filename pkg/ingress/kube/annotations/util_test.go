@@ -19,25 +19,25 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"istio.io/istio/pilot/pkg/model"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestExtraSecret(t *testing.T) {
 	inputCases := []struct {
 		input  string
-		expect model.NamespacedName
+		expect types.NamespacedName
 	}{
 		{
 			input:  "test/test",
-			expect: model.NamespacedName{},
+			expect: types.NamespacedName{},
 		},
 		{
 			input:  "kubernetes-ingress://test/test",
-			expect: model.NamespacedName{},
+			expect: types.NamespacedName{},
 		},
 		{
 			input: "kubernetes-ingress://cluster/foo/bar",
-			expect: model.NamespacedName{
+			expect: types.NamespacedName{
 				Namespace: "foo",
 				Name:      "bar",
 			},

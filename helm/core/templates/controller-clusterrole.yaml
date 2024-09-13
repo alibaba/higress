@@ -9,7 +9,7 @@ rules:
   # ingress controller
   - apiGroups: ["extensions", "networking.k8s.io"]
     resources: ["ingresses"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
   - apiGroups: ["extensions", "networking.k8s.io"]
     resources: ["ingresses/status"]
     verbs: ["*"]
@@ -26,12 +26,17 @@ rules:
     verbs: ["create", "get", "list", "watch", "update"]
 
   # Use for Kubernetes Service APIs
-  - apiGroups: ["networking.x-k8s.io", "gateway.networking.k8s.io"]
+  - apiGroups: ["networking.x-k8s.io"]
     resources: ["*"]
     verbs: ["get", "watch", "list"]
-  - apiGroups: ["networking.x-k8s.io", "gateway.networking.k8s.io"]
+  - apiGroups: ["networking.x-k8s.io"]
     resources: ["*"] # TODO: should be on just */status but wildcard is not supported
     verbs: ["update"]
+
+  # Gateway api controller
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "watch", "list", "create", "update", "delete", "patch"]
 
   # Needed for multicluster secret reading, possibly ingress certs in the future
   - apiGroups: [""]
@@ -61,7 +66,7 @@ rules:
 
   # discovery and routing
   - apiGroups: [""]
-    resources: ["pods", "nodes", "services", "namespaces", "endpoints"]
+    resources: ["pods", "nodes", "services", "namespaces", "endpoints", "deployments"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
