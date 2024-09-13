@@ -101,11 +101,11 @@ build-hgctl-multiarch: prebuild $(OUT)
 
 .PHONY: build-hgctl-macos-arm64
 build-hgctl-macos-arm64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-macos-amd64
 build-hgctl-macos-amd64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
