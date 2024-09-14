@@ -46,7 +46,7 @@ type Response struct {
 }
 
 // 用于存放拆解出来的工具相关信息
-type Tools_Param struct {
+type ToolsParam struct {
 	ToolName    string   `yaml:"toolName"`
 	Path        string   `yaml:"path"`
 	Method      string   `yaml:"method"`
@@ -57,10 +57,10 @@ type Tools_Param struct {
 
 // 用于存放拆解出来的api相关信息
 type APIsParam struct {
-	APIKey           APIKey        `yaml:"apiKey"`
-	URL              string        `yaml:"url"`
-	MaxExecutionTime int64         `yaml:"maxExecutionTime"`
-	Tools_Param      []Tools_Param `yaml:"tools_Param"`
+	APIKey           APIKey       `yaml:"apiKey"`
+	URL              string       `yaml:"url"`
+	MaxExecutionTime int64        `yaml:"maxExecutionTime"`
+	ToolsParam       []ToolsParam `yaml:"toolsParam"`
 }
 
 type Info struct {
@@ -154,7 +154,7 @@ type APIProvider struct {
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 	// @Title zh-CN 服务域名
 	// @Description zh-CN 服务域名，例如 restapi.amap.com
-	Domin string `required:"true" yaml:"domain" json:"domain"`
+	Domain string `required:"true" yaml:"domain" json:"domain"`
 	// @Title zh-CN 每一次请求api的超时时间
 	// @Description zh-CN 每一次请求api的超时时间，单位毫秒，默认50000
 	MaxExecutionTime int64 `yaml:"maxExecutionTime" json:"maxExecutionTime"`
@@ -190,7 +190,7 @@ type LLMInfo struct {
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 	// @Title zh-CN 大模型服务域名
 	// @Description zh-CN 大模型服务域名，例如 dashscope.aliyuncs.com
-	Domin string `required:"true" yaml:"domin" json:"domin"`
+	Domain string `required:"true" yaml:"domain" json:"domain"`
 	// @Title zh-CN 大模型服务的key
 	// @Description zh-CN 大模型服务的key
 	APIKey string `required:"true" yaml:"apiKey" json:"apiKey"`
@@ -292,13 +292,13 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			return err
 		}
 
-		var allTool_param []Tools_Param
+		var allTool_param []ToolsParam
 		//拆除服务下面的每个api的path
 		for path, pathmap := range apiStruct.Paths {
 			//拆解出每个api对应的参数
 			for method, submap := range pathmap {
 				//把参数列表存起来
-				var param Tools_Param
+				var param ToolsParam
 				param.Path = path
 				param.ToolName = submap.OperationID
 				if method == "get" {
@@ -326,7 +326,7 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			APIKey:           APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
 			URL:              apiStruct.Servers[0].URL,
 			MaxExecutionTime: maxExecutionTime,
-			Tools_Param:      allTool_param,
+			ToolsParam:       allTool_param,
 		}
 
 		c.APIsParam = append(c.APIsParam, apiParam)
@@ -380,7 +380,7 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 	c.LLMInfo.APIKey = gjson.Get("llm.apiKey").String()
 	c.LLMInfo.ServiceName = gjson.Get("llm.serviceName").String()
 	c.LLMInfo.ServicePort = gjson.Get("llm.servicePort").Int()
-	c.LLMInfo.Domin = gjson.Get("llm.domain").String()
+	c.LLMInfo.Domain = gjson.Get("llm.domain").String()
 	c.LLMInfo.Path = gjson.Get("llm.path").String()
 	c.LLMInfo.Model = gjson.Get("llm.model").String()
 	c.LLMInfo.MaxIterations = gjson.Get("llm.maxIterations").Int()
@@ -399,6 +399,6 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 	c.LLMClient = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: c.LLMInfo.ServiceName,
 		Port: c.LLMInfo.ServicePort,
-		Host: c.LLMInfo.Domin,
+		Host: c.LLMInfo.Domain,
 	})
 }

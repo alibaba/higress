@@ -55,7 +55,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRequest Request, log wrapper.Log) types.Action {
-	log.Debugf("[onHttpRequestBody] firstreq:%s\n", prompt)
+	log.Debugf("[onHttpRequestBody] firstreq:%s", prompt)
 
 	var userMessage Message
 	userMessage.Role = "user"
@@ -73,7 +73,7 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 	if err != nil {
 		return types.ActionContinue
 	} else {
-		log.Debugf("[onHttpRequestBody] newRequestBody: %s\n", string(newbody))
+		log.Debugf("[onHttpRequestBody] newRequestBody: %s", string(newbody))
 		err := proxywasm.ReplaceHttpRequestBody(newbody)
 		if err != nil {
 			log.Debug("替换失败")
@@ -92,7 +92,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	var rawRequest Request
 	err := json.Unmarshal(body, &rawRequest)
 	if err != nil {
-		log.Debugf("[onHttpRequestBody] body json umarshal err: %s\n", err.Error())
+		log.Debugf("[onHttpRequestBody] body json umarshal err: %s", err.Error())
 		return types.ActionContinue
 	}
 	log.Debugf("onHttpRequestBody rawRequest: %v", rawRequest)
@@ -101,13 +101,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	var query string
 	var history string
 	messageLength := len(rawRequest.Messages)
-	log.Debugf("[onHttpRequestBody] messageLength: %s\n", messageLength)
+	log.Debugf("[onHttpRequestBody] messageLength: %s", messageLength)
 	if messageLength > 0 {
 		query = rawRequest.Messages[messageLength-1].Content
-		log.Debugf("[onHttpRequestBody] query: %s\n", query)
+		log.Debugf("[onHttpRequestBody] query: %s", query)
 		if messageLength >= 3 {
 			for i := 0; i < messageLength-1; i += 2 {
-				history += "human: " + rawRequest.Messages[i].Content + "AI: " + rawRequest.Messages[i+1].Content
+				history += "human: " + rawRequest.Messages[i].Content + "\nAI: " + rawRequest.Messages[i+1].Content
 			}
 		} else {
 			history = ""
@@ -125,7 +125,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	tool_desc := make([]string, 0)
 	tool_names := make([]string, 0)
 	for _, apisParam := range config.APIsParam {
-		for _, tool_param := range apisParam.Tools_Param {
+		for _, tool_param := range apisParam.ToolsParam {
 			tool_desc = append(tool_desc, fmt.Sprintf(prompttpl.TOOL_DESC, tool_param.ToolName, tool_param.Description, tool_param.Description, tool_param.Description, tool_param.Parameter), "\n")
 			tool_names = append(tool_names, tool_param.ToolName)
 		}
@@ -177,7 +177,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 
 func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
 	if statusCode != http.StatusOK {
-		log.Debugf("statusCode: %d\n", statusCode)
+		log.Debugf("statusCode: %d", statusCode)
 	}
 	log.Info("========函数返回结果========")
 	log.Infof(string(responseBody))
@@ -202,7 +202,7 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 			//得到gpt的返回结果
 			var responseCompletion dashscope.CompletionResponse
 			_ = json.Unmarshal(responseBody, &responseCompletion)
-			log.Infof("[toolsCall] content: %s\n", responseCompletion.Choices[0].Message.Content)
+			log.Infof("[toolsCall] content: %s", responseCompletion.Choices[0].Message.Content)
 
 			if responseCompletion.Choices[0].Message.Content != "" {
 				retType, actionInput := toolsCall(ctx, config, responseCompletion.Choices[0].Message.Content, rawResponse, log)
@@ -242,13 +242,13 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 			}
 		}, uint32(config.LLMInfo.MaxExecutionTime))
 	if err != nil {
-		log.Debugf("[onHttpRequestBody] completion err: %s\n", err.Error())
+		log.Debugf("[onHttpRequestBody] completion err: %s", err.Error())
 		proxywasm.ResumeHttpRequest()
 	}
 }
 
 func outputParser(response string, log wrapper.Log) (string, string) {
-	log.Debugf("Raw response:%s\n", response)
+	log.Debugf("Raw response:%s", response)
 
 	start := strings.Index(response, "```")
 	end := strings.LastIndex(response, "```")
@@ -260,7 +260,7 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 		jsonStr = response
 	}
 
-	log.Debugf("Extracted JSON string:%s\n", jsonStr)
+	log.Debugf("Extracted JSON string:%s", jsonStr)
 
 	var action map[string]interface{}
 	err := json.Unmarshal([]byte(jsonStr), &action)
@@ -277,7 +277,7 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 			return actionName, actionInput
 		}
 	}
-	log.Debugf("json parse err: %s\n", err.Error())
+	log.Debugf("json parse err: %s", err.Error())
 	// Fallback to regex parsing if JSON unmarshaling fails
 	pattern := `\{\s*"action":\s*"([^"]+)",\s*"action_input":\s*((?:\{[^}]+\})|"[^"]+")\s*\}`
 	re := regexp.MustCompile(pattern)
@@ -286,7 +286,7 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 	if len(match) == 3 {
 		action := match[1]
 		actionInput := match[2]
-		log.Debugf("Parsed action:%s, action_input:%s\n", action, actionInput)
+		log.Debugf("Parsed action:%s, action_input:%s", action, actionInput)
 		return action, actionInput
 	}
 
@@ -305,7 +305,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 	}
 	count := ctx.GetContext(ToolCallsCount).(int)
 	count++
-	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d\n", count, config.LLMInfo.MaxIterations)
+	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d", count, config.LLMInfo.MaxIterations)
 	//函数递归调用次数，达到了预设的循环次数，强制结束
 	if int64(count) > config.LLMInfo.MaxIterations {
 		ctx.SetContext(ToolCallsCount, 0)
@@ -326,15 +326,15 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 
 	for i, apisParam := range config.APIsParam {
 		maxExecutionTime = apisParam.MaxExecutionTime
-		for _, tools_param := range apisParam.Tools_Param {
+		for _, tools_param := range apisParam.ToolsParam {
 			if action == tools_param.ToolName {
-				log.Infof("calls %s\n", tools_param.ToolName)
-				log.Infof("actionInput: %s\n", actionInput)
+				log.Infof("calls %s", tools_param.ToolName)
+				log.Infof("actionInput: %s", actionInput)
 
 				//将大模型需要的参数反序列化
 				var data map[string]interface{}
 				if err := json.Unmarshal([]byte(actionInput), &data); err != nil {
-					log.Debugf("Error: %s\n", err.Error())
+					log.Debugf("Error: %s", err.Error())
 					return types.ActionContinue, ""
 				}
 
@@ -366,12 +366,12 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 					var err error
 					reqBody, err = json.Marshal(data)
 					if err != nil {
-						log.Debugf("Error marshaling JSON: %s\n", err.Error())
+						log.Debugf("Error marshaling JSON: %s", err.Error())
 						return types.ActionContinue, ""
 					}
 				}
 
-				log.Infof("url: %s\n", url)
+				log.Infof("url: %s", url)
 
 				apiClient = config.APIClient[i]
 				break
@@ -389,7 +389,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 				toolsCallResult(ctx, config, content, rawResponse, log, statusCode, responseBody)
 			}, uint32(maxExecutionTime))
 		if err != nil {
-			log.Debugf("tool calls error: %s\n", err.Error())
+			log.Debugf("tool calls error: %s", err.Error())
 			proxywasm.ResumeHttpRequest()
 		}
 	} else {
@@ -408,10 +408,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	var rawResponse Response
 	err := json.Unmarshal(body, &rawResponse)
 	if err != nil {
-		log.Debugf("[onHttpResponseBody] body to json err: %s\n", err.Error())
+		log.Debugf("[onHttpResponseBody] body to json err: %s", err.Error())
 		return types.ActionContinue
 	}
-	log.Infof("first content: %s\n", rawResponse.Choices[0].Message.Content)
+	log.Infof("first content: %s", rawResponse.Choices[0].Message.Content)
 	//如果gpt返回的内容不是空的
 	if rawResponse.Choices[0].Message.Content != "" {
 		//进入agent的循环思考，工具调用的过程中
