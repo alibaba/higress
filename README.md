@@ -173,3 +173,7 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 ![](https://img.alicdn.com/imgextra/i1/O1CN01WnQt0q1tcmqVDU73u_!!6000000005923-0-tps-258-258.jpg)
 
+### 关联仓库
+
+- Higress 控制台：https://github.com/higress-group/higress-console
+- Higress（独立运行版）：https://github.com/higress-group/higress-standalone
