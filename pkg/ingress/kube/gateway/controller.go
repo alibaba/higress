@@ -22,6 +22,7 @@ import (
 	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
 	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
+	"istio.io/istio/pilot/pkg/status"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -77,8 +78,8 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 	}
 
 	if options.EnableStatus {
-		// TODO: Add status sync support
-		//istioController.SetStatusWrite(true,)
+		statusManager := status.NewManager(store)
+		istioController.SetStatusWrite(true, statusManager)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
 	}

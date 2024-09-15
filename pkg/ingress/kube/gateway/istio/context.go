@@ -15,6 +15,7 @@
 package istio
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -22,19 +23,29 @@ import (
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
+	serviceRegistryKube "istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/cluster"
-	"istio.io/istio/pkg/config/host"
+	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/util/sets"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GatewayContext contains a minimal subset of push context functionality to be exposed to GatewayAPIControllers
 type GatewayContext struct {
 	ps *model.PushContext
+	// Start - Updated by Higress
+	client       kube.Client
+	domainSuffix string
+	clusterID    cluster.ID
+	// End - Updated by Higress
 }
 
-func NewGatewayContext(ps *model.PushContext) GatewayContext {
-	return GatewayContext{ps}
+// Start - Updated by Higress
+
+func NewGatewayContext(ps *model.PushContext, client kube.Client, domainSuffix string, clusterID cluster.ID) GatewayContext {
+	return GatewayContext{ps, client, domainSuffix, clusterID}
 }
 
 // ResolveGatewayInstances attempts to resolve all instances that a gateway will be exposed on.
@@ -60,25 +71,14 @@ func (gc GatewayContext) ResolveGatewayInstances(
 	foundPending := sets.New[string]()
 	warnings := []string{}
 	for _, g := range gwsvcs {
-		svc, f := gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(g)][namespace]
-		if !f {
-			otherNamespaces := []string{}
-			for ns := range gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(g)] {
-				otherNamespaces = append(otherNamespaces, `"`+ns+`"`) // Wrap in quotes for output
-			}
-			if len(otherNamespaces) > 0 {
-				sort.Strings(otherNamespaces)
-				warnings = append(warnings, fmt.Sprintf("hostname %q not found in namespace %q, but it was found in namespace(s) %v",
-					g, namespace, strings.Join(otherNamespaces, ", ")))
-			} else {
-				warnings = append(warnings, fmt.Sprintf("hostname %q not found", g))
-			}
+		svc := gc.GetService(g, namespace)
+		if svc == nil {
+			warnings = append(warnings, fmt.Sprintf("hostname %q not found", g))
 			continue
 		}
-		svcKey := svc.Key()
 		for port := range ports {
-			instances := gc.ps.ServiceInstancesByPort(svc, port, nil)
-			if len(instances) > 0 {
+			flag := checkServicePortExists(svc, port)
+			if flag {
 				foundInternal.Insert(fmt.Sprintf("%s:%d", g, port))
 				if svc.Attributes.ClusterExternalAddresses.Len() > 0 {
 					// Fetch external IPs from all clusters
@@ -92,16 +92,14 @@ func (gc GatewayContext) ResolveGatewayInstances(
 					}
 				}
 			} else {
-				instancesByPort := gc.ps.ServiceInstances(svcKey)
-				if instancesEmpty(instancesByPort) {
+				svcPorts := svc.Ports
+				if len(svcPorts) == 0 {
 					warnings = append(warnings, fmt.Sprintf("no instances found for hostname %q", g))
 				} else {
 					hintPort := sets.New[string]()
-					for _, instances := range instancesByPort {
-						for _, i := range instances {
-							if i.Endpoint.EndpointPort == uint32(port) {
-								hintPort.Insert(strconv.Itoa(i.ServicePort.Port))
-							}
+					for _, svcPort := range svcPorts {
+						if svcPort.Port == port {
+							hintPort.Insert(strconv.Itoa(svcPort.Port))
 						}
 					}
 					if hintPort.Len() > 0 {
@@ -120,14 +118,38 @@ func (gc GatewayContext) ResolveGatewayInstances(
 }
 
 func (gc GatewayContext) GetService(hostname, namespace string) *model.Service {
-	return gc.ps.ServiceIndex.HostnameAndNamespace[host.Name(hostname)][namespace]
+	serviceName := extractServiceName(hostname)
+
+	svc, err := gc.client.Kube().CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		log.Errorf("failed to get service (serviceName: %s, namespace: %s): %v", serviceName, namespace, err)
+		return nil
+	}
+
+	return serviceRegistryKube.ConvertService(*svc, gc.domainSuffix, gc.clusterID)
 }
 
-func instancesEmpty(m map[int][]*model.ServiceInstance) bool {
-	for _, instances := range m {
-		if len(instances) > 0 {
-			return false
+func checkServicePortExists(svc *model.Service, port int) bool {
+	if svc == nil {
+		return false
+	}
+	for _, svcPort := range svc.Ports {
+		if port == svcPort.Port {
+			return true
 		}
 	}
-	return true
+	return false
 }
+
+func extractServiceName(hostName string) string {
+	parts := strings.Split(hostName, ".")
+	if len(parts) >= 4 {
+		return parts[0]
+	}
+	return ""
+}
+
+// End - Updated by Higress
