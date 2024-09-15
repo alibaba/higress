@@ -8,49 +8,49 @@ import (
 
 // MarshalJSON is a custom marshaler for WasmPlugin
 func (this *WasmPlugin) MarshalJSON() ([]byte, error) {
-	str, err := WasmMarshaler.MarshalToString(this)
+	str, err := WasmpluginMarshaler.MarshalToString(this)
 	return []byte(str), err
 }
 
 // UnmarshalJSON is a custom unmarshaler for WasmPlugin
 func (this *WasmPlugin) UnmarshalJSON(b []byte) error {
-	return WasmUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
 // MarshalJSON is a custom marshaler for MatchRule
 func (this *MatchRule) MarshalJSON() ([]byte, error) {
-	str, err := WasmMarshaler.MarshalToString(this)
+	str, err := WasmpluginMarshaler.MarshalToString(this)
 	return []byte(str), err
 }
 
 // UnmarshalJSON is a custom unmarshaler for MatchRule
 func (this *MatchRule) UnmarshalJSON(b []byte) error {
-	return WasmUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
 // MarshalJSON is a custom marshaler for VmConfig
 func (this *VmConfig) MarshalJSON() ([]byte, error) {
-	str, err := WasmMarshaler.MarshalToString(this)
+	str, err := WasmpluginMarshaler.MarshalToString(this)
 	return []byte(str), err
 }
 
 // UnmarshalJSON is a custom unmarshaler for VmConfig
 func (this *VmConfig) UnmarshalJSON(b []byte) error {
-	return WasmUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
 // MarshalJSON is a custom marshaler for EnvVar
 func (this *EnvVar) MarshalJSON() ([]byte, error) {
-	str, err := WasmMarshaler.MarshalToString(this)
+	str, err := WasmpluginMarshaler.MarshalToString(this)
 	return []byte(str), err
 }
 
 // UnmarshalJSON is a custom unmarshaler for EnvVar
 func (this *EnvVar) UnmarshalJSON(b []byte) error {
-	return WasmUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
 var (
-	WasmMarshaler   = &jsonpb.Marshaler{}
-	WasmUnmarshaler = &jsonpb.Unmarshaler{AllowUnknownFields: true}
+	WasmpluginMarshaler   = &jsonpb.Marshaler{}
+	WasmpluginUnmarshaler = &jsonpb.Unmarshaler{AllowUnknownFields: true}
 )

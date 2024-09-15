@@ -82,3 +82,8 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 ### Thanks
 
 Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
+
+### Related Repositories
+
+- Higress Console: https://github.com/higress-group/higress-console
+- Higress Standalone: https://github.com/higress-group/higress-standalone
