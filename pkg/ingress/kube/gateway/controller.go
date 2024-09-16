@@ -49,6 +49,7 @@ type gatewayController struct {
 	store           model.ConfigStoreController
 	credsController credentials.MulticlusterController
 	istioController *istiogateway.Controller
+	statusManager   *status.Manager
 
 	resourceUpToDate atomic.Bool
 }
@@ -77,8 +78,9 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
 	}
 
+	var statusManager *status.Manager = nil
 	if options.EnableStatus {
-		statusManager := status.NewManager(store)
+		statusManager = status.NewManager(store)
 		istioController.SetStatusWrite(true, statusManager)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
@@ -88,6 +90,7 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		store:           store,
 		credsController: credsController,
 		istioController: istioController,
+		statusManager:   statusManager,
 	}
 }
 
@@ -149,6 +152,9 @@ func (g *gatewayController) Run(stop <-chan struct{}) {
 	})
 	go g.store.Run(stop)
 	go g.istioController.Run(stop)
+	if g.statusManager != nil {
+		g.statusManager.Start(stop)
+	}
 }
 
 func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {

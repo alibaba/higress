@@ -77,8 +77,8 @@ func (gc GatewayContext) ResolveGatewayInstances(
 			continue
 		}
 		for port := range ports {
-			flag := checkServicePortExists(svc, port)
-			if flag {
+			exists := checkServicePortExists(svc, port)
+			if exists {
 				foundInternal.Insert(fmt.Sprintf("%s:%d", g, port))
 				if svc.Attributes.ClusterExternalAddresses.Len() > 0 {
 					// Fetch external IPs from all clusters
