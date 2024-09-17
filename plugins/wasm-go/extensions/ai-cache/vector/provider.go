@@ -25,26 +25,54 @@ var (
 )
 
 // QueryEmbeddingResult 定义通用的查询结果的结构体
-type QueryEmbeddingResult struct {
+type QueryResult struct {
 	Text      string    // 相似的文本
 	Embedding []float64 // 相似文本的向量
 	Score     float64   // 文本的向量相似度或距离等度量
+	Answer    string    // 相似文本对应的LLM生成的回答
 }
 
 type Provider interface {
 	GetProviderType() string
+}
+
+type EmbeddingQuerier interface {
 	QueryEmbedding(
 		emb []float64,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
+		callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
+}
+
+type EmbeddingUploader interface {
 	UploadEmbedding(
-		queryEmb []float64,
 		queryString string,
+		queryEmb []float64,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
 		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
-	GetSimThreshold() float64
+}
+
+type AnswerEmbeddingUploader interface {
+	UploadAnswerEmbedding(
+		queryString string,
+		queryEmb []float64,
+		answer string,
+		ctx wrapper.HttpContext,
+		log wrapper.Log,
+		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
+}
+
+type StringQuerier interface {
+	QueryString(
+		queryString string,
+		ctx wrapper.HttpContext,
+		log wrapper.Log,
+		callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
+}
+
+type SimilarityThresholdProvider interface {
+	GetSimilarityThreshold() float64
 }
 
 type ProviderConfig struct {

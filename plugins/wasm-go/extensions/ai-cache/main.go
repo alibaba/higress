@@ -15,6 +15,7 @@ import (
 const (
 	PLUGIN_NAME                 = "ai-cache"
 	CACHE_KEY_CONTEXT_KEY       = "cacheKey"
+	CACHE_KEY_EMBEDDING_KEY     = "cacheKeyEmbedding"
 	CACHE_CONTENT_CONTEXT_KEY   = "cacheContent"
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	TOOL_CALLS_CONTEXT_KEY      = "toolCalls"
@@ -23,7 +24,6 @@ const (
 
 func main() {
 	// CreateClient()
-
 	wrapper.SetCtx(
 		PLUGIN_NAME,
 		wrapper.ParseConfigBy(parseConfig),
@@ -101,7 +101,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 		return types.ActionContinue
 	}
 
-	CheckCacheForKey(key, ctx, config, log, stream, true)
+	if err := CheckCacheForKey(key, ctx, config, log, stream, true); err != nil {
+		log.Errorf("check cache for key: %s failed, error: %v", key, err)
+		return types.ActionContinue
+	}
 
 	return types.ActionPause
 }
@@ -117,96 +120,34 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
 	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
+
+	// If the context contains TOOL_CALLS_CONTEXT_KEY, bypass caching
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
-		// we should not cache tool call result
 		return chunk
 	}
+
 	keyI := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
 	if keyI == nil {
 		return chunk
 	}
+
 	if !isLastChunk {
-		stream := ctx.GetContext(STREAM_CONTEXT_KEY)
-		if stream == nil {
-			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-			if tempContentI == nil {
-				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, chunk)
-				return chunk
-			}
-			tempContent := tempContentI.([]byte)
-			tempContent = append(tempContent, chunk...)
-			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
-		} else {
-			var partialMessage []byte
-			partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
-			if partialMessageI != nil {
-				partialMessage = append(partialMessageI.([]byte), chunk...)
-			} else {
-				partialMessage = chunk
-			}
-			messages := strings.Split(string(partialMessage), "\n\n")
-			for i, msg := range messages {
-				if i < len(messages)-1 {
-					// process complete message
-					processSSEMessage(ctx, config, msg, log)
-				}
-			}
-			if !strings.HasSuffix(string(partialMessage), "\n\n") {
-				ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
-			} else {
-				ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
-			}
-		}
+		handlePartialChunk(ctx, config, chunk, log)
 		return chunk
 	}
-	// last chunk
-	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
-	var value string
-	if stream == nil {
-		var body []byte
-		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-		if tempContentI != nil {
-			body = append(tempContentI.([]byte), chunk...)
-		} else {
-			body = chunk
-		}
-		bodyJson := gjson.ParseBytes(body)
 
-		value = bodyJson.Get(config.CacheValueFrom).String()
-		if value == "" {
-			log.Warnf("parse value from response body failded, body: %s", body)
-			return chunk
-		}
-	} else {
-		log.Infof("[onHttpResponseBody] stream mode")
-		if len(chunk) > 0 {
-			var lastMessage []byte
-			partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
-			if partialMessageI != nil {
-				lastMessage = append(partialMessageI.([]byte), chunk...)
-			} else {
-				lastMessage = chunk
-			}
-			if !strings.HasSuffix(string(lastMessage), "\n\n") {
-				log.Warnf("[onHttpResponseBody] invalid lastMessage:%s", lastMessage)
-				return chunk
-			}
-			// remove the last \n\n
-			lastMessage = lastMessage[:len(lastMessage)-2]
-			value = processSSEMessage(ctx, config, string(lastMessage), log)
-		} else {
-			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-			if tempContentI == nil {
-				log.Warnf("[onHttpResponseBody] no content in tempContentI")
-				return chunk
-			}
-			value = tempContentI.(string)
-		}
+	// Handle last chunk
+	value, err := processFinalChunk(ctx, config, chunk, log)
+	if err != nil {
+		log.Warnf("[onHttpResponseBody] failed to process final chunk: %v", err)
+		return chunk
 	}
-	activeCacheProvider := config.GetCacheProvider()
-	queryKey := activeCacheProvider.GetCacheKeyPrefix() + ctx.GetContext(CACHE_KEY_CONTEXT_KEY).(string)
-	// queryKey := keyI.(string)
-	log.Infof("[onHttpResponseBody] setting cache to redis, key: %s, value: %s", queryKey, value)
-	_ = activeCacheProvider.Set(queryKey, value, nil)
+
+	// Cache the final value
+	cacheResponse(ctx, config, keyI.(string), value, log)
+
+	// Handle embedding upload if available
+	uploadEmbeddingAndAnswer(ctx, config, keyI.(string), value, log)
+
 	return chunk
 }

@@ -127,7 +127,7 @@ func (d *DvProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(results []QueryEmbeddingResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	url, body, headers, err := d.constructEmbeddingQueryParameters(emb)
 	log.Debugf("url:%s, body:%s, headers:%v", url, string(body), headers)
 	if err != nil {
@@ -157,7 +157,7 @@ func (d *DvProvider) QueryEmbedding(
 	return err
 }
 
-func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryEmbeddingResult, error) {
+func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryResult, error) {
 	resp, err := d.parseQueryResponse(responseBody)
 	if err != nil {
 		return nil, err
@@ -167,10 +167,10 @@ func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpCon
 		return nil, errors.New("no query results found in response")
 	}
 
-	results := make([]QueryEmbeddingResult, 0, len(resp.Output))
+	results := make([]QueryResult, 0, len(resp.Output))
 
 	for _, output := range resp.Output {
-		result := QueryEmbeddingResult{
+		result := QueryResult{
 			Text:      output.Fields["query"].(string),
 			Embedding: output.Vector,
 			Score:     output.Score,
@@ -190,13 +190,14 @@ type insertRequest struct {
 	Docs []document `json:"docs"`
 }
 
-func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryString string) (string, []byte, [][2]string, error) {
+func (d *DvProvider) constructUploadParameters(emb []float64, queryString string, answer string) (string, []byte, [][2]string, error) {
 	url := "/v1/collections/" + d.config.collectionID + "/docs"
 
 	doc := document{
 		Vector: emb,
 		Fields: map[string]string{
-			"query": queryString,
+			"query":  queryString,
+			"answer": answer,
 		},
 	}
 
@@ -213,8 +214,28 @@ func (d *DvProvider) constructEmbeddingUploadParameters(emb []float64, queryStri
 	return url, requestBody, header, err
 }
 
-func (d *DvProvider) UploadEmbedding(queryEmb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
-	url, body, headers, err := d.constructEmbeddingUploadParameters(queryEmb, queryString)
+func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	url, body, headers, err := d.constructUploadParameters(queryEmb, queryString, "")
+	if err != nil {
+		return err
+	}
+	err = d.client.Post(
+		url,
+		headers,
+		body,
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			log.Debugf("statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			if statusCode != http.StatusOK {
+				err = fmt.Errorf("failed to upload embedding: %d", statusCode)
+			}
+			callback(ctx, log, err)
+		},
+		d.config.timeout)
+	return err
+}
+
+func (d *DvProvider) UploadAnswerEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	url, body, headers, err := d.constructUploadParameters(queryEmb, queryString, queryAnswer)
 	if err != nil {
 		return err
 	}

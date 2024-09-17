@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
@@ -55,4 +56,97 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 		return content
 	}
 
+}
+
+// Handles partial chunks of data when the full response is not received yet.
+func handlePartialChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) {
+	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
+
+	if stream == nil {
+		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+		if tempContentI == nil {
+			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, chunk)
+		} else {
+			tempContent := append(tempContentI.([]byte), chunk...)
+			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
+		}
+	} else {
+		partialMessage := appendPartialMessage(ctx, chunk)
+		messages := strings.Split(string(partialMessage), "\n\n")
+		for _, msg := range messages[:len(messages)-1] {
+			processSSEMessage(ctx, config, msg, log)
+		}
+		savePartialMessage(ctx, partialMessage, messages)
+	}
+}
+
+// Appends the partial message chunks
+func appendPartialMessage(ctx wrapper.HttpContext, chunk []byte) []byte {
+	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+	if partialMessageI != nil {
+		return append(partialMessageI.([]byte), chunk...)
+	}
+	return chunk
+}
+
+// Saves the remaining partial message chunk
+func savePartialMessage(ctx wrapper.HttpContext, partialMessage []byte, messages []string) {
+	if !strings.HasSuffix(string(partialMessage), "\n\n") {
+		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
+	} else {
+		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
+	}
+}
+
+// Processes the final chunk and returns the parsed value or an error
+func processFinalChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
+	var value string
+
+	if stream == nil {
+		body := appendFinalBody(ctx, chunk)
+		bodyJson := gjson.ParseBytes(body)
+		value = bodyJson.Get(config.CacheValueFrom).String()
+
+		if value == "" {
+			return "", fmt.Errorf("failed to parse value from response body: %s", body)
+		}
+	} else {
+		value, err := processFinalStreamMessage(ctx, config, log, chunk)
+		if err != nil {
+			return "", err
+		}
+		return value, nil
+	}
+
+	return value, nil
+}
+
+// Appends the final body chunk to the existing body content
+func appendFinalBody(ctx wrapper.HttpContext, chunk []byte) []byte {
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	if tempContentI != nil {
+		return append(tempContentI.([]byte), chunk...)
+	}
+	return chunk
+}
+
+// Processes the final SSE message chunk
+func processFinalStreamMessage(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, chunk []byte) (string, error) {
+	var lastMessage []byte
+	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+
+	if partialMessageI != nil {
+		lastMessage = append(partialMessageI.([]byte), chunk...)
+	} else {
+		lastMessage = chunk
+	}
+
+	if !strings.HasSuffix(string(lastMessage), "\n\n") {
+		log.Warnf("[onHttpResponseBody] invalid lastMessage: %s", lastMessage)
+		return "", fmt.Errorf("invalid lastMessage format")
+	}
+
+	lastMessage = lastMessage[:len(lastMessage)-2] // Remove the last \n\n
+	return processSSEMessage(ctx, config, string(lastMessage), log), nil
 }
