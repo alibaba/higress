@@ -223,6 +223,9 @@ func getOpenAiApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/embeddings") {
 		return provider.ApiNameEmbeddings
 	}
+	if strings.HasPrefix(path, "/api/v1/apps") {
+		return provider.ApiNameAgent
+	}
 	return ""
 }
 

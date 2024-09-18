@@ -16,6 +16,7 @@ type Pointcut string
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
 	ApiNameEmbeddings     ApiName = "embeddings"
+	ApiNameAgent          ApiName = "agent"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -38,6 +39,7 @@ const (
 	providerTypeGemini     = "gemini"
 	providerTypeDeepl      = "deepl"
 	providerTypeMistral    = "mistral"
+	providerTypeBailian    = "bailian"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -94,6 +96,7 @@ var (
 		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeDeepl:      &deeplProviderInitializer{},
 		providerTypeMistral:    &mistralProviderInitializer{},
+		providerTypeBailian:    &baiLianProviderInitializer{},
 	}
 )
 
