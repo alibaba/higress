@@ -25,7 +25,8 @@ Plugin execution priority: `100`
 
 | Name       | Data Type   | Requirement | Default | Description               |
 |------------|--------|------|-----|------------------|
-| `provider` | object | Required   | -   | Configures information for the target AI service provider |
+| `providers` | object | Optional   | -   | Configures information for the target AI service provider |
+| `activeProviderId` | string          | Optional  | -   | 当前需要启用的 AI 服务提供商标识。支持在全局、域名、路由等粒度进行配置。如果未配置、值为空或值未出现在 `providers` 中，本插件将不会工作。 |
 
 **Details for the `provider` configuration fields:**
 
@@ -139,9 +140,9 @@ For 360 Brain, the corresponding `type` is `ai360`. It has no unique configurati
 
 For Mistral, the corresponding `type` is `mistral`. It has no unique configuration fields.
 
-#### Minimax
+#### MiniMax
 
-For Minimax, the corresponding `type` is `minimax`. Its unique configuration field is:
+For MiniMax, the corresponding `type` is `minimax`. Its unique configuration field is:
 
 | Name             | Data Type | Filling Requirements | Default Value | Description                                                                                                 |
 | ---------------- | -------- | --------------------- |---------------|------------------------------------------------------------------------------------------------------------|
@@ -216,11 +217,13 @@ Using the basic Azure OpenAI service without configuring any context.
 **Configuration Information**
 
 ```yaml
-provider:
-  type: azure
-  apiTokens:
-    - "YOUR_AZURE_OPENAI_API_TOKEN"
-  azureServiceUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview",
+activeProviderId: my-azure
+providers:
+  - id: my-azure
+    type: azure
+    apiTokens:
+      - "YOUR_AZURE_OPENAI_API_TOKEN"
+    azureServiceUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview",
 ```
 
 **Request Example**
@@ -314,18 +317,20 @@ Using Qwen service and configuring the mapping relationship between OpenAI large
 **Configuration Information**
 
 ```yaml
-provider:
-  type: qwen
-  apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
-  modelMapping:
-    'gpt-3': "qwen-turbo"
-    'gpt-35-turbo': "qwen-plus"
-    'gpt-4-turbo': "qwen-max"
-    'gpt-4-*': "qwen-max"
-    'gpt-4o': "qwen-vl-plus"
-    'text-embedding-v1': 'text-embedding-v1'
-    '*': "qwen-turbo"
+activeProviderId: my-qwen
+providers:
+  - id: my-qwen
+    type: qwen
+    apiTokens:
+      - "YOUR_QWEN_API_TOKEN"
+    modelMapping:
+      'gpt-3': "qwen-turbo"
+      'gpt-35-turbo': "qwen-plus"
+      'gpt-4-turbo': "qwen-max"
+      'gpt-4-*': "qwen-max"
+      'gpt-4o': "qwen-vl-plus"
+      'text-embedding-v1': 'text-embedding-v1'
+      '*': "qwen-turbo"
 ```
 
 **AI Conversation Request Example**
@@ -484,16 +489,18 @@ Using Qwen service while configuring pure text context information.
 **Configuration Information**
 
 ```yaml
-provider:
-  type: qwen
-  apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
-  modelMapping:
-    "*": "qwen-turbo"
-  context:
-    - fileUrl: "http://file.default.svc.cluster.local/ai/context.txt",
-      serviceName: "file.dns",
-      servicePort: 80
+activeProviderId: my-qwen
+providers:
+  - id: my-qwen
+    type: qwen
+    apiTokens:
+      - "YOUR_QWEN_API_TOKEN"
+    modelMapping:
+      "*": "qwen-turbo"
+    context:
+      - fileUrl: "http://file.default.svc.cluster.local/ai/context.txt",
+        serviceName: "file.dns",
+        servicePort: 80
 ```
 
 **Request Example**
@@ -544,15 +551,17 @@ Uploading files to Qwen in advance to use them as context when utilizing its AI 
 **Configuration Information**
 
 ```yaml
-provider:
-  type: qwen
-  apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
-  modelMapping:
-    "*": "qwen-long" # Qwen's file context can only be used in the qwen-long model
-  qwenFileIds:
-  - "file-fe-xxx"
-  - "file-fe-yyy"
+activeProviderId: my-qwen
+providers:
+  - id: my-qwen
+    type: qwen
+    apiTokens:
+      - "YOUR_QWEN_API_TOKEN"
+    modelMapping:
+      "*": "qwen-long" # 通义千问的文件上下文只能在 qwen-long 模型下使用
+    qwenFileIds:
+      - "file-fe-xxx"
+      - "file-fe-yyy"
 ```
 
 **Request Example**
@@ -593,6 +602,69 @@ provider:
   "request_id": "187e99ba-5b64-9ffe-8f69-01dafbaf6ed7"
 }
 ```
+
+### Forwards requests to AliCloud Bailian with the "original" protocol
+
+**Configuration Information**
+
+```yaml
+activeProviderId: my-qwen
+providers:
+  - id: my-qwen
+    type: qwen
+    apiTokens:
+      - "YOUR_DASHSCOPE_API_TOKEN"
+    protocol: original
+```
+
+**Example Request**
+
+```json
+{
+  "input": {
+    "prompt": "What is Dubbo?"
+  },
+  "parameters": {},
+  "debug": {}
+}
+```
+
+**Example Response**
+
+```json
+{
+  "output": {
+    "finish_reason": "stop",
+    "session_id": "677e7e8fbb874e1b84792b65042e1599",
+    "text": "Apache Dubbo is a..."
+  },
+  "usage": {
+    "models": [
+      {
+        "output_tokens": 449,
+        "model_id": "qwen-max",
+        "input_tokens": 282
+      }
+    ]
+  },
+  "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+}
+```
+
+### Using OpenAI Protocol Proxy for Doubao Service
+
+```yaml
+activeProviderId: my-doubao
+providers:
+- id: my-doubao
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
+```
+
 ### Utilizing Moonshot with its Native File Context
 
 Upload files to Moonshot in advance and use its AI services based on file content.
@@ -600,13 +672,15 @@ Upload files to Moonshot in advance and use its AI services based on file conten
 **Configuration Information**
 
 ```yaml
-provider:
-  type: moonshot
-  apiTokens:
-    - "YOUR_MOONSHOT_API_TOKEN"
-  moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
-  modelMapping:
-    '*': "moonshot-v1-32k"
+activeProviderId: my-moonshot
+providers:
+  - id: my-moonshot
+    type: moonshot
+    apiTokens:
+      - "YOUR_MOONSHOT_API_TOKEN"
+    moonshotFileId: "YOUR_MOONSHOT_FILE_ID",
+    modelMapping:
+      '*': "moonshot-v1-32k"
 ```
 
 **Example Request**
@@ -655,10 +729,12 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: groq
-  apiTokens:
-    - "YOUR_GROQ_API_TOKEN"
+activeProviderId: my-groq
+providers:
+  - id: my-groq
+    type: groq
+    apiTokens:
+      - "YOUR_GROQ_API_TOKEN"
 ```
 
 **Example Request**
@@ -714,11 +790,13 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: claude
-  apiTokens:
-    - "YOUR_CLAUDE_API_TOKEN"
-  version: "2023-06-01"
+activeProviderId: my-claude
+providers:
+  - id: my-claude
+    type: claude
+    apiTokens:
+      - "YOUR_CLAUDE_API_TOKEN"
+    version: "2023-06-01"
 ```
 
 **Example Request**
@@ -767,23 +845,24 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: "hunyuan"
-  hunyuanAuthKey: "<YOUR AUTH KEY>"
-  apiTokens:
-    - ""
-  hunyuanAuthId: "<YOUR AUTH ID>"
-  timeout: 1200000
-  modelMapping:
-    "*": "hunyuan-lite"
+provider: "my-hunyuan"
+providers:
+  - id: "my-hunyuan"
+    type: "hunyuan"
+    hunyuanAuthKey: "<YOUR AUTH KEY>"
+    apiTokens:
+      - ""
+    hunyuanAuthId: "<YOUR AUTH ID>"
+    timeout: 1200000
+    modelMapping:
+      "*": "hunyuan-lite"
 ```
 
 **Example Request**
 
 Request script:
 
-```sh
-
+```shell
 curl --location 'http://<your higress domain>/v1/chat/completions' \
 --header 'Content-Type:  application/json' \
 --data '{
@@ -834,13 +913,15 @@ curl --location 'http://<your higress domain>/v1/chat/completions' \
 **Configuration Information**
 
 ```yaml
-provider:
-  type: baidu
-  apiTokens:
-    - "YOUR_BAIDU_API_TOKEN"
-  modelMapping:
-    'gpt-3': "ERNIE-4.0"
-    '*': "ERNIE-4.0"
+activeProviderId: my-baidu
+providers:
+  - id: my-baidu
+    type: baidu
+    apiTokens:
+      - "YOUR_BAIDU_API_TOKEN"
+    modelMapping:
+      'gpt-3': "ERNIE-4.0"
+      '*': "ERNIE-4.0"
 ```
 
 **Request Example**
@@ -889,15 +970,17 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: minimax
-  apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
-  modelMapping:
-    "gpt-3": "abab6.5g-chat"
-    "gpt-4": "abab6.5-chat"
-    "*": "abab6.5g-chat"
-  minimaxGroupId: "YOUR_MINIMAX_GROUP_ID"
+activeProviderId: my-minimax
+providers:
+  - id: my-minimax
+    type: minimax
+    apiTokens:
+      - "YOUR_MINIMAX_API_TOKEN"
+    modelMapping:
+      "gpt-3": "abab6.5g-chat"
+      "gpt-4": "abab6.5-chat"
+      "*": "abab6.5g-chat"
+    minimaxGroupId: "YOUR_MINIMAX_GROUP_ID"
 ```
 
 **Request Example**
@@ -952,16 +1035,18 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: ai360
-  apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
-  modelMapping:
-    "gpt-4o": "360gpt-turbo-responsibility-8k"
-    "gpt-4": "360gpt2-pro"
-    "gpt-3.5": "360gpt-turbo"
-    "text-embedding-3-small": "embedding_s1_v1.2"
-    "*": "360gpt-pro"
+activeProviderId: my-ai360
+providers:
+  - id: my-ai360
+    type: ai360
+    apiTokens:
+      - "YOUR_AI360_API_TOKEN"
+    modelMapping:
+      "gpt-4o": "360gpt-turbo-responsibility-8k"
+      "gpt-4": "360gpt2-pro"
+      "gpt-3.5": "360gpt-turbo"
+      "text-embedding-3-small": "embedding_s1_v1.2"
+      "*": "360gpt-pro"
 ```
 
 **Request Example**
@@ -1066,13 +1151,15 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: cloudflare
-  apiTokens:
-    - "YOUR_WORKERS_AI_API_TOKEN"
-  cloudflareAccountId: "YOUR_CLOUDFLARE_ACCOUNT_ID"
-  modelMapping:
-    "*": "@cf/meta/llama-3-8b-instruct"
+activeProviderId: my-cf
+providers:
+  - id: my-cf
+    type: cloudflare
+    apiTokens:
+      - "YOUR_WORKERS_AI_API_TOKEN"
+    cloudflareAccountId: "YOUR_CLOUDFLARE_ACCOUNT_ID"
+    modelMapping:
+      "*": "@cf/meta/llama-3-8b-instruct"
 ```
 
 **Request Example**
@@ -1117,14 +1204,16 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: spark
-  apiTokens:
-    - "APIKey:APISecret"
-  modelMapping:
-    "gpt-4o": "generalv3.5"
-    "gpt-4": "generalv3"
-    "*": "general"
+activeProviderId: my-spark
+providers:
+  - id: my-spark
+    type: spark
+    apiTokens:
+      - "APIKey:APISecret"
+    modelMapping:
+      "gpt-4o": "generalv3.5"
+      "gpt-4": "generalv3"
+      "*": "general"
 ```
 
 **Request Example**
@@ -1176,31 +1265,33 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: gemini
-  apiTokens:
-    - "YOUR_GEMINI_API_TOKEN"
-  modelMapping:
-    "*": "gemini-pro"
-  geminiSafetySetting:
-    "HARM_CATEGORY_SEXUALLY_EXPLICIT" :"BLOCK_NONE"
-    "HARM_CATEGORY_HATE_SPEECH" :"BLOCK_NONE"
-    "HARM_CATEGORY_HARASSMENT" :"BLOCK_NONE"
-    "HARM_CATEGORY_DANGEROUS_CONTENT" :"BLOCK_NONE"
+activeProviderId: my-gemini
+providers:
+  - id: my-gemini
+    type: gemini
+    apiTokens:
+      - "YOUR_GEMINI_API_TOKEN"
+    modelMapping:
+      "*": "gemini-pro"
+    geminiSafetySetting:
+      "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE"
+      "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE"
+      "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE"
+      "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
 ```
 
 **Request Example**
 
 ```json
 {
-    "model": "gpt-3.5",
-    "messages": [
-        {
-            "role": "user",
-            "content": "Who are you?"
-        }
-    ],
-    "stream": false
+  "model": "gpt-3.5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
 }
 ```
 
@@ -1208,25 +1299,25 @@ provider:
 
 ```json
 {
-    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1722756984,
-    "model": "gemini-pro",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 5,
-        "completion_tokens": 29,
-        "total_tokens": 34
+  "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1722756984,
+  "model": "gemini-pro",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 5,
+    "completion_tokens": 29,
+    "total_tokens": 34
+  }
 }
 ```
 
@@ -1235,11 +1326,13 @@ provider:
 **Configuration Information**
 
 ```yaml
-provider:
-  type: deepl
-  apiTokens:
-    - "YOUR_DEEPL_API_TOKEN"
-  targetLang: "ZH"
+activeProviderId: my-deepl
+providers:
+  - id: my-deepl
+    type: deepl
+    apiTokens:
+      - "YOUR_DEEPL_API_TOKEN"
+    targetLang: "ZH"
 ```
 
 **Request Example**
@@ -1264,6 +1357,7 @@ Here, `model` denotes the service tier of DeepL and can only be either `Free` or
 ```
 
 **Response Example**
+
 ```json
 {
   "choices": [
@@ -1297,13 +1391,15 @@ metadata:
   namespace: higress-system
 spec:
   matchRules:
-  - config:
-      provider:
-        type: groq
-        apiTokens:
-          - "YOUR_API_TOKEN"
-    ingress:
-    - groq
+    - config:
+        activeProviderId: my-groq
+        providers:
+          - id: my-groq
+            type: groq
+            apiTokens:
+              - "YOUR_API_TOKEN"
+      ingress:
+        - groq
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
 ---
 apiVersion: networking.k8s.io/v1
@@ -1321,16 +1417,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: <YOUR-DOMAIN>
-    http:
-      paths:
-      - backend:
-          resource:
-            apiGroup: networking.higress.io
-            kind: McpBridge
-            name: default
-        path: /
-        pathType: Prefix
+    - host: <YOUR-DOMAIN>
+      http:
+        paths:
+          - backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: default
+            path: /
+            pathType: Prefix
 ---
 apiVersion: networking.higress.io/v1
 kind: McpBridge
@@ -1339,10 +1435,10 @@ metadata:
   namespace: higress-system
 spec:
   registries:
-  - domain: api.groq.com
-    name: groq
-    port: 443
-    type: dns
+    - domain: api.groq.com
+      name: groq
+      port: 443
+      type: dns
 ```
 
 Access Example:
@@ -1379,7 +1475,7 @@ services:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./plugin.wasm:/etc/envoy/plugin.wasm
 networks:
-  higress-net: {}
+  higress-net: { }
 ```
 
 `envoy.yaml` configuration file:
@@ -1407,12 +1503,12 @@ static_resources:
                 scheme_header_transformation:
                   scheme_to_overwrite: https
                 stat_prefix: ingress_http
-                # Outputs envoy logs to stdout
+                # Output envoy logs to stdout
                 access_log:
                   - name: envoy.access_loggers.stdout
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
-                # Modify as needed
+                # Modify as required
                 route_config:
                   name: local_route
                   virtual_hosts:
@@ -1441,12 +1537,16 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: | # Plugin configuration
                               {
-                                "provider": {
-                                  "type": "claude",
-                                  "apiTokens": [
-                                    "YOUR_API_TOKEN"
-                                  ]
-                                }
+                                "activeProviderId": "my-claude",
+                                "providers": [
+                                  {
+                                    "id": "my-claude",
+                                    "type": "claude",
+                                    "apiTokens": [
+                                      "YOUR_API_TOKEN"
+                                    ]
+                                  }
+                                ]
                               }
                   - name: envoy.filters.http.router
   clusters:
