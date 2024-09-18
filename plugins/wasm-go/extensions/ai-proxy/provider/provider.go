@@ -16,7 +16,6 @@ type Pointcut string
 const (
 	ApiNameChatCompletion ApiName = "chatCompletion"
 	ApiNameEmbeddings     ApiName = "embeddings"
-	ApiNameAgent          ApiName = "agent"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -313,6 +312,10 @@ func (c *ProviderConfig) GetRandomToken() string {
 	default:
 		return apiTokens[rand.Intn(count)]
 	}
+}
+
+func (c *ProviderConfig) IsOriginal() bool {
+	return c.protocol == protocolOriginal
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {

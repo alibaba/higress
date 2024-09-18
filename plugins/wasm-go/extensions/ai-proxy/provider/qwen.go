@@ -68,22 +68,20 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if m.config.qwenEnableCompatible {
+	_ = util.OverwriteRequestHost(qwenDomain)
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+
+	if m.config.protocol == protocolOriginal {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue, nil
+	} else if m.config.qwenEnableCompatible {
 		_ = util.OverwriteRequestPath(qwenCompatiblePath)
 	} else if apiName == ApiNameChatCompletion {
 		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	} else if apiName == ApiNameEmbeddings {
 		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
-	} else if apiName == ApiNameAgent {
-		ctx.DontReadRequestBody()
 	} else {
 		return types.ActionContinue, errUnsupportedApiName
-	}
-	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-
-	if m.config.protocol == protocolOriginal || apiName == ApiNameAgent {
-		return types.ActionContinue, nil
 	}
 
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
@@ -252,7 +250,7 @@ func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []b
 }
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if m.config.protocol == protocolOriginal || apiName == ApiNameAgent {
+	if m.config.protocol == protocolOriginal {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue, nil
 	}
