@@ -52,7 +52,7 @@ The configuration fields for `apiProvider` are as follows:
 The configuration fields for `apiKey` are as follows:  
 | Name              | Data Type | Requirement | Default Value | Description                                                                          |
 |-------------------|-----------|-------------|---------------|-------------------------------------------------------------------------------------|
-| `in`              | string    | Optional    | header        | Whether the authentication token for accessing the external API service is in the header or in the query; default is header.   |
+| `in`              | string    | Optional    | none          | Whether the authentication token for accessing the external API service is in the header or in the query; If the API does not have a token, fill in none.   |
 | `name`            | string    | Optional    | -             | The name of the token for authentication when accessing the external API service. |
 | `value`           | string    | Optional    | -             | The value of the token for authentication when accessing the external API service.  |
 
@@ -68,11 +68,8 @@ The configuration fields for `chTemplate` and `enTemplate` are as follows:
 |-----------------|-----------|-------------|---------------|---------------------------------------------------|
 | `question`      | string    | Optional    | -             | The question part of the Agent ReAct template       |
 | `thought1`      | string    | Optional    | -             | The thought1 part of the Agent ReAct template       |
-| `actionInput`   | string    | Optional    | -             | The actionInput part of the Agent ReAct template    |
 | `observation`   | string    | Optional    | -             | The observation part of the Agent ReAct template     |
 | `thought2`      | string    | Optional    | -             | The thought2 part of the Agent ReAct template       |
-| `finalAnswer`   | string    | Optional    | -             | The finalAnswer part of the Agent ReAct template     |
-| `begin`         | string    | Optional    | -             | The begin part of the Agent ReAct template           |
 
 ## Usage Example
 **Configuration Information**  
