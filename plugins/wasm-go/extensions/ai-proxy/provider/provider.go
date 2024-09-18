@@ -314,6 +314,10 @@ func (c *ProviderConfig) GetRandomToken() string {
 	}
 }
 
+func (c *ProviderConfig) IsOriginal() bool {
+	return c.protocol == protocolOriginal
+}
+
 func CreateProvider(pc ProviderConfig) (Provider, error) {
 	initializer, has := providerInitializers[pc.typ]
 	if !has {
