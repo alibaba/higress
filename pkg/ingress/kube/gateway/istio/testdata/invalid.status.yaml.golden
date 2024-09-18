@@ -128,8 +128,7 @@ status:
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: port 8080 not found for
       hostname "higress-gateway.higress-system.svc.domain.suffix" (hint: the service
-      port should be specified, not the workload port. Did you mean one of these ports:
-      [80]?)'
+      port should be specified, not the workload port'
     reason: Invalid
     status: "False"
     type: Programmed

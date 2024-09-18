@@ -49,6 +49,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Start - Updated by Higress
 var ports = []corev1.ServicePort{
 	{
 		Name:     "http",
@@ -331,6 +332,26 @@ var services = []corev1.Service{
 	},
 }
 
+var endpoints = []corev1.Endpoints{
+	{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "higress-gateway",
+			Namespace: "higress-system",
+		},
+		Subsets: []corev1.EndpointSubset{
+			{
+				Ports: []corev1.EndpointPort{
+					{
+						Port: 8080,
+					},
+				},
+			},
+		},
+	},
+}
+
+// End - Updated by Higress
+
 var (
 	// https://github.com/kubernetes/kubernetes/blob/v1.25.4/staging/src/k8s.io/kubectl/pkg/cmd/create/create_secret_tls_test.go#L31
 	rsaCertPEM = `-----BEGIN CERTIFICATE-----
@@ -406,12 +427,19 @@ func init() {
 func TestConvertResources(t *testing.T) {
 	validator := crdvalidation.NewIstioValidator(t)
 
+	// Start - Updated by Higress
 	client := kube.NewFakeClient()
 	for _, svc := range services {
 		if _, err := client.Kube().CoreV1().Services(svc.Namespace).Create(context.TODO(), &svc, metav1.CreateOptions{}); err != nil {
 			t.Fatal(err)
 		}
 	}
+	for _, endpoint := range endpoints {
+		if _, err := client.Kube().CoreV1().Endpoints(endpoint.Namespace).Create(context.TODO(), &endpoint, metav1.CreateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// End - Updated by Higress
 
 	cases := []struct {
 		name string

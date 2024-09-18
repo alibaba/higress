@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
@@ -70,12 +69,17 @@ func (gc GatewayContext) ResolveGatewayInstances(
 	foundExternal := sets.New[string]()
 	foundPending := sets.New[string]()
 	warnings := []string{}
+
+	// Cache endpoints to reduce redundant queries
+	endpointsCache := make(map[string]*corev1.Endpoints)
+
 	for _, g := range gwsvcs {
 		svc := gc.GetService(g, namespace)
 		if svc == nil {
 			warnings = append(warnings, fmt.Sprintf("hostname %q not found", g))
 			continue
 		}
+
 		for port := range ports {
 			exists := checkServicePortExists(svc, port)
 			if exists {
@@ -92,20 +96,30 @@ func (gc GatewayContext) ResolveGatewayInstances(
 					}
 				}
 			} else {
-				svcPorts := svc.Ports
-				if len(svcPorts) == 0 {
+				endpoints, ok := endpointsCache[g]
+				if !ok {
+					endpoints = gc.GetEndpoints(g, namespace)
+					endpointsCache[g] = endpoints
+				}
+
+				if endpoints == nil {
 					warnings = append(warnings, fmt.Sprintf("no instances found for hostname %q", g))
 				} else {
-					hintPort := sets.New[string]()
-					for _, svcPort := range svcPorts {
-						if svcPort.Port == port {
-							hintPort.Insert(strconv.Itoa(svcPort.Port))
+					hintWorkloadPort := false
+					for _, subset := range endpoints.Subsets {
+						for _, subSetPort := range subset.Ports {
+							if subSetPort.Port == int32(port) {
+								hintWorkloadPort = true
+								break
+							}
+						}
+						if hintWorkloadPort {
+							break
 						}
 					}
-					if hintPort.Len() > 0 {
+					if hintWorkloadPort {
 						warnings = append(warnings, fmt.Sprintf(
-							"port %d not found for hostname %q (hint: the service port should be specified, not the workload port. Did you mean one of these ports: %v?)",
-							port, g, sets.SortedList(hintPort)))
+							"port %d not found for hostname %q (hint: the service port should be specified, not the workload port", port, g))
 					} else {
 						warnings = append(warnings, fmt.Sprintf("port %d not found for hostname %q", port, g))
 					}
@@ -130,6 +144,22 @@ func (gc GatewayContext) GetService(hostname, namespace string) *model.Service {
 	}
 
 	return serviceRegistryKube.ConvertService(*svc, gc.domainSuffix, gc.clusterID)
+}
+
+func (gc GatewayContext) GetEndpoints(hostname, namespace string) *corev1.Endpoints {
+	serviceName := extractServiceName(hostname)
+
+	endpoints, err := gc.client.Kube().CoreV1().Endpoints(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		log.Errorf("failed to get endpoints (serviceName: %s, namespace: %s): %v", serviceName, namespace, err)
+		return nil
+	}
+
+	return endpoints
 }
 
 func checkServicePortExists(svc *model.Service, port int) bool {
