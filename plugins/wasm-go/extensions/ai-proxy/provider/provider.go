@@ -39,7 +39,6 @@ const (
 	providerTypeGemini     = "gemini"
 	providerTypeDeepl      = "deepl"
 	providerTypeMistral    = "mistral"
-	providerTypeBailian    = "bailian"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -96,7 +95,6 @@ var (
 		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeDeepl:      &deeplProviderInitializer{},
 		providerTypeMistral:    &mistralProviderInitializer{},
-		providerTypeBailian:    &baiLianProviderInitializer{},
 	}
 )
 

@@ -74,13 +74,15 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 		_ = util.OverwriteRequestPath(qwenChatCompletionPath)
 	} else if apiName == ApiNameEmbeddings {
 		_ = util.OverwriteRequestPath(qwenTextEmbeddingPath)
+	} else if apiName == ApiNameAgent {
+		ctx.DontReadRequestBody()
 	} else {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestHost(qwenDomain)
 	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
 
-	if m.config.protocol == protocolOriginal {
+	if m.config.protocol == protocolOriginal || apiName == ApiNameAgent {
 		return types.ActionContinue, nil
 	}
 
@@ -250,7 +252,7 @@ func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []b
 }
 
 func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if m.config.protocol == protocolOriginal {
+	if m.config.protocol == protocolOriginal || apiName == ApiNameAgent {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue, nil
 	}
