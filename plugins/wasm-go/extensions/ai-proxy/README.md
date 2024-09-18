@@ -609,7 +609,7 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - "YOUR_MOONSHOT_API_TOKEN"
+    - "YOUR_DASHSCOPE_API_TOKEN"
   protocol: original
 ```
 
