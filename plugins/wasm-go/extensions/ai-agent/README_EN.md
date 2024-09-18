@@ -4,7 +4,7 @@ keywords: [ AI Gateway, AI Agent ]
 description: AI Agent plugin configuration reference
 ---
 ## Functional Description
-A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Currently, it only supports non-streaming mode.  
+A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Supports multiple dialogue rounds, streaming and non-streaming modes.  
 The agent flow chart is as follows:  
 ![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)  
 
@@ -41,17 +41,18 @@ The configuration fields for `apis` are as follows:
 | `api`           | string    | Required    | -             | OpenAPI documentation of the tool   |
 
 The configuration fields for `apiProvider` are as follows:  
-| Name            | Data Type | Requirement | Default Value | Description                                      |
-|-----------------|-----------|-------------|---------------|--------------------------------------------------|
-| `apiKey`        | object    | Optional    | -             | Token for authentication when accessing external API services.  |
-| `serviceName`   | string    | Required    | -             | Name of the external API service                |
-| `servicePort`   | int       | Required    | -             | Port of the external API service                 |
-| `domain`        | string    | Required    | -             | Domain for accessing the external API             |
+| Name              | Data Type | Requirement | Default Value | Description                                      |
+|-------------------|-----------|-------------|---------------|--------------------------------------------------|
+| `apiKey`          | object    | Optional    | -             | Token for authentication when accessing external API services.  |
+| `maxExecutionTime`| int       | Optional    | 50000         | Timeout for each request to the API, in milliseconds|
+| `serviceName`     | string    | Required    | -             | Name of the external API service                    |
+| `servicePort`     | int       | Required    | -             | Port of the external API service                    |
+| `domain`          | string    | Required    | -             | Domain for accessing the external API               |
 
 The configuration fields for `apiKey` are as follows:  
 | Name              | Data Type | Requirement | Default Value | Description                                                                          |
 |-------------------|-----------|-------------|---------------|-------------------------------------------------------------------------------------|
-| `in`              | string    | Optional    | header        | Whether the authentication token for accessing the external API service is in the header or in the query; default is header.   |
+| `in`              | string    | Optional    | none          | Whether the authentication token for accessing the external API service is in the header or in the query; If the API does not have a token, fill in none.   |
 | `name`            | string    | Optional    | -             | The name of the token for authentication when accessing the external API service. |
 | `value`           | string    | Optional    | -             | The value of the token for authentication when accessing the external API service.  |
 
@@ -67,11 +68,8 @@ The configuration fields for `chTemplate` and `enTemplate` are as follows:
 |-----------------|-----------|-------------|---------------|---------------------------------------------------|
 | `question`      | string    | Optional    | -             | The question part of the Agent ReAct template       |
 | `thought1`      | string    | Optional    | -             | The thought1 part of the Agent ReAct template       |
-| `actionInput`   | string    | Optional    | -             | The actionInput part of the Agent ReAct template    |
 | `observation`   | string    | Optional    | -             | The observation part of the Agent ReAct template     |
 | `thought2`      | string    | Optional    | -             | The thought2 part of the Agent ReAct template       |
-| `finalAnswer`   | string    | Optional    | -             | The finalAnswer part of the Agent ReAct template     |
-| `begin`         | string    | Optional    | -             | The begin part of the Agent ReAct template           |
 
 ## Usage Example
 **Configuration Information**  
@@ -302,6 +300,17 @@ curl 'http://<replace with gateway public IP>/api/openai/v1/chat/completions' \
 **Response Example**  
 ```json  
 {"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content":" The current weather condition in Jinan is overcast, with a temperature of 31°C. This information was last updated on August 9, 2024, at 15:12 (Beijing time)."},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}  
+```  
+**Request Example**  
+```shell  
+curl 'http://<replace with gateway public IP>/api/openai/v1/chat/completions' \  
+-H 'Accept: application/json, text/event-stream' \  
+-H 'Content-Type: application/json' \  
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"What is the current weather in Jinan?"},{"role":"assistant","content":" The current weather condition in Jinan is overcast, with a temperature of 31°C. This information was last updated on August 9, 2024, at 15:12 (Beijing time)."},{"role":"user","content":"BeiJing?"}],"presence_penalty":0,"temperature":0,"top_p":0}'  
+```  
+**Response Example**  
+```json  
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content":" The current weather condition in Beijing is overcast, with a temperature of 19°C. This information was last updated on Sep 12, 2024, at 22:17 (Beijing time)."},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":999,"completion_tokens":76,"total_tokens":1075}}  
 ```  
 **Request Example**  
 ```shell  
