@@ -10,10 +10,8 @@ const (
 	XHigressTag    = "x-higress-tag"
 	XUniqueClient  = "x-unique-client"
 	XPreHigressTag = "x-pre-higress-tag"
-	IsIndex        = "is-index"
+	IsPageRequest  = "is-page-request"
 	IsNotFound     = "is-not-found"
-	// 2 days
-	MaxAgeCookie = "172800"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -51,15 +49,16 @@ type BodyInjection struct {
 }
 
 type GrayConfig struct {
-	TotalGrayWeight int
-	GrayKey         string
-	GraySubKey      string
-	Rules           []*GrayRule
-	Rewrite         *Rewrite
-	BaseDeployment  *Deployment
-	GrayDeployments []*Deployment
-	BackendGrayTag  string
-	Injection       *Injection
+	UserStickyMaxAge string
+	TotalGrayWeight  int
+	GrayKey          string
+	GraySubKey       string
+	Rules            []*GrayRule
+	Rewrite          *Rewrite
+	BaseDeployment   *Deployment
+	GrayDeployments  []*Deployment
+	BackendGrayTag   string
+	Injection        *Injection
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -84,6 +83,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.GrayKey = json.Get("grayKey").String()
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
+	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
+
+	if grayConfig.UserStickyMaxAge == "" {
+		// 默认值2天
+		grayConfig.UserStickyMaxAge = "172800"
+	}
 
 	if grayConfig.BackendGrayTag == "" {
 		grayConfig.BackendGrayTag = "x-mse-tag"

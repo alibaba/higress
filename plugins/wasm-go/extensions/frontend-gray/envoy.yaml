@@ -49,6 +49,7 @@ static_resources:
                               {
                                 "grayKey": "userId",
                                 "backendGrayTag": "x-mse-tag",
+                                "userStickyMaxAge": 172800,
                                 "rules": [
                                   {
                                     "name": "inner-user",

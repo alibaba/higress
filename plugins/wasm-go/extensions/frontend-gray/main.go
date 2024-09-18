@@ -41,7 +41,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	path, _ := proxywasm.GetHttpRequestHeader(":path")
 	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
 
-	isIndex := util.IsIndexRequest(fetchMode, path)
+	isPageRequest := util.GetIsPageRequest(fetchMode, path)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
@@ -70,7 +70,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 
 	// 如果没有配置比例，则进行灰度规则匹配
-	if isIndex {
+	if isPageRequest {
 		log.Infof("grayConfig.TotalGrayWeight==== %v", grayConfig.TotalGrayWeight)
 		if grayConfig.TotalGrayWeight > 0 {
 			deployment = util.FilterGrayWeight(&grayConfig, preVersions, uniqueClientId)
@@ -79,13 +79,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		}
 		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %v", deployment, path, deployment.BackendVersion, xPreHigressVersion)
 	} else {
-		deployment = util.GetVersion(grayConfig, deployment, preVersions[0], isIndex)
+		deployment = util.GetVersion(grayConfig, deployment, preVersions[0], isPageRequest)
 	}
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
 	ctx.SetContext(config.XPreHigressTag, deployment.Version)
 	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
-	ctx.SetContext(config.IsIndex, isIndex)
+	ctx.SetContext(config.IsPageRequest, isPageRequest)
 	ctx.SetContext(config.XUniqueClient, uniqueClientId)
 
 	rewrite := grayConfig.Rewrite
@@ -95,7 +95,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	if hasRewrite {
 		rewritePath := path
-		if isIndex {
+		if isPageRequest {
 			rewritePath = util.IndexRewrite(path, deployment.Version, grayConfig.Rewrite.Index)
 		} else {
 			rewritePath = util.PrefixFileRewrite(path, deployment.Version, grayConfig.Rewrite.File)
@@ -119,11 +119,11 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 	}
 
-	isIndex := ctx.GetContext(config.IsIndex).(bool)
+	isPageRequest := ctx.GetContext(config.IsPageRequest).(bool)
 
 	if err != nil || status != "200" {
 		if status == "404" {
-			if grayConfig.Rewrite.NotFound != "" && isIndex {
+			if grayConfig.Rewrite.NotFound != "" && isPageRequest {
 				ctx.SetContext(config.IsNotFound, true)
 				responseHeaders, _ := proxywasm.GetHttpResponseHeaders()
 				headersMap := util.ConvertHeaders(responseHeaders)
@@ -153,7 +153,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 删除content-length，可能要修改Response返回值
 	proxywasm.RemoveHttpResponseHeader("Content-Length")
 
-	if strings.HasPrefix(contentType, "text/html") || isIndex {
+	if strings.HasPrefix(contentType, "text/html") || isPageRequest {
 		// 不会进去Streaming 的Body处理
 		ctx.BufferResponseBody()
 
@@ -163,11 +163,11 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		xUniqueClient := ctx.GetContext(config.XUniqueClient).(string)
 
 		// 设置前端的版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, config.MaxAgeCookie))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
 		// 设置后端的版本
 		if util.IsBackendGrayEnabled(grayConfig) {
 			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, config.MaxAgeCookie))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
 		}
 	}
 	return types.ActionContinue
@@ -177,11 +177,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
-	isIndex := ctx.GetContext(config.IsIndex).(bool)
+	isPageRequest := ctx.GetContext(config.IsPageRequest).(bool)
 	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 
 	isNotFound := ctx.GetContext(config.IsNotFound)
-	if isIndex && isNotFound != nil && isNotFound.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	if isPageRequest && isNotFound != nil && isNotFound.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 
 		client.Get(strings.Replace(grayConfig.Rewrite.NotFound, "{version}", frontendVersion, -1), nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -191,7 +191,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionPause
 	}
 
-	if isIndex {
+	if isPageRequest {
 		// 将原始字节转换为字符串
 		newBody := string(body)
 

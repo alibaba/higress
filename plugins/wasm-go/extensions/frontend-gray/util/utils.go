@@ -119,8 +119,7 @@ var indexSuffixes = []string{
 	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
 }
 
-// IsIndexRequest determines if the request is an index request
-func IsIndexRequest(fetchMode string, p string) bool {
+func GetIsPageRequest(fetchMode string, p string) bool {
 	if fetchMode == "cors" {
 		return false
 	}
@@ -154,8 +153,8 @@ func PrefixFileRewrite(path, version string, matchRules map[string]string) strin
 	return filepath.Clean(newPath)
 }
 
-func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isIndex bool) *config.Deployment {
-	if isIndex {
+func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isPageRequest bool) *config.Deployment {
+	if isPageRequest {
 		return deployment
 	}
 	// cookie 中为空，返回当前版本

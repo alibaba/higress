@@ -7,6 +7,7 @@
 |----------------|--------------|----|-----|----------------------------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
+| `userStickyMaxAge`         | string       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
 | `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景   |
 | `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置  |
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |

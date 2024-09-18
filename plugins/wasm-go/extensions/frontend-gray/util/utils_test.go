@@ -1,7 +1,6 @@
 package util
 
 import (
-	"os"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
@@ -83,7 +82,7 @@ func TestPrefixFileRewrite(t *testing.T) {
 	}
 }
 
-func TestIsIndexRequest(t *testing.T) {
+func TestGetIsPageRequest(t *testing.T) {
 	var tests = []struct {
 		fetchMode string
 		p         string
@@ -100,7 +99,7 @@ func TestIsIndexRequest(t *testing.T) {
 	for _, test := range tests {
 		testPath := test.p
 		t.Run(testPath, func(t *testing.T) {
-			output := IsIndexRequest(test.fetchMode, testPath)
+			output := GetIsPageRequest(test.fetchMode, testPath)
 			assert.Equal(t, test.output, output)
 		})
 	}
@@ -117,10 +116,9 @@ func TestFilterGrayWeight(t *testing.T) {
 		testName := test.name
 		t.Run(testName, func(t *testing.T) {
 			grayConfig := &config.GrayConfig{}
-			os.Setenv("TEST_MODE", "true")
 			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
-			reslut := FilterGrayWeight(grayConfig, []string{"base", "1.0.1"}, "192.168.1.1")
-			t.Logf("reslut-----: %v", reslut)
+			result := FilterGrayWeight(grayConfig, []string{"base", "1.0.1"}, "192.168.1.1")
+			t.Logf("result-----: %v", result)
 		})
 	}
 }
