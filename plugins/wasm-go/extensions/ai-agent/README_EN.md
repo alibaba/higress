@@ -4,7 +4,7 @@ keywords: [ AI Gateway, AI Agent ]
 description: AI Agent plugin configuration reference
 ---
 ## Functional Description
-A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Supports multiple dialogue rounds, streaming and non-streaming modes  
+A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Supports multiple dialogue rounds, streaming and non-streaming modes.  
 The agent flow chart is as follows:  
 ![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)  
 
