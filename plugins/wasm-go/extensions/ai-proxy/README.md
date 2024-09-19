@@ -217,7 +217,7 @@ DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 
 #### Cohere
 
-Mistral 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
+Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 
 ## 用法示例
 

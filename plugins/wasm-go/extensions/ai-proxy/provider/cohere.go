@@ -99,7 +99,7 @@ func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohe
 		return nil
 	}
 	return &cohereTextGenRequest{
-		Message:          fmt.Sprintf("%v", origin.Messages[0].Content),
+		Message:          origin.Messages[0].StringContent(),
 		Model:            origin.Model,
 		MaxTokens:        origin.MaxTokens,
 		Stream:           origin.Stream,
