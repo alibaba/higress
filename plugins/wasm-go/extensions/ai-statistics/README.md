@@ -68,10 +68,23 @@ route_upstream_model_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.
 ```
 
 ### Log
+要想在日志中看到相关统计信息，需要在meshconfig中修改log_format，添加以下字段
+```yaml
+access_log:
+- name: envoy.access_loggers.file
+  typed_config:
+    "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+    log_format:
+      text_format_source:
+        inline_string: '{"ai-statistics":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
+    path: /dev/stdout
+```
+
 日志示例：
 
 ```json
 {
+  "ai-statistics": {
     "consumer": "21321r9fncsb2dq",
     "route": "llm",
     "output_token": "17",
@@ -83,5 +96,6 @@ route_upstream_model_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.
     "model": "qwen-max",
     "input_token": "10",
     "llm_first_token_duration": "676"
+  }
 }
 ```
