@@ -151,7 +151,7 @@ http_service:
   endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
-    serivce_host: my-domain.local
+    service_host: my-domain.local
     service_port: 8090
     path_prefix: /auth
   timeout: 1000
