@@ -1,15 +1,17 @@
-## 简介
+---
+title: AI JSON 格式化
+keywords: [ AI网关, AI JSON 格式化 ]
+description: AI JSON 格式化插件配置参考
+---
 
-**Note**
-
-> 需要数据面的proxy wasm版本大于等于0.2.100
-> 
-
-> 编译时，需要带上版本的tag，例如：tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./
-
+## 功能说明
 
 LLM响应结构化插件，用于根据默认或用户配置的Json Schema对AI的响应进行结构化，以便后续插件处理。注意目前只支持 `非流式响应`。
 
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`150`
 
 ### 配置说明
 
@@ -109,7 +111,6 @@ curl -X POST "http://localhost:8001/v1/chat/completions" \
 ### 支持openai接口的AI服务
 以qwen为例，基本配置如下：
 
-Yaml格式配置如下
 ```yaml
 serviceName: qwen
 serviceDomain: dashscope.aliyuncs.com
@@ -133,70 +134,15 @@ jsonSchema:
   additionalProperties: false
 ```
 
-JSON 格式配置
-```json
-{
-  "serviceName": "qwen",
-  "serviceUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-  "apiKey": "[Your API Key]",
-  "jsonSchema": {
-    "title": "ActionItemsSchema",
-    "type": "object",
-    "properties": {
-      "action_items": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "description": {
-              "type": "string",
-              "description": "Description of the action item."
-            },
-            "due_date": {
-              "type": ["string", "null"],
-              "description": "Due date for the action item, can be null if not specified."
-            },
-            "owner": {
-              "type": ["string", "null"],
-              "description": "Owner responsible for the action item, can be null if not specified."
-            }
-          },
-          "required": ["description", "due_date", "owner"],
-          "additionalProperties": false
-        },
-        "description": "List of action items from the meeting."
-      }
-    },
-    "required": ["action_items"],
-    "additionalProperties": false
-  }
-}
-```
-
 ### 本地网关服务
-为了能复用已经配置好的服务，本插件也支持配置本地网关服务。例如，若网关已经配置好了[AI-proxy服务](../ai-proxy/README.md)，则可以直接配置如下：
-1. 创建一个固定IP为127.0.0.1的服务，例如localservice.static
-```yaml
-- name: outbound|10000||localservice.static
-  connect_timeout: 30s
-  type: LOGICAL_DNS
-  dns_lookup_family: V4_ONLY
-  lb_policy: ROUND_ROBIN
-  load_assignment:
-    cluster_name: outbound|8001||localservice.static
-    endpoints:
-      - lb_endpoints:
-          - endpoint:
-              address:
-                socket_address:
-                  address: 127.0.0.1
-                  port_value: 10000
-```
+为了能复用已经配置好的服务，本插件也支持配置本地网关服务。例如，若网关已经配置好了AI-proxy服务，则可以直接配置如下：
+1. 创建一个固定IP地址为127.0.0.1:80的服务，例如localservice.static
+
 2. 配置文件中添加localservice.static的服务配置
 ```yaml
 serviceName: localservice
 serviceDomain: 127.0.0.1
-servicePort: 10000
+servicePort: 80
 ```
 3. 自动提取请求的Path，Header等信息
 插件会自动提取请求的Path，Header等信息，从而避免对AI服务的重复配置。
