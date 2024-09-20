@@ -1,18 +1,16 @@
 # 介绍
-提供AI可观测基础能力，包括 metric, log, trace，其后需接ai-proxy插件，如果不接ai-proxy插件的话，则只支持openai协议。
+提供AI可观测基础能力，包括 metric, log, trace，其后需接ai-proxy插件，如果不接ai-proxy插件的话，则需要用户进行相应配置才可生效。
 
 # 配置说明
-插件提供了以下基础可观测值，用户无需配置：
-- metric：提供了输入token、输出token、首个token的rt（流式请求）、请求总rt等指标，分别在网关、路由、服务、模型四个维度上生效
-- log：提供了 input_token, output_token, model, cluster, route, llm_service_duration, llm_first_token_duration 等字段
-- trace：提供了 input_token, output_token, model, cluster, route, llm_service_duration, llm_first_token_duration 等字段
+插件默认请求符合openai协议格式，并提供了以下基础可观测值，用户无需特殊配置：
+- metric：提供了输入token、输出token、首个token的rt（流式请求）、请求总rt等指标，支持在网关、路由、服务、模型四个维度上进行观测
+- log：提供了 input_token, output_token, model, llm_service_duration, llm_first_token_duration 等字段
 
 用户还可以通过配置的方式对可观测的值进行扩展：
 
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
-| `spanAttributes` | []Attribute | 非必填  | -   | 自定义 ai 请求中日志字段 |
-| `logAttributes` | []Attribute | 非必填  | -   | 自定义 ai 请求中链路追踪 span attrribute |
+| `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
 
 ## Attribute 配置说明
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
@@ -21,6 +19,8 @@
 | `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
 | `value`      | string | 必填  | -   | attrribute 取值 key value/path |
 | `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
+| `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
+| `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
 
 `value_source` 的各种取值含义如下：
 - `fixed_value`：固定值
@@ -37,65 +37,101 @@
 - `append`：（拼接多个chunk中的值，可用于获取回答内容）
 
 ## 配置示例
+如果希望在网关访问日志中记录ai-statistic相关的统计值，需要修改log_format，在原log_format基础上添加一个新字段，示例如下：
+
+```yaml
+access_log:
+  - name: envoy.access_loggers.file
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+      log_format:
+        text_format_source:
+          inline_string: '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
+      path: /dev/stdout
+```
+
+### 空配置
+当不进行任何配置时，效果如下
+
+#### 监控
+```
+route_upstream_model_metric_llm_first_token_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 309
+route_upstream_model_metric_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 69
+```
+
+#### 日志
+此配置下日志效果如下：
+```json
+{
+  "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
+}
+```
+
+#### 链路追踪
+配置为空时，不会在span中添加额外的attribute
+
+### 从非openai协议提取token使用信息
+在ai-proxy中设置协议为original时，以百炼为例，可作如下配置指定如何提取model, input_token, output_token
+
+```yaml
+attributes:
+  - key: model
+    value_source: response_body
+    value: usage.models.0.model_id
+    apply_to_log: true
+    apply_to_span: false
+  - key: input_token
+    value_source: response_body
+    value: usage.models.0.input_tokens
+    apply_to_log: true
+    apply_to_span: false
+  - key: output_token
+    value_source: response_body
+    value: usage.models.0.output_tokens
+    apply_to_log: true
+    apply_to_span: false
+```
+#### 监控
+```
+route_upstream_model_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
+route_upstream_model_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
+```
+
+#### 日志
+此配置下日志效果如下：
+```json
+{
+  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"  
+}
+```
+
+#### 链路追踪
+链路追踪的 span 中可以看到 model, input_token, output_token 三个额外的 attribute
+
+### 配合认证鉴权记录consumer
 举例如下： 
 ```yaml
-logAttributes:
+attributes:
   - key: consumer # 配合认证鉴权记录consumer
     value_source: request_header
     value: x-mse-consumer
+    apply_to_log: true
+```
+
+### 记录问题与回答
+```yaml
+attributes:
   - key: question # 记录问题
     value_source: request_body
     value: messages.@reverse.0.content
+    apply_to_log: true
   - key: answer   # 在流式响应中提取大模型的回答
     value_source: response_streaming_body
     value: choices.0.delta.content
     rule: append
+    apply_to_log: true
   - key: answer   # 在非流式响应中提取大模型的回答
     value_source: response_body
     value: choices.0.message.content
-spanAttributes:
-  - key: consumer
-    value_source: request_header
-    value: x-mse-consumer
-```
-
-## 可观测指标示例
-### Metric
-开启后 metrics 示例：
-```
-route_upstream_model_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-max"} 21
-route_upstream_model_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-max"} 17
-```
-
-### Log
-要想在日志中看到相关统计信息，需要在meshconfig中修改log_format，添加以下字段
-```yaml
-access_log:
-- name: envoy.access_loggers.file
-  typed_config:
-    "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-    log_format:
-      text_format_source:
-        inline_string: '{"ai-statistics":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
-    path: /dev/stdout
-```
-
-日志示例：
-
-```json
-{
-  "ai-statistics": {
-    "consumer": "21321r9fncsb2dq",
-    "route": "llm",
-    "output_token": "17",
-    "llm_service_duration": "3518",
-    "answer": "我是来自阿里云的超大规模语言模型，我叫通义千问。",
-    "request_id": "2d8ffda2-dc43-933d-ad72-7679cfbbaf15",
-    "question": "你是谁",
-    "cluster": "outbound|443||qwen.dns",
-    "model": "qwen-max",
-    "input_token": "10",
-    "llm_first_token_duration": "676"
-  }
-}
+    apply_to_log: true
 ```
