@@ -2,22 +2,21 @@ package workflow
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow/utils"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"strings"
 )
 
 const (
-	TaskTypeHTTP          string = "http"
-	TaskStart             string = "start"
-	TaskEnd               string = "end"
-	TaskContinue          string = "continue"
-	ToolServiceTypeStatic string = "static"
-	ToolServiceTypeDomain string = "domain"
-	UseContextFlag        string = "||"
-	AllFlag               string = "@all"
+	TaskTypeHTTP   string = "http"
+	TaskStart      string = "start"
+	TaskEnd        string = "end"
+	TaskContinue   string = "continue"
+	UseContextFlag string = "||"
+	AllFlag        string = "@all"
 )
 
 type PluginConfig struct {
@@ -25,8 +24,16 @@ type PluginConfig struct {
 	// @Title zh-CN 工作流
 	// @Description zh-CN 工作流的具体描述
 	Workflow Workflow `json:"workflow" yaml:"workflow"`
+	// @Title zh-CN 环境变量
+	// @Description zh-CN 用来定义整个工作流的环境变量
+	Env Env `json:"env" yaml:"env"`
 }
 
+type Env struct {
+	// @Title zh-CN 超时时间
+	// @Description zh-CN 用来定义工作流的超时时间，单位是毫秒
+	Timeout uint32 `json:"timeout" yaml:"timeout"`
+}
 type Workflow struct {
 	// @Title zh-CN 边的列表
 	// @Description zh-CN 边的列表
@@ -34,6 +41,9 @@ type Workflow struct {
 	// @Title zh-CN 节点的列表
 	// @Description zh-CN 节点的列表
 	Nodes map[string]Node `json:"nodes" yaml:"nodes"`
+	// @Title zh-CN 工作流的状态
+	// @Description zh-CN 工作流的执行状态，用于记录node之间的相互依赖和执行情况
+	WorkflowExecStatus map[string]int `json:"-" yaml:"-"`
 }
 
 type Edge struct {
@@ -66,9 +76,6 @@ type Node struct {
 	// @Title zh-CN 节点名称
 	// @Description zh-CN 节点名称全局唯一
 	Name string `json:"name" yaml:"name"`
-	// @Title zh-CN 服务类型
-	// @Description zh-CN 支持两个值 static domain 对于固定ip地址和域名
-	ServiceType string `json:"service_type" yaml:"service_type"`
 	// @Title zh-CN 服务名称
 	// @Description zh-CN 带服务类型的完整名称，例如 my.dns or foo.static
 	ServiceName string `json:"service_name" yaml:"service_name"`
@@ -82,7 +89,7 @@ type Node struct {
 	// @Description zh-CN http访问路径，默认是 /
 	ServicePath string `json:"service_path" yaml:"service_path"`
 	// @Title zh-CN http 方法
-	// @Description zh-CN http方法，支持所有可用方法 GET，
+	// @Description zh-CN http方法，支持所有可用方法 GET，POST等
 	ServiceMethod string `json:"service_method" yaml:"service_method"`
 	// @Title zh-CN http 请求头文件
 	// @Description zh-CN 请求头文件
@@ -92,17 +99,17 @@ type Node struct {
 	ServiceBodyTmpl string `json:"service_body_tmpl" yaml:"service_body_tmpl"`
 	// @Title zh-CN http 请求body模板替换键值对
 	// @Description zh-CN 请求body模板替换键值对，用来构造请求。to表示填充的位置，from表示数据从哪里，
-	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
+	// 标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 	ServiceBodyReplaceKeys []BodyReplaceKeyPair `json:"service_body_replace_keys" yaml:"service_body_replace_keys"`
 }
 type BodyReplaceKeyPair struct {
 	// @Title zh-CN from表示数据从哪里，
 	// @Description zh-CN from表示数据从哪里
-	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
+	// 标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 	From string `json:"from" yaml:"from"`
 	// @Title zh-CN to表示填充的位置
 	// @Description zh-CN to表示填充的位置，
-	//标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
+	// 标识表达式基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串
 	To string `json:"to" yaml:"to"`
 }
 type ServiceHeader struct {
@@ -127,7 +134,7 @@ func (e *Edge) IsPass(ctx wrapper.HttpContext) (bool, error) {
 	if e.Conditional != "" {
 
 		var err error
-		//获取模板里的表达式
+		// 获取模板里的表达式
 
 		e.Conditional, err = e.WrapperDataByTmplStr(e.Conditional, ctx)
 		if err != nil {
@@ -138,7 +145,7 @@ func (e *Edge) IsPass(ctx wrapper.HttpContext) (bool, error) {
 
 			return false, fmt.Errorf("wl exec conditional %s failed: %v", e.Conditional, err)
 		}
-		return ok, nil
+		return !ok, nil
 
 	}
 	return false, nil
@@ -146,7 +153,7 @@ func (e *Edge) IsPass(ctx wrapper.HttpContext) (bool, error) {
 
 func (w *Edge) WrapperTask(config PluginConfig, ctx wrapper.HttpContext) error {
 
-	//判断 node 是否存在
+	// 判断 node 是否存在
 	node, isTool := config.Workflow.Nodes[w.Target]
 
 	if isTool {
@@ -182,28 +189,19 @@ func (w *Edge) wrapperBody(requestBodyTemplate string, keyPairs []BodyReplaceKey
 
 func (w *Edge) wrapperNodeTask(node Node, ctx wrapper.HttpContext) error {
 	// 封装cluster
-	switch node.ServiceType {
-	default:
-		return fmt.Errorf("unknown tool type: %s", node.ServiceType)
-	case ToolServiceTypeStatic:
-		w.Task.Cluster = wrapper.FQDNCluster{
-			FQDN: node.ServiceName,
-			Port: node.ServicePort,
-		}
-	case ToolServiceTypeDomain:
-		w.Task.Cluster = wrapper.DnsCluster{
-			ServiceName: node.ServiceName,
-			Domain:      node.ServiceDomain,
-			Port:        node.ServicePort,
-		}
+	w.Task.Cluster = wrapper.FQDNCluster{
+		Host: node.ServiceDomain,
+		FQDN: node.ServiceName,
+		Port: node.ServicePort,
 	}
-	//封装请求body
+
+	// 封装请求body
 	err := w.wrapperBody(node.ServiceBodyTmpl, node.ServiceBodyReplaceKeys, ctx)
 	if err != nil {
 		return fmt.Errorf("wrapper body parse failed: %v", err)
 	}
 
-	//封装请求Method path headers
+	// 封装请求Method path headers
 	w.Task.Method = node.ServiceMethod
 	w.Task.ServicePath = node.ServicePath
 	w.Task.Headers = make([][2]string, 0)
@@ -216,12 +214,10 @@ func (w *Edge) wrapperNodeTask(node Node, ctx wrapper.HttpContext) error {
 	return nil
 }
 
-/*
-利用模板和替换键值对构造请求，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
-*/
+// 利用模板和替换键值对构造请求，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
 func (w *Edge) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs []BodyReplaceKeyPair, ctx wrapper.HttpContext) ([]byte, error) {
 	var err error
-	//不需要替换 node.service_body_replace_keys 为空
+	// 不需要替换 node.service_body_replace_keys 为空
 	if len(keyPairs) == 0 {
 		return []byte(tmpl), nil
 	}
@@ -231,7 +227,7 @@ func (w *Edge) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs []BodyReplaceKe
 		jsonPath := keyPair.From
 		target := keyPair.To
 		var contextValueRaw []byte
-		//获取上下文数据
+		// 获取上下文数据
 		if strings.Contains(jsonPath, UseContextFlag) {
 			pathStr := strings.Split(jsonPath, UseContextFlag)
 			if len(pathStr) == 2 {
@@ -246,7 +242,7 @@ func (w *Edge) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs []BodyReplaceKe
 			}
 		}
 
-		//执行封装 ， `@all`代表全都要
+		// 执行封装 ， `@all`代表全都要
 		requestBody := gjson.ParseBytes(contextValueRaw)
 		if jsonPath == AllFlag {
 
@@ -271,19 +267,17 @@ func (w *Edge) WrapperDataByTmplStrAndKeys(tmpl string, keyPairs []BodyReplaceKe
 
 }
 
-/*
-变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
-*/
+// 变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用node是执行结果。tr2代表如何取数据，使用gjson的表达式，`@all`代表全都要
 func (w *Edge) WrapperDataByTmplStr(tmpl string, ctx wrapper.HttpContext) (string, error) {
 	var body []byte
-	//获取模板里的表达式
+	// 获取模板里的表达式
 	TmplKeyAndPath := utils.ParseTmplStr(tmpl)
 	if len(TmplKeyAndPath) == 0 {
 		return tmpl, nil
 	}
-	//解析表达式 { "{{str1||str2}}":"str1||str2" }
+	// 解析表达式 { "{{str1||str2}}":"str1||str2" }
 	for k, path := range TmplKeyAndPath {
-		//变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用前面命名为name的数据()。
+		// 变量使用`{{str1||str2}}`包裹，使用`||`分隔，str1代表使用前面命名为name的数据()。
 		if strings.Contains(path, UseContextFlag) {
 			pathStr := strings.Split(path, UseContextFlag)
 			if len(pathStr) == 2 {
@@ -296,7 +290,7 @@ func (w *Edge) WrapperDataByTmplStr(tmpl string, ctx wrapper.HttpContext) (strin
 					return tmpl, fmt.Errorf("context value is not []byte,key is %s", contextKey)
 				}
 			}
-			//执行封装 ， `@all`代表全都要
+			// 执行封装 ， `@all`代表全都要
 			requestBody := gjson.ParseBytes(body)
 			if path == AllFlag {
 				tmpl = strings.Replace(tmpl, k, utils.TrimQuote(requestBody.Raw), -1)
