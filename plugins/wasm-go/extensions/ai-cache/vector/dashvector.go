@@ -246,7 +246,7 @@ func (d *DvProvider) GetSimilarityThreshold() float64 {
 	return threshold
 }
 
-func (d *DvProvider) UploadAnswerEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+func (d *DvProvider) UploadAnswerAndEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	url, body, headers, err := d.constructUploadParameters(queryEmb, queryString, queryAnswer)
 	if err != nil {
 		return err

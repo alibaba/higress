@@ -3,6 +3,7 @@ package embedding
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,10 +11,10 @@ import (
 )
 
 const (
-	DOMAIN             = "dashscope.aliyuncs.com"
-	PORT               = 443
-	DEFAULT_MODEL_NAME = "text-embedding-v1"
-	ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	DASHSCOPE_DOMAIN             = "dashscope.aliyuncs.com"
+	DASHSCOPE_PORT               = 443
+	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v1"
+	DASHSCOPE_ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
 type dashScopeProviderInitializer struct {
@@ -28,10 +29,10 @@ func (d *dashScopeProviderInitializer) ValidateConfig(config ProviderConfig) err
 
 func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
-		c.servicePort = PORT
+		c.servicePort = DASHSCOPE_PORT
 	}
 	if c.serviceDomain == "" {
-		c.serviceDomain = DOMAIN
+		c.serviceDomain = DASHSCOPE_DOMAIN
 	}
 	return &DSProvider{
 		config: c,
@@ -95,7 +96,7 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 	model := d.config.model
 
 	if model == "" {
-		model = DEFAULT_MODEL_NAME
+		model = DASHSCOPE_DEFAULT_MODEL_NAME
 	}
 	data := EmbeddingRequest{
 		Model: model,
@@ -124,7 +125,7 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		{"Content-Type", "application/json"},
 	}
 
-	return ENDPOINT, headers, requestBody, err
+	return DASHSCOPE_ENDPOINT, headers, requestBody, err
 }
 
 type Result struct {
@@ -168,7 +169,7 @@ func (d *DSProvider) GetEmbedding(
 
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
-				err = errors.New("failed to parse response: " + err.Error())
+				err = fmt.Errorf("failed to parse response: %v", err)
 				callback(nil, err)
 				return
 			}

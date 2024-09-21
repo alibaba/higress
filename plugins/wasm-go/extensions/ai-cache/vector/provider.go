@@ -53,8 +53,8 @@ type EmbeddingUploader interface {
 		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
-type AnswerEmbeddingUploader interface {
-	UploadAnswerEmbedding(
+type AnswerAndEmbeddingUploader interface {
+	UploadAnswerAndEmbedding(
 		queryString string,
 		queryEmb []float64,
 		answer string,

@@ -49,9 +49,11 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 	if useSimilaritySearch {
 		if err := performSimilaritySearch(key, ctx, config, log, key, stream); err != nil {
 			log.Errorf("Failed to perform similarity search for key: %s, error: %v", key, err)
+			proxywasm.ResumeHttpRequest()
 		}
+	} else {
+		proxywasm.ResumeHttpRequest()
 	}
-	proxywasm.ResumeHttpRequest()
 }
 
 // processCacheHit handles a successful cache hit.
@@ -165,7 +167,11 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 			processCacheHit(key, mostSimilarData.Answer, stream, ctx, config, log)
 		} else {
 			// otherwise, continue to check cache for the most similar key
-			CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
+			err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
+			if err != nil {
+				log.Errorf("check cache for key: %s failed, error: %v", mostSimilarData.Text, err)
+				proxywasm.ResumeHttpRequest()
+			}
 		}
 	} else {
 		log.Infof("Score too high for key: %s with score: %f above threshold", mostSimilarData.Text, mostSimilarData.Score)
@@ -220,9 +226,9 @@ func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfi
 	}
 
 	// Attempt to upload answer embedding first
-	if ansEmbUploader, ok := activeVectorProvider.(vector.AnswerEmbeddingUploader); ok {
+	if ansEmbUploader, ok := activeVectorProvider.(vector.AnswerAndEmbeddingUploader); ok {
 		log.Infof("[onHttpResponseBody] uploading answer embedding for key: %s", key)
-		err := ansEmbUploader.UploadAnswerEmbedding(key, emb, value, ctx, log, nil)
+		err := ansEmbUploader.UploadAnswerAndEmbedding(key, emb, value, ctx, log, nil)
 		if err != nil {
 			log.Warnf("[onHttpResponseBody] failed to upload answer embedding for key: %s, error: %v", key, err)
 		} else {
