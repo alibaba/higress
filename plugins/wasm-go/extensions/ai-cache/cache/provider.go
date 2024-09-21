@@ -53,6 +53,10 @@ type ProviderConfig struct {
 	cacheKeyPrefix string
 }
 
+func (c *ProviderConfig) GetProviderType() string {
+	return c.typ
+}
+
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	c.serviceName = json.Get("serviceName").String()

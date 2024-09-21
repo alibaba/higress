@@ -157,6 +157,13 @@ func (d *DvProvider) QueryEmbedding(
 	return err
 }
 
+func checkField(fields map[string]interface{}, key string) string {
+	if val, ok := fields[key]; ok {
+		return val.(string)
+	}
+	return ""
+}
+
 func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryResult, error) {
 	resp, err := d.parseQueryResponse(responseBody)
 	if err != nil {
@@ -171,9 +178,10 @@ func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpCon
 
 	for _, output := range resp.Output {
 		result := QueryResult{
-			Text:      output.Fields["query"].(string),
+			Text:      checkField(output.Fields, "query"),
 			Embedding: output.Vector,
 			Score:     output.Score,
+			Answer:    checkField(output.Fields, "answer"),
 		}
 		results = append(results, result)
 	}
@@ -232,6 +240,10 @@ func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx
 		},
 		d.config.timeout)
 	return err
+}
+
+func (d *DvProvider) GetSimilarityThreshold() float64 {
+	return threshold
 }
 
 func (d *DvProvider) UploadAnswerEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {

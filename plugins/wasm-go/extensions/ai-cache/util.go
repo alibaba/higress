@@ -99,7 +99,7 @@ func savePartialMessage(ctx wrapper.HttpContext, partialMessage []byte, messages
 }
 
 // Processes the final chunk and returns the parsed value or an error
-func processFinalChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+func processNonEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
 	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
 
@@ -119,6 +119,15 @@ func processFinalChunk(ctx wrapper.HttpContext, config config.PluginConfig, chun
 		return value, nil
 	}
 
+	return value, nil
+}
+
+func processEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	if tempContentI == nil {
+		return string(chunk), nil
+	}
+	value := tempContentI.(string)
 	return value, nil
 }
 

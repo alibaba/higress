@@ -118,6 +118,10 @@ type ProviderConfig struct {
 	// ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
 }
 
+func (c *ProviderConfig) GetProviderType() string {
+	return c.typ
+}
+
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	// DashVector

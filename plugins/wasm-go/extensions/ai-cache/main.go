@@ -118,16 +118,21 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
+	log.Debugf("[onHttpResponseBody] escaped chunk: %q", string(chunk))
 	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
+
+	// if strings.HasSuffix(string(chunk), "[DONE] \n\n") {
+	// 	isLastChunk = true
+	// }
 
 	// If the context contains TOOL_CALLS_CONTEXT_KEY, bypass caching
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		return chunk
 	}
 
-	keyI := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
-	if keyI == nil {
+	key := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
+	if key == nil {
+		log.Debug("[onHttpResponseBody] key is nil, bypass caching")
 		return chunk
 	}
 
@@ -137,17 +142,24 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	}
 
 	// Handle last chunk
-	value, err := processFinalChunk(ctx, config, chunk, log)
-	if err != nil {
-		log.Warnf("[onHttpResponseBody] failed to process final chunk: %v", err)
-		return chunk
+	var value string
+	var err error
+
+	if len(chunk) > 0 {
+		value, err = processNonEmptyChunk(ctx, config, chunk, log)
+	} else {
+		value, err = processEmptyChunk(ctx, config, chunk, log)
 	}
 
+	if err != nil {
+		log.Warnf("[onHttpResponseBody] failed to process chunk: %v", err)
+		return chunk
+	}
 	// Cache the final value
-	cacheResponse(ctx, config, keyI.(string), value, log)
+	cacheResponse(ctx, config, key.(string), value, log)
 
 	// Handle embedding upload if available
-	uploadEmbeddingAndAnswer(ctx, config, keyI.(string), value, log)
+	uploadEmbeddingAndAnswer(ctx, config, key.(string), value, log)
 
 	return chunk
 }

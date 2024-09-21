@@ -1,13 +1,12 @@
 package main
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/go-errors/errors"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/resp"
 )
@@ -57,22 +56,23 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 
 // processCacheHit handles a successful cache hit.
 func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
-	escapedResponse, err := json.Marshal(response)
-	log.Debugf("Cached response for key %s: %s", key, escapedResponse)
-
-	if err != nil {
-		handleInternalError(err, "Failed to marshal cached response", log)
-		return
+	if stream {
+		log.Debug("streaming response is not supported for cache hit yet")
+		stream = false
 	}
+	// escapedResponse, err := json.Marshal(response)
+	// log.Debugf("Cached response for key %s: %s", key, escapedResponse)
+
+	// if err != nil {
+	// 	handleInternalError(err, "Failed to marshal cached response", log)
+	// 	return
+	// }
+	log.Debugf("Cached response for key %s: %s", key, response)
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
-	contentType := "application/json; charset=utf-8"
-	if stream {
-		contentType = "text/event-stream; charset=utf-8"
-	}
-
-	proxywasm.SendHttpResponse(200, [][2]string{{"content-type", contentType}}, []byte(fmt.Sprintf(config.ResponseTemplate, escapedResponse)), -1)
+	// proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, escapedResponse)), -1)
+	proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, response)), -1)
 }
 
 // performSimilaritySearch determines the appropriate similarity search method to use.
@@ -149,7 +149,7 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 	}
 
 	mostSimilarData := results[0]
-	log.Debugf("Most similar key found: %s with score: %f", mostSimilarData.Text, mostSimilarData.Score)
+	log.Debugf("For key: %s, the most similar key found: %s with score: %f", key, mostSimilarData.Text, mostSimilarData.Score)
 
 	simThresholdProvider, ok := config.GetVectorProvider().(vector.SimilarityThresholdProvider)
 	if !ok {
