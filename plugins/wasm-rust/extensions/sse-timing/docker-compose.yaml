@@ -17,12 +17,18 @@ services:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
     entrypoint: /usr/local/bin/envoy
     command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug
+    depends_on:
+      - sse-server
     hostname: envoy
     ports:
       - "10000:10000"
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./target/wasm32-wasi/release:/etc/envoy/proxy-wasm-plugins
+    networks:
+      - envoymesh
+  sse-server:
+    build: ./sse-server
     networks:
       - envoymesh
 networks:
