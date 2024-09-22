@@ -35,13 +35,14 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 `endpoint`中每一项的配置字段说明
 
-| 名称       | 数据类型 | 必填 | 默认值 | 描述                                                                                      |
-| -------- | -------- | -- | ------ |-----------------------------------------------------------------------------------------|
-| `service_name` | string | 必填 | -                                                          | 输入授权服务名称，带服务类型的完整 FQDN 名称，例如 `ext-auth.dns` 、`ext-auth.my-ns.svc.cluster.local`         |
-| `service_port` | int    | 否 | 80 | 输入授权服务的服务端口                                                                             |
-| `path_prefix`    | string   | `endpoint_mode` 为`envoy`时必填        |        | `endpoint_mode` 为`envoy` 时，客户端向授权服务发送请求的请求路径前缀 |
-| `request_method` | string   | 否                                     | GET    | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的HTTP Method |
-| `path`           | string   | `endpoint_mode` 为`forward_auth`时必填 | -      | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的请求路径 |
+| 名称             | 数据类型 | 必填                                   | 默认值 | 描述                                                                                                   |
+| --------         | -------- | --                                     | ------ | -----------------------------------------------------------------------------------------              |
+| `service_name`   | string   | 必填                                   | -      | 输入授权服务名称，带服务类型的完整 FQDN 名称，例如 `ext-auth.dns` 、`ext-auth.my-ns.svc.cluster.local` |
+| `service_port`   | int      | 否                                     | 80     | 输入授权服务的服务端口                                                                                 |
+| `service_host`   | string   | 否                                     | -      | 请求授权服务时设置的Host头，不填时和FQDN保持一致                                                       |
+| `path_prefix`    | string   | `endpoint_mode` 为`envoy`时必填        |        | `endpoint_mode` 为`envoy` 时，客户端向授权服务发送请求的请求路径前缀                                   |
+| `request_method` | string   | 否                                     | GET    | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的HTTP Method                             |
+| `path`           | string   | `endpoint_mode` 为`forward_auth`时必填 | -      | `endpoint_mode` 为`forward_auth` 时，客户端向授权服务发送请求的请求路径                                |
 
 `authorization_request`中每一项的配置字段说明
 
@@ -108,7 +109,7 @@ curl -X POST http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e12
 
 ```
 POST /auth/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 HTTP/1.1
-Host: ext-auth
+Host: ext-auth.backend.svc.cluster.local
 Authorization: xxx
 Content-Length: 0
 ```
@@ -147,9 +148,10 @@ http_service:
     allowed_upstream_headers:
     - exact: x-user-id
     - exact: x-auth-version
-  endpoint_mode: envoy  
+  endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
+    service_host: my-domain.local
     service_port: 8090
     path_prefix: /auth
   timeout: 1000
@@ -165,7 +167,7 @@ curl -X POST http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e12
 
 ```
 POST /auth/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 HTTP/1.1
-Host: ext-auth
+Host: my-domain.local
 Authorization: xxx
 X-Auth-Version: 1.0
 x-envoy-header: true
@@ -205,7 +207,7 @@ curl -i http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 
 
 ```
 POST /auth HTTP/1.1
-Host: ext-auth
+Host: ext-auth.backend.svc.cluster.local
 Authorization: xxx
 X-Original-Uri: /users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5
 X-Original-Method: GET
@@ -246,9 +248,10 @@ http_service:
     allowed_upstream_headers:
     - exact: x-user-id
     - exact: x-auth-version
-  endpoint_mode: forward_auth  
+  endpoint_mode: forward_auth
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
+    service_host: my-domain.local
     service_port: 8090
     path: /auth
     request_method: POST
@@ -265,7 +268,7 @@ curl -i http://localhost:8082/users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5 
 
 ```
 POST /auth HTTP/1.1
-Host: ext-auth
+Host: my-domain.local
 Authorization: xxx
 X-Original-Uri: /users?apikey=9a342114-ba8a-11ec-b1bf-00163e1250b5
 X-Original-Method: GET

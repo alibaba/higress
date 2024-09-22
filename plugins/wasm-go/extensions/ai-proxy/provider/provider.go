@@ -38,6 +38,7 @@ const (
 	providerTypeGemini     = "gemini"
 	providerTypeDeepl      = "deepl"
 	providerTypeMistral    = "mistral"
+	providerTypeCohere     = "cohere"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -94,6 +95,7 @@ var (
 		providerTypeGemini:     &geminiProviderInitializer{},
 		providerTypeDeepl:      &deeplProviderInitializer{},
 		providerTypeMistral:    &mistralProviderInitializer{},
+		providerTypeCohere:     &cohereProviderInitializer{},
 	}
 )
 
@@ -312,6 +314,10 @@ func (c *ProviderConfig) GetRandomToken() string {
 	default:
 		return apiTokens[rand.Intn(count)]
 	}
+}
+
+func (c *ProviderConfig) IsOriginal() bool {
+	return c.protocol == protocolOriginal
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {

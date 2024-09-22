@@ -215,6 +215,10 @@ DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 | ------------ | -------- | -------- | ------ | ---------------------------- |
 | `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
 
+#### Cohere
+
+Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -601,6 +605,51 @@ provider:
   "request_id": "187e99ba-5b64-9ffe-8f69-01dafbaf6ed7"
 }
 ```
+
+### 使用original协议代理百炼智能体应用
+**配置信息**
+
+```yaml
+provider:
+  type: qwen
+  apiTokens:
+    - "YOUR_DASHSCOPE_API_TOKEN"
+  protocol: original
+```
+
+**请求实例**
+```json
+{
+  "input": {
+      "prompt": "介绍一下Dubbo"
+  },
+  "parameters":  {},
+  "debug": {}
+}
+```
+
+**响应实例**
+
+```json
+{
+    "output": {
+        "finish_reason": "stop",
+        "session_id": "677e7e8fbb874e1b84792b65042e1599",
+        "text": "Apache Dubbo 是一个..."
+    },
+    "usage": {
+        "models": [
+            {
+                "output_tokens": 449,
+                "model_id": "qwen-max",
+                "input_tokens": 282
+            }
+        ]
+    },
+    "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+}
+```
+
 
 ### 使用月之暗面配合其原生的文件上下文
 
