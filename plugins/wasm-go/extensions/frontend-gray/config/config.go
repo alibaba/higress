@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	XHigressTag    = "x-higress-tag"
-	XUniqueClient  = "x-unique-client"
-	XPreHigressTag = "x-pre-higress-tag"
-	IsPageRequest  = "is-page-request"
-	IsNotFound     = "is-not-found"
+	XHigressTag     = "x-higress-tag"
+	XUniqueClientId = "x-unique-client"
+	XPreHigressTag  = "x-pre-higress-tag"
+	IsPageRequest   = "is-page-request"
+	IsNotFound      = "is-not-found"
 )
 
 type LogInfo func(format string, args ...interface{})

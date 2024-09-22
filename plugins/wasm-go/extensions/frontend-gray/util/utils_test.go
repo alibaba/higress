@@ -82,7 +82,7 @@ func TestPrefixFileRewrite(t *testing.T) {
 	}
 }
 
-func TestGetIsPageRequest(t *testing.T) {
+func TestIsPageRequest(t *testing.T) {
 	var tests = []struct {
 		fetchMode string
 		p         string
@@ -99,7 +99,7 @@ func TestGetIsPageRequest(t *testing.T) {
 	for _, test := range tests {
 		testPath := test.p
 		t.Run(testPath, func(t *testing.T) {
-			output := GetIsPageRequest(test.fetchMode, testPath)
+			output := IsPageRequest(test.fetchMode, testPath)
 			assert.Equal(t, test.output, output)
 		})
 	}
@@ -117,7 +117,7 @@ func TestFilterGrayWeight(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			grayConfig := &config.GrayConfig{}
 			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
-			result := FilterGrayWeight(grayConfig, []string{"base", "1.0.1"}, "192.168.1.1")
+			result := FilterGrayWeight(grayConfig, "base", "1.0.1", "192.168.1.1")
 			t.Logf("result-----: %v", result)
 		})
 	}

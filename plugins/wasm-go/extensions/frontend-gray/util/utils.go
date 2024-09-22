@@ -22,6 +22,19 @@ func LogInfof(format string, args ...interface{}) {
 	proxywasm.LogInfof(format, args...)
 }
 
+func GetXPreHigressVersion(cookies string) (string, string) {
+	xPreHigressVersion := ExtractCookieValueByKey(cookies, config.XPreHigressTag)
+	preVersions := strings.Split(xPreHigressVersion, ",")
+	if len(preVersions) == 0 {
+		return "", ""
+	}
+	if len(preVersions) == 1 {
+		return preVersions[0], ""
+	}
+
+	return strings.TrimSpace(preVersions[0]), strings.TrimSpace(preVersions[1])
+}
+
 // 从xff中获取真实的IP
 func GetRealIpFromXff(xff string) string {
 	if xff != "" {
@@ -119,11 +132,11 @@ var indexSuffixes = []string{
 	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
 }
 
-func GetIsPageRequest(fetchMode string, p string) bool {
+func IsPageRequest(fetchMode string, myPath string) bool {
 	if fetchMode == "cors" {
 		return false
 	}
-	ext := path.Ext(p)
+	ext := path.Ext(myPath)
 	return ext == "" || ContainsValue(indexSuffixes, ext)
 }
 
@@ -230,18 +243,18 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.
 	return grayConfig.BaseDeployment
 }
 
-func FilterGrayWeight(grayConfig *config.GrayConfig, preVersions []string, uniqueClientId string) *config.Deployment {
+func FilterGrayWeight(grayConfig *config.GrayConfig, preVersion string, preUniqueClientId string, uniqueClientId string) *config.Deployment {
 	// 如果没有灰度权重，直接返回基础版本
 	if grayConfig.TotalGrayWeight == 0 {
 		return grayConfig.BaseDeployment
 	}
 
 	deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
-	LogInfof("uniqueClientId: %s, preVersions: %v", uniqueClientId, preVersions)
+	LogInfof("preVersion: %s, preUniqueClientId: %s, uniqueClientId: %s", preVersion, preUniqueClientId, uniqueClientId)
 	// 用户粘滞，确保每个用户每次访问的都是走同一版本
-	if len(preVersions) > 1 && preVersions[1] != "" && uniqueClientId == preVersions[1] {
+	if preVersion != "" && uniqueClientId == preUniqueClientId {
 		for _, deployment := range deployments {
-			if deployment.Version == strings.Trim(preVersions[0], " ") {
+			if deployment.Version == preVersion {
 				return deployment
 			}
 		}

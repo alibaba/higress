@@ -41,13 +41,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	path, _ := proxywasm.GetHttpRequestHeader(":path")
 	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
 
-	isPageRequest := util.GetIsPageRequest(fetchMode, path)
+	isPageRequest := util.IsPageRequest(fetchMode, path)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
 	// 优先从cookie中获取，否则从header中获取
 	grayKeyValue := util.GetGrayKey(grayKeyValueByCookie, grayKeyValueByHeader, grayConfig.GraySubKey)
-
 	// 如果有重写的配置，则进行重写
 	if hasRewrite {
 		// 禁止重新路由，要在更改Header之前操作，否则会失效
@@ -59,9 +58,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	deployment := &config.Deployment{}
 
-	xPreHigressVersion := util.ExtractCookieValueByKey(cookies, config.XPreHigressTag)
-	preVersions := strings.Split(xPreHigressVersion, ",")
-
+	preVersion, preUniqueClientId := util.GetXPreHigressVersion(cookies)
 	// 客户端唯一ID，用于在按照比率灰度时候 客户访问黏贴
 	uniqueClientId := grayKeyValue
 	if uniqueClientId == "" {
@@ -73,20 +70,20 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if isPageRequest {
 		log.Infof("grayConfig.TotalGrayWeight==== %v", grayConfig.TotalGrayWeight)
 		if grayConfig.TotalGrayWeight > 0 {
-			deployment = util.FilterGrayWeight(&grayConfig, preVersions, uniqueClientId)
+			deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
 		} else {
 			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
 		}
-		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %v", deployment, path, deployment.BackendVersion, xPreHigressVersion)
+		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, path, deployment.BackendVersion, preVersion, preUniqueClientId)
 	} else {
-		deployment = util.GetVersion(grayConfig, deployment, preVersions[0], isPageRequest)
+		deployment = util.GetVersion(grayConfig, deployment, preVersion, isPageRequest)
 	}
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
 	ctx.SetContext(config.XPreHigressTag, deployment.Version)
 	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	ctx.SetContext(config.IsPageRequest, isPageRequest)
-	ctx.SetContext(config.XUniqueClient, uniqueClientId)
+	ctx.SetContext(config.XUniqueClientId, uniqueClientId)
 
 	rewrite := grayConfig.Rewrite
 	if rewrite.Host != "" {
@@ -119,7 +116,10 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 	}
 
-	isPageRequest := ctx.GetContext(config.IsPageRequest).(bool)
+	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
+	if !ok {
+		isPageRequest = false // 默认值
+	}
 
 	if err != nil || status != "200" {
 		if status == "404" {
@@ -160,7 +160,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store")
 
 		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-		xUniqueClient := ctx.GetContext(config.XUniqueClient).(string)
+		xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
 
 		// 设置前端的版本
 		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
@@ -177,11 +177,18 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
-	isPageRequest := ctx.GetContext(config.IsPageRequest).(bool)
+	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
+	if !ok {
+		isPageRequest = false // 默认值
+	}
 	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 
-	isNotFound := ctx.GetContext(config.IsNotFound)
-	if isPageRequest && isNotFound != nil && isNotFound.(bool) && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	isNotFound, ok := ctx.GetContext(config.IsNotFound).(bool)
+	if !ok {
+		isNotFound = false // 默认值
+	}
+
+	if isPageRequest && isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 
 		client.Get(strings.Replace(grayConfig.Rewrite.NotFound, "{version}", frontendVersion, -1), nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
