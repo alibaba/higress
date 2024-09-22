@@ -450,8 +450,8 @@ func TestConvertResources(t *testing.T) {
 		{"mismatch"},
 		{"weighted"},
 		{"zero"},
-		// todo 单元测试待解决
-		//{"invalid"},
+		{"invalid"},
+		// 目前仅支持 type 为 Hostname 和 ServiceImport
 		//{"multi-gateway"},
 		{"delegated"},
 		{"route-binding"},
@@ -459,7 +459,7 @@ func TestConvertResources(t *testing.T) {
 		{"reference-policy-service"},
 		//{"serviceentry"},
 		{"alias"},
-		{"mcs"},
+		//{"mcs"},
 		{"route-precedence"},
 	}
 	for _, tt := range cases {

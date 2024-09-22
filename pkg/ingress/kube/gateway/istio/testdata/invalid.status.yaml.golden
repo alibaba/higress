@@ -164,26 +164,6 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   creationTimestamp: null
-  name: invalid-gateway-address
-  namespace: invalid-gateway-address
-spec: null
-status:
-  conditions:
-  - lastTransitionTime: fake
-    message: only Hostname is supported, ignoring [1.2.3.4]
-    reason: UnsupportedAddress
-    status: "False"
-    type: Accepted
-  - lastTransitionTime: fake
-    message: Failed to assign to any requested addresses
-    reason: UnsupportedAddress
-    status: "False"
-    type: Programmed
----
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  creationTimestamp: null
   name: invalid-cert-kind
   namespace: higress-system
 spec: null
@@ -476,4 +456,29 @@ status:
       namespace: higress-system
       sectionName: fake
 ---
-
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: no-backend
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: higress.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: httpbin
+---

@@ -24,6 +24,7 @@ import (
 	"istio.io/istio/pilot/pkg/model"
 	serviceRegistryKube "istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/cluster"
+	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/util/sets"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +75,7 @@ func (gc GatewayContext) ResolveGatewayInstances(
 	endpointsCache := make(map[string]*corev1.Endpoints)
 
 	for _, g := range gwsvcs {
-		svc := gc.GetService(g, namespace)
+		svc := gc.GetService(g, namespace, gvk.Service.Kind)
 		if svc == nil {
 			warnings = append(warnings, fmt.Sprintf("hostname %q not found", g))
 			continue
@@ -131,7 +132,12 @@ func (gc GatewayContext) ResolveGatewayInstances(
 	return sets.SortedList(foundInternal), sets.SortedList(foundExternal), sets.SortedList(foundPending), warnings
 }
 
-func (gc GatewayContext) GetService(hostname, namespace string) *model.Service {
+func (gc GatewayContext) GetService(hostname, namespace, kind string) *model.Service {
+	// Currently only supports type Kubernetes Service
+	if kind != gvk.Service.Kind {
+		log.Warnf("Unsupported kind: expected 'Service', but got '%s'", kind)
+		return nil
+	}
 	serviceName := extractServiceName(hostname)
 
 	svc, err := gc.client.Kube().CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
