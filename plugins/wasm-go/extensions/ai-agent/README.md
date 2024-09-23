@@ -7,7 +7,7 @@ description: AI Agent插件配置参考
 ## 功能说明
 一个可定制化的 API AI Agent，支持配置 http method 类型为 GET 与 POST 的 API，支持多轮对话，支持流式与非流式模式。
 agent流程图如下：
-![ai-agent](https://lark-assets-prod-aliyun.oss-cn-hangzhou.aliyuncs.com/lark/0/2024/png/299576/1724058532774-2c73fdf8-77a8-42c2-a85c-1605f53e397f.png?OSSAccessKeyId=LTAI4GGhPJmQ4HWCmhDAn4F5&Expires=1727096060&Signature=F0PNPxnBHQk4nnoxMlhWaEj01TU%3D&response-content-disposition=inline#clientId=u76be9aab-f03b-4&id=tRObU&originHeight=1473&originWidth=2733&originalType=binary&ratio=1&rotation=0&showTitle=false&size=473723&status=done&style=none&taskId=u1fea02d4-4610-47b6-bf88-a67e26f90ea)
+![ai-agent](https://img.alicdn.com/imgextra/i1/O1CN01PGSDW31WQfEPm173u_!!6000000002783-0-tps-2733-1473.jpg)
 
 
 ## 配置字段
