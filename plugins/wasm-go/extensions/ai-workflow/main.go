@@ -18,11 +18,12 @@ import (
 	ejson "encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow/utils"
 	"net/http"
 	"strings"
 
-	. "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow/workflow"
+	"ai-workflow/utils"
+	. "ai-workflow/workflow"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	maxDepth           uint   = 100
+	DefaultMaxDepth    uint32 = 100
 	WorkflowExecStatus string = "workflowExecStatus"
 	DefaultTimeout     uint32 = 5000
 )
@@ -54,6 +55,11 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	c.Env.Timeout = uint32(env.Get("timeout").Int())
 	if c.Env.Timeout == 0 {
 		c.Env.Timeout = DefaultTimeout
+	}
+	// max_depth
+	c.Env.MaxDepth = uint32(env.Get("max_depth").Int())
+	if c.Env.MaxDepth == 0 {
+		c.Env.MaxDepth = DefaultMaxDepth
 	}
 	// workflow
 	workflow := json.Get("workflow")
@@ -179,7 +185,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 		if edge.Source == TaskStart {
 			ctx.SetContext(fmt.Sprintf("%s", TaskStart), body)
-			err := recursive(edge, initHeader, body, 1, maxDepth, config, log, ctx)
+			err := recursive(edge, initHeader, body, 1, config, log, ctx)
 			if err != nil {
 				// 工作流处理错误，返回500给用户
 				log.Errorf("recursive failed: %v", err)
@@ -193,11 +199,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 // 放入符合条件的edge
-func recursive(edge Edge, headers [][2]string, body []byte, depth uint, maxDepth uint, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
+func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
 
 	var err error
 	// 防止递归次数太多
-	if depth > maxDepth {
+	if depth > config.Env.MaxDepth {
 		return fmt.Errorf("maximum recursion depth reached")
 	}
 
@@ -276,7 +282,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint, maxDepth
 					}
 
 					// 执行下一步
-					err = recursive(next, headers_, responseBody, depth+1, maxDepth, config, log, ctx)
+					err = recursive(next, headers_, responseBody, depth+1, config, log, ctx)
 					if err != nil {
 						log.Errorf("recursive error:%v", err)
 						_ = utils.SendResponse(500, "ai-workflow.recursive_failed", utils.MimeTypeTextPlain, fmt.Sprintf("recursive error:%v", err))
@@ -292,7 +298,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint, maxDepth
 		}
 		return
 
-	}, uint32(maxDepth)*config.Env.Timeout)
+	}, config.Env.MaxDepth*config.Env.Timeout)
 	if err != nil {
 		log.Errorf("httpcall error:%v", err)
 	}

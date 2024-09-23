@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow
+module ai-workflow
 
 go 1.19
 

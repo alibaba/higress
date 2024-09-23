@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-workflow/utils"
+	"ai-workflow/utils"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -33,6 +34,9 @@ type Env struct {
 	// @Title zh-CN 超时时间
 	// @Description zh-CN 用来定义工作流的超时时间，单位是毫秒
 	Timeout uint32 `json:"timeout" yaml:"timeout"`
+	// @Title zh-CN 最大迭代深度
+	// @Description zh-CN 用来定义工作流最大的迭代深度，默认是100
+	MaxDepth uint32 `json:"max_depth" yaml:"max_depth"`
 }
 type Workflow struct {
 	// @Title zh-CN 边的列表
