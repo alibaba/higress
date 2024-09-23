@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+use std::time::Duration;
+
+use crate::cluster_wrapper::Cluster;
 use crate::rule_matcher::SharedRuleMatcher;
+use http::{method::Method, Uri};
 use multimap::MultiMap;
 use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::LogLevel;
-use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction};
+use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction, LogLevel, Status};
 use serde::de::DeserializeOwned;
 
-pub trait RootContextWrapper<PluginConfig>: RootContext
+pub trait RootContextWrapper<PluginConfig, HttpCallArg: 'static = ()>: RootContext
 where
     PluginConfig: Default + DeserializeOwned + 'static + Clone,
 {
@@ -39,11 +43,32 @@ where
     fn create_http_context_wrapper(
         &self,
         _context_id: u32,
-    ) -> Option<Box<dyn HttpContextWrapper<PluginConfig>>> {
+    ) -> Option<Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>> {
         None
     }
 }
-pub trait HttpContextWrapper<PluginConfig>: HttpContext {
+pub struct HttpCallArgStorage<HttpCallArg> {
+    args: HashMap<u32, HttpCallArg>,
+}
+impl<HttpCallArg> Default for HttpCallArgStorage<HttpCallArg> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl<HttpCallArg> HttpCallArgStorage<HttpCallArg> {
+    pub fn new() -> Self {
+        HttpCallArgStorage {
+            args: HashMap::new(),
+        }
+    }
+    pub fn set(&mut self, token_id: u32, arg: HttpCallArg) {
+        self.args.insert(token_id, arg);
+    }
+    pub fn pop(&mut self, token_id: u32) -> Option<HttpCallArg> {
+        self.args.remove(&token_id)
+    }
+}
+pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
     fn on_config(&mut self, _config: &PluginConfig) {}
     fn on_http_request_complete_headers(
         &mut self,
@@ -69,26 +94,99 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
     fn on_http_response_complete_body(&mut self, _res_body: &Bytes) -> DataAction {
         DataAction::Continue
     }
+
+    #[allow(clippy::too_many_arguments)]
+    fn on_http_call_response_detail(
+        &mut self,
+        _token_id: u32,
+        _arg: HttpCallArg,
+        _status_code: u16,
+        _headers: &MultiMap<String, String>,
+        _body: Option<Vec<u8>>,
+    ) {
+    }
     fn replace_http_request_body(&mut self, body: &[u8]) {
         self.set_http_request_body(0, i32::MAX as usize, body)
     }
     fn replace_http_response_body(&mut self, body: &[u8]) {
         self.set_http_response_body(0, i32::MAX as usize, body)
     }
+
+    fn get_http_call_storage(&mut self) -> Option<&mut HttpCallArgStorage<HttpCallArg>> {
+        None
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn http_call(
+        &mut self,
+        cluster: &dyn Cluster,
+        method: &Method,
+        raw_url: &str,
+        headers: MultiMap<String, String>,
+        body: Option<&[u8]>,
+        arg: HttpCallArg,
+        timeout: Duration,
+    ) -> Result<u32, Status> {
+        if let Ok(uri) = raw_url.parse::<Uri>() {
+            let mut authority = cluster.host_name();
+            if let Some(host) = uri.host() {
+                authority = host.to_string();
+            }
+            let mut path = uri.path().to_string();
+            if let Some(query) = uri.query() {
+                path = format!("{}?{}", path, query);
+            }
+            let mut headers_vec = Vec::new();
+            for (k, v) in headers.iter() {
+                headers_vec.push((k.as_str(), v.as_str()));
+            }
+            headers_vec.push((":method", method.as_str()));
+            headers_vec.push((":path", &path));
+            headers_vec.push((":authority", &authority));
+            let ret = self.dispatch_http_call(
+                &cluster.cluster_name(),
+                headers_vec,
+                body,
+                Vec::new(),
+                timeout,
+            );
+
+            if let Ok(token_id) = ret {
+                if let Some(storage) = self.get_http_call_storage() {
+                    storage.set(token_id, arg);
+                    log(
+                        LogLevel::Debug,
+                        format!(
+                            "http call start, id: {}, cluster: {}, method: {}, url: {}, body: {:?}, timeout: {:?}",
+                            token_id, cluster.cluster_name(), method.as_str(), raw_url, body, timeout
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
+                } else {
+                    return Err(Status::InternalFailure);
+                }
+            }
+            ret
+        } else {
+            log(LogLevel::Critical, &format!("invalid raw_url:{}", raw_url)).unwrap();
+            Err(Status::ParseFailure)
+        }
+    }
 }
-pub struct PluginHttpWrapper<PluginConfig> {
+pub struct PluginHttpWrapper<PluginConfig, HttpCallArg = ()> {
     req_headers: MultiMap<String, String>,
     res_headers: MultiMap<String, String>,
     req_body_len: usize,
     res_body_len: usize,
     config: Option<PluginConfig>,
     rule_matcher: SharedRuleMatcher<PluginConfig>,
-    http_content: Box<dyn HttpContextWrapper<PluginConfig>>,
+    http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
 }
-impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
+impl<PluginConfig, HttpCallArg> PluginHttpWrapper<PluginConfig, HttpCallArg> {
     pub fn new(
         rule_matcher: &SharedRuleMatcher<PluginConfig>,
-        http_content: Box<dyn HttpContextWrapper<PluginConfig>>,
+        http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
     ) -> Self {
         PluginHttpWrapper {
             req_headers: MultiMap::new(),
@@ -100,8 +198,15 @@ impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
             http_content,
         }
     }
+    fn get_http_call_arg(&mut self, token_id: u32) -> Option<HttpCallArg> {
+        if let Some(storage) = self.http_content.get_http_call_storage() {
+            storage.pop(token_id)
+        } else {
+            None
+        }
+    }
 }
-impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
+impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, HttpCallArg> {
     fn on_http_call_response(
         &mut self,
         token_id: u32,
@@ -109,8 +214,62 @@ impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
         body_size: usize,
         num_trailers: usize,
     ) {
-        self.http_content
-            .on_http_call_response(token_id, num_headers, body_size, num_trailers)
+        if let Some(arg) = self.get_http_call_arg(token_id) {
+            let body = self.get_http_call_response_body(0, body_size);
+            let mut headers = MultiMap::new();
+            let mut status_code = 502;
+            let mut normal_response = false;
+            for (k, v) in self.get_http_call_response_headers_bytes() {
+                match String::from_utf8(v) {
+                    Ok(header_value) => {
+                        if k == ":status" {
+                            if let Ok(code) = header_value.parse::<u16>() {
+                                status_code = code;
+                                normal_response = true;
+                            } else {
+                                log(
+                                    LogLevel::Error,
+                                    format!("failed to parse status: {}", header_value).as_str(),
+                                )
+                                .unwrap();
+                                status_code = 500;
+                            }
+                        }
+                        headers.insert(k, header_value);
+                    }
+                    Err(_) => {
+                        log(
+                            LogLevel::Warn,
+                            format!(
+                            "http call response header contains non-ASCII characters header: {}",
+                            k
+                        )
+                            .as_str(),
+                        )
+                        .unwrap();
+                    }
+                }
+            }
+            log(
+                LogLevel::Warn,
+                format!(
+                    "http call end, id: {}, code: {}, normal: {}, body: {:?}",
+                    token_id, status_code, normal_response, body
+                )
+                .as_str(),
+            )
+            .unwrap();
+            self.http_content.on_http_call_response_detail(
+                token_id,
+                arg,
+                status_code,
+                &headers,
+                body,
+            )
+        } else {
+            self.http_content
+                .on_http_call_response(token_id, num_headers, body_size, num_trailers)
+        }
     }
 
     fn on_grpc_call_response(&mut self, token_id: u32, status_code: u32, response_size: usize) {
@@ -138,7 +297,7 @@ impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
         self.http_content.on_done()
     }
 }
-impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
+impl<PluginConfig, HttpCallArg> HttpContext for PluginHttpWrapper<PluginConfig, HttpCallArg>
 where
     PluginConfig: Default + DeserializeOwned + Clone,
 {
