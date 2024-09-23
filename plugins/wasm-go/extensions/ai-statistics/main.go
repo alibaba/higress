@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -121,7 +122,9 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 		if attribute.ValueSource == ResponseStreamingBody {
 			config.shouldBufferStreamingBody = true
 		}
-		log.Infof("%v", attribute)
+		if attribute.Rule != "" && attribute.Rule != RuleFirst && attribute.Rule != RuleReplace && attribute.Rule != RuleAppend {
+			return errors.New("value of rule must be one of [nil, first, replace, append]")
+		}
 		config.attributes[i] = attribute
 	}
 	// Metric settings
@@ -332,7 +335,6 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 				log.Debugf("[log attribute] source type: %s, key: %s, value: %s", source, attribute.Key, value)
 				attributes[attribute.Key] = value
 			default:
-				log.Errorf("source type %s is error", source)
 			}
 		}
 		if attribute.ApplyToLog {
