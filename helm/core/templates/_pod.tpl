@@ -167,6 +167,12 @@ template:
           {{- toYaml .Values.gateway.resources | nindent 10 }}
         {{- end }}
         volumeMounts:
+        - mountPath: /var/run/secrets/workload-spiffe-uds
+          name: workload-socket
+        - mountPath: /var/run/secrets/credential-uds
+          name: credential-socket
+        - mountPath: /var/run/secrets/workload-spiffe-credentials
+          name: workload-certs
         {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
         - name: istio-token
           mountPath: /var/run/secrets/tokens
@@ -245,6 +251,12 @@ template:
       {{- toYaml . | nindent 6 }}
     {{- end }}
     volumes:
+    - emptyDir: {}
+      name: workload-socket
+    - emptyDir: {}
+      name: credential-socket
+    - emptyDir: {}
+      name: workload-certs
     {{- if eq (include "controller.jwtPolicy" .) "third-party-jwt" }}
     - name: istio-token
       projected:
