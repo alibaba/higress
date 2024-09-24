@@ -140,3 +140,34 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+## 进阶
+配合阿里云SLS数据加工，可以将ai相关的字段进行提取加工，例如原始日志为：
+
+```
+ai_log:{"question":"用python计算2的3次方","answer":"你可以使用 Python 的乘方运算符 `**` 来计算一个数的次方。计算2的3次方，即2乘以自己2次，可以用以下代码表示：\n\n```python\nresult = 2 ** 3\nprint(result)\n```\n\n运行这段代码，你会得到输出结果为8，因为2乘以自己两次等于8。","model":"qwen-max","input_token":"16","output_token":"76","llm_service_duration":"5913"}
+```
+
+使用如下数据加工脚本，可以提取出question和answer：
+
+```
+e_regex("ai_log", grok("%{EXTRACTJSON}"))
+e_set("question", json_select(v("json"), "question", default="-"))
+e_set("answer", json_select(v("json"), "answer", default="-"))
+```
+
+提取后，SLS中会添加question和answer两个字段，示例如下：
+
+```
+ai_log:{"question":"用python计算2的3次方","answer":"你可以使用 Python 的乘方运算符 `**` 来计算一个数的次方。计算2的3次方，即2乘以自己2次，可以用以下代码表示：\n\n```python\nresult = 2 ** 3\nprint(result)\n```\n\n运行这段代码，你会得到输出结果为8，因为2乘以自己两次等于8。","model":"qwen-max","input_token":"16","output_token":"76","llm_service_duration":"5913"}
+
+question:用python计算2的3次方
+
+answer:你可以使用 Python 的乘方运算符 `**` 来计算一个数的次方。计算2的3次方，即2乘以自己2次，可以用以下代码表示：
+
+result = 2 ** 3
+print(result)
+
+运行这段代码，你会得到输出结果为8，因为2乘以自己两次等于8。
+
+```
