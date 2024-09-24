@@ -7,6 +7,11 @@ description: AI Statistics plugin configuration reference
 ## Introduction
 Provides basic AI observability capabilities, including metric, log, and trace. The ai-proxy plug-in needs to be connected afterwards. If the ai-proxy plug-in is not connected, the user needs to configure it accordingly to take effect.
 
+## Runtime Properties
+
+Plugin Phase: `CUSTOM`
+Plugin Priority: `200`
+
 ## Configuration instructions
 The default request of the plug-in conforms to the openai protocol format and provides the following basic observable values. Users do not need special configuration:
 
