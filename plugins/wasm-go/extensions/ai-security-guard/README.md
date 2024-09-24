@@ -11,8 +11,13 @@
 | `secretKey` | string | requried | - | 阿里云SK |
 | `checkRequest` | bool | optional | false | 检查提问内容是否合规 |
 | `checkResponse` | bool | optional | false | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
-| `requestCheckService` | bool | optional | llm_query_moderation | 指定阿里云内容安全用于检测输入内容的服务 |
-| `responseCheckService` | bool | optional | llm_response_moderation | 指定阿里云内容安全用于检测输出内容的服务 |
+| `requestCheckService` | string | optional | llm_query_moderation | 指定阿里云内容安全用于检测输入内容的服务 |
+| `responseCheckService` | string | optional | llm_response_moderation | 指定阿里云内容安全用于检测输出内容的服务 |
+| `requestContentJsonPath` | string | optional | `messages.@reverse.0.content` | 指定要检测内容在请求body中的jsonpath |
+| `responseContentJsonPath` | string | optional | `choices.0.message.content` | 指定要检测内容在响应body中的jsonpath |
+| `responseStreamContentJsonPath` | string | optional | `choices.0.delta.content` | 指定要检测内容在流式响应body中的jsonpath |
+| `denyCode` | int | optional | 200 | 指定内容非法时的响应状态码 |
+| `denyMessage` | string | optional | openai格式的流失/非流式响应，回答内容为阿里云内容安全的建议回答 | 指定内容非法时的响应内容 |
 
 
 ## 配置示例
@@ -59,6 +64,21 @@ accessKey: "XXXXXXXXX"
 secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 requestCheckService: llm_query_moderation_01
+```
+
+### 配置非openai协议（例如百炼App）
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+checkRequest: true
+checkResponse: true
+requestContentJsonPath: "input.prompt"
+responseContentJsonPath: "output.text"
+denyCode: 200
+denyMessage: "很抱歉，我无法回答您的问题"
 ```
 
 ## 可观测

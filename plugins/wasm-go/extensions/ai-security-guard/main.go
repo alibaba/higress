@@ -45,6 +45,7 @@ const (
 	DefaultRequestJsonPath           = "messages.@reverse.0.content"
 	DefaultResponseJsonPath          = "choices.0.message.content"
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
+	DefaultDenyCode                  = 200
 )
 
 type AISecurityConfig struct {
@@ -131,7 +132,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	if obj := json.Get("denyCode"); obj.Exists() {
 		config.denyCode = obj.Int()
 	} else {
-		config.denyCode = 403
+		config.denyCode = DefaultDenyCode
 	}
 	if obj := json.Get("requestCheckService"); obj.Exists() {
 		config.requestCheckService = obj.String()
@@ -214,10 +215,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						if config.denyMessage != "" {
 							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
 						} else {
-							jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 							if stream {
+								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 							} else {
+								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 							}
 						}
