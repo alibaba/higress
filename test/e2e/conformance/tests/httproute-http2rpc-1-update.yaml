@@ -34,6 +34,20 @@ spec:
         paramType: "java.lang.String"
 ---
 apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+  - domain: nacos-standlone-rc3-service.higress-conformance-app-backend
+    nacosGroups:
+    - DEFAULT_GROUP
+    name: nacos-service-resource
+    port: 8848
+    type: nacos
+---
+apiVersion: networking.higress.io/v1
 kind: Http2Rpc
 metadata:
   name: httproute-http2rpc-healthservice
@@ -79,6 +93,28 @@ spec:
       paths:
       - pathType: Prefix
         path: /dubbo/health
+        backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: providers:com.dubbo.demo.api.DemoService:1.0.0:dev.DEFAULT-GROUP.public.nacos
+    higress.io/rpc-destination-name: httproute-http2rpc-demo
+  name: httproute-http2rpc-demo-ingress
+  namespace: higress-system
+spec:
+  ingressClassName: higress
+  rules:
+  - host: "foo.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: /dubbo
         backend:
           resource:
             apiGroup: networking.higress.io

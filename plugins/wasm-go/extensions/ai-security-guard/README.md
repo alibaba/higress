@@ -4,7 +4,7 @@ keywords: [higress, AI, security]
 description: 阿里云内容安全检测
 ---
 
-## 简介
+## 功能说明
 通过对接阿里云内容安全检测大模型的输入输出，保障AI应用内容合法合规。
 
 ## 配置说明
@@ -73,6 +73,7 @@ requestCheckService: llm_query_moderation_01
 ```
 
 ### 配置非openai协议（例如百炼App）
+
 ```yaml
 serviceName: safecheck.dns
 servicePort: 443

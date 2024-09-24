@@ -24,8 +24,10 @@ import (
 )
 
 // Http2RpcLister helps list Http2Rpcs.
+// All objects returned here must be treated as read-only.
 type Http2RpcLister interface {
 	// List lists all Http2Rpcs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Http2Rpc, err error)
 	// Http2Rpcs returns an object that can list and get Http2Rpcs.
 	Http2Rpcs(namespace string) Http2RpcNamespaceLister
@@ -56,10 +58,13 @@ func (s *http2RpcLister) Http2Rpcs(namespace string) Http2RpcNamespaceLister {
 }
 
 // Http2RpcNamespaceLister helps list and get Http2Rpcs.
+// All objects returned here must be treated as read-only.
 type Http2RpcNamespaceLister interface {
 	// List lists all Http2Rpcs in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Http2Rpc, err error)
 	// Get retrieves the Http2Rpc from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.Http2Rpc, error)
 	Http2RpcNamespaceListerExpansion
 }

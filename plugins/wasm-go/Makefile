@@ -1,8 +1,8 @@
 PLUGIN_NAME ?= hello-world
 BUILDER_REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
 REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
-GO_VERSION ?= 1.19
-TINYGO_VERSION ?= 0.28.1
+GO_VERSION ?= 1.20.14
+TINYGO_VERSION ?= 0.29.0
 ORAS_VERSION ?= 1.0.0
 HIGRESS_VERSION ?= 1.0.0-rc
 USE_HIGRESS_TINYGO ?= false

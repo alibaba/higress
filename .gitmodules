@@ -1,21 +1,35 @@
-[submodule "istio/1.12/api"]
-	path = istio/1.12/api
-	url = https://github.com/istio/api
-[submodule "istio/1.12/istio"]
-	path = istio/1.12/istio
-	url = https://github.com/istio/istio
-[submodule "istio/1.12/client-go"]
-	path = istio/1.12/client-go
-	url = https://github.com/istio/client-go
-[submodule "istio/1.12/pkg"]
-	path = istio/1.12/pkg
-	url = https://github.com/istio/pkg
-[submodule "istio/1.12/proxy"]
-	path = istio/1.12/proxy
-	url = https://github.com/istio/proxy
-[submodule "envoy/1.20/go-control-plane"]
-	path = envoy/1.20/go-control-plane
-	url = https://github.com/envoyproxy/go-control-plane
-[submodule "envoy/1.20/envoy"]
-	path = envoy/1.20/envoy
-	url = https://github.com/envoyproxy/envoy
+[submodule "istio/api"]
+	path = istio/api
+	url = https://github.com/higress-group/api
+	branch = istio-1.19
+	shallow = true
+[submodule "istio/istio"]
+	path = istio/istio
+	url = https://github.com/higress-group/istio
+	branch = istio-1.19
+	shallow = true
+[submodule "istio/client-go"]
+	path = istio/client-go
+	url = https://github.com/higress-group/client-go
+	branch = istio-1.19
+	shallow = true
+[submodule "istio/pkg"]
+	path = istio/pkg
+	url = https://github.com/higress-group/pkg
+	branch = istio-1.19
+	shallow = true
+[submodule "istio/proxy"]
+	path = istio/proxy
+	url = https://github.com/higress-group/proxy
+	branch = istio-1.19
+	shallow = true
+[submodule "envoy/go-control-plane"]
+	path = envoy/go-control-plane
+	url = https://github.com/higress-group/go-control-plane
+	branch = istio-1.19
+	shallow = true
+[submodule "envoy/envoy"]
+	path = envoy/envoy
+	url = https://github.com/higress-group/envoy
+	branch = envoy-1.27
+	shallow = true

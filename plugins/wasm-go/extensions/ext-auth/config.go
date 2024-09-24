@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
-	"ext-auth/expr"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"strings"
+
+	"ext-auth/expr"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -137,10 +138,12 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 	if servicePort == 0 {
 		servicePort = 80
 	}
+	serviceHost := endpointConfig.Get("service_host").String()
 
 	httpService.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
+		Host: serviceHost,
 	})
 
 	switch endpointMode {

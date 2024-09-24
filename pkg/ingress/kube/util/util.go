@@ -20,50 +20,69 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"path"
-	"strings"
+	"istio.io/istio/pilot/pkg/model"
 	"os"
+	"path"
+	"strconv"
+	"strings"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"istio.io/istio/pilot/pkg/model"
+	_struct "github.com/golang/protobuf/ptypes/struct"
+	"istio.io/istio/pkg/cluster"
+	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
-const DefaultDomainSuffix = "cluster.local"
+const (
+	DefaultDomainSuffix = "cluster.local"
+
+	// IngressClassAnnotation is the annotation on ingress resources for the class of controllers
+	// responsible for it
+	IngressClassAnnotation = "kubernetes.io/ingress.class"
+)
+
 var domainSuffix = os.Getenv("DOMAIN_SUFFIX")
 
 type ClusterNamespacedName struct {
-	model.NamespacedName
-	ClusterId string
+	types.NamespacedName
+	ClusterId cluster.ID
 }
 
 func (c ClusterNamespacedName) String() string {
-	return c.ClusterId + "/" + c.NamespacedName.String()
+	return c.ClusterId.String() + "/" + c.NamespacedName.String()
 }
 
-func SplitNamespacedName(name string) model.NamespacedName {
+func GetDomainSuffix() string {
+	if len(domainSuffix) != 0 {
+		return domainSuffix
+	}
+	return DefaultDomainSuffix
+}
+
+func SplitNamespacedName(name string) types.NamespacedName {
 	nsName := strings.Split(name, "/")
 	if len(nsName) == 2 {
-		return model.NamespacedName{
+		return types.NamespacedName{
 			Namespace: nsName[0],
 			Name:      nsName[1],
 		}
 	}
 
-	return model.NamespacedName{
+	return types.NamespacedName{
 		Name: nsName[0],
 	}
 }
 
 // CreateDestinationRuleName create the same format of DR name with ops.
-func CreateDestinationRuleName(istioCluster, namespace, name string) string {
-	format := path.Join(istioCluster, namespace, name)
+func CreateDestinationRuleName(istioCluster cluster.ID, namespace, name string) string {
+	format := path.Join(istioCluster.String(), namespace, name)
 	hash := md5.Sum([]byte(format))
 	return hex.EncodeToString(hash[:])
 }
 
-func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
+func MessageToStruct(msg proto.Message) (*_struct.Struct, error) {
 	if msg == nil {
 		return nil, errors.New("nil message")
 	}
@@ -73,7 +92,7 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 		return nil, err
 	}
 
-	pbs := &types.Struct{}
+	pbs := &_struct.Struct{}
 	if err := jsonpb.Unmarshal(buf, pbs); err != nil {
 		return nil, err
 	}
@@ -82,14 +101,58 @@ func MessageToGoGoStruct(msg proto.Message) (*types.Struct, error) {
 }
 
 func CreateServiceFQDN(namespace, name string) string {
-        if domainSuffix == "" {
-        	domainSuffix = DefaultDomainSuffix
-        }
+	if domainSuffix == "" {
+		domainSuffix = DefaultDomainSuffix
+	}
 	return fmt.Sprintf("%s.%s.svc.%s", name, namespace, domainSuffix)
 }
 
-func BuildPatchStruct(config string) *types.Struct {
-	val := &types.Struct{}
-	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
+func BuildPatchStruct(config string) *_struct.Struct {
+	val := &_struct.Struct{}
+	err := jsonpb.Unmarshal(strings.NewReader(config), val)
+	if err != nil {
+		IngressLog.Errorf("build patch struct failed, err:%v", err)
+	}
 	return val
+}
+
+type ServiceInfo struct {
+	model.NamespacedName
+	Port uint32
+}
+
+// convertToPort converts a port string to a uint32.
+func convertToPort(v string) (uint32, error) {
+	p, err := strconv.ParseUint(v, 10, 32)
+	if err != nil || p > 65535 {
+		return 0, fmt.Errorf("invalid port %s: %v", v, err)
+	}
+	return uint32(p), nil
+}
+
+func ParseServiceInfo(service string, ingressNamespace string) (ServiceInfo, error) {
+	parts := strings.Split(service, ":")
+	namespacedName := SplitNamespacedName(parts[0])
+
+	if namespacedName.Name == "" {
+		return ServiceInfo{}, errors.New("service name can not be empty")
+	}
+
+	if namespacedName.Namespace == "" {
+		namespacedName.Namespace = ingressNamespace
+	}
+
+	var port uint32
+	if len(parts) == 2 {
+		// If port parse fail, we ignore port and pick the first one.
+		port, _ = convertToPort(parts[1])
+	}
+
+	return ServiceInfo{
+		NamespacedName: model.NamespacedName{
+			Name:      namespacedName.Name,
+			Namespace: namespacedName.Namespace,
+		},
+		Port: port,
+	}, nil
 }

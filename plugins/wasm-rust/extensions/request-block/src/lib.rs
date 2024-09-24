@@ -17,7 +17,7 @@ use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use multimap::MultiMap;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, Bytes, ContextType, LogLevel};
+use proxy_wasm::types::{Bytes, ContextType, DataAction, HeaderAction, LogLevel};
 use regex::Regex;
 use serde::de::Error;
 use serde::Deserialize;
@@ -148,9 +148,12 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
     fn cache_request_body(&self) -> bool {
         self.cache_request
     }
-    fn on_http_request_headers_ok(&mut self, headers: &MultiMap<String, String>) -> Action {
+    fn on_http_request_complete_headers(
+        &mut self,
+        headers: &MultiMap<String, String>,
+    ) -> HeaderAction {
         if self.config.is_none() {
-            return Action::Continue;
+            return HeaderAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
         if !config.block_urls.is_empty()
@@ -161,7 +164,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
 
             if value.is_none() {
                 self.log.warn("get path failed");
-                return Action::Continue;
+                return HeaderAction::Continue;
             }
             let mut request_url = value.unwrap().clone();
 
@@ -175,7 +178,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
                         Vec::new(),
                         Some(config.blocked_message.as_bytes()),
                     );
-                    return Action::Pause;
+                    return HeaderAction::StopIteration;
                 }
             }
             for block_url in &config.block_urls {
@@ -185,7 +188,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
                         Vec::new(),
                         Some(config.blocked_message.as_bytes()),
                     );
-                    return Action::Pause;
+                    return HeaderAction::StopIteration;
                 }
             }
 
@@ -196,7 +199,7 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
                         Vec::new(),
                         Some(config.blocked_message.as_bytes()),
                     );
-                    return Action::Pause;
+                    return HeaderAction::StopIteration;
                 }
             }
         }
@@ -214,19 +217,19 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
                         Vec::new(),
                         Some(config.blocked_message.as_bytes()),
                     );
-                    return Action::Pause;
+                    return HeaderAction::StopIteration;
                 }
             }
         }
-        Action::Continue
+        HeaderAction::Continue
     }
-    fn on_http_request_body_ok(&mut self, req_body: &Bytes) -> Action {
+    fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> DataAction {
         if self.config.is_none() {
-            return Action::Continue;
+            return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
         if config.block_bodies.is_empty() {
-            return Action::Continue;
+            return DataAction::Continue;
         }
         let mut body = req_body.clone();
         if !config.case_sensitive {
@@ -240,9 +243,9 @@ impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
                     Vec::new(),
                     Some(config.blocked_message.as_bytes()),
                 );
-                return Action::Pause;
+                return DataAction::StopIterationAndBuffer;
             }
         }
-        Action::Continue
+        DataAction::Continue
     }
 }

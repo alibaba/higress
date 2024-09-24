@@ -18,18 +18,18 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/credentials/kube"
-	"istio.io/istio/pilot/pkg/model"
 	gatewaytool "istio.io/istio/pkg/config/gateway"
 	"istio.io/istio/pkg/config/security"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
 
 const (
-	authTLSSecret = "auth-tls-secret"
-	sslCipher     = "ssl-cipher"
+	authTLSSecret      = "auth-tls-secret"
+	sslCipher          = "ssl-cipher"
+	gatewaySdsCaSuffix = "-cacert"
 )
 
 var (
@@ -40,7 +40,7 @@ var (
 type DownstreamTLSConfig struct {
 	CipherSuites []string
 	Mode         networking.ServerTLSSettings_TLSmode
-	CASecretName model.NamespacedName
+	CASecretName types.NamespacedName
 }
 
 type downstreamTLS struct{}
@@ -97,7 +97,7 @@ func (d downstreamTLS) ApplyGateway(gateway *networking.Gateway, config *Ingress
 				serverCert := extraSecret(server.Tls.CredentialName)
 				if downstreamTLSConfig.CASecretName.Namespace != serverCert.Namespace ||
 					(downstreamTLSConfig.CASecretName.Name != serverCert.Name &&
-						downstreamTLSConfig.CASecretName.Name != serverCert.Name+kube.GatewaySdsCaSuffix) {
+						downstreamTLSConfig.CASecretName.Name != serverCert.Name+gatewaySdsCaSuffix) {
 					IngressLog.Errorf("CA secret %s is invalid", downstreamTLSConfig.CASecretName.String())
 				} else {
 					server.Tls.Mode = downstreamTLSConfig.Mode

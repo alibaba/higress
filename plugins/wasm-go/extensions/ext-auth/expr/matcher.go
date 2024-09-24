@@ -2,9 +2,10 @@ package expr
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/tidwall/gjson"
 	regexp "github.com/wasilibs/go-re2"
-	"strings"
 )
 
 const (

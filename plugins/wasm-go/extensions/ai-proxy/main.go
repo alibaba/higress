@@ -64,7 +64,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
 	apiName := getOpenAiApiName(path.Path)
-	if apiName == "" {
+	providerConfig := pluginConfig.GetProviderConfig()
+	if apiName == "" && !providerConfig.IsOriginal() {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
 		return types.ActionContinue
@@ -74,10 +75,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to  the chosen route.
 		ctx.DisableReroute()
-
+		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
-			if contentType, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil && contentType != "" {
+			if hasRequestBody {
 				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 				// Always return types.HeaderStopIteration to support fallback routing,
 				// as long as onHttpRequestBody can be called.
@@ -104,12 +105,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+
+		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
+		if settingErr != nil {
+			_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to rewrite request body by custom settings: %v", settingErr))
+			return types.ActionContinue
+		}
+
+		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
+		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_req_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process request body: %v", err))
-		return types.ActionContinue
 	}
 	return types.ActionContinue
 }

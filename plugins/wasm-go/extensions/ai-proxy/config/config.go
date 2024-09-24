@@ -50,3 +50,7 @@ func (c *PluginConfig) Complete() error {
 func (c *PluginConfig) GetProvider() provider.Provider {
 	return c.provider
 }
+
+func (c *PluginConfig) GetProviderConfig() provider.ProviderConfig {
+	return c.providerConfig
+}
