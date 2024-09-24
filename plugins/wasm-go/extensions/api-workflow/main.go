@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"strings"
 
-	"ai-workflow/utils"
-	. "ai-workflow/workflow"
+	"api-workflow/utils"
+	. "api-workflow/workflow"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -38,7 +38,7 @@ const (
 
 func main() {
 	wrapper.SetCtx(
-		"ai-workflow",
+		"api-workflow",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 	)
@@ -189,7 +189,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			if err != nil {
 				// 工作流处理错误，返回500给用户
 				log.Errorf("recursive failed: %v", err)
-				_ = utils.SendResponse(500, "ai-workflow.recursive_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow plugin recursive failed: %v", err))
+				_ = utils.SendResponse(500, "api-workflow.recursive_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow plugin recursive failed: %v", err))
 
 			}
 		}
@@ -261,7 +261,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 						// 执行出了问题
 						if nextStatus[next.Target] < 0 {
 							log.Errorf("workflow exec status find  error  %v", nextStatus)
-							_ = utils.SendResponse(500, "ai-workflow.exec_task_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow exec status find  error  %v", nextStatus))
+							_ = utils.SendResponse(500, "api-workflow.exec_task_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow exec status find  error  %v", nextStatus))
 							return
 						}
 					}
@@ -269,7 +269,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 					isPass, err2 := next.IsPass(ctx)
 					if err2 != nil {
 						log.Errorf("check pass find error:%v", err2)
-						_ = utils.SendResponse(500, "ai-workflow.task_check_paas_failed", utils.MimeTypeTextPlain, fmt.Sprintf("check pass find error:%v", err2))
+						_ = utils.SendResponse(500, "api-workflow.task_check_paas_failed", utils.MimeTypeTextPlain, fmt.Sprintf("check pass find error:%v", err2))
 						return
 					}
 					if isPass {
@@ -285,7 +285,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 					err = recursive(next, headers_, responseBody, depth+1, config, log, ctx)
 					if err != nil {
 						log.Errorf("recursive error:%v", err)
-						_ = utils.SendResponse(500, "ai-workflow.recursive_failed", utils.MimeTypeTextPlain, fmt.Sprintf("recursive error:%v", err))
+						_ = utils.SendResponse(500, "api-workflow.recursive_failed", utils.MimeTypeTextPlain, fmt.Sprintf("recursive error:%v", err))
 						return
 					}
 				}
@@ -294,7 +294,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 		} else {
 			// statusCode >= 400 ,task httpCall执行失败，放行请求，打印错误，结束workflow
 			log.Errorf("workflow exec task find error,code is %d,body is %s", statusCode, string(responseBody))
-			_ = utils.SendResponse(500, "ai-workflow.httpCall_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow exec task find error,code is %d,body is %s", statusCode, string(responseBody)))
+			_ = utils.SendResponse(500, "api-workflow.httpCall_failed", utils.MimeTypeTextPlain, fmt.Sprintf("workflow exec task find error,code is %d,body is %s", statusCode, string(responseBody)))
 		}
 		return
 

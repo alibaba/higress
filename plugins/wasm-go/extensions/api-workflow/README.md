@@ -1,10 +1,10 @@
 ---
-title: AI 工作流
-keywords: [ AI网关, AI工作流 ]
-description: AI 工作流插件配置参考
+title: API 工作流
+keywords: [ API工作流 ]
+description: API 工作流插件配置参考
 ---
 ## 功能说明
-`ai工作流 `实现了可编排的API workflow 插件，支持根据配置定义生成DAG并执行工作流
+`api工作流 `实现了可编排的API workflow 插件，支持根据配置定义生成DAG并执行工作流
 
 ## 配置说明
 
@@ -371,15 +371,15 @@ curl  -v '127.0.0.1:8080'  -H 'Accept: application/json, text/event-stream'  -H 
 
 执行后的简略debug日志,可以看到工作流等到前置的ABC流程执行完毕后，根据返回值构建了D的body` {"A_result":0.007155838584362588,"B_result":"this is b","C_result":"this is c"}`;执行D后，根据D的返回值`{"check": 0.99, "llm":{}}`进行条件判断，最终继续执行了E`gt 0.99 0.9`，然后结束流程
 ```bash
-[ai-workflow] workflow exec task,source is start,target is A, body is {"input":{"texts":["higress项目主仓库的github地址是什么"]},"model":"text-embedding-v2","parameters":{"text_type":"query"}},header is [[Authorization Bearer sk-b98f4628125e4f178f7c340e09082046] [Content-Type application/json]]
-[ai-workflow] workflow exec task,source is start,target is B, body is {"embeddings":"default","msg":"default request body","sk":"sk-xxxxxx"},header is [[AK ak-xxxxxxxxxxxxxxxxxxxx] [Content-Type application/json]]
-[ai-workflow] workflow exec task,source is start,target is C, body is ,header is []
-[ai-workflow] source is B,target is D,stauts is map[A:0 B:0 C:0 D:2 E:1]
-[ai-workflow] source is C,target is D,stauts is map[A:0 B:0 C:0 D:1 E:1]
-[ai-workflow] source is A,target is D,stauts is map[A:0 B:0 C:0 D:0 E:1]
-[ai-workflow] workflow exec task,source is A,target is D, body is,header is []
-[ai-workflow] source is D,target is end,workflow is pass
-[ai-workflow] source is D,target is E,stauts is map[A:0 B:0 C:0 D:0 E:0]
-[ai-workflow] workflow exec task,source is D,target is E, body is {"save":"{\"A_result\":0.007155838584362588,\"B_result\":\"this is b\",\"C_result\":\"this is c\"}"},header is [] 
-[ai-workflow] source is E,target is end,workflow is end
+[api-workflow] workflow exec task,source is start,target is A, body is {"input":{"texts":["higress项目主仓库的github地址是什么"]},"model":"text-embedding-v2","parameters":{"text_type":"query"}},header is [[Authorization Bearer sk-b98f4628125e4f178f7c340e09082046] [Content-Type application/json]]
+[api-workflow] workflow exec task,source is start,target is B, body is {"embeddings":"default","msg":"default request body","sk":"sk-xxxxxx"},header is [[AK ak-xxxxxxxxxxxxxxxxxxxx] [Content-Type application/json]]
+[api-workflow] workflow exec task,source is start,target is C, body is ,header is []
+[api-workflow] source is B,target is D,stauts is map[A:0 B:0 C:0 D:2 E:1]
+[api-workflow] source is C,target is D,stauts is map[A:0 B:0 C:0 D:1 E:1]
+[api-workflow] source is A,target is D,stauts is map[A:0 B:0 C:0 D:0 E:1]
+[api-workflow] workflow exec task,source is A,target is D, body is,header is []
+[api-workflow] source is D,target is end,workflow is pass
+[api-workflow] source is D,target is E,stauts is map[A:0 B:0 C:0 D:0 E:0]
+[api-workflow] workflow exec task,source is D,target is E, body is {"save":"{\"A_result\":0.007155838584362588,\"B_result\":\"this is b\",\"C_result\":\"this is c\"}"},header is [] 
+[api-workflow] source is E,target is end,workflow is end
 ```

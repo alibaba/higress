@@ -1,4 +1,4 @@
-module ai-workflow
+module api-workflow
 
 go 1.19
 
