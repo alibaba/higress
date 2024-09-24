@@ -646,6 +646,19 @@ provider:
 }
 ```
 
+### 使用 OpenAI 协议代理豆包大模型服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
+```
 
 ### 使用月之暗面配合其原生的文件上下文
 
