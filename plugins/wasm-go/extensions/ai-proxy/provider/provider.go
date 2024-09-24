@@ -39,6 +39,7 @@ const (
 	providerTypeDeepl      = "deepl"
 	providerTypeMistral    = "mistral"
 	providerTypeCohere     = "cohere"
+	providerTypeDoubao     = "doubao"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -96,6 +97,7 @@ var (
 		providerTypeDeepl:      &deeplProviderInitializer{},
 		providerTypeMistral:    &mistralProviderInitializer{},
 		providerTypeCohere:     &cohereProviderInitializer{},
+		providerTypeDoubao:     &doubaoProviderInitializer{},
 	}
 )
 
