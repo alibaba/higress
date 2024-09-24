@@ -59,7 +59,6 @@ type AISecurityConfig struct {
 	responseCheckService          string
 	responseContentJsonPath       string
 	responseStreamContentJsonPath string
-	original                      bool
 	denyCode                      int64
 	denyMessage                   string
 	metrics                       map[string]proxywasm.MetricCounter
@@ -117,7 +116,6 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
 	serviceHost := json.Get("serviceHost").String()
-	config.original = json.Get("original").Bool()
 	if serviceName == "" || servicePort == 0 || serviceHost == "" {
 		return errors.New("invalid service config")
 	}
@@ -179,7 +177,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	stream := !config.original && gjson.GetBytes(body, "stream").Bool()
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	if content != "" {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
@@ -215,7 +212,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						if config.denyMessage != "" {
 							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
 						} else {
-							if stream {
+							if gjson.GetBytes(body, "stream").Bool() {
 								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 							} else {
