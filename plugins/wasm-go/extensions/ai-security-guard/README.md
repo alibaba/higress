@@ -1,3 +1,9 @@
+---
+title: AI内容安全
+keywords: [higress, AI, security]
+description: 阿里云内容安全检测
+---
+
 ## 简介
 通过对接阿里云内容安全检测大模型的输入输出，保障AI应用内容合法合规。
 

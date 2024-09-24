@@ -1,3 +1,10 @@
+---
+title: AI Content Security
+keywords: [higress, AI, security]
+description: Alibaba Cloud content security
+---
+
+
 ## Introduction
 Integrate with Aliyun content security service for detections of input and output of LLMs, ensuring that application content is legal and compliant.
 

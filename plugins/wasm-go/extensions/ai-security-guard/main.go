@@ -46,6 +46,8 @@ const (
 	DefaultResponseJsonPath          = "choices.0.message.content"
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
+
+	AliyunUserAgent = "CIPFrom/AIGateway"
 )
 
 type AISecurityConfig struct {
@@ -199,7 +201,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", "CIPFrom/AIGateway"}}, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
@@ -299,7 +301,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", "CIPFrom/AIGateway"}}, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer proxywasm.ResumeHttpResponse()
 				respData := gjson.GetBytes(responseBody, "Data")
