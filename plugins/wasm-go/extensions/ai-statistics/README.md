@@ -1,8 +1,15 @@
-# 介绍
+---
+title: AI可观测
+keywords: [higress, AI, observability]
+description: AI可观测配置参考
+---
+
+## 介绍
 提供AI可观测基础能力，包括 metric, log, trace，其后需接ai-proxy插件，如果不接ai-proxy插件的话，则需要用户进行相应配置才可生效。
 
-# 配置说明
+## 配置说明
 插件默认请求符合openai协议格式，并提供了以下基础可观测值，用户无需特殊配置：
+
 - metric：提供了输入token、输出token、首个token的rt（流式请求）、请求总rt等指标，支持在网关、路由、服务、模型四个维度上进行观测
 - log：提供了 input_token, output_token, model, llm_service_duration, llm_first_token_duration 等字段
 
@@ -12,7 +19,8 @@
 |----------------|-------|------|-----|------------------------|
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
 
-## Attribute 配置说明
+Attribute 配置说明:
+
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|-----|-----|------------------------|
 | `key`         | string | 必填  | -   | attrribute 名称           |
@@ -23,6 +31,7 @@
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
 
 `value_source` 的各种取值含义如下：
+
 - `fixed_value`：固定值
 - `requeset_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
 - `request_body` ：attrribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
@@ -32,27 +41,19 @@
 
 
 当 `value_source` 为 `response_streaming_body` 时，应当配置 `rule`，用于指定如何从流式body中获取指定值，取值含义如下：
-- `first`：（多个chunk中取第一个chunk的值），
-- `replace`：（多个chunk中取最后一个chunk的值），
-- `append`：（拼接多个chunk中的值，可用于获取回答内容）
+
+- `first`：多个chunk中取第一个有效chunk的值
+- `replace`：多个chunk中取最后一个有效chunk的值
+- `append`：拼接多个有效chunk中的值，可用于获取回答内容
 
 ## 配置示例
 如果希望在网关访问日志中记录ai-statistic相关的统计值，需要修改log_format，在原log_format基础上添加一个新字段，示例如下：
 
 ```yaml
-access_log:
-  - name: envoy.access_loggers.file
-    typed_config:
-      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-      log_format:
-        text_format_source:
-          inline_string: '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
-      path: /dev/stdout
+'{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
 ```
 
 ### 空配置
-当不进行任何配置时，效果如下
-
 #### 监控
 ```
 route_upstream_model_metric_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 10
@@ -63,7 +64,6 @@ route_upstream_model_metric_output_token{ai_route="llm",ai_cluster="outbound|443
 ```
 
 #### 日志
-此配置下日志效果如下：
 ```json
 {
   "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
