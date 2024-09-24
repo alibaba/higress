@@ -8,6 +8,11 @@ description: Alibaba Cloud content security
 ## Introduction
 Integrate with Aliyun content security service for detections of input and output of LLMs, ensuring that application content is legal and compliant.
 
+## Runtime Properties
+
+Plugin Phase: `CUSTOM`
+Plugin Priority: `300`
+
 ## Configuration
 | Name | Type | Requirement | Default | Description |
 | ------------ | ------------ | ------------ | ------------ | ------------ |
