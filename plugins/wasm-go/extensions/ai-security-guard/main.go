@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -32,16 +32,47 @@ func main() {
 	)
 }
 
+const (
+	OpenAIResponseFormat       = `{"id": "chatcmpl-123","object": "chat.completion","model": "gpt-4o-mini","choices": [{"index": 0,"message": {"role": "assistant","content": "%s"},"logprobs": null,"finish_reason": "stop"}]}`
+	OpenAIStreamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","model":"gpt-4o-mini", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
+	OpenAIStreamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","model":"gpt-4o-mini", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+	OpenAIStreamResponseFormat = OpenAIStreamResponseChunk + "\n\n" + OpenAIStreamResponseEnd
+
+	TracingPrefix = "trace_span_tag."
+
+	DefaultRequestCheckService       = "llm_query_moderation"
+	DefaultResponseCheckService      = "llm_response_moderation"
+	DefaultRequestJsonPath           = "messages.@reverse.0.content"
+	DefaultResponseJsonPath          = "choices.0.message.content"
+	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
+	DefaultDenyCode                  = 200
+
+	AliyunUserAgent = "CIPFrom/AIGateway"
+)
+
 type AISecurityConfig struct {
-	client wrapper.HttpClient
-	ak     string
-	sk     string
+	client                        wrapper.HttpClient
+	ak                            string
+	sk                            string
+	checkRequest                  bool
+	requestCheckService           string
+	requestContentJsonPath        string
+	checkResponse                 bool
+	responseCheckService          string
+	responseContentJsonPath       string
+	responseStreamContentJsonPath string
+	denyCode                      int64
+	denyMessage                   string
+	metrics                       map[string]proxywasm.MetricCounter
 }
 
-type StandardResponse struct {
-	Code    int    `json:"Code"`
-	Phase   string `json:"BlockPhase"`
-	Message string `json:"Message"`
+func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) {
+	counter, ok := config.metrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		config.metrics[metricName] = counter
+	}
+	counter.Increment(inc)
 }
 
 func urlEncoding(rawStr string) string {
@@ -71,7 +102,7 @@ func getSign(params map[string]string, secret string) string {
 	})
 	canonicalStr := strings.Join(paramArray, "&")
 	signStr := "POST&%2F&" + urlEncoding(canonicalStr)
-	fmt.Println(signStr)
+	// proxywasm.LogInfo(signStr)
 	return hmacSha1(signStr, secret)
 }
 
@@ -86,32 +117,70 @@ func generateHexID(length int) (string, error) {
 func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) error {
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
-	domain := json.Get("domain").String()
-	config.ak = json.Get("ak").String()
-	config.sk = json.Get("sk").String()
-	if serviceName == "" || servicePort == 0 || domain == "" {
+	serviceHost := json.Get("serviceHost").String()
+	if serviceName == "" || servicePort == 0 || serviceHost == "" {
 		return errors.New("invalid service config")
 	}
-	config.client = wrapper.NewClusterClient(wrapper.DnsCluster{
-		ServiceName: serviceName,
-		Port:        servicePort,
-		Domain:      domain,
+	config.ak = json.Get("accessKey").String()
+	config.sk = json.Get("secretKey").String()
+	if config.ak == "" || config.sk == "" {
+		return errors.New("invalid AK/SK config")
+	}
+	config.checkRequest = json.Get("checkRequest").Bool()
+	config.checkResponse = json.Get("checkResponse").Bool()
+	config.denyMessage = json.Get("denyMessage").String()
+	if obj := json.Get("denyCode"); obj.Exists() {
+		config.denyCode = obj.Int()
+	} else {
+		config.denyCode = DefaultDenyCode
+	}
+	if obj := json.Get("requestCheckService"); obj.Exists() {
+		config.requestCheckService = obj.String()
+	} else {
+		config.requestCheckService = DefaultRequestCheckService
+	}
+	if obj := json.Get("responseCheckService"); obj.Exists() {
+		config.responseCheckService = obj.String()
+	} else {
+		config.responseCheckService = DefaultResponseCheckService
+	}
+	if obj := json.Get("requestContentJsonPath"); obj.Exists() {
+		config.requestContentJsonPath = obj.String()
+	} else {
+		config.requestContentJsonPath = DefaultRequestJsonPath
+	}
+	if obj := json.Get("responseContentJsonPath"); obj.Exists() {
+		config.responseContentJsonPath = obj.String()
+	} else {
+		config.responseContentJsonPath = DefaultResponseJsonPath
+	}
+	if obj := json.Get("responseStreamContentJsonPath"); obj.Exists() {
+		config.responseStreamContentJsonPath = obj.String()
+	} else {
+		config.responseStreamContentJsonPath = DefaultStreamingResponseJsonPath
+	}
+	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: servicePort,
+		Host: serviceHost,
 	})
+	config.metrics = make(map[string]proxywasm.MetricCounter)
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
+	if !config.checkRequest {
+		ctx.DontReadRequestBody()
+	}
+	if !config.checkResponse {
+		ctx.DontReadResponseBody()
+	}
 	return types.ActionContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	messages := gjson.GetBytes(body, "messages").Array()
-	if len(messages) > 0 {
-		role := messages[len(messages)-1].Get("role").String()
-		content := messages[len(messages)-1].Get("content").String()
-		if role != "user" {
-			return types.ActionContinue
-		}
+	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
+	if content != "" {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 		randomID, _ := generateHexID(16)
 		params := map[string]string{
@@ -123,7 +192,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			"Action":            "TextModerationPlus",
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
-			"Service":           "llm_query_moderation",
+			"Service":           config.requestCheckService,
 			"ServiceParameters": `{"content": "` + content + `"}`,
 		}
 		signature := getSign(params, config.sk+"&")
@@ -132,31 +201,27 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Request",
-							Message: respAdvice.Array()[0].Get("Answer").String(),
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
+						config.incrementCounter("ai_sec_request_deny", 1)
+						if config.denyMessage != "" {
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
+						} else {
+							if gjson.GetBytes(body, "stream").Bool() {
+								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+							} else {
+								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+							}
 						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						label := respResult.Array()[0].Get("Label").String()
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(label))
-						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.label."+label, [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Request",
-							Message: "risk detected",
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-						proxywasm.SendHttpResponseWithDetail(403, "ai-security-guard.risk_detected", [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}
@@ -206,9 +271,16 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	messages := gjson.GetBytes(body, "choices").Array()
-	if len(messages) > 0 {
-		content := messages[0].Get("message").Get("content").String()
+	hdsMap := ctx.GetContext("headers").(map[string][]string)
+	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
+	var content string
+	if isStreamingResponse {
+		content = extractMessageFromStreamingBody(body, config.responseStreamContentJsonPath)
+	} else {
+		content = gjson.GetBytes(body, config.responseContentJsonPath).String()
+	}
+	log.Debugf("Raw response content is: %s", content)
+	if len(content) > 0 {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 		randomID, _ := generateHexID(16)
 		params := map[string]string{
@@ -220,7 +292,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			"Action":            "TextModerationPlus",
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
-			"Service":           "llm_response_moderation",
+			"Service":           config.responseCheckService,
 			"ServiceParameters": `{"content": "` + content + `"}`,
 		}
 		signature := getSign(params, config.sk+"&")
@@ -229,7 +301,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), nil, nil,
+		config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer proxywasm.ResumeHttpResponse()
 				respData := gjson.GetBytes(responseBody, "Data")
@@ -237,31 +309,23 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					if respAdvice.Exists() {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Response",
-							Message: respAdvice.Array()[0].Get("Answer").String(),
+						var jsonData []byte
+						if config.denyMessage != "" {
+							jsonData = []byte(config.denyMessage)
+						} else {
+							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							} else {
+								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+							}
 						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						hdsMap := ctx.GetContext("headers").(map[string][]string)
 						delete(hdsMap, "content-length")
-						hdsMap[":status"] = []string{"403"}
+						hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}
 						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
 						proxywasm.ReplaceHttpResponseBody(jsonData)
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
-					} else if respResult.Array()[0].Get("Label").String() != "nonLabel" {
-						sr := StandardResponse{
-							Code:    403,
-							Phase:   "Response",
-							Message: "risk detected",
-						}
-						jsonData, _ := json.MarshalIndent(sr, "", "    ")
-						hdsMap := ctx.GetContext("headers").(map[string][]string)
-						delete(hdsMap, "content-length")
-						hdsMap[":status"] = []string{"403"}
-						proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
-						proxywasm.ReplaceHttpResponseBody(jsonData)
-						proxywasm.SetProperty([]string{"risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
+						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("response"))
+						config.incrementCounter("ai_sec_response_deny", 1)
 					}
 				}
 			},
@@ -270,4 +334,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 	} else {
 		return types.ActionContinue
 	}
+}
+
+func extractMessageFromStreamingBody(data []byte, jsonPath string) string {
+	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
+	strChunks := []string{}
+	for _, chunk := range chunks {
+		// Example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
+		jsonObj := gjson.GetBytes(chunk, jsonPath)
+		if jsonObj.Exists() {
+			strChunks = append(strChunks, jsonObj.String())
+		}
+	}
+	return strings.Join(strChunks, "")
 }
