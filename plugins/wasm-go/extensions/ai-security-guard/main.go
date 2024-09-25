@@ -180,9 +180,11 @@ func generateRandomID() string {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
 	if !config.checkRequest {
+		log.Debugf("request checking is disabled")
 		ctx.DontReadRequestBody()
 	}
 	if !config.checkResponse {
+		log.Debugf("response checking is disabled")
 		ctx.DontReadResponseBody()
 	}
 	return types.ActionContinue
@@ -353,6 +355,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			},
 		)
 		if err != nil {
+			log.Errorf("failed call the safe check service: %v", err)
 			return types.ActionContinue
 		}
 		return types.ActionPause
