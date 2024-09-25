@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"math/rand"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -64,7 +65,6 @@ type AISecurityConfig struct {
 	denyCode                      int64
 	denyMessage                   string
 	metrics                       map[string]proxywasm.MetricCounter
-	responseModelName			  string
 }
 
 func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) {
@@ -195,6 +195,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
+	model := gjson.GetBytes(body, "model").String()
 	if content != "" {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 		randomID, _ := generateHexID(16)
@@ -230,10 +231,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
 						} else {
 							if gjson.GetBytes(body, "stream").Bool() {
-								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								randomID := generateRandomID()
+								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 							} else {
-								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								randomID := generateRandomID()
+								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 							}
 						}
@@ -288,6 +291,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	hdsMap := ctx.GetContext("headers").(map[string][]string)
 	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
+	model := gjson.GetBytes(ctx.GetBufferedRequestData(), "model").String()
 	var content string
 	if isStreamingResponse {
 		content = extractMessageFromStreamingBody(body, config.responseStreamContentJsonPath)
@@ -328,11 +332,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						if config.denyMessage != "" {
 							jsonData = []byte(config.denyMessage)
 						} else {
-							randomID := generateRandomID()
 							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, config.responseModelName, respAdvice.Array()[0].Get("Answer").String()))
+								randomID := generateRandomID()
+								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 							} else {
-								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, config.responseModelName respAdvice.Array()[0].Get("Answer").String()))
+								randomID := generateRandomID()
+								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 							}
 						}
 						delete(hdsMap, "content-length")
