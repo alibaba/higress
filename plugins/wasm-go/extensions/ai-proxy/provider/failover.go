@@ -48,7 +48,7 @@ const (
 	vmIDLength = 16
 	// The timestamp is 8 bytes (int64)
 	leaseLength                        = vmIDLength + 8
-	ctxApiTokenRequestFailureCount     = "apiTokenRequestFailureCount"
+	CtxApiTokenRequestFailureCount     = "apiTokenRequestFailureCount"
 	ctxApiTokenRequestSuccessCount     = "apiTokenRequestSuccessCount"
 	ctxApiTokens                       = "apiTokens"
 	ctxUnavailableApiTokens            = "unavailableApiTokens"
@@ -56,7 +56,7 @@ const (
 	addApiTokenOperation               = "addApiToken"
 	removeApiTokenOperation            = "removeApiToken"
 	addApiTokenRequestCountOperation   = "addApiTokenRequestCount"
-	resetApiTokenRequestCountOperation = "resetApiTokenRequestCount"
+	resetApiTokenRequestCountOperation = "ResetApiTokenRequestCount"
 )
 
 func (f *failover) FromJson(json gjson.Result) {
@@ -205,7 +205,7 @@ func generateVMID() string {
 // When number of request successes exceeds the threshold during health check,
 // add the apiToken back to the available list and remove it from the unavailable list
 func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Log) {
-	successApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestSuccessCount)
+	successApiTokenRequestCount, _, err := GetApiTokenRequestCount(ctxApiTokenRequestSuccessCount)
 	if err != nil {
 		log.Errorf("Failed to get successApiTokenRequestCount: %v", err)
 		return
@@ -216,7 +216,7 @@ func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Lo
 		log.Infof("apiToken %s is available now, add it back to the apiTokens list", apiToken)
 		removeApiToken(ctxUnavailableApiTokens, apiToken, log)
 		addApiToken(ctxApiTokens, apiToken, log)
-		resetApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
+		ResetApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still unavailable, the number of health check passed: %d, continue to health check......", apiToken, successCount)
 		addApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
@@ -226,7 +226,7 @@ func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Lo
 // When number of request failures exceeds the threshold,
 // remove the apiToken from the available list and add it to the unavailable list
 func (c *ProviderConfig) HandleUnavailableApiToken(apiToken string, log wrapper.Log) {
-	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestFailureCount)
+	failureApiTokenRequestCount, _, err := GetApiTokenRequestCount(CtxApiTokenRequestFailureCount)
 	if err != nil {
 		log.Errorf("Failed to get failureApiTokenRequestCount: %v", err)
 		return
@@ -247,10 +247,10 @@ func (c *ProviderConfig) HandleUnavailableApiToken(apiToken string, log wrapper.
 		log.Infof("apiToken %s is unavailable now, remove it from apiTokens list", apiToken)
 		removeApiToken(ctxApiTokens, apiToken, log)
 		addApiToken(ctxUnavailableApiTokens, apiToken, log)
-		resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
+		ResetApiTokenRequestCount(CtxApiTokenRequestFailureCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still available as it has not reached the failure threshold, the number of failed request: %d", apiToken, failureCount)
-		addApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
+		addApiTokenRequestCount(CtxApiTokenRequestFailureCount, apiToken, log)
 	}
 }
 
@@ -334,7 +334,7 @@ func containsElement(slice []string, s string) bool {
 	return false
 }
 
-func getApiTokenRequestCount(key string) (map[string]int64, uint32, error) {
+func GetApiTokenRequestCount(key string) (map[string]int64, uint32, error) {
 	data, cas, err := proxywasm.GetSharedData(key)
 	if err != nil && !errors.Is(err, types.ErrorStatusNotFound) {
 		return nil, 0, err
@@ -357,13 +357,13 @@ func addApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 	modifyApiTokenRequestCount(key, apiToken, addApiTokenRequestCountOperation, log)
 }
 
-func resetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
+func ResetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 	modifyApiTokenRequestCount(key, apiToken, resetApiTokenRequestCountOperation, log)
 }
 
 func modifyApiTokenRequestCount(key, apiToken string, op string, log wrapper.Log) {
 	for attempt := 1; attempt <= casMaxRetries; attempt++ {
-		apiTokenRequestCount, cas, err := getApiTokenRequestCount(key)
+		apiTokenRequestCount, cas, err := GetApiTokenRequestCount(key)
 		if err != nil {
 			log.Errorf("Failed to get %s: %v", key, err)
 			continue

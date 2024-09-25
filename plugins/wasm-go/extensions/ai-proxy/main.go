@@ -158,6 +158,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	log.Debugf("[onHttpResponseHeaders] provider=%s", activeProvider.GetProviderType())
 
 	status, err := proxywasm.GetHttpResponseHeader(":status")
+	apiTokenInUse := ctx.GetContext(provider.ApiTokenInUse).(string)
 	if err != nil || status != "200" {
 		if err != nil {
 			log.Errorf("unable to load :status header from response: %v", err)
@@ -167,11 +168,17 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		providerConfig := pluginConfig.GetProviderConfig()
 		// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
 		if providerConfig.IsFailoverEnabled() && ctx.GetContext(provider.ApiTokenHealthCheck) == nil {
-			unavailableApiToken := ctx.GetContext(provider.ApiTokenInUse).(string)
-			providerConfig.HandleUnavailableApiToken(unavailableApiToken, log)
+			providerConfig.HandleUnavailableApiToken(apiTokenInUse, log)
 		}
 
 		return types.ActionContinue
+	}
+
+	// Reset ctxApiTokenRequestFailureCount if the request is successful,
+	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
+	failureApiTokenRequestCount, _, err := provider.GetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount)
+	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
+		provider.ResetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount, apiTokenInUse, log)
 	}
 
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
