@@ -10,7 +10,7 @@ The agent flow chart is as follows:
 
 ## Runtime Properties
 Plugin execution phase: `Default Phase`  
-Plugin execution priority: `20`  
+Plugin execution priority: `200`  
 
 ## Configuration Fields
 
