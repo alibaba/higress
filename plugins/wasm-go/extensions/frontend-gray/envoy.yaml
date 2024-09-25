@@ -73,25 +73,24 @@ static_resources:
                                 ],
                                 "rewrite": {
                                   "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
-                                  "notFoundUri": "/mfe/app1/{version}/333.html",
+                                  "notFoundUri": "/cygtapi/{version}/333.html",
                                   "indexRouting": {
-                                    "/app1": "/mfe/app1/{version}/index.html",
-                                    "/": "/mfe/app1/{version}/index.html"
+                                    "/app1": "/cygtapi/{version}/index.html",
+                                    "/": "/cygtapi/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/":             "/mfe/app1/{version}",
-                                    "/app1":             "/mfe/app1/{version}"
+                                    "/":             "/cygtapi/{version}",
+                                    "/app1":             "/cygtapi/{version}"
                                   }
                                 },
                                 "baseDeployment": {
-                                  "version": "dev"
+                                  "version": "base"
                                 },
                                 "grayDeployments": [
                                   {
                                     "name": "beta-user",
-                                    "version": "0.0.1",
-                                    "enabled": true,
-                                    "weight": 50
+                                    "version": "gray",
+                                    "enabled": true
                                   }
                                 ],
                                 "injection": {

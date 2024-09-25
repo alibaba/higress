@@ -130,7 +130,7 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
-		weight: 80
+    weight: 80
 ```
 总的灰度规则为100%，其中灰度版本的权重为`80%`，基线版本为`20%`。一旦用户命中了灰度规则，会根据IP固定这个用户的灰度版本（否则会在下次请求时随机选择一个灰度版本）。
 
@@ -229,16 +229,16 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
-		weight: 80
+    weight: 80
 injection:
-	head: 
-		- <script>console.log('Header')</script>
-	body:
-		first:
-			- <script>console.log('hello world before')</script>
-			- <script>console.log('hello world before1')</script>
-		last:
-			- <script>console.log('hello world after')</script>
-			- <script>console.log('hello world after2')</script>
+  head: 
+    - <script>console.log('Header')</script>
+  body:
+    first:
+      - <script>console.log('hello world before')</script>
+      - <script>console.log('hello world before1')</script>
+    last:
+      - <script>console.log('hello world after')</script>
+      - <script>console.log('hello world after2')</script>
 ```
 通过 `injection`往HTML首页注入代码，可以在`head`标签注入代码，也可以在`body`标签的`first`和`last`位置注入代码。
