@@ -29,7 +29,7 @@ description: 阿里云内容安全检测
 | `responseStreamContentJsonPath` | string | optional | `choices.0.delta.content` | 指定要检测内容在流式响应body中的jsonpath |
 | `denyCode` | int | optional | 200 | 指定内容非法时的响应状态码 |
 | `denyMessage` | string | optional | openai格式的流失/非流式响应，回答内容为阿里云内容安全的建议回答 | 指定内容非法时的响应内容 |
-
+| `responseModelName` | string | optional | ai_art_detection | 指定内容非法时返回的响应内容中的模型名 |
 
 ## 配置示例
 ### 前提条件
@@ -126,7 +126,7 @@ curl http://localhost/v1/chat/completions \
     "id": "chatcmpl-123",
     "object": "chat.completion",
     "created": 1677652288,
-    "model": "gpt-4o-mini",
+    "model": "ai_art_detection",
     "system_fingerprint": "fp_44709d6fcb",
     "choices": [
         {

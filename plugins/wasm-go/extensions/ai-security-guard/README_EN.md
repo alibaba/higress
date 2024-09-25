@@ -31,6 +31,7 @@ Plugin Priority: `300`
 | `denyCode` | int | optional | 200 | Response status code when the specified content is illegal |
 | `denyMessage` | string | optional | Drainage/non-streaming response in openai format, the answer content is the suggested answer from Alibaba Cloud content security
  | Response content when the specified content is illegal |
+| `responseModelName` | string | optional | ai_art_detection | Specifies the model name in the response content when the content is illegal |
 
 
 ## Examples of configuration

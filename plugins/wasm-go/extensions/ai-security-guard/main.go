@@ -33,10 +33,10 @@ func main() {
 }
 
 const (
-	OpenAIResponseFormat       = `{"id": "chatcmpl-123","object": "chat.completion","model": "gpt-4o-mini","choices": [{"index": 0,"message": {"role": "assistant","content": "%s"},"logprobs": null,"finish_reason": "stop"}]}`
-	OpenAIStreamResponseChunk  = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","model":"gpt-4o-mini", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
-	OpenAIStreamResponseEnd    = `data:{"id":"chatcmpl-123","object":"chat.completion.chunk","model":"gpt-4o-mini", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
-	OpenAIStreamResponseFormat = OpenAIStreamResponseChunk + "\n\n" + OpenAIStreamResponseEnd
+	OpenAIResponseFormat       = `{"id": "%s","object": "chat.completion","model": "%s","choices": [{"index": 0,"message": {"role": "assistant","content": "%s"},"logprobs": null,"finish_reason": "stop"}]}`
+	OpenAIStreamResponseChunk  = `data:{"id":"%s","object":"chat.completion.chunk","model":"%s", "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
+	OpenAIStreamResponseEnd    = `data:{"id":"%s","object":"chat.completion.chunk","model":"%s", "choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
+	OpenAIStreamResponseFormat = OpenAIStreamResponseChunk + "\n\n" + OpenAIStreamResponseEnd + "\n\n" + `data: [DONE]`
 
 	TracingPrefix = "trace_span_tag."
 
@@ -64,6 +64,7 @@ type AISecurityConfig struct {
 	denyCode                      int64
 	denyMessage                   string
 	metrics                       map[string]proxywasm.MetricCounter
+	responseModelName			  string
 }
 
 func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) {
@@ -165,7 +166,21 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 		Host: serviceHost,
 	})
 	config.metrics = make(map[string]proxywasm.MetricCounter)
+	if obj := json.Get("responseModelName"); obj.Exists() {
+		config.responseModelName = obj.String()
+	} else {
+		config.responseModelName = "ai_art_detection" // 设置默认模型名为阿里云 AI 内容安全服务名
+	}
 	return nil
+}
+
+func generateRandomID() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 29)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return "chatcmpl-" + string(b)
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
@@ -313,10 +328,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						if config.denyMessage != "" {
 							jsonData = []byte(config.denyMessage)
 						} else {
+							randomID := generateRandomID()
 							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, config.responseModelName, respAdvice.Array()[0].Get("Answer").String()))
 							} else {
-								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, respAdvice.Array()[0].Get("Answer").String()))
+								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, config.responseModelName respAdvice.Array()[0].Get("Answer").String()))
 							}
 						}
 						delete(hdsMap, "content-length")
