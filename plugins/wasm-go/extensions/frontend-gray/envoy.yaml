@@ -107,7 +107,8 @@ static_resources:
                                       "<script>console.log('hello world after2')</script>"
                                     ]
                                   }
-                                }
+                                },
+                                "html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n<body>\n\t测试替换html版本\n\t<br />\n\t版本: {version}\n\t<br />\n\t<script src=\"./{version}/a.js\"></script>\n</body>\n</html>"
                               }
                   - name: envoy.filters.http.router
                     typed_config:
@@ -116,7 +117,6 @@ static_resources:
     - name: httpbin
       connect_timeout: 30s
       type: LOGICAL_DNS
-      # Comment out the following line to test on v6 networks
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
