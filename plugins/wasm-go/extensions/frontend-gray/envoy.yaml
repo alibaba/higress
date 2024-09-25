@@ -79,8 +79,8 @@ static_resources:
                                     "/": "/cygtapi/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/":             "/cygtapi/{version}",
-                                    "/app1":             "/cygtapi/{version}"
+                                    "/": "/cygtapi/{version}",
+                                    "/app1": "/cygtapi/{version}"
                                   }
                                 },
                                 "baseDeployment": {
