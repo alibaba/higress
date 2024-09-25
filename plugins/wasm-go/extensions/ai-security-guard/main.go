@@ -191,6 +191,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
+	proxywasm.LogDebugf("checking request body...")
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	model := gjson.GetBytes(body, "model").Raw
 	ctx.SetContext("requestModel", model)
@@ -238,6 +239,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, answer))
 								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 							}
+							ctx.DontReadResponseBody()
 						}
 					} else {
 						proxywasm.ResumeHttpRequest()
@@ -253,6 +255,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		}
 		return types.ActionPause
 	} else {
+		proxywasm.LogDebugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
@@ -292,6 +295,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
+	proxywasm.LogDebugf("checking response body...")
 	hdsMap := ctx.GetContext("headers").(map[string][]string)
 	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
@@ -360,6 +364,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		}
 		return types.ActionPause
 	} else {
+		proxywasm.LogDebugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
