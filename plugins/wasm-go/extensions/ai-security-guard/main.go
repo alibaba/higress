@@ -166,11 +166,6 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 		Host: serviceHost,
 	})
 	config.metrics = make(map[string]proxywasm.MetricCounter)
-	if obj := json.Get("responseModelName"); obj.Exists() {
-		config.responseModelName = obj.String()
-	} else {
-		config.responseModelName = "ai_art_detection" // 设置默认模型名为阿里云 AI 内容安全服务名
-	}
 	return nil
 }
 
