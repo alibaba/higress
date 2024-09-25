@@ -332,7 +332,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
 								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, config.responseModelName, respAdvice.Array()[0].Get("Answer").String()))
 							} else {
-								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, config.responseModelName respAdvice.Array()[0].Get("Answer").String()))
+								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, config.responseModelName, respAdvice.Array()[0].Get("Answer").String()))
 							}
 						}
 						delete(hdsMap, "content-length")
