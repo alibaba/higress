@@ -30,7 +30,6 @@ description: 阿里云内容安全检测
 | `denyCode` | int | optional | 200 | 指定内容非法时的响应状态码 |
 | `denyMessage` | string | optional | openai格式的流失/非流式响应，回答内容为阿里云内容安全的建议回答 | 指定内容非法时的响应内容 |
 
-
 ## 配置示例
 ### 前提条件
 由于插件中需要调用阿里云内容安全服务，所以需要先创建一个DNS类型的服务，例如：
@@ -123,7 +122,7 @@ curl http://localhost/v1/chat/completions \
 
 ```json
 {
-    "id": "chatcmpl-123",
+    "id": "chatcmpl-AAy3hK1dE4ODaegbGOMoC9VY4Sizv",
     "object": "chat.completion",
     "created": 1677652288,
     "model": "gpt-4o-mini",
