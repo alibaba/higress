@@ -42,7 +42,7 @@ func (m *doubaoProvider) GetProviderType() string {
 
 func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = util.OverwriteRequestHost(doubaoDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()
