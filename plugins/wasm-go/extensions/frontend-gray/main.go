@@ -191,7 +191,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 
 	// 检查是否存在自定义 HTML， 如有则省略 rewrite.indexRouting 的内容
 	if grayConfig.Html != "" {
-		log.Infof("Returning custom HTML from config.")
+		log.Debugf("Returning custom HTML from config.")
 		// 替换响应体为 config.Html 内容
 		if err := proxywasm.ReplaceHttpResponseBody([]byte(grayConfig.Html)); err != nil {
 			log.Errorf("Error replacing response body: %v", err)
@@ -200,7 +200,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 
 		newHtml := util.InjectContent(grayConfig.Html, grayConfig.Injection)
 		// 替换当前html加载的动态文件版本
-		newHtml = strings.ReplaceAll(newHtml,"{version}",frontendVersion)
+		newHtml = strings.ReplaceAll(newHtml, "{version}", frontendVersion)
 
 		// 最终替换响应体
 		if err := proxywasm.ReplaceHttpResponseBody([]byte(newHtml)); err != nil {
@@ -227,14 +227,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 
 		newBody = util.InjectContent(newBody, grayConfig.Injection)
 
-
-
 		if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
 			return types.ActionContinue
 		}
 	}
 
-return types.ActionContinue
+	return types.ActionContinue
 }
 
 func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.GrayConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
