@@ -84,6 +84,9 @@ func (f *failover) Validate() error {
 }
 
 func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) {
+	// Reset shared data in case plugin configuration is updated
+	resetSharedData()
+
 	// TODO: 目前需要手动加一个 cluster 指向本地的地址，健康检测需要访问该地址
 	healthCheckClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
 		ServiceName: "local_cluster",
@@ -150,6 +153,9 @@ func tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
 			log.Errorf("Failed to get lease: %v", err)
 			return false
 		}
+	}
+	if data == nil {
+		return setLease(vmID, now, cas, log)
 	}
 
 	var lease Lease
@@ -294,6 +300,9 @@ func getApiTokens(key string) ([]string, uint32, error) {
 		}
 		return nil, 0, err
 	}
+	if data == nil {
+		return []string{}, cas, nil
+	}
 
 	var apiTokens []string
 	if err = json.Unmarshal(data, &apiTokens); err != nil {
@@ -337,6 +346,10 @@ func GetApiTokenRequestCount(key string) (map[string]int64, uint32, error) {
 			return make(map[string]int64), cas, nil
 		}
 		return nil, 0, err
+	}
+
+	if data == nil {
+		return make(map[string]int64), cas, nil
 	}
 
 	var apiTokens map[string]int64
@@ -415,4 +428,12 @@ func getApiTokenInUse(ctx wrapper.HttpContext) string {
 
 func (c *ProviderConfig) IsFailoverEnabled() bool {
 	return c.failover != nil && c.failover.enabled
+}
+
+func resetSharedData() {
+	_ = proxywasm.SetSharedData(vmLease, nil, 0)
+	_ = proxywasm.SetSharedData(ctxApiTokens, nil, 0)
+	_ = proxywasm.SetSharedData(ctxUnavailableApiTokens, nil, 0)
+	_ = proxywasm.SetSharedData(ctxApiTokenRequestSuccessCount, nil, 0)
+	_ = proxywasm.SetSharedData(CtxApiTokenRequestFailureCount, nil, 0)
 }
