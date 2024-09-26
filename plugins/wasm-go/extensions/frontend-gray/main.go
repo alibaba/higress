@@ -108,19 +108,26 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
-	status, err := proxywasm.GetHttpResponseHeader(":status")
-	contentType, _ := proxywasm.GetHttpResponseHeader("Content-Type")
+	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
+	if !ok {
+		isPageRequest = false // 默认值
+	}
+	// response 不处理非首页的请求
+	if !isPageRequest {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 
+	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		// 删除Content-Disposition，避免自动下载文件
 		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 	}
 
-	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
-	if !ok {
-		isPageRequest = false // 默认值
-	}
+	// 删除content-length，可能要修改Response返回值
+	proxywasm.RemoveHttpResponseHeader("Content-Length")
 
+	// 处理code为 200的情况
 	if err != nil || status != "200" {
 		if status == "404" {
 			if grayConfig.Rewrite.NotFound != "" && isPageRequest {
@@ -143,6 +150,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 				ctx.BufferResponseBody()
 				return types.ActionContinue
 			} else {
+				// 直接返回400
 				ctx.DontReadResponseBody()
 			}
 		}
@@ -150,25 +158,19 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		return types.ActionContinue
 	}
 
-	// 删除content-length，可能要修改Response返回值
-	proxywasm.RemoveHttpResponseHeader("Content-Length")
+	// 不会进去Streaming 的Body处理
+	ctx.BufferResponseBody()
+	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
 
-	if strings.HasPrefix(contentType, "text/html") || isPageRequest {
-		// 不会进去Streaming 的Body处理
-		ctx.BufferResponseBody()
+	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
+	xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
 
-		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store")
-
-		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-		xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
-
-		// 设置前端的版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
-		// 设置后端的版本
-		if util.IsBackendGrayEnabled(grayConfig) {
-			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
-		}
+	// 设置前端的版本
+	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	// 设置后端的版本
+	if util.IsBackendGrayEnabled(grayConfig) {
+		backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
 	}
 	return types.ActionContinue
 }
