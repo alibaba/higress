@@ -227,9 +227,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respResult := respData.Get("Result")
 					var denyMessage string
 					if respAdvice.Exists() {
-						denyMessage = respAdvice.Array()[0].Get("Answer").String()
+						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
 					} else {
-						denyMessage = DefaultDenyMessage
+						denyMessage = fmt.Sprintf(`"%s"`, DefaultDenyMessage)
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
@@ -342,9 +342,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					respResult := respData.Get("Result")
 					var denyMessage string
 					if respAdvice.Exists() {
-						denyMessage = respAdvice.Array()[0].Get("Answer").String()
+						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
 					} else {
-						denyMessage = DefaultDenyMessage
+						denyMessage = fmt.Sprintf(`"%s"`, DefaultDenyMessage)
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						var jsonData []byte
