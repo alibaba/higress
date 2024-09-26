@@ -177,6 +177,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	// Reset ctxApiTokenRequestFailureCount if the request is successful,
 	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
 	failureApiTokenRequestCount, _, err := provider.GetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount)
+	if err != nil {
+		log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
+	}
 	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
 		provider.ResetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount, apiTokenInUse, log)
 	}
