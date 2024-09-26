@@ -47,6 +47,10 @@ func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log
 	if err := pluginConfig.Complete(); err != nil {
 		return err
 	}
+
+	providerConfig := pluginConfig.GetProviderConfig()
+	providerConfig.SetApiTokensFailover(log)
+
 	return nil
 }
 
@@ -62,9 +66,6 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 	if err := pluginConfig.Complete(); err != nil {
 		return err
 	}
-
-	providerConfig := pluginConfig.GetProviderConfig()
-	providerConfig.SetApiTokensFailover(log)
 
 	return nil
 }
