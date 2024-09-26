@@ -139,9 +139,9 @@ For 360 Brain, the corresponding `type` is `ai360`. It has no unique configurati
 
 For Mistral, the corresponding `type` is `mistral`. It has no unique configuration fields.
 
-#### Minimax
+#### MiniMax
 
-For Minimax, the corresponding `type` is `minimax`. Its unique configuration field is:
+For MiniMax, the corresponding `type` is `minimax`. Its unique configuration field is:
 
 | Name             | Data Type | Filling Requirements | Default Value | Description                                                                                                 |
 | ---------------- | -------- | --------------------- |---------------|------------------------------------------------------------------------------------------------------------|
@@ -593,6 +593,69 @@ provider:
   "request_id": "187e99ba-5b64-9ffe-8f69-01dafbaf6ed7"
 }
 ```
+
+### Forwards requests to AliCloud Bailian with the "original" protocol
+
+**Configuration Information**
+
+```yaml
+activeProviderId: my-qwen
+providers:
+  - id: my-qwen
+    type: qwen
+    apiTokens:
+      - "YOUR_DASHSCOPE_API_TOKEN"
+    protocol: original
+```
+
+**Example Request**
+
+```json
+{
+  "input": {
+    "prompt": "What is Dubbo?"
+  },
+  "parameters": {},
+  "debug": {}
+}
+```
+
+**Example Response**
+
+```json
+{
+  "output": {
+    "finish_reason": "stop",
+    "session_id": "677e7e8fbb874e1b84792b65042e1599",
+    "text": "Apache Dubbo is a..."
+  },
+  "usage": {
+    "models": [
+      {
+        "output_tokens": 449,
+        "model_id": "qwen-max",
+        "input_tokens": 282
+      }
+    ]
+  },
+  "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+}
+```
+
+### Using OpenAI Protocol Proxy for Doubao Service
+
+```yaml
+activeProviderId: my-doubao
+providers:
+- id: my-doubao
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
+```
+
 ### Utilizing Moonshot with its Native File Context
 
 Upload files to Moonshot in advance and use its AI services based on file content.
@@ -782,8 +845,7 @@ provider:
 
 Request script:
 
-```sh
-
+```shell
 curl --location 'http://<your higress domain>/v1/chat/completions' \
 --header 'Content-Type:  application/json' \
 --data '{
@@ -955,7 +1017,7 @@ provider:
 provider:
   type: ai360
   apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
+    - "YOUR_AI360_API_TOKEN"
   modelMapping:
     "gpt-4o": "360gpt-turbo-responsibility-8k"
     "gpt-4": "360gpt2-pro"
@@ -1264,6 +1326,7 @@ Here, `model` denotes the service tier of DeepL and can only be either `Free` or
 ```
 
 **Response Example**
+
 ```json
 {
   "choices": [
