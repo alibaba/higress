@@ -48,6 +48,8 @@ static_resources:
                             value: |
                               {
                                 "grayKey": "userId",
+                                "backendGrayTag": "x-mse-tag",
+                                "userStickyMaxAge": 172800,
                                 "rules": [
                                   {
                                     "name": "inner-user",
@@ -71,27 +73,41 @@ static_resources:
                                 ],
                                 "rewrite": {
                                   "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
-                                  "notFoundUri": "/mfe/app1/dev/404.html",
+                                  "notFoundUri": "/cygtapi/{version}/333.html",
                                   "indexRouting": {
-                                    "/app1": "/mfe/app1/{version}/index.html",
-                                    "/": "/mfe/app1/{version}/index.html"
+                                    "/app1": "/cygtapi/{version}/index.html",
+                                    "/": "/cygtapi/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/":             "/mfe/app1/{version}",
-                                    "/app1":             "/mfe/app1/{version}"
+                                    "/": "/cygtapi/{version}",
+                                    "/app1": "/cygtapi/{version}"
                                   }
                                 },
                                 "baseDeployment": {
-                                  "version": "dev"
+                                  "version": "base"
                                 },
                                 "grayDeployments": [
                                   {
                                     "name": "beta-user",
-                                    "version": "0.0.1",
-                                    "backendVersion": "beta",
+                                    "version": "gray",
                                     "enabled": true
                                   }
-                                ]
+                                ],
+                                "injection": {
+                                  "head": [
+                                    "<script>console.log('Header')</script>"
+                                  ],
+                                  "body": {
+                                    "first": [
+                                      "<script>console.log('hello world before')</script>",
+                                      "<script>console.log('hello world before1')</script>"
+                                    ],
+                                    "last": [
+                                      "<script>console.log('hello world after')</script>",
+                                      "<script>console.log('hello world after2')</script>"
+                                    ]
+                                  }
+                                }
                               }
                   - name: envoy.filters.http.router
                     typed_config:

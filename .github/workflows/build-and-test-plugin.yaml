@@ -64,14 +64,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go
 
-      - name: Setup Submodule Caches
-        uses: actions/cache@v4
-        with:
-          path: |-
-            .git/modules
-          key: ${{ runner.os }}-submodules-cache-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-cache
-
       - run: git stash # restore patch
 
       - name: "Run Ingress WasmPlugins Tests"

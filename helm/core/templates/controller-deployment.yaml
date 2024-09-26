@@ -131,6 +131,12 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: PILOT_ENABLE_QUIC_LISTENERS
+            value: "true"
+          - name: VALIDATION_WEBHOOK_CONFIG_NAME
+            value: ""
+          - name: ISTIO_DUAL_STACK
+            value: "{{ .Values.global.enableIPv6 }}"
           - name: PILOT_ENABLE_HEADLESS_SERVICE_POD_LISTENERS
             value: "false"
           - name: PILOT_ENABLE_ALPN_FILTER

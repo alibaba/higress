@@ -25,7 +25,7 @@ TARGET_ARCH ?= amd64
 
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
-RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w -X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
+RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)
@@ -68,7 +68,7 @@ default: build
 
 .PHONY: go.test.coverage
 go.test.coverage: prebuild
-	go test -ldflags "-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
 
 .PHONY: build
 build: prebuild $(OUT)
@@ -101,11 +101,11 @@ build-hgctl-multiarch: prebuild $(OUT)
 
 .PHONY: build-hgctl-macos-arm64
 build-hgctl-macos-arm64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-macos-amd64
 build-hgctl-macos-amd64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -144,7 +144,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0-rc.1/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -187,8 +187,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= a6c313d41b3b54f0e3ed81fc676c520160cfed05
-ISTIO_LATEST_IMAGE_TAG ?= a6c313d41b3b54f0e3ed81fc676c520160cfed05
+ENVOY_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
+ISTIO_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -285,11 +285,11 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/docker-pull-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
 	tools/hack/docker-pull-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/docker-pull-image.sh docker.io/bitinit/eureka latest
-	tools/hack/docker-pull-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/httpbin 1.0.2
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
@@ -297,9 +297,9 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
-	tools/hack/kind-load-image.sh docker.io/alihigress/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
-	tools/hack/kind-load-image.sh docker.io/alihigress/httpbin 1.0.2
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/httpbin 1.0.2
 	tools/hack/kind-load-image.sh docker.io/charlie1380/eureka-registry-provider v0.3.0
 	tools/hack/kind-load-image.sh docker.io/bitinit/eureka latest
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0

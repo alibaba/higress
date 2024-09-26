@@ -15,6 +15,11 @@ description: AI 代理插件配置参考
 
 > 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
 
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`100`
+
 
 ## 配置字段
 
@@ -209,6 +214,10 @@ DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 | 名称         | 数据类型 | 填写要求 | 默认值 | 描述                         |
 | ------------ | -------- | -------- | ------ | ---------------------------- |
 | `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
+
+#### Cohere
+
+Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 
 ## 用法示例
 
@@ -597,6 +606,65 @@ provider:
 }
 ```
 
+### 使用original协议代理百炼智能体应用
+
+**配置信息**
+
+```yaml
+provider:
+  type: qwen
+  apiTokens:
+    - "YOUR_DASHSCOPE_API_TOKEN"
+  protocol: original
+```
+
+**请求实例**
+```json
+{
+  "input": {
+      "prompt": "介绍一下Dubbo"
+  },
+  "parameters":  {},
+  "debug": {}
+}
+```
+
+**响应实例**
+
+```json
+{
+    "output": {
+        "finish_reason": "stop",
+        "session_id": "677e7e8fbb874e1b84792b65042e1599",
+        "text": "Apache Dubbo 是一个..."
+    },
+    "usage": {
+        "models": [
+            {
+                "output_tokens": 449,
+                "model_id": "qwen-max",
+                "input_tokens": 282
+            }
+        ]
+    },
+    "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+}
+```
+
+### 使用 OpenAI 协议代理豆包大模型服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
+```
+
 ### 使用月之暗面配合其原生的文件上下文
 
 提前上传文件至月之暗面，以文件内容作为上下文使用其 AI 服务。
@@ -765,6 +833,7 @@ provider:
   }
 }
 ```
+
 ### 使用 OpenAI 协议代理混元服务
 
 **配置信息**
@@ -782,9 +851,10 @@ provider:
 ```
 
 **请求示例**
-请求脚本：
-```sh
 
+请求脚本：
+
+```shell
 curl --location 'http://<your higress domain>/v1/chat/completions' \
 --header 'Content-Type:  application/json' \
 --data '{
