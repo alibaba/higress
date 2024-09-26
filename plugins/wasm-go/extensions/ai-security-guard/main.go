@@ -47,6 +47,7 @@ const (
 	DefaultResponseJsonPath          = "choices.0.message.content"
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
+	DefaultDenyMessage               = "很抱歉，我无法回答您的问题"
 
 	AliyunUserAgent = "CIPFrom/AIGateway"
 )
@@ -64,6 +65,7 @@ type AISecurityConfig struct {
 	responseStreamContentJsonPath string
 	denyCode                      int64
 	denyMessage                   string
+	protocolOriginal              bool
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -129,6 +131,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	}
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
+	config.protocolOriginal = json.Get("protocol").String() == "original"
 	config.denyMessage = json.Get("denyMessage").String()
 	if obj := json.Get("denyCode"); obj.Exists() {
 		config.denyCode = obj.Int()
@@ -222,25 +225,28 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
+					var denyMessage string
 					if respAdvice.Exists() {
+						denyMessage = respAdvice.Array()[0].Get("Answer").String()
+					} else {
+						denyMessage = DefaultDenyMessage
+					}
+					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						config.incrementCounter("ai_sec_request_deny", 1)
-						if config.denyMessage != "" {
-							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
+						if config.protocolOriginal {
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(denyMessage), -1)
+						} else if gjson.GetBytes(body, "stream").Bool() {
+							randomID := generateRandomID()
+							jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, denyMessage, randomID, model))
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							answer := respAdvice.Array()[0].Get("Answer").Raw
-							if gjson.GetBytes(body, "stream").Bool() {
-								randomID := generateRandomID()
-								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, answer))
-								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
-							} else {
-								randomID := generateRandomID()
-								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, answer))
-								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-							}
-							ctx.DontReadResponseBody()
+							randomID := generateRandomID()
+							jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, denyMessage))
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
+						ctx.DontReadResponseBody()
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}
@@ -334,18 +340,22 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
+					var denyMessage string
 					if respAdvice.Exists() {
+						denyMessage = respAdvice.Array()[0].Get("Answer").String()
+					} else {
+						denyMessage = DefaultDenyMessage
+					}
+					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						var jsonData []byte
-						if config.denyMessage != "" {
-							jsonData = []byte(config.denyMessage)
+						if config.protocolOriginal {
+							jsonData = []byte(denyMessage)
+						} else if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+							randomID := generateRandomID()
+							jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String(), randomID, model))
 						} else {
-							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-								randomID := generateRandomID()
-								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
-							} else {
-								randomID := generateRandomID()
-								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
-							}
+							randomID := generateRandomID()
+							jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}

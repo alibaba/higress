@@ -29,6 +29,7 @@ description: 阿里云内容安全检测
 | `responseStreamContentJsonPath` | string | optional | `choices.0.delta.content` | 指定要检测内容在流式响应body中的jsonpath |
 | `denyCode` | int | optional | 200 | 指定内容非法时的响应状态码 |
 | `denyMessage` | string | optional | openai格式的流失/非流式响应，回答内容为阿里云内容安全的建议回答 | 指定内容非法时的响应内容 |
+| `protocol` | string | optional | openai | 协议格式，非openai协议填`original` |
 
 ## 配置示例
 ### 前提条件
@@ -90,6 +91,7 @@ requestContentJsonPath: "input.prompt"
 responseContentJsonPath: "output.text"
 denyCode: 200
 denyMessage: "很抱歉，我无法回答您的问题"
+protocol: original
 ```
 
 ## 可观测
