@@ -55,6 +55,7 @@ type GrayConfig struct {
 	GraySubKey       string
 	Rules            []*GrayRule
 	Rewrite          *Rewrite
+	Html             string  
 	BaseDeployment   *Deployment
 	GrayDeployments  []*Deployment
 	BackendGrayTag   string
@@ -84,6 +85,7 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
+	grayConfig.Html = json.Get("html").String()
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天
