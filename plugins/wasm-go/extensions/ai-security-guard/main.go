@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	mrand "math/rand"
@@ -194,7 +195,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	proxywasm.LogDebugf("checking request body...")
+	log.Debugf("checking request body...")
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	model := gjson.GetBytes(body, "model").Raw
 	ctx.SetContext("requestModel", model)
@@ -231,12 +232,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					var denyMessage string
+					messageNeedSerialization := true
 					if config.protocolOriginal {
 						// not openai
 						if config.denyMessage != "" {
 							denyMessage = config.denyMessage
 						} else if respAdvice.Exists() {
 							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+							messageNeedSerialization = false
 						} else {
 							denyMessage = DefaultDenyMessage
 						}
@@ -244,10 +247,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 						// openai
 						if respAdvice.Exists() {
 							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+							messageNeedSerialization = false
 						} else if config.denyMessage != "" {
 							denyMessage = config.denyMessage
 						} else {
 							denyMessage = DefaultDenyMessage
+						}
+					}
+					if messageNeedSerialization {
+						if data, err := json.Marshal(denyMessage); err == nil {
+							denyMessage = string(data)
+						} else {
+							denyMessage = fmt.Sprintf("\"%s\"", DefaultDenyMessage)
 						}
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
@@ -280,7 +291,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		}
 		return types.ActionPause
 	} else {
-		proxywasm.LogDebugf("request content is empty. skip")
+		log.Debugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
@@ -320,7 +331,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	proxywasm.LogDebugf("checking response body...")
+	log.Debugf("checking response body...")
 	hdsMap := ctx.GetContext("headers").(map[string][]string)
 	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
@@ -411,7 +422,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		}
 		return types.ActionPause
 	} else {
-		proxywasm.LogDebugf("request content is empty. skip")
+		log.Debugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
