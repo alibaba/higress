@@ -39,6 +39,7 @@ const (
 	providerTypeDeepl      = "deepl"
 	providerTypeMistral    = "mistral"
 	providerTypeCohere     = "cohere"
+	providerTypeDoubao     = "doubao"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -96,6 +97,7 @@ var (
 		providerTypeDeepl:      &deeplProviderInitializer{},
 		providerTypeMistral:    &mistralProviderInitializer{},
 		providerTypeCohere:     &cohereProviderInitializer{},
+		providerTypeDoubao:     &doubaoProviderInitializer{},
 	}
 )
 
@@ -124,7 +126,10 @@ type ResponseBodyHandler interface {
 }
 
 type ProviderConfig struct {
-	// @Title zh-CN AI服务提供商
+	// @Title zh-CN ID
+	// @Description zh-CN AI服务提供商标识
+	id string `required:"true" yaml:"id" json:"id"`
+	// @Title zh-CN 类型
 	// @Description zh-CN AI服务提供商类型
 	typ string `required:"true" yaml:"type" json:"type"`
 	// @Title zh-CN API Tokens
@@ -195,7 +200,20 @@ type ProviderConfig struct {
 	customSettings []CustomSetting
 }
 
+func (c *ProviderConfig) GetId() string {
+	return c.id
+}
+
+func (c *ProviderConfig) GetType() string {
+	return c.typ
+}
+
+func (c *ProviderConfig) GetProtocol() string {
+	return c.protocol
+}
+
 func (c *ProviderConfig) FromJson(json gjson.Result) {
+	c.id = json.Get("id").String()
 	c.typ = json.Get("type").String()
 	c.apiTokens = make([]string, 0)
 	for _, token := range json.Get("apiTokens").Array() {
@@ -320,6 +338,10 @@ func (c *ProviderConfig) IsOriginal() bool {
 	return c.protocol == protocolOriginal
 }
 
+func (c *ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
+	return ReplaceByCustomSettings(body, c.customSettings)
+}
+
 func CreateProvider(pc ProviderConfig) (Provider, error) {
 	initializer, has := providerInitializers[pc.typ]
 	if !has {
@@ -363,8 +385,4 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
-}
-
-func (c ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
-	return ReplaceByCustomSettings(body, c.customSettings)
 }
