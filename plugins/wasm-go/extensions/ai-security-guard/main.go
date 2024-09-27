@@ -221,6 +221,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		reqParams.Add("Signature", signature)
 		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+				if statusCode != 200 {
+					log.Error(string(responseBody))
+					proxywasm.ResumeHttpRequest()
+					return
+				}
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
@@ -229,7 +234,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					if respAdvice.Exists() {
 						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
 					} else {
-						denyMessage = fmt.Sprintf(`"%s"`, DefaultDenyMessage)
+						denyMessage = config.denyMessage
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
@@ -336,6 +341,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer proxywasm.ResumeHttpResponse()
+				if statusCode != 200 {
+					log.Error(string(responseBody))
+					return
+				}
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
@@ -344,7 +353,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					if respAdvice.Exists() {
 						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
 					} else {
-						denyMessage = fmt.Sprintf(`"%s"`, DefaultDenyMessage)
+						denyMessage = config.denyMessage
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						var jsonData []byte
