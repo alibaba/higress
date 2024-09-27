@@ -231,10 +231,24 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					var denyMessage string
-					if respAdvice.Exists() {
-						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+					if config.protocolOriginal {
+						// not openai
+						if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
 					} else {
-						denyMessage = config.denyMessage
+						// openai
+						if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+						} else if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
@@ -350,10 +364,24 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
 					var denyMessage string
-					if respAdvice.Exists() {
-						denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+					if config.protocolOriginal {
+						// not openai
+						if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
 					} else {
-						denyMessage = config.denyMessage
+						// openai
+						if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+						} else if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
 					}
 					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						var jsonData []byte
