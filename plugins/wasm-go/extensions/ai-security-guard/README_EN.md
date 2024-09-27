@@ -29,8 +29,8 @@ Plugin Priority: `300`
 | `responseContentJsonPath` | string | optional | `choices.0.message.content` | Specify the jsonpath of the content to be detected in the response body |
 | `responseStreamContentJsonPath` | string | optional | `choices.0.delta.content` | Specify the jsonpath of the content to be detected in the streaming response body |
 | `denyCode` | int | optional | 200 | Response status code when the specified content is illegal |
-| `denyMessage` | string | optional | Drainage/non-streaming response in openai format, the answer content is the suggested answer from Alibaba Cloud content security
- | Response content when the specified content is illegal |
+| `denyMessage` | string | optional | Drainage/non-streaming response in openai format, the answer content is the suggested answer from Alibaba Cloud content security | Response content when the specified content is illegal |
+| `protocol` | string | optional | openai | protocol format, `openai` or `original` |
 
 
 ## Examples of configuration
