@@ -607,6 +607,7 @@ provider:
 ```
 
 ### 使用original协议代理百炼智能体应用
+
 **配置信息**
 
 ```yaml
@@ -832,6 +833,7 @@ provider:
   }
 }
 ```
+
 ### 使用 OpenAI 协议代理混元服务
 
 **配置信息**
@@ -849,9 +851,10 @@ provider:
 ```
 
 **请求示例**
-请求脚本：
-```sh
 
+请求脚本：
+
+```shell
 curl --location 'http://<your higress domain>/v1/chat/completions' \
 --header 'Content-Type:  application/json' \
 --data '{
