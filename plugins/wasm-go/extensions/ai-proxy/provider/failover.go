@@ -370,7 +370,13 @@ func resetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 }
 
 func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, log wrapper.Log) {
-	resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiTokenInUse, log)
+	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestFailureCount)
+	if err != nil {
+		log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
+	}
+	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
+		resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiTokenInUse, log)
+	}
 }
 
 func modifyApiTokenRequestCount(key, apiToken string, op string, log wrapper.Log) {
@@ -455,16 +461,16 @@ func getApiTokenInUse(ctx wrapper.HttpContext) string {
 }
 
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
-	apiTokenInUse := c.GetRandomToken()
+	apiToken := c.GetRandomToken()
 	if c.IsFailoverEnabled() {
 		// Use the health check token if it is a health check request.
 		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check"); apiTokenHealthCheck != "" {
-			apiTokenInUse = apiTokenHealthCheck
+			apiToken = apiTokenHealthCheck
 		} else {
 			// if enable apiToken failover, only use available apiToken
-			apiTokenInUse = c.GetGlobalRandomToken(log)
+			apiToken = c.GetGlobalRandomToken(log)
 		}
 	}
-	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiTokenInUse)
-	ctx.SetContext(apiTokenInUse, apiTokenInUse)
+	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiToken)
+	ctx.SetContext(apiTokenInUse, apiToken)
 }
