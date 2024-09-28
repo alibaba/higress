@@ -41,10 +41,10 @@ var (
 )
 
 const (
-	ApiTokenInUse                      = "apiTokenInUse"
-	ApiTokenHealthCheck                = "apiTokenHealthCheck"
+	apiTokenInUse                      = "apiTokenInUse"
+	apiTokenHealthCheck                = "apiTokenHealthCheck"
 	vmLease                            = "vmLease"
-	CtxApiTokenRequestFailureCount     = "apiTokenRequestFailureCount"
+	ctxApiTokenRequestFailureCount     = "apiTokenRequestFailureCount"
 	ctxApiTokenRequestSuccessCount     = "apiTokenRequestSuccessCount"
 	ctxApiTokens                       = "apiTokens"
 	ctxUnavailableApiTokens            = "unavailableApiTokens"
@@ -129,7 +129,7 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
                     }`, c.failover.healthCheckModel))
 						err := healthCheckClient.Post(path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 							if statusCode == 200 {
-								c.HandleAvailableApiToken(apiToken, log)
+								c.handleAvailableApiToken(apiToken, log)
 							}
 						}, uint32(c.failover.healthCheckTimeout))
 						if err != nil {
@@ -200,8 +200,8 @@ func generateVMID() string {
 
 // When number of request successes exceeds the threshold during health check,
 // add the apiToken back to the available list and remove it from the unavailable list
-func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Log) {
-	successApiTokenRequestCount, _, err := GetApiTokenRequestCount(ctxApiTokenRequestSuccessCount)
+func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Log) {
+	successApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestSuccessCount)
 	if err != nil {
 		log.Errorf("Failed to get successApiTokenRequestCount: %v", err)
 		return
@@ -212,7 +212,7 @@ func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Lo
 		log.Infof("apiToken %s is available now, add it back to the apiTokens list", apiToken)
 		removeApiToken(ctxUnavailableApiTokens, apiToken, log)
 		addApiToken(ctxApiTokens, apiToken, log)
-		ResetApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
+		resetApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still unavailable, the number of health check passed: %d, continue to health check......", apiToken, successCount)
 		addApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
@@ -221,8 +221,8 @@ func (c *ProviderConfig) HandleAvailableApiToken(apiToken string, log wrapper.Lo
 
 // When number of request failures exceeds the threshold,
 // remove the apiToken from the available list and add it to the unavailable list
-func (c *ProviderConfig) HandleUnavailableApiToken(apiToken string, log wrapper.Log) {
-	failureApiTokenRequestCount, _, err := GetApiTokenRequestCount(CtxApiTokenRequestFailureCount)
+func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.Log) {
+	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestFailureCount)
 	if err != nil {
 		log.Errorf("Failed to get failureApiTokenRequestCount: %v", err)
 		return
@@ -243,10 +243,10 @@ func (c *ProviderConfig) HandleUnavailableApiToken(apiToken string, log wrapper.
 		log.Infof("apiToken %s is unavailable now, remove it from apiTokens list", apiToken)
 		removeApiToken(ctxApiTokens, apiToken, log)
 		addApiToken(ctxUnavailableApiTokens, apiToken, log)
-		ResetApiTokenRequestCount(CtxApiTokenRequestFailureCount, apiToken, log)
+		resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still available as it has not reached the failure threshold, the number of failed request: %d", apiToken, failureCount)
-		addApiTokenRequestCount(CtxApiTokenRequestFailureCount, apiToken, log)
+		addApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
 	}
 }
 
@@ -340,7 +340,7 @@ func containsElement(slice []string, s string) bool {
 	return false
 }
 
-func GetApiTokenRequestCount(key string) (map[string]int64, uint32, error) {
+func getApiTokenRequestCount(key string) (map[string]int64, uint32, error) {
 	data, cas, err := proxywasm.GetSharedData(key)
 	if err != nil {
 		if errors.Is(err, types.ErrorStatusNotFound) {
@@ -365,13 +365,17 @@ func addApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 	modifyApiTokenRequestCount(key, apiToken, addApiTokenRequestCountOperation, log)
 }
 
-func ResetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
+func resetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 	modifyApiTokenRequestCount(key, apiToken, resetApiTokenRequestCountOperation, log)
+}
+
+func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, log wrapper.Log) {
+	resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiTokenInUse, log)
 }
 
 func modifyApiTokenRequestCount(key, apiToken string, op string, log wrapper.Log) {
 	for attempt := 1; attempt <= casMaxRetries; attempt++ {
-		apiTokenRequestCount, cas, err := GetApiTokenRequestCount(key)
+		apiTokenRequestCount, cas, err := getApiTokenRequestCount(key)
 		if err != nil {
 			log.Errorf("Failed to get %s: %v", key, err)
 			continue
@@ -423,10 +427,6 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	}
 }
 
-func getApiTokenInUse(ctx wrapper.HttpContext) string {
-	return ctx.GetContext(ApiTokenInUse).(string)
-}
-
 func (c *ProviderConfig) IsFailoverEnabled() bool {
 	return c.failover != nil && c.failover.enabled
 }
@@ -436,5 +436,35 @@ func resetSharedData() {
 	_ = proxywasm.SetSharedData(ctxApiTokens, nil, 0)
 	_ = proxywasm.SetSharedData(ctxUnavailableApiTokens, nil, 0)
 	_ = proxywasm.SetSharedData(ctxApiTokenRequestSuccessCount, nil, 0)
-	_ = proxywasm.SetSharedData(CtxApiTokenRequestFailureCount, nil, 0)
+	_ = proxywasm.SetSharedData(ctxApiTokenRequestFailureCount, nil, 0)
+}
+
+func (c *ProviderConfig) OnRequestFailed(ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) {
+	// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
+	if c.IsFailoverEnabled() && ctx.GetContext(apiTokenHealthCheck) == nil {
+		c.handleUnavailableApiToken(apiTokenInUse, log)
+	}
+}
+
+func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
+	return getApiTokenInUse(ctx)
+}
+
+func getApiTokenInUse(ctx wrapper.HttpContext) string {
+	return ctx.GetContext(apiTokenInUse).(string)
+}
+
+func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
+	apiTokenInUse := c.GetRandomToken()
+	if c.IsFailoverEnabled() {
+		// Use the health check token if it is a health check request.
+		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check"); apiTokenHealthCheck != "" {
+			apiTokenInUse = apiTokenHealthCheck
+		} else {
+			// if enable apiToken failover, only use available apiToken
+			apiTokenInUse = c.GetGlobalRandomToken(log)
+		}
+	}
+	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiTokenInUse)
+	ctx.SetContext(apiTokenInUse, apiTokenInUse)
 }

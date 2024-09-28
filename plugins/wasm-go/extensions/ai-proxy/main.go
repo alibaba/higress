@@ -92,20 +92,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 		ctx.DisableReroute()
-
-		providerConfig := pluginConfig.GetProviderConfig()
-		apiTokenInUse := providerConfig.GetRandomToken()
-		if providerConfig.IsFailoverEnabled() {
-			// Use the health check token if it is a health check request.
-			if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check"); apiTokenHealthCheck != "" {
-				apiTokenInUse = apiTokenHealthCheck
-			} else {
-				// if enable apiToken failover, only use available apiToken
-				apiTokenInUse = providerConfig.GetGlobalRandomToken(log)
-			}
-		}
-		log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiTokenInUse)
-		ctx.SetContext(provider.ApiTokenInUse, apiTokenInUse)
+		// Set the apiToken for the current request.
+		providerConfig.SetApiTokenInUse(ctx, log)
 
 		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)
@@ -173,32 +161,23 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 
 	log.Debugf("[onHttpResponseHeaders] provider=%s", activeProvider.GetProviderType())
 
+	providerConfig := pluginConfig.GetProviderConfig()
+	apiTokenInUse := providerConfig.GetApiTokenInUse(ctx)
+
 	status, err := proxywasm.GetHttpResponseHeader(":status")
-	apiTokenInUse := ctx.GetContext(provider.ApiTokenInUse).(string)
 	if err != nil || status != "200" {
 		if err != nil {
 			log.Errorf("unable to load :status header from response: %v", err)
 		}
 		ctx.DontReadResponseBody()
-
-		providerConfig := pluginConfig.GetProviderConfig()
-		// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
-		if providerConfig.IsFailoverEnabled() && ctx.GetContext(provider.ApiTokenHealthCheck) == nil {
-			providerConfig.HandleUnavailableApiToken(apiTokenInUse, log)
-		}
+		providerConfig.OnRequestFailed(ctx, apiTokenInUse, log)
 
 		return types.ActionContinue
 	}
 
 	// Reset ctxApiTokenRequestFailureCount if the request is successful,
 	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
-	failureApiTokenRequestCount, _, err := provider.GetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount)
-	if err != nil {
-		log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
-	}
-	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
-		provider.ResetApiTokenRequestCount(provider.CtxApiTokenRequestFailureCount, apiTokenInUse, log)
-	}
+	providerConfig.ResetApiTokenRequestFailureCount(apiTokenInUse, log)
 
 	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
 		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
