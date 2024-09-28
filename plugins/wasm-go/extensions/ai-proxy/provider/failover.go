@@ -83,7 +83,7 @@ func (f *failover) Validate() error {
 	return nil
 }
 
-func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) {
+func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 	// Reset shared data in case plugin configuration is updated
 	resetSharedData()
 
@@ -96,7 +96,7 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) {
 	vmID := generateVMID()
 	err := c.initApiTokens()
 	if err != nil {
-		log.Errorf("Failed to init apiTokens: %v", err)
+		return fmt.Errorf("failed to init apiTokens: %v", err)
 	}
 
 	if c.failover != nil && c.failover.enabled {
@@ -140,6 +140,7 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) {
 			}
 		})
 	}
+	return nil
 }
 
 func tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
