@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	mrand "math/rand"
@@ -47,6 +48,7 @@ const (
 	DefaultResponseJsonPath          = "choices.0.message.content"
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
+	DefaultDenyMessage               = "很抱歉，我无法回答您的问题"
 
 	AliyunUserAgent = "CIPFrom/AIGateway"
 )
@@ -64,6 +66,7 @@ type AISecurityConfig struct {
 	responseStreamContentJsonPath string
 	denyCode                      int64
 	denyMessage                   string
+	protocolOriginal              bool
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -129,6 +132,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	}
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
+	config.protocolOriginal = json.Get("protocol").String() == "original"
 	config.denyMessage = json.Get("denyMessage").String()
 	if obj := json.Get("denyCode"); obj.Exists() {
 		config.denyCode = obj.Int()
@@ -191,7 +195,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	proxywasm.LogDebugf("checking request body...")
+	log.Debugf("checking request body...")
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	model := gjson.GetBytes(body, "model").Raw
 	ctx.SetContext("requestModel", model)
@@ -218,29 +222,61 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		reqParams.Add("Signature", signature)
 		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+				if statusCode != 200 {
+					log.Error(string(responseBody))
+					proxywasm.ResumeHttpRequest()
+					return
+				}
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
-					if respAdvice.Exists() {
+					var denyMessage string
+					messageNeedSerialization := true
+					if config.protocolOriginal {
+						// not openai
+						if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+							messageNeedSerialization = false
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
+					} else {
+						// openai
+						if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+							messageNeedSerialization = false
+						} else if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
+					}
+					if messageNeedSerialization {
+						if data, err := json.Marshal(denyMessage); err == nil {
+							denyMessage = string(data)
+						} else {
+							denyMessage = fmt.Sprintf("\"%s\"", DefaultDenyMessage)
+						}
+					}
+					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_risklabel"}, []byte(respResult.Array()[0].Get("Label").String()))
 						proxywasm.SetProperty([]string{TracingPrefix, "ai_sec_deny_phase"}, []byte("request"))
 						config.incrementCounter("ai_sec_request_deny", 1)
-						if config.denyMessage != "" {
-							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(config.denyMessage), -1)
+						if config.protocolOriginal {
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(denyMessage), -1)
+						} else if gjson.GetBytes(body, "stream").Bool() {
+							randomID := generateRandomID()
+							jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, denyMessage, randomID, model))
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 						} else {
-							answer := respAdvice.Array()[0].Get("Answer").Raw
-							if gjson.GetBytes(body, "stream").Bool() {
-								randomID := generateRandomID()
-								jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, answer))
-								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
-							} else {
-								randomID := generateRandomID()
-								jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, answer))
-								proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-							}
-							ctx.DontReadResponseBody()
+							randomID := generateRandomID()
+							jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, denyMessage))
+							proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 						}
+						ctx.DontReadResponseBody()
 					} else {
 						proxywasm.ResumeHttpRequest()
 					}
@@ -255,7 +291,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		}
 		return types.ActionPause
 	} else {
-		proxywasm.LogDebugf("request content is empty. skip")
+		log.Debugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
@@ -295,7 +331,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
-	proxywasm.LogDebugf("checking response body...")
+	log.Debugf("checking response body...")
 	hdsMap := ctx.GetContext("headers").(map[string][]string)
 	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
@@ -330,22 +366,44 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer proxywasm.ResumeHttpResponse()
+				if statusCode != 200 {
+					log.Error(string(responseBody))
+					return
+				}
 				respData := gjson.GetBytes(responseBody, "Data")
 				if respData.Exists() {
 					respAdvice := respData.Get("Advice")
 					respResult := respData.Get("Result")
-					if respAdvice.Exists() {
-						var jsonData []byte
+					var denyMessage string
+					if config.protocolOriginal {
+						// not openai
 						if config.denyMessage != "" {
-							jsonData = []byte(config.denyMessage)
+							denyMessage = config.denyMessage
+						} else if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
 						} else {
-							if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
-								randomID := generateRandomID()
-								jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
-							} else {
-								randomID := generateRandomID()
-								jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
-							}
+							denyMessage = DefaultDenyMessage
+						}
+					} else {
+						// openai
+						if respAdvice.Exists() {
+							denyMessage = respAdvice.Array()[0].Get("Answer").Raw
+						} else if config.denyMessage != "" {
+							denyMessage = config.denyMessage
+						} else {
+							denyMessage = DefaultDenyMessage
+						}
+					}
+					if respResult.Array()[0].Get("Label").String() != "nonLabel" {
+						var jsonData []byte
+						if config.protocolOriginal {
+							jsonData = []byte(denyMessage)
+						} else if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+							randomID := generateRandomID()
+							jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String(), randomID, model))
+						} else {
+							randomID := generateRandomID()
+							jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}
@@ -364,7 +422,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		}
 		return types.ActionPause
 	} else {
-		proxywasm.LogDebugf("request content is empty. skip")
+		log.Debugf("request content is empty. skip")
 		return types.ActionContinue
 	}
 }
