@@ -44,16 +44,6 @@ jobs:
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
 
-      - name: Setup Submodule Caches
-        uses: actions/cache@v4
-        with:
-          path: |-
-            envoy
-            istio
-            .git/modules
-          key: ${{ runner.os }}-submodules-new-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-new
-
       - name: Calculate Docker metadata
         id: docker-meta
         uses: docker/metadata-action@v5
@@ -119,16 +109,6 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
-
-      - name: Setup Submodule Caches
-        uses: actions/cache@v4
-        with:
-          path: |-
-            envoy
-            istio
-            .git/modules
-          key: ${{ runner.os }}-submodules-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-new
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
@@ -207,16 +187,6 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
-
-      - name: Setup Submodule Caches
-        uses: actions/cache@v4
-        with:
-          path: |-
-            envoy
-            istio
-            .git/modules
-          key: ${{ runner.os }}-submodules-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-submodules-new
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1

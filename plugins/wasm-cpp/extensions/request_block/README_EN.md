@@ -1,24 +1,28 @@
-<p>
-   English | <a href="README.md">中文</a>
-</p>
+---
+title: Request Blocking
+keywords: [higress,request block]
+description: Request blocking plugin configuration reference
+---
+## Function Description
+The `request-block` plugin implements HTTP request blocking based on features such as URL, request headers, etc. It can be used to protect certain site resources from being exposed to the outside.
 
-# Description
-`request-block` plugin implements a request blocking function based on request characteristics such as URL and request header. It can be used to protect internal resources from unauthorized access.
+## Running Attributes
+Plugin Execution Stage: `Authentication Stage`
 
-# Configuration Fields
+Plugin Execution Priority: `320`
 
-| Name | Type | Requirement |  Default Value | Description |
-| -------- | -------- | -------- | -------- | -------- |
-|  block_urls     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodies` |  -  |  HTTP URLs to be blocked. |
-|  block_headers     |  array of string     | Optional. Choose one from following: `block_urls`, `block_headers`, `block_bodies` |  -  |  HTTP request headers to be blocked.  |
-|  block_bodies     |  array of string     | Optional. Choose one from following: `block_urls` ,`block_headers`, `block_bodies` |  -  |  HTTP request bodies to be blocked.  |
-|  blocked_code     |  number     |  Optional     |   403  |  HTTP response status code to be sent when corresponding request is blocked.  |
-|  blocked_message     |  string     |  Optional   |   -  |  HTTP response body to be sent when corresponding request is blocked.   |
-|  case_sensitive     |  bool     |  Optional     |   true  |  Whether to use case-senstive comparison when matching. Enabled by default.   |
+## Configuration Fields
+| Name               | Data Type          | Fill Requirement                                         | Default Value | Description                                                |
+|--------------------|--------------------|---------------------------------------------------------|---------------|------------------------------------------------------------|
+| block_urls         | array of string     | Optional, at least one of `block_urls`, `block_headers`, `block_bodies` must be filled | -             | Configure strings for matching URLs that need to be blocked |
+| block_headers      | array of string     | Optional, at least one of `block_urls`, `block_headers`, `block_bodies` must be filled | -             | Configure strings for matching request headers that need to be blocked |
+| block_bodies       | array of string     | Optional, at least one of `block_urls`, `block_headers`, `block_bodies` must be filled | -             | Configure strings for matching request bodies that need to be blocked |
+| blocked_code       | number             | Optional                                                | 403           | Configure the HTTP status code returned when a request is blocked |
+| blocked_message    | string             | Optional                                                | -             | Configure the HTTP response body returned when a request is blocked |
+| case_sensitive      | bool               | Optional                                                | true          | Configure whether matching is case-sensitive, default is case-sensitive |
 
-# Configuration Samples
-
-## Block Specific Request URLs
+## Configuration Example
+### Blocking Request URL Paths
 ```yaml
 block_urls:
 - swagger.html
@@ -26,65 +30,39 @@ block_urls:
 case_sensitive: false
 ```
 
-According to the configuration above, following requests will be blocked:
-
+Based on this configuration, the following requests will be denied access:
 ```bash
 curl http://example.com?foo=Bar
 curl http://exmaple.com/Swagger.html
 ```
 
-## Block Specific Request Headers
+### Blocking Request Headers
 ```yaml
 block_headers:
 - example-key
 - example-value
 ```
 
-According to the configuration above, following requests will be blocked:
-
+Based on this configuration, the following requests will be denied access:
 ```bash
 curl http://example.com -H 'example-key: 123'
 curl http://exmaple.com -H 'my-header: example-value'
 ```
 
-## Block Specific Request Bodies
+### Blocking Request Bodies
 ```yaml
 block_bodies:
 - "hello world"
 case_sensitive: false
 ```
 
-According to the configuration above, following requests will be blocked:
-
+Based on this configuration, the following requests will be denied access:
 ```bash
 curl http://example.com -d 'Hello World'
 curl http://exmaple.com -d 'hello world'
 ```
 
-## Only Enable for Specific Routes or Domains
-```yaml
-# Use _rules_ field for fine-grained rule configurations 
-_rules_:
-# Rule 1: Match by route name
-- _match_route_:
-  - route-a
-  - route-b
-  block_bodies: 
-  - "hello world"
-# Rule 2: Match by domain
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  block_urls: 
-  - "swagger.html"
-  block_bodies:
-  - "hello world"
-```
-In the rule sample of `_match_route_`, `route-a` and `route-b` are the route names provided when creating a new gateway route. When the current route names matches the configuration, the rule following shall be applied.
-In the rule sample of `_match_domain_`, `*.example.com` and `test.com` are the domain names used for request matching. When the current domain name matches the configuration, the rule following shall be applied.
-All rules shall be checked following the order of items in the `_rules_` field, The first matched rule will be applied. All remained will be ignored.
+## Request Body Size Limit
+When `block_bodies` is configured, only request bodies smaller than 32 MB are supported for matching. If the request body exceeds this limit and there are no matching `block_urls` or `block_headers`, the blocking operation will not be executed for that request.
 
-# Maximum Request Body Size Limitation
-
-When `block_bodies` is configured, body matching shall only be performed when its size is smaller than 32MB. If not, and no `block_urls` or `block_headers` configuration is matched, the request won't be blocked.
-When `block_bodies` is configured, if the size of request body exceeds the global configuration of DownstreamConnectionBufferLimits, a ``413 Payload Too Large`` response will be returned.
+When `block_bodies` is configured and the request body exceeds the global configuration DownstreamConnectionBufferLimits, it will return `413 Payload Too Large`.

@@ -14,7 +14,9 @@
 
 use crate::rule_matcher::SharedRuleMatcher;
 use multimap::MultiMap;
+use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
+use proxy_wasm::types::LogLevel;
 use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction};
 use serde::de::DeserializeOwned;
 
@@ -143,9 +145,26 @@ where
     fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
         self.config = binding.get_match_config().map(|config| config.1.clone());
-        for (k, v) in self.get_http_request_headers() {
-            self.req_headers.insert(k, v);
+
+        for (k, v) in self.get_http_request_headers_bytes() {
+            match String::from_utf8(v) {
+                Ok(header_value) => {
+                    self.req_headers.insert(k, header_value);
+                }
+                Err(_) => {
+                    log(
+                        LogLevel::Warn,
+                        format!(
+                            "request http header contains non-ASCII characters header: {}",
+                            k
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
+                }
+            }
         }
+
         if let Some(config) = &self.config {
             self.http_content.on_config(config);
         }
@@ -187,9 +206,25 @@ where
         num_headers: usize,
         end_of_stream: bool,
     ) -> HeaderAction {
-        for (k, v) in self.get_http_response_headers() {
-            self.res_headers.insert(k, v);
+        for (k, v) in self.get_http_response_headers_bytes() {
+            match String::from_utf8(v) {
+                Ok(header_value) => {
+                    self.res_headers.insert(k, header_value);
+                }
+                Err(_) => {
+                    log(
+                        LogLevel::Warn,
+                        format!(
+                            "response http header contains non-ASCII characters header: {}",
+                            k
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
+                }
+            }
         }
+
         let ret = self
             .http_content
             .on_http_response_headers(num_headers, end_of_stream);

@@ -25,32 +25,70 @@ import (
 type PluginConfig struct {
 	// @Title zh-CN AI服务提供商配置
 	// @Description zh-CN AI服务提供商配置，包含API接口、模型和知识库文件等信息
-	providerConfig provider.ProviderConfig `required:"true" yaml:"provider"`
+	providerConfigs []provider.ProviderConfig `required:"true" yaml:"providers"`
 
-	provider provider.Provider `yaml:"-"`
+	activeProviderConfig *provider.ProviderConfig `yaml:"-"`
+	activeProvider       provider.Provider        `yaml:"-"`
 }
 
 func (c *PluginConfig) FromJson(json gjson.Result) {
-	c.providerConfig.FromJson(json.Get("provider"))
+	if providersJson := json.Get("providers"); providersJson.Exists() && providersJson.IsArray() {
+		c.providerConfigs = make([]provider.ProviderConfig, 0)
+		for _, providerJson := range providersJson.Array() {
+			providerConfig := provider.ProviderConfig{}
+			providerConfig.FromJson(providerJson)
+			c.providerConfigs = append(c.providerConfigs, providerConfig)
+		}
+	}
+
+	if providerJson := json.Get("provider"); providerJson.Exists() && providerJson.IsObject() {
+		// TODO: For legacy config support. To be removed later.
+		providerConfig := provider.ProviderConfig{}
+		providerConfig.FromJson(providerJson)
+		c.providerConfigs = []provider.ProviderConfig{providerConfig}
+		c.activeProviderConfig = &providerConfig
+		// Legacy configuration is used and the active provider is determined.
+		// We don't need to continue with the new configuration style.
+		return
+	}
+
+	c.activeProviderConfig = nil
+
+	activeProviderId := json.Get("activeProviderId").String()
+	if activeProviderId != "" {
+		for _, providerConfig := range c.providerConfigs {
+			if providerConfig.GetId() == activeProviderId {
+				c.activeProviderConfig = &providerConfig
+				break
+			}
+		}
+	}
 }
 
 func (c *PluginConfig) Validate() error {
-	if err := c.providerConfig.Validate(); err != nil {
+	if c.activeProviderConfig == nil {
+		return nil
+	}
+	if err := c.activeProviderConfig.Validate(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (c *PluginConfig) Complete() error {
+	if c.activeProviderConfig == nil {
+		c.activeProvider = nil
+		return nil
+	}
 	var err error
-	c.provider, err = provider.CreateProvider(c.providerConfig)
+	c.activeProvider, err = provider.CreateProvider(*c.activeProviderConfig)
 	return err
 }
 
 func (c *PluginConfig) GetProvider() provider.Provider {
-	return c.provider
+	return c.activeProvider
 }
 
-func (c *PluginConfig) GetProviderConfig() provider.ProviderConfig {
-	return c.providerConfig
+func (c *PluginConfig) GetProviderConfig() *provider.ProviderConfig {
+	return c.activeProviderConfig
 }

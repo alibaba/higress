@@ -8,11 +8,12 @@
 [![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
-[**官网**](https://higress.io/) &nbsp; |
-&nbsp; [**文档**](https://higress.io/docs/latest/user/quickstart/) &nbsp; |
-&nbsp; [**博客**](https://higress.io/blog/) &nbsp; |
-&nbsp; [**开发指引**](https://higress.io/docs/latest/dev/architecture/) &nbsp; |
-&nbsp; [**AI插件**](https://higress.io/plugin/) &nbsp;
+[**官网**](https://higress.cn/) &nbsp; |
+&nbsp; [**文档**](https://higress.cn/docs/latest/user/quickstart/) &nbsp; |
+&nbsp; [**博客**](https://higress.cn/blog/) &nbsp; |
+&nbsp; [**电子书**](https://higress.cn/docs/ebook/wasm14/) &nbsp; |
+&nbsp; [**开发指引**](https://higress.cn/docs/latest/dev/architecture/) &nbsp; |
+&nbsp; [**AI插件**](https://higress.cn/plugin/) &nbsp;
 
 
 <p>
@@ -59,7 +60,7 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 
 **Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内不可访问的影响**
 
-K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.io/docs/latest/user/quickstart/)。
+K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
 
 ## 使用场景
@@ -172,3 +173,7 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 ![](https://img.alicdn.com/imgextra/i1/O1CN01WnQt0q1tcmqVDU73u_!!6000000005923-0-tps-258-258.jpg)
 
+### 关联仓库
+
+- Higress 控制台：https://github.com/higress-group/higress-console
+- Higress（独立运行版）：https://github.com/higress-group/higress-standalone
