@@ -22,7 +22,7 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::str::from_utf8;
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime};
 
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
@@ -39,6 +39,7 @@ struct SseTiming {
     rule_matcher: SharedRuleMatcher<SseTimingConfig>,
     vendor: String,
     event_stream: EventStream,
+    start_time: SystemTime,
 }
 
 #[derive(Default, Clone, Debug, Deserialize)]
@@ -73,6 +74,7 @@ impl RootContext for SseTimingRoot {
             rule_matcher: self.rule_matcher.clone(),
             vendor: "higress".into(),
             event_stream: EventStream::new(),
+            start_time: self.get_current_time(),
         }))
     }
 
@@ -89,6 +91,8 @@ impl HttpContext for SseTiming {
         _num_headers: usize,
         _end_of_stream: bool,
     ) -> HeaderAction {
+        self.start_time = self.get_current_time();
+
         let binding = self.rule_matcher.borrow();
         let config = match binding.get_match_config() {
             None => {
@@ -149,10 +153,7 @@ impl SseTiming {
     }
 
     fn process_event(&self, event: String) -> String {
-        let timestamp = self.get_current_time()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        format!(": sse-timing={}, vendor={}\n{}\n\n", timestamp, self.vendor, event)
+        let duration = self.get_current_time().duration_since(self.start_time).unwrap_or_else(|_| Duration::ZERO);
+        format!(": server-timing: {};dur={}\n{}\n\n", self.vendor, duration.as_millis(), event)
     }
 }

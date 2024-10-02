@@ -108,19 +108,26 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if !util.IsGrayEnabled(grayConfig) {
 		return types.ActionContinue
 	}
-	status, err := proxywasm.GetHttpResponseHeader(":status")
-	contentType, _ := proxywasm.GetHttpResponseHeader("Content-Type")
+	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
+	if !ok {
+		isPageRequest = false // 默认值
+	}
+	// response 不处理非首页的请求
+	if !isPageRequest {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 
+	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		// 删除Content-Disposition，避免自动下载文件
 		proxywasm.RemoveHttpResponseHeader("Content-Disposition")
 	}
 
-	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
-	if !ok {
-		isPageRequest = false // 默认值
-	}
+	// 删除content-length，可能要修改Response返回值
+	proxywasm.RemoveHttpResponseHeader("Content-Length")
 
+	// 处理code为 200的情况
 	if err != nil || status != "200" {
 		if status == "404" {
 			if grayConfig.Rewrite.NotFound != "" && isPageRequest {
@@ -143,6 +150,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 				ctx.BufferResponseBody()
 				return types.ActionContinue
 			} else {
+				// 直接返回400
 				ctx.DontReadResponseBody()
 			}
 		}
@@ -150,25 +158,19 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		return types.ActionContinue
 	}
 
-	// 删除content-length，可能要修改Response返回值
-	proxywasm.RemoveHttpResponseHeader("Content-Length")
+	// 不会进去Streaming 的Body处理
+	ctx.BufferResponseBody()
+	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
 
-	if strings.HasPrefix(contentType, "text/html") || isPageRequest {
-		// 不会进去Streaming 的Body处理
-		ctx.BufferResponseBody()
+	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
+	xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
 
-		proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store")
-
-		frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-		xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
-
-		// 设置前端的版本
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
-		// 设置后端的版本
-		if util.IsBackendGrayEnabled(grayConfig) {
-			backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
-		}
+	// 设置前端的版本
+	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	// 设置后端的版本
+	if util.IsBackendGrayEnabled(grayConfig) {
+		backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
 	}
 	return types.ActionContinue
 }
@@ -182,10 +184,31 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		isPageRequest = false // 默认值
 	}
 	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-
 	isNotFound, ok := ctx.GetContext(config.IsNotFound).(bool)
 	if !ok {
 		isNotFound = false // 默认值
+	}
+
+	// 检查是否存在自定义 HTML， 如有则省略 rewrite.indexRouting 的内容
+	if grayConfig.Html != "" {
+		log.Debugf("Returning custom HTML from config.")
+		// 替换响应体为 config.Html 内容
+		if err := proxywasm.ReplaceHttpResponseBody([]byte(grayConfig.Html)); err != nil {
+			log.Errorf("Error replacing response body: %v", err)
+			return types.ActionContinue
+		}
+
+		newHtml := util.InjectContent(grayConfig.Html, grayConfig.Injection)
+		// 替换当前html加载的动态文件版本
+		newHtml = strings.ReplaceAll(newHtml, "{version}", frontendVersion)
+
+		// 最终替换响应体
+		if err := proxywasm.ReplaceHttpResponseBody([]byte(newHtml)); err != nil {
+			log.Errorf("Error replacing injected response body: %v", err)
+			return types.ActionContinue
+		}
+
+		return types.ActionContinue
 	}
 
 	if isPageRequest && isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
@@ -202,30 +225,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		// 将原始字节转换为字符串
 		newBody := string(body)
 
-		// 收集需要插入的内容
-		headInjection := strings.Join(grayConfig.Injection.Head, "\n")
-		bodyFirstInjection := strings.Join(grayConfig.Injection.Body.First, "\n")
-		bodyLastInjection := strings.Join(grayConfig.Injection.Body.Last, "\n")
-
-		// 使用 strings.Builder 来提高性能
-		var sb strings.Builder
-		// 预分配内存，避免多次内存分配
-		sb.Grow(len(newBody) + len(headInjection) + len(bodyFirstInjection) + len(bodyLastInjection))
-		sb.WriteString(newBody)
-
-		// 进行替换
-		content := sb.String()
-		content = strings.ReplaceAll(content, "</head>", fmt.Sprintf("%s\n</head>", headInjection))
-		content = strings.ReplaceAll(content, "<body>", fmt.Sprintf("<body>\n%s", bodyFirstInjection))
-		content = strings.ReplaceAll(content, "</body>", fmt.Sprintf("%s\n</body>", bodyLastInjection))
-
-		// 最终结果
-		newBody = content
+		newBody = util.InjectContent(newBody, grayConfig.Injection)
 
 		if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
 			return types.ActionContinue
 		}
 	}
+
 	return types.ActionContinue
 }
 

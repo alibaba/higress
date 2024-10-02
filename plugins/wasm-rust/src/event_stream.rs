@@ -93,7 +93,7 @@ impl EventStream {
     fn is_2eol(&self, i: usize) -> Option<usize> {
         let size1 = match self.is_eol(i) {
             None => return None,
-            Some(size1) => size1
+            Some(size1) => size1,
         };
         if i + size1 < self.buffer.len() {
             match self.is_eol(i + size1) {
@@ -104,7 +104,7 @@ impl EventStream {
                         None
                     }
                 }
-                Some(size2) => Some(size1 + size2)
+                Some(size2) => Some(size1 + size2),
             }
         } else if size1 == 2 {
             Some(2)
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn test_demo_events(){
+    fn test_demo_events() {
         let mut parser = EventStream::new();
         parser.update(b": this is a test stream\n\n".to_vec());
         assert_eq!(parser.next(), Some(b": this is a test stream".to_vec()));
@@ -179,30 +179,45 @@ mod tests {
         assert_eq!(parser.next(), None);
 
         parser.update(b"data: with two lines\n\n".to_vec());
-        assert_eq!(parser.next(), Some(b"data: some text\ndata: another message\ndata: with two lines".to_vec()));
+        assert_eq!(
+            parser.next(),
+            Some(b"data: some text\ndata: another message\ndata: with two lines".to_vec())
+        );
 
         parser.update(b"event: userconnect\n".to_vec());
         assert_eq!(parser.next(), None);
 
         parser.update(b"data: {\"username\": \"bobby\", \"time\": \"02:33:48\"}\n\n".to_vec());
-        assert_eq!(parser.next(), Some(b"event: userconnect\ndata: {\"username\": \"bobby\", \"time\": \"02:33:48\"}".to_vec()));
+        assert_eq!(
+            parser.next(),
+            Some(b"event: userconnect\ndata: {\"username\": \"bobby\", \"time\": \"02:33:48\"}".to_vec())
+        );
 
         parser.update(b"event: usermessage\n".to_vec());
         assert_eq!(parser.next(), None);
 
         parser.update(b"data: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}\n\n".to_vec());
-        assert_eq!(parser.next(), Some(b"event: usermessage\ndata: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}".to_vec()));
+        assert_eq!(
+            parser.next(),
+            Some(b"event: usermessage\ndata: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}".to_vec())
+        );
 
         parser.update(b"event: userdisconnect\n".to_vec());
         assert_eq!(parser.next(), None);
 
         parser.update(b"data: {\"username\": \"bobby\", \"time\": \"02:34:23\"}\n\n".to_vec());
-        assert_eq!(parser.next(), Some(b"event: userdisconnect\ndata: {\"username\": \"bobby\", \"time\": \"02:34:23\"}".to_vec()));
+        assert_eq!(
+            parser.next(),
+            Some(b"event: userdisconnect\ndata: {\"username\": \"bobby\", \"time\": \"02:34:23\"}".to_vec())
+        );
 
         parser.update(b"event: usermessage\n".to_vec());
         assert_eq!(parser.next(), None);
 
         parser.update(b"data: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}\n\n".to_vec());
-        assert_eq!(parser.next(), Some(b"event: usermessage\ndata: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}".to_vec()));
+        assert_eq!(
+            parser.next(),
+            Some(b"event: usermessage\ndata: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}".to_vec())
+        );
     }
 }

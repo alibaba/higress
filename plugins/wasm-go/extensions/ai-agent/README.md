@@ -7,8 +7,11 @@ description: AI Agent插件配置参考
 ## 功能说明
 一个可定制化的 API AI Agent，支持配置 http method 类型为 GET 与 POST 的 API，支持多轮对话，支持流式与非流式模式。
 agent流程图如下：
-![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)
+![ai-agent](https://img.alicdn.com/imgextra/i1/O1CN01PGSDW31WQfEPm173u_!!6000000002783-0-tps-2733-1473.jpg)
 
+## 运行属性
+插件执行阶段：`默认阶段`
+插件执行优先级：`200`
 
 ## 配置字段
 

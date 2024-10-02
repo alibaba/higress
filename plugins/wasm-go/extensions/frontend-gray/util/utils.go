@@ -278,3 +278,28 @@ func FilterGrayWeight(grayConfig *config.GrayConfig, preVersion string, preUniqu
 	}
 	return nil
 }
+
+// InjectContent 用于将内容注入到 HTML 文档的指定位置
+func InjectContent(originalHtml string, injectionConfig *config.Injection) string {
+
+	headInjection := strings.Join(injectionConfig.Head, "\n")
+	bodyFirstInjection := strings.Join(injectionConfig.Body.First, "\n")
+	bodyLastInjection := strings.Join(injectionConfig.Body.Last, "\n")
+
+	// 使用 strings.Builder 来提高性能
+	var sb strings.Builder
+	// 预分配内存，避免多次内存分配
+	sb.Grow(len(originalHtml) + len(headInjection) + len(bodyFirstInjection) + len(bodyLastInjection))
+	sb.WriteString(originalHtml)
+
+	modifiedHtml := sb.String()
+
+    // 注入到头部
+    modifiedHtml = strings.ReplaceAll(modifiedHtml, "</head>", headInjection + "\n</head>")
+    // 注入到body头
+    modifiedHtml = strings.ReplaceAll(modifiedHtml, "<body>", "<body>\n" + bodyFirstInjection)
+    // 注入到body尾
+    modifiedHtml = strings.ReplaceAll(modifiedHtml, "</body>", bodyLastInjection + "\n</body>")
+    
+    return modifiedHtml
+}
