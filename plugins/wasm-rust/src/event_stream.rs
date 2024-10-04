@@ -199,7 +199,8 @@ mod tests {
         parser.update(b"data: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}\n\n".to_vec());
         assert_eq!(
             parser.next(),
-            Some(b"event: usermessage\ndata: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}".to_vec())
+            Some(b"event: usermessage\ndata: {\"username\": \"bobby\", \"time\": \"02:34:11\", \"text\": \"Hi everyone.\"}"
+                .to_vec())
         );
 
         parser.update(b"event: userdisconnect\n".to_vec());
@@ -217,7 +218,8 @@ mod tests {
         parser.update(b"data: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}\n\n".to_vec());
         assert_eq!(
             parser.next(),
-            Some(b"event: usermessage\ndata: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}".to_vec())
+            Some(b"event: usermessage\ndata: {\"username\": \"sean\", \"time\": \"02:34:36\", \"text\": \"Bye, bobby.\"}"
+                .to_vec())
         );
     }
 }

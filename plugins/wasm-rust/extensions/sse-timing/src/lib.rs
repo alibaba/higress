@@ -14,6 +14,7 @@
 
 use higress_wasm_rust::event_stream::EventStream;
 use higress_wasm_rust::log::Log;
+use higress_wasm_rust::rule_matcher;
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{ContextType, DataAction, HeaderAction, LogLevel};
@@ -51,7 +52,7 @@ impl SseTimingRoot {
     fn new() -> Self {
         SseTimingRoot {
             log: Rc::new(Log::new("sse_timing".to_string())),
-            rule_matcher: Rc::new(RefCell::new(RuleMatcher::default())),
+            rule_matcher: rule_matcher::shared(),
         }
     }
 }
