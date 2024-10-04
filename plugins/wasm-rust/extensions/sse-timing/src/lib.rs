@@ -52,7 +52,7 @@ impl SseTimingRoot {
     fn new() -> Self {
         SseTimingRoot {
             log: Rc::new(Log::new("sse_timing".to_string())),
-            rule_matcher: rule_matcher::shared(),
+            rule_matcher: rule_matcher::new_shared(),
         }
     }
 }

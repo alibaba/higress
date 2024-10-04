@@ -147,14 +147,13 @@ struct $struct_ {
 }
 
 #[derive(Default, Clone, Debug, Deserialize)]
-struct $struct_config_ {
-}
+struct $struct_config_ {}
 
 impl $struct_root_ {
     fn new() -> Self {
         $struct_root_ {
             log: Rc::new(Log::new("$name".to_string())),
-            rule_matcher: rule_matcher::shared(),
+            rule_matcher: rule_matcher::new_shared(),
         }
     }
 }

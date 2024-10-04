@@ -254,7 +254,7 @@ pub fn on_configure<RC: RootContext, PluginConfig: Default + DeserializeOwned>(
     rule_matcher.parse_rule_config(&value).is_ok()
 }
 
-pub fn shared<PluginConfig>() -> SharedRuleMatcher<PluginConfig>
+pub fn new_shared<PluginConfig>() -> SharedRuleMatcher<PluginConfig>
 where
     PluginConfig: Default,
 {
