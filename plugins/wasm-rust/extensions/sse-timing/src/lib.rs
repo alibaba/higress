@@ -105,16 +105,20 @@ impl HttpContext for SseTiming {
         };
         match config.vendor.clone() {
             None => {}
-            Some(vendor) => self.vendor = vendor
+            Some(vendor) => self.vendor = vendor,
         }
         HeaderAction::Continue
     }
 
-    fn on_http_response_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> HeaderAction {
+    fn on_http_response_headers(
+        &mut self,
+        _num_headers: usize,
+        _end_of_stream: bool,
+    ) -> HeaderAction {
         match self.get_http_response_header("Content-Type") {
-            None => {
-                self.log.warn("upstream response is not set Content-Type, skipped")
-            }
+            None => self
+                .log
+                .warn("upstream response is not set Content-Type, skipped"),
             Some(content_type) => {
                 if content_type.starts_with("text/event-stream") {
                     self.is_event_stream = true
@@ -131,7 +135,9 @@ impl HttpContext for SseTiming {
             return DataAction::Continue;
         }
 
-        let body = self.get_http_response_body(0, body_size).unwrap_or_default();
+        let body = self
+            .get_http_response_body(0, body_size)
+            .unwrap_or_default();
         self.event_stream.update(body);
         self.process_event_stream(end_of_stream)
     }
@@ -167,7 +173,8 @@ impl SseTiming {
 
         if !modified_events.is_empty() {
             let modified_body = modified_events.concat();
-            self.log.info(format!("[modified_body] {}", modified_body).as_str());
+            self.log
+                .info(format!("[modified_body] {}", modified_body).as_str());
             self.set_http_response_body(0, modified_body.len(), modified_body.as_bytes());
             DataAction::Continue
         } else {
@@ -176,7 +183,15 @@ impl SseTiming {
     }
 
     fn process_event(&self, event: String) -> String {
-        let duration = self.get_current_time().duration_since(self.start_time).unwrap_or_else(|_| Duration::ZERO);
-        format!(": server-timing: {};dur={}\n{}\n\n", self.vendor, duration.as_millis(), event)
+        let duration = self
+            .get_current_time()
+            .duration_since(self.start_time)
+            .unwrap_or_else(|_| Duration::ZERO);
+        format!(
+            ": server-timing: {};dur={}\n{}\n\n",
+            self.vendor,
+            duration.as_millis(),
+            event
+        )
     }
 }
