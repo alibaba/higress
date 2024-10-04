@@ -43,13 +43,11 @@ impl EventStream {
     }
 
     pub fn update(&mut self, data: Vec<u8>) {
-        // 如果缓冲区中有未处理的内容，将其移到开头
         if self.processed_offset > 0 {
             self.buffer.drain(0..self.processed_offset);
             self.processed_offset = 0;
         }
 
-        // 添加新数据到缓冲区
         self.buffer.extend(data);
     }
 
@@ -71,7 +69,6 @@ impl EventStream {
 
     pub fn flush(&mut self) -> Option<Vec<u8>> {
         if self.processed_offset < self.buffer.len() {
-            // 取出未处理的剩余部分
             let remaining_event = self.buffer[self.processed_offset..].to_vec();
             self.processed_offset = self.buffer.len();
             Some(remaining_event)
