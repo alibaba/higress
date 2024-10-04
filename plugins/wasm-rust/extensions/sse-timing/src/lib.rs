@@ -39,6 +39,7 @@ struct SseTiming {
     log: Rc<Log>,
     rule_matcher: SharedRuleMatcher<SseTimingConfig>,
     vendor: String,
+    is_event_stream: bool,
     event_stream: EventStream,
     start_time: SystemTime,
 }
@@ -74,6 +75,7 @@ impl RootContext for SseTimingRoot {
             log: self.log.clone(),
             rule_matcher: self.rule_matcher.clone(),
             vendor: "higress".into(),
+            is_event_stream: false,
             event_stream: EventStream::new(),
             start_time: self.get_current_time(),
         }))
@@ -108,7 +110,27 @@ impl HttpContext for SseTiming {
         HeaderAction::Continue
     }
 
+    fn on_http_response_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> HeaderAction {
+        match self.get_http_response_header("Content-Type") {
+            None => {
+                self.log.warn("upstream response is not set Content-Type, skipped")
+            }
+            Some(content_type) => {
+                if content_type.starts_with("text/event-stream") {
+                    self.is_event_stream = true
+                } else {
+                    self.log.warn(format!("upstream response Content-Type is not text/event-stream, but {}, skipped", content_type).as_str())
+                }
+            }
+        }
+        HeaderAction::Continue
+    }
+
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
+        if !self.is_event_stream {
+            return DataAction::Continue;
+        }
+
         let body = self.get_http_response_body(0, body_size).unwrap_or_default();
         self.event_stream.update(body);
         self.process_event_stream(end_of_stream)
