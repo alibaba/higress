@@ -24,7 +24,7 @@ services:
       - "10000:10000"
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
-      - ./target/wasm32-wasi/release:/etc/envoy/proxy-wasm-plugins
+      - ./plugin.wasm:/etc/envoy/plugin.wasm
     networks:
       - envoymesh
   sse-server:

@@ -55,7 +55,7 @@ static_resources:
                             runtime: "envoy.wasm.runtime.v8"
                             code:
                               local:
-                                filename: "/etc/envoy/proxy-wasm-plugins/sse_timing.wasm"
+                                filename: "/etc/envoy/plugin.wasm"
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

@@ -92,8 +92,7 @@ where
                     log(
                         LogLevel::Warn,
                         format!("parse global config failed, err:{:?}", err).as_str(),
-                    )
-                    .unwrap();
+                    ).unwrap();
                     global_config_error = WasmRustError::new(err.to_string());
                 }
             }
