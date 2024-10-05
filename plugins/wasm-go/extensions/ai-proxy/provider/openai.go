@@ -74,7 +74,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		_ = util.OverwriteRequestHost(m.customDomain)
 	}
 	if len(m.config.apiTokens) > 0 {
-		_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
+		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
 	}
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil

@@ -69,7 +69,7 @@ func (m *qwenProvider) GetProviderType() string {
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = util.OverwriteRequestHost(qwenDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + getApiTokenInUse(ctx))
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
 
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()

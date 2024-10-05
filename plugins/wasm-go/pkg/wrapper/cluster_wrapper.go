@@ -27,10 +27,14 @@ type Cluster interface {
 }
 
 type RouteCluster struct {
-	Host string
+	Host    string
+	Cluster string
 }
 
 func (c RouteCluster) ClusterName() string {
+	if c.Cluster != "" {
+		return c.Cluster
+	}
 	routeName, err := proxywasm.GetProperty([]string{"cluster_name"})
 	if err != nil {
 		proxywasm.LogErrorf("get route cluster failed, err:%v", err)

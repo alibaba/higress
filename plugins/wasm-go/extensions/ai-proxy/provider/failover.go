@@ -29,6 +29,16 @@ type failover struct {
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
 	healthCheckModel string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
+
+	ctxApiTokenInUse               string
+	ctxApiTokenHealthCheck         string
+	ctxHealthCheckHeader           string
+	ctxApiTokenRequestFailureCount string
+	ctxApiTokenRequestSuccessCount string
+	ctxApiTokens                   string
+	ctxUnavailableApiTokens        string
+	ctxRequestHostAndPath          string
+	ctxVmLease                     string
 }
 
 type Lease struct {
@@ -36,23 +46,22 @@ type Lease struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-var (
-	healthCheckClient wrapper.HttpClient
-)
+type HostPath struct {
+	Host string `json:"host"`
+	Path string `json:"path"`
+}
 
 const (
-	apiTokenInUse                      = "apiTokenInUse"
-	apiTokenHealthCheck                = "apiTokenHealthCheck"
-	vmLease                            = "vmLease"
-	ctxApiTokenRequestFailureCount     = "apiTokenRequestFailureCount"
-	ctxApiTokenRequestSuccessCount     = "apiTokenRequestSuccessCount"
-	ctxApiTokens                       = "apiTokens"
-	ctxUnavailableApiTokens            = "unavailableApiTokens"
 	casMaxRetries                      = 10
 	addApiTokenOperation               = "addApiToken"
 	removeApiTokenOperation            = "removeApiToken"
 	addApiTokenRequestCountOperation   = "addApiTokenRequestCount"
-	resetApiTokenRequestCountOperation = "ResetApiTokenRequestCount"
+	resetApiTokenRequestCountOperation = "resetApiTokenRequestCount"
+	higressGatewayLocalCluster         = "higress-gateway-local"
+)
+
+var (
+	healthCheckClient wrapper.HttpClient
 )
 
 func (f *failover) FromJson(json gjson.Result) {
@@ -83,15 +92,25 @@ func (f *failover) Validate() error {
 	return nil
 }
 
+func (c *ProviderConfig) initVariable() {
+	// Set provider name as prefix to differentiate shared data
+	provider := c.GetType()
+	c.failover.ctxApiTokenInUse = provider + "-apiTokenInUse"
+	c.failover.ctxApiTokenHealthCheck = provider + "-apiTokenHealthCheck"
+	c.failover.ctxHealthCheckHeader = provider + "-apiToken-health-check"
+	c.failover.ctxApiTokenRequestFailureCount = provider + "-apiTokenRequestFailureCount"
+	c.failover.ctxApiTokenRequestSuccessCount = provider + "-apiTokenRequestSuccessCount"
+	c.failover.ctxApiTokens = provider + "-apiTokens"
+	c.failover.ctxUnavailableApiTokens = provider + "-unavailableApiTokens"
+	c.failover.ctxRequestHostAndPath = provider + "-requestHostAndPath"
+	c.failover.ctxVmLease = provider + "-vmLease"
+}
+
 func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 	// Reset shared data in case plugin configuration is updated
-	resetSharedData()
-
-	// TODO: 目前需要手动加一个 cluster 指向本地的地址，健康检测需要访问该地址
-	healthCheckClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
-		ServiceName: "local_cluster",
-		Port:        10000,
-	})
+	log.Debugf("Wasm plugin configuration is updated, reset shared data")
+	c.resetSharedData()
+	c.initVariable()
 
 	vmID := generateVMID()
 	err := c.initApiTokens()
@@ -102,9 +121,9 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 	if c.failover != nil && c.failover.enabled {
 		wrapper.RegisteTickFunc(c.failover.healthCheckInterval, func() {
 			// Only the Wasm VM that successfully acquires the lease will perform health check
-			if tryAcquireOrRenewLease(vmID, log) {
-				log.Debugf("Successfully acquired or renewed lease: %s", vmID)
-				unavailableTokens, _, err := getApiTokens(ctxUnavailableApiTokens)
+			if c.tryAcquireOrRenewLease(vmID, log) {
+				log.Debugf("Successfully acquired or renewed lease for %v: %v", vmID, c.GetType())
+				unavailableTokens, _, err := getApiTokens(c.failover.ctxUnavailableApiTokens)
 				if err != nil {
 					log.Errorf("Failed to get unavailable tokens: %v", err)
 					return
@@ -112,22 +131,13 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 				if len(unavailableTokens) > 0 {
 					for _, apiToken := range unavailableTokens {
 						log.Debugf("Perform health check for unavailable apiTokens: %s", strings.Join(unavailableTokens, ", "))
-
-						path := "/v1/chat/completions"
-						headers := [][2]string{
-							{"Content-Type", "application/json"},
-							{"ApiToken-Health-Check", apiToken},
-						}
-						body := []byte(fmt.Sprintf(`{
-                      "model": "%s",
-                      "messages": [
-                        {
-                          "role": "user",
-                          "content": "who are you?"
-                        }
-                      ]
-                    }`, c.failover.healthCheckModel))
-						err := healthCheckClient.Post(path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+						hostPath, headers, body := c.generateRequestHeadersAndBody(apiToken, log)
+						fmt.Println("host", hostPath.Host, "path", hostPath.Path)
+						healthCheckClient = wrapper.NewClusterClient(wrapper.RouteCluster{
+							Host:    hostPath.Host,
+							Cluster: higressGatewayLocalCluster,
+						})
+						err = healthCheckClient.Post(hostPath.Path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 							if statusCode == 200 {
 								c.handleAvailableApiToken(apiToken, log)
 							}
@@ -143,20 +153,48 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 	return nil
 }
 
-func tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
+func (c *ProviderConfig) generateRequestHeadersAndBody(apiToken string, log wrapper.Log) (HostPath, [][2]string, []byte) {
+	data, _, err := proxywasm.GetSharedData(c.failover.ctxRequestHostAndPath)
+	if err != nil {
+		log.Errorf("Failed to get request host and path: %v", err)
+	}
+	var hostPath HostPath
+	err = json.Unmarshal(data, &hostPath)
+	if err != nil {
+		log.Errorf("Failed to unmarshal request host and path: %v", err)
+	}
+
+	headers := [][2]string{
+		{"content-type", "application/json"},
+		{c.failover.ctxHealthCheckHeader, apiToken},
+		{":authority", hostPath.Host},
+	}
+	body := []byte(fmt.Sprintf(`{
+                      "model": "%s",
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": "who are you?"
+                        }
+                      ]
+                    }`, c.failover.healthCheckModel))
+	return hostPath, headers, body
+}
+
+func (c *ProviderConfig) tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
 	now := time.Now().Unix()
 
-	data, cas, err := proxywasm.GetSharedData(vmLease)
+	data, cas, err := proxywasm.GetSharedData(c.failover.ctxVmLease)
 	if err != nil {
 		if errors.Is(err, types.ErrorStatusNotFound) {
-			return setLease(vmID, now, cas, log)
+			return c.setLease(vmID, now, cas, log)
 		} else {
 			log.Errorf("Failed to get lease: %v", err)
 			return false
 		}
 	}
 	if data == nil {
-		return setLease(vmID, now, cas, log)
+		return c.setLease(vmID, now, cas, log)
 	}
 
 	var lease Lease
@@ -170,13 +208,13 @@ func tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
 	if lease.VMID == vmID || now-lease.Timestamp > 60 {
 		lease.VMID = vmID
 		lease.Timestamp = now
-		return setLease(vmID, now, cas, log)
+		return c.setLease(vmID, now, cas, log)
 	}
 
 	return false
 }
 
-func setLease(vmID string, timestamp int64, cas uint32, log wrapper.Log) bool {
+func (c *ProviderConfig) setLease(vmID string, timestamp int64, cas uint32, log wrapper.Log) bool {
 	lease := Lease{
 		VMID:      vmID,
 		Timestamp: timestamp,
@@ -187,7 +225,7 @@ func setLease(vmID string, timestamp int64, cas uint32, log wrapper.Log) bool {
 		return false
 	}
 
-	if err := proxywasm.SetSharedData(vmLease, leaseByte, cas); err != nil {
+	if err := proxywasm.SetSharedData(c.failover.ctxVmLease, leaseByte, cas); err != nil {
 		log.Errorf("Failed to set or renew lease: %v", err)
 		return false
 	}
@@ -201,7 +239,7 @@ func generateVMID() string {
 // When number of request successes exceeds the threshold during health check,
 // add the apiToken back to the available list and remove it from the unavailable list
 func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Log) {
-	successApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestSuccessCount)
+	successApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount)
 	if err != nil {
 		log.Errorf("Failed to get successApiTokenRequestCount: %v", err)
 		return
@@ -210,25 +248,25 @@ func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Lo
 	successCount := successApiTokenRequestCount[apiToken] + 1
 	if successCount >= c.failover.successThreshold {
 		log.Infof("apiToken %s is available now, add it back to the apiTokens list", apiToken)
-		removeApiToken(ctxUnavailableApiTokens, apiToken, log)
-		addApiToken(ctxApiTokens, apiToken, log)
-		resetApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
+		removeApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
+		addApiToken(c.failover.ctxApiTokens, apiToken, log)
+		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still unavailable, the number of health check passed: %d, continue to health check......", apiToken, successCount)
-		addApiTokenRequestCount(ctxApiTokenRequestSuccessCount, apiToken, log)
+		addApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount, apiToken, log)
 	}
 }
 
 // When number of request failures exceeds the threshold,
 // remove the apiToken from the available list and add it to the unavailable list
 func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.Log) {
-	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestFailureCount)
+	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount)
 	if err != nil {
 		log.Errorf("Failed to get failureApiTokenRequestCount: %v", err)
 		return
 	}
 
-	availableTokens, _, err := getApiTokens(ctxApiTokens)
+	availableTokens, _, err := getApiTokens(c.failover.ctxApiTokens)
 	if err != nil {
 		log.Errorf("Failed to get available apiToken: %v", err)
 		return
@@ -241,12 +279,12 @@ func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.
 	failureCount := failureApiTokenRequestCount[apiToken] + 1
 	if failureCount >= c.failover.failureThreshold {
 		log.Infof("apiToken %s is unavailable now, remove it from apiTokens list", apiToken)
-		removeApiToken(ctxApiTokens, apiToken, log)
-		addApiToken(ctxUnavailableApiTokens, apiToken, log)
-		resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
+		removeApiToken(c.failover.ctxApiTokens, apiToken, log)
+		addApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
+		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
 	} else {
 		log.Debugf("apiToken %s is still available as it has not reached the failure threshold, the number of failed request: %d", apiToken, failureCount)
-		addApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiToken, log)
+		addApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
 	}
 }
 
@@ -370,12 +408,12 @@ func resetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 }
 
 func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, log wrapper.Log) {
-	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(ctxApiTokenRequestFailureCount)
+	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount)
 	if err != nil {
 		log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
 	}
 	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
-		resetApiTokenRequestCount(ctxApiTokenRequestFailureCount, apiTokenInUse, log)
+		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiTokenInUse, log)
 	}
 }
 
@@ -411,12 +449,13 @@ func modifyApiTokenRequestCount(key, apiToken string, op string, log wrapper.Log
 }
 
 func (c *ProviderConfig) initApiTokens() error {
-	return setApiTokens(ctxApiTokens, c.apiTokens, 0)
+	return setApiTokens(c.failover.ctxApiTokens, c.apiTokens, 0)
 }
 
 func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
-	apiTokens, _, err := getApiTokens(ctxApiTokens)
-	unavailableApiTokens, _, err := getApiTokens(ctxUnavailableApiTokens)
+	fmt.Println(c.apiTokens)
+	apiTokens, _, err := getApiTokens(c.failover.ctxApiTokens)
+	unavailableApiTokens, _, err := getApiTokens(c.failover.ctxUnavailableApiTokens)
 	log.Debugf("apiTokens: %v, unavailableApiTokens: %v", apiTokens, unavailableApiTokens)
 
 	if err != nil {
@@ -437,34 +476,30 @@ func (c *ProviderConfig) IsFailoverEnabled() bool {
 	return c.failover != nil && c.failover.enabled
 }
 
-func resetSharedData() {
-	_ = proxywasm.SetSharedData(vmLease, nil, 0)
-	_ = proxywasm.SetSharedData(ctxApiTokens, nil, 0)
-	_ = proxywasm.SetSharedData(ctxUnavailableApiTokens, nil, 0)
-	_ = proxywasm.SetSharedData(ctxApiTokenRequestSuccessCount, nil, 0)
-	_ = proxywasm.SetSharedData(ctxApiTokenRequestFailureCount, nil, 0)
+func (c *ProviderConfig) resetSharedData() {
+	_ = proxywasm.SetSharedData(c.failover.ctxVmLease, nil, 0)
+	_ = proxywasm.SetSharedData(c.failover.ctxApiTokens, nil, 0)
+	_ = proxywasm.SetSharedData(c.failover.ctxUnavailableApiTokens, nil, 0)
+	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestSuccessCount, nil, 0)
+	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
 func (c *ProviderConfig) OnRequestFailed(ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) {
 	// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
-	if c.IsFailoverEnabled() && ctx.GetContext(apiTokenHealthCheck) == nil {
+	if c.IsFailoverEnabled() && ctx.GetContext(c.failover.ctxApiTokenHealthCheck) == nil {
 		c.handleUnavailableApiToken(apiTokenInUse, log)
 	}
 }
 
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
-	return getApiTokenInUse(ctx)
-}
-
-func getApiTokenInUse(ctx wrapper.HttpContext) string {
-	return ctx.GetContext(apiTokenInUse).(string)
+	return ctx.GetContext(c.failover.ctxApiTokenInUse).(string)
 }
 
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
 	apiToken := c.GetRandomToken()
 	if c.IsFailoverEnabled() {
 		// Use the health check token if it is a health check request.
-		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader("ApiToken-Health-Check"); apiTokenHealthCheck != "" {
+		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader(c.failover.ctxHealthCheckHeader); apiTokenHealthCheck != "" {
 			apiToken = apiTokenHealthCheck
 		} else {
 			// if enable apiToken failover, only use available apiToken
@@ -472,5 +507,21 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.L
 		}
 	}
 	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiToken)
-	ctx.SetContext(apiTokenInUse, apiToken)
+	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
+}
+
+func (c *ProviderConfig) SetRequestHostAndPath(log wrapper.Log) {
+	hostPath := HostPath{
+		Host: wrapper.GetRequestHost(),
+		Path: wrapper.GetRequestPath(),
+	}
+	hostPathByte, err := json.Marshal(hostPath)
+	if err != nil {
+		log.Errorf("Failed to marshal request host and path: %v", err)
+
+	}
+	err = proxywasm.SetSharedData(c.failover.ctxRequestHostAndPath, hostPathByte, 0)
+	if err != nil {
+		log.Errorf("Failed to set request host and path: %v", err)
+	}
 }

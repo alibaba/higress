@@ -94,6 +94,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		ctx.DisableReroute()
 		// Set the apiToken for the current request.
 		providerConfig.SetApiTokenInUse(ctx, log)
+		// Set the request host and path to shared data in case they are needed in apiToken health check
+		providerConfig.SetRequestHostAndPath(log)
 
 		hasRequestBody := wrapper.HasRequestBody()
 		action, err := handler.OnRequestHeaders(ctx, apiName, log)

@@ -79,7 +79,7 @@ func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestPath(deeplChatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + getApiTokenInUse(ctx))
+	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + d.config.GetApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	return types.HeaderStopIteration, nil

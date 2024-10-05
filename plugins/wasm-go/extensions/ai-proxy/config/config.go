@@ -80,14 +80,12 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 		c.activeProvider = nil
 		return nil
 	}
+	var err error
+	c.activeProvider, err = provider.CreateProvider(*c.activeProviderConfig)
 
 	providerConfig := c.GetProviderConfig()
-	err := providerConfig.SetApiTokensFailover(log)
-	if err != nil {
-		return err
-	}
+	err = providerConfig.SetApiTokensFailover(log)
 
-	c.activeProvider, err = provider.CreateProvider(*c.activeProviderConfig)
 	return err
 }
 

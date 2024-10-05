@@ -136,7 +136,6 @@ data:
 {{- include "mesh" . }}
 {{- end }}
 ---
-{{- if include "skywalking.enabled" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -147,6 +146,7 @@ metadata:
 data:
   custom_bootstrap.json: |-
     {
+      {{- if include "skywalking.enabled" . }}
       "stats_sinks": [
         {
           "name": "envoy.metrics_service",
@@ -161,8 +161,10 @@ data:
           }
         }
       ],
+      {{- end }}
       "static_resources": {
         "clusters": [
+          {{- if include "skywalking.enabled" . }}
           {
             "name": "service_skywalking",
             "type": "LOGICAL_DNS",
@@ -190,9 +192,32 @@ data:
                 }
               ]
             }
+          },
+          {{- end }}
+          {
+            "name": "higress-gateway-local",
+            "type": "STATIC",
+            "connect_timeout": "5s",
+            "load_assignment": {
+              "cluster_name": "higress-gateway-local",
+              "endpoints": [
+                {
+                  "lb_endpoints": [
+                    {
+                      "endpoint": {
+                        "address": {
+                          "socket_address": {
+                            "address": "127.0.0.1",
+                            "port_value": {{ .Values.gateway.httpPort }}
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
           }
         ]
       }
     }
----
-{{- end }}

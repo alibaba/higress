@@ -57,7 +57,7 @@ func (m *azureProvider) GetProviderType() string {
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
-	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
+	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.GetApiTokenInUse(ctx))
 	if apiName == ApiNameChatCompletion {
 		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	} else {

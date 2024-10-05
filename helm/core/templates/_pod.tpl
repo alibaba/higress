@@ -123,10 +123,8 @@ template:
         - name: LITE_METRICS
           value: "on"
         {{- end }}
-        {{- if include "skywalking.enabled" . }}
         - name: ISTIO_BOOTSTRAP_OVERRIDE
           value: /etc/istio/custom-bootstrap/custom_bootstrap.json
-        {{- end }}
         {{- with .Values.gateway.networkGateway }}
         - name: ISTIO_META_REQUESTED_NETWORK_VIEW
           value: "{{.}}"
@@ -188,10 +186,8 @@ template:
           mountPath: /etc/istio/pod
         - name: proxy-socket
           mountPath: /etc/istio/proxy
-        {{- if include "skywalking.enabled" . }}
         - mountPath: /etc/istio/custom-bootstrap
           name: custom-bootstrap-volume
-        {{- end }}
         {{- if .Values.global.volumeWasmPlugins }}
         - mountPath: /opt/plugins
           name: local-wasmplugins-volume
@@ -276,12 +272,10 @@ template:
     - name: config
       configMap:
         name: higress-config
-    {{- if include "skywalking.enabled" . }}
     - configMap:
         defaultMode: 420
         name: higress-custom-bootstrap
       name: custom-bootstrap-volume
-    {{- end }}
     - name: istio-data
       emptyDir: {}
     - name: proxy-socket
