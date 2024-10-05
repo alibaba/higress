@@ -143,6 +143,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
 
+#### github模型
+
+github所对应的 `type` 为 `ai360`。它并无特有的配置字段。
+
 #### Mistral
 
 Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
@@ -1015,6 +1019,105 @@ provider:
         "status_code": 0,
         "status_msg": ""
     }
+}
+```
+
+### 使用 OpenAI 协议代理github 模型服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: github
+  apiTokens:
+    - "YOUR_MINIMAX_API_TOKEN"
+  modelMapping:
+    "gpt-4o": "gpt-4o"
+    "text-embedding-3-large": "text-embedding-3-large"
+```
+
+**请求示例**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is the capital of France?"
+    }
+  ],
+  "stream": true,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "max_tokens": 1000,
+  "model": "gpt-4o"
+}
+```
+
+**响应示例**
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The capital of France is Paris.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1728131051,
+  "id": "chatcmpl-AEy7PU2JImdsD1W6Jw8GigZSEnM2u",
+  "model": "gpt-4o-2024-08-06",
+  "object": "chat.completion",
+  "system_fingerprint": "fp_67802d9a6d",
+  "usage": {
+    "completion_tokens": 7,
+    "prompt_tokens": 24,
+    "total_tokens": 31
+  }
+}
+```
+
+**文本向量请求示例**
+
+```json
+{
+  "input": ["first phrase", "second phrase", "third phrase"],
+  "model": "text-embedding-3-large"
+}
+```
+
+响应示例：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "index": 0,
+      "embedding": [
+        -0.0012583479,
+        0.0020349282,
+        ...
+        0.012051377,
+        -0.0053306012,
+        0.0060688322
+      ]
+    }
+  ],
+  "model": "text-embedding-3-large",
+  "usage": {
+    "prompt_tokens": 6,
+    "total_tokens": 6
+  }
 }
 ```
 
