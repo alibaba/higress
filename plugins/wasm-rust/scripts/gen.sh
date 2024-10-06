@@ -3,8 +3,7 @@
 name=''
 keywords=''
 description=''
-testing=false
-testing_port=10000
+version="0.1.0"
 
 help() {
   echo "$0 is used to generated Rust WASM extensions."
@@ -14,8 +13,7 @@ help() {
   echo "  --name NAME               the name of extension"
   echo "  --keywords KEYWORDS       the keywords of extension [optional]"
   echo "  --description DESCRIPTION the description of extension [optional]"
-  echo "  --testing                 generate docker-compose.yaml and envoy.yaml for testing [optional]"
-  echo "  --testing-port            expose port in generated docker-compose.yaml for testing, -testing-port=10000 by default [optional] "
+  echo "  --version VERSION         the version of extension, default version is \"0.1.0\" [optional]"
   exit 1
 }
 
@@ -36,12 +34,18 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
-    --testing)
-      testing=true
+    --phase)
+      phase="$2"
       shift # past argument
+      shift # past value
       ;;
-    --testing-port)
-      testing_port="$2"
+    --priority)
+      priority="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --version)
+      version="$2"
       shift # past argument
       shift # past value
       ;;
@@ -60,28 +64,17 @@ srcdir="$workdir"/src
 mkdir -p "$workdir"
 mkdir -p "$srcdir"
 
-cat >"$workdir/README.md"<<EOF
-$name
-
----
-title: $name
-keywords: $keywords
-description: $description
----
-EOF
-
 cat >"$workdir/Makefile"<<EOF
 BUILD_OPTS="--release"
 
 .DEFAULT:
 build:
 	cargo build --target wasm32-wasi \${BUILD_OPTS}
-
-copy: build
 	find target -name "*.wasm" -d 3 -exec cp "{}" plugin.wasm \;
 
 clean:
-	@cargo clean
+	cargo clean
+  rm -f plugin.wasm
 EOF
 
 cat >"$workdir"/Cargo.toml<<EOF
@@ -187,109 +180,64 @@ impl Context for $struct_ {}
 impl HttpContext for $struct_ {}
 EOF
 
-if [ "$testing" = true ]; then
-  cat >>"$workdir"/Makefile<<EOF
-
-docker-compose: copy
-	@docker-compose up
+cat >"$workdir/VERSION"<<EOF
+$version
 EOF
 
-  cat >"$workdir"/docker-compose.yaml<<EOF
-# Copyright (c) $(date +"%Y") Alibaba Group Holding Ltd.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+cat >"$workdir/README.md"<<EOF
+---
+title: $name
+keywords: $keywords
+description: $description
+---
 
-services:
-  envoy:
-    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one:latest
-    entrypoint: /usr/local/bin/envoy
-    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug
-    hostname: envoy
-    ports:
-      - "$testing_port:10000"
-    volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml
-      - ./plugin.wasm:/etc/envoy/plugin.wasm
-    networks:
-      - envoymesh
-networks:
-  envoymesh: {}
+## 功能说明
+
+$description
+
+## 运行属性
+
+stage：\`默认阶段\`
+level：\`10\`
+
+### 配置说明
+
+| Name     | Type     | Requirement | Default  | Description |
+| -------- | -------- | --------    | -------- | --------    |
+|          |          |             |          |             |
+
+#### 配置示例
+
+\`\`\`yaml
+
+\`\`\`
 EOF
 
-  cat >"$workdir"/envoy.yaml<<EOF
-# Copyright (c) 2023 Alibaba Group Holding Ltd.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+cat >"$workdir/README_EN.md"<<EOF
+---
+title: $name
+keywords: $keywords
+description: $description
+---
 
-static_resources:
-  listeners:
-    - name: listener_0
-      address:
-        socket_address:
-          protocol: TCP
-          address: 0.0.0.0
-          port_value: 10000
-      filter_chains:
-        - filters:
-            - name: envoy.filters.network.http_connection_manager
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-                stat_prefix: ingress_http
-                route_config:
-                  name: local_route
-                  virtual_hosts:
-                    - name: local_service
-                      domains: ["*"]
-                      routes:
-                        - name: index
-                          match:
-                            prefix: "/"
-                          direct_response:
-                            status: 200
-                http_filters:
-                  - name: envoy.filters.http.wasm
-                    typed_config:
-                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
-                      type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
-                      value:
-                        config:
-                          name: "http_body"
-                          configuration:
-                            "@type": type.googleapis.com/google.protobuf.StringValue
-                            # TODO adjust it for WASM extensions
-                            value: |-
-                              {
-                                "name": "$name",
-                                "_rules_": []
-                              }
-                          vm_config:
-                            runtime: "envoy.wasm.runtime.v8"
-                            code:
-                              local:
-                                filename: "/etc/envoy/plugin.wasm"
-                  - name: envoy.filters.http.router
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+## Description
+
+$description
+
+## Runtime
+
+phase：\`UNSPECIFIED_PHASE\`
+priority：\`10\`
+
+### Config
+
+| Name     | Type     | Requirement | Default  | Description |
+| -------- | -------- | --------    | -------- | --------    |
+|          |          |             |          |             |
+
+#### Example
+
+\`\`\`yaml
+
+\`\`\`
 EOF
-
-fi

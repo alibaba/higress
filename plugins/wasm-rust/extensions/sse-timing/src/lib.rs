@@ -166,15 +166,13 @@ impl SseTiming {
                     // according to spec, event-stream must be utf-8 encoding
                     let event = from_utf8(raw_event.as_slice()).unwrap();
                     let modified_event = self.process_event(event.into());
-                    self.set_http_response_body(0, modified_event.len(), modified_event.as_bytes());
+                    modified_events.push(modified_event);
                 }
             }
         }
 
         if !modified_events.is_empty() {
             let modified_body = modified_events.concat();
-            self.log
-                .info(format!("[modified_body] {}", modified_body).as_str());
             self.set_http_response_body(0, modified_body.len(), modified_body.as_bytes());
             DataAction::Continue
         } else {

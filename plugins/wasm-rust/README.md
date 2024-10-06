@@ -11,8 +11,6 @@ sh ./scripts/gen.sh \
   --name ${NAME} \
   --keywords ${KEYWORDS} \
   --description ${DESCRIPTION} \
-  --testing \
-  --testing-port ${PORT} 
 ```
 
 执行完成后将会在`plugins/wasm-rust/extensions/${NAME}`目录下生成以下文件，其中`src/lib.rs`中的内容即为插件需要实现的逻辑
@@ -22,9 +20,8 @@ sh ./scripts/gen.sh \
 ├── Cargo.toml
 ├── Makefile
 ├── README.md
-├── docker-compose.yaml
-├── envoy.yaml
-├── plugin.wasm
+├── README_EN.md
+├── VERSION
 └── src
     └── lib.rs
 ```
