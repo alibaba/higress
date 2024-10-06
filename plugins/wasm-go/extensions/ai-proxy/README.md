@@ -145,7 +145,7 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 #### GitHub模型
 
-github所对应的 `type` 为 `github`。它并无特有的配置字段。
+GitHub模型所对应的 `type` 为 `github`。它并无特有的配置字段。
 
 #### Mistral
 
