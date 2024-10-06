@@ -11,7 +11,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-// githubProvider is the provider for 360 OpenAI service.
+// githubProvider is the provider for GitHub OpenAI service.
 const (
 	githubDomain         = "models.inference.ai.azure.com"
 	githubCompletionPath = "/chat/completions"

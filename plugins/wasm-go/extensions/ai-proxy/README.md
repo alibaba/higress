@@ -143,9 +143,9 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
 
-#### github模型
+#### GitHub模型
 
-github所对应的 `type` 为 `ai360`。它并无特有的配置字段。
+github所对应的 `type` 为 `github`。它并无特有的配置字段。
 
 #### Mistral
 
@@ -1022,7 +1022,7 @@ provider:
 }
 ```
 
-### 使用 OpenAI 协议代理github 模型服务
+### 使用 OpenAI 协议代理 GitHub 模型服务
 
 **配置信息**
 
@@ -1030,9 +1030,11 @@ provider:
 provider:
   type: github
   apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
+    - "YOUR_GITHUB_ACCESS_TOKEN"
   modelMapping:
     "gpt-4o": "gpt-4o"
+    "gpt-4": "Phi-3.5-MoE-instruct"
+    "gpt-3.5": "cohere-command-r-08-2024"
     "text-embedding-3-large": "text-embedding-3-large"
 ```
 
@@ -1129,7 +1131,7 @@ provider:
 provider:
   type: ai360
   apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
+    - "YOUR_360_API_TOKEN"
   modelMapping:
     "gpt-4o": "360gpt-turbo-responsibility-8k"
     "gpt-4": "360gpt2-pro"
