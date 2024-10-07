@@ -57,7 +57,7 @@ func (m *githubProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	}
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", m.config.GetRandomToken())
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", m.config.GetApiTokenInUse(ctx))
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
 }
