@@ -122,3 +122,22 @@ func TestFilterGrayWeight(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceHtml(t *testing.T) {
+	var tests = []struct {
+		name  string
+		input string
+	}{
+		{"demo", `{"injection":{"head":["<script>console.log('Head')</script>"],"body":{"first":["<script>console.log('BodyFirst')</script>"],"last":["<script>console.log('BodyLast')</script>"]},"last":["<script>console.log('BodyLast')</script>"]},"html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n<body>\n\t测试替换html版本\n\t<br />\n\t版本: {version}\n\t<br />\n\t<script src=\"./{version}/a.js\"></script>\n</body>\n</html>"}`},
+		{"demo-noBody", `{"injection":{"head":["<script>console.log('Head')</script>"],"body":{"first":["<script>console.log('BodyFirst')</script>"],"last":["<script>console.log('BodyLast')</script>"]},"last":["<script>console.log('BodyLast')</script>"]},"html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n</html>"}`},
+	}
+	for _, test := range tests {
+		testName := test.name
+		t.Run(testName, func(t *testing.T) {
+			grayConfig := &config.GrayConfig{}
+			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
+			result := InjectContent(grayConfig.Html, grayConfig.Injection)
+			t.Logf("result-----: %v", result)
+		})
+	}
+}
