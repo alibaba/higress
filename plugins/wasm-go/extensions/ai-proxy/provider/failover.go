@@ -28,16 +28,23 @@ type failover struct {
 	// @Title zh-CN 健康检测的超时时间，单位毫秒
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
-	healthCheckModel               string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
-	ctxApiTokenInUse               string
-	ctxApiTokenHealthCheck         string
-	ctxHealthCheckHeader           string
+	healthCheckModel string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
+	// @Title zh-CN 本次请求使用的 apiToken
+	ctxApiTokenInUse string
+	// @Title zh-CN 标记请求是否是健康检测请求
+	ctxHealthCheckHeader string
+	// @Title zh-CN 记录 apiToken 请求失败的次数，key 为 apiToken，value 为失败次数
 	ctxApiTokenRequestFailureCount string
+	// @Title zh-CN 记录 apiToken 健康检测成功的次数，key 为 apiToken，value 为成功次数
 	ctxApiTokenRequestSuccessCount string
-	ctxApiTokens                   string
-	ctxUnavailableApiTokens        string
-	ctxRequestHostAndPath          string
-	ctxVmLease                     string
+	// @Title zh-CN 记录所有可用的 apiToken 列表
+	ctxApiTokens string
+	// @Title zh-CN 记录所有不可用的 apiToken 列表
+	ctxUnavailableApiTokens string
+	// @Title zh-CN 记录请求的 host 和 path，用于在健康检测时构建请求
+	ctxRequestHostAndPath string
+	// @Title zh-CN 健康检测选主，只有选到主的 Wasm VM 才执行健康检测
+	ctxVmLease string
 }
 
 type Lease struct {
@@ -95,7 +102,6 @@ func (c *ProviderConfig) initVariable() {
 	// Set provider name as prefix to differentiate shared data
 	provider := c.GetType()
 	c.failover.ctxApiTokenInUse = provider + "-apiTokenInUse"
-	c.failover.ctxApiTokenHealthCheck = provider + "-apiTokenHealthCheck"
 	c.failover.ctxHealthCheckHeader = provider + "-apiToken-health-check"
 	c.failover.ctxApiTokenRequestFailureCount = provider + "-apiTokenRequestFailureCount"
 	c.failover.ctxApiTokenRequestSuccessCount = provider + "-apiTokenRequestSuccessCount"
@@ -131,7 +137,6 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 					for _, apiToken := range unavailableTokens {
 						log.Debugf("Perform health check for unavailable apiTokens: %s", strings.Join(unavailableTokens, ", "))
 						hostPath, headers, body := c.generateRequestHeadersAndBody(apiToken, log)
-						fmt.Println("host", hostPath.Host, "path", hostPath.Path)
 						healthCheckClient = wrapper.NewClusterClient(wrapper.RouteCluster{
 							Host:    hostPath.Host,
 							Cluster: higressGatewayLocalCluster,
@@ -251,7 +256,7 @@ func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Lo
 		addApiToken(c.failover.ctxApiTokens, apiToken, log)
 		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount, apiToken, log)
 	} else {
-		log.Debugf("apiToken %s is still unavailable, the number of health check passed: %d, continue to health check......", apiToken, successCount)
+		log.Debugf("apiToken %s is still unavailable, the number of health check passed: %d, continue to health check...", apiToken, successCount)
 		addApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount, apiToken, log)
 	}
 }
@@ -452,7 +457,6 @@ func (c *ProviderConfig) initApiTokens() error {
 }
 
 func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
-	fmt.Println(c.apiTokens)
 	apiTokens, _, err := getApiTokens(c.failover.ctxApiTokens)
 	unavailableApiTokens, _, err := getApiTokens(c.failover.ctxUnavailableApiTokens)
 	log.Debugf("apiTokens: %v, unavailableApiTokens: %v", apiTokens, unavailableApiTokens)
@@ -483,9 +487,8 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) {
-	// If apiToken failover is enabled and the request is not a health check request, handle unavailable apiToken.
-	if c.IsFailoverEnabled() && ctx.GetContext(c.failover.ctxApiTokenHealthCheck) == nil {
+func (c *ProviderConfig) OnRequestFailed(apiTokenInUse string, log wrapper.Log) {
+	if c.IsFailoverEnabled() {
 		c.handleUnavailableApiToken(apiTokenInUse, log)
 	}
 }

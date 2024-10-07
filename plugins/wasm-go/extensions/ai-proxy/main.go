@@ -172,7 +172,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 			log.Errorf("unable to load :status header from response: %v", err)
 		}
 		ctx.DontReadResponseBody()
-		providerConfig.OnRequestFailed(ctx, apiTokenInUse, log)
+		providerConfig.OnRequestFailed(apiTokenInUse, log)
 
 		return types.ActionContinue
 	}
