@@ -19,7 +19,7 @@ import (
 type failover struct {
 	// @Title zh-CN 是否启用 apiToken 的 failover 机制
 	enabled bool `required:"true" yaml:"enabled" json:"enabled"`
-	// @Title zh-CN 触发 failover 的失败阈值
+	// @Title zh-CN 触发 failover 连续请求失败的阈值
 	failureThreshold int64 `required:"false" yaml:"failureThreshold" json:"failureThreshold"`
 	// @Title zh-CN 健康检测的成功阈值
 	successThreshold int64 `required:"false" yaml:"successThreshold" json:"successThreshold"`
@@ -28,8 +28,7 @@ type failover struct {
 	// @Title zh-CN 健康检测的超时时间，单位毫秒
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
-	healthCheckModel string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
-
+	healthCheckModel               string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
 	ctxApiTokenInUse               string
 	ctxApiTokenHealthCheck         string
 	ctxHealthCheckHeader           string
