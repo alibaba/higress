@@ -75,8 +75,7 @@ var RustWasmPluginsSseTiming = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -96,8 +95,7 @@ var RustWasmPluginsSseTiming = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -117,8 +115,7 @@ var RustWasmPluginsSseTiming = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
