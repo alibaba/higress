@@ -112,21 +112,24 @@ func (c *ProviderConfig) initVariable() {
 }
 
 func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
-	// Reset shared data in case plugin configuration is updated
-	log.Debugf("Wasm plugin configuration is updated, reset shared data")
-	c.resetSharedData()
 	c.initVariable()
+	// Reset shared data in case plugin configuration is updated
+	log.Debugf("ai-proxy plugin configuration is updated, reset shared data")
+	c.resetSharedData()
 
-	vmID := generateVMID()
-	err := c.initApiTokens()
-	if err != nil {
-		return fmt.Errorf("failed to init apiTokens: %v", err)
-	}
+	if c.isFailoverEnabled() {
+		log.Debugf("ai-proxy plugin failover is enabled")
 
-	if c.failover != nil && c.failover.enabled {
+		vmID := generateVMID()
+		err := c.initApiTokens()
+
+		if err != nil {
+			return fmt.Errorf("failed to init apiTokens: %v", err)
+		}
+
 		wrapper.RegisteTickFunc(c.failover.healthCheckInterval, func() {
 			// Only the Wasm VM that successfully acquires the lease will perform health check
-			if c.tryAcquireOrRenewLease(vmID, log) {
+			if c.isFailoverEnabled() && c.tryAcquireOrRenewLease(vmID, log) {
 				log.Debugf("Successfully acquired or renewed lease for %v: %v", vmID, c.GetType())
 				unavailableTokens, _, err := getApiTokens(c.failover.ctxUnavailableApiTokens)
 				if err != nil {
@@ -412,12 +415,14 @@ func resetApiTokenRequestCount(key, apiToken string, log wrapper.Log) {
 }
 
 func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, log wrapper.Log) {
-	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount)
-	if err != nil {
-		log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
-	}
-	if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
-		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiTokenInUse, log)
+	if c.isFailoverEnabled() {
+		failureApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount)
+		if err != nil {
+			log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
+		}
+		if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
+			resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiTokenInUse, log)
+		}
 	}
 }
 
@@ -475,8 +480,8 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	}
 }
 
-func (c *ProviderConfig) IsFailoverEnabled() bool {
-	return c.failover != nil && c.failover.enabled
+func (c *ProviderConfig) isFailoverEnabled() bool {
+	return c.failover.enabled
 }
 
 func (c *ProviderConfig) resetSharedData() {
@@ -488,7 +493,7 @@ func (c *ProviderConfig) resetSharedData() {
 }
 
 func (c *ProviderConfig) OnRequestFailed(apiTokenInUse string, log wrapper.Log) {
-	if c.IsFailoverEnabled() {
+	if c.isFailoverEnabled() {
 		c.handleUnavailableApiToken(apiTokenInUse, log)
 	}
 }
@@ -499,7 +504,7 @@ func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
 
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
 	apiToken := c.GetRandomToken()
-	if c.IsFailoverEnabled() {
+	if c.isFailoverEnabled() {
 		// Use the health check token if it is a health check request.
 		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader(c.failover.ctxHealthCheckHeader); apiTokenHealthCheck != "" {
 			apiToken = apiTokenHealthCheck
@@ -513,17 +518,19 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.L
 }
 
 func (c *ProviderConfig) SetRequestHostAndPath(log wrapper.Log) {
-	hostPath := HostPath{
-		Host: wrapper.GetRequestHost(),
-		Path: wrapper.GetRequestPath(),
-	}
-	hostPathByte, err := json.Marshal(hostPath)
-	if err != nil {
-		log.Errorf("Failed to marshal request host and path: %v", err)
+	if c.isFailoverEnabled() {
+		hostPath := HostPath{
+			Host: wrapper.GetRequestHost(),
+			Path: wrapper.GetRequestPath(),
+		}
+		hostPathByte, err := json.Marshal(hostPath)
+		if err != nil {
+			log.Errorf("Failed to marshal request host and path: %v", err)
 
-	}
-	err = proxywasm.SetSharedData(c.failover.ctxRequestHostAndPath, hostPathByte, 0)
-	if err != nil {
-		log.Errorf("Failed to set request host and path: %v", err)
+		}
+		err = proxywasm.SetSharedData(c.failover.ctxRequestHostAndPath, hostPathByte, 0)
+		if err != nil {
+			log.Errorf("Failed to set request host and path: %v", err)
+		}
 	}
 }

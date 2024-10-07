@@ -289,8 +289,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 
 	failoverJson := json.Get("failover")
+	c.failover = &failover{
+		enabled: false,
+	}
 	if failoverJson.Exists() {
-		c.failover = &failover{}
 		c.failover.FromJson(failoverJson)
 	}
 }
