@@ -76,6 +76,7 @@ const (
 	ContentTypeFormUrlencoded         = "application/x-www-form-urlencoded"
 	ContentTypeMultipartForm          = "multipart/form-data"
 	ContentTypeTextPlain              = "text/plain"
+	ContentTypeEventStream            = "text/event-stream"
 )
 
 const (
@@ -145,6 +146,7 @@ type Response struct {
 	Body          []byte
 	ContentType   string
 	AbsentHeaders []string
+	Assert        func(*roundtripper.CapturedResponse) error
 }
 
 // requiredConsecutiveSuccesses is the number of requests that must succeed in a row
@@ -646,6 +648,11 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 				}
 			default:
 				return fmt.Errorf("Content-Type: %s invalid or not support.", cTyp)
+			}
+		}
+		if assert := expected.Response.ExpectedResponse.Assert; assert != nil {
+			if err := assert(cRes); err != nil {
+				return err
 			}
 		}
 		if len(expected.Response.ExpectedResponse.AbsentHeaders) > 0 {

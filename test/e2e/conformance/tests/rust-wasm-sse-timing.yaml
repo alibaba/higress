@@ -1,0 +1,108 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-data-masking
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "*.openai.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: custom-response
+  namespace: higress-system
+spec:
+  priority: 200
+  defaultConfig:
+    "body": "ok"
+  matchRules:
+    - domain:
+        - sse.openai.com
+      config:
+        headers:
+          - Content-Type=text/event-stream
+        "body": |+
+          : this is a test stream
+
+          data: some text
+          data: another message
+          data: with two lines
+
+          event: userconnect
+          data: {"username": "bobby", "time": "02:33:48"}
+
+          event: usermessage
+          data: {"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}
+
+          event: userdisconnect\
+          data: {"username": "bobby", "time": "02:34:23"}
+
+          event: usermessage
+          data: {"username": "sean", "time": "02:34:36", "text": "Bye, bobby."}
+
+    - domain:
+        - sse-eos.openai.com
+      config:
+        headers:
+          - Content-Type=text/event-stream
+        "body": |-
+          : this is a test stream
+
+          data: some text
+          data: another message
+          data: with two lines
+
+          event: userconnect
+          data: {"username": "bobby", "time": "02:33:48"}
+
+          event: usermessage
+          data: {"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}
+
+          event: userdisconnect\
+          data: {"username": "bobby", "time": "02:34:23"}
+
+          event: usermessage
+          data: {"username": "sean", "time": "02:34:36", "text": "Bye, bobby."}
+    - domain:
+        - json.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": "{\"foo\":\"bar\"}"
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:1.0.0
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: sse-timing
+  namespace: higress-system
+spec:
+  priority: 300
+  defaultConfig:
+    vendor: higress
+  url: file:///opt/plugins/wasm-rust/extensions/sse-timing/plugin.wasm
