@@ -44,6 +44,7 @@ spec:
     - domain:
         - sse.openai.com
       config:
+        is_stream: true
         headers:
           - Content-Type=text/event-stream
         "body": |+
@@ -68,6 +69,7 @@ spec:
     - domain:
         - sse-eos.openai.com
       config:
+        is_stream: true
         headers:
           - Content-Type=text/event-stream
         "body": |-
