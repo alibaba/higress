@@ -41,6 +41,7 @@ type CustomResponseConfig struct {
 	body           string
 	enableOnStatus []uint32
 	contentType    string
+	isStream       bool
 }
 
 func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
@@ -71,7 +72,10 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.L
 			config.contentType = "text/plain; charset=utf-8"
 		}
 	}
-	config.headers = append(config.headers, [2]string{"content-type", config.contentType})
+	config.isStream = gjson.Get("is_stream").Bool()
+	if !config.isStream {
+		config.headers = append(config.headers, [2]string{"content-type", config.contentType})
+	}
 
 	config.statusCode = 200
 	if gjson.Get("status_code").Exists() {

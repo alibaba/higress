@@ -12,12 +12,13 @@ Plugin Execution Phase: `Authentication Phase`
 Plugin Execution Priority: `910`
 
 ## Configuration Fields
-| Name | Data Type | Requirements | Default Value | Description |
-| -------- | -------- | -------- | -------- | -------- |
-|  status_code    |  number     |  Optional      |   200  |  Custom HTTP response status code   |
-|  headers     |  array of string      |  Optional     |   -  |  Custom HTTP response headers, keys and values separated by `=`   |
-|  body      |  string    |  Optional     |   -   |  Custom HTTP response body  |
-|  enable_on_status   |  array of number    |   Optional     |  -  | Match original status codes to generate custom responses; if not specified, the original status code is not checked   |
+| Name             | Data Type       | Requirements | Default Value | Description                                                                                                         |
+|------------------|-----------------|--------------|---------------|---------------------------------------------------------------------------------------------------------------------|
+| status_code      | number          | Optional     | 200           | Custom HTTP response status code                                                                                    |
+| headers          | array of string | Optional     | -             | Custom HTTP response headers, keys and values separated by `=`                                                      |
+| body             | string          | Optional     | -             | Custom HTTP response body                                                                                           |
+| enable_on_status | array of number | Optional     | -             | Match original status codes to generate custom responses; if not specified, the original status code is not checked |
+| is_stream        | bool            | Optional     | false         | If stream response, will not set Content-Length header                                                              |
 
 ## Configuration Example
 ### Mock Response Scenario
