@@ -32,10 +32,11 @@ type ServiceWrapper struct {
 }
 
 func (sew *ServiceWrapper) DeepCopy() *ServiceWrapper {
-	res := &ServiceWrapper{
-		ServiceEntry: sew.ServiceEntry.DeepCopy(),
-		createTime:   sew.GetCreateTime(),
-	}
+	res := &ServiceWrapper{}
+	res = sew
+	res.ServiceEntry = sew.ServiceEntry.DeepCopy()
+	res.createTime = sew.GetCreateTime()
+
 	if sew.DestinationRuleWrapper != nil {
 		res.DestinationRuleWrapper = sew.DestinationRuleWrapper
 		res.DestinationRuleWrapper.DestinationRule = sew.DestinationRuleWrapper.DestinationRule.DeepCopy()
