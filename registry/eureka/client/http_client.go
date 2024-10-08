@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -125,13 +126,25 @@ func (c *eurekaHttpClient) getApplications(path string) (*Applications, error) {
 
 	apps := map[string]*fargo.Application{}
 	for idx := range rj.Response.Applications {
+		ignore := false
 		app := rj.Response.Applications[idx]
+		for _, instance := range app.Instances {
+			if ip := net.ParseIP(instance.IPAddr); ip == nil {
+				log.Warnf("the Non-IP IPAddr %s is not allowed, please check your app: %s", instance.IPAddr, app.Name)
+				ignore = true
+				break
+			}
+		}
+		if ignore {
+			continue
+		}
 		apps[app.Name] = app
 	}
 
 	for name, app := range apps {
 		log.Debugf("Parsing metadata for app %v", name)
 		if err := app.ParseAllMetadata(); err != nil {
+			log.Errorf("Failed to parse metadata for app %v: %v", name, err)
 			return nil, err
 		}
 	}
