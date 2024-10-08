@@ -75,6 +75,7 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.L
 	config.isStream = gjson.Get("is_stream").Bool()
 	if !config.isStream {
 		config.headers = append(config.headers, [2]string{"content-type", config.contentType})
+		config.headers = append(config.headers, [2]string{"content-length", strconv.Itoa(len(config.body))})
 	}
 
 	config.statusCode = 200
@@ -104,7 +105,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, 
 	if len(config.enableOnStatus) != 0 {
 		return types.ActionContinue
 	}
-	err := proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
+	err := SendHttpResponse(config.statusCode, config.headers, []byte(config.body))
 	if err != nil {
 		log.Errorf("send http response failed: %v", err)
 	}
@@ -128,7 +129,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig,
 
 	for _, v := range config.enableOnStatus {
 		if uint32(statusCode) == v {
-			err = proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
+			err = SendHttpResponse(config.statusCode, config.headers, []byte(config.body))
 			if err != nil {
 				log.Errorf("send http response failed: %v", err)
 			}
@@ -136,4 +137,17 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig,
 	}
 
 	return types.ActionContinue
+}
+
+func SendHttpResponse(statusCode uint32, headers [][2]string, body []byte) error {
+	status := strconv.FormatUint(uint64(statusCode), 10)
+	if err := proxywasm.AddHttpResponseHeader(":status", status); err != nil {
+		return err
+	}
+	for _, kv := range headers {
+		if err := proxywasm.AddHttpRequestHeader(kv[0], kv[1]); err != nil {
+			return err
+		}
+	}
+	return proxywasm.AppendHttpResponseBody(body)
 }
