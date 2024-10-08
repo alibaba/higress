@@ -1,4 +1,4 @@
-use higress_wasm_rust::cluster_wrapper::StaticIpCluster;
+use higress_wasm_rust::cluster_wrapper::DnsCluster;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{
     HttpCallArgStorage, HttpContextWrapper, RootContextWrapper,
@@ -25,6 +25,7 @@ const PLUGIN_NAME: &str = "demo-wasm";
 #[derive(Default, Debug, Deserialize, Clone)]
 struct DemoWasmConfig {
     // 配置文件结构体
+    test: String,
 }
 struct DemoWasm {
     // 每个请求对应的插件实例
@@ -41,7 +42,7 @@ impl HttpContextWrapper<DemoWasmConfig, String> for DemoWasm {
     }
     fn on_config(&mut self, config: &DemoWasmConfig) {
         // 获取config
-        self.log.info(&format!("on_config {:?}", config));
+        self.log.info(&format!("on_config {}", config.test));
         self.config = Some(config.clone())
     }
     fn on_http_request_complete_headers(
@@ -73,14 +74,21 @@ impl HttpContextWrapper<DemoWasmConfig, String> for DemoWasm {
     fn on_http_call_response_detail(
         &mut self,
         _token_id: u32,
-        _arg: String,
+        arg: String,
         _status_code: u16,
         _headers: &MultiMap<String, String>,
         _body: Option<Vec<u8>>,
     ) {
-        self.log
-            .info(&format!("on_http_call_response_detail {:?}", _arg));
-        self.reset_http_request();
+        if let Some(body) = _body {
+            if let Ok(b) = String::from_utf8(body) {
+                self.log
+                    .info(&format!("on_http_call_response_detail {}: {}", arg, b));
+            }
+        } else {
+            self.log
+                .info(&format!("on_http_call_response_detail {}", arg));
+        }
+        self.resume_http_request();
     }
     fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> DataAction {
         // 请求body获取完成回调
@@ -88,14 +96,14 @@ impl HttpContextWrapper<DemoWasmConfig, String> for DemoWasm {
             "on_http_request_complete_body {}",
             String::from_utf8(req_body.clone()).unwrap_or("".to_string())
         ));
-        let cluster = StaticIpCluster::new("test", 123, "");
+        let cluster = DnsCluster::new("httpbin", "httpbin.org", 80);
         if self
             .http_call(
                 &cluster,
-                &Method::GET,
-                "http://www.baidu.com",
+                &Method::POST,
+                "http://httpbin.org/post",
                 MultiMap::new(),
-                None,
+                Some("test_body".as_bytes()),
                 "test".to_string(),
                 Duration::from_secs(5),
             )
@@ -103,6 +111,7 @@ impl HttpContextWrapper<DemoWasmConfig, String> for DemoWasm {
         {
             DataAction::StopIterationAndBuffer
         } else {
+            self.log.info("http_call fail");
             DataAction::Continue
         }
     }
@@ -121,8 +130,10 @@ struct DemoWasmRoot {
 }
 impl DemoWasmRoot {
     fn new() -> Self {
+        let log = Log::new(PLUGIN_NAME.to_string());
+        log.info("DemoWasmRoot::new");
         DemoWasmRoot {
-            log: Log::new(PLUGIN_NAME.to_string()),
+            log,
             rule_matcher: Rc::new(RefCell::new(RuleMatcher::default())),
         }
     }
@@ -132,6 +143,7 @@ impl Context for DemoWasmRoot {}
 
 impl RootContext for DemoWasmRoot {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
+        self.log.info("DemoWasmRoot::on_configure");
         on_configure(
             self,
             _plugin_configuration_size,
@@ -140,6 +152,10 @@ impl RootContext for DemoWasmRoot {
         )
     }
     fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
+        self.log.info(&format!(
+            "DemoWasmRoot::create_http_context({})",
+            context_id
+        ));
         self.create_http_context_use_wrapper(context_id)
     }
     fn get_type(&self) -> Option<ContextType> {
