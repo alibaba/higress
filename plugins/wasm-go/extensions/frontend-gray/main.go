@@ -68,15 +68,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	// 如果没有配置比例，则进行灰度规则匹配
 	if isPageRequest {
-		log.Infof("grayConfig.TotalGrayWeight==== %v", grayConfig.TotalGrayWeight)
 		if grayConfig.TotalGrayWeight > 0 {
+			log.Infof("grayConfig.TotalGrayWeight: %v", grayConfig.TotalGrayWeight)
 			deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
 		} else {
 			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
 		}
 		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, path, deployment.BackendVersion, preVersion, preUniqueClientId)
 	} else {
-		deployment = util.GetVersion(grayConfig, deployment, preVersion, isPageRequest)
+		grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
+		deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
 	}
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
