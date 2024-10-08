@@ -76,10 +76,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		}
 		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, path, deployment.BackendVersion, preVersion, preUniqueClientId)
 	} else {
-		grayDeployment := deployment
-		if deployment.Version == "" {
-			grayDeployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
-		}
+		grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
 		deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
 	}
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
