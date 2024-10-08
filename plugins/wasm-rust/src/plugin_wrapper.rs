@@ -47,6 +47,8 @@ where
         None
     }
 }
+pub type HttpCallbackFn<T> = dyn FnOnce(&mut T, u16, &MultiMap<String, String>, Option<Vec<u8>>);
+
 pub struct HttpCallArgStorage<HttpCallArg> {
     args: HashMap<u32, HttpCallArg>,
 }
