@@ -237,7 +237,7 @@ func (w *watcher) Stop() {
 		// clean the cache
 		suffix := strings.Join([]string{serviceName, w.ConsulDatacenter, w.Type}, common.DotSeparator)
 		host := strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
-		w.cache.DeleteServiceEntryWrapper(host)
+		w.cache.DeleteServiceWrapper(host)
 	}
 	w.isStop = true
 	close(w.stop)
@@ -295,7 +295,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 			serviceEntry := w.generateServiceEntry(host, services)
 			if serviceEntry != nil {
 				log.Infof("consul update serviceEntry %s cache", host)
-				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
 					Suffix:       suffix,
@@ -303,7 +303,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 				})
 			} else {
 				log.Infof("consul serviceEntry %s is nil", host)
-				//w.cache.DeleteServiceEntryWrapper(host)
+				//w.cache.DeleteServiceWrapper(host)
 			}
 		}
 	}

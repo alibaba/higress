@@ -301,7 +301,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 		if err != nil {
 			if strings.Contains(err.Error(), "hosts is empty") {
 				if w.updateCacheWhenEmpty {
-					w.cache.DeleteServiceEntryWrapper(host)
+					w.cache.DeleteServiceWrapper(host)
 				}
 			} else {
 				log.Errorf("callback error:%v", err)
@@ -312,7 +312,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			return
 		}
 		serviceEntry := w.generateServiceEntry(host, services)
-		w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 			ServiceName:  serviceName,
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,
@@ -374,7 +374,7 @@ func (w *watcher) Stop() {
 		suffix := strings.Join([]string{s[0], w.NacosNamespace, w.Type}, common.DotSeparator)
 		suffix = strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
 		host := strings.Join([]string{s[1], suffix}, common.DotSeparator)
-		w.cache.DeleteServiceEntryWrapper(host)
+		w.cache.DeleteServiceWrapper(host)
 	}
 	w.isStop = true
 	close(w.stop)

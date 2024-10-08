@@ -18,27 +18,35 @@ import (
 	"time"
 
 	"istio.io/api/networking/v1alpha3"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
 )
 
-type ServiceEntryWrapper struct {
-	ServiceName  string
-	ServiceEntry *v1alpha3.ServiceEntry
-	Suffix       string
-	RegistryType string
-	createTime   time.Time
+type ServiceWrapper struct {
+	ServiceName            string
+	ServiceEntry           *v1alpha3.ServiceEntry
+	DestinationRuleWrapper *common.WrapperDestinationRule
+	Suffix                 string
+	RegistryType           string
+	createTime             time.Time
 }
 
-func (sew *ServiceEntryWrapper) DeepCopy() *ServiceEntryWrapper {
-	return &ServiceEntryWrapper{
+func (sew *ServiceWrapper) DeepCopy() *ServiceWrapper {
+	res := &ServiceWrapper{
 		ServiceEntry: sew.ServiceEntry.DeepCopy(),
 		createTime:   sew.GetCreateTime(),
 	}
+	if sew.DestinationRuleWrapper != nil {
+		res.DestinationRuleWrapper = sew.DestinationRuleWrapper
+		res.DestinationRuleWrapper.DestinationRule = sew.DestinationRuleWrapper.DestinationRule.DeepCopy()
+	}
+	return res
 }
 
-func (sew *ServiceEntryWrapper) SetCreateTime(createTime time.Time) {
+func (sew *ServiceWrapper) SetCreateTime(createTime time.Time) {
 	sew.createTime = createTime
 }
 
-func (sew *ServiceEntryWrapper) GetCreateTime() time.Time {
+func (sew *ServiceWrapper) GetCreateTime() time.Time {
 	return sew.createTime
 }

@@ -147,7 +147,7 @@ func (w *watcher) Stop() {
 			log.Errorf("Failed to unsubscribe service : %v", serviceName)
 			continue
 		}
-		w.cache.DeleteServiceEntryWrapper(makeHost(serviceName))
+		w.cache.DeleteServiceWrapper(makeHost(serviceName))
 	}
 	w.UpdateService()
 }
@@ -203,7 +203,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 			if err != nil {
 				return err
 			}
-			w.cache.UpdateServiceEntryWrapper(makeHost(service.Name), &memory.ServiceEntryWrapper{
+			w.cache.UpdateServiceWrapper(makeHost(service.Name), &memory.ServiceWrapper{
 				ServiceName:  service.Name,
 				ServiceEntry: se,
 				Suffix:       suffix,
@@ -213,7 +213,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		}
 
 		if w.updateCacheWhenEmpty {
-			w.cache.DeleteServiceEntryWrapper(makeHost(service.Name))
+			w.cache.DeleteServiceWrapper(makeHost(service.Name))
 		}
 
 		return nil
