@@ -211,6 +211,8 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			direct.WithName(registry.Name),
 			direct.WithDomain(registry.Domain),
 			direct.WithPort(registry.Port),
+			direct.WithProtocol(registry.Protocol),
+			direct.WithSNI(registry.Sni),
 		)
 	case string(Eureka):
 		watcher, err = eureka.NewWatcher(

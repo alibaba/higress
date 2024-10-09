@@ -920,12 +920,7 @@ func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, ba
 	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
 		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
 			portNumber := dest.Destination.GetPort().GetNumber()
-			serviceKey := common.ServiceKey{
-				Namespace:   "mcp",
-				Name:        dest.Destination.Host,
-				Port:        int32(portNumber),
-				ServiceFQDN: dest.Destination.Host,
-			}
+			serviceKey := common.CreateMcpServiceKey(dest.Destination.Host, int32(portNumber))
 			if _, exist := store[serviceKey]; !exist {
 				if serviceKey.Port != 0 {
 					store[serviceKey] = &common.WrapperTrafficPolicy{

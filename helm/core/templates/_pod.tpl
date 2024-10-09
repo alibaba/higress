@@ -180,7 +180,7 @@ template:
         {{- end }}
         - name: config
           mountPath: /etc/istio/config
-        - name: istio-ca-root-cert
+        - name: higress-ca-root-cert
           mountPath: /var/run/secrets/istio
         - name: istio-data
           mountPath: /var/lib/istio/data
@@ -266,7 +266,7 @@ template:
               expirationSeconds: 43200
               path: istio-token
     {{- end }}
-    - name: istio-ca-root-cert
+    - name: higress-ca-root-cert
       configMap:
     {{- if .Values.global.enableHigressIstio }}
         name: istio-ca-root-cert
