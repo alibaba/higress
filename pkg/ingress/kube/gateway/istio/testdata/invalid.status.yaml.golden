@@ -128,8 +128,7 @@ status:
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: port 8080 not found for
       hostname "higress-gateway.higress-system.svc.domain.suffix" (hint: the service
-      port should be specified, not the workload port. Did you mean one of these ports:
-      [80]?)'
+      port should be specified, not the workload port'
     reason: Invalid
     status: "False"
     type: Programmed
@@ -160,26 +159,6 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
----
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  creationTimestamp: null
-  name: invalid-gateway-address
-  namespace: invalid-gateway-address
-spec: null
-status:
-  conditions:
-  - lastTransitionTime: fake
-    message: only Hostname is supported, ignoring [1.2.3.4]
-    reason: UnsupportedAddress
-    status: "False"
-    type: Accepted
-  - lastTransitionTime: fake
-    message: Failed to assign to any requested addresses
-    reason: UnsupportedAddress
-    status: "False"
-    type: Programmed
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
@@ -477,4 +456,29 @@ status:
       namespace: higress-system
       sectionName: fake
 ---
-
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: no-backend
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: higress.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: httpbin
+---

@@ -22,6 +22,7 @@ import (
 	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
 	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
+	"istio.io/istio/pilot/pkg/status"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -48,6 +49,7 @@ type gatewayController struct {
 	store           model.ConfigStoreController
 	credsController credentials.MulticlusterController
 	istioController *istiogateway.Controller
+	statusManager   *status.Manager
 
 	resourceUpToDate atomic.Bool
 }
@@ -76,9 +78,10 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
 	}
 
+	var statusManager *status.Manager = nil
 	if options.EnableStatus {
-		// TODO: Add status sync support
-		//istioController.SetStatusWrite(true,)
+		statusManager = status.NewManager(store)
+		istioController.SetStatusWrite(true, statusManager)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
 	}
@@ -87,6 +90,7 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		store:           store,
 		credsController: credsController,
 		istioController: istioController,
+		statusManager:   statusManager,
 	}
 }
 
@@ -148,6 +152,9 @@ func (g *gatewayController) Run(stop <-chan struct{}) {
 	})
 	go g.store.Run(stop)
 	go g.istioController.Run(stop)
+	if g.statusManager != nil {
+		g.statusManager.Start(stop)
+	}
 }
 
 func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
