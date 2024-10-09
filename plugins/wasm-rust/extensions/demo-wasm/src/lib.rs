@@ -186,7 +186,6 @@ impl RootContext for DemoWasmRoot {
 }
 
 impl RootContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoWasmRoot {
-    
     fn rule_matcher(&self) -> &SharedRuleMatcher<DemoWasmConfig> {
         &self.rule_matcher
     }
