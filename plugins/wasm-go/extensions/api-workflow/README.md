@@ -108,8 +108,7 @@ description: API 工作流插件配置参考
 插件执行到conditional的定义不为空的步骤`edge`时，会根据表达式定义判断这步是否执行，如果判断为否，会跳过这个分支。
 表达式可使用参数，用{{xxx}}标注，具体定义见数据流`模板和变量`
 支持比较表达式和例子如下：
-`eq arg1 arg2`： arg1 == arg2时为true 不只是数字，支持string 
-`ne arg1 arg2`： arg1 != arg2时为true 
+`eq arg1 arg2`： arg1 == arg2时为true 不只是数字，支持string
 `lt arg1 arg2`： arg1 < arg2时为true 
 `le arg1 arg2`： arg1 <= arg2时为true 
 `gt arg1 arg2`： arg1 > arg2时为true 
