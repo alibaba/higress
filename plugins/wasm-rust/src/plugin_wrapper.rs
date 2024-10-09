@@ -16,13 +16,18 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::cluster_wrapper::Cluster;
+use crate::log::Log;
 use crate::rule_matcher::SharedRuleMatcher;
 use http::{method::Method, Uri};
+use lazy_static::lazy_static;
 use multimap::MultiMap;
-use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
-use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction, LogLevel, Status};
+use proxy_wasm::types::{Action, Bytes, DataAction, HeaderAction, Status};
 use serde::de::DeserializeOwned;
+
+lazy_static! {
+    static ref LOG: Log = Log::new("plugin_wrapper".to_string());
+}
 
 pub trait RootContextWrapper<PluginConfig, HttpCallArg: 'static = ()>: RootContext
 where
@@ -71,6 +76,9 @@ impl<HttpCallArg> HttpCallArgStorage<HttpCallArg> {
     }
 }
 pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
+    fn log(&self) -> &Log {
+        &LOG
+    }
     fn on_config(&mut self, _config: &PluginConfig) {}
     fn on_http_request_complete_headers(
         &mut self,
@@ -156,22 +164,19 @@ pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
             if let Ok(token_id) = ret {
                 if let Some(storage) = self.get_http_call_storage() {
                     storage.set(token_id, arg);
-                    log(
-                        LogLevel::Debug,
-                        format!(
+                    self.log().debug(
+                        &format!(
                             "http call start, id: {}, cluster: {}, method: {}, url: {}, body: {:?}, timeout: {:?}",
                             token_id, cluster.cluster_name(), method.as_str(), raw_url, body, timeout
                         )
-                        .as_str(),
-                    )
-                    .unwrap();
+                    );
                 } else {
                     return Err(Status::InternalFailure);
                 }
             }
             ret
         } else {
-            log(LogLevel::Critical, &format!("invalid raw_url:{}", raw_url)).unwrap();
+            self.log().critical(&format!("invalid raw_url:{}", raw_url));
             Err(Status::ParseFailure)
         }
     }
@@ -229,38 +234,26 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
                                 status_code = code;
                                 normal_response = true;
                             } else {
-                                log(
-                                    LogLevel::Error,
-                                    format!("failed to parse status: {}", header_value).as_str(),
-                                )
-                                .unwrap();
+                                self.http_content
+                                    .log()
+                                    .error(&format!("failed to parse status: {}", header_value));
                                 status_code = 500;
                             }
                         }
                         headers.insert(k, header_value);
                     }
                     Err(_) => {
-                        log(
-                            LogLevel::Warn,
-                            format!(
+                        self.http_content.log().warn(&format!(
                             "http call response header contains non-ASCII characters header: {}",
                             k
-                        )
-                            .as_str(),
-                        )
-                        .unwrap();
+                        ));
                     }
                 }
             }
-            log(
-                LogLevel::Warn,
-                format!(
-                    "http call end, id: {}, code: {}, normal: {}, body: {:?}",
-                    token_id, status_code, normal_response, body
-                )
-                .as_str(),
-            )
-            .unwrap();
+            self.http_content.log().warn(&format!(
+                "http call end, id: {}, code: {}, normal: {}, body: {:?}",
+                token_id, status_code, normal_response, body
+            ));
             self.http_content.on_http_call_response_detail(
                 token_id,
                 arg,
@@ -313,15 +306,10 @@ where
                     self.req_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    log(
-                        LogLevel::Warn,
-                        format!(
-                            "request http header contains non-ASCII characters header: {}",
-                            k
-                        )
-                        .as_str(),
-                    )
-                    .unwrap();
+                    self.http_content.log().warn(&format!(
+                        "request http header contains non-ASCII characters header: {}",
+                        k
+                    ));
                 }
             }
         }
@@ -373,15 +361,10 @@ where
                     self.res_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    log(
-                        LogLevel::Warn,
-                        format!(
-                            "response http header contains non-ASCII characters header: {}",
-                            k
-                        )
-                        .as_str(),
-                    )
-                    .unwrap();
+                    self.http_content.log().warn(&format!(
+                        "response http header contains non-ASCII characters header: {}",
+                        k
+                    ));
                 }
             }
         }
