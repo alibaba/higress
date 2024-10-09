@@ -79,10 +79,10 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 		log.Debugf("[onHttpRequestBody] newRequestBody: %s", string(newbody))
 		err := proxywasm.ReplaceHttpRequestBody(newbody)
 		if err != nil {
-			log.Debug("替换失败")
+			log.Debug("failed replace")
 			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, "替换失败"+err.Error())), -1)
 		}
-		log.Debug("[onHttpRequestBody] request替换成功")
+		log.Debug("[onHttpRequestBody] replace request success")
 		return types.ActionContinue
 	}
 }
@@ -255,7 +255,7 @@ func noneStreamResponse(assistantMessage Message, actionInput string, rawRespons
 	} else {
 		proxywasm.ReplaceHttpResponseBody(newbody)
 
-		log.Debug("[onHttpResponseBody] response替换成功")
+		log.Debug("[onHttpResponseBody] replace response success")
 		proxywasm.ResumeHttpResponse()
 	}
 }
@@ -270,7 +270,7 @@ func streamResponse(actionInput string, rawResponse Response, log wrapper.Log) {
 	log.Infof("[onHttpResponseBody] newResponseBody: ", newbody)
 	proxywasm.ReplaceHttpResponseBody([]byte(newbody))
 
-	log.Debug("[onHttpResponseBody] response替换成功")
+	log.Debug("[onHttpResponseBody] replace response success")
 	proxywasm.ResumeHttpResponse()
 }
 
@@ -278,7 +278,7 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 	if statusCode != http.StatusOK {
 		log.Debugf("statusCode: %d", statusCode)
 	}
-	log.Info("========函数返回结果========")
+	log.Info("========function result========")
 	log.Infof(string(responseBody))
 
 	observation := "Observation: " + string(responseBody)

@@ -376,7 +376,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 ## 用法示例-开启 json 格式化
 
 **配置信息**
-在不开启 json 格式化配置的基础上增加 jsonResp 配置
+在上述配置的基础上增加 jsonResp 配置
 ```yaml
 jsonResp:
   enable: true
