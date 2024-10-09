@@ -19,3 +19,4 @@ pub mod log;
 pub mod plugin_wrapper;
 pub mod request_wrapper;
 pub mod rule_matcher;
+pub mod promise;
