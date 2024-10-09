@@ -28,6 +28,7 @@ type ServiceWrapper struct {
 	DestinationRuleWrapper *common.WrapperDestinationRule
 	Suffix                 string
 	RegistryType           string
+	RegistryName           string
 	createTime             time.Time
 }
 

@@ -82,6 +82,9 @@ func WithPort(port uint32) WatcherOption {
 func WithProtocol(protocol string) WatcherOption {
 	return func(w *watcher) {
 		w.Protocol = protocol
+		if w.Protocol == "" {
+			w.Protocol = string(common.HTTP)
+		}
 	}
 }
 
@@ -110,6 +113,7 @@ func (w *watcher) Run() {
 			ServiceEntry:           serviceEntry,
 			Suffix:                 w.Type,
 			RegistryType:           w.Type,
+			RegistryName:           w.Name,
 			DestinationRuleWrapper: destinationRuleWrapper,
 		})
 		w.UpdateService()

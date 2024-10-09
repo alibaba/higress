@@ -641,6 +641,7 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 				CreationTimestamp: se.GetCreateTime(),
 				Labels: map[string]string{
 					higressconst.RegistryTypeLabelKey: se.RegistryType,
+					higressconst.RegistryNameLabelKey: se.RegistryName,
 				},
 			},
 			Spec: se.ServiceEntry,

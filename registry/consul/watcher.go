@@ -300,6 +300,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 					ServiceName:  serviceName,
 					Suffix:       suffix,
 					RegistryType: w.Type,
+					RegistryName: w.Name,
 				})
 			} else {
 				log.Infof("consul serviceEntry %s is nil", host)

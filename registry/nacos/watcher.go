@@ -317,6 +317,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,
 			RegistryType: w.Type,
+			RegistryName: w.Name,
 		})
 	}
 }

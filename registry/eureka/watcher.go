@@ -208,6 +208,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 				ServiceEntry: se,
 				Suffix:       suffix,
 				RegistryType: w.Type,
+				RegistryName: w.Name,
 			})
 			return nil
 		}

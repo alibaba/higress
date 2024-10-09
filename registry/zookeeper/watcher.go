@@ -336,6 +336,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 			ServiceEntry: se,
 			Suffix:       "zookeeper",
 			RegistryType: w.Type,
+			RegistryName: w.Name,
 		})
 		w.UpdateService()
 	} else if eventType.Action == EventTypeDel {
@@ -366,6 +367,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 				ServiceEntry: se,
 				Suffix:       "zookeeper",
 				RegistryType: w.Type,
+				RegistryName: w.Name,
 			})
 		}
 		w.UpdateService()
@@ -565,6 +567,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 						ServiceEntry: se,
 						Suffix:       "zookeeper",
 						RegistryType: w.Type,
+						RegistryName: w.Name,
 					})
 				}
 			} else {
@@ -574,6 +577,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 					ServiceEntry: se,
 					Suffix:       "zookeeper",
 					RegistryType: w.Type,
+					RegistryName: w.Name,
 				})
 			}
 		}
