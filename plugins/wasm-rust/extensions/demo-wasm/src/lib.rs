@@ -62,6 +62,9 @@ struct DemoWasm {
 impl Context for DemoWasm {}
 impl HttpContext for DemoWasm {}
 impl HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoWasm {
+    fn log(&self) -> &Log {
+        &self.log
+    }
     fn get_http_call_storage(
         &mut self,
     ) -> Option<&mut HttpCallArgStorage<Box<HttpCallbackFn<DemoWasm>>>> {
@@ -183,6 +186,7 @@ impl RootContext for DemoWasmRoot {
 }
 
 impl RootContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoWasmRoot {
+    
     fn rule_matcher(&self) -> &SharedRuleMatcher<DemoWasmConfig> {
         &self.rule_matcher
     }
