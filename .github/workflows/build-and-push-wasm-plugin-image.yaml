@@ -89,7 +89,9 @@ jobs:
           push_command=${push_command%\"} # 删除PUSH_COMMAND中的双引号，确保oras push正常解析
           
           target_image="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:${{ env.VERSION }}"
+          target_image_latest="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:latest"
           echo "TargetImage=${target_image}"
+          echo "TargetImageLatest=${target_image_latest}"
 
           cd ${{ github.workspace }}/plugins/wasm-go/extensions/${PLUGIN_NAME}
           if [ -f ./.buildrc ]; then
@@ -108,7 +110,6 @@ jobs:
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           oras push ${target_image} ${push_command}
+          oras push ${target_image_latest} ${push_command}
           "
           docker exec builder bash -c "$command"
-
-          

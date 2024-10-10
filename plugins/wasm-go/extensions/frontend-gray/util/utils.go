@@ -184,7 +184,7 @@ func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPr
 			}
 		}
 	}
-	return grayConfig.BaseDeployment
+	return deployment
 }
 
 // 从cookie中解析出灰度信息
@@ -294,12 +294,12 @@ func InjectContent(originalHtml string, injectionConfig *config.Injection) strin
 
 	modifiedHtml := sb.String()
 
-    // 注入到头部
-    modifiedHtml = strings.ReplaceAll(modifiedHtml, "</head>", headInjection + "\n</head>")
-    // 注入到body头
-    modifiedHtml = strings.ReplaceAll(modifiedHtml, "<body>", "<body>\n" + bodyFirstInjection)
-    // 注入到body尾
-    modifiedHtml = strings.ReplaceAll(modifiedHtml, "</body>", bodyLastInjection + "\n</body>")
-    
-    return modifiedHtml
+	// 注入到头部
+	modifiedHtml = strings.ReplaceAll(modifiedHtml, "</head>", headInjection+"\n</head>")
+	// 注入到body头
+	modifiedHtml = strings.ReplaceAll(modifiedHtml, "<body>", "<body>\n"+bodyFirstInjection)
+	// 注入到body尾
+	modifiedHtml = strings.ReplaceAll(modifiedHtml, "</body>", bodyLastInjection+"\n</body>")
+
+	return modifiedHtml
 }

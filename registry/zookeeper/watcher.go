@@ -331,11 +331,12 @@ func (w *watcher) DataChange(eventType Event) bool {
 		se := w.generateServiceEntry(w.serviceEntry[host])
 
 		w.seMux.Unlock()
-		w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 			ServiceName:  host,
 			ServiceEntry: se,
 			Suffix:       "zookeeper",
 			RegistryType: w.Type,
+			RegistryName: w.Name,
 		})
 		w.UpdateService()
 	} else if eventType.Action == EventTypeDel {
@@ -358,14 +359,15 @@ func (w *watcher) DataChange(eventType Event) bool {
 		//todo update
 		if len(se.Endpoints) == 0 {
 			if !w.keepStaleWhenEmpty {
-				w.cache.DeleteServiceEntryWrapper(host)
+				w.cache.DeleteServiceWrapper(host)
 			}
 		} else {
-			w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+			w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 				ServiceName:  host,
 				ServiceEntry: se,
 				Suffix:       "zookeeper",
 				RegistryType: w.Type,
+				RegistryName: w.Name,
 			})
 		}
 		w.UpdateService()
@@ -560,20 +562,22 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 				if !reflect.DeepEqual(value, config) {
 					w.serviceEntry[host] = config
 					//todo update or create serviceentry
-					w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+					w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 						ServiceName:  host,
 						ServiceEntry: se,
 						Suffix:       "zookeeper",
 						RegistryType: w.Type,
+						RegistryName: w.Name,
 					})
 				}
 			} else {
 				w.serviceEntry[host] = config
-				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 					ServiceName:  host,
 					ServiceEntry: se,
 					Suffix:       "zookeeper",
 					RegistryType: w.Type,
+					RegistryName: w.Name,
 				})
 			}
 		}
@@ -708,7 +712,7 @@ func (w *watcher) Stop() {
 
 	w.seMux.Lock()
 	for key := range w.serviceEntry {
-		w.cache.DeleteServiceEntryWrapper(key)
+		w.cache.DeleteServiceWrapper(key)
 	}
 	w.UpdateService()
 	w.seMux.Unlock()
