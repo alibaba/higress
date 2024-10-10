@@ -313,7 +313,7 @@ func (c *ProviderConfig) Validate() error {
 		}
 	}
 
-	if c.failover != nil {
+	if c.failover.enabled {
 		if err := c.failover.Validate(); err != nil {
 			return err
 		}
