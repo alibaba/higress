@@ -25,35 +25,35 @@ use std::time::Duration;
 
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
-    proxy_wasm::set_root_context(|_|Box::new(HttpPromiseExampleRoot::new()));
+    proxy_wasm::set_root_context(|_|Box::new(HttpDispatchExampleRoot::new()));
 }}
 
-struct HttpPromiseExampleRoot {
+struct HttpDispatchExampleRoot {
     log: Rc<Log>,
-    rule_matcher: SharedRuleMatcher<HttpPromiseExampleConfig>,
+    rule_matcher: SharedRuleMatcher<HttpDispatchExampleConfig>,
 }
 
-struct HttpPromiseExample {
+struct HttpDispatchExample {
     log: Rc<Log>,
-    rule_matcher: SharedRuleMatcher<HttpPromiseExampleConfig>,
+    rule_matcher: SharedRuleMatcher<HttpDispatchExampleConfig>,
     http_dispatcher: HttpDispatcher,
 }
 
 #[derive(Default, Clone, Debug, Deserialize)]
-struct HttpPromiseExampleConfig {}
+struct HttpDispatchExampleConfig {}
 
-impl HttpPromiseExampleRoot {
+impl HttpDispatchExampleRoot {
     fn new() -> Self {
-        HttpPromiseExampleRoot {
+        HttpDispatchExampleRoot {
             log: Rc::new(Log::new("http-promise-example".to_string())),
             rule_matcher: rule_matcher::new_shared(),
         }
     }
 }
 
-impl Context for HttpPromiseExampleRoot {}
+impl Context for HttpDispatchExampleRoot {}
 
-impl RootContext for HttpPromiseExampleRoot {
+impl RootContext for HttpDispatchExampleRoot {
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         on_configure(
             self,
@@ -64,7 +64,7 @@ impl RootContext for HttpPromiseExampleRoot {
     }
 
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        Some(Box::new(HttpPromiseExample {
+        Some(Box::new(HttpDispatchExample {
             log: self.log.clone(),
             rule_matcher: self.rule_matcher.clone(),
             http_dispatcher: Default::default(),
@@ -76,7 +76,7 @@ impl RootContext for HttpPromiseExampleRoot {
     }
 }
 
-impl Context for HttpPromiseExample {
+impl Context for HttpDispatchExample {
     fn on_http_call_response(
         &mut self,
         _token_id: u32,
@@ -89,7 +89,7 @@ impl Context for HttpPromiseExample {
     }
 }
 
-impl HttpContext for HttpPromiseExample {
+impl HttpContext for HttpDispatchExample {
     fn on_http_request_headers(&mut self, _: usize, _: bool) -> HeaderAction {
         let log = self.log.clone();
 

@@ -1,25 +1,25 @@
 ---
-title: http-promise-example
+title: http-dispatch-example
 keywords: 
 description: 
 ---
 
-## 功能说明
+## Description
 
 
 
-## 运行属性
+## Runtime
 
-stage：`默认阶段`
-level：`10`
+phase：`UNSPECIFIED_PHASE`
+priority：`10`
 
-### 配置说明
+### Config
 
 | Name     | Type     | Requirement | Default  | Description |
 | -------- | -------- | --------    | -------- | --------    |
 |          |          |             |          |             |
 
-#### 配置示例
+#### Example
 
 ```yaml
 

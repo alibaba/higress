@@ -73,7 +73,7 @@ srcdir="$workdir"/src
 mkdir -p "$workdir"
 mkdir -p "$srcdir"
 
-cat -t >"$workdir/Makefile"<<EOF
+cat >"$workdir/Makefile"<<EOF
 BUILD_OPTS="--release"
 
 .DEFAULT:

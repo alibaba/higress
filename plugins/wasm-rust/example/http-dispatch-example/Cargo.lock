@@ -84,7 +84,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "http-promise-example"
+name = "http-dispatch-example"
 version = "0.1.0"
 dependencies = [
  "higress-wasm-rust",
