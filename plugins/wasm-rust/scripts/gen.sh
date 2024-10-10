@@ -125,6 +125,7 @@ cat >"$srcdir"/lib.rs<<EOF
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use higress_wasm_rust::dispatcher::HttpDispatcher;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::rule_matcher;
 use higress_wasm_rust::rule_matcher::{on_configure, SharedRuleMatcher};
