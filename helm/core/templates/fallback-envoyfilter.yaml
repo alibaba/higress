@@ -14,10 +14,8 @@ spec:
           filterChain:
             filter:
               name: envoy.filters.network.http_connection_manager
-              subFilter:
-                name: envoy.filters.http.cors
       patch:
-        operation: INSERT_BEFORE
+        operation: INSERT_FIRST
         value:
           name: envoy.filters.http.custom_response
           typed_config:
