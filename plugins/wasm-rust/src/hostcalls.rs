@@ -34,11 +34,7 @@ pub fn get_shared_data(key: &str) -> (Option<Bytes>, Option<u32>) {
     hostcalls::get_shared_data(key).unwrap()
 }
 
-pub fn set_shared_data(
-    key: &str,
-    value: Option<&[u8]>,
-    cas: Option<u32>,
-) -> Result<(), Status> {
+pub fn set_shared_data(key: &str, value: Option<&[u8]>, cas: Option<u32>) -> Result<(), Status> {
     hostcalls::set_shared_data(key, value, cas)
 }
 
@@ -374,11 +370,7 @@ pub fn reset_http_response() {
     hostcalls::reset_http_response().unwrap()
 }
 
-pub fn send_http_response(
-    status_code: u32,
-    headers: Vec<(&str, &str)>,
-    body: Option<&[u8]>,
-) {
+pub fn send_http_response(status_code: u32, headers: Vec<(&str, &str)>, body: Option<&[u8]>) {
     hostcalls::send_http_response(status_code, headers, body).unwrap()
 }
 
