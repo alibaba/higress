@@ -79,7 +79,7 @@ BUILD_OPTS="--release"
 .DEFAULT:
 build:
 	rustup target add wasm32-wasi
-	cargo build --target wasm32-wasi ${BUILD_OPTS}
+	cargo build --target wasm32-wasi \${BUILD_OPTS}
 	find target -name "*.wasm" -d 3 -exec cp "{}" plugin.wasm \;
 
 clean:
@@ -147,6 +147,7 @@ struct $struct_root_ {
 struct $struct_ {
     log: Rc<Log>,
     rule_matcher: SharedRuleMatcher<$struct_config_>,
+    http_dispatcher: HttpDispatcher,
 }
 
 #[derive(Default, Clone, Debug, Deserialize)]
@@ -177,6 +178,7 @@ impl RootContext for $struct_root_ {
         Some(Box::new($struct_ {
             log: self.log.clone(),
             rule_matcher: self.rule_matcher.clone(),
+            http_dispatcher: Default::default(),
         }))
     }
 
@@ -185,7 +187,11 @@ impl RootContext for $struct_root_ {
     }
 }
 
-impl Context for $struct_ {}
+impl Context for $struct_ {
+    fn on_http_call_response(&mut self, _token_id: u32, _num_headers: usize, _body_size: usize, _num_trailers: usize) {
+        self.http_dispatcher.callback(_token_id, _num_headers, _body_size, _num_trailers)
+    }
+}
 
 impl HttpContext for $struct_ {}
 EOF
