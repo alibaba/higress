@@ -1,17 +1,216 @@
-# 功能说明
+---
+title: JWT 认证
+keywords: [higress,jwt auth]
+description: JWT 认证插件配置参考
+---
+
+## 功能说明
 `jwt-auth`插件实现了基于JWT(JSON Web Tokens)进行认证鉴权的功能，支持从HTTP请求的URL参数、请求头、Cookie字段解析JWT，同时验证该Token是否有权限访问。
 
 本插件和`安全能力->认证鉴权`中JWT认证的区别是，额外提供了调用方身份识别的能力，支持对不同调用方配置不同的JWT凭证。
 
-# 详细说明
+## 运行属性
 
-## 1、基于token的认证
+插件执行阶段：`认证阶段`
+插件执行优先级：`340`
 
-### 1.1 简介
+## 配置字段
+
+**注意：**
+
+- 在一个规则里，鉴权配置和认证配置不可同时存在
+- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
+
+### 认证配置
+
+| 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                        |
+| ----------- | --------------- | ------------------------------------------- | ------ | ----------------------------------------------------------- |
+| `global_auth` | bool            | 选填（**仅实例级别配置**）                  | -      | 只能在实例级别配置，若配置为true，则全局生效认证机制; 若配置为false，则只对做了配置的域名和路由生效认证机制，若不配置则仅当没有域名和路由配置时全局生效（兼容老用户使用习惯）。 |
+| `consumers` | array of object | 必填                                        | -      | 配置服务的调用者，用于对请求进行认证                        |
+
+`consumers`中每一项的配置字段说明如下：
+
+| 名称                    | 数据类型          | 填写要求 | 默认值                                            | 描述                     |
+| ----------------------- | ----------------- | -------- | ------------------------------------------------- | ------------------------ |
+| `name`                  | string            | 必填     | -                                                 | 配置该consumer的名称     |
+| `jwks`                  | string            | 必填     | -                                                 | https://www.rfc-editor.org/rfc/rfc7517 指定的json格式字符串，是由验证JWT中签名的公钥（或对称密钥）组成的Json Web Key Set  |
+| `issuer`                | string            | 必填     | -                                                 | JWT的签发者，需要和payload中的iss字段保持一致              |
+| `claims_to_headers`     | array of object   | 选填     | -                                                 | 抽取JWT的payload中指定字段，设置到指定的请求头中转发给后端 |
+| `from_headers`          | array of object   | 选填     | {"name":"Authorization","value_prefix":"Bearer "} | 从指定的请求头中抽取JWT |
+| `from_params`           | array of string   | 选填     | access_token                                      | 从指定的URL参数中抽取JWT                                   |
+| `from_cookies`          | array of string   | 选填     | -                                                 | 从指定的cookie中抽取JWT                                    |
+| `clock_skew_seconds`    | number            | 选填     | 60                                                | 校验JWT的exp和iat字段时允许的时钟偏移量，单位为秒          |
+| `keep_token`            | bool              | 选填     | ture                                              | 转发给后端时是否保留JWT                                    |
+
+**注意：** 
+- 只有当`from_headers`,`from_params`,`from_cookies`均未配置时，才会使用默认值
+
+`from_headers` 中每一项的配置字段说明如下：
+
+| 名称             | 数据类型        | 填写要求| 默认值 | 描述                                                      |
+| ---------------- | --------------- | ------- | ------ | --------------------------------------------------------- |
+| `name`           | string          | 必填    | -      | 抽取JWT的请求header                                       |
+| `value_prefix`   | string          | 必填    | -      | 对请求header的value去除此前缀，剩余部分作为JWT            |
+
+`claims_to_headers` 中每一项的配置字段说明如下：
+
+| 名称             | 数据类型        | 填写要求| 默认值 | 描述                                                      |
+| ---------------- | --------------- | ------- | ------ | --------------------------------------------------------- |
+| `claim`          | string          | 必填    | -      | JWT payload中的指定字段，要求必须是字符串或无符号整数类型 |
+| `header`         | string          | 必填    | -      | 从payload取出字段的值设置到这个请求头中，转发给后端       |
+| `override`       | bool            | 选填    | true   | true时，存在同名请求头会进行覆盖；false时，追加同名请求头 |
+
+
+### 鉴权配置（非必需）
+
+| 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                                                                                                                           |
+| ----------- | --------------- | ------------------------------------------- | ------ | -----------------------------------------------------------                                                                                                    |
+| `allow`     | array of string | 选填(**非实例级别配置**)                    | -      | 只能在路由或域名等细粒度规则上配置，对于符合匹配条件的请求，配置允许访问的 consumer，从而实现细粒度的权限控制 |
+
+## 配置示例
+
+### 全局配置认证和路由粒度进行鉴权
+
+注意如果一个JWT能匹配多个`jwks`，则按照配置顺序命中第一个匹配的`consumer`
+
+在实例级别做如下插件配置：
+
+```yaml
+global_auth: false
+consumers:
+- name: consumer1
+  issuer: abcd
+  jwks: |
+    {
+      "keys": [
+        {
+          "kty": "oct",
+          "kid": "123",
+          "k": "hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew",
+          "alg": "HS256"
+        }
+      ]
+    }
+- name: consumer2
+  issuer: abc
+  jwks: |
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "e": "AQAB",
+          "use": "sig",
+          "kid": "123",
+          "alg": "RS256",
+          "n": "i0B67f1jggT9QJlZ_8QL9QQ56LfurrqDhpuu8BxtVcfxrYmaXaCtqTn7OfCuca7cGHdrJIjq99rz890NmYFZuvhaZ-LMt2iyiSb9LZJAeJmHf7ecguXS_-4x3hvbsrgUDi9tlg7xxbqGYcrco3anmalAFxsbswtu2PAXLtTnUo6aYwZsWA6ksq4FL3-anPNL5oZUgIp3HGyhhLTLdlQcC83jzxbguOim-0OEz-N4fniTYRivK7MlibHKrJfO3xa_6whBS07HW4Ydc37ZN3Rx9Ov3ZyV0idFblU519nUdqp_inXj1eEpynlxH60Ys_aTU2POGZh_25KXGdF_ZC_MSRw"
+        }
+      ]
+    }
+```
+
+对 route-a 和 route-b 这两个路由做如下配置：
+
+```yaml
+allow: 
+- consumer1
+```
+
+对 *.example.com 和 test.com 在这两个域名做如下配置:
+
+```yaml
+allow:
+- consumer2
+```
+
+**说明：**
+
+此例指定的route-a和route-b即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许name为consumer1的调用者访问，其他调用者不允许访问。
+
+此例指定的*.example.com和test.com用于匹配请求的域名，当发现域名匹配时，将允许name为consumer2的调用者访问，其他调用者不被允许访问。
+
+根据该配置，下列请求可以允许访问：
+
+假设以下请求会匹配到route-a这条路由
+
+**将 JWT 设置在 url 参数中**
+```bash
+curl  'http://xxx.hello.com/test?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
+```
+**将 JWT 设置在 http 请求头中**
+```bash
+curl  http://xxx.hello.com/test -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
+```
+
+认证鉴权通过后，请求的header中会被添加一个`X-Mse-Consumer`字段，在此例中其值为`consumer1`，用以标识调用方的名称
+
+下列请求将拒绝访问：
+
+**请求未提供JWT，返回401**
+```bash
+curl  http://xxx.hello.com/test
+```
+
+**根据请求提供的JWT匹配到的调用者无访问权限，返回403**
+```bash
+# consumer1不在*.example.com的allow列表里
+curl  'http://xxx.example.com/test' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
+```
+
+#### 网关实例级别开启
+
+以下配置将对网关实例级别开启 JWT Auth 认证，所有请求均需要经过认证后才能访问。
+
+```yaml
+global_auth: true
+consumers:
+- name: consumer1
+  issuer: abcd
+  jwks: |
+    {
+      "keys": [
+        {
+          "kty": "oct",
+          "kid": "123",
+          "k": "hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew",
+          "alg": "HS256"
+        }
+      ]
+    }
+- name: consumer2
+  issuer: abc
+  jwks: |
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "e": "AQAB",
+          "use": "sig",
+          "kid": "123",
+          "alg": "RS256",
+          "n": "i0B67f1jggT9QJlZ_8QL9QQ56LfurrqDhpuu8BxtVcfxrYmaXaCtqTn7OfCuca7cGHdrJIjq99rz890NmYFZuvhaZ-LMt2iyiSb9LZJAeJmHf7ecguXS_-4x3hvbsrgUDi9tlg7xxbqGYcrco3anmalAFxsbswtu2PAXLtTnUo6aYwZsWA6ksq4FL3-anPNL5oZUgIp3HGyhhLTLdlQcC83jzxbguOim-0OEz-N4fniTYRivK7MlibHKrJfO3xa_6whBS07HW4Ydc37ZN3Rx9Ov3ZyV0idFblU519nUdqp_inXj1eEpynlxH60Ys_aTU2POGZh_25KXGdF_ZC_MSRw"
+        }
+      ]
+    }
+```
+
+## 常见错误码说明
+
+| HTTP 状态码 | 出错信息               | 原因说明                                                                         |
+| ----------- | ---------------------- | -------------------------------------------------------------------------------- |
+| 401         | Jwt missing            | 请求头未提供JWT                                                                  |
+| 401         | Jwt expired            | JWT已经过期                                                                      |
+| 401         | Jwt verification fails | JWT payload校验失败，如iss不匹配                                                 |
+| 403         | Access Denied          | 无权限访问当前路由                                                               |
+
+## 详细说明
+
+### 1、基于token的认证
+
+#### 1.1 简介
 
 很多对外开放的API需要识别请求者的身份，并据此判断所请求的资源是否可以返回给请求者。token就是一种用于身份验证的机制，基于这种机制，应用不需要在服务端保留用户的认证信息或者会话信息，可实现无状态、分布式的Web应用授权，为应用的扩展提供了便利。
 
-### 1.2 流程描述
+#### 1.2 流程描述
 
 ![](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2336348951/p135822.png)
 
@@ -35,13 +234,13 @@
 
 在这个整个过程中, 网关利用token认证机制，实现了用户使用自己的用户体系对自己API进行授权的能力。下面我们就要介绍网关实现token认证所使用的结构化令牌Json Web Token(JWT)。
 
-### 1.3 JWT
+#### 1.3 JWT
 
-#### 1.3.1 简介
+##### 1.3.1 简介
 
 Json Web Toke（JWT），是为了在网络应用环境间传递声明而执行的一种基于JSON的开放标准RFC7519。JWT一般可以用作独立的身份验证令牌，可以包含用户标识、用户角色和权限等信息，以便于从资源服务器获取资源，也可以增加一些额外的其它业务逻辑所必须的声明信息，特别适用于分布式站点的登录场景。
 
-#### 1.3.2 JWT的构成
+##### 1.3.2 JWT的构成
 
 `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ`
 
@@ -119,11 +318,11 @@ var signature = HMACSHA256(encodedString, '$secret');
 将这三部分用 . 连接成一个完整的字符串，就构成了 1.3.2 节最开始的JWT示例。
 
 
-#### 1.3.3 时效
+##### 1.3.3 时效
 
 网关会验证token中的exp字段，一旦这个字段过期了，网关会认为这个token无效而将请求直接打回。过期时间这个值必须设置。
 
-#### 1.3.4 JWT的几个特点
+##### 1.3.4 JWT的几个特点
 
 1. JWT 默认是不加密，不能将秘密数据写入 JWT。
 2. JWT 不仅可以用于认证，也可以用于交换信息。有效使用 JWT，可以降低服务器查询数据库的次数。
@@ -131,9 +330,9 @@ var signature = HMACSHA256(encodedString, '$secret');
 4. JWT 本身包含了认证信息，一旦泄露，任何人都可以获得该令牌的所有权限。为了减少盗用，JWT 的有效期应该设置得比较短。对于一些比较重要的权限，使用时应该再次对用户进行认证。
 5. 为了减少盗用，JWT 不应该使用 HTTP 协议明码传输，要使用HTTPS 协议传输。
 
-## 2、用户系统如何应用JWT插件保护API
+### 2、用户系统如何应用JWT插件保护API
 
-### 2.1 生成一对JWK（JSON Web 密钥）
+#### 2.1 生成一对JWK（JSON Web 密钥）
 
 **方法一、在线生成：**
 
@@ -162,7 +361,7 @@ final String publicKeyString = rsaJsonWebKey.toJson(JsonWebKey.OutputControlLeve
 final String privateKeyString = rsaJsonWebKey.toJson(JsonWebKey.OutputControlLevel.INCLUDE_PRIVATE);
 ```
 
-### 2.2 使用JWK中的私钥实现颁发token 的认证服务
+#### 2.2 使用JWK中的私钥实现颁发token 的认证服务
 
 需要使用2.1节中在线生成的 Keypair JSON字符串（三个方框内的第一个）或者本地生成的 privateKeyString JSON字符串作为私钥来颁发token，用于授权可信的用户访问受保护的API，具体实现可以参考下方示例。 向客户颁发token的形式由用户根据具体的业务场景决定，可以将颁发token的功能部署到生产环境，配置成普通API后由访问者通过用户名密码获得，也可以直接在本地环境生成token 后，直接拷贝给指定用户使用。
 
@@ -216,187 +415,3 @@ public class GenerateJwtDemo {
     }
 }
 ```
-
-# 插件配置说明
-
-## 配置字段
-
-| 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                        |
-| ----------- | --------------- | ------------------------------------------- | ------ | ----------------------------------------------------------- |
-| `consumers` | array of object | 必填                                        | -      | 配置服务的调用者，用于对请求进行认证                        |
-| `_rules_`   | array of object | 选填                                        | -      | 配置特定路由或域名的访问权限列表，用于对请求进行鉴权        |
-
-`consumers`中每一项的配置字段说明如下：
-
-| 名称                    | 数据类型          | 填写要求 | 默认值                                            | 描述                     |
-| ----------------------- | ----------------- | -------- | ------------------------------------------------- | ------------------------ |
-| `name`                  | string            | 必填     | -                                                 | 配置该consumer的名称     |
-| `jwks`                  | string            | 必填     | -                                                 | https://www.rfc-editor.org/rfc/rfc7517 指定的json格式字符串，是由验证JWT中签名的公钥（或对称密钥）组成的Json Web Key Set  |
-| `issuer`                | string            | 必填     | -                                                 | JWT的签发者，需要和payload中的iss字段保持一致              |
-| `claims_to_headers`     | array of object   | 选填     | -                                                 | 抽取JWT的payload中指定字段，设置到指定的请求头中转发给后端 |
-| `from_headers`          | array of object   | 选填     | {"name":"Authorization","value_prefix":"Bearer "} | 从指定的请求头中抽取JWT |
-| `from_params`           | array of string   | 选填     | access_token                                      | 从指定的URL参数中抽取JWT                                   |
-| `from_cookies`          | array of string   | 选填     | -                                                 | 从指定的cookie中抽取JWT                                    |
-| `clock_skew_seconds`    | number            | 选填     | 60                                                | 校验JWT的exp和iat字段时允许的时钟偏移量，单位为秒          |
-| `keep_token`            | bool              | 选填     | ture                                              | 转发给后端时是否保留JWT                                    |
-
-**注意：** 
-- 只有当`from_headers`,`from_params`,`from_cookies`均未配置时，才会使用默认值
-
-`from_headers` 中每一项的配置字段说明如下：
-
-| 名称             | 数据类型        | 填写要求| 默认值 | 描述                                                      |
-| ---------------- | --------------- | ------- | ------ | --------------------------------------------------------- |
-| `name`           | string          | 必填    | -      | 抽取JWT的请求header                                       |
-| `value_prefix`   | string          | 必填    | -      | 对请求header的value去除此前缀，剩余部分作为JWT            |
-
-`claims_to_headers` 中每一项的配置字段说明如下：
-
-| 名称             | 数据类型        | 填写要求| 默认值 | 描述                                                      |
-| ---------------- | --------------- | ------- | ------ | --------------------------------------------------------- |
-| `claim`          | string          | 必填    | -      | JWT payload中的指定字段，要求必须是字符串或无符号整数类型 |
-| `header`         | string          | 必填    | -      | 从payload取出字段的值设置到这个请求头中，转发给后端       |
-| `override`       | bool            | 选填    | true   | true时，存在同名请求头会进行覆盖；false时，追加同名请求头 |
-
-
-`_rules_` 中每一项的配置字段说明如下：
-
-| 名称             | 数据类型        | 填写要求                                          | 默认值 | 描述                                               |
-| ---------------- | --------------- | ------------------------------------------------- | ------ | -------------------------------------------------- |
-| `_match_route_`  | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的路由名称                               |
-| `_match_domain_` | array of string | 选填，`_match_route_`，`_match_domain_`中选填一项 | -      | 配置要匹配的域名                                   |
-| `allow`          | array of string | 必填                                              | -      | 对于符合匹配条件的请求，配置允许访问的consumer名称 |
-
-**注意：**
-- 若不配置`_rules_`字段，则默认对当前网关实例的所有路由开启认证；
-- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
-
-## 配置示例
-
-### 对特定路由或域名开启
-
-以下配置将对网关特定路由或域名开启 Jwt Auth 认证和鉴权，注意如果一个JWT能匹配多个`jwks`，则按照配置顺序命中第一个匹配的`consumer`
-
-```yaml
-consumers:
-- name: consumer1
-  issuer: abcd
-  jwks: |
-    {
-      "keys": [
-        {
-          "kty": "oct",
-          "kid": "123",
-          "k": "hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew",
-          "alg": "HS256"
-        }
-      ]
-    }
-- name: consumer2
-  issuer: abc
-  jwks: |
-    {
-      "keys": [
-        {
-          "kty": "RSA",
-          "e": "AQAB",
-          "use": "sig",
-          "kid": "123",
-          "alg": "RS256",
-          "n": "i0B67f1jggT9QJlZ_8QL9QQ56LfurrqDhpuu8BxtVcfxrYmaXaCtqTn7OfCuca7cGHdrJIjq99rz890NmYFZuvhaZ-LMt2iyiSb9LZJAeJmHf7ecguXS_-4x3hvbsrgUDi9tlg7xxbqGYcrco3anmalAFxsbswtu2PAXLtTnUo6aYwZsWA6ksq4FL3-anPNL5oZUgIp3HGyhhLTLdlQcC83jzxbguOim-0OEz-N4fniTYRivK7MlibHKrJfO3xa_6whBS07HW4Ydc37ZN3Rx9Ov3ZyV0idFblU519nUdqp_inXj1eEpynlxH60Ys_aTU2POGZh_25KXGdF_ZC_MSRw"
-        }
-      ]
-    }
-# 使用 _rules_ 字段进行细粒度规则配置
-_rules_:
-# 规则一：按路由名称匹配生效
-- _match_route_:
-  - route-a
-  - route-b
-  allow:
-  - consumer1
-# 规则二：按域名匹配生效
-- _match_domain_:
-  - "*.example.com"
-  - test.com
-  allow:
-  - consumer2
-```
-
-此例 `_match_route_` 中指定的 `route-a` 和 `route-b` 即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许`name`为`consumer1`的调用者访问，其他调用者不允许访问；
-
-此例 `_match_domain_` 中指定的 `*.example.com` 和 `test.com` 用于匹配请求的域名，当发现域名匹配时，将允许`name`为`consumer2`的调用者访问，其他调用者不允许访问。
-
-#### 根据该配置，下列请求可以允许访问：
-
-假设以下请求会匹配到route-a这条路由
-
-**将 JWT 设置在 url 参数中**
-```bash
-curl  'http://xxx.hello.com/test?access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
-```
-**将 JWT 设置在 http 请求头中**
-```bash
-curl  http://xxx.hello.com/test -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
-```
-
-认证鉴权通过后，请求的header中会被添加一个`X-Mse-Consumer`字段，在此例中其值为`consumer1`，用以标识调用方的名称
-
-#### 下列请求将拒绝访问：
-
-**请求未提供JWT，返回401**
-```bash
-curl  http://xxx.hello.com/test
-```
-
-**根据请求提供的JWT匹配到的调用者无访问权限，返回403**
-```bash
-# consumer1不在*.example.com的allow列表里
-curl  'http://xxx.example.com/test' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJhYmNkIiwic3ViIjoidGVzdCIsImlhdCI6MTY2NTY2MDUyNywiZXhwIjoxODY1NjczODE5fQ.-vBSV0bKeDwQcuS6eeSZN9dLTUnSnZVk8eVCXdooCQ4'
-```
-
-### 网关实例级别开启
-
-以下配置未指定`_rules_`字段，因此将对网关实例级别开启 JWT Auth 认证
-
-```yaml
-consumers:
-- name: consumer1
-  issuer: abcd
-  jwks: |
-    {
-      "keys": [
-        {
-          "kty": "oct",
-          "kid": "123",
-          "k": "hM0k3AbXBPpKOGg__Ql2Obcq7s60myWDpbHXzgKUQdYo7YCRp0gUqkCnbGSvZ2rGEl4YFkKqIqW7mTHdj-bcqXpNr-NOznEyMpVPOIlqG_NWVC3dydBgcsIZIdD-MR2AQceEaxriPA_VmiUCwfwL2Bhs6_i7eolXoY11EapLQtutz0BV6ZxQQ4dYUmct--7PLNb4BWJyQeWu0QfbIthnvhYllyl2dgeLTEJT58wzFz5HeNMNz8ohY5K0XaKAe5cepryqoXLhA-V-O1OjSG8lCNdKS09OY6O0fkyweKEtuDfien5tHHSsHXoAxYEHPFcSRL4bFPLZ0orTt1_4zpyfew",
-          "alg": "HS256"
-        }
-      ]
-    }
-- name: consumer2
-  issuer: abc
-  jwks: |
-    {
-      "keys": [
-        {
-          "kty": "RSA",
-          "e": "AQAB",
-          "use": "sig",
-          "kid": "123",
-          "alg": "RS256",
-          "n": "i0B67f1jggT9QJlZ_8QL9QQ56LfurrqDhpuu8BxtVcfxrYmaXaCtqTn7OfCuca7cGHdrJIjq99rz890NmYFZuvhaZ-LMt2iyiSb9LZJAeJmHf7ecguXS_-4x3hvbsrgUDi9tlg7xxbqGYcrco3anmalAFxsbswtu2PAXLtTnUo6aYwZsWA6ksq4FL3-anPNL5oZUgIp3HGyhhLTLdlQcC83jzxbguOim-0OEz-N4fniTYRivK7MlibHKrJfO3xa_6whBS07HW4Ydc37ZN3Rx9Ov3ZyV0idFblU519nUdqp_inXj1eEpynlxH60Ys_aTU2POGZh_25KXGdF_ZC_MSRw"
-        }
-      ]
-    }
-```
-
-# 常见错误码说明
-
-| HTTP 状态码 | 出错信息               | 原因说明                                                                         |
-| ----------- | ---------------------- | -------------------------------------------------------------------------------- |
-| 401         | Jwt missing            | 请求头未提供JWT                                                                  |
-| 401         | Jwt expired            | JWT已经过期                                                                      |
-| 401         | Jwt verification fails | JWT payload校验失败，如iss不匹配                                                 |
-| 403         | Access Denied          | 无权限访问当前路由                                                               |
-

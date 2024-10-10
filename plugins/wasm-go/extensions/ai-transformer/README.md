@@ -1,7 +1,19 @@
-# 简介
-低代码开发插件，通过LLM对请求/响应的header以及body进行修改。
+---
+title: AI 请求响应转换
+keywords: [higress,AI transformer]
+description: AI 请求响应转换插件配置参考
+---
 
-# 配置说明
+
+## 功能说明
+AI 请求响应转换插件，通过LLM对请求/响应的header以及body进行修改。
+
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`410`
+
+## 配置说明
 | Name | Type | Requirement | Default | Description |
 | :- | :-  | :-  | :- | :- |
 | request.enable | bool | requried | - | 是否在request阶段开启转换 |
@@ -12,7 +24,7 @@
 | provider.domain | string | requried | - | LLM服务域名 |
 | provider.apiKey | string | requried | - | 阿里云dashscope服务的API Key |
 
-# 配置示例
+## 配置示例
 ```yaml
 request:
     enable: false
