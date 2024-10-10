@@ -13,6 +13,7 @@
 // limitations under the License.
 
 pub mod cluster_wrapper;
+pub mod dispatcher;
 pub mod error;
 pub mod hostcalls;
 pub mod log;
