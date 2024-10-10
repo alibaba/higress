@@ -45,7 +45,7 @@ struct HttpDispatchExampleConfig {}
 impl HttpDispatchExampleRoot {
     fn new() -> Self {
         HttpDispatchExampleRoot {
-            log: Rc::new(Log::new("http-promise-example".to_string())),
+            log: Rc::new(Log::new("http-dispatch-example".to_string())),
             rule_matcher: rule_matcher::new_shared(),
         }
     }
