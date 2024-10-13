@@ -152,7 +152,7 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 			}
 			endpoint = &v1alpha3.WorkloadEntry{
 				Address: pair[0],
-				Ports:   map[string]uint32{"http": uint32(port)},
+				Ports:   map[string]uint32{w.Protocol: uint32(port)},
 			}
 		} else if w.Type == string(registry.DNS) {
 			if !domainRegex.MatchString(ep) {
