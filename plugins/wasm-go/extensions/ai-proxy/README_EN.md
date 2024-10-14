@@ -656,6 +656,16 @@ providers:
   timeout: 1200000
 ```
 
+### Using original Protocol Proxy for Coze applications
+
+```yaml
+provider:
+  type: coze
+  apiTokens:
+    - YOUR_COZE_API_KEY
+  protocol: original
+```
+
 ### Utilizing Moonshot with its Native File Context
 
 Upload files to Moonshot in advance and use its AI services based on file content.
