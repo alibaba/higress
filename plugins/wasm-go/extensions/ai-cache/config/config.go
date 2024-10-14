@@ -95,9 +95,17 @@ func (c *PluginConfig) Validate() error {
 			return err
 		}
 	}
-	if err := c.vectorProviderConfig.Validate(); err != nil {
-		return err
+	if c.vectorProviderConfig.GetProviderType() != "" {
+		if err := c.vectorProviderConfig.Validate(); err != nil {
+			return err
+		}
 	}
+
+	// vector 和 embedding 不能同时为空
+	if c.vectorProviderConfig.GetProviderType() == "" && c.embeddingProviderConfig.GetProviderType() == "" {
+		return fmt.Errorf("vector and embedding provider cannot be both empty")
+	}
+
 	// 验证 CacheKeyStrategy 的值
 	if c.CacheKeyStrategy != "lastQuestion" && c.CacheKeyStrategy != "allQuestions" && c.CacheKeyStrategy != "disable" {
 		return fmt.Errorf("invalid CacheKeyStrategy: %s", c.CacheKeyStrategy)
