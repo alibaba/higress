@@ -328,14 +328,14 @@ func tracingClusterName(port, service string) string {
 }
 
 func (t *TracingController) constructHTTP2ProtocolOptionsPatch(port, service string) *networking.EnvoyFilter_EnvoyConfigObjectPatch {
-	http2ProtocolOptions := fmt.Sprintf(`{"typed_extension_protocol_options": {
+	http2ProtocolOptions := `{"typed_extension_protocol_options": {
   "envoy.extensions.upstreams.http.v3.HttpProtocolOptions": {
       "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
 		  "explicit_http_config": {
 		        "http2_protocol_options": {}
 		  }
   }
-}}`)
+}}`
 
 	return &networking.EnvoyFilter_EnvoyConfigObjectPatch{
 		ApplyTo: networking.EnvoyFilter_CLUSTER,
