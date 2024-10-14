@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/cache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
@@ -24,10 +26,18 @@ type PluginConfig struct {
 	vectorProviderConfig    vector.ProviderConfig
 	cacheProviderConfig     cache.ProviderConfig
 
-	CacheKeyFrom         string
+	// CacheKeyFrom         string
 	CacheValueFrom       string
 	CacheStreamValueFrom string
 	CacheToolCallsFrom   string
+
+	// @Title zh-CN 启用语义化缓存
+	// @Description zh-CN 控制是否启用语义化缓存功能。true 表示启用，false 表示禁用。
+	EnableSemanticCache bool
+
+	// @Title zh-CN 缓存键策略
+	// @Description zh-CN 决定如何生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存)
+	CacheKeyStrategy string
 }
 
 func (c *PluginConfig) FromJson(json gjson.Result) {
@@ -35,10 +45,14 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.embeddingProviderConfig.FromJson(json.Get("embedding"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
 
-	c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
-	if c.CacheKeyFrom == "" {
-		c.CacheKeyFrom = "messages.@reverse.0.content"
+	c.CacheKeyStrategy = json.Get("cacheKeyStrategy").String()
+	if c.CacheKeyStrategy == "" {
+		c.CacheKeyStrategy = "lastQuestion" // 设置默认值
 	}
+	// c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
+	// if c.CacheKeyFrom == "" {
+	// 	c.CacheKeyFrom = "messages.@reverse.0.content"
+	// }
 	c.CacheValueFrom = json.Get("cacheValueFrom").String()
 	if c.CacheValueFrom == "" {
 		c.CacheValueFrom = "choices.0.message.content"
@@ -60,6 +74,13 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	if c.ResponseTemplate == "" {
 		c.ResponseTemplate = `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	}
+
+	// 默认值为 true
+	if json.Get("enableSemanticCache").Exists() {
+		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
+	} else {
+		c.EnableSemanticCache = true // 设置默认值为 true
+	}
 }
 
 func (c *PluginConfig) Validate() error {
@@ -76,6 +97,16 @@ func (c *PluginConfig) Validate() error {
 	}
 	if err := c.vectorProviderConfig.Validate(); err != nil {
 		return err
+	}
+	// 验证 CacheKeyStrategy 的值
+	if c.CacheKeyStrategy != "lastQuestion" && c.CacheKeyStrategy != "allQuestions" && c.CacheKeyStrategy != "disable" {
+		return fmt.Errorf("invalid CacheKeyStrategy: %s", c.CacheKeyStrategy)
+	}
+	// 如果启用了语义化缓存，确保必要的组件已配置
+	if c.EnableSemanticCache {
+		if c.embeddingProviderConfig.GetProviderType() == "" {
+			return fmt.Errorf("semantic cache is enabled but embedding provider is not configured")
+		}
 	}
 	return nil
 }

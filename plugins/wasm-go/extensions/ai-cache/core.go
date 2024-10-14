@@ -46,7 +46,8 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 	if err := response.Error(); err != nil {
 		log.Errorf("Error retrieving key: %s from cache, error: %v", key, err)
 	}
-	if useSimilaritySearch {
+
+	if useSimilaritySearch && config.EnableSemanticCache {
 		if err := performSimilaritySearch(key, ctx, config, log, key, stream); err != nil {
 			log.Errorf("Failed to perform similarity search for key: %s, error: %v", key, err)
 			proxywasm.ResumeHttpRequest()
@@ -166,12 +167,16 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 			// direct return the answer if available
 			processCacheHit(key, mostSimilarData.Answer, stream, ctx, config, log)
 		} else {
-			// otherwise, continue to check cache for the most similar key
-			err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
-			if err != nil {
-				log.Errorf("check cache for key: %s failed, error: %v", mostSimilarData.Text, err)
-				proxywasm.ResumeHttpRequest()
-			}
+			// // otherwise, continue to check cache for the most similar key
+			// err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
+			// if err != nil {
+			// 	log.Errorf("check cache for key: %s failed, error: %v", mostSimilarData.Text, err)
+			// 	proxywasm.ResumeHttpRequest()
+			// }
+
+			// Otherwise, do not check the cache, directly return
+			log.Warnf("No cache hit for key: %s, however, no answer found in vector database", mostSimilarData.Text)
+			proxywasm.ResumeHttpRequest()
 		}
 	} else {
 		log.Infof("Score too high for key: %s with score: %f above threshold", mostSimilarData.Text, mostSimilarData.Score)

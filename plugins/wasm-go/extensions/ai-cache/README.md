@@ -23,6 +23,18 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 ## 配置说明
 配置分为 3 个部分：向量数据库（vector）；文本向量化接口（embedding）；缓存数据库（cache），同时也提供了细粒度的 LLM 请求/响应提取参数配置等。
 
+## 配置说明
+
+首先本插件必须配置向量数据库服务（vector），然后根据向量数据库服务类型来决定是否配置文本向量化接口（embedding）来将问题转换为向量，最后根据缓存服务类型来决定是否配置缓存服务（cache）来缓存LLM的回答。
+
+| Name | Type | Requirement | Default | Description |
+| --- | --- | --- | --- | --- |
+| vector.type | string | required | "" | 向量存储服务提供者类型，例如 DashVector |
+| embedding.type | string | optional | "" | 请求文本向量化服务类型，例如 DashScope |
+| cache.type | string | optional | "" | 缓存服务类型，例如 redis |
+| cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存) |
+| enableSemanticCache | bool | optional | true | 是否启用语义化缓存, 若不启用，则使用逐字匹配的方式来查找缓存，此时需要配置cache服务 |
+
 ## 向量数据库服务（vector）
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |

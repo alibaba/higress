@@ -92,7 +92,29 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
 	}
 
-	key := bodyJson.Get(config.CacheKeyFrom).String()
+	var key string
+	if config.CacheKeyStrategy == "lastQuestion" {
+		key = bodyJson.Get("messages.@reverse.0.content").String()
+	} else if config.CacheKeyStrategy == "allQuestions" {
+		// Retrieve all user messages and concatenate them
+		messages := bodyJson.Get("messages").Array()
+		var userMessages []string
+		for _, msg := range messages {
+			if msg.Get("role").String() == "user" {
+				userMessages = append(userMessages, msg.Get("content").String())
+			}
+		}
+		key = strings.Join(userMessages, " ")
+	} else if config.CacheKeyStrategy == "disable" {
+		log.Debugf("[onHttpRequestBody] cache key strategy is disabled")
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	} else {
+		log.Warnf("[onHttpRequestBody] unknown cache key strategy: %s", config.CacheKeyStrategy)
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
+
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, key)
 	log.Debugf("[onHttpRequestBody] key: %s", key)
 	if key == "" {
@@ -121,11 +143,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	log.Debugf("[onHttpResponseBody] escaped chunk: %q", string(chunk))
 	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
 
-	// if strings.HasSuffix(string(chunk), "[DONE] \n\n") {
-	// 	isLastChunk = true
-	// }
-
-	// If the context contains TOOL_CALLS_CONTEXT_KEY, bypass caching
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		return chunk
 	}

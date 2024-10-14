@@ -157,7 +157,7 @@ func (d *DvProvider) QueryEmbedding(
 	return err
 }
 
-func checkField(fields map[string]interface{}, key string) string {
+func getStringValue(fields map[string]interface{}, key string) string {
 	if val, ok := fields[key]; ok {
 		return val.(string)
 	}
@@ -178,10 +178,10 @@ func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpCon
 
 	for _, output := range resp.Output {
 		result := QueryResult{
-			Text:      checkField(output.Fields, "query"),
+			Text:      getStringValue(output.Fields, "query"),
 			Embedding: output.Vector,
 			Score:     output.Score,
-			Answer:    checkField(output.Fields, "answer"),
+			Answer:    getStringValue(output.Fields, "answer"),
 		}
 		results = append(results, result)
 	}
