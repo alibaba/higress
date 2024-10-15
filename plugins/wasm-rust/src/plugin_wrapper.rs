@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use crate::cluster_wrapper::Cluster;
@@ -188,13 +190,14 @@ pub struct PluginHttpWrapper<PluginConfig, HttpCallArg = ()> {
     res_body_len: usize,
     config: Option<PluginConfig>,
     rule_matcher: SharedRuleMatcher<PluginConfig>,
-    http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
+    http_content: Rc<RefCell<Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>>>,
 }
 impl<PluginConfig, HttpCallArg> PluginHttpWrapper<PluginConfig, HttpCallArg> {
     pub fn new(
         rule_matcher: &SharedRuleMatcher<PluginConfig>,
         http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
     ) -> Self {
+        let rc_content = Rc::new(RefCell::new(http_content));
         PluginHttpWrapper {
             req_headers: MultiMap::new(),
             res_headers: MultiMap::new(),
@@ -202,11 +205,11 @@ impl<PluginConfig, HttpCallArg> PluginHttpWrapper<PluginConfig, HttpCallArg> {
             res_body_len: 0,
             config: None,
             rule_matcher: rule_matcher.clone(),
-            http_content,
+            http_content: rc_content,
         }
     }
     fn get_http_call_arg(&mut self, token_id: u32) -> Option<HttpCallArg> {
-        if let Some(storage) = self.http_content.get_http_call_storage() {
+        if let Some(storage) = self.http_content.borrow_mut().get_http_call_storage() {
             storage.pop(token_id)
         } else {
             None
@@ -235,6 +238,7 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
                                 normal_response = true;
                             } else {
                                 self.http_content
+                                    .borrow()
                                     .log()
                                     .error(&format!("failed to parse status: {}", header_value));
                                 status_code = 500;
@@ -243,18 +247,18 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
                         headers.insert(k, header_value);
                     }
                     Err(_) => {
-                        self.http_content.log().warn(&format!(
+                        self.http_content.borrow().log().warn(&format!(
                             "http call response header contains non-ASCII characters header: {}",
                             k
                         ));
                     }
                 }
             }
-            self.http_content.log().warn(&format!(
+            self.http_content.borrow().log().warn(&format!(
                 "http call end, id: {}, code: {}, normal: {}, body: {:?}",
                 token_id, status_code, normal_response, body
             ));
-            self.http_content.on_http_call_response_detail(
+            self.http_content.borrow_mut().on_http_call_response_detail(
                 token_id,
                 arg,
                 status_code,
@@ -262,34 +266,43 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
                 body,
             )
         } else {
-            self.http_content
-                .on_http_call_response(token_id, num_headers, body_size, num_trailers)
+            self.http_content.borrow_mut().on_http_call_response(
+                token_id,
+                num_headers,
+                body_size,
+                num_trailers,
+            )
         }
     }
 
     fn on_grpc_call_response(&mut self, token_id: u32, status_code: u32, response_size: usize) {
         self.http_content
+            .borrow_mut()
             .on_grpc_call_response(token_id, status_code, response_size)
     }
     fn on_grpc_stream_initial_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_initial_metadata(token_id, num_elements)
     }
     fn on_grpc_stream_message(&mut self, token_id: u32, message_size: usize) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_message(token_id, message_size)
     }
     fn on_grpc_stream_trailing_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_trailing_metadata(token_id, num_elements)
     }
     fn on_grpc_stream_close(&mut self, token_id: u32, status_code: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_close(token_id, status_code)
     }
 
     fn on_done(&mut self) -> bool {
-        self.http_content.on_done()
+        self.http_content.borrow_mut().on_done()
     }
 }
 impl<PluginConfig, HttpCallArg> HttpContext for PluginHttpWrapper<PluginConfig, HttpCallArg>
@@ -306,7 +319,7 @@ where
                     self.req_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.log().warn(&format!(
+                    self.http_content.borrow().log().warn(&format!(
                         "request http header contains non-ASCII characters header: {}",
                         k
                     ));
@@ -315,22 +328,25 @@ where
         }
 
         if let Some(config) = &self.config {
-            self.http_content.on_config(config);
+            self.http_content.borrow_mut().on_config(config);
         }
         let ret = self
             .http_content
+            .borrow_mut()
             .on_http_request_headers(num_headers, end_of_stream);
         if ret != HeaderAction::Continue {
             return ret;
         }
         self.http_content
+            .borrow_mut()
             .on_http_request_complete_headers(&self.req_headers)
     }
 
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if !self.http_content.cache_request_body() {
+        if !self.http_content.borrow().cache_request_body() {
             return self
                 .http_content
+                .borrow_mut()
                 .on_http_request_body(body_size, end_of_stream);
         }
         self.req_body_len += body_size;
@@ -343,11 +359,15 @@ where
                 req_body = body;
             }
         }
-        self.http_content.on_http_request_complete_body(&req_body)
+        self.http_content
+            .borrow_mut()
+            .on_http_request_complete_body(&req_body)
     }
 
     fn on_http_request_trailers(&mut self, num_trailers: usize) -> Action {
-        self.http_content.on_http_request_trailers(num_trailers)
+        self.http_content
+            .borrow_mut()
+            .on_http_request_trailers(num_trailers)
     }
 
     fn on_http_response_headers(
@@ -361,7 +381,7 @@ where
                     self.res_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.log().warn(&format!(
+                    self.http_content.borrow().log().warn(&format!(
                         "response http header contains non-ASCII characters header: {}",
                         k
                     ));
@@ -371,18 +391,21 @@ where
 
         let ret = self
             .http_content
+            .borrow_mut()
             .on_http_response_headers(num_headers, end_of_stream);
         if ret != HeaderAction::Continue {
             return ret;
         }
         self.http_content
+            .borrow_mut()
             .on_http_response_complete_headers(&self.res_headers)
     }
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if !self.http_content.cache_response_body() {
+        if !self.http_content.borrow().cache_response_body() {
             return self
                 .http_content
+                .borrow_mut()
                 .on_http_response_body(body_size, end_of_stream);
         }
         self.res_body_len += body_size;
@@ -397,14 +420,18 @@ where
                 res_body = body;
             }
         }
-        self.http_content.on_http_response_complete_body(&res_body)
+        self.http_content
+            .borrow_mut()
+            .on_http_response_complete_body(&res_body)
     }
 
     fn on_http_response_trailers(&mut self, num_trailers: usize) -> Action {
-        self.http_content.on_http_response_trailers(num_trailers)
+        self.http_content
+            .borrow_mut()
+            .on_http_response_trailers(num_trailers)
     }
 
     fn on_log(&mut self) {
-        self.http_content.on_log()
+        self.http_content.borrow_mut().on_log()
     }
 }
