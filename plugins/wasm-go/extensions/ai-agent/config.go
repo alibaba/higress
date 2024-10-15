@@ -416,15 +416,11 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 func initJsonResp(gjson gjson.Result, c *PluginConfig) {
 	c.JsonResp.Enable = false
 	if c.JsonResp.Enable = gjson.Get("jsonResp.enable").Bool(); c.JsonResp.Enable {
+		c.JsonResp.JsonSchema = nil
 		if jsonSchemaValue := gjson.Get("jsonResp.jsonSchema"); jsonSchemaValue.Exists() {
 			if schemaValue, ok := jsonSchemaValue.Value().(map[string]interface{}); ok {
 				c.JsonResp.JsonSchema = schemaValue
-
-			} else {
-				c.JsonResp.JsonSchema = nil
 			}
-		} else {
-			c.JsonResp.JsonSchema = nil
 		}
 	}
 }

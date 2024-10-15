@@ -79,7 +79,7 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 		log.Debugf("[onHttpRequestBody] newRequestBody: %s", string(newbody))
 		err := proxywasm.ReplaceHttpRequestBody(newbody)
 		if err != nil {
-			log.Debug("failed replace")
+			log.Debugf("failed replace err: %s", err.Error())
 			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, "替换失败"+err.Error())), -1)
 		}
 		log.Debug("[onHttpRequestBody] replace request success")
@@ -184,7 +184,7 @@ func extractJson(bodyStr string) (string, error) {
 	endIndex := strings.LastIndex(bodyStr, "}") + 1
 
 	// if not found
-	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
+	if startIndex == -1 || startIndex >= endIndex {
 		return "", errors.New("cannot find json in the response body")
 	}
 
@@ -199,14 +199,10 @@ func extractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func jsonFormat(config PluginConfig, assistantMessage Message, actionInput string, headers [][2]string, stream bool, rawResponse Response, log wrapper.Log) string {
+func jsonFormat(config PluginConfig, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
 	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, config.JsonResp.JsonSchema, actionInput)
 
-	var message dashscope.Message
-	message.Role = "user"
-	message.Content = prompt
-	messages := make([]dashscope.Message, 0)
-	messages = append(messages, message)
+	messages := []dashscope.Message{{Role: "user", Content: prompt}}
 
 	completion := dashscope.Completion{
 		Model:    config.LLMInfo.Model,
@@ -231,10 +227,10 @@ func jsonFormat(config PluginConfig, assistantMessage Message, actionInput strin
 				jsonStr = content
 			}
 
-			if stream {
-				streamResponse(jsonStr, rawResponse, log)
+			if streamMode {
+				stream(jsonStr, rawResponse, log)
 			} else {
-				noneStreamResponse(assistantMessage, jsonStr, rawResponse, log)
+				noneStream(assistantMessage, jsonStr, rawResponse, log)
 			}
 		}, uint32(config.LLMInfo.MaxExecutionTime))
 	if err != nil {
@@ -244,7 +240,7 @@ func jsonFormat(config PluginConfig, assistantMessage Message, actionInput strin
 	return content
 }
 
-func noneStreamResponse(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
+func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
 	assistantMessage.Role = "assistant"
 	assistantMessage.Content = actionInput
 	rawResponse.Choices[0].Message = assistantMessage
@@ -260,7 +256,7 @@ func noneStreamResponse(assistantMessage Message, actionInput string, rawRespons
 	}
 }
 
-func streamResponse(actionInput string, rawResponse Response, log wrapper.Log) {
+func stream(actionInput string, rawResponse Response, log wrapper.Log) {
 	headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
 	proxywasm.ReplaceHttpResponseHeaders(headers)
 	// Remove quotes from actionInput
@@ -308,20 +304,20 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 				if retType == types.ActionContinue {
 					//得到了Final Answer
 					var assistantMessage Message
-					var stream bool
+					var streamMode bool
 					if ctx.GetContext(StreamContextKey) == nil {
-						stream = false
-						if config.JsonResp.Enable {
-							jsonFormat(config, assistantMessage, actionInput, headers, stream, rawResponse, log)
-						} else {
-							noneStreamResponse(assistantMessage, actionInput, rawResponse, log)
-						}
+						streamMode = false
 					} else {
-						stream = true
-						if config.JsonResp.Enable {
-							jsonFormat(config, assistantMessage, actionInput, headers, stream, rawResponse, log)
+						streamMode = true
+					}
+
+					if config.JsonResp.Enable {
+						jsonFormat(config, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
+					} else {
+						if streamMode {
+							stream(actionInput, rawResponse, log)
 						} else {
-							streamResponse(actionInput, rawResponse, log)
+							noneStream(assistantMessage, actionInput, rawResponse, log)
 						}
 					}
 				}
@@ -446,15 +442,19 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 				for i, part := range urlParts {
 					if strings.Contains(part, "{") && strings.Contains(part, "}") {
 						for _, param := range tools_param.ParamName {
-							if value, ok := data[param]; ok {
-								// 删除已经使用过的
-								delete(data, param)
-								// 替换模板中的占位符
-								urlParts[i] = value.(string)
+							paramNameInPath := part[1 : len(part)-1]
+							if paramNameInPath == param {
+								if value, ok := data[param]; ok {
+									// 删除已经使用过的
+									delete(data, param)
+									// 替换模板中的占位符
+									urlParts[i] = value.(string)
+								}
 							}
 						}
 					}
 				}
+
 				// 重新组合URL
 				url = strings.Join(urlParts, "/")
 

@@ -301,7 +301,7 @@ deepl提供了一个工具，用于翻译给定的句子，支持多语言。。
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"我想在济南市鑫盛大厦附近喝咖啡，给我推荐几个"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -316,7 +316,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"济南市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -331,7 +331,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role": "user","content": "济南的天气如何？"},{ "role": "assistant","content": "目前，济南市的天气为多云，气温为24℃，数据更新时间为2024年9月12日21时50分14秒。"},{"role": "user","content": "北京呢？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -346,7 +346,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"济南市现在的天气情况如何？用华氏度表示，用日语回答"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -361,7 +361,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"帮我用德语翻译以下句子：九头蛇万岁!"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -385,7 +385,7 @@ jsonResp:
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"北京市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -403,7 +403,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 ```yaml
 jsonResp:
   enable: true
-  jsonSchema:
+  jsonSchema: |
     title: WeatherSchema
     type: object
     properties:
@@ -429,7 +429,7 @@ jsonResp:
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"北京市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
