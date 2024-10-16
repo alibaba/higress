@@ -107,6 +107,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
 	if !util.IsGrayEnabled(grayConfig) {
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
@@ -117,6 +118,9 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if !isPageRequest {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	} else {
+		// 不会进去Streaming 的Body处理
+		ctx.BufferResponseBody()
 	}
 
 	status, err := proxywasm.GetHttpResponseHeader(":status")
@@ -159,8 +163,6 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		return types.ActionContinue
 	}
 
-	// 不会进去Streaming 的Body处理
-	ctx.BufferResponseBody()
 	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
 
 	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
