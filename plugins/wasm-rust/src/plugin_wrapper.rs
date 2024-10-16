@@ -36,7 +36,7 @@ thread_local! {
 
 pub trait RootContextWrapper<PluginConfig>: RootContext
 where
-    PluginConfig: Default + DeserializeOwned + 'static + Clone,
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
 {
     // fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
     fn create_http_context_use_wrapper(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
@@ -173,6 +173,7 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
         }
     }
 }
+downcast_rs::impl_downcast!(HttpContextWrapper<PluginConfig>);
 pub struct PluginHttpWrapper<PluginConfig> {
     req_headers: MultiMap<String, String>,
     res_headers: MultiMap<String, String>,
@@ -182,7 +183,10 @@ pub struct PluginHttpWrapper<PluginConfig> {
     rule_matcher: SharedRuleMatcher<PluginConfig>,
     http_content: Rc<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
 }
-impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
+impl<PluginConfig> PluginHttpWrapper<PluginConfig>
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
     pub fn new(
         rule_matcher: &SharedRuleMatcher<PluginConfig>,
         http_content: Box<dyn HttpContextWrapper<PluginConfig>>,
@@ -205,7 +209,10 @@ impl<PluginConfig> PluginHttpWrapper<PluginConfig> {
         HTTP_CALLBACK_DISPATCHER.with(|dispatcher| dispatcher.pop(token_id))
     }
 }
-impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
+impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig>
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
     fn on_http_call_response(
         &mut self,
         token_id: u32,
@@ -290,7 +297,7 @@ impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig> {
 }
 impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
 where
-    PluginConfig: Default + DeserializeOwned + Clone,
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
 {
     fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
