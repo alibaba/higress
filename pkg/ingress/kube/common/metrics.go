@@ -55,11 +55,16 @@ var (
 		"Total invalid ingresses known to pilot.",
 		monitoring.WithLabels(clusterTag, invalidType),
 	)
+
+	queryK8sVersionFail = monitoring.NewSum(
+		"pilot_query_k8s_version_fail",
+		"query k8s version of remote cluster fail number")
 )
 
 func init() {
 	monitoring.MustRegister(totalIngresses)
 	monitoring.MustRegister(totalInvalidIngress)
+	monitoring.MustRegister(queryK8sVersionFail)
 }
 
 func RecordIngressNumber(cluster cluster.ID, number int) {
