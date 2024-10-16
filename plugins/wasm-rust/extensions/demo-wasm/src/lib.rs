@@ -101,30 +101,29 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
                 return DataAction::Continue;
             }
         };
-        if self
-            .http_call(
-                &cluster,
-                &Method::POST,
-                "http://httpbin.org/post",
-                MultiMap::new(),
-                Some("test_body".as_bytes()),
-                Box::new(move |status_code, headers, body| {
-                    self_rc.borrow().log().info(&format!(
-                        "test_callback status_code:{}, headers: {:?}, body: {}",
-                        status_code,
-                        headers,
-                        format_body(body)
-                    ));
-                    self_rc.borrow_mut().reset_http_request();
-                }),
-                Duration::from_secs(5),
-            )
-            .is_ok()
-        {
-            DataAction::StopIterationAndBuffer
-        } else {
-            self.log.info("http_call fail");
-            DataAction::Continue
+        let http_call_res = self.http_call(
+            &cluster,
+            &Method::POST,
+            "http://httpbin.org/post",
+            MultiMap::new(),
+            Some("test_body".as_bytes()),
+            Box::new(move |status_code, headers, body| {
+                self_rc.borrow().log().info(&format!(
+                    "test_callback status_code:{}, headers: {:?}, body: {}",
+                    status_code,
+                    headers,
+                    format_body(body)
+                ));
+                self_rc.borrow_mut().reset_http_request();
+            }),
+            Duration::from_secs(5),
+        );
+        match http_call_res {
+            Ok(_) => DataAction::StopIterationAndBuffer,
+            Err(e) => {
+                self.log.info(&format!("http_call fail {:?}", e));
+                DataAction::Continue
+            }
         }
     }
     fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> DataAction {
