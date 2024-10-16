@@ -121,7 +121,7 @@ TEST_F(KeyAuthTest, InQuery) {
   "_rules_": [
     {
       "_match_route_": ["test"],
-      "credentials":["abc"],
+      "credentials":["abc","def"],
       "keys": ["apiKey", "x-api-key"]
     }
   ]  
@@ -144,6 +144,10 @@ TEST_F(KeyAuthTest, InQuery) {
   path_ = "/test?hello=123&apiKey=123";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
+
+  path_ = "/test?hello=123&apiKey=123&x-api-key=def";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
 }
 
 TEST_F(KeyAuthTest, InQueryWithConsumer) {
@@ -171,6 +175,29 @@ TEST_F(KeyAuthTest, InQueryWithConsumer) {
   path_ = "/test?hello=123&apiKey=123";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, EmptyConsumer) {
+  std::string configuration = R"(
+{
+  "consumers" : [],
+  "keys" : [ "apiKey", "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : []} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?hello=1&apiKey=abc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  route_name_ = "test2";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
 }
 
 TEST_F(KeyAuthTest, InHeader) {
@@ -238,6 +265,40 @@ TEST_F(KeyAuthTest, InHeaderWithConsumer) {
   key_header_ = "123";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, ConsumerDifferentKey) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "abc", "name" : "consumer1", "keys" : [ "apiKey" ]}, {"credential" : "123", "name" : "consumer2"} ],
+  "keys" : [ "apiKey2" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : ["consumer1"]}, {"_match_route_" : ["test2"], "allow" : ["consumer2"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?hello=1&apiKey=abc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+
+  route_name_ = "test";
+  path_ = "/test?hello=1&apiKey2=abc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  route_name_ = "test";
+  path_ = "/test?hello=123&apiKey2=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  route_name_ = "test2";
+  path_ = "/test?hello=123&apiKey2=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
 }
 
 }  // namespace key_auth
