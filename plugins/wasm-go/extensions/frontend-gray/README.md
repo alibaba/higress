@@ -17,7 +17,7 @@ description: 前端灰度插件配置参考
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                                 |
 |----------------|--------------|----|-----|----------------------------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
-| `localStorageGrayKey`         | string       | 非必填 | -   | 使用JWT鉴权方式，用户ID的唯一标识来自`localStorage`中 |
+| `localStorageGrayKey`         | string       | 非必填 | -   | 使用JWT鉴权方式，用户ID的唯一标识来自`localStorage`中，如果配置了当前参数，则`grayKey`失效 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
 | `userStickyMaxAge`         | int       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
 | `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景   |
@@ -170,7 +170,7 @@ cookie存在`appInfo`的JSON数据，其中包含`userId`字段为当前的唯�
 否则使用`version: base`版本
 
 ### 用户信息存储在LocalStorage
-由于网关插件需要识别用户为唯一身份信息，HTTP协议进行信息传输，只能在Header中传递。如果用户信息存储在LocalStorage，在首页注入一段脚本，获取到LocalStorage中的用户信息，并设置到cookie中。
+由于网关插件需要识别用户为唯一身份信息，HTTP协议进行信息传输，只能在Header中传递。如果用户信息存储在LocalStorage，在首页注入一段脚本将LocalStorage中的用户信息设置到cookie中。
 ```
 (function() {
 	var grayKey = '@@X_GRAY_KEY';

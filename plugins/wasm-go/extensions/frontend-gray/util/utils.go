@@ -148,7 +148,10 @@ func IndexRewrite(path, version string, matchRules map[string]string) string {
 		keys = append(keys, prefix)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		return len(keys[i]) > len(keys[j])
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j]) // Sort by length
+		}
+		return keys[i] < keys[j] // Sort lexicographically
 	})
 
 	// Iterate over sorted keys to find the longest match
