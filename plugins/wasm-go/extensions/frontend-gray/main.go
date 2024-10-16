@@ -28,7 +28,7 @@ func main() {
 func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
 	// 解析json 为GrayConfig
 	config.JsonToGrayConfig(json, grayConfig)
-	log.Infof("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
+	log.Debugf("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
 	return nil
 }
 
@@ -184,6 +184,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	if !ok {
 		isPageRequest = false // 默认值
 	}
+	// 只处理首页相关请求
+	if !isPageRequest {
+		return types.ActionContinue
+	}
+
 	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 	isNotFound, ok := ctx.GetContext(config.IsNotFound).(bool)
 	if !ok {
@@ -212,7 +217,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionContinue
 	}
 
-	if isPageRequest && isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	// 针对404页面处理
+	if isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 
 		client.Get(strings.Replace(grayConfig.Rewrite.NotFound, "{version}", frontendVersion, -1), nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -222,17 +228,19 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionPause
 	}
 
-	if isPageRequest {
-		// 将原始字节转换为字符串
-		newBody := string(body)
-
-		newBody = util.InjectContent(newBody, grayConfig.Injection)
-
-		if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
-			return types.ActionContinue
-		}
+	// 处理响应体HTML
+	newBody := string(body)
+	newBody = util.InjectContent(newBody, grayConfig.Injection)
+	if grayConfig.LocalStorageGrayKey != "" {
+		localStr := strings.ReplaceAll(`<script>
+		!function(){var o="@@X_GRAY_KEY",e=document.cookie.split("; ").filter(function(e){return 0===e.indexOf(o+"=")});try{if("undefined"!=typeof localStorage&&null!==localStorage){var t=localStorage.getItem(o),n=e.length>0?decodeURIComponent(e[0].split("=")[1]):null;t&&(document.cookie=o+"="+encodeURIComponent(t)+"; path=/;",n!==t&&window.location.reload())}}catch(l){}}();
+		</script>
+		`, "@@X_GRAY_KEY", grayConfig.LocalStorageGrayKey)
+		newBody = strings.ReplaceAll(newBody, "<body>", "<body>\n"+localStr)
 	}
-
+	if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
+		return types.ActionContinue
+	}
 	return types.ActionContinue
 }
 

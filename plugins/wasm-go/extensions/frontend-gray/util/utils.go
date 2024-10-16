@@ -142,8 +142,19 @@ func IsPageRequest(fetchMode string, myPath string) bool {
 
 // 首页Rewrite
 func IndexRewrite(path, version string, matchRules map[string]string) string {
-	for prefix, rewrite := range matchRules {
+	// Create a slice of keys in matchRules and sort them by length in descending order
+	keys := make([]string, 0, len(matchRules))
+	for prefix := range matchRules {
+		keys = append(keys, prefix)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return len(keys[i]) > len(keys[j])
+	})
+
+	// Iterate over sorted keys to find the longest match
+	for _, prefix := range keys {
 		if strings.HasPrefix(path, prefix) {
+			rewrite := matchRules[prefix]
 			newPath := strings.Replace(rewrite, "{version}", version, -1)
 			return newPath
 		}
