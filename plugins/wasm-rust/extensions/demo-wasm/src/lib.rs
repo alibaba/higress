@@ -1,8 +1,6 @@
 use higress_wasm_rust::cluster_wrapper::DnsCluster;
 use higress_wasm_rust::log::Log;
-use higress_wasm_rust::plugin_wrapper::{
-    HttpCallArgStorage, HttpCallbackFn, HttpContextWrapper, RootContextWrapper,
-};
+use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use http::Method;
 use multimap::MultiMap;
@@ -12,7 +10,7 @@ use proxy_wasm::types::{Bytes, ContextType, DataAction, HeaderAction, LogLevel};
 use serde::Deserialize;
 use std::cell::RefCell;
 use std::ops::DerefMut;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 proxy_wasm::main! {{
@@ -37,38 +35,25 @@ fn format_body(body: Option<Vec<u8>>) -> String {
     format!("{:?}", body)
 }
 
-fn test_callback(
-    this: &mut DemoWasm,
-    status_code: u16,
-    headers: &MultiMap<String, String>,
-    body: Option<Vec<u8>>,
-) {
-    this.log.info(&format!(
-        "test_callback status_code:{}, headers: {:?}, body: {}",
-        status_code,
-        headers,
-        format_body(body)
-    ));
-    this.reset_http_request();
-}
 struct DemoWasm {
     // 每个请求对应的插件实例
     log: Log,
     config: Option<DemoWasmConfig>,
-
-    arg_storage: HttpCallArgStorage<Box<HttpCallbackFn<DemoWasm>>>,
+    weak: Weak<RefCell<Box<dyn HttpContextWrapper<DemoWasmConfig>>>>,
 }
 
 impl Context for DemoWasm {}
 impl HttpContext for DemoWasm {}
-impl HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoWasm {
+impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
+    fn init_self_weak(
+        &mut self,
+        self_weak: Weak<RefCell<Box<dyn HttpContextWrapper<DemoWasmConfig>>>>,
+    ) {
+        self.weak = self_weak;
+        self.log.info("init_self_rc");
+    }
     fn log(&self) -> &Log {
         &self.log
-    }
-    fn get_http_call_storage(
-        &mut self,
-    ) -> Option<&mut HttpCallArgStorage<Box<HttpCallbackFn<DemoWasm>>>> {
-        Some(&mut self.arg_storage)
     }
     fn on_config(&mut self, config: &DemoWasmConfig) {
         // 获取config
@@ -101,16 +86,6 @@ impl HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoW
         // 是否缓存返回body
         true
     }
-    fn on_http_call_response_detail(
-        &mut self,
-        _token_id: u32,
-        arg: Box<HttpCallbackFn<DemoWasm>>,
-        status_code: u16,
-        headers: &MultiMap<String, String>,
-        body: Option<Vec<u8>>,
-    ) {
-        arg(self, status_code, headers, body)
-    }
     fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> DataAction {
         // 请求body获取完成回调
         self.log.info(&format!(
@@ -118,6 +93,14 @@ impl HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoW
             String::from_utf8(req_body.clone()).unwrap_or("".to_string())
         ));
         let cluster = DnsCluster::new("httpbin", "httpbin.org", 80);
+
+        let self_rc = match self.weak.upgrade() {
+            Some(rc) => rc.clone(),
+            None => {
+                self.log.error("self_weak upgrade error");
+                return DataAction::Continue;
+            }
+        };
         if self
             .http_call(
                 &cluster,
@@ -125,8 +108,15 @@ impl HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoW
                 "http://httpbin.org/post",
                 MultiMap::new(),
                 Some("test_body".as_bytes()),
-                // Box::new(move |this, _status_code, _headers, _body|  this.resume_http_request()),
-                Box::new(test_callback),
+                Box::new(move |status_code, headers, body| {
+                    self_rc.borrow().log().info(&format!(
+                        "test_callback status_code:{}, headers: {:?}, body: {}",
+                        status_code,
+                        headers,
+                        format_body(body)
+                    ));
+                    self_rc.borrow_mut().reset_http_request();
+                }),
                 Duration::from_secs(5),
             )
             .is_ok()
@@ -185,7 +175,7 @@ impl RootContext for DemoWasmRoot {
     }
 }
 
-impl RootContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoWasmRoot {
+impl RootContextWrapper<DemoWasmConfig> for DemoWasmRoot {
     fn rule_matcher(&self) -> &SharedRuleMatcher<DemoWasmConfig> {
         &self.rule_matcher
     }
@@ -193,11 +183,11 @@ impl RootContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>> for DemoW
     fn create_http_context_wrapper(
         &self,
         _context_id: u32,
-    ) -> Option<Box<dyn HttpContextWrapper<DemoWasmConfig, Box<HttpCallbackFn<DemoWasm>>>>> {
+    ) -> Option<Box<dyn HttpContextWrapper<DemoWasmConfig>>> {
         Some(Box::new(DemoWasm {
             config: None,
             log: Log::new(PLUGIN_NAME.to_string()),
-            arg_storage: HttpCallArgStorage::new(),
+            weak: Weak::default(),
         }))
     }
 }
