@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -22,6 +23,16 @@ type ai360ProviderInitializer struct {
 type ai360Provider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+}
+
+func (m *ai360Provider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *ai360Provider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *ai360ProviderInitializer) ValidateConfig(config ProviderConfig) error {
@@ -49,7 +60,7 @@ func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	_ = util.OverwriteRequestHost(ai360Domain)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", m.config.GetRandomToken())
+	_ = proxywasm.ReplaceHttpRequestHeader("Authorization", m.config.GetApiTokenInUse(ctx))
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
 }

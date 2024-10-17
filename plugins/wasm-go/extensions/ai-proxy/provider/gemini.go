@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -43,6 +44,16 @@ type geminiProvider struct {
 	contextCache *contextCache
 }
 
+func (g *geminiProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g *geminiProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (g *geminiProvider) GetProviderType() string {
 	return providerTypeGemini
 }
@@ -52,7 +63,7 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		return types.ActionContinue, errUnsupportedApiName
 	}
 
-	_ = proxywasm.ReplaceHttpRequestHeader(geminiApiKeyHeader, g.config.GetRandomToken())
+	_ = proxywasm.ReplaceHttpRequestHeader(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
 	_ = util.OverwriteRequestHost(geminiDomain)
 
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
