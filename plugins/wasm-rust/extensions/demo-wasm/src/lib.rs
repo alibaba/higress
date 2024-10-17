@@ -49,7 +49,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
     fn init_self_weak(
         &mut self,
         self_weak: Weak<RefCell<Box<dyn HttpContextWrapper<DemoWasmConfig>>>>,
-    ) { 
+    ) {
         self.weak = self_weak;
         self.log.info("init_self_rc");
     }
@@ -109,7 +109,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
             MultiMap::new(),
             Some("test_body".as_bytes()),
             Box::new(move |status_code, headers, body| {
-                if let Some(this) = self_rc.borrow().downcast_ref::<DemoWasm>(){
+                if let Some(this) = self_rc.borrow().downcast_ref::<DemoWasm>() {
                     this.log.info(&format!(
                         "test_callback status_code:{}, headers: {:?}, body: {}",
                         status_code,
@@ -117,7 +117,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
                         format_body(body)
                     ));
                     this.reset_http_request();
-                }else{
+                } else {
                     self_rc.borrow().resume_http_request();
                 }
             }),

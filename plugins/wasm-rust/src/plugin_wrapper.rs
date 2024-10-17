@@ -57,6 +57,7 @@ where
         None
     }
 }
+
 pub type HttpCallbackFn = dyn FnOnce(u16, &MultiMap<String, String>, Option<Vec<u8>>);
 
 pub struct HttpCallbackDispatcher {
@@ -80,7 +81,11 @@ impl HttpCallbackDispatcher {
         self.call_fns.borrow_mut().remove(&token_id)
     }
 }
-pub trait HttpContextWrapper<PluginConfig>: HttpContext {
+
+pub trait HttpContextWrapper<PluginConfig>: HttpContext
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
     fn init_self_weak(
         &mut self,
         _self_weak: Weak<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
@@ -173,7 +178,9 @@ pub trait HttpContextWrapper<PluginConfig>: HttpContext {
         }
     }
 }
-downcast_rs::impl_downcast!(HttpContextWrapper<PluginConfig>);
+
+downcast_rs::impl_downcast!(HttpContextWrapper<PluginConfig> where PluginConfig: Default + DeserializeOwned + Clone);
+
 pub struct PluginHttpWrapper<PluginConfig> {
     req_headers: MultiMap<String, String>,
     res_headers: MultiMap<String, String>,
