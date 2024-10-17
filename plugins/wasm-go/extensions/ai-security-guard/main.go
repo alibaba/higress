@@ -106,7 +106,7 @@ func getSign(params map[string]string, secret string) string {
 	})
 	canonicalStr := strings.Join(paramArray, "&")
 	signStr := "POST&%2F&" + urlEncoding(canonicalStr)
-	proxywasm.LogDebugf("String to sign is:" + signStr)
+	proxywasm.LogDebugf("String to sign is: %s", signStr)
 	return hmacSha1(signStr, secret)
 }
 
@@ -401,10 +401,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 							jsonData = []byte(denyMessage)
 						} else if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
 							randomID := generateRandomID()
-							jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String(), randomID, model))
+							jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, denyMessage, randomID, model))
 						} else {
 							randomID := generateRandomID()
-							jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, respAdvice.Array()[0].Get("Answer").String()))
+							jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, denyMessage))
 						}
 						delete(hdsMap, "content-length")
 						hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}
