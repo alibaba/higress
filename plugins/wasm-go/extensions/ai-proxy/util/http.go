@@ -1,6 +1,9 @@
 package util
 
-import "github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+import (
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"net/http"
+)
 
 const (
 	HeaderContentType = "Content-Type"
@@ -21,6 +24,7 @@ func CreateHeaders(kvs ...string) [][2]string {
 	return headers
 }
 
+// TODO: remove
 func OverwriteRequestHost(host string) error {
 	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-HOST", originHost)
@@ -28,6 +32,7 @@ func OverwriteRequestHost(host string) error {
 	return proxywasm.ReplaceHttpRequestHeader(":authority", host)
 }
 
+// TODO: remove
 func OverwriteRequestPath(path string) error {
 	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-PATH", originPath)
@@ -35,6 +40,7 @@ func OverwriteRequestPath(path string) error {
 	return proxywasm.ReplaceHttpRequestHeader(":path", path)
 }
 
+// TODO: remove
 func OverwriteRequestAuthorization(credential string) error {
 	if exist, _ := proxywasm.GetHttpRequestHeader("X-HI-ORIGINAL-AUTH"); exist == "" {
 		if originAuth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil {
@@ -42,4 +48,58 @@ func OverwriteRequestAuthorization(credential string) error {
 		}
 	}
 	return proxywasm.ReplaceHttpRequestHeader("Authorization", credential)
+}
+
+func OverwriteHttpRequestHost(headers http.Header, host string) {
+	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
+		headers.Set("X-ENVOY-ORIGINAL-HOST", originHost)
+	}
+	headers.Set(":authority", host)
+}
+
+func OverwriteHttpRequestPath(headers http.Header, path string) {
+	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
+		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+	}
+	headers.Set(":path", path)
+}
+
+func OverwriteHttpRequestAuthorization(headers http.Header, credential string) {
+	if exist := headers.Get("X-HI-ORIGINAL-AUTH"); exist == "" {
+		if originAuth := headers.Get("Authorization"); originAuth != "" {
+			headers.Set("X-HI-ORIGINAL-AUTH", originAuth)
+		}
+	}
+	headers.Set("Authorization", credential)
+
+}
+
+func HeaderToSlice(header http.Header) [][2]string {
+	slice := make([][2]string, 0, len(header))
+	for key, values := range header {
+		for _, value := range values {
+			slice = append(slice, [2]string{key, value})
+		}
+	}
+	return slice
+}
+
+func SliceToHeader(slice [][2]string) http.Header {
+	header := make(http.Header)
+	for _, pair := range slice {
+		key := pair[0]
+		value := pair[1]
+		header.Add(key, value)
+	}
+	return header
+}
+
+func GetOriginaHttplHeaders() http.Header {
+	originalHeaders, _ := proxywasm.GetHttpRequestHeaders()
+	return SliceToHeader(originalHeaders)
+}
+
+func ReplaceOriginalHttpHeaders(headers http.Header) {
+	modifiedHeaders := HeaderToSlice(headers)
+	_ = proxywasm.ReplaceHttpRequestHeaders(modifiedHeaders)
 }

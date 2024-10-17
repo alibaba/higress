@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/google/uuid"
 	"math/rand"
 	"net/http"
@@ -31,8 +32,6 @@ type failover struct {
 	healthCheckModel string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
 	// @Title zh-CN 本次请求使用的 apiToken
 	ctxApiTokenInUse string
-	// @Title zh-CN 标记请求是否是健康检测请求
-	ctxHealthCheckHeader string
 	// @Title zh-CN 记录 apiToken 请求失败的次数，key 为 apiToken，value 为失败次数
 	ctxApiTokenRequestFailureCount string
 	// @Title zh-CN 记录 apiToken 健康检测成功的次数，key 为 apiToken，value 为成功次数
@@ -41,8 +40,8 @@ type failover struct {
 	ctxApiTokens string
 	// @Title zh-CN 记录所有不可用的 apiToken 列表
 	ctxUnavailableApiTokens string
-	// @Title zh-CN 记录请求的 host 和 path，用于在健康检测时构建请求
-	ctxRequestHostAndPath string
+	// @Title zh-CN 记录请求的 cluster, host 和 path，用于在健康检测时构建请求
+	ctxHealthCheckEndpoint string
 	// @Title zh-CN 健康检测选主，只有选到主的 Wasm VM 才执行健康检测
 	ctxVmLease string
 }
@@ -52,9 +51,10 @@ type Lease struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-type HostPath struct {
-	Host string `json:"host"`
-	Path string `json:"path"`
+type HealthCheckEndpoint struct {
+	Host    string `json:"host"`
+	Path    string `json:"path"`
+	Cluster string `json:"cluster"`
 }
 
 const (
@@ -63,7 +63,6 @@ const (
 	removeApiTokenOperation            = "removeApiToken"
 	addApiTokenRequestCountOperation   = "addApiTokenRequestCount"
 	resetApiTokenRequestCountOperation = "resetApiTokenRequestCount"
-	higressGatewayLocalCluster         = "higress-gateway-local"
 )
 
 var (
@@ -102,16 +101,19 @@ func (c *ProviderConfig) initVariable() {
 	// Set provider name as prefix to differentiate shared data
 	provider := c.GetType()
 	c.failover.ctxApiTokenInUse = provider + "-apiTokenInUse"
-	c.failover.ctxHealthCheckHeader = provider + "-apiToken-health-check"
 	c.failover.ctxApiTokenRequestFailureCount = provider + "-apiTokenRequestFailureCount"
 	c.failover.ctxApiTokenRequestSuccessCount = provider + "-apiTokenRequestSuccessCount"
 	c.failover.ctxApiTokens = provider + "-apiTokens"
 	c.failover.ctxUnavailableApiTokens = provider + "-unavailableApiTokens"
-	c.failover.ctxRequestHostAndPath = provider + "-requestHostAndPath"
+	c.failover.ctxHealthCheckEndpoint = provider + "-requestHostAndPath"
 	c.failover.ctxVmLease = provider + "-vmLease"
 }
 
-func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *any, log wrapper.Log) error {
+	return nil
+}
+
+func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Provider) error {
 	c.initVariable()
 	// Reset shared data in case plugin configuration is updated
 	log.Debugf("ai-proxy plugin configuration is updated, reset shared data")
@@ -139,12 +141,24 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 				if len(unavailableTokens) > 0 {
 					for _, apiToken := range unavailableTokens {
 						log.Debugf("Perform health check for unavailable apiTokens: %s", strings.Join(unavailableTokens, ", "))
-						hostPath, headers, body := c.generateRequestHeadersAndBody(apiToken, log)
-						healthCheckClient = wrapper.NewClusterClient(wrapper.RouteCluster{
-							Host:    hostPath.Host,
-							Cluster: higressGatewayLocalCluster,
+						healthCheckEndpoint, headers, body := c.generateRequestHeadersAndBody(log)
+						healthCheckClient = wrapper.NewClusterClient(wrapper.TargetCluster{
+							Host:    healthCheckEndpoint.Host,
+							Cluster: healthCheckEndpoint.Cluster,
 						})
-						err = healthCheckClient.Post(hostPath.Path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+
+						setParseConfig := wrapper.ParseConfigBy[any](parseConfig)
+						vmCtx := wrapper.NewCommonVmCtx[any]("health-check", setParseConfig)
+						pluginCtx := vmCtx.NewPluginContext(rand.Uint32())
+						ctx := pluginCtx.NewHttpContext(rand.Uint32()).(*wrapper.CommonHttpCtx[any])
+						ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
+
+						originalHeaders := util.SliceToHeader(headers)
+						activeProvider.TransformRequestHeaders(originalHeaders, ctx, log)
+						modifiedHeaders := util.HeaderToSlice(originalHeaders)
+						modifiedBody, _ := activeProvider.TransformRequestBody(body, ctx, log)
+
+						err = healthCheckClient.Post(healthCheckEndpoint.Path, modifiedHeaders, modifiedBody, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 							if statusCode == 200 {
 								c.handleAvailableApiToken(apiToken, log)
 							}
@@ -160,21 +174,19 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log) error {
 	return nil
 }
 
-func (c *ProviderConfig) generateRequestHeadersAndBody(apiToken string, log wrapper.Log) (HostPath, [][2]string, []byte) {
-	data, _, err := proxywasm.GetSharedData(c.failover.ctxRequestHostAndPath)
+func (c *ProviderConfig) generateRequestHeadersAndBody(log wrapper.Log) (HealthCheckEndpoint, [][2]string, []byte) {
+	data, _, err := proxywasm.GetSharedData(c.failover.ctxHealthCheckEndpoint)
 	if err != nil {
 		log.Errorf("Failed to get request host and path: %v", err)
 	}
-	var hostPath HostPath
-	err = json.Unmarshal(data, &hostPath)
+	var healthCheckEndpoint HealthCheckEndpoint
+	err = json.Unmarshal(data, &healthCheckEndpoint)
 	if err != nil {
 		log.Errorf("Failed to unmarshal request host and path: %v", err)
 	}
 
 	headers := [][2]string{
 		{"content-type", "application/json"},
-		{c.failover.ctxHealthCheckHeader, apiToken},
-		{":authority", hostPath.Host},
 	}
 	body := []byte(fmt.Sprintf(`{
                       "model": "%s",
@@ -185,7 +197,7 @@ func (c *ProviderConfig) generateRequestHeadersAndBody(apiToken string, log wrap
                         }
                       ]
                     }`, c.failover.healthCheckModel))
-	return hostPath, headers, body
+	return healthCheckEndpoint, headers, body
 }
 
 func (c *ProviderConfig) tryAcquireOrRenewLease(vmID string, log wrapper.Log) bool {
@@ -289,6 +301,8 @@ func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.
 		removeApiToken(c.failover.ctxApiTokens, apiToken, log)
 		addApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
 		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
+		// Set the request host and path to shared data in case they are needed in apiToken health check
+		c.setHealthCheckEndpoint(log)
 	} else {
 		log.Debugf("apiToken %s is still available as it has not reached the failure threshold, the number of failed request: %d", apiToken, failureCount)
 		addApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
@@ -503,34 +517,34 @@ func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
 }
 
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
-	apiToken := c.GetRandomToken()
+	var apiToken string
 	if c.isFailoverEnabled() {
-		// Use the health check token if it is a health check request.
-		if apiTokenHealthCheck, _ := proxywasm.GetHttpRequestHeader(c.failover.ctxHealthCheckHeader); apiTokenHealthCheck != "" {
-			apiToken = apiTokenHealthCheck
-		} else {
-			// if enable apiToken failover, only use available apiToken
-			apiToken = c.GetGlobalRandomToken(log)
-		}
+		// if enable apiToken failover, only use available apiToken
+		apiToken = c.GetGlobalRandomToken(log)
+	} else {
+		apiToken = c.GetRandomToken()
 	}
 	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiToken)
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 }
 
-func (c *ProviderConfig) SetRequestHostAndPath(log wrapper.Log) {
-	if c.isFailoverEnabled() {
-		hostPath := HostPath{
-			Host: wrapper.GetRequestHost(),
-			Path: wrapper.GetRequestPath(),
-		}
-		hostPathByte, err := json.Marshal(hostPath)
-		if err != nil {
-			log.Errorf("Failed to marshal request host and path: %v", err)
+func (c *ProviderConfig) setHealthCheckEndpoint(log wrapper.Log) {
+	cluster, err := proxywasm.GetProperty([]string{"cluster_name"})
+	if err != nil {
+		log.Errorf("Failed to get cluster_name: %v", err)
+	}
+	hostPath := HealthCheckEndpoint{
+		Host:    wrapper.GetRequestHost(),
+		Path:    wrapper.GetRequestPath(),
+		Cluster: string(cluster),
+	}
+	hostPathByte, err := json.Marshal(hostPath)
+	if err != nil {
+		log.Errorf("Failed to marshal request host and path: %v", err)
 
-		}
-		err = proxywasm.SetSharedData(c.failover.ctxRequestHostAndPath, hostPathByte, 0)
-		if err != nil {
-			log.Errorf("Failed to set request host and path: %v", err)
-		}
+	}
+	err = proxywasm.SetSharedData(c.failover.ctxHealthCheckEndpoint, hostPathByte, 0)
+	if err != nil {
+		log.Errorf("Failed to set request host and path: %v", err)
 	}
 }

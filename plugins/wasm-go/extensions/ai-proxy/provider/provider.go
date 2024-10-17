@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"math/rand"
+	"net/http"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -106,6 +107,8 @@ var (
 
 type Provider interface {
 	GetProviderType() string
+	TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log)
+	TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error)
 }
 
 type RequestHeadersHandler interface {
@@ -368,6 +371,23 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
+}
+
+func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request *chatCompletionRequest, log wrapper.Log) error {
+	model := request.Model
+	if model == "" {
+		return errors.New("missing model in chat completion request")
+	}
+
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, c.modelMapping, log)
+	if mappedModel == "" {
+		return errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	return nil
 }
 
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {

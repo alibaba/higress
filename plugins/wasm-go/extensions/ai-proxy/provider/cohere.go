@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -33,6 +34,16 @@ func (m *cohereProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 
 type cohereProvider struct {
 	config ProviderConfig
+}
+
+func (m *cohereProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *cohereProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 type cohereTextGenRequest struct {

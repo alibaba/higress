@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -50,6 +51,16 @@ type openaiProvider struct {
 	customDomain string
 	customPath   string
 	contextCache *contextCache
+}
+
+func (m *openaiProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *openaiProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *openaiProvider) GetProviderType() string {

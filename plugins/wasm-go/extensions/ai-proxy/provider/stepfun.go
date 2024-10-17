@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -35,6 +36,16 @@ func (m *stepfunProviderInitializer) CreateProvider(config ProviderConfig) (Prov
 type stepfunProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+}
+
+func (m *stepfunProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *stepfunProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *stepfunProvider) GetProviderType() string {
