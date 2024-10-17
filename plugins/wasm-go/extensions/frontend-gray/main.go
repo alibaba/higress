@@ -21,7 +21,6 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeader),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 	)
 }
 
@@ -98,10 +97,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		} else {
 			rewritePath = util.PrefixFileRewrite(path, deployment.Version, grayConfig.Rewrite.File)
 		}
-		log.Infof("rewrite path: %s %s %v", path, deployment.Version, rewritePath)
-		proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
+		if path != rewritePath {
+			log.Infof("rewrite path:%s, rewritePath:%s, Version:%v", path, rewritePath, deployment.Version)
+			proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
+		}
 	}
-
 	return types.ActionContinue
 }
 
@@ -244,8 +244,4 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionContinue
 	}
 	return types.ActionContinue
-}
-
-func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.GrayConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	return chunk
 }
