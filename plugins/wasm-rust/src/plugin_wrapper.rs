@@ -94,7 +94,7 @@ where
     fn log(&self) -> &Log {
         &LOG
     }
-    fn on_config(&mut self, _config: &PluginConfig) {}
+    fn on_config(&mut self, _config: Rc<PluginConfig>) {}
     fn on_http_request_complete_headers(
         &mut self,
         _headers: &MultiMap<String, String>,
@@ -186,7 +186,7 @@ pub struct PluginHttpWrapper<PluginConfig> {
     res_headers: MultiMap<String, String>,
     req_body_len: usize,
     res_body_len: usize,
-    config: Option<PluginConfig>,
+    config: Option<Rc<PluginConfig>>,
     rule_matcher: SharedRuleMatcher<PluginConfig>,
     http_content: Rc<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
 }
@@ -325,7 +325,7 @@ where
         }
 
         if let Some(config) = &self.config {
-            self.http_content.borrow_mut().on_config(config);
+            self.http_content.borrow_mut().on_config(config.clone());
         }
         let ret = self
             .http_content

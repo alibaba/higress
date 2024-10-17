@@ -38,7 +38,7 @@ fn format_body(body: Option<Vec<u8>>) -> String {
 struct DemoWasm {
     // 每个请求对应的插件实例
     log: Log,
-    config: Option<DemoWasmConfig>,
+    config: Option<Rc<DemoWasmConfig>>,
     weak: Weak<RefCell<Box<dyn HttpContextWrapper<DemoWasmConfig>>>>,
 }
 
@@ -55,7 +55,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
     fn log(&self) -> &Log {
         &self.log
     }
-    fn on_config(&mut self, config: &DemoWasmConfig) {
+    fn on_config(&mut self, config: Rc<DemoWasmConfig>) {
         // 获取config
         self.log.info(&format!("on_config {}", config.test));
         self.config = Some(config.clone())
