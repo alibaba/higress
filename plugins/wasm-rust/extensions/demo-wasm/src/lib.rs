@@ -115,7 +115,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
                         headers,
                         format_body(body)
                     ));
-                    this.reset_http_request();
+                    this.resume_http_request();
                 } else {
                     self_rc.borrow().resume_http_request();
                 }

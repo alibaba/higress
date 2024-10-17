@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 higress-wasm-rust = { path = "../../", version = "0.1.0" }
-proxy-wasm = { git="https://github.com/007gzs/proxy-wasm-rust-sdk", branch="downcast", version="0.2.2" }
+proxy-wasm = { git="https://github.com/higress-group/proxy-wasm-rust-sdk", branch="main", version="0.2.2" }
 serde = { version = "1.0", features = ["derive"] }
 multimap = "*"
 http = "*"
