@@ -1,4 +1,4 @@
-use crate::{internal::get_property, request_wrapper::get_request_host};
+use crate::{hostcalls::get_property, request_wrapper::get_request_host};
 
 pub trait Cluster {
     fn cluster_name(&self) -> String;
