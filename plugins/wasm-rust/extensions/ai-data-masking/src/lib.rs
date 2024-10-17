@@ -65,7 +65,7 @@ struct AiDataMaskingRoot {
     rule_matcher: SharedRuleMatcher<AiDataMaskingConfig>,
 }
 struct AiDataMasking {
-    config: Option<AiDataMaskingConfig>,
+    config: Option<Rc<AiDataMaskingConfig>>,
     mask_map: HashMap<String, Option<String>>,
     is_openai: bool,
     stream: bool,
@@ -585,7 +585,7 @@ impl HttpContext for AiDataMasking {
     }
 }
 impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
-    fn on_config(&mut self, config: &AiDataMaskingConfig) {
+    fn on_config(&mut self, config: Rc<AiDataMaskingConfig>) {
         self.config = Some(config.clone());
     }
     fn cache_request_body(&self) -> bool {
