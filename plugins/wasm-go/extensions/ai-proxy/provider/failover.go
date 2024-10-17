@@ -147,10 +147,7 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 							Cluster: healthCheckEndpoint.Cluster,
 						})
 
-						setParseConfig := wrapper.ParseConfigBy[any](parseConfig)
-						vmCtx := wrapper.NewCommonVmCtx[any]("health-check", setParseConfig)
-						pluginCtx := vmCtx.NewPluginContext(rand.Uint32())
-						ctx := pluginCtx.NewHttpContext(rand.Uint32()).(*wrapper.CommonHttpCtx[any])
+						ctx := createHttpContext()
 						ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 
 						originalHeaders := util.SliceToHeader(headers)
@@ -172,6 +169,14 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 		})
 	}
 	return nil
+}
+
+func createHttpContext() *wrapper.CommonHttpCtx[any] {
+	setParseConfig := wrapper.ParseConfigBy[any](parseConfig)
+	vmCtx := wrapper.NewCommonVmCtx[any]("health-check", setParseConfig)
+	pluginCtx := vmCtx.NewPluginContext(rand.Uint32())
+	ctx := pluginCtx.NewHttpContext(rand.Uint32()).(*wrapper.CommonHttpCtx[any])
+	return ctx
 }
 
 func (c *ProviderConfig) generateRequestHeadersAndBody(log wrapper.Log) (HealthCheckEndpoint, [][2]string, []byte) {
