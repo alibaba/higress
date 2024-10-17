@@ -4,7 +4,7 @@ keywords: [ AI Gateway, AI Agent ]
 description: AI Agent plugin configuration reference
 ---
 ## Functional Description
-A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Supports multiple dialogue rounds, streaming and non-streaming modes.  
+A customizable API AI Agent that supports configuring HTTP method types as GET and POST APIs. Supports multiple dialogue rounds, streaming and non-streaming modes, support for formatting results as custom json.  
 The agent flow chart is as follows:  
 ![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)  
 
@@ -20,6 +20,7 @@ Plugin execution priority: `200`
 | `llm`            | object    | Required    | -             | Configuration information for AI service provider  |
 | `apis`           | object    | Required    | -             | Configuration information for external API service provider  |
 | `promptTemplate` | object    | Optional    | -             | Configuration information for Agent ReAct template  |
+| `jsonResp`       | object    | Optional    | -             | Configuring json formatting information  |
 
 The configuration fields for `llm` are as follows:  
 | Name               | Data Type | Requirement | Default Value | Description                         |
@@ -71,7 +72,13 @@ The configuration fields for `chTemplate` and `enTemplate` are as follows:
 | `observation`   | string    | Optional    | -             | The observation part of the Agent ReAct template     |
 | `thought2`      | string    | Optional    | -             | The thought2 part of the Agent ReAct template       |
 
-## Usage Example
+The configuration fields for `jsonResp` are as follows:  
+| Name               | Data Type | Requirement | Default Value | Description                         |
+|--------------------|-----------|-------------|---------------|------------------------------------|
+| `enable`           | bool      | Optional    | -             | Whether to enable json formatting.  |
+| `jsonSchema`       | string    | Optional    | -             | Custom json schema               |
+
+## Usage Example-disable json formatting
 **Configuration Information**  
 ```yaml  
 llm:  
@@ -335,3 +342,68 @@ curl 'http://<replace with gateway public IP>/api/openai/v1/chat/completions' \
 {"id":"65dcf12c-61ff-9e68-bffa-44fc9e6070d5","choices":[{"index":0,"message":{"role":"assistant","content":" The German translation of \"Hail Hydra!\" is \"Hoch lebe Hydra!\"."},"finish_reason":"stop"}],"created":1724043865,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":908,"completion_tokens":52,"total_tokens":960}}  
 ```  
 
+## Usage Example-enable json formatting
+**Configuration Information**  
+Add jsonResp configuration to the above configuration
+```yaml
+jsonResp:
+  enable: true
+```
+
+**Request Example**  
+```shell
+curl 'http://<replace with gateway public IP>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"What is the current weather in Beijing ?"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**Response Example**
+
+```json
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content": "{\"city\": \"BeiJing\", \"weather_condition\": \"cloudy\", \"temperature\": \"19℃\", \"data_update_time\": \"Oct 9, 2024, at 16:37\"}"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}
+```
+If you don't customise the json schema, the big model will automatically generate a json format
+
+**Configuration Information**
+Add custom json schema configuration
+```yaml
+jsonResp:
+  enable: true
+  jsonSchema:
+    title: WeatherSchema
+    type: object
+    properties:
+      location:
+        type: string
+        description: city name.
+      weather:
+        type: string
+        description: weather conditions.
+      temperature:
+        type: string
+        description: temperature.
+      update_time:
+        type: string
+        description: the update time of data.
+    required:
+      - location
+      - weather
+      - temperature
+    additionalProperties: false
+```
+
+**Request Example**
+
+```shell
+curl 'http://<replace with gateway public IP>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"What is the current weather in Beijing ?"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**Response Example**
+
+```json
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content": "{\"location\": \"Beijing\", \"weather\": \"cloudy\", \"temperature\": \"19℃\", \"update_time\": \"Oct 9, 2024, at 16:37\"}"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}
+```
