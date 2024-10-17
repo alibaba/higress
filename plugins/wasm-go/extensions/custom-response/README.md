@@ -15,12 +15,13 @@ description: 自定义应答插件配置参考
 
 ## 配置字段
 
-| 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
-| -------- | -------- | -------- | -------- | -------- |
-|  status_code    |  number     |  选填      |   200  |  自定义 HTTP 应答状态码   |
-|  headers     |  array of string      |  选填     |   -  |  自定义 HTTP 应答头，key 和 value 用`=`分隔   |
-|  body      |  string    |  选填     |   -   |  自定义 HTTP 应答 Body  |
-|  enable_on_status   |  array of number    |   选填     |  -  | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码   |
+| 名称               | 数据类型            | 填写要求 | 默认值   | 描述                             |
+|------------------|-----------------|----|-------|--------------------------------|
+| status_code      | number          | 选填 | 200   | 自定义 HTTP 应答状态码                 |
+| headers          | array of string | 选填 | -     | 自定义 HTTP 应答头，key 和 value 用`=`分隔 |
+| body             | string          | 选填 | -     | 自定义 HTTP 应答 Body               |
+| enable_on_status | array of number | 选填 | -     | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码  |
+| is_stream        | bool            | 选填 | false | 如果是流式响应则不设置Content-Length      |  
 
 ## 配置示例
 
