@@ -8,7 +8,6 @@ use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{Bytes, ContextType, DataAction, HeaderAction, LogLevel};
 
 use serde::Deserialize;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::{Rc, Weak};
