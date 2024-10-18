@@ -175,7 +175,7 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 ### 交流群
 
-![image](https://img.alicdn.com/imgextra/i2/O1CN01qPd7Ix1uZPVEsWjWp_!!6000000006051-0-tps-720-405.jpg)
+![image](https://img.alicdn.com/imgextra/i2/O1CN01BkopaB22ZsvamFftE_!!6000000007135-0-tps-720-405.jpg)
 
 ### 技术分享
 
