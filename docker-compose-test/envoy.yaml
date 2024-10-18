@@ -34,7 +34,7 @@ static_resources:
               - match:
                   prefix: "/"
                 route:
-                  cluster: llm
+                  cluster: outbound|443||bigmodel.dns
                   timeout: 300s
 
           http_filters:
@@ -55,39 +55,33 @@ static_resources:
                     "@type": "type.googleapis.com/google.protobuf.StringValue"
                     value: |
                       {
-                        "embeddingProvider": {
+                        "embedding": {
                           "type": "dashscope",
                           "serviceName": "dashscope",
-                          "apiKey": "sk-",
-                          "DashScopeServiceName": "dashscope"
+                          "apiKey": "sk-346fadc4ed8448e487ea84b57788d816"
                         },
-                        "vectorProvider": {
-                          "VectorStoreProviderType": "pinecone",
-                          "PineconeServiceName": "pinecone",
-                          "PineconeApiEndpoint": "higress-2bdfipe.svc.aped-4627-b74a.pinecone.io",
-                          "PineconeThreshold": "0.7",
-                          "ThresholdRelation": "gte",
-                          "PineconeApiKey": "key"
+                        "vector": {
+                          "type": "chroma",
+                          "serviceName": "chroma",
+                          "collectionID": "8f8accc8-b68c-4fb1-84af-0292f9236e8a",
+                          "servicePort": 8001
                         },
-                        "cacheKeyFrom": {
-                          "requestBody": ""
-                        },
-                        "cacheValueFrom": {
-                          "responseBody": ""
-                        },
-                        "cacheStreamValueFrom": {
-                          "responseBody": ""
-                        },
-                        "returnResponseTemplate": "",
-                        "returnTestResponseTemplate": "",
-                        "ReturnStreamResponseTemplate": "",
-                        "redis": {
+                        "cache": {
+                          "type": "redis",
                           "serviceName": "redis_cluster",
-                          "timeout": 2000
+                          "timeout": 1000
                         }
                       }
 
           # 上面的配置中 redis 的配置名字是 redis，而不是 golang tag 中的 redisConfig
+                        # "vector": {
+                        #   "type": "dashvector",
+                        #   "serviceName": "dashvector",
+                        #   "collectionID": "higress_euclidean",
+                        #   "serviceDomain": "vrs-cn-g6z3yq2wy0001z.dashvector.cn-hangzhou.aliyuncs.com",
+                        #   "apiKey": "sk-nAn4GfZFrbLNhGffVIIq6tdgWNjV7D8A0F7CC5E1011EF9A1EB61E393DC850"
+                        # },
+                        
                         # "vectorProvider": {
                         #   "VectorStoreProviderType": "chroma",
                         #   "ChromaServiceName": "chroma",
@@ -110,6 +104,15 @@ static_resources:
                         #   "WeaviateCollection": "Higress",
                         #   "WeaviateThreshold": "0.3"
                         # },
+
+                        # "vector": {
+                        #   "type": "pinecone",
+                        #   "PineconeServiceName": "pinecone",
+                        #   "PineconeApiEndpoint": "higress-2bdfipe.svc.aped-4627-b74a.pinecone.io",
+                        #   "PineconeThreshold": "0.7",
+                        #   "ThresholdRelation": "gte",
+                        #   "PineconeApiKey": "key"
+                        # },
           # llm-proxy
           - name: llm-proxy
             typed_config:
@@ -128,11 +131,10 @@ static_resources:
                     value: | # 插件配置
                       {
                         "provider": {
-                          "type": "openai",                                
+                          "type": "zhipuai",                                
                           "apiTokens": [
-                            "YOUR_API_TOKEN"
-                          ],
-                          "openaiCustomUrl": "172.17.0.1:8000/v1/chat/completions"
+                            "67e93d524df46fca3640df67a7461c04.qOksqKAoWHcv03aV"
+                          ]
                         }
                       }
 
@@ -259,13 +261,13 @@ static_resources:
             - endpoint:
                 address:
                   socket_address:
-                    address: vrs-cn-0dw3vnaqs0002z.dashvector.cn-hangzhou.aliyuncs.com
+                    address: vrs-cn-g6z3yq2wy0001z.dashvector.cn-hangzhou.aliyuncs.com
                     port_value: 443
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        "sni": "vrs-cn-0dw3vnaqs0002z.dashvector.cn-hangzhou.aliyuncs.com"
+        "sni": "vrs-cn-g6z3yq2wy0001z.dashvector.cn-hangzhou.aliyuncs.com"
   # dashscope
   - name: outbound|443||dashscope.dns
     connect_timeout: 30s
@@ -286,6 +288,26 @@ static_resources:
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
         "sni": "dashscope.aliyuncs.com"
+  # bigmodel
+  - name: outbound|443||bigmodel.dns
+    connect_timeout: 30s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: outbound|443||bigmodel.dns
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: open.bigmodel.cn
+                    port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        "sni": "open.bigmodel.cn"
   # pinecone
   - name: outbound|443||pinecone.dns
     connect_timeout: 30s
