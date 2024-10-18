@@ -27,7 +27,7 @@ func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) er
 		return errors.New("[DashVector] serviceName is required")
 	}
 	if len(config.serviceDomain) == 0 {
-		return errors.New("[DashVector] endPoint is required")
+		return errors.New("[DashVector] serviceDomain is required")
 	}
 	return nil
 }

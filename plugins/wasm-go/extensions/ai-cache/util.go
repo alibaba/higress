@@ -127,8 +127,11 @@ func processEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chun
 	if tempContentI == nil {
 		return string(chunk), nil
 	}
-	value := tempContentI.(string)
-	return value, nil
+	value, ok := tempContentI.([]byte)
+	if !ok {
+		return "", fmt.Errorf("invalid type for tempContentI")
+	}
+	return string(value), nil
 }
 
 // Appends the final body chunk to the existing body content
