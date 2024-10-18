@@ -171,7 +171,7 @@ where
     }
 
     pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
-        if let Some(global_config) = &self.global_config{
+        if let Some(global_config) = &self.global_config {
             self.global_config = Some(Rc::new(rewrite(global_config.borrow())));
         }
 
