@@ -41,7 +41,7 @@ struct RquestBlockRoot {
 
 struct RquestBlock {
     log: Log,
-    config: Option<RquestBlockConfig>,
+    config: Option<Rc<RquestBlockConfig>>,
     cache_request: bool,
 }
 
@@ -141,9 +141,9 @@ impl RootContextWrapper<RquestBlockConfig> for RquestBlockRoot {
 impl Context for RquestBlock {}
 impl HttpContext for RquestBlock {}
 impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
-    fn on_config(&mut self, _config: &RquestBlockConfig) {
-        self.config = Some(_config.clone());
-        self.cache_request = !_config.block_bodies.is_empty();
+    fn on_config(&mut self, config: Rc<RquestBlockConfig>) {
+        self.cache_request = !config.block_bodies.is_empty();
+        self.config = Some(config.clone());
     }
     fn cache_request_body(&self) -> bool {
         self.cache_request
