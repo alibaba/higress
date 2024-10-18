@@ -66,6 +66,7 @@ spec:
       containers:
         - name: eureka
           image: bitinit/eureka
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8761
               name: http
