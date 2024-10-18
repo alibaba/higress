@@ -1,171 +1,192 @@
 package vector
 
-// import (
-// 	"encoding/json"
-// 	"errors"
-// 	"fmt"
-// 	"net/http"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
 
-// 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-// )
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
+)
 
-// const (
-// 	dashVectorPort = 443
-// )
+type weaviateProviderInitializer struct{}
 
-// type dashVectorProviderInitializer struct {
-// }
+const weaviateThreshold = 0.5
 
-// func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) error {
-// 	if len(config.DashVectorKey) == 0 {
-// 		return errors.New("DashVectorKey is required")
-// 	}
-// 	if len(config.DashVectorAuthApiEnd) == 0 {
-// 		return errors.New("DashVectorEnd is required")
-// 	}
-// 	if len(config.DashVectorCollection) == 0 {
-// 		return errors.New("DashVectorCollection is required")
-// 	}
-// 	if len(config.DashVectorServiceName) == 0 {
-// 		return errors.New("DashVectorServiceName is required")
-// 	}
-// 	return nil
-// }
+func (c *weaviateProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if len(config.collectionID) == 0 {
+		return errors.New("[Weaviate] collectionID is required")
+	}
+	if len(config.serviceName) == 0 {
+		return errors.New("[Weaviate] serviceName is required")
+	}
+	return nil
+}
 
-// func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-// 	return &DvProvider{
-// 		config: config,
-// 		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-// 			ServiceName: config.DashVectorServiceName,
-// 			Port:        dashVectorPort,
-// 			Domain:      config.DashVectorAuthApiEnd,
-// 		}),
-// 	}, nil
-// }
+func (c *weaviateProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	return &WeaviateProvider{
+		config: config,
+		client: wrapper.NewClusterClient(wrapper.DnsCluster{
+			ServiceName: config.serviceName,
+			Port:        config.servicePort,
+			Domain:      config.serviceDomain,
+		}),
+	}, nil
+}
 
-// type DvProvider struct {
-// 	config ProviderConfig
-// 	client wrapper.HttpClient
-// }
+type WeaviateProvider struct {
+	config ProviderConfig
+	client wrapper.HttpClient
+}
 
-// func (d *DvProvider) GetProviderType() string {
-// 	return providerTypeDashVector
-// }
+func (c *WeaviateProvider) GetProviderType() string {
+	return providerTypeWeaviate
+}
 
-// type EmbeddingRequest struct {
-// 	Model      string `json:"model"`
-// 	Input      Input  `json:"input"`
-// 	Parameters Params `json:"parameters"`
-// }
+func (d *WeaviateProvider) GetSimilarityThreshold() float64 {
+	return weaviateThreshold
+}
 
-// type Params struct {
-// 	TextType string `json:"text_type"`
-// }
+func (d *WeaviateProvider) QueryEmbedding(
+	emb []float64,
+	ctx wrapper.HttpContext,
+	log wrapper.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	// 最少需要填写的参数为 class, vector
+	// 下面是一个例子
+	// {"query": "{ Get { Higress ( limit: 2 nearVector: { vector: [0.1, 0.2, 0.3] } ) { question _additional { distance } } } }"}
+	embString, err := json.Marshal(emb)
+	if err != nil {
+		log.Errorf("[Weaviate] Failed to marshal query embedding: %v", err)
+		return err
+	}
+	// 这里默认按照 distance 进行升序，所以不用再次排序
+	graphql := fmt.Sprintf(`
+	{
+	  Get {
+	    %s (
+	      limit: %d
+	      nearVector: {
+	        vector: %s
+	      }
+	    ) {
+		  question
+		  answer
+	      _additional {
+	        distance
+	      }
+	    }
+	  }
+	}
+	`, d.config.collectionID, d.config.topK, embString)
 
-// type Input struct {
-// 	Texts []string `json:"texts"`
-// }
+	requestBody, err := json.Marshal(weaviateQueryRequest{
+		Query: graphql,
+	})
 
-// func (d *DvProvider) ConstructEmbeddingQueryParameters(vector []float64) (string, []byte, [][2]string, error) {
-// 	url := fmt.Sprintf("/v1/collections/%s/query", d.config.DashVectorCollection)
+	if err != nil {
+		log.Errorf("[Weaviate] Failed to marshal query embedding request body: %v", err)
+		return err
+	}
 
-// 	requestData := QueryRequest{
-// 		Vector:        vector,
-// 		TopK:          d.config.DashVectorTopK,
-// 		IncludeVector: false,
-// 	}
+	err = d.client.Post(
+		"/v1/graphql",
+		[][2]string{
+			{"Content-Type", "application/json"},
+		},
+		requestBody,
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			log.Infof("[Weaviate] Query embedding response: %d, %s", statusCode, responseBody)
+			results, err := d.parseQueryResponse(responseBody, log)
+			if err != nil {
+				err = fmt.Errorf("[Weaviate] Failed to parse query response: %v", err)
+			}
+			callback(results, ctx, log, err)
+		},
+		d.config.timeout,
+	)
+	return err
+}
 
-// 	requestBody, err := json.Marshal(requestData)
-// 	if err != nil {
-// 		return "", nil, nil, err
-// 	}
+func (d *WeaviateProvider) UploadAnswerAndEmbedding(
+	queryString string,
+	queryEmb []float64,
+	queryAnswer string,
+	ctx wrapper.HttpContext,
+	log wrapper.Log,
+	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	// 最少需要填写的参数为 class, vector 和 question 和 answer
+	// 下面是一个例子
+	// {"class": "Higress", "vector": [0.1, 0.2, 0.3], "properties": {"question": "这里是问题", "answer": "这里是答案"}}
+	requestBody, err := json.Marshal(weaviateInsertRequest{
+		Class:      d.config.collectionID,
+		Vector:     queryEmb,
+		Properties: weaviateProperties{Question: queryString, Answer: queryAnswer}, // queryString 指的是用户查询的问题
+	})
 
-// 	header := [][2]string{
-// 		{"Content-Type", "application/json"},
-// 		{"dashvector-auth-token", d.config.DashVectorKey},
-// 	}
+	if err != nil {
+		log.Errorf("[Weaviate] Failed to marshal upload embedding request body: %v", err)
+		return err
+	}
 
-// 	return url, requestBody, header, nil
-// }
+	return d.client.Post(
+		"/v1/objects",
+		[][2]string{
+			{"Content-Type", "application/json"},
+		},
+		requestBody,
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			log.Infof("[Weaviate] statusCode: %d, responseBody: %s", statusCode, string(responseBody))
+			callback(ctx, log, err)
+		},
+		d.config.timeout,
+	)
+}
 
-// func (d *DvProvider) ParseQueryResponse(responseBody []byte) (QueryResponse, error) {
-// 	var queryResp QueryResponse
-// 	err := json.Unmarshal(responseBody, &queryResp)
-// 	if err != nil {
-// 		return QueryResponse{}, err
-// 	}
-// 	return queryResp, nil
-// }
+type weaviateProperties struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
 
-// func (d *DvProvider) QueryEmbedding(
-// 	queryEmb []float64,
-// 	ctx wrapper.HttpContext,
-// 	log wrapper.Log,
-// 	callback func(query_resp QueryResponse, ctx wrapper.HttpContext, log wrapper.Log)) {
+type weaviateInsertRequest struct {
+	Class      string             `json:"class"`
+	Vector     []float64          `json:"vector"`
+	Properties weaviateProperties `json:"properties"`
+}
 
-// 	// 构造请求参数
-// 	url, body, headers, err := d.ConstructEmbeddingQueryParameters(queryEmb)
-// 	if err != nil {
-// 		log.Infof("Failed to construct embedding query parameters: %v", err)
-// 	}
+type weaviateQueryRequest struct {
+	Query string `json:"query"`
+}
 
-// 	err = d.client.Post(url, headers, body,
-// 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-// 			log.Infof("Query embedding response: %d, %s", statusCode, responseBody)
-// 			query_resp, err_query := d.ParseQueryResponse(responseBody)
-// 			if err_query != nil {
-// 				log.Infof("Failed to parse response: %v", err_query)
-// 			}
-// 			callback(query_resp, ctx, log)
-// 		},
-// 		d.config.DashVectorTimeout)
-// 	if err != nil {
-// 		log.Infof("Failed to query embedding: %v", err)
-// 	}
+func (d *WeaviateProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+	log.Infof("[Weaviate] queryResp: %s", string(responseBody))
 
-// }
+	if !gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.0._additional.distance", d.config.collectionID)).Exists() {
+		log.Errorf("[Weaviate] No distance found in response body: %s", responseBody)
+		return nil, errors.New("[Weaviate] No distance found in response body")
+	}
 
-// type Document struct {
-// 	Vector []float64         `json:"vector"`
-// 	Fields map[string]string `json:"fields"`
-// }
+	if !gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.0.question", d.config.collectionID)).Exists() {
+		log.Errorf("[Weaviate] No question found in response body: %s", responseBody)
+		return nil, errors.New("[Weaviate] No question found in response body")
+	}
 
-// type InsertRequest struct {
-// 	Docs []Document `json:"docs"`
-// }
+	if !gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.0.answer", d.config.collectionID)).Exists() {
+		log.Errorf("[Weaviate] No answer found in response body: %s", responseBody)
+		return nil, errors.New("[Weaviate] No answer found in response body")
+	}
 
-// func (d *DvProvider) ConstructEmbeddingUploadParameters(emb []float64, query_string string) (string, []byte, [][2]string, error) {
-// 	url := "/v1/collections/" + d.config.DashVectorCollection + "/docs"
+	resultNum := gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.#", d.config.collectionID)).Int()
+	results := make([]QueryResult, 0, resultNum)
+	for i := 0; i < int(resultNum); i++ {
+		result := QueryResult{
+			Text:   gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.%d.question", d.config.collectionID, i)).String(),
+			Score:  gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.%d._additional.distance", d.config.collectionID, i)).Float(),
+			Answer: gjson.GetBytes(responseBody, fmt.Sprintf("data.Get.%s.%d.answer", d.config.collectionID, i)).String(),
+		}
+		results = append(results, result)
+	}
 
-// 	doc := Document{
-// 		Vector: emb,
-// 		Fields: map[string]string{
-// 			"query": query_string,
-// 		},
-// 	}
-
-// 	requestBody, err := json.Marshal(InsertRequest{Docs: []Document{doc}})
-// 	if err != nil {
-// 		return "", nil, nil, err
-// 	}
-
-// 	header := [][2]string{
-// 		{"Content-Type", "application/json"},
-// 		{"dashvector-auth-token", d.config.DashVectorKey},
-// 	}
-
-// 	return url, requestBody, header, err
-// }
-
-//	func (d *DvProvider) UploadEmbedding(query_emb []float64, queryString string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-//		url, body, headers, _ := d.ConstructEmbeddingUploadParameters(query_emb, queryString)
-//		d.client.Post(
-//			url,
-//			headers,
-//			body,
-//			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-//				log.Infof("statusCode:%d, responseBody:%s", statusCode, string(responseBody))
-//				callback(ctx, log)
-//			},
-//			d.config.DashVectorTimeout)
-//	}
+	return results, nil
+}

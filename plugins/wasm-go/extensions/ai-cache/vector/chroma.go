@@ -87,7 +87,7 @@ func (d *ChromaProvider) QueryEmbedding(
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			log.Infof("[Chroma] Query embedding response: %d, %s", statusCode, responseBody)
-			results, err := d.parseQueryResponse(responseBody, ctx, log)
+			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Chroma] Failed to parse query response: %v", err)
 			}
@@ -184,8 +184,7 @@ type chromaQueryResponse struct {
 	Included   []string            `json:"included"`
 }
 
-func (d *ChromaProvider) parseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryResult, error) {
-	log.Infof("[Chroma] queryResp: %s", string(responseBody))
+func (d *ChromaProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
 	var queryResp chromaQueryResponse
 	err := json.Unmarshal(responseBody, &queryResp)
 	if err != nil {

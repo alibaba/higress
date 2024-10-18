@@ -10,6 +10,9 @@ import (
 const (
 	providerTypeDashVector = "dashvector"
 	providerTypeChroma     = "chroma"
+	providerTypeES         = "elasticsearch"
+	providerTypeWeaviate   = "weaviate"
+	providerTypePinecone   = "pinecone"
 )
 
 type providerInitializer interface {
@@ -21,6 +24,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeDashVector: &dashVectorProviderInitializer{},
 		providerTypeChroma:     &chromaProviderInitializer{},
+		providerTypeWeaviate:   &weaviateProviderInitializer{},
 	}
 )
 
