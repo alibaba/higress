@@ -255,6 +255,59 @@ func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {
 		return configs, nil
 	}
 
+	configPatches := []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		{
+			ApplyTo: networking.EnvoyFilter_NETWORK_FILTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+					Listener: &networking.EnvoyFilter_ListenerMatch{
+						FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+							Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+								Name: "envoy.filters.network.http_connection_manager",
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value:     util.BuildPatchStruct(tracingConfig),
+			},
+		},
+		{
+			ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+					Listener: &networking.EnvoyFilter_ListenerMatch{
+						FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+							Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+								Name: "envoy.filters.network.http_connection_manager",
+								SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+									Name: "envoy.filters.http.router",
+								},
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_MERGE,
+				Value: util.BuildPatchStruct(`{
+							"name":"envoy.filters.http.router",
+							"typed_config":{
+								"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
+								"start_child_span": true
+							}
+						}`),
+			},
+		},
+	}
+
+	patches := t.constructTracingExtendPatches(tracing)
+	configPatches = append(configPatches, patches...)
+
 	config := &config.Config{
 		Meta: config.Meta{
 			GroupVersionKind: gvk.EnvoyFilter,
@@ -262,60 +315,58 @@ func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {
 			Namespace:        namespace,
 		},
 		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_NETWORK_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-									},
-								},
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value:     util.BuildPatchStruct(tracingConfig),
-					},
-				},
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.router",
-										},
-									},
-								},
-							},
-						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_MERGE,
-						Value: util.BuildPatchStruct(`{
-							"name":"envoy.filters.http.router",
-							"typed_config":{
-								"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
-								"start_child_span": true
-							}
-						}`),
-					},
-				},
-			},
+			ConfigPatches: configPatches,
 		},
 	}
 
 	configs = append(configs, config)
 	return configs, nil
+}
+
+func tracingClusterName(port, service string) string {
+	return fmt.Sprintf("outbound|%s||%s", port, service)
+}
+
+func (t *TracingController) constructHTTP2ProtocolOptionsPatch(port, service string) *networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	http2ProtocolOptions := `{"typed_extension_protocol_options": {
+  "envoy.extensions.upstreams.http.v3.HttpProtocolOptions": {
+      "@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
+		  "explicit_http_config": {
+		        "http2_protocol_options": {}
+		  }
+  }
+}}`
+
+	return &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		ApplyTo: networking.EnvoyFilter_CLUSTER,
+		Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+			Context: networking.EnvoyFilter_GATEWAY,
+			ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+				Cluster: &networking.EnvoyFilter_ClusterMatch{
+					Name: tracingClusterName(port, service),
+				},
+			},
+		},
+		Patch: &networking.EnvoyFilter_Patch{
+			Operation: networking.EnvoyFilter_Patch_MERGE,
+			Value:     util.BuildPatchStruct(http2ProtocolOptions),
+		},
+	}
+}
+
+func (t *TracingController) constructTracingExtendPatches(tracing *Tracing) []*networking.EnvoyFilter_EnvoyConfigObjectPatch {
+	if tracing == nil {
+		return nil
+	}
+	var patches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
+	if skywalking := tracing.Skywalking; skywalking != nil {
+		patches = append(patches, t.constructHTTP2ProtocolOptionsPatch(skywalking.Port, skywalking.Service))
+	}
+	if otel := tracing.OpenTelemetry; otel != nil {
+		patches = append(patches, t.constructHTTP2ProtocolOptionsPatch(otel.Port, otel.Service))
+	}
+
+	return patches
 }
 
 func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace string) string {
@@ -338,7 +389,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 					},
 					"grpc_service": {
 						"envoy_grpc": {
-							"cluster_name": "outbound|%s||%s"
+							"cluster_name": "%s"
 						},
 						"timeout": "%.3fs"
 					}
@@ -349,7 +400,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 			}
 		}
 	}
-}`, namespace, skywalking.AccessToken, skywalking.Port, skywalking.Service, timeout, tracing.Sampling)
+}`, namespace, skywalking.AccessToken, tracingClusterName(skywalking.Port, skywalking.Service), timeout, tracing.Sampling)
 	}
 
 	if tracing.Zipkin != nil {
@@ -363,7 +414,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 				"name": "envoy.tracers.zipkin",
 				"typed_config": {
 					"@type": "type.googleapis.com/envoy.config.trace.v3.ZipkinConfig",
-                                        "collector_cluster": "outbound|%s||%s",
+                                        "collector_cluster": "%s",
                                         "collector_endpoint": "/api/v2/spans",
                                         "collector_hostname": "higress-gateway",
                                         "collector_endpoint_version": "HTTP_JSON",
@@ -375,7 +426,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 			}
 		}
 	}
-}`, zipkin.Port, zipkin.Service, tracing.Sampling)
+}`, tracingClusterName(zipkin.Port, zipkin.Service), tracing.Sampling)
 	}
 
 	if tracing.OpenTelemetry != nil {
@@ -392,7 +443,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 					"service_name": "higress-gateway.%s",
 					"grpc_service": {
 						"envoy_grpc": {
-							"cluster_name": "outbound|%s||%s"
+							"cluster_name": "%s"
 						},
 						"timeout": "%.3fs"
 					}
@@ -403,7 +454,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 			}
 		}
 	}
-}`, namespace, opentelemetry.Port, opentelemetry.Service, timeout, tracing.Sampling)
+}`, namespace, tracingClusterName(opentelemetry.Port, opentelemetry.Service), timeout, tracing.Sampling)
 	}
 	return tracingConfig
 }
