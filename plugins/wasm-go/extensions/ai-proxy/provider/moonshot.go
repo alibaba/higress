@@ -50,6 +50,16 @@ type moonshotProvider struct {
 	contextCache *contextCache
 }
 
+func (m *moonshotProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *moonshotProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *moonshotProvider) GetProviderType() string {
 	return providerTypeMoonshot
 }
@@ -60,7 +70,7 @@ func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	}
 	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
 	_ = util.OverwriteRequestHost(moonshotDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }

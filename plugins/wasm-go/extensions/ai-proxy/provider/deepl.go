@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -25,6 +26,16 @@ type deeplProviderInitializer struct {
 type deeplProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+}
+
+func (d *deeplProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *deeplProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 // spec reference: https://developers.deepl.com/docs/v/zh/api-reference/translate/openapi-spec-for-text-translation
@@ -79,7 +90,7 @@ func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	_ = util.OverwriteRequestPath(deeplChatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + d.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + d.config.GetApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	return types.HeaderStopIteration, nil

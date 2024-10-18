@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -39,6 +40,16 @@ type deepseekProvider struct {
 	contextCache *contextCache
 }
 
+func (m *deepseekProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *deepseekProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *deepseekProvider) GetProviderType() string {
 	return providerTypeDeepSeek
 }
@@ -49,7 +60,7 @@ func (m *deepseekProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	}
 	_ = util.OverwriteRequestPath(deepseekChatCompletionPath)
 	_ = util.OverwriteRequestHost(deepseekDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil
 }
