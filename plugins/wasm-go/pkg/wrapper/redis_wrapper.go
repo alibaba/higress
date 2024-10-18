@@ -235,8 +235,9 @@ func (c RedisClusterClient[C]) Set(key string, value interface{}, callback Redis
 
 func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, callback RedisResponseCallback) error {
 	args := make([]interface{}, 0)
-	args = append(args, "setex")
+	args = append(args, "set")
 	args = append(args, key)
+	args = append(args, "ex")
 	args = append(args, ttl)
 	args = append(args, value)
 	return RedisCall(c.cluster, respString(args), callback)
