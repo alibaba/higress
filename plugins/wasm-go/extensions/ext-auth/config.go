@@ -138,10 +138,12 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 	if servicePort == 0 {
 		servicePort = 80
 	}
+	serviceHost := endpointConfig.Get("service_host").String()
 
 	httpService.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
+		Host: serviceHost,
 	})
 
 	switch endpointMode {

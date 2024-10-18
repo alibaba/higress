@@ -22,14 +22,15 @@ import (
 	"sync"
 
 	"istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pkg/config/protocol"
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/registry"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
+	"github.com/go-errors/errors"
 )
 
 type watcher struct {
@@ -47,6 +48,9 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	}
 	for _, opt := range opts {
 		opt(w)
+	}
+	if common.ParseProtocol(w.Protocol) == common.Unsupported {
+		return nil, errors.Errorf("invalid protocol:%s", w.Protocol)
 	}
 	return w, nil
 }
@@ -75,17 +79,42 @@ func WithPort(port uint32) WatcherOption {
 	}
 }
 
+func WithProtocol(protocol string) WatcherOption {
+	return func(w *watcher) {
+		w.Protocol = protocol
+		if w.Protocol == "" {
+			w.Protocol = string(common.HTTP)
+		}
+	}
+}
+
+func WithSNI(sni string) WatcherOption {
+	return func(w *watcher) {
+		w.Sni = sni
+	}
+}
+
 func (w *watcher) Run() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	host := strings.Join([]string{w.Name, w.Type}, common.DotSeparator)
 	serviceEntry := w.generateServiceEntry(host)
 	if serviceEntry != nil {
-		w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
-			ServiceName:  w.Name,
-			ServiceEntry: serviceEntry,
-			Suffix:       w.Type,
-			RegistryType: w.Type,
+		var destinationRuleWrapper *ingress.WrapperDestinationRule
+		destinationRule := w.generateDestinationRule(serviceEntry)
+		if destinationRule != nil {
+			destinationRuleWrapper = &ingress.WrapperDestinationRule{
+				DestinationRule: destinationRule,
+				ServiceKey:      ingress.CreateMcpServiceKey(host, int32(w.Port)),
+			}
+		}
+		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+			ServiceName:            w.Name,
+			ServiceEntry:           serviceEntry,
+			Suffix:                 w.Type,
+			RegistryType:           w.Type,
+			RegistryName:           w.Name,
+			DestinationRuleWrapper: destinationRuleWrapper,
 		})
 		w.UpdateService()
 	}
@@ -96,7 +125,7 @@ func (w *watcher) Stop() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	host := strings.Join([]string{w.Name, w.Type}, common.DotSeparator)
-	w.cache.DeleteServiceEntryWrapper(host)
+	w.cache.DeleteServiceWrapper(host)
 	w.Ready(false)
 }
 
@@ -123,7 +152,7 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 			}
 			endpoint = &v1alpha3.WorkloadEntry{
 				Address: pair[0],
-				Ports:   map[string]uint32{"http": uint32(port)},
+				Ports:   map[string]uint32{w.Protocol: uint32(port)},
 			}
 		} else if w.Type == string(registry.DNS) {
 			if !domainRegex.MatchString(ep) {
@@ -146,8 +175,8 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 	var ports []*v1alpha3.ServicePort
 	ports = append(ports, &v1alpha3.ServicePort{
 		Number:   w.Port,
-		Name:     "http",
-		Protocol: string(protocol.HTTP),
+		Name:     w.Protocol,
+		Protocol: string(common.ParseProtocol(w.Protocol)),
 	})
 	se := &v1alpha3.ServiceEntry{
 		Hosts:     []string{host},
@@ -161,6 +190,34 @@ func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 		se.Resolution = v1alpha3.ServiceEntry_DNS
 	}
 	return se
+}
+
+func (w *watcher) generateDestinationRule(se *v1alpha3.ServiceEntry) *v1alpha3.DestinationRule {
+	if !common.Protocol(se.Ports[0].Protocol).IsHTTPS() {
+		return nil
+	}
+	sni := w.Sni
+	// DNS type, automatically sets SNI based on domain name.
+	if sni == "" && w.Type == string(registry.DNS) && len(se.Endpoints) == 1 {
+		sni = w.Domain
+	}
+	return &v1alpha3.DestinationRule{
+		Host: se.Hosts[0],
+		TrafficPolicy: &v1alpha3.TrafficPolicy{
+			PortLevelSettings: []*v1alpha3.TrafficPolicy_PortTrafficPolicy{
+				&v1alpha3.TrafficPolicy_PortTrafficPolicy{
+					Port: &v1alpha3.PortSelector{
+						Number: se.Ports[0].Number,
+					},
+					Tls: &v1alpha3.ClientTLSSettings{
+						Mode: v1alpha3.ClientTLSSettings_SIMPLE,
+						Sni:  sni,
+					},
+				},
+			},
+		},
+	}
+
 }
 
 func (w *watcher) GetRegistryType() string {

@@ -1,4 +1,4 @@
-module myplugin
+module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard
 
 go 1.18
 

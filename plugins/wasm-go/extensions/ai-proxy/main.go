@@ -20,7 +20,7 @@ import (
 const (
 	pluginName = "ai-proxy"
 
-	ctxKeyApiName = "apiKey"
+	ctxKeyApiName = "apiName"
 
 	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
 )
@@ -28,7 +28,7 @@ const (
 func main() {
 	wrapper.SetCtx(
 		pluginName,
-		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeader),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
@@ -37,8 +37,23 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	// log.Debugf("loading config: %s", json.String())
+func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
+	//log.Debugf("loading global config: %s", json.String())
+
+	pluginConfig.FromJson(json)
+	if err := pluginConfig.Validate(); err != nil {
+		return err
+	}
+	if err := pluginConfig.Complete(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, pluginConfig *config.PluginConfig, log wrapper.Log) error {
+	//log.Debugf("loading override rule config: %s", json.String())
+
+	*pluginConfig = global
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
@@ -64,7 +79,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
 	apiName := getOpenAiApiName(path.Path)
-	if apiName == "" {
+	providerConfig := pluginConfig.GetProviderConfig()
+	if apiName == "" && !providerConfig.IsOriginal() {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		// _ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
 		log.Debugf("[onHttpRequestHeader] no send response")

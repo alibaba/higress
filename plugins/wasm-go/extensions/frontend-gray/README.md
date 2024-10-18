@@ -1,16 +1,31 @@
-# frontend-gray 前端灰度插件
+---
+title: 前端灰度
+keywords: [higress,frontend gray]
+description: 前端灰度插件配置参考
+---
+
 ## 功能说明
 `frontend-gray`插件实现了前端用户灰度的的功能，通过此插件，不但可以用于业务`A/B实验`，同时通过`可灰度`配合`可监控`,`可回滚`策略保证系统发布运维的稳定性。
+
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`450`
+
 
 ## 配置字段
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                                 |
 |----------------|--------------|----|-----|----------------------------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
-| `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode`                   |
-| `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景                                                                              |
-| `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置                                                                           |
-| `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置                                                                                      |
-| `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                                                               |
+| `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
+| `userStickyMaxAge`         | int       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
+| `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景   |
+| `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置  |
+| `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |
+| `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                |
+| `backendGrayTag`     | string       | 非必填  | `x-mse-tag`   | 后端灰度版本Tag，如果配置了，cookie中将携带值为`${backendGrayTag}:${grayDeployments[].backendVersion}` |
+| `injection`     | object    | 非必填  | -   | 往首页HTML中注入全局信息，比如`<script>window.global = {...}</script>` |
+
 
 `rules`字段配置说明：
 
@@ -45,12 +60,30 @@
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
 | `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本。如果是非CDN部署，在header添加`x-higress-tag`                     |
-| `backendVersion`  | string | 必填   | -   | 后端灰度版本，会在`XHR/Fetch`请求的header头添加 `x-mse-tag`到后端 |
+| `backendVersion`  | string | 必填   | -   | 后端灰度版本，配合`key`为`${backendGrayTag}`，写入cookie中 |
 | `name` | string | 必填   | -   | 规则名称和`rules[].name`关联，                          |
 | `enabled`  | boolean   | 必填   | -   | 是否启动当前灰度规则                                      |
+| `weight`  | int   | 非必填   | -   | 按照比例灰度，比如`50`。注意：灰度规则权重总和不能超过100，如果同时配置了`grayKey`以及`grayDeployments[0].weight`按照比例灰度优先生效 |
+> 为了实现按比例（weight） 进行灰度发布，并确保用户粘滞，我们需要确认客户端的唯一性。如果配置了 grayKey，则将其用作唯一标识；如果未配置 grayKey，则使用客户端的访问 IP 地址作为唯一标识。
+
+
+`injection`字段配置说明：
+
+| 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
+|--------|--------|------|-----|-------------------------------------------------|
+| `head`  | array of string | 非必填   | -   | 注入head信息，比如`<link rel="stylesheet" href="https://cdn.example.com/styles.css">` |
+| `body`  | object | 非必填   | -   | 注入Body |
+
+`injection.body`字段配置说明：
+| 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
+|--------|--------|------|-----|-------------------------------------------------|
+| `first`  | array of string | 非必填   | -   | 注入body标签的首部 |
+| `after`  | array of string | 非必填   | -   | 注入body标签的尾部 |
+
+
 
 ## 配置示例
-### 基础配置
+### 基础配置（按用户灰度）
 ```yml
 grayKey: userid
 rules:
@@ -82,6 +115,24 @@ cookie中的用户唯一标识为 `userid`，当前灰度规则配置了`beta-us
 - cookie中`level`等于`level3`或者`level5`的用户
 
 否则使用`version: base`版本
+
+### 按比例灰度
+```yml
+grayKey: userid
+rules:
+- name: inner-user
+  grayKeyValue:
+  - '00000001'
+  - '00000005'
+baseDeployment:
+  version: base
+grayDeployments:
+  - name: beta-user
+    version: gray
+    enabled: true
+    weight: 80
+```
+总的灰度规则为100%，其中灰度版本的权重为`80%`，基线版本为`20%`。一旦用户命中了灰度规则，会根据IP固定这个用户的灰度版本（否则会在下次请求时随机选择一个灰度版本）。
 
 ### 用户信息存在JSON中
 
@@ -163,3 +214,31 @@ grayDeployments:
 - `/app1/js/a.js` => `/mfe/app1/v1.0.0/js/a.js`
 - `/app1/js/template/a.js` => `/mfe/app1/v1.0.0/js/template/a.js`
 
+
+### 往HTML首页注入代码
+```yml
+grayKey: userid
+rules:
+- name: inner-user
+  grayKeyValue:
+  - '00000001'
+  - '00000005'
+baseDeployment:
+  version: base
+grayDeployments:
+  - name: beta-user
+    version: gray
+    enabled: true
+    weight: 80
+injection:
+  head: 
+    - <script>console.log('Header')</script>
+  body:
+    first:
+      - <script>console.log('hello world before')</script>
+      - <script>console.log('hello world before1')</script>
+    last:
+      - <script>console.log('hello world after')</script>
+      - <script>console.log('hello world after2')</script>
+```
+通过 `injection`往HTML首页注入代码，可以在`head`标签注入代码，也可以在`body`标签的`first`和`last`位置注入代码。

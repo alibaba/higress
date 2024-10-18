@@ -284,6 +284,10 @@ spec:
                       type: string
                     port:
                       type: integer
+                    protocol:
+                      type: string
+                    sni:
+                      type: string
                     type:
                       type: string
                     zkServicesPath:

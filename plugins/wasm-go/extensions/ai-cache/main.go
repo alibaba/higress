@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -14,22 +13,19 @@ import (
 )
 
 const (
-	pluginName               = "ai-cache"
-	CacheKeyContextKey       = "cacheKey"
-	CacheContentContextKey   = "cacheContent"
-	PartialMessageContextKey = "partialMessage"
-	ToolCallsContextKey      = "toolCalls"
-	StreamContextKey         = "stream"
-	CacheKeyPrefix           = "higressAiCache"
-	DefaultCacheKeyPrefix    = "higressAiCache"
-	QueryEmbeddingKey        = "queryEmbedding"
+	PLUGIN_NAME                 = "ai-cache"
+	CACHE_KEY_CONTEXT_KEY       = "cacheKey"
+	CACHE_KEY_EMBEDDING_KEY     = "cacheKeyEmbedding"
+	CACHE_CONTENT_CONTEXT_KEY   = "cacheContent"
+	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
+	TOOL_CALLS_CONTEXT_KEY      = "toolCalls"
+	STREAM_CONTEXT_KEY          = "stream"
 )
 
 func main() {
 	// CreateClient()
-
 	wrapper.SetCtx(
-		pluginName,
+		PLUGIN_NAME,
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
@@ -48,14 +44,10 @@ func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log
 	}
 	// 注意，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
 	if err := config.Complete(log); err != nil {
-		log.Errorf("complete config failed:%v", err)
+		log.Errorf("complete config failed: %v", err)
 		return err
 	}
 	return nil
-}
-
-func TrimQuote(source string) string {
-	return strings.Trim(source, `"`)
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) types.Action {
@@ -80,11 +72,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, l
 		return types.ActionContinue
 	}
 	if !strings.Contains(contentType, "application/json") {
-		log.Warnf("content is not json, can't process:%s", contentType)
+		log.Warnf("content is not json, can't process: %s", contentType)
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
 	return types.HeaderStopIteration
@@ -97,162 +89,94 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	stream := false
 	if bodyJson.Get("stream").Bool() {
 		stream = true
-		ctx.SetContext(StreamContextKey, struct{}{})
-	} else if ctx.GetContext(StreamContextKey) != nil {
-		stream = true
+		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
 	}
-	// key := TrimQuote(bodyJson.Get(config.CacheKeyFrom.RequestBody).Raw)
-	key := bodyJson.Get(config.CacheKeyFrom.RequestBody).String()
-	ctx.SetContext(CacheKeyContextKey, key)
-	log.Debugf("[onHttpRequestBody] key:%s", key)
-	if key == "" {
-		log.Debug("[onHttpRquestBody] parse key from request body failed")
+
+	var key string
+	if config.CacheKeyStrategy == "lastQuestion" {
+		key = bodyJson.Get("messages.@reverse.0.content").String()
+	} else if config.CacheKeyStrategy == "allQuestions" {
+		// Retrieve all user messages and concatenate them
+		messages := bodyJson.Get("messages").Array()
+		var userMessages []string
+		for _, msg := range messages {
+			if msg.Get("role").String() == "user" {
+				userMessages = append(userMessages, msg.Get("content").String())
+			}
+		}
+		key = strings.Join(userMessages, " ")
+	} else if config.CacheKeyStrategy == "disable" {
+		log.Debugf("[onHttpRequestBody] cache key strategy is disabled")
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	} else {
+		log.Warnf("[onHttpRequestBody] unknown cache key strategy: %s", config.CacheKeyStrategy)
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
-	queryString := config.CacheKeyPrefix + key
+	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, key)
+	log.Debugf("[onHttpRequestBody] key: %s", key)
+	if key == "" {
+		log.Debug("[onHttpRequestBody] parse key from request body failed")
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 
-	RedisSearchHandler(queryString, ctx, config, log, stream, true)
+	if err := CheckCacheForKey(key, ctx, config, log, stream, true); err != nil {
+		log.Errorf("check cache for key: %s failed, error: %v", key, err)
+		return types.ActionContinue
+	}
 
-	// 需要等待异步回调完成，返回 Pause 状态，可以被 ResumeHttpRequest 恢复
 	return types.ActionPause
-}
-
-func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseMessage string, log wrapper.Log) string {
-	subMessages := strings.Split(sseMessage, "\n")
-	var message string
-	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data:") {
-			message = msg
-			break
-		}
-	}
-	if len(message) < 6 {
-		log.Warnf("invalid message:%s", message)
-		return ""
-	}
-	// skip the prefix "data:"
-	bodyJson := message[5:]
-	if gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Exists() {
-		tempContentI := ctx.GetContext(CacheContentContextKey)
-		if tempContentI == nil {
-			content := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
-			ctx.SetContext(CacheContentContextKey, content)
-			return content
-		}
-		append := TrimQuote(gjson.Get(bodyJson, config.CacheStreamValueFrom.ResponseBody).Raw)
-		content := tempContentI.(string) + append
-		ctx.SetContext(CacheContentContextKey, content)
-		return content
-	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
-		// TODO: compatible with other providers
-		ctx.SetContext(ToolCallsContextKey, struct{}{})
-		return ""
-	}
-	log.Warnf("unknown message:%s", bodyJson)
-	return ""
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
-		ctx.SetContext(StreamContextKey, struct{}{})
+		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
 	}
 	return types.ActionContinue
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Infof("[onHttpResponseBody] chunk:%s", string(chunk))
-	log.Infof("[onHttpResponseBody] isLastChunk:%v", isLastChunk)
-	if ctx.GetContext(ToolCallsContextKey) != nil {
-		// we should not cache tool call result
-		return chunk
-	}
-	keyI := ctx.GetContext(CacheKeyContextKey)
-	if keyI == nil {
-		return chunk
-	}
-	if !isLastChunk {
-		stream := ctx.GetContext(StreamContextKey)
-		if stream == nil {
-			tempContentI := ctx.GetContext(CacheContentContextKey)
-			if tempContentI == nil {
-				ctx.SetContext(CacheContentContextKey, chunk)
-				return chunk
-			}
-			tempContent := tempContentI.([]byte)
-			tempContent = append(tempContent, chunk...)
-			ctx.SetContext(CacheContentContextKey, tempContent)
-		} else {
-			var partialMessage []byte
-			partialMessageI := ctx.GetContext(PartialMessageContextKey)
-			if partialMessageI != nil {
-				partialMessage = append(partialMessageI.([]byte), chunk...)
-			} else {
-				partialMessage = chunk
-			}
-			messages := strings.Split(string(partialMessage), "\n\n")
-			for i, msg := range messages {
-				if i < len(messages)-1 {
-					// process complete message
-					processSSEMessage(ctx, config, msg, log)
-				}
-			}
-			if !strings.HasSuffix(string(partialMessage), "\n\n") {
-				ctx.SetContext(PartialMessageContextKey, []byte(messages[len(messages)-1]))
-			} else {
-				ctx.SetContext(PartialMessageContextKey, nil)
-			}
-		}
-		return chunk
-	}
-	// last chunk
-	key := keyI.(string)
-	stream := ctx.GetContext(StreamContextKey)
-	var value string
-	if stream == nil {
-		var body []byte
-		tempContentI := ctx.GetContext(CacheContentContextKey)
-		if tempContentI != nil {
-			body = append(tempContentI.([]byte), chunk...)
-		} else {
-			body = chunk
-		}
-		bodyJson := gjson.ParseBytes(body)
+	log.Debugf("[onHttpResponseBody] escaped chunk: %q", string(chunk))
+	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
 
-		value = TrimQuote(bodyJson.Get(config.CacheValueFrom.ResponseBody).Raw)
-		if value == "" {
-			log.Warnf("parse value from response body failded, body:%s", body)
-			return chunk
-		}
-	} else {
-		log.Infof("[onHttpResponseBody] stream mode")
-		if len(chunk) > 0 {
-			var lastMessage []byte
-			partialMessageI := ctx.GetContext(PartialMessageContextKey)
-			if partialMessageI != nil {
-				lastMessage = append(partialMessageI.([]byte), chunk...)
-			} else {
-				lastMessage = chunk
-			}
-			if !strings.HasSuffix(string(lastMessage), "\n\n") {
-				log.Warnf("[onHttpResponseBody] invalid lastMessage:%s", lastMessage)
-				return chunk
-			}
-			// remove the last \n\n
-			lastMessage = lastMessage[:len(lastMessage)-2]
-			value = processSSEMessage(ctx, config, string(lastMessage), log)
-		} else {
-			tempContentI := ctx.GetContext(CacheContentContextKey)
-			if tempContentI == nil {
-				log.Warnf("[onHttpResponseBody] no content in tempContentI")
-				return chunk
-			}
-			value = tempContentI.(string)
-		}
+	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
+		return chunk
 	}
-	log.Infof("[onHttpResponseBody] Setting cache to redis, key:%s, value:%s", key, value)
-	config.GetCacheProvider().Set(embedding.CacheKeyPrefix+key, value, nil)
-	// TODO: 要不要加个Expire方法
+
+	key := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
+	if key == nil {
+		log.Debug("[onHttpResponseBody] key is nil, bypass caching")
+		return chunk
+	}
+
+	if !isLastChunk {
+		handlePartialChunk(ctx, config, chunk, log)
+		return chunk
+	}
+
+	// Handle last chunk
+	var value string
+	var err error
+
+	if len(chunk) > 0 {
+		value, err = processNonEmptyChunk(ctx, config, chunk, log)
+	} else {
+		value, err = processEmptyChunk(ctx, config, chunk, log)
+	}
+
+	if err != nil {
+		log.Warnf("[onHttpResponseBody] failed to process chunk: %v", err)
+		return chunk
+	}
+	// Cache the final value
+	cacheResponse(ctx, config, key.(string), value, log)
+
+	// Handle embedding upload if available
+	uploadEmbeddingAndAnswer(ctx, config, key.(string), value, log)
+
 	return chunk
 }
