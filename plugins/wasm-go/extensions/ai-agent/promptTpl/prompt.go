@@ -167,3 +167,7 @@ Action:` + "```" + `
 %s
 Question: %s
 `
+const Json_Resp_Template = `
+Given the Json Schema: %s, please help me convert the following content to a pure json: %s
+Do not respond other content except the pure json!!!!
+`
