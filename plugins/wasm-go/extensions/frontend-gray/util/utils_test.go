@@ -53,6 +53,30 @@ func TestIndexRewrite(t *testing.T) {
 	}
 }
 
+func TestIndexRewrite2(t *testing.T) {
+	matchRules := map[string]string{
+		"/":       "/{version}/index.html",
+		"/sta":    "/sta/{version}/index.html",
+		"/static": "/static/{version}/index.html",
+	}
+
+	var tests = []struct {
+		path, output string
+	}{
+		{"/static123", "/static/v1.0.0/index.html"},
+		{"/static", "/static/v1.0.0/index.html"},
+		{"/sta", "/sta/v1.0.0/index.html"},
+		{"/", "/v1.0.0/index.html"},
+	}
+	for _, test := range tests {
+		testName := test.path
+		t.Run(testName, func(t *testing.T) {
+			output := IndexRewrite(testName, "v1.0.0", matchRules)
+			assert.Equal(t, test.output, output)
+		})
+	}
+}
+
 func TestPrefixFileRewrite(t *testing.T) {
 	matchRules := map[string]string{
 		// 前缀匹配

@@ -221,11 +221,15 @@ clean-higress: ## Cleans all the intermediate files and folders previously gener
 	rm -rf $(DIRS_TO_CLEAN)
 
 clean-istio:
+	rm -rf external/api
+	rm -rf external/client-go
 	rm -rf external/istio
+	rm -rf external/pkg
 
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
+	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
 
 clean-env:
