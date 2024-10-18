@@ -20,11 +20,11 @@ type providerInitializer interface {
 var (
 	providerInitializers = map[string]providerInitializer{
 		providerTypeDashVector: &dashVectorProviderInitializer{},
-		// providerTypeChroma:     &chromaProviderInitializer{},
+		providerTypeChroma:     &chromaProviderInitializer{},
 	}
 )
 
-// QueryEmbeddingResult 定义通用的查询结果的结构体
+// QueryResult 定义通用的查询结果的结构体
 type QueryResult struct {
 	Text      string    // 相似的文本
 	Embedding []float64 // 相似文本的向量
@@ -100,22 +100,6 @@ type ProviderConfig struct {
 	// @Title zh-CN DashVector 向量存储服务 Collection ID
 	// @Description zh-CN DashVector 向量存储服务 Collection ID
 	collectionID string
-
-	// // @Title zh-CN Chroma 的上游服务名称
-	// // @Description zh-CN Chroma 服务所对应的网关内上游服务名称
-	// ChromaServiceName string `require:"true" yaml:"ChromaServiceName" json:"ChromaServiceName"`
-	// // @Title zh-CN Chroma Collection ID
-	// // @Description zh-CN Chroma Collection 的 ID
-	// ChromaCollectionID string `require:"false" yaml:"ChromaCollectionID" json:"ChromaCollectionID"`
-	// @Title zh-CN Chroma 距离阈值
-	// @Description zh-CN Chroma 距离阈值，默认为 2000
-	ChromaDistanceThreshold float64 `require:"false" yaml:"ChromaDistanceThreshold" json:"ChromaDistanceThreshold"`
-	// // @Title zh-CN Chroma 搜索返回结果数量
-	// // @Description zh-CN Chroma 搜索返回结果数量，默认为 1
-	// ChromaNResult int `require:"false" yaml:"ChromaNResult" json:"ChromaNResult"`
-	// // @Title zh-CN Chroma 超时设置
-	// // @Description zh-CN Chroma 超时设置，默认为 10 秒
-	// ChromaTimeout uint32 `require:"false" yaml:"ChromaTimeout" json:"ChromaTimeout"`
 }
 
 func (c *ProviderConfig) GetProviderType() string {
@@ -141,21 +125,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
-	// Chroma
-	// c.ChromaCollectionID = json.Get("ChromaCollectionID").String()
-	// c.ChromaServiceName = json.Get("ChromaServiceName").String()
-	// c.ChromaDistanceThreshold = json.Get("ChromaDistanceThreshold").Float()
-	// if c.ChromaDistanceThreshold == 0 {
-	// 	c.ChromaDistanceThreshold = 2000
-	// }
-	// c.ChromaNResult = int(json.Get("ChromaNResult").Int())
-	// if c.ChromaNResult == 0 {
-	// 	c.ChromaNResult = 1
-	// }
-	// c.ChromaTimeout = uint32(json.Get("ChromaTimeout").Int())
-	// if c.ChromaTimeout == 0 {
-	// 	c.ChromaTimeout = 10000
-	// }
 }
 
 func (c *ProviderConfig) Validate() error {
