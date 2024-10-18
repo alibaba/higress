@@ -182,7 +182,7 @@ cookie存在`appInfo`的JSON数据，其中包含`userId`字段为当前的唯�
 		if (typeof localStorage !== 'undefined' && localStorage !== null) {
 			var storageValue = localStorage.getItem(grayKey);
 			var cookieValue = cookies.length > 0 ? decodeURIComponent(cookies[0].split('=')[1]) : null;
-			if (storageValue && cookieValue && cookieValue !== storageValue) {
+			if (storageValue && storageValue.indexOf('=') < 0 && cookieValue && cookieValue !== storageValue) {
 				document.cookie = grayKey + '=' + encodeURIComponent(storageValue) + '; path=/;';
 				window.location.reload();
 			}

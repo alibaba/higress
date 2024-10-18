@@ -235,7 +235,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	newBody = util.InjectContent(newBody, grayConfig.Injection)
 	if grayConfig.LocalStorageGrayKey != "" {
 		localStr := strings.ReplaceAll(`<script>
-		!function(){var o,e,t="@@X_GRAY_KEY",n=document.cookie.split("; ").filter(function(o){return 0===o.indexOf(t+"=")});try{"undefined"!=typeof localStorage&&null!==localStorage&&(o=localStorage.getItem(t),e=0<n.length?decodeURIComponent(n[0].split("=")[1]):null,o)&&e&&e!==o&&(document.cookie=t+"="+encodeURIComponent(o)+"; path=/;",window.location.reload())}catch(o){}}();
+		!function(){var o,e,n="@@X_GRAY_KEY",t=document.cookie.split("; ").filter(function(o){return 0===o.indexOf(n+"=")});try{"undefined"!=typeof localStorage&&null!==localStorage&&(o=localStorage.getItem(n),e=0<t.length?decodeURIComponent(t[0].split("=")[1]):null,o)&&o.indexOf("=")<0&&e&&e!==o&&(document.cookie=n+"="+encodeURIComponent(o)+"; path=/;",window.location.reload())}catch(o){}}();
 		</script>
 		`, "@@X_GRAY_KEY", grayConfig.LocalStorageGrayKey)
 		newBody = strings.ReplaceAll(newBody, "<body>", "<body>\n"+localStr)
