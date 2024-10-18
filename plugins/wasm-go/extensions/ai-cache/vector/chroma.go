@@ -198,7 +198,7 @@ func (d *ChromaProvider) parseQueryResponse(responseBody []byte, log wrapper.Log
 	results := make([]QueryResult, 0, len(queryResp.Ids[0]))
 	for i := range queryResp.Ids[0] {
 		result := QueryResult{
-			Text:   queryResp.Documents[0][i],
+			Text:   queryResp.Ids[0][i],
 			Score:  queryResp.Distances[0][i],
 			Answer: queryResp.Documents[0][i],
 		}

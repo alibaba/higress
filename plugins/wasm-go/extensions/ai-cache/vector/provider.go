@@ -25,6 +25,7 @@ var (
 		providerTypeDashVector: &dashVectorProviderInitializer{},
 		providerTypeChroma:     &chromaProviderInitializer{},
 		providerTypeWeaviate:   &weaviateProviderInitializer{},
+		providerTypeES:         &esProviderInitializer{},
 	}
 )
 
@@ -104,6 +105,14 @@ type ProviderConfig struct {
 	// @Title zh-CN DashVector 向量存储服务 Collection ID
 	// @Description zh-CN DashVector 向量存储服务 Collection ID
 	collectionID string
+
+	// ES 配置
+	// @Title zh-CN ES 用户名
+	// @Description zh-CN ES 用户名
+	esUsername string
+	// @Title zh-CN ES 密码
+	// @Description zh-CN ES 密码
+	esPassword string
 }
 
 func (c *ProviderConfig) GetProviderType() string {
@@ -112,7 +121,6 @@ func (c *ProviderConfig) GetProviderType() string {
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
-	// DashVector
 	c.serviceName = json.Get("serviceName").String()
 	c.serviceDomain = json.Get("serviceDomain").String()
 	c.servicePort = int64(json.Get("servicePort").Int())
@@ -129,6 +137,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
+
+	// ES
+	c.esUsername = json.Get("esUsername").String()
+	c.esPassword = json.Get("esPassword").String()
 }
 
 func (c *ProviderConfig) Validate() error {
