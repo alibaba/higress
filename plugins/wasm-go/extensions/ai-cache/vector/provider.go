@@ -26,6 +26,7 @@ var (
 		providerTypeChroma:     &chromaProviderInitializer{},
 		providerTypeWeaviate:   &weaviateProviderInitializer{},
 		providerTypeES:         &esProviderInitializer{},
+		providerTypePinecone:   &pineconeProviderInitializer{},
 	}
 )
 
