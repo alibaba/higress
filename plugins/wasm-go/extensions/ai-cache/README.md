@@ -57,7 +57,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | --- | --- | --- | --- | --- |
 | embedding.type | string | required | "" | 请求文本向量化服务类型，例如 DashScope |
 | embedding.serviceName | string | required | "" | 请求文本向量化服务名称 |
-| embedding.serviceDomain | string | required | "" | 请求文本向量化服务域名 |
+| embedding.serviceDomain | string | optional | "" | 请求文本向量化服务域名 |
 | embedding.servicePort | int64 | optional | 443 | 请求文本向量化服务端口 |
 | embedding.apiKey | string | optional | ""  | 请求文本向量化服务的 API Key |
 | embedding.timeout | uint32 | optional | 10000 | 请求文本向量化服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
