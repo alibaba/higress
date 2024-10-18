@@ -49,17 +49,18 @@ type BodyInjection struct {
 }
 
 type GrayConfig struct {
-	UserStickyMaxAge string
-	TotalGrayWeight  int
-	GrayKey          string
-	GraySubKey       string
-	Rules            []*GrayRule
-	Rewrite          *Rewrite
-	Html             string  
-	BaseDeployment   *Deployment
-	GrayDeployments  []*Deployment
-	BackendGrayTag   string
-	Injection        *Injection
+	UserStickyMaxAge    string
+	TotalGrayWeight     int
+	GrayKey             string
+	LocalStorageGrayKey string
+	GraySubKey          string
+	Rules               []*GrayRule
+	Rewrite             *Rewrite
+	Html                string
+	BaseDeployment      *Deployment
+	GrayDeployments     []*Deployment
+	BackendGrayTag      string
+	Injection           *Injection
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -81,7 +82,11 @@ func convertToStringMap(result gjson.Result) map[string]string {
 
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
+	grayConfig.LocalStorageGrayKey = json.Get("localStorageGrayKey").String()
 	grayConfig.GrayKey = json.Get("grayKey").String()
+	if grayConfig.LocalStorageGrayKey != "" {
+		grayConfig.GrayKey = grayConfig.LocalStorageGrayKey
+	}
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()

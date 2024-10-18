@@ -72,17 +72,17 @@ go.test.coverage: prebuild
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
 
 $(AMD64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
 
 $(ARM64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
 build-hgctl: prebuild $(OUT)
@@ -221,11 +221,15 @@ clean-higress: ## Cleans all the intermediate files and folders previously gener
 	rm -rf $(DIRS_TO_CLEAN)
 
 clean-istio:
+	rm -rf external/api
+	rm -rf external/client-go
 	rm -rf external/istio
+	rm -rf external/pkg
 
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
+	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
 
 clean-env:
