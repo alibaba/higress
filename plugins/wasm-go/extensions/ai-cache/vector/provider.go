@@ -13,6 +13,7 @@ const (
 	providerTypeES         = "elasticsearch"
 	providerTypeWeaviate   = "weaviate"
 	providerTypePinecone   = "pinecone"
+	providerTypeQdrant     = "qdrant"
 )
 
 type providerInitializer interface {
@@ -27,6 +28,7 @@ var (
 		providerTypeWeaviate:   &weaviateProviderInitializer{},
 		providerTypeES:         &esProviderInitializer{},
 		providerTypePinecone:   &pineconeProviderInitializer{},
+		providerTypeQdrant:     &qdrantProviderInitializer{},
 	}
 )
 

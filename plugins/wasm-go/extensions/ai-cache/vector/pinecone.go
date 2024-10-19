@@ -184,8 +184,8 @@ func (d *pineconeProvider) parseQueryResponse(responseBody []byte, log wrapper.L
 	}
 
 	if !gjson.GetBytes(responseBody, "matches.0.metadata.answer").Exists() {
-		log.Errorf("[Pinecone] No question found in response body: %s", responseBody)
-		return nil, errors.New("[Pinecone] No question found in response body")
+		log.Errorf("[Pinecone] No answer found in response body: %s", responseBody)
+		return nil, errors.New("[Pinecone] No answer found in response body")
 	}
 
 	resultNum := gjson.GetBytes(responseBody, "matches.#").Int()
