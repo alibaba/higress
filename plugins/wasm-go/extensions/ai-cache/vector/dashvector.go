@@ -9,10 +9,6 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-const (
-	threshold = 10000
-)
-
 type dashVectorProviderInitializer struct {
 }
 
@@ -120,9 +116,6 @@ func (d *DvProvider) parseQueryResponse(responseBody []byte) (queryResponse, err
 	return queryResp, nil
 }
 
-func (d *DvProvider) GetSimThreshold() float64 {
-	return threshold
-}
 func (d *DvProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
@@ -240,10 +233,6 @@ func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx
 		},
 		d.config.timeout)
 	return err
-}
-
-func (d *DvProvider) GetSimilarityThreshold() float64 {
-	return threshold
 }
 
 func (d *DvProvider) UploadAnswerAndEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {

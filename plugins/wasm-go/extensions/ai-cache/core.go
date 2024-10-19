@@ -153,15 +153,9 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 
 	mostSimilarData := results[0]
 	log.Debugf("For key: %s, the most similar key found: %s with score: %f", key, mostSimilarData.Text, mostSimilarData.Score)
-
-	simThresholdProvider, ok := config.GetVectorProvider().(vector.SimilarityThresholdProvider)
-	if !ok {
-		handleInternalError(nil, "Active vector provider does not implement SimilarityThresholdProvider interface", log)
-		return
-	}
-
-	simThreshold := simThresholdProvider.GetSimilarityThreshold()
-	if mostSimilarData.Score < simThreshold {
+	simThreshold := config.GetVectorProviderConfig().Threshold
+	simThresholdRelation := config.GetVectorProviderConfig().ThresholdRelation
+	if compare(simThresholdRelation, mostSimilarData.Score, simThreshold) {
 		log.Infof("Key accepted: %s with score: %f below threshold", mostSimilarData.Text, mostSimilarData.Score)
 		if mostSimilarData.Answer != "" {
 			// direct return the answer if available
@@ -179,7 +173,7 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 			proxywasm.ResumeHttpRequest()
 		}
 	} else {
-		log.Infof("Score too high for key: %s with score: %f above threshold", mostSimilarData.Text, mostSimilarData.Score)
+		log.Infof("Score not meet the threshold %f: %s with score %f", simThreshold, mostSimilarData.Text, mostSimilarData.Score)
 		proxywasm.ResumeHttpRequest()
 	}
 }
@@ -248,5 +242,24 @@ func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfi
 		if err != nil {
 			log.Warnf("[onHttpResponseBody] failed to upload embedding for key: %s, error: %v", key, err)
 		}
+	}
+}
+
+// 主要用于相似度/距离/点积判断
+// 余弦相似度度量的是两个向量在方向上的相似程度。相似度越高，两个向量越接近。
+// 距离度量的是两个向量在空间上的远近程度。距离越小，两个向量越接近。
+// compare 函数根据操作符进行判断并返回结果
+func compare(operator string, value1 float64, value2 float64) bool {
+	switch operator {
+	case "gt":
+		return value1 > value2
+	case "gte":
+		return value1 >= value2
+	case "lt":
+		return value1 < value2
+	case "lte":
+		return value1 <= value2
+	default:
+		return false
 	}
 }
