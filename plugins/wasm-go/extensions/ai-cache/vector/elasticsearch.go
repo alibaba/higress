@@ -12,8 +12,6 @@ import (
 
 type esProviderInitializer struct{}
 
-const esThreshold = 1000
-
 func (c *esProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.collectionID) == 0 {
 		return errors.New("[ES] collectionID is required")
@@ -42,10 +40,6 @@ type ESProvider struct {
 
 func (c *ESProvider) GetProviderType() string {
 	return providerTypeES
-}
-
-func (d *ESProvider) GetSimilarityThreshold() float64 {
-	return esThreshold
 }
 
 func (d *ESProvider) QueryEmbedding(

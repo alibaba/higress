@@ -154,6 +154,10 @@ func (c *PluginConfig) GetVectorProvider() vector.Provider {
 	return c.vectorProvider
 }
 
+func (c *PluginConfig) GetVectorProviderConfig() vector.ProviderConfig {
+	return c.vectorProviderConfig
+}
+
 func (c *PluginConfig) GetCacheProvider() cache.Provider {
 	return c.cacheProvider
 }

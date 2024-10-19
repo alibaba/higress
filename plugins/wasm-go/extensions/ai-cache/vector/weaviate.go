@@ -12,8 +12,6 @@ import (
 
 type weaviateProviderInitializer struct{}
 
-const weaviateThreshold = 0.5
-
 func (c *weaviateProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.collectionID) == 0 {
 		return errors.New("[Weaviate] collectionID is required")
@@ -42,10 +40,6 @@ type WeaviateProvider struct {
 
 func (c *WeaviateProvider) GetProviderType() string {
 	return providerTypeWeaviate
-}
-
-func (d *WeaviateProvider) GetSimilarityThreshold() float64 {
-	return weaviateThreshold
 }
 
 func (d *WeaviateProvider) QueryEmbedding(

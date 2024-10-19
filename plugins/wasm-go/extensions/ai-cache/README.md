@@ -50,7 +50,8 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | vector.topK | int | optional | 1 | 返回TopK结果，默认为 1 |
 | vector.timeout | uint32 | optional | 10000 | 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
 | vector.collectionID | string | optional | "" |  DashVector 向量存储服务 Collection ID |
-
+| vector.threshold | float64 | optional | 1000 | 向量相似度度量阈值 |
+| vector.thresholdRelation | string | optional | lt | 相似度度量方式有 `Cosine`, `DotProduct`, `Euclidean` 等，前两者值越大相似度越高，后者值越小相似度越高。对于 `Cosine` 和 `DotProduct` 选择 `gt`，对于 `Euclidean` 则选择 `lt`。默认为 `lt`，所有条件包括 `lt` (less than，小于)、`lte` (less than or equal to，小等于)、`gt` (greater than，大于)、`gte` (greater than or equal to，大等于) |
 
 ## 文本向量化服务（embedding）
 | Name | Type | Requirement | Default | Description |

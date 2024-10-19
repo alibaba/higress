@@ -13,8 +13,6 @@ import (
 
 type pineconeProviderInitializer struct{}
 
-const pineconeThreshold = 1000
-
 func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.serviceDomain) == 0 {
 		return errors.New("[Pinecone] serviceDomain is required")
@@ -49,10 +47,6 @@ type pineconeProvider struct {
 
 func (c *pineconeProvider) GetProviderType() string {
 	return providerTypePinecone
-}
-
-func (d *pineconeProvider) GetSimilarityThreshold() float64 {
-	return pineconeThreshold
 }
 
 type pineconeMetadata struct {

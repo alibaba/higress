@@ -81,10 +81,6 @@ type StringQuerier interface {
 		callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
-type SimilarityThresholdProvider interface {
-	GetSimilarityThreshold() float64
-}
-
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
 	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
@@ -107,9 +103,18 @@ type ProviderConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒
 	timeout uint32
-	// @Title zh-CN DashVector 向量存储服务 Collection ID
-	// @Description zh-CN DashVector 向量存储服务 Collection ID
+	// @Title zh-CN 向量存储服务 Collection ID
+	// @Description zh-CN 向量存储服务的 Collection ID
 	collectionID string
+	// @Title zh-CN 相似度度量阈值
+	// @Description zh-CN 默认相似度度量阈值，默认为 1000。
+	Threshold float64
+	// @Title zh-CN 相似度度量比较方式
+	// @Description zh-CN 相似度度量比较方式，默认为小于。
+	// 相似度度量方式有 Cosine, DotProduct, Euclidean 等，前两者值越大相似度越高，后者值越小相似度越高。
+	// 所以需要允许自定义比较方式，对于 Cosine 和 DotProduct 选择 gt，对于 Euclidean 则选择 lt。
+	// 默认为 lt，所有条件包括 lt (less than，小于)、lte (less than or equal to，小等于)、gt (greater than，大于)、gte (greater than or equal to，大等于)
+	ThresholdRelation string
 
 	// ES 配置
 	// @Title zh-CN ES 用户名
@@ -142,6 +147,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
+	c.Threshold = json.Get("threshold").Float()
+	if c.Threshold == 0 {
+		c.Threshold = 1000
+	}
+	c.ThresholdRelation = json.Get("thresholdRelation").String()
+	if c.ThresholdRelation == "" {
+		c.ThresholdRelation = "lt"
+	}
 
 	// ES
 	c.esUsername = json.Get("esUsername").String()
@@ -156,6 +169,9 @@ func (c *ProviderConfig) Validate() error {
 	if !has {
 		return errors.New("unknown vector database service provider type: " + c.typ)
 	}
+	if !isRelationValid(c.ThresholdRelation) {
+		return errors.New("invalid thresholdRelation: " + c.ThresholdRelation)
+	}
 	if err := initializer.ValidateConfig(*c); err != nil {
 		return err
 	}
@@ -168,4 +184,13 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
+}
+
+func isRelationValid(relation string) bool {
+	for _, r := range []string{"lt", "lte", "gt", "gte"} {
+		if r == relation {
+			return true
+		}
+	}
+	return false
 }

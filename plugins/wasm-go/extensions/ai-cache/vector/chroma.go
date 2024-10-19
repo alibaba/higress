@@ -11,8 +11,6 @@ import (
 
 type chromaProviderInitializer struct{}
 
-const chromaThreshold = 1000
-
 func (c *chromaProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.collectionID) == 0 {
 		return errors.New("[Chroma] collectionID is required")
@@ -41,10 +39,6 @@ type ChromaProvider struct {
 
 func (c *ChromaProvider) GetProviderType() string {
 	return providerTypeChroma
-}
-
-func (d *ChromaProvider) GetSimilarityThreshold() float64 {
-	return chromaThreshold
 }
 
 func (d *ChromaProvider) QueryEmbedding(

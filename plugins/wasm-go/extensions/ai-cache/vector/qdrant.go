@@ -13,8 +13,6 @@ import (
 
 type qdrantProviderInitializer struct{}
 
-const qdrantThreshold = 50
-
 func (c *qdrantProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.serviceName) == 0 {
 		return errors.New("[Qdrant] serviceName is required")
@@ -43,10 +41,6 @@ type qdrantProvider struct {
 
 func (c *qdrantProvider) GetProviderType() string {
 	return providerTypeQdrant
-}
-
-func (d *qdrantProvider) GetSimilarityThreshold() float64 {
-	return qdrantThreshold
 }
 
 type qdrantPayload struct {

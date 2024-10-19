@@ -12,8 +12,6 @@ import (
 
 type milvusProviderInitializer struct{}
 
-const milvusThreshold = 0.5
-
 func (c *milvusProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.serviceName) == 0 {
 		return errors.New("[Milvus] serviceName is required")
@@ -44,12 +42,7 @@ func (c *milvusProvider) GetProviderType() string {
 	return providerTypeMilvus
 }
 
-func (d *milvusProvider) GetSimilarityThreshold() float64 {
-	return milvusThreshold
-}
-
 type milvusData struct {
-	ID       int       `json:"id"`
 	Vector   []float64 `json:"vector"`
 	Question string    `json:"question,omitempty"`
 	Answer   string    `json:"answer,omitempty"`
@@ -68,7 +61,8 @@ func (d *milvusProvider) UploadAnswerAndEmbedding(
 	log wrapper.Log,
 	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	// 最少需要填写的参数为 collectionName, data 和 Authorization. question, answer 可选
-	// invalid syntax: invalid parameter[expected=Int64][actual=]
+	// 需要填写 id，否则 v2.4.13-hotfix 提示 invalid syntax: invalid parameter[expected=Int64][actual=]
+	// 如果不填写 id，一定要在创建 collection 的时候设置 autoId 为 true
 	// 下面是一个例子
 	// {
 	// 	"collectionName": "higress",
@@ -88,7 +82,6 @@ func (d *milvusProvider) UploadAnswerAndEmbedding(
 		CollectionName: d.config.collectionID,
 		Data: []milvusData{
 			{
-				ID:       0,
 				Question: queryString,
 				Answer:   queryAnswer,
 				Vector:   queryEmb,
