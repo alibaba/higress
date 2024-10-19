@@ -14,6 +14,7 @@ const (
 	providerTypeWeaviate   = "weaviate"
 	providerTypePinecone   = "pinecone"
 	providerTypeQdrant     = "qdrant"
+	providerTypeMilvus     = "milvus"
 )
 
 type providerInitializer interface {
@@ -29,6 +30,7 @@ var (
 		providerTypeES:         &esProviderInitializer{},
 		providerTypePinecone:   &pineconeProviderInitializer{},
 		providerTypeQdrant:     &qdrantProviderInitializer{},
+		providerTypeMilvus:     &milvusProviderInitializer{},
 	}
 )
 

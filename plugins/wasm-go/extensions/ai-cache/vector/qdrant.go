@@ -79,7 +79,7 @@ func (d *qdrantProvider) UploadAnswerAndEmbedding(
 	// 	    "id": "76874cce-1fb9-4e16-9b0b-f085ac06ed6f",
 	// 	    "payload": {
 	// 	      "question": "这里是问题",
-	// 	  	"ansower": "这里是答案"
+	// 	  	  "answer": "这里是答案"
 	// 	    },
 	// 	    "vector": [
 	// 	      0.9,
