@@ -113,3 +113,162 @@ kind: VMPodScrape
 {{- fail "unexpected gateway.metrics.provider" -}}
 {{- end -}}
 {{- end -}}
+
+
+{{- define "higress.namespace" -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+
+{{- define "gateway.affinities.pods" -}}
+  {{- if eq .type "soft" }}
+    {{- include "gateway.affinities.pods.soft" . -}}
+  {{- else if eq .type "hard" }}
+    {{- include "gateway.affinities.pods.hard" . -}}
+  {{- end -}}
+{{- end -}}
+
+{{- define "gateway.affinities.pods.soft" -}}
+preferredDuringSchedulingIgnoredDuringExecution:
+  - podAffinityTerm:
+      labelSelector:
+        matchLabels: {{- (include "gateway.selectorLabels" .context) | nindent 10 }}
+      namespaces:
+        - {{ include "higress.namespace" .context | quote }}
+      topologyKey: kubernetes.io/hostname
+    weight: 60
+{{- end -}}
+
+
+{{- define "gateway.affinities.pods.hard" -}}
+requiredDuringSchedulingIgnoredDuringExecution:
+  - labelSelector:
+      matchLabels: {{- (include "gateway.selectorLabels" .context) | nindent 8 }}
+    namespaces:
+      - {{ include "higress.namespace" .context | quote }}
+    topologyKey: kubernetes.io/hostname
+{{- end -}}
+
+
+
+{{/*
+Return a soft nodeAffinity definition
+{{ include "gateway.affinities.nodes.soft" (dict "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "gateway.affinities.nodes.soft" -}}
+preferredDuringSchedulingIgnoredDuringExecution:
+  - preference:
+      matchExpressions:
+        - key: {{ .key }}
+          operator: In
+          values:
+            {{- range .values }}
+            - {{ . | quote }}
+            {{- end }}
+    weight: 60
+{{- end -}}
+
+{{/*
+Return a hard nodeAffinity definition
+{{ include "gateway.affinities.nodes.hard" (dict "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "gateway.affinities.nodes.hard" -}}
+requiredDuringSchedulingIgnoredDuringExecution:
+  nodeSelectorTerms:
+    - matchExpressions:
+        - key: {{ .key }}
+          operator: In
+          values:
+            {{- range .values }}
+            - {{ . | quote }}
+            {{- end }}
+{{- end -}}
+
+{{/*
+Return a nodeAffinity definition
+{{ include "gateway.affinities.nodes" (dict "type" "soft" "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "gateway.affinities.nodes" -}}
+  {{- if eq .type "soft" }}
+    {{- include "gateway.affinities.nodes.soft" . -}}
+  {{- else if eq .type "hard" }}
+    {{- include "gateway.affinities.nodes.hard" . -}}
+  {{- end -}}
+{{- end -}}
+
+
+
+{{- define "controller.affinities.pods" -}}
+  {{- if eq .type "soft" }}
+    {{- include "controller.affinities.pods.soft" . -}}
+  {{- else if eq .type "hard" }}
+    {{- include "controller.affinities.pods.hard" . -}}
+  {{- end -}}
+{{- end -}}
+
+{{- define "controller.affinities.pods.soft" -}}
+preferredDuringSchedulingIgnoredDuringExecution:
+  - podAffinityTerm:
+      labelSelector:
+        matchLabels: {{- (include "controller.selectorLabels" .context) | nindent 10 }}
+      namespaces:
+        - {{ include "higress.namespace" .context | quote }}
+      topologyKey: kubernetes.io/hostname
+    weight: 60
+{{- end -}}
+
+
+{{- define "controller.affinities.pods.hard" -}}
+requiredDuringSchedulingIgnoredDuringExecution:
+  - labelSelector:
+      matchLabels: {{- (include "controller.selectorLabels" .context) | nindent 8 }}
+    namespaces:
+      - {{ include "higress.namespace" .context | quote }}
+    topologyKey: kubernetes.io/hostname
+{{- end -}}
+
+
+
+{{/*
+Return a soft nodeAffinity definition
+{{ include "controller.affinities.nodes.soft" (dict "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "controller.affinities.nodes.soft" -}}
+preferredDuringSchedulingIgnoredDuringExecution:
+  - preference:
+      matchExpressions:
+        - key: {{ .key }}
+          operator: In
+          values:
+            {{- range .values }}
+            - {{ . | quote }}
+            {{- end }}
+    weight: 60
+{{- end -}}
+
+{{/*
+Return a hard nodeAffinity definition
+{{ include "controller.affinities.nodes.hard" (dict "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "controller.affinities.nodes.hard" -}}
+requiredDuringSchedulingIgnoredDuringExecution:
+  nodeSelectorTerms:
+    - matchExpressions:
+        - key: {{ .key }}
+          operator: In
+          values:
+            {{- range .values }}
+            - {{ . | quote }}
+            {{- end }}
+{{- end -}}
+
+{{/*
+Return a nodeAffinity definition
+{{ include "controller.affinities.nodes" (dict "type" "soft" "key" "FOO" "values" (list "BAR" "BAZ")) -}}
+*/}}
+{{- define "controller.affinities.nodes" -}}
+  {{- if eq .type "soft" }}
+    {{- include "controller.affinities.nodes.soft" . -}}
+  {{- else if eq .type "hard" }}
+    {{- include "controller.affinities.nodes.hard" . -}}
+  {{- end -}}
+{{- end -}}

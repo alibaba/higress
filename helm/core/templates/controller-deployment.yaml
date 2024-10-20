@@ -268,10 +268,10 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.controller.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        podAffinity: {{- include "controller.affinities.pods" (dict "type" .Values.controller.affinity.podAffinityPreset  "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "controller.affinities.pods" (dict "type" .Values.controller.affinity.podAntiAffinityPreset  "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "controller.affinities.nodes" (dict "type" .Values.controller.affinity.nodeAffinityPreset.type "key" .Values.controller.affinity.nodeAffinityPreset.key "values" .Values.controller.affinity.nodeAffinityPreset.values) | nindent 10 }}
       {{- with .Values.controller.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

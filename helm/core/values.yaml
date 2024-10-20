@@ -494,7 +494,10 @@ gateway:
 
   tolerations: []
 
-  affinity: {}
+  affinity:
+    podAffinityPreset: ""
+    podAntiAffinityPreset: "soft"
+    nodeAffinityPreset: {}
 
   # If specified, the gateway will act as a network gateway for the given network.
   networkGateway: ""
@@ -591,7 +594,10 @@ controller:
 
   tolerations: []
 
-  affinity: {}
+  affinity:
+    podAffinityPreset: ""
+    podAntiAffinityPreset: "soft"
+    nodeAffinityPreset: {}
 
   autoscaling:
     enabled: false
