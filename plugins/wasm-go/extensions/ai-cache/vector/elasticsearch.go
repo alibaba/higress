@@ -71,7 +71,7 @@ func (d *ESProvider) QueryEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[ES] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[ES] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[ES] Failed to parse query response: %v", err)
@@ -82,7 +82,7 @@ func (d *ESProvider) QueryEmbedding(
 	)
 }
 
-// 编码 ES 身份认证字符串
+// base64 编码 ES 身份认证字符串
 func (d *ESProvider) getCredentials() string {
 	credentials := fmt.Sprintf("%s:%s", d.config.esUsername, d.config.esPassword)
 	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(credentials))
@@ -125,7 +125,7 @@ func (d *ESProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[ES] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			log.Debugf("[ES] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,
@@ -154,7 +154,6 @@ type esQueryRequest struct {
 	Size   int    `json:"size"`
 }
 
-// esQueryResponse represents the search result structure.
 type esQueryResponse struct {
 	Took     int  `json:"took"`
 	TimedOut bool `json:"timed_out"`
@@ -179,7 +178,7 @@ func (d *ESProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([
 	if err != nil {
 		return []QueryResult{}, err
 	}
-	log.Infof("[ES] queryResp Hits len: %d", len(queryResp.Hits.Hits))
+	log.Debugf("[ES] queryResp Hits len: %d", len(queryResp.Hits.Hits))
 	if len(queryResp.Hits.Hits) == 0 {
 		return nil, errors.New("no query results found in response")
 	}

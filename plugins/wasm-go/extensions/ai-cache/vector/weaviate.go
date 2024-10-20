@@ -91,7 +91,7 @@ func (d *WeaviateProvider) QueryEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Weaviate] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[Weaviate] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Weaviate] Failed to parse query response: %v", err)
@@ -131,7 +131,7 @@ func (d *WeaviateProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Weaviate] statusCode: %d, responseBody: %s", statusCode, string(responseBody))
+			log.Debugf("[Weaviate] statusCode: %d, responseBody: %s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,

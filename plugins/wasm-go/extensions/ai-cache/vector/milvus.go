@@ -62,7 +62,7 @@ func (d *milvusProvider) UploadAnswerAndEmbedding(
 	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	// 最少需要填写的参数为 collectionName, data 和 Authorization. question, answer 可选
 	// 需要填写 id，否则 v2.4.13-hotfix 提示 invalid syntax: invalid parameter[expected=Int64][actual=]
-	// 如果不填写 id，一定要在创建 collection 的时候设置 autoId 为 true
+	// 如果不填写 id，要在创建 collection 的时候设置 autoId 为 true
 	// 下面是一个例子
 	// {
 	// 	"collectionName": "higress",
@@ -102,7 +102,7 @@ func (d *milvusProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Milvus] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			log.Debugf("[Milvus] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,
@@ -164,7 +164,7 @@ func (d *milvusProvider) QueryEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Milvus] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[Milvus] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Milvus] Failed to parse query response: %v", err)

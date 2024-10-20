@@ -106,7 +106,7 @@ func (d *qdrantProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Qdrant] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			log.Debugf("[Qdrant] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,
@@ -153,7 +153,7 @@ func (d *qdrantProvider) QueryEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Qdrant] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[Qdrant] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Qdrant] Failed to parse query response: %v", err)

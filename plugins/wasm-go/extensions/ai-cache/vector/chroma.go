@@ -73,14 +73,14 @@ func (d *ChromaProvider) QueryEmbedding(
 		return err
 	}
 
-	d.client.Post(
+	return d.client.Post(
 		fmt.Sprintf("/api/v1/collections/%s/query", d.config.collectionID),
 		[][2]string{
 			{"Content-Type", "application/json"},
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Chroma] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[Chroma] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Chroma] Failed to parse query response: %v", err)
@@ -89,7 +89,6 @@ func (d *ChromaProvider) QueryEmbedding(
 		},
 		d.config.timeout,
 	)
-	return errors.New("[Chroma] QueryEmbedding Not implemented")
 }
 
 func (d *ChromaProvider) UploadAnswerAndEmbedding(
@@ -142,7 +141,7 @@ func (d *ChromaProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Chroma] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			log.Debugf("[Chroma] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,
@@ -154,14 +153,14 @@ type chromaEmbedding []float64
 type chromaMetadataMap map[string]string
 type chromaInsertRequest struct {
 	Embeddings []chromaEmbedding   `json:"embeddings"`
-	Metadatas  []chromaMetadataMap `json:"metadatas,omitempty"` // Optional metadata map array
-	Documents  []string            `json:"documents,omitempty"` // Optional document array
+	Metadatas  []chromaMetadataMap `json:"metadatas,omitempty"` // 可选参数
+	Documents  []string            `json:"documents,omitempty"` // 可选参数
 	IDs        []string            `json:"ids"`
 }
 
 type chromaQueryRequest struct {
-	Where           map[string]string `json:"where,omitempty"`          // Optional where filter
-	WhereDocument   map[string]string `json:"where_document,omitempty"` // Optional where_document filter
+	Where           map[string]string `json:"where,omitempty"`          // 可选参数
+	WhereDocument   map[string]string `json:"where_document,omitempty"` // 可选参数
 	QueryEmbeddings []chromaEmbedding `json:"query_embeddings"`
 	Limit           int               `json:"limit"`
 	Include         []string          `json:"include"`
@@ -170,11 +169,11 @@ type chromaQueryRequest struct {
 type chromaQueryResponse struct {
 	Ids        [][]string          `json:"ids"`                  // 第一维是 batch query，第二维是查询到的多个 ids
 	Distances  [][]float64         `json:"distances,omitempty"`  // 与 Ids 一一对应
-	Metadatas  []chromaMetadataMap `json:"metadatas,omitempty"`  // Optional, can be null
-	Embeddings []chromaEmbedding   `json:"embeddings,omitempty"` // Optional, can be null
+	Metadatas  []chromaMetadataMap `json:"metadatas,omitempty"`  // 可选参数
+	Embeddings []chromaEmbedding   `json:"embeddings,omitempty"` // 可选参数
 	Documents  [][]string          `json:"documents,omitempty"`  // 与 Ids 一一对应
-	Uris       []string            `json:"uris,omitempty"`       // Optional, can be null
-	Data       []interface{}       `json:"data,omitempty"`       // Optional, can be null
+	Uris       []string            `json:"uris,omitempty"`       // 可选参数
+	Data       []interface{}       `json:"data,omitempty"`       // 可选参数
 	Included   []string            `json:"included"`
 }
 
@@ -185,7 +184,7 @@ func (d *ChromaProvider) parseQueryResponse(responseBody []byte, log wrapper.Log
 		return nil, err
 	}
 
-	log.Infof("[Chroma] queryResp Ids len: %d", len(queryResp.Ids))
+	log.Debugf("[Chroma] queryResp Ids len: %d", len(queryResp.Ids))
 	if len(queryResp.Ids) == 1 && len(queryResp.Ids[0]) == 0 {
 		return nil, errors.New("no query results found in response")
 	}

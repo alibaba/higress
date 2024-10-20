@@ -107,7 +107,7 @@ func (d *pineconeProvider) UploadAnswerAndEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Pinecone] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			log.Debugf("[Pinecone] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
 			callback(ctx, log, err)
 		},
 		d.config.timeout,
@@ -155,7 +155,7 @@ func (d *pineconeProvider) QueryEmbedding(
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Pinecone] Query embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("[Pinecone] Query embedding response: %d, %s", statusCode, responseBody)
 			results, err := d.parseQueryResponse(responseBody, log)
 			if err != nil {
 				err = fmt.Errorf("[Pinecone] Failed to parse query response: %v", err)
