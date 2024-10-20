@@ -47,7 +47,39 @@ func GetRealIpFromXff(xff string) string {
 	return ""
 }
 
-func IsGrayEnabled(grayConfig config.GrayConfig) bool {
+func IsRequestSkippedByHeaders(grayConfig config.GrayConfig) bool {
+	secFetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
+	upgrade, _ := proxywasm.GetHttpRequestHeader("upgrade")
+	if len(grayConfig.SkippedByHeaders) == 0 {
+		// 默认不走插件逻辑的header
+		return secFetchMode == "cors" || upgrade == "websocket"
+	}
+	for _, configHeader := range grayConfig.SkippedByHeaders {
+		header, _ := proxywasm.GetHttpRequestHeader(configHeader)
+		if header != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func IsGrayEnabled(grayConfig config.GrayConfig, requestPath string) bool {
+	// 当前路径中前缀为 SkipedRoute，则不走插件逻辑
+	for _, prefix := range grayConfig.SkippedPathPrefixes {
+		if strings.HasPrefix(requestPath, prefix) {
+			return false
+		}
+	}
+
+	//  如果是首页，进入插件逻辑
+	if IsPageRequest(requestPath) {
+		return true
+	}
+	// 检查header标识，判断是否需要跳过
+	if IsRequestSkippedByHeaders(grayConfig) {
+		return false
+	}
+
 	// 检查是否存在重写主机
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		return true
@@ -132,11 +164,11 @@ var indexSuffixes = []string{
 	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
 }
 
-func IsPageRequest(fetchMode string, myPath string) bool {
-	if fetchMode == "cors" {
-		return false
+func IsPageRequest(requestPath string) bool {
+	if requestPath == "/" || requestPath == "" {
+		return true
 	}
-	ext := path.Ext(myPath)
+	ext := path.Ext(requestPath)
 	return ext == "" || ContainsValue(indexSuffixes, ext)
 }
 
