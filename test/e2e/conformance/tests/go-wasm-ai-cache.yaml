@@ -20,7 +20,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "openai.ai.com"
+    - host: "dashscope.aliyuncs.com"
       http:
         paths:
           - pathType: Prefix
@@ -63,21 +63,22 @@ spec:
         embedding:
           type: "dashscope"
           serviceName: "qwen"
-          apiKey: "{{Github.QwenApiKey}}"
+          apiKey: "{{secret.qwenApiKey}}"
           timeout: 12000
         vector:
           type: "dashvector"
           serviceName: "dashvector"
-          collectionID: "{{Github.DashVectorCollectionID}}"
-          serviceDomain: "{{Github.DashVectorServiceDomain}}"
-          apiKey: "{{Github.DashVectorApiKey}}"
+          collectionID: "{{secret.collectionID}}"
+          serviceDomain: "{{secret.serviceDomain}}"
+          apiKey: "{{secret.apiKey}}"
           timeout: 12000
         cache:
 
       ingress:
         - higress-conformance-infra/wasmplugin-ai-cache-openai
         - higress-conformance-infra/wasmplugin-ai-cache-qwen
-  url: file:///opt/plugins/wasm-go/extensions/ai-cache/plugin.wasm
+  # url: file:///opt/plugins/wasm-go/extensions/ai-cache/plugin.wasm
+  url: oci://registry.cn-shanghai.aliyuncs.com/suchunsv/higress_ai:1.18
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -92,7 +93,7 @@ spec:
           type: "qwen"
           qwenEnableCompatible: true
           apiTokens: 
-            - "{{Github.QwenKey}}"
+            - "{{secret.qwenApiKey}}"
           timeout: 1200000
           modelMapping:
             "*": "qwen-long"
