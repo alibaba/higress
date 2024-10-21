@@ -15,7 +15,7 @@
 
 
 <p>
-   English | <a href="README.md">中文<a/>
+   English | <a href="README.md">中文<a/> | <a href="README_JP.md">日本語<a/>
 </p>
 
 Higress is a cloud-native api gateway based on Alibaba's internal gateway practices. 
