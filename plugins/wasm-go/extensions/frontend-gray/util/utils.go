@@ -54,9 +54,9 @@ func IsRequestSkippedByHeaders(grayConfig config.GrayConfig) bool {
 		// 默认不走插件逻辑的header
 		return secFetchMode == "cors" || upgrade == "websocket"
 	}
-	for _, configHeader := range grayConfig.SkippedByHeaders {
-		header, _ := proxywasm.GetHttpRequestHeader(configHeader)
-		if header != "" {
+	for headerKey, headerValue := range grayConfig.SkippedByHeaders {
+		requestHeader, _ := proxywasm.GetHttpRequestHeader(headerKey)
+		if requestHeader == headerValue {
 			return true
 		}
 	}
