@@ -1,16 +1,13 @@
-use proxy_wasm::hostcalls;
-
-use crate::internal;
+use crate::hostcalls;
 
 fn get_request_head(head: &str, log_flag: &str) -> String {
-    if let Some(value) = internal::get_http_request_header(head) {
+    if let Some(value) = hostcalls::get_http_request_header(head) {
         value
     } else {
         hostcalls::log(
             proxy_wasm::types::LogLevel::Error,
             &format!("get request {} failed", log_flag),
-        )
-        .unwrap();
+        );
         String::new()
     }
 }
@@ -31,12 +28,12 @@ pub fn get_request_method() -> String {
 }
 
 pub fn is_binary_request_body() -> bool {
-    if let Some(content_type) = internal::get_http_request_header("content-type") {
+    if let Some(content_type) = hostcalls::get_http_request_header("content-type") {
         if content_type.contains("octet-stream") || content_type.contains("grpc") {
             return true;
         }
     }
-    if let Some(encoding) = internal::get_http_request_header("content-encoding") {
+    if let Some(encoding) = hostcalls::get_http_request_header("content-encoding") {
         if !encoding.is_empty() {
             return true;
         }
@@ -45,12 +42,12 @@ pub fn is_binary_request_body() -> bool {
 }
 
 pub fn is_binary_response_body() -> bool {
-    if let Some(content_type) = internal::get_http_response_header("content-type") {
+    if let Some(content_type) = hostcalls::get_http_response_header("content-type") {
         if content_type.contains("octet-stream") || content_type.contains("grpc") {
             return true;
         }
     }
-    if let Some(encoding) = internal::get_http_response_header("content-encoding") {
+    if let Some(encoding) = hostcalls::get_http_response_header("content-encoding") {
         if !encoding.is_empty() {
             return true;
         }
@@ -58,16 +55,16 @@ pub fn is_binary_response_body() -> bool {
     false
 }
 pub fn has_request_body() -> bool {
-    let content_type = internal::get_http_request_header("content-type");
-    let content_length_str = internal::get_http_request_header("content-length");
-    let transfer_encoding = internal::get_http_request_header("transfer-encoding");
+    let content_type = hostcalls::get_http_request_header("content-type");
+    let content_length_str = hostcalls::get_http_request_header("content-length");
+    let transfer_encoding = hostcalls::get_http_request_header("transfer-encoding");
     hostcalls::log(
         proxy_wasm::types::LogLevel::Debug,
         &format!(
             "check has request body: content_type:{:?}, content_length_str:{:?}, transfer_encoding:{:?}",
             content_type, content_length_str, transfer_encoding
         )
-    ).unwrap();
+    );
     if !content_type.is_some_and(|x| !x.is_empty()) {
         return true;
     }

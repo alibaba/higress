@@ -13,9 +13,11 @@
 // limitations under the License.
 
 pub mod cluster_wrapper;
+pub mod dispatcher;
 pub mod error;
-mod internal;
+pub mod hostcalls;
 pub mod log;
 pub mod plugin_wrapper;
+pub mod promise;
 pub mod request_wrapper;
 pub mod rule_matcher;

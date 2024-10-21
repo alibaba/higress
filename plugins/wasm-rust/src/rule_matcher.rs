@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::error::WasmRustError;
-use crate::internal::{get_http_request_header, get_property};
+use crate::hostcalls::{get_http_request_header, get_property};
 use crate::log::Log;
 use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::RootContext;
@@ -256,4 +256,11 @@ pub fn on_configure<RC: RootContext, PluginConfig: Default + DeserializeOwned>(
     };
 
     rule_matcher.parse_rule_config(&value).is_ok()
+}
+
+pub fn new_shared<PluginConfig>() -> SharedRuleMatcher<PluginConfig>
+where
+    PluginConfig: Default,
+{
+    Rc::new(RefCell::new(RuleMatcher::default()))
 }
