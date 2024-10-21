@@ -1168,7 +1168,7 @@ func buildDestination(ctx configContext, to k8s.BackendRef, ns string, enforceRe
 			return nil, &ConfigError{Reason: InvalidDestination, Message: "serviceName invalid; the name of the Service must be used, not the hostname."}
 		}
 		hostname := fmt.Sprintf("%s.%s.svc.%s", to.Name, namespace, ctx.Domain)
-		if ctx.Context.GetService(hostname, namespace) == nil {
+		if ctx.Context.GetService(hostname, namespace, gvk.Service.Kind) == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
 		return &istio.Destination{
@@ -1192,7 +1192,7 @@ func buildDestination(ctx configContext, to k8s.BackendRef, ns string, enforceRe
 		if strings.Contains(string(to.Name), ".") {
 			return nil, &ConfigError{Reason: InvalidDestination, Message: "serviceName invalid; the name of the Service must be used, not the hostname."}
 		}
-		if ctx.Context.GetService(hostname, namespace) == nil {
+		if ctx.Context.GetService(hostname, namespace, "ServiceImport") == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
 		return &istio.Destination{
@@ -1210,7 +1210,7 @@ func buildDestination(ctx configContext, to k8s.BackendRef, ns string, enforceRe
 			return nil, &ConfigError{Reason: InvalidDestination, Message: "namespace may not be set with Hostname type"}
 		}
 		hostname := string(to.Name)
-		if ctx.Context.GetService(hostname, namespace) == nil {
+		if ctx.Context.GetService(hostname, namespace, "Hostname") == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
 		return &istio.Destination{

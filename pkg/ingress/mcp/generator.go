@@ -64,7 +64,7 @@ func (c ServiceEntryGenerator) Generate(proxy *model.Proxy, w *model.WatchedReso
 			return serviceEntries[i].CreationTimestamp.Before(serviceEntries[j].CreationTimestamp)
 		})
 	}
-	return generate(proxy, serviceEntries, w, updates, false, false)
+	return generate(proxy, serviceEntries, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c ServiceEntryGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -82,7 +82,7 @@ type VirtualServiceGenerator struct {
 func (c VirtualServiceGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	virtualServices := c.Environment.List(gvk.VirtualService, model.NamespaceAll)
-	return generate(proxy, virtualServices, w, updates, false, false)
+	return generate(proxy, virtualServices, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c VirtualServiceGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -100,7 +100,7 @@ type DestinationRuleGenerator struct {
 func (c DestinationRuleGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	rules := c.Environment.List(gvk.DestinationRule, model.NamespaceAll)
-	return generate(proxy, rules, w, updates, false, false)
+	return generate(proxy, rules, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c DestinationRuleGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -118,7 +118,7 @@ type EnvoyFilterGenerator struct {
 func (c EnvoyFilterGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	filters := c.Environment.List(gvk.EnvoyFilter, model.NamespaceAll)
-	return generate(proxy, filters, w, updates, false, false)
+	return generate(proxy, filters, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c EnvoyFilterGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -154,7 +154,7 @@ type WasmPluginGenerator struct {
 func (c WasmPluginGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	wasmPlugins := c.Environment.List(gvk.WasmPlugin, model.NamespaceAll)
-	return generate(proxy, wasmPlugins, w, updates, false, false)
+	return generate(proxy, wasmPlugins, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c WasmPluginGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushContext, updates *model.PushRequest,

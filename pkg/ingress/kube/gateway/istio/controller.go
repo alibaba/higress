@@ -201,7 +201,9 @@ func (c *Controller) Reconcile(ps *model.PushContext) error {
 		ReferenceGrant:         referenceGrant,
 		DefaultGatewaySelector: c.DefaultGatewaySelector,
 		Domain:                 c.domain,
-		Context:                NewGatewayContext(ps),
+		// Start - Updated by Higress
+		Context: NewGatewayContext(ps, c.client, c.domain, c.cluster),
+		// End - Updated by Higress
 	}
 
 	if !input.hasResources() {

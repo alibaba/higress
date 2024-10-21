@@ -72,17 +72,17 @@ go.test.coverage: prebuild
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
 
 $(AMD64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
 
 $(ARM64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
 build-hgctl: prebuild $(OUT)
@@ -187,8 +187,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
-ISTIO_LATEST_IMAGE_TAG ?= 7722dc383cd5d566d1b10a738f79a4cba1a18304
+ENVOY_LATEST_IMAGE_TAG ?= 2.0.1
+ISTIO_LATEST_IMAGE_TAG ?= 2.0.1
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -221,11 +221,15 @@ clean-higress: ## Cleans all the intermediate files and folders previously gener
 	rm -rf $(DIRS_TO_CLEAN)
 
 clean-istio:
+	rm -rf external/api
+	rm -rf external/client-go
 	rm -rf external/istio
+	rm -rf external/pkg
 
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
+	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
 
 clean-env:
