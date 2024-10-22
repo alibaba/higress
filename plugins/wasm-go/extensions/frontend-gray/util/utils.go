@@ -172,21 +172,27 @@ func IsPageRequest(requestPath string) bool {
 	return ext == "" || ContainsValue(indexSuffixes, ext)
 }
 
-// 首页Rewrite
-func IndexRewrite(path, version string, matchRules map[string]string) string {
-	// Create a slice of keys in matchRules and sort them by length in descending order
+// SortKeysByLengthAndLexicographically 按长度降序和字典序排序键
+func SortKeysByLengthAndLexicographically(matchRules map[string]string) []string {
 	keys := make([]string, 0, len(matchRules))
 	for prefix := range matchRules {
 		keys = append(keys, prefix)
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if len(keys[i]) != len(keys[j]) {
-			return len(keys[i]) > len(keys[j]) // Sort by length
+			return len(keys[i]) > len(keys[j]) // 按长度排序
 		}
-		return keys[i] < keys[j] // Sort lexicographically
+		return keys[i] < keys[j] // 按字典序排序
 	})
+	return keys
+}
 
-	// Iterate over sorted keys to find the longest match
+// 首页Rewrite
+func IndexRewrite(path, version string, matchRules map[string]string) string {
+	// 使用新的排序函数
+	keys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键以找到最长匹配
 	for _, prefix := range keys {
 		if strings.HasPrefix(path, prefix) {
 			rewrite := matchRules[prefix]
@@ -198,18 +204,21 @@ func IndexRewrite(path, version string, matchRules map[string]string) string {
 }
 
 func PrefixFileRewrite(path, version string, matchRules map[string]string) string {
-	var matchedPrefix, replacement string
-	for prefix, template := range matchRules {
+	// 对规则的键进行排序
+	sortedKeys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键
+	for _, prefix := range sortedKeys {
 		if strings.HasPrefix(path, prefix) {
-			if len(prefix) > len(matchedPrefix) { // 找到更长的前缀
-				matchedPrefix = prefix
-				replacement = strings.Replace(template, "{version}", version, 1)
-			}
+			// 找到第一个匹配的前缀就停止,因为它是最长的匹配
+			replacement := strings.Replace(matchRules[prefix], "{version}", version, 1)
+			newPath := strings.Replace(path, prefix, replacement+"/", 1)
+			return filepath.Clean(newPath)
 		}
 	}
-	// 将path 中的前缀部分用 replacement 替换掉
-	newPath := strings.Replace(path, matchedPrefix, replacement+"/", 1)
-	return filepath.Clean(newPath)
+
+	// 如果没有匹配,返回原始路径
+	return path
 }
 
 func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isPageRequest bool) *config.Deployment {
