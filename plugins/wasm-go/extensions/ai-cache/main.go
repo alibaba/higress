@@ -22,6 +22,7 @@ const (
 	ToolCallsContextKey      = "toolCalls"
 	StreamContextKey         = "stream"
 	DefaultCacheKeyPrefix    = "higress-ai-cache:"
+	SkipCacheHeader          = "x-higress-skip-ai-cache"
 )
 
 func main() {
@@ -172,6 +173,12 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	skipCache, _ := proxywasm.GetHttpRequestHeader(SkipCacheHeader)
+	if skipCache == "on" {
+		ctx.SetContext(SkipCacheHeader, struct{}{})
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -270,6 +277,11 @@ func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage 
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	skipCache := ctx.GetContext(SkipCacheHeader)
+	if skipCache != nil {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(StreamContextKey, struct{}{})
