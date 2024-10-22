@@ -68,7 +68,7 @@ pub fn has_request_body() -> bool {
             content_type, content_length_str, transfer_encoding
         )
     ).unwrap();
-    if !content_type.is_some_and(|x| !x.is_empty()) {
+    if content_type.is_some_and(|x| !x.is_empty()) {
         return true;
     }
     if let Some(cl) = content_length_str {
