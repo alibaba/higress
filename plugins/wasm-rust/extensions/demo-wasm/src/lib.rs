@@ -77,7 +77,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         if let Some(config) = &self.config {
             let redis_client = RedisClient::new(
                 &StaticIpCluster::new("redis", 80, ""),
-                config.password.clone(),
+                config.password.as_ref(),
                 Duration::from_secs(5),
             );
             if let Some(self_rc) = self.weak.upgrade() {

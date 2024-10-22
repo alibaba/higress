@@ -22,29 +22,41 @@ fn gen_callback(call_fn: Box<RedisValueCallbackFn>) -> Box<RedisCallbackFn> {
 #[derive(Debug, Clone)]
 pub struct RedisClient {
     upstream: String,
+    username: Option<String>,
     password: Option<String>,
     timeout: Duration,
 }
 
 impl RedisClient {
-    pub fn new<T: Into<String>>(cluster: &dyn Cluster, password: Option<T>, timeout: Duration) -> Self {
+    pub fn new<T: AsRef<str>>(
+        cluster: &dyn Cluster,
+        password: Option<T>,
+        timeout: Duration,
+    ) -> Self {
+        Self::new_with_username(cluster, None, password, timeout)
+    }
+    pub fn new_with_username<T: AsRef<str>>(
+        cluster: &dyn Cluster,
+        username: Option<T>,
+        password: Option<T>,
+        timeout: Duration,
+    ) -> Self {
         RedisClient {
             upstream: cluster.cluster_name(),
-            password: password.map(|p| p.into()),
+            username: username.map(|u| u.as_ref().to_string()),
+            password: password.map(|p| p.as_ref().to_string()),
             timeout,
         }
     }
     pub fn init(&self) -> Result<(), Status> {
-        proxy_wasm::hostcalls::log(proxy_wasm::types::LogLevel::Info, &format!("redis init {} {:?}", self.upstream, self.password)).unwrap();
-        match &self.password {
-            Some(password) => {
-                internal::redis_init(&self.upstream, Some(password.as_bytes()), self.timeout)
-            }
-            None => internal::redis_init(&self.upstream, None, self.timeout),
-        }
+        internal::redis_init(
+            &self.upstream,
+            self.username.as_ref().map(|u| u.as_bytes()),
+            self.password.as_ref().map(|p| p.as_bytes()),
+            self.timeout,
+        )
     }
     fn call(&self, query: &[u8], call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
-        proxy_wasm::hostcalls::log(proxy_wasm::types::LogLevel::Info, &format!("redis call {} {:?}", self.upstream, query)).unwrap();
         internal::dispatch_redis_call(&self.upstream, query, gen_callback(call_fn))
     }
     pub fn command(&self, cmd: &Cmd, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {

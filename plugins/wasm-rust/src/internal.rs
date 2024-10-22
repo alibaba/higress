@@ -384,10 +384,11 @@ pub(crate) fn send_http_response(
 
 pub(crate) fn redis_init(
     upstream: &str,
+    username: Option<&[u8]>,
     password: Option<&[u8]>,
     timeout: Duration,
 ) -> Result<(), Status> {
-    hostcalls::redis_init(upstream, password, timeout)
+    hostcalls::redis_init(upstream, username, password, timeout)
 }
 pub(crate) fn dispatch_redis_call(
     upstream: &str,
