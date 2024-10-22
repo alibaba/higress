@@ -6,6 +6,10 @@ description: AI Cache Plugin Configuration Reference
 ## Function Description
 LLM result caching plugin, the default configuration can be directly used for result caching under the OpenAI protocol, and it supports caching of both streaming and non-streaming responses.
 
+**Tips**
+
+When carrying the request header `x-higress-skip-ai-cache: on`, the current request will not use content from the cache but will be directly forwarded to the backend service. Additionally, the response content from this request will not be cached.
+
 ## Runtime Properties
 Plugin Execution Phase: `Authentication Phase`
 Plugin Execution Priority: `10`
