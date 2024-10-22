@@ -22,7 +22,7 @@ description: 前端灰度插件配置参考
 | `userStickyMaxAge`         | int       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
 | `skippedPathPrefixes` | array of strings | 非必填 | - | 用于排除特定路径，避免当前插件处理这些请求。例如，在 rewrite 场景下，XHR 接口请求 `/api/xxx` 如果经过插件转发逻辑，可能会导致非预期的结果。 |
 | `skippedByHeaders` | map of string to string   | 非必填  | -   | 用于通过请求头过滤，指定哪些请求不被当前插件
-处理。当然如果是页面HTML的请求，以及`skippedPathPrefixes` 的优先级高于当前配置。当然如果当前配置为空，默认会判断`sec-fetch-mode=cors`以及`upgrade=websocket`两个header头，进行过滤 |
+处理。`skippedPathPrefixes` 的优先级高于当前配置，且页面HTML请求不受本配置的影响。若本配置为空，默认会判断`sec-fetch-mode=cors`以及`upgrade=websocket`两个header头，进行过滤 |
 | `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景   |
 | `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置  |
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |
