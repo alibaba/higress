@@ -71,6 +71,8 @@ spec:
             value: {{ .Values.global.proxy.clusterDomain }}
           - name: PILOT_ENABLE_ALPHA_GATEWAY_API
             value: "true"
+          - name: GATEWAY_NAME
+            value: {{ include "gateway.name" . }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}

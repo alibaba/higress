@@ -1881,7 +1881,7 @@ func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config
 		if len(name) > 0 {
 			return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, false, nil
 		}
-		return []string{fmt.Sprintf("higress-gateway.%s.svc.%s", higressconfig.PodNamespace, util.GetDomainSuffix())}, true, nil
+		return []string{fmt.Sprintf("%s.%s.svc.%s", higressconfig.GatewayName, higressconfig.PodNamespace, util.GetDomainSuffix())}, true, nil
 	}
 	gatewayServices := []string{}
 	skippedAddresses := []string{}
