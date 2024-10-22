@@ -183,7 +183,7 @@ impl SseTiming {
         let duration = self
             .get_current_time()
             .duration_since(self.start_time)
-            .unwrap_or_else(|_| Duration::ZERO);
+            .unwrap_or(Duration::ZERO);
         format!(
             ": server-timing: {};dur={}\n{}\n\n",
             self.vendor,
