@@ -309,7 +309,7 @@ where
     fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
         self.config = binding.get_match_config().map(|config| config.1.clone());
-        if self.config.is_none(){
+        if self.config.is_none() {
             return HeaderAction::Continue;
         }
         for (k, v) in self.get_http_request_headers_bytes() {
@@ -342,7 +342,7 @@ where
     }
 
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if self.config.is_none(){
+        if self.config.is_none() {
             return DataAction::Continue;
         }
         if !self.http_content.borrow().cache_request_body() {
@@ -367,7 +367,7 @@ where
     }
 
     fn on_http_request_trailers(&mut self, num_trailers: usize) -> Action {
-        if self.config.is_none(){
+        if self.config.is_none() {
             return Action::Continue;
         }
         self.http_content
@@ -380,7 +380,7 @@ where
         num_headers: usize,
         end_of_stream: bool,
     ) -> HeaderAction {
-        if self.config.is_none(){
+        if self.config.is_none() {
             return HeaderAction::Continue;
         }
         for (k, v) in self.get_http_response_headers_bytes() {
@@ -410,7 +410,7 @@ where
     }
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if self.config.is_none(){
+        if self.config.is_none() {
             return DataAction::Continue;
         }
         if !self.http_content.borrow().cache_response_body() {
@@ -437,7 +437,7 @@ where
     }
 
     fn on_http_response_trailers(&mut self, num_trailers: usize) -> Action {
-        if self.config.is_none(){
+        if self.config.is_none() {
             return Action::Continue;
         }
         self.http_content
