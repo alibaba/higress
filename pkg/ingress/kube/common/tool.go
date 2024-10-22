@@ -23,9 +23,12 @@ import (
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/kube"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/util/version"
 
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
@@ -36,7 +39,6 @@ func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 	if resource == nil || resource.APIGroup == nil ||
 		*resource.APIGroup != netv1.SchemeGroupVersion.Group ||
 		resource.Kind != "McpBridge" || resource.Name != "default" {
-		IngressLog.Warnf("invalid mcpbridge resource: %v", resource)
 		return false
 	}
 	return true
@@ -49,13 +51,15 @@ func V1Available(client kube.Client) bool {
 
 	serverVersion, err := client.GetKubernetesVersion()
 	if err != nil {
-		return false
+		// Consider the new ingress package is available as default
+		return true
 	}
 
 	runningVersion, err := version.ParseGeneric(serverVersion.String())
 	if err != nil {
+		// Consider the new ingress package is available as default
 		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
-		return false
+		return true
 	}
 
 	return runningVersion.AtLeast(version119)
@@ -99,18 +103,18 @@ func CreateOrUpdateAnnotations(annotations map[string]string, options Options) m
 		out[key] = value
 	}
 
-	out[ClusterIdAnnotation] = options.ClusterId
+	out[ClusterIdAnnotation] = options.ClusterId.String()
 	out[RawClusterIdAnnotation] = options.RawClusterId
 	return out
 }
 
-func GetClusterId(annotations map[string]string) string {
+func GetClusterId(annotations map[string]string) cluster.ID {
 	if len(annotations) == 0 {
 		return ""
 	}
 
 	if value, exist := annotations[ClusterIdAnnotation]; exist {
-		return value
+		return cluster.ID(value)
 	}
 
 	return ""
@@ -147,7 +151,7 @@ func convertToDNSLabelValid(input string) string {
 	hasher.Write([]byte(input))
 	hash := hasher.Sum(nil)
 
-	return hex.EncodeToString(hash)
+	return hex.EncodeToString(hash[4:12])
 }
 
 // CleanHost follow the format of mse-ops for host.
@@ -390,5 +394,39 @@ func GetLbStatusList(svcList []*v1.Service) []v1.LoadBalancerIngress {
 	}
 
 	sort.SliceStable(lbi, SortLbIngressList(lbi))
+	return lbi
+}
+
+func SortLbIngressListV1(lbi []networkingv1.IngressLoadBalancerIngress) func(int, int) bool {
+	return func(i int, j int) bool {
+		return lbi[i].IP < lbi[j].IP
+	}
+}
+
+func GetLbStatusListV1(svcList []*v1.Service) []networkingv1.IngressLoadBalancerIngress {
+	svcIpList := getSvcIpList(svcList)
+	lbi := make([]networkingv1.IngressLoadBalancerIngress, 0, len(svcIpList))
+	for _, ep := range svcIpList {
+		lbi = append(lbi, networkingv1.IngressLoadBalancerIngress{IP: ep})
+	}
+
+	sort.SliceStable(lbi, SortLbIngressListV1(lbi))
+	return lbi
+}
+
+func SortLbIngressListV1Beta1(lbi []networkingv1beta1.IngressLoadBalancerIngress) func(int, int) bool {
+	return func(i int, j int) bool {
+		return lbi[i].IP < lbi[j].IP
+	}
+}
+
+func GetLbStatusListV1Beta1(svcList []*v1.Service) []networkingv1beta1.IngressLoadBalancerIngress {
+	svcIpList := getSvcIpList(svcList)
+	lbi := make([]networkingv1beta1.IngressLoadBalancerIngress, 0, len(svcIpList))
+	for _, ep := range svcIpList {
+		lbi = append(lbi, networkingv1beta1.IngressLoadBalancerIngress{IP: ep})
+	}
+
+	sort.SliceStable(lbi, SortLbIngressListV1Beta1(lbi))
 	return lbi
 }

@@ -18,7 +18,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model/credentials"
 
@@ -65,7 +65,12 @@ func (u upstreamTLS) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 	}
 
 	defer func() {
-		config.UpstreamTLS = upstreamTLSConfig
+		if upstreamTLSConfig.BackendProtocol == defaultBackendProtocol {
+			// no need destination rule when use HTTP protocol
+			config.UpstreamTLS = nil
+		} else {
+			config.UpstreamTLS = upstreamTLSConfig
+		}
 	}()
 
 	if proto, err := annotations.ParseStringASAP(backendProtocol); err == nil {
@@ -150,7 +155,7 @@ func processMTLS(config *Ingress) *networking.ClientTLSSettings {
 	if !config.UpstreamTLS.SSLVerify {
 		// This api InsecureSkipVerify hasn't been support yet.
 		// Until this pr https://github.com/istio/istio/pull/35357.
-		tls.InsecureSkipVerify = &types.BoolValue{
+		tls.InsecureSkipVerify = &wrappers.BoolValue{
 			Value: false,
 		}
 	}

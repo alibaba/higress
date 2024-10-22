@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 type Cluster interface {
@@ -150,4 +150,21 @@ func (c ConsulCluster) HostName() string {
 		return c.Host
 	}
 	return c.ServiceName
+}
+
+type FQDNCluster struct {
+	FQDN string
+	Host string
+	Port int64
+}
+
+func (c FQDNCluster) ClusterName() string {
+	return fmt.Sprintf("outbound|%d||%s", c.Port, c.FQDN)
+}
+
+func (c FQDNCluster) HostName() string {
+	if c.Host != "" {
+		return c.Host
+	}
+	return c.FQDN
 }

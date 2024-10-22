@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/alibaba/higress/pkg/bootstrap"
 	innerconstants "github.com/alibaba/higress/pkg/config/constants"
@@ -24,6 +23,7 @@ import (
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/cmd"
 	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/keepalive"
 	"istio.io/pkg/log"
 )
@@ -39,6 +39,20 @@ var (
 	waitForMonitorSignal = func(stop chan struct{}) {
 		cmd.WaitSignal(stop)
 	}
+
+	keepConfigLabels = env.Register(
+		"CONTROLLER_KEEP_XDS_CONFIG_LABELS",
+		true,
+		"If enabled, Higress Controller will keep all the labels when converting configs to xDS resources."+
+			" By default this is enabled. So far, this feature only works for Gateway resource.",
+	).Get()
+
+	keepConfigAnnotations = env.Register(
+		"CONTROLLER_KEEP_XDS_CONFIG_ANNOTATIONS",
+		true,
+		"If enabled, Higress Controller will keep the annotations when converting configs to xDS resources."+
+			" By default this is enabled. So far, this feature only works for Gateway resource.",
+	).Get()
 )
 
 // getServerCommand returns the server cobra command to be executed.
@@ -76,17 +90,20 @@ func getServerCommand() *cobra.Command {
 		Debug:                true,
 		NativeIstio:          true,
 		HttpAddress:          ":8888",
+		CertHttpAddress:      ":8889",
 		GrpcAddress:          ":15051",
 		GrpcKeepAliveOptions: keepalive.DefaultOption(),
 		XdsOptions: bootstrap.XdsOptions{
-			DebounceAfter:     features.DebounceAfter,
-			DebounceMax:       features.DebounceMax,
-			EnableEDSDebounce: features.EnableEDSDebounce,
+			DebounceAfter:         features.DebounceAfter,
+			DebounceMax:           features.DebounceMax,
+			EnableEDSDebounce:     features.EnableEDSDebounce,
+			KeepConfigLabels:      keepConfigLabels,
+			KeepConfigAnnotations: keepConfigAnnotations,
 		},
 	}
 
 	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorKey, "gatewaySelectorKey", "higress", "gateway resource selector label key")
-	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorValue, "gatewaySelectorValue", "higress-gateway", "gateway resource selector label value")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.GatewaySelectorValue, "gatewaySelectorValue", "higress-system-higress-gateway", "gateway resource selector label value")
 	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableStatus, "enableStatus", true, "enable the ingress status syncer which use to update the ip in ingress's status")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.IngressClass, "ingressClass", innerconstants.DefaultIngressClass, "if not empty, only watch the ingresses have the specified class, otherwise watch all ingresses")
 	serveCmd.PersistentFlags().StringVar(&serverArgs.WatchNamespace, "watchNamespace", "", "if not empty, only wath the ingresses in the specified namespace, otherwise watch in all namespacees")
@@ -99,9 +116,7 @@ func getServerCommand() *cobra.Command {
 	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeConfig, "kubeconfig", "",
 		"Use a Kubernetes configuration file instead of in-cluster configuration")
 	// RegistryOptions Controller options
-	serveCmd.PersistentFlags().DurationVar(&serverArgs.RegistryOptions.KubeOptions.ResyncPeriod, "resync", 60*time.Second,
-		"Controller resync interval")
-	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeOptions.DomainSuffix, "domain", constants.DefaultKubernetesDomain,
+	serveCmd.PersistentFlags().StringVar(&serverArgs.RegistryOptions.KubeOptions.DomainSuffix, "domain", constants.DefaultClusterLocalDomain,
 		"DNS domain suffix")
 	serveCmd.PersistentFlags().StringVar((*string)(&serverArgs.RegistryOptions.KubeOptions.ClusterID), "clusterID", "Kubernetes",
 		"The ID of the cluster that this instance resides")
@@ -112,6 +127,14 @@ func getServerCommand() *cobra.Command {
 
 	serveCmd.PersistentFlags().IntVar(&serverArgs.RegistryOptions.KubeOptions.KubernetesAPIBurst, "kubernetesApiBurst", 160,
 		"Maximum burst for throttle when communicating with the kubernetes API")
+	serveCmd.PersistentFlags().Uint32Var(&serverArgs.GatewayHttpPort, "gatewayHttpPort", 80,
+		"Http listening port of gateway pod")
+	serveCmd.PersistentFlags().Uint32Var(&serverArgs.GatewayHttpsPort, "gatewayHttpsPort", 443,
+		"Https listening port of gateway pod")
+
+	serveCmd.PersistentFlags().BoolVar(&serverArgs.EnableAutomaticHttps, "enableAutomaticHttps", false, "if true, enables automatic https")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.AutomaticHttpsEmail, "automaticHttpsEmail", "", "email for automatic https")
+	serveCmd.PersistentFlags().StringVar(&serverArgs.CertHttpAddress, "certHttpAddress", serverArgs.CertHttpAddress, "the cert http address")
 
 	loggingOptions.AttachCobraFlags(serveCmd)
 	serverArgs.GrpcKeepAliveOptions.AttachCobraFlags(serveCmd)

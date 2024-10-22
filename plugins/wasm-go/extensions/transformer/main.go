@@ -15,16 +15,16 @@
 package main
 
 import (
-	"regexp"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/pkg/errors"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	regexp "github.com/wasilibs/go-re2"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -54,64 +54,66 @@ func main() {
 // @Contact.email admin@higress.io
 //
 // @Example
-// type: request
-// rules:
-// - operate: remove
-//   headers:
+// reqRules:
+//   - operate: remove
+//     headers:
 //   - key: X-remove
-//   querys:
+//     querys:
 //   - key: k1
-//   body:
+//     body:
 //   - key: a1
-// - operate: rename
-//   headers:
-//   - key: X-not-renamed
-//     value: X-renamed
-// - operate: replace
-//   headers:
+//   - operate: rename
+//     headers:
+//   - oldKey: X-not-renamed
+//     newKey: X-renamed
+//   - operate: replace
+//     headers:
 //   - key: X-replace
-//     value: replaced
-// - operate: add
-//   headers:
+//     newValue: replaced
+//   - operate: add
+//     headers:
 //   - key: X-add-append
 //     value: host-$1
 //     host_pattern: ^(.*)\.com$
-// - operate: append
-//   headers:
+//   - operate: append
+//     headers:
 //   - key: X-add-append
-//     value: path-$1
+//     appendValue: path-$1
 //     path_pattern: ^.*?\/(\w+)[\?]{0,1}.*$
-//   body:
+//     body:
 //   - key: a1-new
-//     value: t1-$1-append
+//     appendValue: t1-$1-append
 //     value_type: string
 //     host_pattern: ^(.*)\.com$
-// - operate: map
-//   headers:
-//   - key: X-add-append
-//     value: X-map
-// - operate: dedupe
-//   headers:
+//   - operate: map
+//     headers:
+//   - fromKey: X-add-append
+//     toKey: X-map
+//   - operate: dedupe
+//     headers:
 //   - key: X-dedupe-first
-//     value: RETAIN_FIRST
+//     stratergy: RETAIN_FIRST
+//
 // @End
 type TransformerConfig struct {
-	// @Title 转换器类型
-	// @Description 指定转换器类型，可选值为 request, response。
-	typ string `yaml:"type"`
-
 	// @Title 转换规则
 	// @Description 指定转换操作类型以及请求/响应头、请求查询参数、请求/响应体参数的转换规则
-	rules []TransformRule `yaml:"rules"`
+	reqRules  []TransformRule `yaml:"reqRules"`
+	respRules []TransformRule `yaml:"respRules"`
 
-	// this field is not exposed to the user and is used to store the request/response transformer instance
-	trans Transformer `yaml:"-"`
+	// this field is not exposed to the user and is used to store the request and response transformer instance
+	reqTrans  Transformer `yaml:"-"`
+	respTrans Transformer `yaml:"-"`
 }
 
 type TransformRule struct {
 	// @Title 转换操作类型
 	// @Description 指定转换操作类型，可选值为 remove, rename, replace, add, append, map, dedupe
 	operate string `yaml:"operate"`
+
+	// @Title 映射来源类型
+	// @Description map操作可使用该字段进行跨类型映射，可选值为headers, query, body，若yaml中未出现该字段，则默认map操作不做跨类型映射，代码内设定为"self"，若yaml中无map操作要求，代码内设定为空字符串
+	mapSource string `yaml:"mapSource"`
 
 	// @Title 请求/响应头转换规则
 	// @Description 指定请求/响应头转换规则
@@ -125,16 +127,80 @@ type TransformRule struct {
 	// @Description 指定请求/响应体参数转换规则，请求体转换允许 content-type 为 application/json, application/x-www-form-urlencoded, multipart/form-data；响应体转换仅允许 content-type 为 application/json
 	body []Param `yaml:"body"`
 }
+type RemoveParam struct {
+	// @Title 目标key
+	// @Description
+	key string `yaml:"key"`
+}
 
-type Param struct {
-	// @Title 参数的键
-	// @Description 指定键值对的键
+type RenameParam struct {
+	// @Title 目标
+	// @Description
+	oldKey string `yaml:"oldKey"`
+
+	// @Title 新的key名称
+	// @Description
+	newKey string `yaml:"newKey"`
+}
+
+type ReplaceParam struct {
+	// @Title 目标key
+	// @Description
 	key string `yaml:"key"`
 
-	// @Title 参数的值
-	// @Description 指定键值对的值，可能的含义有：空 (remove)，key (rename, map), value (replace, add, append), strategy (dedupe)
-	value string `yaml:"value"`
+	// @Title 新的value值
+	// @Description
+	newValue string `yaml:"newValue"`
+}
 
+type AddParam struct {
+	// @Title 添加的key
+	// @Description
+	key string `yaml:"key"`
+
+	// @Title 添加的value
+	// @Description
+	value string `yaml:"value"`
+}
+
+type AppendParam struct {
+	// @Title 目标key
+	// @Description
+	key string `yaml:"key"`
+
+	// @Title 追加的value值
+	// @Description
+	appendValue string `yaml:"appendValue"`
+}
+
+type MapParam struct {
+	// @Title 映射来源key
+	// @Description
+	fromKey string `yaml:"fromKey"`
+
+	// @Title 映射目标
+	// @Description
+	toKey string `yaml:"toKey"`
+}
+
+type DedupeParam struct {
+	// @Title 目标key
+	// @Description
+	key string `yaml:"key"`
+
+	// @Title 指定去重策略
+	// @Description
+	strategy string `yaml:"strategy"`
+}
+
+type Param struct {
+	removeParam  RemoveParam
+	renameParam  RenameParam
+	replaceParam ReplaceParam
+	addParam     AddParam
+	appendParam  AppendParam
+	mapParam     MapParam
+	dedupeParam  DedupeParam
 	// @Title 值类型
 	// @Description 当 content-type=application/json 时，为请求/响应体参数指定值类型，可选值为 object, boolean, number, string(default)
 	valueType string `yaml:"value_type"`
@@ -149,57 +215,68 @@ type Param struct {
 }
 
 func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) (err error) {
-	config.typ = strings.ToLower(json.Get("type").String())
-	if config.typ != "request" && config.typ != "response" {
-		return errors.Errorf("invalid transformer type %q", config.typ)
+	reqRulesInJson := json.Get("reqRules")
+	respRulesInJson := json.Get("respRules")
+
+	if !reqRulesInJson.Exists() && !respRulesInJson.Exists() {
+		return errors.New("transformer rule not exist in yaml")
 	}
 
-	config.rules = make([]TransformRule, 0)
-	rules := json.Get("rules").Array()
-	for _, r := range rules {
-		var tRule TransformRule
-		tRule.operate = strings.ToLower(r.Get("operate").String())
-		if !isValidOperation(tRule.operate) {
-			return errors.Errorf("invalid operate type %q", tRule.operate)
-		}
-		for _, h := range r.Get("headers").Array() {
-			tRule.headers = append(tRule.headers, constructParam(&h, tRule.operate, ""))
-		}
-		for _, q := range r.Get("querys").Array() {
-			tRule.querys = append(tRule.querys, constructParam(&q, tRule.operate, ""))
-		}
-		for _, b := range r.Get("body").Array() {
-			valueType := strings.ToLower(b.Get("value_type").String())
-			if valueType == "" { // default
-				valueType = "string"
-			}
-			if !isValidJsonType(valueType) {
-				return errors.Errorf("invalid body params type %q", valueType)
-			}
-			tRule.body = append(tRule.body, constructParam(&b, tRule.operate, valueType))
-		}
-		config.rules = append(config.rules, tRule)
+	if reqRulesInJson.Exists() {
+		config.reqRules, err = newTransformRule(reqRulesInJson.Array())
+	}
+	if respRulesInJson.Exists() {
+		config.respRules, err = newTransformRule(respRulesInJson.Array())
 	}
 
-	switch config.typ {
-	case "request":
-		config.trans, err = newRequestTransformer(config)
-	case "response":
-		config.trans, err = newResponseTransformer(config)
+	if err != nil {
+		return errors.Wrapf(err, "failed to new transform rule")
+	}
+
+	if config.reqRules != nil {
+		config.reqTrans, err = newRequestTransformer(config)
+	}
+	if config.respRules != nil {
+		config.respTrans, err = newResponseTransformer(config)
 	}
 	if err != nil {
-		return errors.Wrapf(err, "failed to new %s transformer", config.typ)
+		return errors.Wrapf(err, "failed to new transformer")
 	}
+
+	log.Infof("transform config is: reqRules:%+v, respRules:%+v", config.reqRules, config.respRules)
 
 	return nil
 }
 
-func constructParam(item *gjson.Result, op, valueType string) Param {
+// TODO: 增加检查某些字段比如oldKey&newKey未同时存在时的提示信息
+func constructParam(item gjson.Result, op, valueType string) Param {
 	p := Param{
-		key:       item.Get("key").String(),
-		value:     item.Get("value").String(),
 		valueType: valueType,
 	}
+
+	switch op {
+	case "remove":
+		p.removeParam.key = item.Get("key").String()
+	case "rename":
+		p.renameParam.oldKey = item.Get("oldKey").String()
+		p.renameParam.newKey = item.Get("newKey").String()
+	case "replace":
+		p.replaceParam.key = item.Get("key").String()
+		p.replaceParam.newValue = item.Get("newValue").String()
+	case "add":
+		p.addParam.key = item.Get("key").String()
+		p.addParam.value = item.Get("value").String()
+	case "append":
+		p.appendParam.key = item.Get("key").String()
+		p.appendParam.appendValue = item.Get("appendValue").String()
+	case "map":
+		p.mapParam.fromKey = item.Get("fromKey").String()
+		p.mapParam.toKey = item.Get("toKey").String()
+	case "dedupe":
+		p.dedupeParam.key = item.Get("key").String()
+		p.dedupeParam.strategy = item.Get("strategy").String()
+	}
+
 	if op == "replace" || op == "add" || op == "append" {
 		p.hostPattern = item.Get("host_pattern").String()
 		p.pathPattern = item.Get("path_pattern").String()
@@ -213,7 +290,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	ctx.SetContext("host", host)
 	ctx.SetContext("path", path)
 
-	if config.typ == "response" {
+	if config.reqTrans == nil {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -222,48 +300,84 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
 		log.Warn("failed to get request headers")
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
 	if hs[":authority"] == nil {
 		log.Warn(errGetRequestHost.Error())
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	if hs[":path"] == nil {
 		log.Warn(errGetRequestPath.Error())
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 	contentType := ""
 	if hs["content-type"] != nil {
 		contentType = hs["content-type"][0]
 	}
-	if config.trans.IsBodyChange() && isValidRequestContentType(contentType) {
+	ctx.SetContext("content-type", contentType)
+
+	isValidRequestContent := isValidRequestContentType(contentType)
+	isBodyChange := config.reqTrans.IsBodyChange()
+	needBodyMapSource := config.reqTrans.NeedBodyMapSource()
+
+	log.Debugf("contentType:%s, isValidRequestContent:%v, isBodyChange:%v, needBodyMapSource:%v",
+		contentType, isValidRequestContent, isBodyChange, needBodyMapSource)
+
+	if isBodyChange && isValidRequestContent {
 		delete(hs, "content-length")
-		ctx.SetContext("content-type", contentType)
-	} else {
+	}
+
+	qs, err := parseQueryByPath(path)
+	if err != nil {
+		log.Warnf("failed to parse query params by path: %v", err)
 		ctx.DontReadRequestBody()
+		return types.ActionContinue
 	}
 
-	if config.trans.IsHeaderChange() {
-		if err = config.trans.TransformHeaders(host, path, hs); err != nil {
+	ctx.SetContext("headers", hs)
+	ctx.SetContext("querys", qs)
+
+	if !isValidRequestContent || (!isBodyChange && !needBodyMapSource) {
+		ctx.DontReadRequestBody()
+	} else if needBodyMapSource {
+		// we need do transform during body phase
+		ctx.SetContext("need_head_trans", struct{}{})
+		log.Debug("delay header's transform to body phase")
+		return types.HeaderStopIteration
+	}
+
+	mapSourceData := make(map[string]MapSourceData)
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+	mapSourceData["querys"] = MapSourceData{
+		mapSourceType: "querys",
+		kvs:           qs,
+	}
+
+	if config.reqTrans.IsHeaderChange() {
+		if err = config.reqTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request headers: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 	}
 
-	if config.trans.IsQueryChange() {
-		qs, err := parseQueryByPath(path)
-		if err != nil {
-			log.Warnf("failed to parse query params by path: %v", err)
-			return types.ActionContinue
-		}
-		if err = config.trans.TransformQuerys(host, path, qs); err != nil {
+	if config.reqTrans.IsQueryChange() {
+		if err = config.reqTrans.TransformQuerys(host, path, qs, mapSourceData); err != nil {
 			log.Warnf("failed to transform request query params: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 		path, err = constructPath(path, qs)
 		if err != nil {
 			log.Warnf("failed to construct path: %v", err)
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 		hs[":path"] = []string{path}
@@ -272,6 +386,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	headers = reconvertHeaders(hs)
 	if err = proxywasm.ReplaceHttpRequestHeaders(headers); err != nil {
 		log.Warnf("failed to replace request headers: %v", err)
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -279,7 +394,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
-	if config.typ == "response" || !config.trans.IsBodyChange() {
+	if config.reqTrans == nil {
 		return types.ActionContinue
 	}
 
@@ -304,7 +419,84 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 		return types.ActionContinue
 	}
 
-	if err = config.trans.TransformBody(host, path, structuredBody); err != nil {
+	mapSourceData := make(map[string]MapSourceData)
+	var hs map[string][]string
+	var qs map[string][]string
+
+	hs = ctx.GetContext("headers").(map[string][]string)
+	if hs == nil {
+		log.Warn("failed to get request headers")
+		return types.ActionContinue
+	}
+	if hs[":authority"] == nil {
+		log.Warn(errGetRequestHost.Error())
+		return types.ActionContinue
+	}
+	if hs[":path"] == nil {
+		log.Warn(errGetRequestPath.Error())
+		return types.ActionContinue
+	}
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+
+	qs = ctx.GetContext("querys").(map[string][]string)
+	if qs == nil {
+		log.Warn("failed to get request querys")
+		return types.ActionContinue
+	}
+	mapSourceData["querys"] = MapSourceData{
+		mapSourceType: "querys",
+		kvs:           qs,
+	}
+
+	switch structuredBody.(type) {
+	case map[string]interface{}:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyJson",
+			json:          structuredBody.(map[string]interface{})["body"].([]byte),
+		}
+	case map[string][]string:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyKv",
+			kvs:           structuredBody.(map[string][]string),
+		}
+	}
+
+	if ctx.GetContext("need_head_trans") != nil {
+		if config.reqTrans.IsHeaderChange() {
+			if err = config.reqTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
+				log.Warnf("failed to transform request headers: %v", err)
+				return types.ActionContinue
+			}
+		}
+
+		if config.reqTrans.IsQueryChange() {
+			if err = config.reqTrans.TransformQuerys(host, path, qs, mapSourceData); err != nil {
+				log.Warnf("failed to transform request query params: %v", err)
+				return types.ActionContinue
+			}
+			path, err = constructPath(path, qs)
+			if err != nil {
+				log.Warnf("failed to construct path: %v", err)
+				return types.ActionContinue
+			}
+			hs[":path"] = []string{path}
+		}
+
+		headers := reconvertHeaders(hs)
+		if err = proxywasm.ReplaceHttpRequestHeaders(headers); err != nil {
+			log.Warnf("failed to replace request headers: %v", err)
+			return types.ActionContinue
+		}
+	}
+
+	if !config.reqTrans.IsBodyChange() {
+		return types.ActionContinue
+	}
+
+	if err = config.reqTrans.TransformBody(host, path, structuredBody, mapSourceData); err != nil {
 		log.Warnf("failed to transform request body: %v", err)
 		return types.ActionContinue
 	}
@@ -323,7 +515,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, log wrapper.Log) types.Action {
-	if config.typ == "request" {
+	if config.respTrans == nil {
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -332,28 +525,49 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	host, path, err := getHostAndPathFromHttpCtx(ctx)
 	if err != nil {
 		log.Warn(err.Error())
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
 		log.Warnf("failed to get response headers: %v", err)
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	hs := convertHeaders(headers)
+	ctx.SetContext("headers", hs)
 	contentType := ""
 	if hs["content-type"] != nil {
 		contentType = hs["content-type"][0]
 	}
-	if config.trans.IsBodyChange() && isValidResponseContentType(contentType) {
+	ctx.SetContext("content-type", contentType)
+
+	isValidResponseContent := isValidResponseContentType(contentType)
+	isBodyChange := config.respTrans.IsBodyChange()
+	needBodyMapSource := config.respTrans.NeedBodyMapSource()
+
+	if isBodyChange && isValidResponseContent {
 		delete(hs, "content-length")
-		ctx.SetContext("content-type", contentType)
-	} else {
-		ctx.DontReadResponseBody()
 	}
 
-	if config.trans.IsHeaderChange() {
-		if err = config.trans.TransformHeaders(host, path, hs); err != nil {
+	if !isValidResponseContent || (!isBodyChange && !needBodyMapSource) {
+		ctx.DontReadResponseBody()
+	} else if needBodyMapSource {
+		// we need do transform during body phase
+		ctx.SetContext("need_head_trans", struct{}{})
+		return types.HeaderStopIteration
+	}
+
+	mapSourceData := make(map[string]MapSourceData)
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+
+	if config.respTrans.IsHeaderChange() {
+		if err = config.respTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
 			log.Warnf("failed to transform response headers: %v", err)
+			ctx.DontReadResponseBody()
 			return types.ActionContinue
 		}
 	}
@@ -361,6 +575,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	headers = reconvertHeaders(hs)
 	if err = proxywasm.ReplaceHttpResponseHeaders(headers); err != nil {
 		log.Warnf("failed to replace response headers: %v", err)
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -368,7 +583,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
-	if config.typ == "request" || !config.trans.IsBodyChange() {
+	if config.respTrans == nil {
 		return types.ActionContinue
 	}
 
@@ -393,7 +608,52 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 		return types.ActionContinue
 	}
 
-	if err = config.trans.TransformBody(host, path, structuredBody); err != nil {
+	mapSourceData := make(map[string]MapSourceData)
+	var hs map[string][]string
+
+	hs = ctx.GetContext("headers").(map[string][]string)
+	if hs == nil {
+		log.Warn("failed to get response headers")
+		return types.ActionContinue
+	}
+	mapSourceData["headers"] = MapSourceData{
+		mapSourceType: "headers",
+		kvs:           hs,
+	}
+
+	switch structuredBody.(type) {
+	case map[string]interface{}:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyJson",
+			json:          structuredBody.(map[string]interface{})["body"].([]byte),
+		}
+	case map[string][]string:
+		mapSourceData["body"] = MapSourceData{
+			mapSourceType: "bodyKv",
+			kvs:           structuredBody.(map[string][]string),
+		}
+	}
+
+	if ctx.GetContext("need_head_trans") != nil {
+		if config.respTrans.IsHeaderChange() {
+			if err = config.respTrans.TransformHeaders(host, path, hs, mapSourceData); err != nil {
+				log.Warnf("failed to transform response headers: %v", err)
+				return types.ActionContinue
+			}
+		}
+
+		headers := reconvertHeaders(hs)
+		if err = proxywasm.ReplaceHttpResponseHeaders(headers); err != nil {
+			log.Warnf("failed to replace response headers: %v", err)
+			return types.ActionContinue
+		}
+	}
+
+	if !config.respTrans.IsBodyChange() {
+		return types.ActionContinue
+	}
+
+	if err = config.respTrans.TransformBody(host, path, structuredBody, mapSourceData); err != nil {
 		log.Warnf("failed to transform response body: %v", err)
 		return types.ActionContinue
 	}
@@ -423,40 +683,90 @@ func getHostAndPathFromHttpCtx(ctx wrapper.HttpContext) (host, path string, err 
 	return host, path, nil
 }
 
+func newTransformRule(rules []gjson.Result) (res []TransformRule, err error) {
+
+	for _, r := range rules {
+		var tRule TransformRule
+		tRule.operate = strings.ToLower(r.Get("operate").String())
+		if !isValidOperation(tRule.operate) {
+			errors.Wrapf(err, "invalid operate type %q", tRule.operate)
+			return
+		}
+
+		if tRule.operate == "map" {
+			mapSourceInJson := r.Get("mapSource")
+			if !mapSourceInJson.Exists() {
+				tRule.mapSource = "self"
+			} else {
+				tRule.mapSource = mapSourceInJson.String()
+				if !isValidMapSource(tRule.mapSource) {
+					errors.Wrapf(err, "invalid map source %q", tRule.mapSource)
+					return
+				}
+			}
+		}
+
+		for _, h := range r.Get("headers").Array() {
+			tRule.headers = append(tRule.headers, constructParam(h, tRule.operate, ""))
+		}
+		for _, q := range r.Get("querys").Array() {
+			tRule.querys = append(tRule.querys, constructParam(q, tRule.operate, ""))
+		}
+		for _, b := range r.Get("body").Array() {
+			valueType := strings.ToLower(b.Get("value_type").String())
+			if valueType == "" { // default
+				valueType = "string"
+			}
+			if !isValidJsonType(valueType) {
+				errors.Wrapf(err, "invalid body params type %q", valueType)
+				return
+			}
+			tRule.body = append(tRule.body, constructParam(b, tRule.operate, valueType))
+		}
+		res = append(res, tRule)
+	}
+	return
+}
+
 type Transformer interface {
-	TransformHeaders(host, path string, hs map[string][]string) error
-	TransformQuerys(host, path string, qs map[string][]string) error
-	TransformBody(host, path string, body interface{}) error
+	TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error
+	TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error
+	TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error
 	IsHeaderChange() bool
 	IsQueryChange() bool
 	IsBodyChange() bool
+	NeedBodyMapSource() bool
 }
 
 var _ Transformer = (*requestTransformer)(nil)
 var _ Transformer = (*responseTransformer)(nil)
 
 type requestTransformer struct {
-	headerHandler  *kvHandler
-	queryHandler   *kvHandler
-	bodyHandler    *requestBodyHandler
-	isHeaderChange bool
-	isQueryChange  bool
-	isBodyChange   bool
+	headerHandler     *kvHandler
+	queryHandler      *kvHandler
+	bodyHandler       *requestBodyHandler
+	isHeaderChange    bool
+	isQueryChange     bool
+	isBodyChange      bool
+	needBodyMapSource bool
 }
 
 func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
-	headerKvtGroup, isHeaderChange, err := newKvtGroup(config.rules, "headers")
+	headerKvtGroup, isHeaderChange, _, err := newKvtGroup(config.reqRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
-	queryKvtGroup, isQueryChange, err := newKvtGroup(config.rules, "querys")
+	queryKvtGroup, isQueryChange, _, err := newKvtGroup(config.reqRules, "querys")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for querys")
 	}
-	bodyKvtGroup, isBodyChange, err := newKvtGroup(config.rules, "body")
+	bodyKvtGroup, isBodyChange, _, err := newKvtGroup(config.reqRules, "body")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
+
+	bodyMapSource := bodyMapSourceInRule(config.reqRules)
+
 	return &requestTransformer{
 		headerHandler: &kvHandler{headerKvtGroup},
 		queryHandler:  &kvHandler{queryKvtGroup},
@@ -464,28 +774,29 @@ func newRequestTransformer(config *TransformerConfig) (Transformer, error) {
 			formDataHandler: &kvHandler{bodyKvtGroup},
 			jsonHandler:     &jsonHandler{bodyKvtGroup},
 		},
-		isHeaderChange: isHeaderChange,
-		isQueryChange:  isQueryChange,
-		isBodyChange:   isBodyChange,
+		isHeaderChange:    isHeaderChange,
+		isQueryChange:     isQueryChange,
+		isBodyChange:      isBodyChange,
+		needBodyMapSource: bodyMapSource,
 	}, nil
 }
 
-func (t requestTransformer) TransformHeaders(host, path string, hs map[string][]string) error {
-	return t.headerHandler.handle(host, path, hs)
+func (t requestTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error {
+	return t.headerHandler.handle(host, path, hs, mapSourceData)
 }
 
-func (t requestTransformer) TransformQuerys(host, path string, qs map[string][]string) error {
-	return t.queryHandler.handle(host, path, qs)
+func (t requestTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error {
+	return t.queryHandler.handle(host, path, qs, mapSourceData)
 }
 
-func (t requestTransformer) TransformBody(host, path string, body interface{}) error {
+func (t requestTransformer) TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error {
 	switch body.(type) {
 	case map[string][]string:
-		return t.bodyHandler.formDataHandler.handle(host, path, body.(map[string][]string))
+		return t.bodyHandler.formDataHandler.handle(host, path, body.(map[string][]string), mapSourceData)
 
 	case map[string]interface{}:
 		m := body.(map[string]interface{})
-		newBody, err := t.bodyHandler.handle(host, path, m["body"].([]byte))
+		newBody, err := t.bodyHandler.handle(host, path, m["body"].([]byte), mapSourceData)
 		if err != nil {
 			return err
 		}
@@ -498,48 +809,54 @@ func (t requestTransformer) TransformBody(host, path string, body interface{}) e
 	return nil
 }
 
-func (t requestTransformer) IsHeaderChange() bool { return t.isHeaderChange }
-func (t requestTransformer) IsQueryChange() bool  { return t.isQueryChange }
-func (t requestTransformer) IsBodyChange() bool   { return t.isBodyChange }
+func (t requestTransformer) IsHeaderChange() bool    { return t.isHeaderChange }
+func (t requestTransformer) IsQueryChange() bool     { return t.isQueryChange }
+func (t requestTransformer) IsBodyChange() bool      { return t.isBodyChange }
+func (t requestTransformer) NeedBodyMapSource() bool { return t.needBodyMapSource }
 
 type responseTransformer struct {
-	headerHandler  *kvHandler
-	bodyHandler    *responseBodyHandler
-	isHeaderChange bool
-	isBodyChange   bool
+	headerHandler     *kvHandler
+	bodyHandler       *responseBodyHandler
+	isHeaderChange    bool
+	isBodyChange      bool
+	needBodyMapSource bool
 }
 
 func newResponseTransformer(config *TransformerConfig) (Transformer, error) {
-	headerKvtGroup, isHeaderChange, err := newKvtGroup(config.rules, "headers")
+
+	headerKvtGroup, isHeaderChange, _, err := newKvtGroup(config.respRules, "headers")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for headers")
 	}
-	bodyKvtGroup, isBodyChange, err := newKvtGroup(config.rules, "body")
+	bodyKvtGroup, isBodyChange, _, err := newKvtGroup(config.respRules, "body")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new kvt group for body")
 	}
+	bodyMapSource := bodyMapSourceInRule(config.respRules)
+
 	return &responseTransformer{
-		headerHandler:  &kvHandler{headerKvtGroup},
-		bodyHandler:    &responseBodyHandler{&jsonHandler{bodyKvtGroup}},
-		isHeaderChange: isHeaderChange,
-		isBodyChange:   isBodyChange,
+		headerHandler:     &kvHandler{headerKvtGroup},
+		bodyHandler:       &responseBodyHandler{&jsonHandler{bodyKvtGroup}},
+		isHeaderChange:    isHeaderChange,
+		isBodyChange:      isBodyChange,
+		needBodyMapSource: bodyMapSource,
 	}, nil
 }
 
-func (t responseTransformer) TransformHeaders(host, path string, hs map[string][]string) error {
-	return t.headerHandler.handle(host, path, hs)
+func (t responseTransformer) TransformHeaders(host, path string, hs map[string][]string, mapSourceData map[string]MapSourceData) error {
+	return t.headerHandler.handle(host, path, hs, mapSourceData)
 }
 
-func (t responseTransformer) TransformQuerys(host, path string, qs map[string][]string) error {
+func (t responseTransformer) TransformQuerys(host, path string, qs map[string][]string, mapSourceData map[string]MapSourceData) error {
 	// the response does not need to transform the query params, always returns nil
 	return nil
 }
 
-func (t responseTransformer) TransformBody(host, path string, body interface{}) error {
+func (t responseTransformer) TransformBody(host, path string, body interface{}, mapSourceData map[string]MapSourceData) error {
 	switch body.(type) {
 	case map[string]interface{}:
 		m := body.(map[string]interface{})
-		newBody, err := t.bodyHandler.handle(host, path, m["body"].([]byte))
+		newBody, err := t.bodyHandler.handle(host, path, m["body"].([]byte), mapSourceData)
 		if err != nil {
 			return err
 		}
@@ -552,9 +869,10 @@ func (t responseTransformer) TransformBody(host, path string, body interface{}) 
 	return nil
 }
 
-func (t responseTransformer) IsHeaderChange() bool { return t.isHeaderChange }
-func (t responseTransformer) IsQueryChange() bool  { return false } // the response does not need to transform the query params, always returns false
-func (t responseTransformer) IsBodyChange() bool   { return t.isBodyChange }
+func (t responseTransformer) IsHeaderChange() bool    { return t.isHeaderChange }
+func (t responseTransformer) IsQueryChange() bool     { return false } // the response does not need to transform the query params, always returns false
+func (t responseTransformer) IsBodyChange() bool      { return t.isBodyChange }
+func (t responseTransformer) NeedBodyMapSource() bool { return t.needBodyMapSource }
 
 type requestBodyHandler struct {
 	formDataHandler *kvHandler
@@ -566,287 +884,391 @@ type responseBodyHandler struct {
 }
 
 type kvHandler struct {
-	*kvtGroup
+	kvtOps []kvtOperation
 }
 
 type jsonHandler struct {
-	*kvtGroup
+	kvtOps []kvtOperation
 }
 
-func (h kvHandler) handle(host, path string, kvs map[string][]string) error {
-	// order: remove → rename → replace → add → append → map → dedupe
+func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceData map[string]MapSourceData) error {
+	// arbitary order. for example: remove → rename → replace → add → append → map → dedupe
 
-	// remove
-	for _, key := range h.remove {
-		delete(kvs, key)
-	}
-
-	// rename: 若指定 oldKey 不存在则无操作；否则将 oldKey 的值追加给 newKey，并删除 oldKey:value
-	for _, item := range h.rename {
-		oldKey, newKey := item.key, item.value
-		if ovs, ok := kvs[oldKey]; ok {
-			kvs[newKey] = append(kvs[newKey], ovs...)
-			delete(kvs, oldKey)
-		}
-	}
-
-	// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
-	for _, item := range h.replace {
-		key, newValue := item.key, item.value
-		if _, ok := kvs[key]; !ok {
-			continue
-		}
-		if item.reg != nil {
-			newValue = item.reg.matchAndReplace(newValue, host, path)
-		}
-		kvs[item.key] = []string{newValue}
-	}
-
-	// add: 若指定 key 存在则无操作；否则添加 key:value
-	for _, item := range h.add {
-		key, value := item.key, item.value
-		if _, ok := kvs[key]; ok {
-			continue
-		}
-		if item.reg != nil {
-			value = item.reg.matchAndReplace(value, host, path)
-		}
-		kvs[key] = []string{value}
-	}
-
-	// append: 若指定 key 存在，则追加同名 kv；否则相当于添加操作
-	for _, item := range h.append {
-		key, appendValue := item.key, item.value
-		if item.reg != nil {
-			appendValue = item.reg.matchAndReplace(appendValue, host, path)
-		}
-		kvs[key] = append(kvs[key], appendValue)
-	}
-
-	// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
-	for _, item := range h.map_ {
-		fromKey, toKey := item.key, item.value
-		if vs, ok := kvs[fromKey]; ok {
-			kvs[toKey] = vs
-		}
-	}
-
-	// dedupe: 根据 strategy 去重：RETAIN_UNIQUE 保留所有唯一值，RETAIN_LAST 保留最后一个值，RETAIN_FIRST 保留第一个值 (default)
-	for _, item := range h.dedupe {
-		key, strategy := item.key, item.value
-		switch strings.ToUpper(strategy) {
-		case "RETAIN_UNIQUE":
-			uniSet, uniques := make(map[string]struct{}), make([]string, 0)
-			for _, v := range kvs[key] {
-				if _, ok := uniSet[v]; !ok {
-					uniSet[v] = struct{}{}
-					uniques = append(uniques, v)
+	for _, kvtOp := range h.kvtOps {
+		switch kvtOp.kvtOpType {
+		case RemoveK:
+			// remove
+			for _, remove := range kvtOp.removeKvtGroup {
+				delete(kvs, remove.key)
+			}
+		case RenameK:
+			// rename: 若指定 oldKey 不存在则无操作；否则将 oldKey 的值追加给 newKey，并删除 oldKey:value
+			for _, rename := range kvtOp.renameKvtGroup {
+				oldKey, newKey := rename.oldKey, rename.newKey
+				if ovs, ok := kvs[oldKey]; ok {
+					kvs[newKey] = append(kvs[newKey], ovs...)
+					delete(kvs, oldKey)
 				}
 			}
-			kvs[key] = uniques
-
-		case "RETAIN_LAST":
-			if vs, ok := kvs[key]; ok && len(vs) >= 1 {
-				kvs[key] = vs[len(vs)-1:]
+		case ReplaceK:
+			// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
+			for _, replace := range kvtOp.replaceKvtGroup {
+				key, newValue := replace.key, replace.newValue
+				if _, ok := kvs[key]; !ok {
+					continue
+				}
+				if replace.reg != nil {
+					newValue = replace.reg.matchAndReplace(newValue, host, path)
+				}
+				kvs[replace.key] = []string{newValue}
+			}
+		case AddK:
+			// add: 若指定 key 存在则无操作；否则添加 key:value
+			for _, add := range kvtOp.addKvtGroup {
+				key, value := add.key, add.value
+				if _, ok := kvs[key]; ok {
+					continue
+				}
+				if add.reg != nil {
+					value = add.reg.matchAndReplace(value, host, path)
+				}
+				kvs[key] = []string{value}
 			}
 
-		case "RETAIN_FIRST":
-			fallthrough
-		default:
-			if vs, ok := kvs[key]; ok && len(vs) >= 1 {
-				kvs[key] = vs[:1]
+		case AppendK:
+			// append: 若指定 key 存在，则追加同名 kv；否则相当于添加操作
+			for _, append_ := range kvtOp.appendKvtGroup {
+				key, appendValue := append_.key, append_.appendValue
+				if append_.reg != nil {
+					appendValue = append_.reg.matchAndReplace(appendValue, host, path)
+				}
+				kvs[key] = append(kvs[key], appendValue)
 			}
+		case MapK:
+			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
+			for _, map_ := range kvtOp.mapKvtGroup {
+				fromKey, toKey := map_.fromKey, map_.toKey
+				if kvtOp.mapSource == "headers" {
+					fromKey = strings.ToLower(fromKey)
+				}
+				source, exist := mapSourceData[kvtOp.mapSource]
+				if !exist {
+					proxywasm.LogWarnf("map key failed, source:%s not exists", kvtOp.mapSource)
+					continue
+				}
+				proxywasm.LogDebugf("search key:%s in source:%s", fromKey, kvtOp.mapSource)
+				if fromValue, ok := source.search(fromKey); ok {
+					switch source.mapSourceType {
+					case "headers", "querys", "bodyKv":
+						kvs[toKey] = fromValue.([]string)
+						proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+
+					case "bodyJson":
+						if valueJson, ok := fromValue.(gjson.Result); ok {
+							valueStr := valueJson.String()
+							if valueStr != "" {
+								kvs[toKey] = []string{valueStr}
+								proxywasm.LogDebugf("map key:%s to key:%s success, values is:%s", fromKey, toKey, valueStr)
+							}
+						}
+					}
+				}
+			}
+
+		case DedupeK:
+			// dedupe: 根据 strategy 去重：RETAIN_UNIQUE 保留所有唯一值，RETAIN_LAST 保留最后一个值，RETAIN_FIRST 保留第一个值 (default)
+			for _, dedupe := range kvtOp.dedupeKvtGroup {
+				key, strategy := dedupe.key, dedupe.strategy
+				switch strings.ToUpper(strategy) {
+				case "RETAIN_UNIQUE":
+					uniSet, uniques := make(map[string]struct{}), make([]string, 0)
+					for _, v := range kvs[key] {
+						if _, ok := uniSet[v]; !ok {
+							uniSet[v] = struct{}{}
+							uniques = append(uniques, v)
+						}
+					}
+					kvs[key] = uniques
+
+				case "RETAIN_LAST":
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						kvs[key] = vs[len(vs)-1:]
+					}
+
+				case "RETAIN_FIRST":
+					fallthrough
+				default:
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						kvs[key] = vs[:1]
+					}
+				}
+			}
+
 		}
 	}
 
 	return nil
 }
 
-func (h jsonHandler) handle(host, path string, oriData []byte) (data []byte, err error) {
-	// order: remove → rename → replace → add → append → map → dedupe
+// only for body
+func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map[string]MapSourceData) (data []byte, err error) {
+	// arbitary order. for example: remove → rename → replace → add → append → map → dedupe
 	if !gjson.ValidBytes(oriData) {
 		return nil, errors.New("invalid json body")
 	}
 	data = oriData
 
-	// remove
-	for _, key := range h.remove {
-		if data, err = sjson.DeleteBytes(data, key); err != nil {
-			return nil, errors.Wrap(err, errRemove.Error())
-		}
-	}
-
-	// rename: 若指定 oldKey 不存在则无操作；否则将 oldKey 的值追加给 newKey，并删除 oldKey:value
-	for _, item := range h.rename {
-		oldKey, newKey := item.key, item.value
-		value := gjson.GetBytes(data, oldKey)
-		if !value.Exists() {
-			continue
-		}
-		if data, err = sjson.SetBytes(data, newKey, value.Value()); err != nil {
-			return nil, errors.Wrap(err, errRename.Error())
-		}
-		if data, err = sjson.DeleteBytes(data, oldKey); err != nil {
-			return nil, errors.Wrap(err, errRename.Error())
-		}
-	}
-
-	// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
-	for _, item := range h.replace {
-		key, value, valueType := item.key, item.value, item.typ
-		if !gjson.GetBytes(data, key).Exists() {
-			continue
-		}
-		if valueType == "string" && item.reg != nil {
-			value = item.reg.matchAndReplace(value, host, path)
-		}
-		newValue, err := convertByJsonType(valueType, value)
-		if err != nil {
-			return nil, errors.Wrap(err, errReplace.Error())
-		}
-		if data, err = sjson.SetBytes(data, key, newValue); err != nil {
-			return nil, errors.Wrap(err, errReplace.Error())
-		}
-	}
-
-	// add: 若指定 key 存在则无操作；否则添加 key:value
-	for _, item := range h.add {
-		key, value, valueType := item.key, item.value, item.typ
-		if gjson.GetBytes(data, key).Exists() {
-			continue
-		}
-		if valueType == "string" && item.reg != nil {
-			value = item.reg.matchAndReplace(value, host, path)
-		}
-		newValue, err := convertByJsonType(valueType, value)
-		if err != nil {
-			return nil, errors.Wrap(err, errAdd.Error())
-		}
-		if data, err = sjson.SetBytes(data, key, newValue); err != nil {
-			return nil, errors.Wrap(err, errAdd.Error())
-		}
-	}
-
-	// append: 若指定 key 存在，则追加同名 kv；否则相当于添加操作
-	// 当原本的 value 为数组时，追加；当原本的 value 不为数组时，将原本的 value 和 appendValue 组成数组
-	for _, item := range h.append {
-		key, value, valueType := item.key, item.value, item.typ
-		if valueType == "string" && item.reg != nil {
-			value = item.reg.matchAndReplace(value, host, path)
-		}
-		appendValue, err := convertByJsonType(valueType, value)
-		if err != nil {
-			return nil, errors.Wrapf(err, errAppend.Error())
-		}
-		oldValue := gjson.GetBytes(data, key)
-		if !oldValue.Exists() {
-			if data, err = sjson.SetBytes(data, key, appendValue); err != nil { // key: appendValue
-				return nil, errors.Wrap(err, errAppend.Error())
+	for _, kvtOp := range h.kvtOps {
+		switch kvtOp.kvtOpType {
+		case RemoveK:
+			// remove
+			for _, remove := range kvtOp.removeKvtGroup {
+				if data, err = sjson.DeleteBytes(data, remove.key); err != nil {
+					return nil, errors.Wrap(err, errRemove.Error())
+				}
 			}
-			continue
-		}
+		case RenameK:
+			// rename: 若指定 oldKey 不存在则无操作；否则将 oldKey 的值追加给 newKey，并删除 oldKey:value
+			for _, rename := range kvtOp.renameKvtGroup {
+				oldKey, newKey := rename.oldKey, rename.newKey
+				value := gjson.GetBytes(data, oldKey)
+				if !value.Exists() {
+					continue
+				}
+				if data, err = sjson.SetBytes(data, newKey, value.Value()); err != nil {
+					return nil, errors.Wrap(err, errRename.Error())
+				}
+				if data, err = sjson.DeleteBytes(data, oldKey); err != nil {
+					return nil, errors.Wrap(err, errRename.Error())
+				}
+			}
+		case ReplaceK:
+			// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
+			for _, replace := range kvtOp.replaceKvtGroup {
+				key, newValue, valueType := replace.key, replace.newValue, replace.typ
+				if !gjson.GetBytes(data, key).Exists() {
+					continue
+				}
+				if valueType == "string" && replace.reg != nil {
+					newValue = replace.reg.matchAndReplace(newValue, host, path)
+				}
+				convertedNewValue, err := convertByJsonType(valueType, newValue)
+				if err != nil {
+					return nil, errors.Wrap(err, errReplace.Error())
+				}
+				if data, err = sjson.SetBytes(data, key, convertedNewValue); err != nil {
+					return nil, errors.Wrap(err, errReplace.Error())
+				}
+			}
+		case AddK:
+			// add: 若指定 key 存在则无操作；否则添加 key:value
+			for _, add := range kvtOp.addKvtGroup {
+				key, value, valueType := add.key, add.value, add.typ
+				if gjson.GetBytes(data, key).Exists() {
+					continue
+				}
+				if valueType == "string" && add.reg != nil {
+					value = add.reg.matchAndReplace(value, host, path)
+				}
+				convertedValue, err := convertByJsonType(valueType, value)
+				if err != nil {
+					return nil, errors.Wrap(err, errAdd.Error())
+				}
+				if data, err = sjson.SetBytes(data, key, convertedValue); err != nil {
+					return nil, errors.Wrap(err, errAdd.Error())
+				}
+			}
+		case AppendK:
+			// append: 若指定 key 存在，则追加同名 kv；否则相当于添加操作
+			// 当原本的 value 为数组时，追加；当原本的 value 不为数组时，将原本的 value 和 appendValue 组成数组
+			for _, append_ := range kvtOp.appendKvtGroup {
+				key, appendValue, valueType := append_.key, append_.appendValue, append_.typ
+				if valueType == "string" && append_.reg != nil {
+					appendValue = append_.reg.matchAndReplace(appendValue, host, path)
+				}
+				convertedAppendValue, err := convertByJsonType(valueType, appendValue)
+				if err != nil {
+					return nil, errors.Wrapf(err, errAppend.Error())
+				}
+				oldValue := gjson.GetBytes(data, key)
+				if !oldValue.Exists() {
+					if data, err = sjson.SetBytes(data, key, convertedAppendValue); err != nil { // key: appendValue
+						return nil, errors.Wrap(err, errAppend.Error())
+					}
+					continue
+				}
 
-		// oldValue exists
-		if oldValue.IsArray() {
-			if len(oldValue.Array()) == 0 {
-				if data, err = sjson.SetBytes(data, key, []interface{}{appendValue}); err != nil { // key: [appendValue]
+				// oldValue exists
+				if oldValue.IsArray() {
+					if len(oldValue.Array()) == 0 {
+						if data, err = sjson.SetBytes(data, key, []interface{}{convertedAppendValue}); err != nil { // key: [appendValue]
+							return nil, errors.Wrap(err, errAppend.Error())
+						}
+						continue
+					}
+
+					// len(oldValue.Array()) != 0
+					oldValues := make([]interface{}, 0, len(oldValue.Array())+1)
+					for _, val := range oldValue.Array() {
+						oldValues = append(oldValues, val.Value())
+					}
+					if data, err = sjson.SetBytes(data, key, append(oldValues, convertedAppendValue)); err != nil { // key: [oldValue..., appendValue]
+						return nil, errors.Wrap(err, errAppend.Error())
+					}
+					continue
+				}
+
+				// oldValue is not array
+				if data, err = sjson.SetBytes(data, key, []interface{}{oldValue.Value(), convertedAppendValue}); err != nil { // key: [oldValue, appendValue]
 					return nil, errors.Wrap(err, errAppend.Error())
 				}
-				continue
 			}
+		case MapK:
+			// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
+			for _, map_ := range kvtOp.mapKvtGroup {
+				fromKey, toKey := map_.fromKey, map_.toKey
+				if kvtOp.mapSource == "headers" {
+					fromKey = strings.ToLower(fromKey)
+				}
+				source, exist := mapSourceData[kvtOp.mapSource]
+				if !exist {
+					proxywasm.LogWarnf("map key failed, source:%s not exists", kvtOp.mapSource)
+					continue
+				}
 
-			// len(oldValue.Array()) != 0
-			oldValues := make([]interface{}, 0, len(oldValue.Array())+1)
-			for _, val := range oldValue.Array() {
-				oldValues = append(oldValues, val.Value())
-			}
-			if data, err = sjson.SetBytes(data, key, append(oldValues, appendValue)); err != nil { // key: [oldValue..., appendValue]
-				return nil, errors.Wrap(err, errAppend.Error())
-			}
-			continue
-		}
-
-		// oldValue is not array
-		if data, err = sjson.SetBytes(data, key, []interface{}{oldValue.Value(), appendValue}); err != nil { // key: [oldValue, appendValue]
-			return nil, errors.Wrap(err, errAppend.Error())
-		}
-	}
-
-	// map: 若指定 fromKey 不存在则无操作；否则将 fromKey 的值映射给 toKey 的值
-	for _, item := range h.map_ {
-		fromKey, toKey := item.key, item.value
-		fromValue := gjson.GetBytes(data, fromKey)
-		if !fromValue.Exists() {
-			continue
-		}
-		if data, err = sjson.SetBytes(data, toKey, fromValue.Value()); err != nil {
-			return nil, errors.Wrap(err, errMap.Error())
-		}
-	}
-
-	// dedupe: 根据 strategy 去重：RETAIN_UNIQUE 保留所有唯一值，RETAIN_LAST 保留最后一个值，RETAIN_FIRST 保留第一个值 (default)
-	for _, item := range h.dedupe {
-		key, strategy := item.key, item.value
-		value := gjson.GetBytes(data, key)
-		if !value.Exists() || !value.IsArray() {
-			continue
-		}
-
-		// value is array
-		values := value.Array()
-		if len(values) == 0 {
-			continue
-		}
-
-		var dedupedVal interface{}
-		switch strings.ToUpper(strategy) {
-		case "RETAIN_UNIQUE":
-			uniSet, uniques := make(map[string]struct{}), make([]interface{}, 0)
-			for _, v := range values {
-				vstr := v.String()
-				if _, ok := uniSet[vstr]; !ok {
-					uniSet[vstr] = struct{}{}
-					uniques = append(uniques, v.Value())
+				proxywasm.LogDebugf("search key:%s in source:%s", fromKey, kvtOp.mapSource)
+				if fromValue, ok := source.search(fromKey); ok {
+					switch source.mapSourceType {
+					case "headers", "querys", "bodyKv":
+						if data, err = sjson.SetBytes(data, toKey, fromValue); err != nil {
+							return nil, errors.Wrap(err, errMap.Error())
+						}
+						proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+					case "bodyJson":
+						if valueJson, ok := fromValue.(gjson.Result); ok {
+							if data, err = sjson.SetBytes(data, toKey, valueJson.Value()); err != nil {
+								return nil, errors.Wrap(err, errMap.Error())
+							}
+							proxywasm.LogDebugf("map key:%s to key:%s success, value is: %v", fromKey, toKey, fromValue)
+						}
+					}
 				}
 			}
-			if len(uniques) == 1 {
-				dedupedVal = uniques[0] // key: uniques[0]
-			} else if len(uniques) > 1 {
-				dedupedVal = uniques // key: [uniques...]
+		case DedupeK:
+			// dedupe: 根据 strategy 去重：RETAIN_UNIQUE 保留所有唯一值，RETAIN_LAST 保留最后一个值，RETAIN_FIRST 保留第一个值 (default)
+			for _, dedupe := range kvtOp.dedupeKvtGroup {
+				key, strategy := dedupe.key, dedupe.strategy
+				value := gjson.GetBytes(data, key)
+				if !value.Exists() || !value.IsArray() {
+					continue
+				}
+
+				// value is array
+				values := value.Array()
+				if len(values) == 0 {
+					continue
+				}
+
+				var dedupedVal interface{}
+				switch strings.ToUpper(strategy) {
+				case "RETAIN_UNIQUE":
+					uniSet, uniques := make(map[string]struct{}), make([]interface{}, 0)
+					for _, v := range values {
+						vstr := v.String()
+						if _, ok := uniSet[vstr]; !ok {
+							uniSet[vstr] = struct{}{}
+							uniques = append(uniques, v.Value())
+						}
+					}
+					if len(uniques) == 1 {
+						dedupedVal = uniques[0] // key: uniques[0]
+					} else if len(uniques) > 1 {
+						dedupedVal = uniques // key: [uniques...]
+					}
+
+				case "RETAIN_LAST":
+					dedupedVal = values[len(values)-1].Value() // key: last
+
+				case "RETAIN_FIRST":
+					fallthrough
+				default:
+					dedupedVal = values[0].Value() // key: first
+				}
+
+				if dedupedVal == nil {
+					continue
+				}
+				if data, err = sjson.SetBytes(data, key, dedupedVal); err != nil {
+					return nil, errors.Wrap(err, errDedupe.Error())
+				}
 			}
-
-		case "RETAIN_LAST":
-			dedupedVal = values[len(values)-1].Value() // key: last
-
-		case "RETAIN_FIRST":
-			fallthrough
-		default:
-			dedupedVal = values[0].Value() // key: first
-		}
-
-		if dedupedVal == nil {
-			continue
-		}
-		if data, err = sjson.SetBytes(data, key, dedupedVal); err != nil {
-			return nil, errors.Wrap(err, errDedupe.Error())
 		}
 	}
 
 	return data, nil
 }
 
-type kvtGroup struct {
-	remove  []string // key
-	rename  []kvt    // oldKey:newKey
-	replace []kvtReg // key:newValue
-	add     []kvtReg // newKey:newValue
-	append  []kvtReg // key:appendValue
-	map_    []kvt    // fromKey:toKey
-	dedupe  []kvt    // key:strategy
+type removeKvt struct {
+	key string
+}
+type renameKvt struct {
+	oldKey string
+	newKey string
+	typ    string
+}
+type replaceKvt struct {
+	key      string
+	newValue string
+	typ      string
+	*reg
+}
+type addKvt struct {
+	key   string
+	value string
+	typ   string
+	*reg
+}
+type appendKvt struct {
+	key         string
+	appendValue string
+	typ         string
+	*reg
 }
 
-func newKvtGroup(rules []TransformRule, typ string) (g *kvtGroup, isChange bool, err error) {
-	g = &kvtGroup{}
+type mapKvt struct {
+	fromKey string
+	toKey   string
+}
+type dedupeKvt struct {
+	key      string
+	strategy string
+}
+type KvtOpType int
+
+const (
+	RemoveK KvtOpType = iota
+	RenameK
+	ReplaceK
+	AddK
+	AppendK
+	MapK
+	DedupeK
+)
+
+type kvtOperation struct {
+	kvtOpType       KvtOpType
+	removeKvtGroup  []removeKvt
+	renameKvtGroup  []renameKvt
+	replaceKvtGroup []replaceKvt
+	addKvtGroup     []addKvt
+	appendKvtGroup  []appendKvt
+	mapKvtGroup     []mapKvt
+	dedupeKvtGroup  []dedupeKvt
+	mapSource       string
+}
+
+func newKvtGroup(rules []TransformRule, typ string) (g []kvtOperation, isChange bool, withMapKvt bool, err error) {
+	g = []kvtOperation{}
 	for _, r := range rules {
 		var prams []Param
 		switch typ {
@@ -858,70 +1280,136 @@ func newKvtGroup(rules []TransformRule, typ string) (g *kvtGroup, isChange bool,
 			prams = r.body
 		}
 
+		var kvtOp kvtOperation
+		switch r.operate {
+		case "remove":
+			kvtOp.kvtOpType = RemoveK
+		case "rename":
+			kvtOp.kvtOpType = RenameK
+		case "map":
+			kvtOp.kvtOpType = MapK
+		case "replace":
+			kvtOp.kvtOpType = ReplaceK
+		case "dedupe":
+			kvtOp.kvtOpType = DedupeK
+		case "add":
+			kvtOp.kvtOpType = AddK
+		case "append":
+			kvtOp.kvtOpType = AppendK
+		default:
+			return nil, false, false, errors.Wrap(err, "invalid operation type")
+		}
 		for _, p := range prams {
 			switch r.operate {
 			case "remove":
-				key := p.key
+				key := p.removeParam.key
 				if typ == "headers" {
 					key = strings.ToLower(key)
 				}
-				g.remove = append(g.remove, key)
-
-			case "rename", "map", "dedupe":
-				var kt kvt
-				kt.key, kt.value = p.key, p.value
+				kvtOp.removeKvtGroup = append(kvtOp.removeKvtGroup, removeKvt{key})
+			case "rename":
 				if typ == "headers" {
-					kt.key = strings.ToLower(kt.key)
-					if r.operate == "rename" || r.operate == "map" {
-						kt.value = strings.ToLower(kt.value)
-					}
+					p.renameParam.oldKey = strings.ToLower(p.renameParam.oldKey)
+					p.renameParam.newKey = strings.ToLower(p.renameParam.newKey)
 				}
-				if typ == "body" {
-					kt.typ = p.valueType
+				kvtOp.renameKvtGroup = append(kvtOp.renameKvtGroup, renameKvt{p.renameParam.oldKey, p.renameParam.newKey, p.valueType})
+			case "map":
+				if typ == "headers" {
+					p.mapParam.toKey = strings.ToLower(p.mapParam.toKey)
 				}
-				switch r.operate {
-				case "rename":
-					g.rename = append(g.rename, kt)
-				case "map":
-					g.map_ = append(g.map_, kt)
-				case "dedupe":
-					g.dedupe = append(g.dedupe, kt)
+				kvtOp.mapSource = r.mapSource
+				if kvtOp.mapSource == "self" {
+					kvtOp.mapSource = typ
+					r.mapSource = typ
+				}
+				if kvtOp.mapSource == "headers" {
+					p.mapParam.fromKey = strings.ToLower(p.mapParam.fromKey)
 				}
 
-			case "replace", "add", "append":
-				var kr kvtReg
-				kr.key, kr.value = p.key, p.value
+				kvtOp.mapKvtGroup = append(kvtOp.mapKvtGroup, mapKvt{p.mapParam.fromKey, p.mapParam.toKey})
+			case "dedupe":
 				if typ == "headers" {
-					kr.key = strings.ToLower(kr.key)
+					p.dedupeParam.key = strings.ToLower(p.dedupeParam.key)
 				}
+				kvtOp.dedupeKvtGroup = append(kvtOp.dedupeKvtGroup, dedupeKvt{p.dedupeParam.key, p.dedupeParam.strategy})
+			case "replace":
+				if typ == "headers" {
+					p.replaceParam.key = strings.ToLower(p.replaceParam.key)
+				}
+				var rg *reg
 				if p.hostPattern != "" || p.pathPattern != "" {
-					kr.reg, err = newReg(p.hostPattern, p.pathPattern)
+					rg, err = newReg(p.hostPattern, p.pathPattern)
 					if err != nil {
-						return nil, false, errors.Wrap(err, "failed to new reg")
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
 					}
 				}
-				if typ == "body" {
-					kr.typ = p.valueType
+				kvtOp.replaceKvtGroup = append(kvtOp.replaceKvtGroup, replaceKvt{p.replaceParam.key, p.replaceParam.newValue, p.valueType, rg})
+			case "add":
+				if typ == "headers" {
+					p.addParam.key = strings.ToLower(p.addParam.key)
 				}
-				switch r.operate {
-				case "replace":
-					g.replace = append(g.replace, kr)
-				case "add":
-					g.add = append(g.add, kr)
-				case "append":
-					g.append = append(g.append, kr)
+				var rg *reg
+				if p.hostPattern != "" || p.pathPattern != "" {
+					rg, err = newReg(p.hostPattern, p.pathPattern)
+					if err != nil {
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
+					}
 				}
+				kvtOp.addKvtGroup = append(kvtOp.addKvtGroup, addKvt{p.addParam.key, p.addParam.value, p.valueType, rg})
+			case "append":
+				if typ == "headers" {
+					p.appendParam.key = strings.ToLower(p.appendParam.key)
+				}
+				var rg *reg
+				if p.hostPattern != "" || p.pathPattern != "" {
+					rg, err = newReg(p.hostPattern, p.pathPattern)
+					if err != nil {
+						return nil, false, false, errors.Wrap(err, "failed to new reg")
+					}
+				}
+				kvtOp.appendKvtGroup = append(kvtOp.appendKvtGroup, appendKvt{p.appendParam.key, p.appendParam.appendValue, p.valueType, rg})
 			}
 		}
-
+		isChange = isChange || len(kvtOp.removeKvtGroup) != 0 ||
+			len(kvtOp.renameKvtGroup) != 0 || len(kvtOp.replaceKvtGroup) != 0 ||
+			len(kvtOp.addKvtGroup) != 0 || len(kvtOp.appendKvtGroup) != 0 ||
+			len(kvtOp.mapKvtGroup) != 0 || len(kvtOp.dedupeKvtGroup) != 0
+		withMapKvt = withMapKvt || len(kvtOp.mapKvtGroup) != 0
+		g = append(g, kvtOp)
 	}
 
-	isChange = len(g.remove) != 0 ||
-		len(g.rename) != 0 || len(g.replace) != 0 ||
-		len(g.add) != 0 || len(g.append) != 0 ||
-		len(g.map_) != 0 || len(g.dedupe) != 0
+	return g, isChange, withMapKvt, nil
+}
 
-	return g, isChange, nil
+type MapSourceData struct {
+	mapSourceType string
+	kvs           map[string][]string // headers or querys or body in kvs
+	json          []byte              // body in json
+}
+
+func (msdata MapSourceData) search(fromKey string) (interface{}, bool) {
+	switch msdata.mapSourceType {
+	case "headers", "querys", "bodyKv":
+		fromValue, ok := msdata.kvs[fromKey]
+		return fromValue, ok
+	case "bodyJson":
+		fromValue := gjson.GetBytes(msdata.json, fromKey)
+		if !fromValue.Exists() {
+			return nil, false
+		}
+		return fromValue, true
+	default:
+		return "", false
+	}
+}
+
+func bodyMapSourceInRule(rules []TransformRule) bool {
+	for _, r := range rules {
+		if r.operate == "map" && r.mapSource == "body" {
+			return true
+		}
+	}
+	return false
 }
 
 type kvtReg struct {

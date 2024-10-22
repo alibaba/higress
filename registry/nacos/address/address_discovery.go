@@ -116,7 +116,7 @@ func (p *NacosAddressProvider) GetNacosAddress(oldAddress string) <-chan string 
 		var addr string
 		p.cond.L.Lock()
 		defer p.cond.L.Unlock()
-		log.Debugf("get nacos address, p.nacosAddr, oldAddress", p.nacosAddr, oldAddress)
+		log.Debugf("get nacos address, p.nacosAddr: %s, oldAddress: %s", p.nacosAddr, oldAddress)
 		for p.nacosAddr == oldAddress || p.nacosAddr == "" {
 			if p.isStop.Load() {
 				return

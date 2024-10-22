@@ -29,6 +29,27 @@ then
         echo "🚀 Build CPP WasmPlugin: $INNER_PLUGIN_NAME"
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
     fi
+elif [ "$TYPE" == "RUST" ]
+then
+    cd ./plugins/wasm-rust/
+    make lint-base
+    if [ ! -n "$INNER_PLUGIN_NAME" ]; then
+        EXTENSIONS_DIR=$(pwd)"/extensions/"
+        echo "🚀 Build all Rust WasmPlugins under folder of $EXTENSIONS_DIR"
+        for file in `ls $EXTENSIONS_DIR`                                   
+            do
+                if [ -d $EXTENSIONS_DIR$file ]; then 
+                    name=${file##*/}
+                    echo "🚀 Build Rust WasmPlugin: $name"
+                    PLUGIN_NAME=${name} make lint 
+                    PLUGIN_NAME=${name} make build
+                fi
+            done
+    else
+        echo "🚀 Build Rust WasmPlugin: $INNER_PLUGIN_NAME"
+        PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
+        PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
+    fi
 else
     echo "Not specify plugin language, so just compile wasm-go as default"
     cd ./plugins/wasm-go/
@@ -38,13 +59,23 @@ else
         for file in `ls $EXTENSIONS_DIR`                                   
             do
                 # TODO: adjust waf build
-                if [ "$file" == "waf" ]; then 
+                if [ "$file" == "waf" ]; then
                     continue
                 fi
-                if [ -d $EXTENSIONS_DIR$file ]; then 
+                if [ -d $EXTENSIONS_DIR$file ]; then
                     name=${file##*/}
-                    echo "🚀 Build Go WasmPlugin: $name"
-                    PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
+                    version_file="$EXTENSIONS_DIR$file/VERSION"
+                    if [ -f "$version_file" ]; then
+                        version=$(cat "$version_file")
+                        if [[ "$version" =~ -alpha$ ]]; then
+                            echo "🚀 Build Go WasmPlugin: $name (version $version)"
+                            PLUGIN_NAME=${name} make build
+                        else
+                            echo "Plugin version $version not ends with '-alpha', skipping compilation for $name."
+                        fi
+                    else
+                        echo "VERSION file not found for plugin $name, skipping compilation."
+                    fi
                 fi
             done
     else

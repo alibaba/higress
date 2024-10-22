@@ -1,10 +1,10 @@
 <h1 align="center">
     <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
-  Next-generation Cloud Native Gateway
+  Cloud Native API Gateway
 </h1>
 
-[![Build Status](https://github.com/alibaba/higress/workflows/build%20and%20codecov/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
+[![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 [**Official Site**](https://higress.io/en-us/) &nbsp; |
@@ -15,10 +15,10 @@
 
 
 <p>
-   English | <a href="README.md">中文<a/>
+   English | <a href="README.md">中文<a/> | <a href="README_JP.md">日本語<a/>
 </p>
 
-Higress is a next-generation cloud-native gateway based on Alibaba's internal gateway practices. 
+Higress is a cloud-native api gateway based on Alibaba's internal gateway practices. 
 
 Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.com/envoyproxy/envoy), Higress realizes the integration of the triple gateway architecture of traffic gateway, microservice gateway and security gateway, thereby greatly reducing the costs of deployment, operation and maintenance.
 
@@ -47,7 +47,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
   Higress can function as a microservice gateway, which can discovery microservices from various service registries, such as Nacos, ZooKeeper, Consul, Eureka, etc.
   
-  It deeply integrates of [Dubbo](https://github.com/apache/dubbo), [Nacos](https://github.com/alibaba/nacos), [Sentinel](https://github.com/alibaba/Sentinel) and other microservice technology stacks.
+  It deeply integrates with [Dubbo](https://github.com/apache/dubbo), [Nacos](https://github.com/alibaba/nacos), [Sentinel](https://github.com/alibaba/Sentinel) and other microservice technology stacks.
   
 - **Security gateway**:
 
@@ -57,7 +57,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 - **Easy to use**
 
-  Provide one-stop gateway solutions for traffic scheduling, service management, and security protection, support Console, K8s Ingress, and Gateway API configuration methods, and also support HTTP to Dubbo protocol conversion, and easily complete protocol mapping configuration.  
+  Provides one-stop gateway solutions for traffic scheduling, service management, and security protection, support Console, K8s Ingress, and Gateway API configuration methods, and also support HTTP to Dubbo protocol conversion, and easily complete protocol mapping configuration.  
   
 - **Easy to expand**
 
@@ -73,7 +73,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
   
 - **Security**
 
-  Provides JWT, OIDC, custom authentication and authentication, deeply integrates open source web application firewall.
+  Provides JWT, OIDC, custom authentication and authentication, deeply integrates open-source web application firewall.
 
 ## Community
 
@@ -81,4 +81,9 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 ### Thanks
 
-Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
+Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank you to Envoy and Istio.
+
+### Related Repositories
+
+- Higress Console: https://github.com/higress-group/higress-console
+- Higress Standalone: https://github.com/higress-group/higress-standalone

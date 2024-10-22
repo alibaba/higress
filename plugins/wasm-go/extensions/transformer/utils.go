@@ -21,6 +21,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -53,6 +54,15 @@ var (
 func isValidOperation(op string) bool {
 	switch op {
 	case "remove", "rename", "replace", "add", "append", "map", "dedupe":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidMapSource(source string) bool {
+	switch source {
+	case "headers", "querys", "body":
 		return true
 	default:
 		return false
@@ -254,5 +264,8 @@ func reconvertHeaders(hs map[string][]string) [][2]string {
 			ret = append(ret, [2]string{k, v})
 		}
 	}
+	sort.SliceStable(ret, func(i, j int) bool {
+		return ret[i][0] < ret[j][0]
+	})
 	return ret
 }

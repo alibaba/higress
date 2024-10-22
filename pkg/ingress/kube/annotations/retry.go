@@ -17,8 +17,7 @@ package annotations
 import (
 	"strings"
 
-	"github.com/gogo/protobuf/types"
-
+	"github.com/golang/protobuf/ptypes/duration"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -39,7 +38,7 @@ var (
 
 type RetryConfig struct {
 	retryCount      int32
-	perRetryTimeout *types.Duration
+	perRetryTimeout *duration.Duration
 	retryOn         string
 }
 
@@ -52,7 +51,7 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 
 	retryConfig := &RetryConfig{
 		retryCount:      defaultRetryCount,
-		perRetryTimeout: &types.Duration{},
+		perRetryTimeout: &duration.Duration{},
 		retryOn:         defaultRetryOn,
 	}
 	defer func() {
@@ -64,7 +63,7 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 	}
 
 	if timeout, err := annotations.ParseIntASAP(perRetryTimeout); err == nil {
-		retryConfig.perRetryTimeout = &types.Duration{
+		retryConfig.perRetryTimeout = &duration.Duration{
 			Seconds: int64(timeout),
 		}
 	}

@@ -2,15 +2,15 @@ package wasmplugin
 
 import (
 	"errors"
-	"github.com/corazawaf/coraza/v3/debuglog"
 	"strconv"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/corazawaf/coraza/v3"
+	"github.com/corazawaf/coraza/v3/debuglog"
 	ctypes "github.com/corazawaf/coraza/v3/types"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
 
@@ -69,12 +69,30 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+	ctx.SetContext("skipwaf", false)
+
+	if ignoreBody() {
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+		ctx.SetContext("skipwaf", true)
+		return types.ActionContinue
+	}
+
 	ctx.SetContext("interruptionHandled", false)
 	ctx.SetContext("processedRequestBody", false)
 	ctx.SetContext("processedResponseBody", false)
 	ctx.SetContext("tx", config.waf.NewTransaction())
 
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
+
+	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
+	if err != nil {
+		// TODO(anuraaga): HTTP protocol is commonly required in WAF rules, we should probably
+		// fail fast here, but proxytest does not support properties yet.
+		protocol = []byte("HTTP/2.0")
+	}
+
+	ctx.SetContext("httpProtocol", string(protocol))
 
 	// Note the pseudo-header :path includes the query.
 	// See https://httpwg.org/specs/rfc9113.html#rfc.section.8.3.1
@@ -102,15 +120,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 		log.Error("Failed to get :method")
 		return types.ActionContinue
 	}
-
-	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
-	if err != nil {
-		// TODO(anuraaga): HTTP protocol is commonly required in WAF rules, we should probably
-		// fail fast here, but proxytest does not support properties yet.
-		protocol = []byte("HTTP/2.0")
-	}
-
-	ctx.SetContext("httpProtocol", string(protocol))
 
 	tx.ProcessURI(uri, method, string(protocol))
 
@@ -192,6 +201,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+	if ctx.GetContext("skipwaf").(bool) {
+		return types.ActionContinue
+	}
+
 	if ctx.GetContext("interruptionHandled").(bool) {
 		return types.ActionContinue
 	}
@@ -306,6 +319,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 }
 
 func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) {
+	if ctx.GetContext("skipwaf").(bool) {
+		return
+	}
+
 	tx := ctx.GetContext("tx").(ctypes.Transaction)
 
 	if !tx.IsRuleEngineOff() {

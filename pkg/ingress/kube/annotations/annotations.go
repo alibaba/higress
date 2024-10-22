@@ -18,24 +18,25 @@ import (
 	"strings"
 
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/util/sets"
+	"istio.io/istio/pkg/cluster"
+	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 )
 
 type GlobalContext struct {
 	// secret key is cluster/namespace/name
-	WatchedSecrets sets.Set
+	WatchedSecrets sets.Set[string]
 
-	ClusterSecretLister map[string]listersv1.SecretLister
+	ClusterSecretLister map[cluster.ID]listersv1.SecretLister
 
-	ClusterServiceList map[string]listersv1.ServiceLister
+	ClusterServiceList map[cluster.ID]listersv1.ServiceLister
 }
 
 type Meta struct {
 	Namespace    string
 	Name         string
 	RawClusterId string
-	ClusterId    string
+	ClusterId    cluster.ID
 }
 
 // Ingress defines the valid annotations present in one NGINX Ingress.
@@ -68,6 +69,8 @@ type Ingress struct {
 
 	Auth *AuthConfig
 
+	Mirror *MirrorConfig
+
 	Destination *DestinationConfig
 
 	IgnoreCase *IgnoreCaseConfig
@@ -83,7 +86,7 @@ func (i *Ingress) NeedRegexMatch(path string) bool {
 	if i.Rewrite == nil {
 		return false
 	}
-	if strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
+	if i.Rewrite.RewriteTarget != "" && strings.ContainsAny(path, `\.+*?()|[]{}^$`) {
 		return true
 	}
 	if strings.ContainsAny(i.Rewrite.RewriteTarget, `$\`) {
@@ -160,6 +163,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			localRateLimit{},
 			fallback{},
 			auth{},
+			mirror{},
 			destination{},
 			ignoreCaseMatching{},
 			match{},
@@ -181,6 +185,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			retry{},
 			localRateLimit{},
 			fallback{},
+			mirror{},
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},

@@ -17,11 +17,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
 
@@ -74,9 +75,11 @@ type Consumer struct {
 //     credential: token1
 //   - name: consumer2
 //     credential: token2
+//
 // keys:
 //   - x-api-key
 //   - token
+//
 // in_query: true
 // @End
 type KeyAuthConfig struct {
@@ -273,7 +276,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 
 	// header/query
 	if len(tokens) > 1 {
-		return deniedMutiKeyAuthData()
+		return deniedMultiKeyAuthData()
 	} else if len(tokens) <= 0 {
 		return deniedNoKeyAuthData()
 	}
@@ -318,20 +321,20 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log wra
 	return types.ActionContinue
 }
 
-func deniedMutiKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
-		[]byte("Request denied by Key Auth check. Muti Key Authentication information found."), -1)
+func deniedMultiKeyAuthData() types.Action {
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "key-auth.multi_key", WWWAuthenticateHeader(protectionSpace),
+		[]byte("Request denied by Key Auth check. Multi Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedNoKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponse(401, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "key-auth.no_key", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. No Key Authentication information found."), -1)
 	return types.ActionContinue
 }
 
 func deniedUnauthorizedConsumer() types.Action {
-	_ = proxywasm.SendHttpResponse(403, WWWAuthenticateHeader(protectionSpace),
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusForbidden, "key-auth.unauthorized", WWWAuthenticateHeader(protectionSpace),
 		[]byte("Request denied by Key Auth check. Unauthorized consumer."), -1)
 	return types.ActionContinue
 }

@@ -14,7 +14,7 @@
 
 package suite
 
-import "istio.io/istio/pilot/pkg/util/sets"
+import "istio.io/istio/pkg/util/sets"
 
 type SupportedFeature string
 
@@ -23,23 +23,36 @@ const (
 	HTTPConformanceFeature SupportedFeature = "http"
 
 	// extended: extensibility
-	WASMGoConformanceFeature  SupportedFeature = "wasm-go"
-	WASMCPPConformanceFeature SupportedFeature = "wasm-cpp"
+	WASMGoConformanceFeature   SupportedFeature = "wasm-go"
+	WASMCPPConformanceFeature  SupportedFeature = "wasm-cpp"
+	WASMRustConformanceFeature SupportedFeature = "wasm-rust"
 
 	// extended: service discovery
 	DubboConformanceFeature  SupportedFeature = "dubbo"
 	EurekaConformanceFeature SupportedFeature = "eureka"
 	ConsulConformanceFeature SupportedFeature = "consul"
 	NacosConformanceFeature  SupportedFeature = "nacos"
+
+	// extended: envoy config
+	EnvoyConfigConformanceFeature SupportedFeature = "envoy-config"
 )
 
-var AllFeatures = sets.Set{}.
+var WasmPluginTypeMap = map[string]SupportedFeature{
+	"":     WASMGoConformanceFeature, // default
+	"GO":   WASMGoConformanceFeature,
+	"CPP":  WASMCPPConformanceFeature,
+	"RUST": WASMRustConformanceFeature,
+}
+
+var AllFeatures = sets.Set[string]{}.
 	Insert(string(HTTPConformanceFeature)).
 	Insert(string(DubboConformanceFeature)).
 	Insert(string(EurekaConformanceFeature)).
 	Insert(string(ConsulConformanceFeature)).
-	Insert(string(NacosConformanceFeature))
+	Insert(string(NacosConformanceFeature)).
+	Insert(string(EnvoyConfigConformanceFeature))
 
-var ExperimentFeatures = sets.Set{}.
+var ExperimentFeatures = sets.Set[string]{}.
 	Insert(string(WASMGoConformanceFeature)).
-	Insert(string(WASMCPPConformanceFeature))
+	Insert(string(WASMCPPConformanceFeature)).
+	Insert(string(WASMRustConformanceFeature))

@@ -15,8 +15,10 @@
 package main
 
 import (
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"net/http"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
@@ -36,6 +38,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log 
 	if err != nil {
 		log.Critical("failed to set request header")
 	}
-	proxywasm.SendHttpResponse(200, nil, []byte("hello world"), -1)
+	proxywasm.SendHttpResponseWithDetail(http.StatusOK, "hello-world", nil, []byte("hello world"), -1)
 	return types.ActionContinue
 }

@@ -37,6 +37,13 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               defaultConfigDisable:
                 type: boolean
+              failStrategy:
+                description: Specifies the failure behavior for the plugin due to
+                  fatal errors.
+                enum:
+                - FAIL_CLOSE
+                - FAIL_OPEN
+                type: string
               imagePullPolicy:
                 description: The pull behaviour to be applied when fetching an OCI
                   image.
@@ -61,6 +68,10 @@ spec:
                         type: string
                       type: array
                     ingress:
+                      items:
+                        type: string
+                      type: array
+                    service:
                       items:
                         type: string
                       type: array
@@ -94,6 +105,27 @@ spec:
                 type: string
               verificationKey:
                 type: string
+              vmConfig:
+                description: Configuration for a Wasm VM.
+                properties:
+                  env:
+                    description: Specifies environment variables to be injected to
+                      this VM.
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          description: Value for the environment variable.
+                          type: string
+                        valueFrom:
+                          enum:
+                          - INLINE
+                          - HOST
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             type: object
@@ -154,6 +186,11 @@ spec:
                           type: array
                         httpPath:
                           type: string
+                        paramFromEntireBody:
+                          properties:
+                            paramType:
+                              type: string
+                          type: object
                         params:
                           items:
                             properties:
@@ -247,6 +284,10 @@ spec:
                       type: string
                     port:
                       type: integer
+                    protocol:
+                      type: string
+                    sni:
+                      type: string
                     type:
                       type: string
                     zkServicesPath:

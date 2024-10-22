@@ -5,13 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	ctypes "github.com/corazawaf/coraza/v3/types"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
 	"math"
 	"net"
 	"strconv"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	ctypes "github.com/corazawaf/coraza/v3/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const noGRPCStream int32 = -1
@@ -93,7 +94,7 @@ func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *cty
 	if statusCode == 0 {
 		statusCode = 403
 	}
-	if err := proxywasm.SendHttpResponse(uint32(statusCode), nil, nil, noGRPCStream); err != nil {
+	if err := proxywasm.SendHttpResponseWithDetail(uint32(statusCode), "waf", nil, nil, noGRPCStream); err != nil {
 		panic(err)
 	}
 
@@ -136,4 +137,35 @@ func logError(error ctypes.MatchedRule) {
 	case ctypes.RuleSeverityDebug:
 		proxywasm.LogDebug(msg)
 	}
+}
+
+func isWebSocketRequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Upgrade"); err == nil {
+		if value == "websocket" {
+			return true
+		}
+	}
+	return false
+}
+
+func isSSERequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Accept"); err == nil {
+		if value == "text/event-stream" {
+			return true
+		}
+	}
+	return false
+}
+
+func isGrpcRequest() bool {
+	if value, err := proxywasm.GetHttpRequestHeader("Content-Type"); err == nil {
+		if value == "application/grpc" {
+			return true
+		}
+	}
+	return false
+}
+
+func ignoreBody() bool {
+	return isWebSocketRequest() || isSSERequest() || isGrpcRequest()
 }

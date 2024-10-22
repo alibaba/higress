@@ -15,10 +15,11 @@ package kubernetes
 
 import (
 	"context"
-	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 	"time"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -121,7 +122,7 @@ func FindPodConditionInList(t *testing.T, conditions []v1.PodCondition, condName
 	return false
 }
 
-func ApplyConfigmapDataWithYaml(c client.Client, namespace string, name string, key string, val any) error {
+func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string, name string, key string, val any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -140,8 +141,6 @@ func ApplyConfigmapDataWithYaml(c client.Client, namespace string, name string, 
 	}
 	cm.Data[key] = data
 
-	if err := c.Update(ctx, cm); err != nil {
-		return err
-	}
-	return nil
+	t.Logf("🏗 Updating %s %s", name, namespace)
+	return c.Update(ctx, cm)
 }

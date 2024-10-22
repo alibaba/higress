@@ -1,23 +1,25 @@
 PLUGIN_NAME ?= hello-world
 BUILDER_REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
-REGISTRY ?=
-GO_VERSION ?= 1.19
-TINYGO_VERSION ?= 0.28.1
+REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
+GO_VERSION ?= 1.20.14
+TINYGO_VERSION ?= 0.29.0
 ORAS_VERSION ?= 1.0.0
 HIGRESS_VERSION ?= 1.0.0-rc
-USE_HIGRESS_TINYGO ?= true
+USE_HIGRESS_TINYGO ?= false
 BUILDER ?= ${BUILDER_REGISTRY}wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-oras${ORAS_VERSION}
 BUILD_TIME := $(shell date "+%Y%m%d-%H%M%S")
 COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null)
 IMAGE_TAG = $(if $(strip $(PLUGIN_VERSION)),${PLUGIN_VERSION},${BUILD_TIME}-${COMMIT_ID})
 IMG ?= ${REGISTRY}${PLUGIN_NAME}:${IMAGE_TAG}
 GOPROXY := $(shell go env GOPROXY)
+EXTRA_TAGS ?=
 
 .DEFAULT:
 build:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
 	                            --build-arg GOPROXY=$(GOPROXY) \
+	                            --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
 	                            -t ${IMG} \
 	                            --output extensions/${PLUGIN_NAME} \
 	                            .
@@ -28,8 +30,8 @@ build-image:
 	DOCKER_BUILDKIT=1 docker build --build-arg PLUGIN_NAME=${PLUGIN_NAME} \
 	                            --build-arg BUILDER=${BUILDER}  \
 	                            --build-arg GOPROXY=$(GOPROXY) \
+	                            --build-arg EXTRA_TAGS=$(EXTRA_TAGS) \
 	                            -t ${IMG} \
-	                            --load \
 	                            .
 	@echo ""
 	@echo "image:            ${IMG}"
@@ -60,3 +62,16 @@ builder:
 			.
 	@echo ""
 	@echo "image: ${BUILDER}"
+
+local-build:
+	tinygo build -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' \
+		-o extensions/${PLUGIN_NAME}/main.wasm \
+		extensions/${PLUGIN_NAME}/main.go
+	@echo ""
+	@echo "wasm: extensions/${PLUGIN_NAME}/main.wasm"
+
+local-run:
+	python3 .devcontainer/gen_config.py ${PLUGIN_NAME}
+	envoy -c extensions/${PLUGIN_NAME}/config.yaml --concurrency 0 --log-level info --component-log-level wasm:debug
+
+local-all: local-build local-run

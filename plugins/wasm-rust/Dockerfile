@@ -1,5 +1,6 @@
-FROM rust:1.69 as builder
+FROM rust:1.80 as builder
 WORKDIR /workspace
+RUN apt update && apt-get install gcc gcc-multilib llvm clang -y && apt clean
 RUN rustup target add wasm32-wasi
 ARG PLUGIN_NAME="say-hello"
 ARG BUILD_OPTS="--release"

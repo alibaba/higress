@@ -33,6 +33,27 @@ spec:
             port:
               number: 8080
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/app-root: "/foo"
+  name: httproute-app-root2
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+  - host: "foo2.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: infra-backend-echo-body-v1
+            port:
+              number: 8080
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -46,4 +67,6 @@ spec:
     - "/env.*"
     block_exact_urls:
     - "/web/info"
-  url: file:///opt/plugins/wasm-go/extensions/request-block/plugin.wasm
+    block_bodies:
+    - "hello world"
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-request-block:1.0.0

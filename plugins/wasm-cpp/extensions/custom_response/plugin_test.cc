@@ -146,9 +146,63 @@ TEST_F(CustomResponseTest, EnableOnStatus) {
   status_code_ = "429";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
-  EXPECT_CALL(*mock_context_, sendLocalResponse(233, testing::_, testing::_,
-                                                testing::_, testing::_));
+  EXPECT_CALL(
+      *mock_context_,
+      sendLocalResponse(
+          233, testing::_,
+          testing::ElementsAre(
+              testing::Pair("abc", "123"), testing::Pair("zty", "test"),
+              testing::Pair("content-type", "application/json; charset=utf-8")),
+          testing::_, testing::_));
   EXPECT_EQ(context_->onResponseHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(CustomResponseTest, ContentTypePlain) {
+  std::string configuration = R"(
+{
+   "status_code": 200,
+   "body": "abc"
+})";
+
+  BufferBase buffer;
+  buffer.set({configuration.data(), configuration.size()});
+
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  EXPECT_CALL(
+      *mock_context_,
+      sendLocalResponse(200, testing::_,
+                        testing::ElementsAre(testing::Pair(
+                            "content-type", "text/plain; charset=utf-8")),
+                        testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(CustomResponseTest, ContentTypeCustom) {
+  std::string configuration = R"(
+{
+   "status_code": 200,
+   "headers": ["content-type=application/custom"],
+   "body": "abc"
+})";
+
+  BufferBase buffer;
+  buffer.set({configuration.data(), configuration.size()});
+
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  EXPECT_CALL(*mock_context_,
+              sendLocalResponse(200, testing::_,
+                                testing::ElementsAre(testing::Pair(
+                                    "content-type", "application/custom")),
+                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
 }
 

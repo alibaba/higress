@@ -211,6 +211,8 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			direct.WithName(registry.Name),
 			direct.WithDomain(registry.Domain),
 			direct.WithPort(registry.Port),
+			direct.WithProtocol(registry.Protocol),
+			direct.WithSNI(registry.Sni),
 		)
 	case string(Eureka):
 		watcher, err = eureka.NewWatcher(
@@ -251,7 +253,7 @@ func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, 
 		return authOption, nil
 	}
 
-	authSecret, err := r.client.CoreV1().Secrets(r.namespace).Get(context.Background(), authSecretName, metav1.GetOptions{})
+	authSecret, err := r.client.Kube().CoreV1().Secrets(r.namespace).Get(context.Background(), authSecretName, metav1.GetOptions{})
 	if err != nil {
 		return authOption, errors.New(fmt.Sprintf("get auth secret %s in namespace %s error:%v", authSecretName, r.namespace, err))
 	}
@@ -277,4 +279,26 @@ func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, 
 	}
 
 	return authOption, nil
+}
+
+type RegistryWatcherStatus struct {
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Healthy bool   `json:"healthy"`
+	Ready   bool   `json:"ready"`
+}
+
+func (r *Reconciler) GetRegistryWatcherStatusList() []RegistryWatcherStatus {
+	var registryStatusList []RegistryWatcherStatus
+	for key, watcher := range r.watchers {
+		_, name := path.Split(key)
+		registryStatus := RegistryWatcherStatus{
+			Name:    name,
+			Type:    watcher.GetRegistryType(),
+			Healthy: watcher.IsHealthy(),
+			Ready:   watcher.IsReady(),
+		}
+		registryStatusList = append(registryStatusList, registryStatus)
+	}
+	return registryStatusList
 }

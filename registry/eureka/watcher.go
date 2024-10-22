@@ -23,9 +23,7 @@ import (
 
 	"github.com/hudl/fargo"
 	"istio.io/api/networking/v1alpha3"
-	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	"istio.io/pkg/log"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
@@ -49,7 +47,6 @@ type watcher struct {
 	cache                memory.Cache
 	mutex                *sync.Mutex
 	stop                 chan struct{}
-	istioClient          *versionedclient.Clientset
 	isStop               bool
 	updateCacheWhenEmpty bool
 
@@ -69,18 +66,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		mutex:            &sync.Mutex{},
 		stop:             make(chan struct{}),
 	}
-
-	config, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	ic, err := versionedclient.NewForConfig(config)
-	if err != nil {
-		log.Errorf("can not new istio client, err:%v", err)
-		return nil, err
-	}
-	w.istioClient = ic
 
 	w.fullRefreshIntervalLimit = DefaultFullRefreshIntervalLimit
 
@@ -162,7 +147,7 @@ func (w *watcher) Stop() {
 			log.Errorf("Failed to unsubscribe service : %v", serviceName)
 			continue
 		}
-		w.cache.DeleteServiceEntryWrapper(makeHost(serviceName))
+		w.cache.DeleteServiceWrapper(makeHost(serviceName))
 	}
 	w.UpdateService()
 }
@@ -218,17 +203,18 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 			if err != nil {
 				return err
 			}
-			w.cache.UpdateServiceEntryWrapper(makeHost(service.Name), &memory.ServiceEntryWrapper{
+			w.cache.UpdateServiceWrapper(makeHost(service.Name), &memory.ServiceWrapper{
 				ServiceName:  service.Name,
 				ServiceEntry: se,
 				Suffix:       suffix,
 				RegistryType: w.Type,
+				RegistryName: w.Name,
 			})
 			return nil
 		}
 
 		if w.updateCacheWhenEmpty {
-			w.cache.DeleteServiceEntryWrapper(makeHost(service.Name))
+			w.cache.DeleteServiceWrapper(makeHost(service.Name))
 		}
 
 		return nil
@@ -266,7 +252,7 @@ func convertMap(m map[string]interface{}) map[string]string {
 }
 
 func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, instance := range app.Instances {
@@ -276,7 +262,7 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 				return nil, fmt.Errorf("unsupported protocol %v", val)
 			}
 		}
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(instance.Port),
 			Protocol: protocol.String(),

@@ -62,12 +62,17 @@ message Method {
   string http_path = 3 [(google.api.field_behavior) = REQUIRED];
   repeated string http_methods = 4 [(google.api.field_behavior) = REQUIRED];
   repeated Param params = 5;
+  ParamFromEntireBody paramFromEntireBody = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
 message Param {
   string param_source = 1 [(google.api.field_behavior) = REQUIRED];
   string param_key = 2 [(google.api.field_behavior) = REQUIRED];
   string param_type = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ParamFromEntireBody {
+  string param_type = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 message GrpcService {

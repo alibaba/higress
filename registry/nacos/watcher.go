@@ -26,9 +26,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/model"
 	"github.com/nacos-group/nacos-sdk-go/vo"
 	"istio.io/api/networking/v1alpha3"
-	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	"istio.io/pkg/log"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
@@ -61,7 +59,6 @@ type watcher struct {
 	cache                memory.Cache
 	mutex                *sync.Mutex
 	stop                 chan struct{}
-	client               *versionedclient.Clientset
 	isStop               bool
 	updateCacheWhenEmpty bool
 	authOption           provider.AuthOption
@@ -78,18 +75,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		mutex:            &sync.Mutex{},
 		stop:             make(chan struct{}),
 	}
-
-	config, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	ic, err := versionedclient.NewForConfig(config)
-	if err != nil {
-		log.Errorf("can not new istio client, err:%v", err)
-		return nil, err
-	}
-	w.client = ic
 
 	w.NacosRefreshInterval = int64(DefaultRefreshInterval)
 
@@ -316,7 +301,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 		if err != nil {
 			if strings.Contains(err.Error(), "hosts is empty") {
 				if w.updateCacheWhenEmpty {
-					w.cache.DeleteServiceEntryWrapper(host)
+					w.cache.DeleteServiceWrapper(host)
 				}
 			} else {
 				log.Errorf("callback error:%v", err)
@@ -327,17 +312,18 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			return
 		}
 		serviceEntry := w.generateServiceEntry(host, services)
-		w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 			ServiceName:  serviceName,
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,
 			RegistryType: w.Type,
+			RegistryName: w.Name,
 		})
 	}
 }
 
 func (w *watcher) generateServiceEntry(host string, services []model.SubscribeService) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range services {
@@ -347,7 +333,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.SubscribeSe
 		} else {
 			service.Metadata = make(map[string]string)
 		}
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(service.Port),
 			Protocol: protocol.String(),
@@ -389,7 +375,7 @@ func (w *watcher) Stop() {
 		suffix := strings.Join([]string{s[0], w.NacosNamespace, w.Type}, common.DotSeparator)
 		suffix = strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
 		host := strings.Join([]string{s[1], suffix}, common.DotSeparator)
-		w.cache.DeleteServiceEntryWrapper(host)
+		w.cache.DeleteServiceWrapper(host)
 	}
 	w.isStop = true
 	close(w.stop)

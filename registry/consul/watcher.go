@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	ConuslHealthPassing         = "passing"
+	ConsulHealthPassing         = "passing"
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 )
@@ -237,7 +237,7 @@ func (w *watcher) Stop() {
 		// clean the cache
 		suffix := strings.Join([]string{serviceName, w.ConsulDatacenter, w.Type}, common.DotSeparator)
 		host := strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
-		w.cache.DeleteServiceEntryWrapper(host)
+		w.cache.DeleteServiceWrapper(host)
 	}
 	w.isStop = true
 	close(w.stop)
@@ -295,27 +295,28 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 			serviceEntry := w.generateServiceEntry(host, services)
 			if serviceEntry != nil {
 				log.Infof("consul update serviceEntry %s cache", host)
-				w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
 					Suffix:       suffix,
 					RegistryType: w.Type,
+					RegistryName: w.Name,
 				})
 			} else {
 				log.Infof("consul serviceEntry %s is nil", host)
-				//w.cache.DeleteServiceEntryWrapper(host)
+				//w.cache.DeleteServiceWrapper(host)
 			}
 		}
 	}
 }
 
 func (w *watcher) generateServiceEntry(host string, services []*consulapi.ServiceEntry) *v1alpha3.ServiceEntry {
-	portList := make([]*v1alpha3.Port, 0)
+	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 
 	for _, service := range services {
 		// service status: maintenance > critical > warning > passing
-		if service.Checks.AggregatedStatus() != ConuslHealthPassing {
+		if service.Checks.AggregatedStatus() != ConsulHealthPassing {
 			continue
 		}
 
@@ -329,7 +330,7 @@ func (w *watcher) generateServiceEntry(host string, services []*consulapi.Servic
 			protocol = common.ParseProtocol(metaData["protocol"])
 		}
 
-		port := &v1alpha3.Port{
+		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),
 			Number:   uint32(service.Service.Port),
 			Protocol: protocol.String(),

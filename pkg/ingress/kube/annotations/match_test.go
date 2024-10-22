@@ -15,9 +15,11 @@
 package annotations
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -112,11 +114,47 @@ func TestMatch_ParseHeaders(t *testing.T) {
 				},
 			},
 		},
+		{
+			typ:   "exact",
+			key:   ":method",
+			value: "GET",
+			expect: map[string]map[string]string{
+				exact: {
+					":method": "GET",
+				},
+			},
+		},
+		{
+			typ:   "prefix",
+			key:   ":path",
+			value: "/foo",
+			expect: map[string]map[string]string{
+				prefix: {
+					":path": "/foo",
+				},
+			},
+		},
+		{
+			typ:   "regex",
+			key:   ":authority",
+			value: "test\\d+\\.com",
+			expect: map[string]map[string]string{
+				regex: {
+					":authority": "test\\d+\\.com",
+				},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
-			key := buildHigressAnnotationKey(tt.typ + "-" + MatchHeader + "-" + tt.key)
+			matchKeyword := MatchHeader
+			headerKey := tt.key
+			if strings.HasPrefix(headerKey, ":") {
+				headerKey = strings.TrimPrefix(headerKey, ":")
+				matchKeyword = MatchPseudoHeader
+			}
+			key := buildHigressAnnotationKey(tt.typ + "-" + matchKeyword + "-" + headerKey)
 			input := Annotations{key: tt.value}
 			config := &Ingress{}
 			_ = parser.Parse(input, config, nil)
@@ -364,10 +402,16 @@ func TestMatch_ApplyRoute(t *testing.T) {
 		},
 	}
 
+	unexportedIgnoredTypes := []interface{}{
+		networking.HTTPRoute{},
+		networking.HTTPMatchRequest{},
+		networking.StringMatch{},
+	}
+
 	for _, tt := range testCases {
 		t.Run("", func(t *testing.T) {
 			handler.ApplyRoute(tt.input, tt.config)
-			if diff := cmp.Diff(tt.expect, tt.input); diff != "" {
+			if diff := cmp.Diff(tt.expect, tt.input, cmpopts.IgnoreUnexported(unexportedIgnoredTypes...)); diff != "" {
 				t.Fatalf("TestMatch_Parse() mismatch (-want +got):\n%s", diff)
 			}
 		})

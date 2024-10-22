@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -42,7 +43,7 @@ func NewEurekaHttpClient(config EurekaHttpConfig) EurekaHttpClient {
 type EurekaHttpConfig struct {
 	BaseUrl               string
 	ConnectTimeoutSeconds int // default 30
-	PollInterval          int //default 30
+	PollInterval          int // default 30
 	Retries               int // default 3
 	RetryDelayTime        int // default 100ms
 	EnableDelta           bool
@@ -101,7 +102,7 @@ func (e *eurekaHttpClient) ScheduleAppUpdates(name string, stop <-chan struct{})
 
 func (e *eurekaHttpClient) GetDelta() (*Applications, error) {
 	if !e.EnableDelta {
-		return nil, fmt.Errorf("failed to get DeltaAppliation, enableDelta is false")
+		return nil, fmt.Errorf("failed to get DeltaApplication, enableDelta is false")
 	}
 	return e.getApplications("/apps/delta")
 }
@@ -119,19 +120,31 @@ func (c *eurekaHttpClient) getApplications(path string) (*Applications, error) {
 
 	var rj fargo.GetAppsResponseJson
 	if err = json.Unmarshal(res, &rj); err != nil {
-		log.Errorf("Failed to unmarshal response body to fargo.GetAppResponseJosn, error: %v", err)
+		log.Errorf("Failed to unmarshal response body to fargo.GetAppResponseJson, error: %v", err)
 		return nil, err
 	}
 
 	apps := map[string]*fargo.Application{}
 	for idx := range rj.Response.Applications {
+		ignore := false
 		app := rj.Response.Applications[idx]
+		for _, instance := range app.Instances {
+			if ip := net.ParseIP(instance.IPAddr); ip == nil {
+				log.Warnf("the Non-IP IPAddr %s is not allowed, please check your app: %s", instance.IPAddr, app.Name)
+				ignore = true
+				break
+			}
+		}
+		if ignore {
+			continue
+		}
 		apps[app.Name] = app
 	}
 
 	for name, app := range apps {
 		log.Debugf("Parsing metadata for app %v", name)
 		if err := app.ParseAllMetadata(); err != nil {
+			log.Errorf("Failed to parse metadata for app %v: %v", name, err)
 			return nil, err
 		}
 	}
