@@ -126,7 +126,6 @@ where
     fn replace_http_response_body(&mut self, body: &[u8]) {
         self.set_http_response_body(0, i32::MAX as usize, body)
     }
-
     #[allow(clippy::too_many_arguments)]
     fn http_call(
         &mut self,
