@@ -16,6 +16,7 @@ use fancy_regex::Regex;
 use grok::patterns;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
+use higress_wasm_rust::request_wrapper::has_request_body;
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use jieba_rs::Jieba;
 use jsonpath_rust::{JsonPath, JsonPathValue};
@@ -519,7 +520,11 @@ impl HttpContext for AiDataMasking {
         _num_headers: usize,
         _end_of_stream: bool,
     ) -> HeaderAction {
-        HeaderAction::StopIteration
+        if has_request_body() {
+            HeaderAction::StopIteration
+        } else {
+            HeaderAction::Continue
+        }
     }
     fn on_http_response_headers(
         &mut self,
