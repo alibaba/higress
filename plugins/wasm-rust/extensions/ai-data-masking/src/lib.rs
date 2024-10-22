@@ -669,14 +669,12 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     }
     fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> DataAction {
         if self.config.is_none() {
-            self.reset_http_response();
             return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
         let mut res_body = match String::from_utf8(res_body.clone()) {
             Ok(r) => r,
             Err(_) => {
-                self.reset_http_response();
                 return DataAction::Continue;
             }
         };
