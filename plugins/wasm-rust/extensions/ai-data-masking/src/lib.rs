@@ -96,13 +96,13 @@ where
     D: Deserializer<'de>,
 {
     let value: Value = Deserialize::deserialize(deserializer)?;
-    if let Some(_type) = value.as_str() {
-        if _type == "replace" {
+    if let Some(t) = value.as_str() {
+        if t == "replace" {
             Ok(Type::Replace)
-        } else if _type == "hash" {
+        } else if t == "hash" {
             Ok(Type::Hash)
         } else {
-            Err(Error::custom(format!("regexp error value {}", _type)))
+            Err(Error::custom(format!("regexp error value {}", t)))
         }
     } else {
         Err(Error::custom("type error not string".to_string()))
@@ -237,8 +237,8 @@ impl DenyWord {
         let mut deny_word = DenyWord::empty();
 
         for word in words {
-            let _w = word.into();
-            let w = _w.trim();
+            let word_s = word.into();
+            let w = word_s.trim();
             if w.is_empty() {
                 continue;
             }
@@ -313,12 +313,12 @@ impl System {
     fn grok_to_pattern(&self, pattern: &str) -> (String, bool) {
         let mut ok = true;
         let mut ret = pattern.to_string();
-        for _c in self.grok_regex.captures_iter(pattern) {
-            if _c.is_err() {
+        for capture in self.grok_regex.captures_iter(pattern) {
+            if capture.is_err() {
                 ok = false;
                 continue;
             }
-            let c = _c.unwrap();
+            let c = capture.unwrap();
             if let (Some(full), Some(name)) = (c.get(0), c.name("pattern")) {
                 if let Some(p) = self.grok_patterns.get(name.as_str()) {
                     if let Some(alias) = c.name("alias") {
@@ -346,16 +346,16 @@ impl AiDataMaskingRoot {
 impl Context for AiDataMaskingRoot {}
 
 impl RootContext for AiDataMaskingRoot {
-    fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
+    fn on_configure(&mut self, plugin_configuration_size: usize) -> bool {
         on_configure(
             self,
-            _plugin_configuration_size,
+            plugin_configuration_size,
             self.rule_matcher.borrow_mut().deref_mut(),
             &self.log,
         )
     }
-    fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        self.create_http_context_use_wrapper(_context_id)
+    fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
+        self.create_http_context_use_wrapper(context_id)
     }
     fn get_type(&self) -> Option<ContextType> {
         Some(ContextType::HttpContext)
@@ -477,11 +477,11 @@ impl AiDataMasking {
             if rule.type_ == Type::Replace && !rule.restore {
                 msg = rule.regex.replace_all(&msg, &rule.value).to_string();
             } else {
-                for _m in rule.regex.find_iter(&msg) {
-                    if _m.is_err() {
+                for mc in rule.regex.find_iter(&msg) {
+                    if mc.is_err() {
                         continue;
                     }
-                    let m = _m.unwrap();
+                    let m = mc.unwrap();
                     let from_word = m.as_str();
 
                     let to_word = match rule.type_ {

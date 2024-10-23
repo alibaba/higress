@@ -181,8 +181,6 @@ where
 downcast_rs::impl_downcast!(HttpContextWrapper<PluginConfig> where PluginConfig: Default + DeserializeOwned + Clone);
 
 pub struct PluginHttpWrapper<PluginConfig> {
-    req_headers: MultiMap<String, String>,
-    res_headers: MultiMap<String, String>,
     req_body_len: usize,
     res_body_len: usize,
     config: Option<Rc<PluginConfig>>,
@@ -202,8 +200,6 @@ where
             .borrow_mut()
             .init_self_weak(Rc::downgrade(&rc_content));
         PluginHttpWrapper {
-            req_headers: MultiMap::new(),
-            res_headers: MultiMap::new(),
             req_body_len: 0,
             res_body_len: 0,
             config: None,
@@ -256,7 +252,7 @@ where
                     }
                 }
             }
-            self.http_content.borrow().log().warn(&format!(
+            self.http_content.borrow().log().debug(&format!(
                 "http call end, id: {}, code: {}, normal: {}, body: {:?}", /*  */
                 token_id, status_code, normal_response, body
             ));
@@ -311,10 +307,12 @@ where
         if self.config.is_none() {
             return HeaderAction::Continue;
         }
+
+        let mut req_headers = MultiMap::new();
         for (k, v) in self.get_http_request_headers_bytes() {
             match String::from_utf8(v) {
                 Ok(header_value) => {
-                    self.req_headers.insert(k, header_value);
+                    req_headers.insert(k, header_value);
                 }
                 Err(_) => {
                     self.http_content.borrow().log().warn(&format!(
@@ -337,7 +335,7 @@ where
         }
         self.http_content
             .borrow_mut()
-            .on_http_request_complete_headers(&self.req_headers)
+            .on_http_request_complete_headers(&req_headers)
     }
 
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
@@ -382,10 +380,12 @@ where
         if self.config.is_none() {
             return HeaderAction::Continue;
         }
+
+        let mut res_headers = MultiMap::new();
         for (k, v) in self.get_http_response_headers_bytes() {
             match String::from_utf8(v) {
                 Ok(header_value) => {
-                    self.res_headers.insert(k, header_value);
+                    res_headers.insert(k, header_value);
                 }
                 Err(_) => {
                     self.http_content.borrow().log().warn(&format!(
@@ -405,7 +405,7 @@ where
         }
         self.http_content
             .borrow_mut()
-            .on_http_response_complete_headers(&self.res_headers)
+            .on_http_response_complete_headers(&res_headers)
     }
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
