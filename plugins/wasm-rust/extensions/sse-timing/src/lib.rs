@@ -15,11 +15,10 @@
 use higress_wasm_rust::event_stream::EventStream;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::rule_matcher;
-use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
+use higress_wasm_rust::rule_matcher::{on_configure, SharedRuleMatcher};
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
 use proxy_wasm::types::{ContextType, DataAction, HeaderAction, LogLevel};
 use serde::Deserialize;
-use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::str::from_utf8;
