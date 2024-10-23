@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -47,6 +48,8 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 
 	initLLMClient(gjson, c)
 
+	initJsonResp(gjson, c)
+
 	return nil
 }
 
@@ -76,10 +79,10 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 		log.Debugf("[onHttpRequestBody] newRequestBody: %s", string(newbody))
 		err := proxywasm.ReplaceHttpRequestBody(newbody)
 		if err != nil {
-			log.Debug("替换失败")
+			log.Debugf("failed replace err: %s", err.Error())
 			proxywasm.SendHttpResponse(200, [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ReturnResponseTemplate, "替换失败"+err.Error())), -1)
 		}
-		log.Debug("[onHttpRequestBody] request替换成功")
+		log.Debug("[onHttpRequestBody] replace request success")
 		return types.ActionContinue
 	}
 }
@@ -175,11 +178,103 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 	return types.ActionContinue
 }
 
+func extractJson(bodyStr string) (string, error) {
+	// simply extract json from response body string
+	startIndex := strings.Index(bodyStr, "{")
+	endIndex := strings.LastIndex(bodyStr, "}") + 1
+
+	// if not found
+	if startIndex == -1 || startIndex >= endIndex {
+		return "", errors.New("cannot find json in the response body")
+	}
+
+	jsonStr := bodyStr[startIndex:endIndex]
+
+	// attempt to parse the JSON
+	var result map[string]interface{}
+	err := json.Unmarshal([]byte(jsonStr), &result)
+	if err != nil {
+		return "", err
+	}
+	return jsonStr, nil
+}
+
+func jsonFormat(config PluginConfig, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
+	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, config.JsonResp.JsonSchema, actionInput)
+
+	messages := []dashscope.Message{{Role: "user", Content: prompt}}
+
+	completion := dashscope.Completion{
+		Model:    config.LLMInfo.Model,
+		Messages: messages,
+	}
+
+	completionSerialized, _ := json.Marshal(completion)
+	var content string
+	err := config.LLMClient.Post(
+		config.LLMInfo.Path,
+		headers,
+		completionSerialized,
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			//得到gpt的返回结果
+			var responseCompletion dashscope.CompletionResponse
+			_ = json.Unmarshal(responseBody, &responseCompletion)
+			log.Infof("[jsonFormat] content: %s", responseCompletion.Choices[0].Message.Content)
+			content = responseCompletion.Choices[0].Message.Content
+			jsonStr, err := extractJson(content)
+			if err != nil {
+				log.Debugf("[onHttpRequestBody] extractJson err: %s", err.Error())
+				jsonStr = content
+			}
+
+			if streamMode {
+				stream(jsonStr, rawResponse, log)
+			} else {
+				noneStream(assistantMessage, jsonStr, rawResponse, log)
+			}
+		}, uint32(config.LLMInfo.MaxExecutionTime))
+	if err != nil {
+		log.Debugf("[onHttpRequestBody] completion err: %s", err.Error())
+		proxywasm.ResumeHttpRequest()
+	}
+	return content
+}
+
+func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
+	assistantMessage.Role = "assistant"
+	assistantMessage.Content = actionInput
+	rawResponse.Choices[0].Message = assistantMessage
+	newbody, err := json.Marshal(rawResponse)
+	if err != nil {
+		proxywasm.ResumeHttpResponse()
+		return
+	} else {
+		proxywasm.ReplaceHttpResponseBody(newbody)
+
+		log.Debug("[onHttpResponseBody] replace response success")
+		proxywasm.ResumeHttpResponse()
+	}
+}
+
+func stream(actionInput string, rawResponse Response, log wrapper.Log) {
+	headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
+	proxywasm.ReplaceHttpResponseHeaders(headers)
+	// Remove quotes from actionInput
+	actionInput = strings.Trim(actionInput, "\"")
+	returnStreamResponseTemplate := `data:{"id":"%s","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"%s","object":"chat.completion","usage":{"prompt_tokens":%d,"completion_tokens":%d,"total_tokens":%d}}` + "\n\ndata:[DONE]\n\n"
+	newbody := fmt.Sprintf(returnStreamResponseTemplate, rawResponse.ID, actionInput, rawResponse.Model, rawResponse.Usage.PromptTokens, rawResponse.Usage.CompletionTokens, rawResponse.Usage.TotalTokens)
+	log.Infof("[onHttpResponseBody] newResponseBody: ", newbody)
+	proxywasm.ReplaceHttpResponseBody([]byte(newbody))
+
+	log.Debug("[onHttpResponseBody] replace response success")
+	proxywasm.ResumeHttpResponse()
+}
+
 func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
 	if statusCode != http.StatusOK {
 		log.Debugf("statusCode: %d", statusCode)
 	}
-	log.Info("========函数返回结果========")
+	log.Info("========function result========")
 	log.Infof(string(responseBody))
 
 	observation := "Observation: " + string(responseBody)
@@ -209,32 +304,21 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 				if retType == types.ActionContinue {
 					//得到了Final Answer
 					var assistantMessage Message
+					var streamMode bool
 					if ctx.GetContext(StreamContextKey) == nil {
-						assistantMessage.Role = "assistant"
-						assistantMessage.Content = actionInput
-						rawResponse.Choices[0].Message = assistantMessage
-						newbody, err := json.Marshal(rawResponse)
-						if err != nil {
-							proxywasm.ResumeHttpResponse()
-							return
-						} else {
-							proxywasm.ReplaceHttpResponseBody(newbody)
-
-							log.Debug("[onHttpResponseBody] response替换成功")
-							proxywasm.ResumeHttpResponse()
-						}
+						streamMode = false
 					} else {
-						headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
-						proxywasm.ReplaceHttpResponseHeaders(headers)
-						// Remove quotes from actionInput
-						actionInput = strings.Trim(actionInput, "\"")
-						returnStreamResponseTemplate := `data:{"id":"%s","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"%s","object":"chat.completion","usage":{"prompt_tokens":%d,"completion_tokens":%d,"total_tokens":%d}}` + "\n\ndata:[DONE]\n\n"
-						newbody := fmt.Sprintf(returnStreamResponseTemplate, rawResponse.ID, actionInput, rawResponse.Model, rawResponse.Usage.PromptTokens, rawResponse.Usage.CompletionTokens, rawResponse.Usage.TotalTokens)
-						log.Infof("[onHttpResponseBody] newResponseBody: ", newbody)
-						proxywasm.ReplaceHttpResponseBody([]byte(newbody))
+						streamMode = true
+					}
 
-						log.Debug("[onHttpResponseBody] response替换成功")
-						proxywasm.ResumeHttpResponse()
+					if config.JsonResp.Enable {
+						jsonFormat(config, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
+					} else {
+						if streamMode {
+							stream(actionInput, rawResponse, log)
+						} else {
+							noneStream(assistantMessage, actionInput, rawResponse, log)
+						}
 					}
 				}
 			} else {
@@ -352,6 +436,28 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 
 				// 组装 URL 和请求体
 				url = apisParam.URL + tools_param.Path + key
+
+				// 解析URL模板以查找路径参数
+				urlParts := strings.Split(url, "/")
+				for i, part := range urlParts {
+					if strings.Contains(part, "{") && strings.Contains(part, "}") {
+						for _, param := range tools_param.ParamName {
+							paramNameInPath := part[1 : len(part)-1]
+							if paramNameInPath == param {
+								if value, ok := data[param]; ok {
+									// 删除已经使用过的
+									delete(data, param)
+									// 替换模板中的占位符
+									urlParts[i] = value.(string)
+								}
+							}
+						}
+					}
+				}
+
+				// 重新组合URL
+				url = strings.Join(urlParts, "/")
+
 				if method == "GET" {
 					queryParams := make([]string, 0, len(tools_param.ParamName))
 					for _, param := range tools_param.ParamName {
