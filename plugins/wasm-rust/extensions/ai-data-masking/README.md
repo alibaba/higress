@@ -36,7 +36,7 @@ description: AI 数据脱敏插件配置参考
 |  deny_openai            | bool            | true  |  对openai协议进行拦截 |
 |  deny_jsonpath          | string          |   []  |  对指定jsonpath拦截 |
 |  deny_raw               | bool            | false |  对原始body拦截 |
-|  system_deny            | bool            | true  |  开启内置拦截规则  |
+|  system_deny            | bool            | false |  开启内置拦截规则  |
 |  deny_code              | int             | 200   |  拦截时http状态码   |
 |  deny_message           | string          | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
 |  deny_raw_message       | string          | {"errmsg":"提问或回答中包含敏感词，已被屏蔽"} |  非openai拦截时返回内容   |
