@@ -242,10 +242,10 @@ template:
     nodeSelector:
       {{- toYaml . | nindent 6 }}
     {{- end }}
-    {{- with .Values.gateway.affinity }}
     affinity:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
+      podAffinity: {{- include "gateway.affinities.pods" (dict "type" .Values.gateway.affinity.podAffinityPreset  "context" $) | nindent 8 }}
+      podAntiAffinity: {{- include "gateway.affinities.pods" (dict "type" .Values.gateway.affinity.podAntiAffinityPreset  "context" $) | nindent 8 }}
+      nodeAffinity: {{- include "gateway.affinities.nodes" (dict "type" .Values.gateway.affinity.nodeAffinityPreset.type "key" .Values.gateway.affinity.nodeAffinityPreset.key "values" .Values.gateway.affinity.nodeAffinityPreset.values) | nindent 8 }}
     {{- with .Values.gateway.tolerations }}
     tolerations:
       {{- toYaml . | nindent 6 }}
