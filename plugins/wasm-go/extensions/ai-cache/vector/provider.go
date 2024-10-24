@@ -100,6 +100,15 @@ type ProviderConfig struct {
 	// @Title zh-CN DashVector 向量存储服务 Collection ID
 	// @Description zh-CN DashVector 向量存储服务 Collection ID
 	collectionID string
+	// @Title zh-CN 相似度度量阈值
+	// @Description zh-CN 默认相似度度量阈值，默认为 1000。
+	Threshold float64
+	// @Title zh-CN 相似度度量比较方式
+	// @Description zh-CN 相似度度量比较方式，默认为小于。
+	// 相似度度量方式有 Cosine, DotProduct, Euclidean 等，前两者值越大相似度越高，后者值越小相似度越高。
+	// 所以需要允许自定义比较方式，对于 Cosine 和 DotProduct 选择 gt，对于 Euclidean 则选择 lt。
+	// 默认为 lt，所有条件包括 lt (less than，小于)、lte (less than or equal to，小等于)、gt (greater than，大于)、gte (greater than or equal to，大等于)
+	ThresholdRelation string
 }
 
 func (c *ProviderConfig) GetProviderType() string {
