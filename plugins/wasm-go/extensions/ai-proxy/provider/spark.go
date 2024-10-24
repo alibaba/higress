@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -25,6 +26,16 @@ type sparkProviderInitializer struct {
 type sparkProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+}
+
+func (p *sparkProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *sparkProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 type sparkRequest struct {
@@ -73,7 +84,7 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	}
 	_ = util.OverwriteRequestHost(sparkHost)
 	_ = util.OverwriteRequestPath(sparkChatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("Bearer " + p.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + p.config.GetApiTokenInUse(ctx))
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil

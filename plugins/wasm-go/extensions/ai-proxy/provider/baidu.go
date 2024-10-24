@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -52,6 +53,16 @@ type baiduProvider struct {
 	contextCache *contextCache
 }
 
+func (b *baiduProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *baiduProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (b *baiduProvider) GetProviderType() string {
 	return providerTypeBaidu
 }
@@ -83,7 +94,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 			return types.ActionContinue, errors.New("request model is empty")
 		}
 		// 根据模型重写requestPath
-		path := b.getRequestPath(request.Model)
+		path := b.getRequestPath(ctx, request.Model)
 		_ = util.OverwriteRequestPath(path)
 
 		if b.config.context == nil {
@@ -126,7 +137,7 @@ func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 	}
 	request.Model = mappedModel
 	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := b.getRequestPath(mappedModel)
+	path := b.getRequestPath(ctx, mappedModel)
 	_ = util.OverwriteRequestPath(path)
 
 	if b.config.context == nil {
@@ -226,13 +237,13 @@ type baiduTextGenRequest struct {
 	UserId          string        `json:"user_id,omitempty"`
 }
 
-func (b *baiduProvider) getRequestPath(baiduModel string) string {
+func (b *baiduProvider) getRequestPath(ctx wrapper.HttpContext, baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
 	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
 	if !ok {
 		suffix = baiduModel
 	}
-	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetRandomToken())
+	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetApiTokenInUse(ctx))
 }
 
 func (b *baiduProvider) setSystemContent(request *baiduTextGenRequest, content string) {

@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"math/rand"
+	"net/http"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -108,6 +109,8 @@ var (
 
 type Provider interface {
 	GetProviderType() string
+	TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log)
+	TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error)
 }
 
 type RequestHeadersHandler interface {
@@ -143,6 +146,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN apiToken 故障切换
+	// @Description zh-CN 当 apiToken 不可用时移出 apiTokens 列表，对移除的 apiToken 进行健康检查，当重新可用后加回 apiTokens 列表
+	failover *failover `required:"false" yaml:"failover" json:"failover"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
 	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
@@ -289,6 +295,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			}
 		}
 	}
+
+	failoverJson := json.Get("failover")
+	c.failover = &failover{
+		enabled: false,
+	}
+	if failoverJson.Exists() {
+		c.failover.FromJson(failoverJson)
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -300,6 +314,12 @@ func (c *ProviderConfig) Validate() error {
 	}
 	if c.context != nil {
 		if err := c.context.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.failover.enabled {
+		if err := c.failover.Validate(); err != nil {
 			return err
 		}
 	}
@@ -353,6 +373,23 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
+}
+
+func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request *chatCompletionRequest, log wrapper.Log) error {
+	model := request.Model
+	if model == "" {
+		return errors.New("missing model in chat completion request")
+	}
+
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+	mappedModel := getMappedModel(model, c.modelMapping, log)
+	if mappedModel == "" {
+		return errors.New("model becomes empty after applying the configured mapping")
+	}
+	request.Model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	return nil
 }
 
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {

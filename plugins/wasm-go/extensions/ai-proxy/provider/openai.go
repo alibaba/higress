@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -52,6 +53,16 @@ type openaiProvider struct {
 	contextCache *contextCache
 }
 
+func (m *openaiProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *openaiProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *openaiProvider) GetProviderType() string {
 	return providerTypeOpenAI
 }
@@ -74,7 +85,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 		_ = util.OverwriteRequestHost(m.customDomain)
 	}
 	if len(m.config.apiTokens) > 0 {
-		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
 	}
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue, nil

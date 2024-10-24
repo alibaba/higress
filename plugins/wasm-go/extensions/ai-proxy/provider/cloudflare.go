@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -39,6 +40,16 @@ type cloudflareProvider struct {
 	contextCache *contextCache
 }
 
+func (c *cloudflareProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *cloudflareProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c *cloudflareProvider) GetProviderType() string {
 	return providerTypeCloudflare
 }
@@ -49,7 +60,7 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	}
 	_ = util.OverwriteRequestPath(strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	_ = util.OverwriteRequestHost(cloudflareDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetRandomToken())
+	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetApiTokenInUse(ctx))
 
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")

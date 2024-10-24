@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -50,6 +51,16 @@ type azureProvider struct {
 	serviceUrl   *url.URL
 }
 
+func (m *azureProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *azureProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *azureProvider) GetProviderType() string {
 	return providerTypeAzure
 }
@@ -57,7 +68,7 @@ func (m *azureProvider) GetProviderType() string {
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
 	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
 	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
-	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
+	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.GetApiTokenInUse(ctx))
 	if apiName == ApiNameChatCompletion {
 		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	} else {
