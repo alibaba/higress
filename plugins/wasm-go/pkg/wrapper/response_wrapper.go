@@ -15,6 +15,9 @@
 package wrapper
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -25,4 +28,22 @@ func IsResponseFromUpstream() bool {
 		proxywasm.LogErrorf("get response code details failed: %v", err)
 		return false
 	}
+}
+
+func HasResponseBody() bool {
+	contentTypeStr, _ := proxywasm.GetHttpResponseHeader("content-type")
+	contentLengthStr, _ := proxywasm.GetHttpResponseHeader("content-length")
+	transferEncodingStr, _ := proxywasm.GetHttpResponseHeader("transfer-encoding")
+	proxywasm.LogDebugf("check has response body: contentType:%s, contentLengthStr:%s, transferEncodingStr:%s",
+		contentTypeStr, contentLengthStr, transferEncodingStr)
+	if contentTypeStr != "" {
+		return true
+	}
+	if contentLengthStr != "" {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err == nil && contentLength > 0 {
+			return true
+		}
+	}
+	return strings.Contains(transferEncodingStr, "chunked")
 }

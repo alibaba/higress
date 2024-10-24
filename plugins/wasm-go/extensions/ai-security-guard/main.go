@@ -187,10 +187,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 		log.Debugf("request checking is disabled")
 		ctx.DontReadRequestBody()
 	}
-	if !config.checkResponse {
-		log.Debugf("response checking is disabled")
-		ctx.DontReadResponseBody()
-	}
 	return types.ActionContinue
 }
 
@@ -199,7 +195,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 	content := gjson.GetBytes(body, config.requestContentJsonPath).Raw
 	model := gjson.GetBytes(body, "model").Raw
 	ctx.SetContext("requestModel", model)
-	log.Debugf("Raw response content is: %s", content)
+	log.Debugf("Raw request content is: %s", content)
 	if len(content) > 0 {
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 		randomID, _ := generateHexID(16)
@@ -324,6 +320,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
 		log.Warnf("failed to get response headers: %v", err)
+		return types.ActionContinue
+	}
+	if !config.checkResponse {
+		log.Debugf("response checking is disabled")
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+	if !wrapper.HasResponseBody() {
 		return types.ActionContinue
 	}
 	hdsMap := convertHeaders(headers)
