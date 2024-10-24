@@ -25,11 +25,12 @@ type GrayRule struct {
 }
 
 type Deployment struct {
-	Name           string
-	Enabled        bool
-	Version        string
-	BackendVersion string
-	Weight         int
+	Name              string
+	Enabled           bool
+	Version           string
+	BackendVersion    string
+	Weight            int
+	VersionPredicates map[string]string
 }
 
 type Rewrite struct {
@@ -129,8 +130,9 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayDeployments := json.Get("grayDeployments").Array()
 
 	grayConfig.BaseDeployment = &Deployment{
-		Name:    baseDeployment.Get("name").String(),
-		Version: strings.Trim(baseDeployment.Get("version").String(), " "),
+		Name:              baseDeployment.Get("name").String(),
+		Version:           strings.Trim(baseDeployment.Get("version").String(), " "),
+		VersionPredicates: convertToStringMap(baseDeployment.Get("versionPredicates")),
 	}
 	for _, item := range grayDeployments {
 		if !item.Get("enabled").Bool() {
@@ -138,11 +140,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		}
 		grayWeight := int(item.Get("weight").Int())
 		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &Deployment{
-			Name:           item.Get("name").String(),
-			Enabled:        item.Get("enabled").Bool(),
-			Version:        strings.Trim(item.Get("version").String(), " "),
-			BackendVersion: item.Get("backendVersion").String(),
-			Weight:         grayWeight,
+			Name:              item.Get("name").String(),
+			Enabled:           item.Get("enabled").Bool(),
+			Version:           strings.Trim(item.Get("version").String(), " "),
+			BackendVersion:    item.Get("backendVersion").String(),
+			Weight:            grayWeight,
+			VersionPredicates: convertToStringMap(item.Get("versionPredicates")),
 		})
 		grayConfig.TotalGrayWeight += grayWeight
 	}

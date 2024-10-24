@@ -276,6 +276,43 @@ func GetGrayKey(grayKeyValueByCookie string, grayKeyValueByHeader string, graySu
 	return grayKeyValue
 }
 
+// 如果基础部署或任何灰度部署中包含VersionPredicates，则认为是多版本配置
+func IsSupportMultiVersion(grayConfig config.GrayConfig) bool {
+	if len(grayConfig.BaseDeployment.VersionPredicates) > 0 {
+		return true
+	}
+	for _, deployment := range grayConfig.GrayDeployments {
+		if len(deployment.VersionPredicates) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterMultiVersionGrayRule 过滤多版本灰度规则
+func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, requestPath string) *config.Deployment {
+	// 首先根据灰度键值获取当前部署
+	currentDeployment := FilterGrayRule(grayConfig, grayKeyValue)
+
+	// 创建一个新的部署对象，初始化版本为当前部署的版本
+	deployment := &config.Deployment{
+		Version: currentDeployment.Version,
+	}
+
+	// 对版本谓词的键进行排序
+	keys := SortKeysByLengthAndLexicographically(currentDeployment.VersionPredicates)
+
+	// 遍历排序后的键
+	for _, prefix := range keys {
+		// 如果请求路径以当前前缀开头
+		if strings.HasPrefix(requestPath, prefix) {
+			deployment.Version = currentDeployment.VersionPredicates[prefix]
+			return deployment
+		}
+	}
+	return deployment
+}
+
 // FilterGrayRule 过滤灰度规则
 func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.Deployment {
 	for _, deployment := range grayConfig.GrayDeployments {
