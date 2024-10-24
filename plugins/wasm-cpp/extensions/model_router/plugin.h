@@ -32,46 +32,32 @@
 
 namespace proxy_wasm {
 namespace null_plugin {
-namespace key_auth {
+namespace model_router {
 
 #endif
 
-struct Consumer {
-  std::string name;
-  std::string credential;
-  std::optional<std::vector<std::string>> keys;
-  std::optional<bool> in_query = std::nullopt;
-  std::optional<bool> in_header = std::nullopt;
-};
-
-struct KeyAuthConfigRule {
-  std::vector<Consumer> consumers;
-  std::unordered_set<std::string> credentials;
-  std::unordered_map<std::string, std::string> credential_to_name;
-  std::string realm = "MSE Gateway";
-  std::vector<std::string> keys;
-  bool in_query = true;
-  bool in_header = true;
+struct ModelRouterConfigRule {
+  bool enable_ = false;
+  std::string model_key_ = "model";
+  std::string add_header_key_ = "x-higress-llm-provider";
 };
 
 // PluginRootContext is the root context for all streams processed by the
 // thread. It has the same lifetime as the worker thread and acts as target for
 // interactions that outlives individual stream, e.g. timer, async calls.
 class PluginRootContext : public RootContext,
-                          public RouteRuleMatcher<KeyAuthConfigRule> {
+                          public RouteRuleMatcher<ModelRouterConfigRule> {
  public:
   PluginRootContext(uint32_t id, std::string_view root_id)
       : RootContext(id, root_id) {}
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
-  bool checkPlugin(const KeyAuthConfigRule&,
-                   const std::optional<std::unordered_set<std::string>>&);
+  FilterHeadersStatus onHeader(const ModelRouterConfigRule&);
+  FilterDataStatus onBody(const ModelRouterConfigRule&, std::string_view);
   bool configure(size_t);
 
  private:
-  bool parsePluginConfig(const json&, KeyAuthConfigRule&) override;
-  std::string extractCredential(bool in_header, bool in_query,
-                                const std::string& key);
+  bool parsePluginConfig(const json&, ModelRouterConfigRule&) override;
 };
 
 // Per-stream context.
@@ -79,16 +65,20 @@ class PluginContext : public Context {
  public:
   explicit PluginContext(uint32_t id, RootContext* root) : Context(id, root) {}
   FilterHeadersStatus onRequestHeaders(uint32_t, bool) override;
+  FilterDataStatus onRequestBody(size_t, bool) override;
 
  private:
   inline PluginRootContext* rootContext() {
     return dynamic_cast<PluginRootContext*>(this->root());
   }
+
+  size_t body_total_size_ = 0;
+  const ModelRouterConfigRule* config_ = nullptr;
 };
 
 #ifdef NULL_PLUGIN
 
-}  // namespace key_auth
+}  // namespace model_router
 }  // namespace null_plugin
 }  // namespace proxy_wasm
 

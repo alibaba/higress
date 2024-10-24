@@ -16,6 +16,7 @@ use fancy_regex::Regex;
 use grok::patterns;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
+use higress_wasm_rust::request_wrapper::has_request_body;
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use jieba_rs::Jieba;
 use jsonpath_rust::{JsonPath, JsonPathValue};
@@ -65,11 +66,12 @@ struct AiDataMaskingRoot {
     rule_matcher: SharedRuleMatcher<AiDataMaskingConfig>,
 }
 struct AiDataMasking {
-    config: Option<AiDataMaskingConfig>,
+    config: Option<Rc<AiDataMaskingConfig>>,
     mask_map: HashMap<String, Option<String>>,
     is_openai: bool,
     stream: bool,
     res_body: Bytes,
+    log: Log,
 }
 fn deserialize_regexp<'de, D>(deserializer: D) -> Result<Regex, D::Error>
 where
@@ -158,7 +160,7 @@ fn default_deny_raw() -> bool {
     false
 }
 fn default_system_deny() -> bool {
-    true
+    false
 }
 fn default_deny_code() -> u16 {
     200
@@ -256,13 +258,13 @@ impl DenyWord {
         DenyWord::empty()
     }
 
-    fn check(&self, message: &str) -> bool {
+    fn check(&self, message: &str) -> Option<String> {
         for word in self.jieba.cut(message, true) {
             if self.words.contains(word) {
-                return true;
+                return Some(word.to_string());
             }
         }
-        false
+        None
     }
 }
 impl System {
@@ -376,17 +378,30 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
             is_openai: false,
             stream: false,
             res_body: Bytes::new(),
+            log: Log::new(PLUGIN_NAME.to_string()),
         }))
     }
 }
 impl AiDataMasking {
     fn check_message(&self, message: &str) -> bool {
         if let Some(config) = &self.config {
-            config.deny_words.check(message)
-                || (config.system_deny && SYSTEM.deny_word.check(message))
-        } else {
-            false
+            if let Some(word) = config.deny_words.check(message) {
+                self.log().warn(&format!(
+                    "custom deny word {} matched from {}",
+                    word, message
+                ));
+                return true;
+            } else if config.system_deny {
+                if let Some(word) = SYSTEM.deny_word.check(message) {
+                    self.log().warn(&format!(
+                        "system deny word {} matched from {}",
+                        word, message
+                    ));
+                    return true;
+                }
+            }
         }
+        false
     }
     fn msg_to_response(&self, msg: &str, raw_msg: &str, content_type: &str) -> (String, String) {
         if !self.is_openai {
@@ -508,6 +523,10 @@ impl AiDataMasking {
                 }
             }
         }
+        if msg != message {
+            self.log()
+                .debug(&format!("replace_request_msg from {} to {}", message, msg));
+        }
         msg
     }
 }
@@ -519,7 +538,11 @@ impl HttpContext for AiDataMasking {
         _num_headers: usize,
         _end_of_stream: bool,
     ) -> HeaderAction {
-        HeaderAction::StopIteration
+        if has_request_body() {
+            HeaderAction::StopIteration
+        } else {
+            HeaderAction::Continue
+        }
     }
     fn on_http_response_headers(
         &mut self,
@@ -585,7 +608,10 @@ impl HttpContext for AiDataMasking {
     }
 }
 impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
-    fn on_config(&mut self, config: &AiDataMaskingConfig) {
+    fn log(&self) -> &Log {
+        &self.log
+    }
+    fn on_config(&mut self, config: Rc<AiDataMaskingConfig>) {
         self.config = Some(config.clone());
     }
     fn cache_request_body(&self) -> bool {
@@ -669,14 +695,12 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     }
     fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> DataAction {
         if self.config.is_none() {
-            self.reset_http_response();
             return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
         let mut res_body = match String::from_utf8(res_body.clone()) {
             Ok(r) => r,
             Err(_) => {
-                self.reset_http_response();
                 return DataAction::Continue;
             }
         };

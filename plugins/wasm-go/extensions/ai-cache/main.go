@@ -50,22 +50,14 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) err
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
-	// 这段代码是为了测试，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
-	// 但是在 onHttpRequestHeaders 中可以连接到 redis、
-	// 修复需要修改 envoy
-	// ----------------------------------------------------------------------------
-	// if err := config.Complete(log); err != nil {
-	// 	log.Errorf("complete config failed:%v", err)
-	// }
-	// activeCacheProvider := config.GetCacheProvider()
-	// if err := activeCacheProvider.Init("", "", 2000); err != nil {
-	// 	log.Errorf("init redis failed:%v", err)
-	// }
-	// activeCacheProvider.Set("test", "test", func(response resp.Value) {})
-	// log.Warnf("redis init success")
-	// ----------------------------------------------------------------------------
 
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	skipCache, _ := proxywasm.GetHttpRequestHeader(SkipCacheHeader)
+	if skipCache == "on" {
+		ctx.SetContext(SkipCacheHeader, struct{}{})
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -131,7 +123,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
+
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	skipCache := ctx.GetContext(SkipCacheHeader)
+	if skipCache != nil {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})

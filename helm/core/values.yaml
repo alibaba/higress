@@ -26,7 +26,7 @@ global:
   autoscalingv2API: true
   local: false # When deploying to a local cluster (e.g.: kind cluster), set this to true.
   kind: false # Deprecated. Please use "global.local" instead. Will be removed later.
-  enableIstioAPI: false
+  enableIstioAPI: true
   enableGatewayAPI: false
   # Deprecated
   enableHigressIstio: false

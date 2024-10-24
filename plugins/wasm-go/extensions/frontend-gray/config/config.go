@@ -12,6 +12,7 @@ const (
 	XPreHigressTag  = "x-pre-higress-tag"
 	IsPageRequest   = "is-page-request"
 	IsNotFound      = "is-not-found"
+	EnabledGray     = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -49,17 +50,20 @@ type BodyInjection struct {
 }
 
 type GrayConfig struct {
-	UserStickyMaxAge string
-	TotalGrayWeight  int
-	GrayKey          string
-	GraySubKey       string
-	Rules            []*GrayRule
-	Rewrite          *Rewrite
-	Html             string  
-	BaseDeployment   *Deployment
-	GrayDeployments  []*Deployment
-	BackendGrayTag   string
-	Injection        *Injection
+	UserStickyMaxAge    string
+	TotalGrayWeight     int
+	GrayKey             string
+	LocalStorageGrayKey string
+	GraySubKey          string
+	Rules               []*GrayRule
+	Rewrite             *Rewrite
+	Html                string
+	BaseDeployment      *Deployment
+	GrayDeployments     []*Deployment
+	BackendGrayTag      string
+	Injection           *Injection
+	SkippedPathPrefixes []string
+	SkippedByHeaders    map[string]string
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -81,11 +85,17 @@ func convertToStringMap(result gjson.Result) map[string]string {
 
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
+	grayConfig.LocalStorageGrayKey = json.Get("localStorageGrayKey").String()
 	grayConfig.GrayKey = json.Get("grayKey").String()
+	if grayConfig.LocalStorageGrayKey != "" {
+		grayConfig.GrayKey = grayConfig.LocalStorageGrayKey
+	}
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
 	grayConfig.Html = json.Get("html").String()
+	grayConfig.SkippedPathPrefixes = convertToStringList(json.Get("skippedPathPrefixes").Array())
+	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天
