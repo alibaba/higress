@@ -150,10 +150,12 @@ impl SseTiming {
             match self.event_stream.next() {
                 None => break,
                 Some(raw_event) => {
-                    // according to spec, event-stream must be utf-8 encoding
-                    let event = from_utf8(raw_event.as_slice()).unwrap();
-                    let processed_event = self.process_event(event.to_string());
-                    modified_events.push(processed_event);
+                    if !raw_event.is_empty() {
+                        // according to spec, event-stream must be utf-8 encoding
+                        let event = from_utf8(raw_event.as_slice()).unwrap();
+                        let processed_event = self.process_event(event.to_string());
+                        modified_events.push(processed_event);
+                    }
                 }
             }
         }
@@ -162,10 +164,12 @@ impl SseTiming {
             match self.event_stream.flush() {
                 None => {}
                 Some(raw_event) => {
-                    // according to spec, event-stream must be utf-8 encoding
-                    let event = from_utf8(raw_event.as_slice()).unwrap();
-                    let modified_event = self.process_event(event.into());
-                    modified_events.push(modified_event);
+                    if !raw_event.is_empty() {
+                        // according to spec, event-stream must be utf-8 encoding
+                        let event = from_utf8(raw_event.as_slice()).unwrap();
+                        let modified_event = self.process_event(event.into());
+                        modified_events.push(modified_event);
+                    }
                 }
             }
         }
