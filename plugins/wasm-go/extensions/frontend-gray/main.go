@@ -70,22 +70,29 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 
 	// 如果没有配置比例，则进行灰度规则匹配
-	if isPageRequest {
-		if grayConfig.TotalGrayWeight > 0 {
-			log.Infof("grayConfig.TotalGrayWeight: %v", grayConfig.TotalGrayWeight)
-			deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
-		} else {
-			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
-		}
-		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, requestPath, deployment.BackendVersion, preVersion, preUniqueClientId)
+	if util.IsSupportMultiVersion(grayConfig) {
+		deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, requestPath)
+		ctx.SetContext(config.XPreHigressTag, "")
+		ctx.SetContext(grayConfig.BackendGrayTag, "")
 	} else {
-		grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
-		deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
+		if isPageRequest {
+			if grayConfig.TotalGrayWeight > 0 {
+				log.Infof("grayConfig.TotalGrayWeight: %v", grayConfig.TotalGrayWeight)
+				deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
+			} else {
+				deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
+			}
+			log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, requestPath, deployment.BackendVersion, preVersion, preUniqueClientId)
+		} else {
+			grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
+			deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
+		}
+		ctx.SetContext(config.XPreHigressTag, deployment.Version)
+		ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	}
+
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
-	ctx.SetContext(config.XPreHigressTag, deployment.Version)
-	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	ctx.SetContext(config.IsPageRequest, isPageRequest)
 	ctx.SetContext(config.XUniqueClientId, uniqueClientId)
 
@@ -174,11 +181,15 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
 
 	// 设置前端的版本
-	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	if frontendVersion != "" {
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	}
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
 		backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
+		if backendVersion != "" {
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
+		}
 	}
 	return types.ActionContinue
 }
