@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
@@ -32,15 +33,18 @@ func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.L
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	requestPath = path.Clean(requestPath)
+	enabledGray := util.IsGrayEnabled(grayConfig, requestPath)
+	ctx.SetContext(config.EnabledGray, enabledGray)
+
+	if !enabledGray {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
 	cookies, _ := proxywasm.GetHttpRequestHeader("cookie")
-	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
-
-	isPageRequest := util.IsPageRequest(fetchMode, path)
+	isPageRequest := util.IsPageRequest(requestPath)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
@@ -73,7 +77,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		} else {
 			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
 		}
-		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, path, deployment.BackendVersion, preVersion, preUniqueClientId)
+		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, requestPath, deployment.BackendVersion, preVersion, preUniqueClientId)
 	} else {
 		grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
 		deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
@@ -91,14 +95,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 
 	if hasRewrite {
-		rewritePath := path
+		rewritePath := requestPath
 		if isPageRequest {
-			rewritePath = util.IndexRewrite(path, deployment.Version, grayConfig.Rewrite.Index)
+			rewritePath = util.IndexRewrite(requestPath, deployment.Version, grayConfig.Rewrite.Index)
 		} else {
-			rewritePath = util.PrefixFileRewrite(path, deployment.Version, grayConfig.Rewrite.File)
+			rewritePath = util.PrefixFileRewrite(requestPath, deployment.Version, grayConfig.Rewrite.File)
 		}
-		if path != rewritePath {
-			log.Infof("rewrite path:%s, rewritePath:%s, Version:%v", path, rewritePath, deployment.Version)
+		if requestPath != rewritePath {
+			log.Infof("rewrite path:%s, rewritePath:%s, Version:%v", requestPath, rewritePath, deployment.Version)
 			proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
 		}
 	}
@@ -106,7 +110,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 }
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
+	if !enabledGray {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
@@ -179,7 +184,8 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
+	if !enabledGray {
 		return types.ActionContinue
 	}
 	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
