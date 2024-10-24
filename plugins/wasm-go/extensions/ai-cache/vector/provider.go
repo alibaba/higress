@@ -134,6 +134,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
+	c.Threshold = json.Get("threshold").Float()
+	if c.Threshold == 0 {
+		c.Threshold = 1000
+	}
+	c.ThresholdRelation = json.Get("thresholdRelation").String()
+	if c.ThresholdRelation == "" {
+		c.ThresholdRelation = "lt"
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
