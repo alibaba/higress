@@ -31,7 +31,7 @@ type ProviderConfig struct {
 	serviceName string
 	// @Title zh-CN 文本特征提取服务域名
 	// @Description zh-CN 文本特征提取服务域名
-	serviceDomain string
+	serviceHost string
 	// @Title zh-CN 文本特征提取服务端口
 	// @Description zh-CN 文本特征提取服务端口
 	servicePort int64
@@ -49,7 +49,7 @@ type ProviderConfig struct {
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	c.serviceName = json.Get("serviceName").String()
-	c.serviceDomain = json.Get("serviceDomain").String()
+	c.serviceHost = json.Get("serviceHost").String()
 	c.servicePort = json.Get("servicePort").Int()
 	c.apiKey = json.Get("apiKey").String()
 	c.timeout = uint32(json.Get("timeout").Int())

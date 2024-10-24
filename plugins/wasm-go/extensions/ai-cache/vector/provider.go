@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	providerTypeDashVector = "dashvector"
-	providerTypeChroma     = "chroma"
+	PROVIDER_TYPE_DASH_VECTOR = "dashvector"
+	PROVIDER_TYPE_CHROMA      = "chroma"
 )
 
 type providerInitializer interface {
@@ -19,8 +19,8 @@ type providerInitializer interface {
 
 var (
 	providerInitializers = map[string]providerInitializer{
-		providerTypeDashVector: &dashVectorProviderInitializer{},
-		// providerTypeChroma:     &chromaProviderInitializer{},
+		PROVIDER_TYPE_DASH_VECTOR: &dashVectorProviderInitializer{},
+		// PROVIDER_TYPE_CHROMA:     &chromaProviderInitializer{},
 	}
 )
 
@@ -77,7 +77,7 @@ type SimilarityThresholdProvider interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
-	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
+	// @Description zh-CN 向量存储服务提供者类型，例如 dashvector、chroma
 	typ string
 	// @Title zh-CN 向量存储服务名称
 	// @Description zh-CN 向量存储服务名称
@@ -119,7 +119,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	// DashVector
 	c.serviceName = json.Get("serviceName").String()
-	c.serviceDomain = json.Get("serviceDomain").String()
+	c.serviceHost = json.Get("serviceHost").String()
 	c.servicePort = int64(json.Get("servicePort").Int())
 	if c.servicePort == 0 {
 		c.servicePort = 443

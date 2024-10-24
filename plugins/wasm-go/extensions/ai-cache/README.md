@@ -49,7 +49,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | --- | --- | --- | --- | --- |
 | vector.type | string | required | "" | 向量存储服务提供者类型，例如 dashvector |
 | vector.serviceName | string | required | "" | 向量存储服务名称 |
-| vector.serviceDomain | string | required | "" | 向量存储服务域名 |
+| vector.serviceHost | string | required | "" | 向量存储服务域名 |
 | vector.servicePort | int64 | optional | 443 | 向量存储服务端口 |
 | vector.apiKey | string | optional | ""  | 向量存储服务 API Key |
 | vector.topK | int | optional | 1 | 返回TopK结果，默认为 1 |

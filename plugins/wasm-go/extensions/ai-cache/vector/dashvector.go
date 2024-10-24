@@ -22,8 +22,8 @@ func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) er
 	if len(config.serviceName) == 0 {
 		return errors.New("[DashVector] serviceName is required")
 	}
-	if len(config.serviceDomain) == 0 {
-		return errors.New("[DashVector] serviceDomain is required")
+	if len(config.serviceHost) == 0 {
+		return errors.New("[DashVector] serviceHost is required")
 	}
 	return nil
 }
@@ -33,7 +33,7 @@ func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (P
 		config: config,
 		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
 			FQDN: config.serviceName,
-			Host: config.serviceDomain,
+			Host: config.serviceHost,
 			Port: int64(config.servicePort),
 		}),
 	}, nil
@@ -45,7 +45,7 @@ type DvProvider struct {
 }
 
 func (d *DvProvider) GetProviderType() string {
-	return providerTypeDashVector
+	return PROVIDER_TYPE_DASH_VECTOR
 }
 
 // type embeddingRequest struct {

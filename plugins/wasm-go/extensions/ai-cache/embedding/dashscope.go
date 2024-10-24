@@ -31,15 +31,15 @@ func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provide
 	if c.servicePort == 0 {
 		c.servicePort = DASHSCOPE_PORT
 	}
-	if c.serviceDomain == "" {
-		c.serviceDomain = DASHSCOPE_DOMAIN
+	if c.serviceHost == "" {
+		c.serviceHost = DASHSCOPE_DOMAIN
 	}
 	return &DSProvider{
 		config: c,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: c.serviceName,
-			Port:        c.servicePort,
-			Domain:      c.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: c.serviceName,
+			Host: c.serviceHost,
+			Port: int64(c.servicePort),
 		}),
 	}, nil
 }
