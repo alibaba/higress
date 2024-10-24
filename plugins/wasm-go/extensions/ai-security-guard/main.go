@@ -317,14 +317,14 @@ func reconvertHeaders(hs map[string][]string) [][2]string {
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
-	headers, err := proxywasm.GetHttpResponseHeaders()
-	if err != nil {
-		log.Warnf("failed to get response headers: %v", err)
-		return types.ActionContinue
-	}
 	if !config.checkResponse {
 		log.Debugf("response checking is disabled")
 		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+	headers, err := proxywasm.GetHttpResponseHeaders()
+	if err != nil {
+		log.Warnf("failed to get response headers: %v", err)
 		return types.ActionContinue
 	}
 	hdsMap := convertHeaders(headers)
