@@ -20,6 +20,7 @@ const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	TOOL_CALLS_CONTEXT_KEY      = "toolCalls"
 	STREAM_CONTEXT_KEY          = "stream"
+	SKIP_CACHE_HEADER           = "skip-cache"
 )
 
 func main() {
@@ -50,11 +51,10 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) err
 	return nil
 }
 
-
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	skipCache, _ := proxywasm.GetHttpRequestHeader(SkipCacheHeader)
+func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
+	skipCache, _ := proxywasm.GetHttpRequestHeader(SKIP_CACHE_HEADER)
 	if skipCache == "on" {
-		ctx.SetContext(SkipCacheHeader, struct{}{})
+		ctx.SetContext(SKIP_CACHE_HEADER, struct{}{})
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -123,9 +123,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 	return types.ActionPause
 }
 
-
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	skipCache := ctx.GetContext(SkipCacheHeader)
+func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
+	skipCache := ctx.GetContext(SKIP_CACHE_HEADER)
 	if skipCache != nil {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
