@@ -327,9 +327,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	if !wrapper.HasResponseBody() {
-		return types.ActionContinue
-	}
 	hdsMap := convertHeaders(headers)
 	ctx.SetContext("headers", hdsMap)
 	return types.HeaderStopIteration
@@ -403,7 +400,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 						var jsonData []byte
 						if config.protocolOriginal {
 							jsonData = []byte(denyMessage)
-						} else if strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream") {
+						} else if isStreamingResponse {
 							randomID := generateRandomID()
 							jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, denyMessage, randomID, model))
 						} else {
