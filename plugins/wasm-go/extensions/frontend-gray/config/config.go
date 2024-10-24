@@ -12,6 +12,7 @@ const (
 	XPreHigressTag  = "x-pre-higress-tag"
 	IsPageRequest   = "is-page-request"
 	IsNotFound      = "is-not-found"
+	EnabledGray     = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -61,6 +62,8 @@ type GrayConfig struct {
 	GrayDeployments     []*Deployment
 	BackendGrayTag      string
 	Injection           *Injection
+	SkippedPathPrefixes []string
+	SkippedByHeaders    map[string]string
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -91,6 +94,8 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
 	grayConfig.Html = json.Get("html").String()
+	grayConfig.SkippedPathPrefixes = convertToStringList(json.Get("skippedPathPrefixes").Array())
+	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天
