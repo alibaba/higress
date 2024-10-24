@@ -9,7 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseMessage string, log wrapper.Log) string {
+func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessage string, log wrapper.Log) string {
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string
 	for _, msg := range subMessages {
@@ -26,8 +26,8 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 	// skip the prefix "data:"
 	bodyJson := message[5:]
 	// Extract values from JSON fields
-	responseBody := gjson.Get(bodyJson, config.CacheStreamValueFrom)
-	toolCalls := gjson.Get(bodyJson, config.CacheToolCallsFrom)
+	responseBody := gjson.Get(bodyJson, c.CacheStreamValueFrom)
+	toolCalls := gjson.Get(bodyJson, c.CacheToolCallsFrom)
 
 	if toolCalls.Exists() {
 		// TODO: Temporarily store the tool_calls value in the context for processing
@@ -59,7 +59,7 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 }
 
 // Handles partial chunks of data when the full response is not received yet.
-func handlePartialChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) {
+func handlePartialChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) {
 	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 
 	if stream == nil {
@@ -74,7 +74,7 @@ func handlePartialChunk(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		partialMessage := appendPartialMessage(ctx, chunk)
 		messages := strings.Split(string(partialMessage), "\n\n")
 		for _, msg := range messages[:len(messages)-1] {
-			processSSEMessage(ctx, config, msg, log)
+			processSSEMessage(ctx, c, msg, log)
 		}
 		savePartialMessage(ctx, partialMessage, messages)
 	}
@@ -91,6 +91,11 @@ func appendPartialMessage(ctx wrapper.HttpContext, chunk []byte) []byte {
 
 // Saves the remaining partial message chunk
 func savePartialMessage(ctx wrapper.HttpContext, partialMessage []byte, messages []string) {
+	if len(messages) == 0 {
+		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
+		return
+	}
+
 	if !strings.HasSuffix(string(partialMessage), "\n\n") {
 		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
 	} else {
@@ -98,21 +103,21 @@ func savePartialMessage(ctx wrapper.HttpContext, partialMessage []byte, messages
 	}
 }
 
-// Processes the final chunk and returns the parsed value or an error
-func processNonEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+// Processes a non-empty data chunk and returns the parsed value or an error
+func processNonEmptyChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
 	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
 
 	if stream == nil {
 		body := appendFinalBody(ctx, chunk)
 		bodyJson := gjson.ParseBytes(body)
-		value = bodyJson.Get(config.CacheValueFrom).String()
+		value = bodyJson.Get(c.CacheValueFrom).String()
 
 		if value == "" {
 			return "", fmt.Errorf("failed to parse value from response body: %s", body)
 		}
 	} else {
-		value, err := processFinalStreamMessage(ctx, config, log, chunk)
+		value, err := processFinalStreamMessage(ctx, c, log, chunk)
 		if err != nil {
 			return "", err
 		}
@@ -122,7 +127,7 @@ func processNonEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, c
 	return value, nil
 }
 
-func processEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+func processEmptyChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
 	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 	if tempContentI == nil {
 		return string(chunk), nil
@@ -144,7 +149,7 @@ func appendFinalBody(ctx wrapper.HttpContext, chunk []byte) []byte {
 }
 
 // Processes the final SSE message chunk
-func processFinalStreamMessage(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, chunk []byte) (string, error) {
+func processFinalStreamMessage(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, chunk []byte) (string, error) {
 	var lastMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
 
@@ -160,5 +165,5 @@ func processFinalStreamMessage(ctx wrapper.HttpContext, config config.PluginConf
 	}
 
 	lastMessage = lastMessage[:len(lastMessage)-2] // Remove the last \n\n
-	return processSSEMessage(ctx, config, string(lastMessage), log), nil
+	return processSSEMessage(ctx, c, string(lastMessage), log), nil
 }

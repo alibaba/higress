@@ -10,6 +10,12 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const (
+	CACHE_KEY_STRATEGY_LAST_QUESTION = "lastQuestion"
+	CACHE_KEY_STRATEGY_ALL_QUESTIONS = "allQuestions"
+	CACHE_KEY_STRATEGY_DISABLED      = "disabled"
+)
+
 type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
@@ -36,7 +42,7 @@ type PluginConfig struct {
 	EnableSemanticCache bool
 
 	// @Title zh-CN 缓存键策略
-	// @Description zh-CN 决定如何生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存)
+	// @Description zh-CN 决定如何生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存)
 	CacheKeyStrategy string
 }
 
@@ -107,7 +113,9 @@ func (c *PluginConfig) Validate() error {
 	}
 
 	// 验证 CacheKeyStrategy 的值
-	if c.CacheKeyStrategy != "lastQuestion" && c.CacheKeyStrategy != "allQuestions" && c.CacheKeyStrategy != "disable" {
+	if c.CacheKeyStrategy != CACHE_KEY_STRATEGY_LAST_QUESTION &&
+		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_ALL_QUESTIONS &&
+		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_DISABLED {
 		return fmt.Errorf("invalid CacheKeyStrategy: %s", c.CacheKeyStrategy)
 	}
 	// 如果启用了语义化缓存，确保必要的组件已配置

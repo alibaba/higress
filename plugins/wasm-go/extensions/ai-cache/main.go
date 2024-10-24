@@ -34,23 +34,23 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, config *config.PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) error {
 	// config.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
 	// config.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
 	// config.RedisConfig.FromJson(json.Get("redis"))
-	config.FromJson(json)
-	if err := config.Validate(); err != nil {
+	c.FromJson(json)
+	if err := c.Validate(); err != nil {
 		return err
 	}
 	// 注意，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
-	if err := config.Complete(log); err != nil {
+	if err := c.Complete(log); err != nil {
 		log.Errorf("complete config failed: %v", err)
 		return err
 	}
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
 	// 这段代码是为了测试，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
 	// 但是在 onHttpRequestHeaders 中可以连接到 redis、
 	// 修复需要修改 envoy
@@ -82,7 +82,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.PluginConfig, l
 	return types.HeaderStopIteration
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []byte, log wrapper.Log) types.Action {
 
 	bodyJson := gjson.ParseBytes(body)
 	// TODO: It may be necessary to support stream mode determination for different LLM providers.
@@ -93,9 +93,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	}
 
 	var key string
-	if config.CacheKeyStrategy == "lastQuestion" {
+	if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_LAST_QUESTION {
 		key = bodyJson.Get("messages.@reverse.0.content").String()
-	} else if config.CacheKeyStrategy == "allQuestions" {
+	} else if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_ALL_QUESTIONS {
 		// Retrieve all user messages and concatenate them
 		messages := bodyJson.Get("messages").Array()
 		var userMessages []string
@@ -104,13 +104,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 				userMessages = append(userMessages, msg.Get("content").String())
 			}
 		}
-		key = strings.Join(userMessages, " ")
-	} else if config.CacheKeyStrategy == "disable" {
+		key = strings.Join(userMessages, "\n")
+	} else if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_DISABLED {
 		log.Debugf("[onHttpRequestBody] cache key strategy is disabled")
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	} else {
-		log.Warnf("[onHttpRequestBody] unknown cache key strategy: %s", config.CacheKeyStrategy)
+		log.Warnf("[onHttpRequestBody] unknown cache key strategy: %s", c.CacheKeyStrategy)
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -123,7 +123,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 		return types.ActionContinue
 	}
 
-	if err := CheckCacheForKey(key, ctx, config, log, stream, true); err != nil {
+	if err := CheckCacheForKey(key, ctx, c, log, stream, true); err != nil {
 		log.Errorf("check cache for key: %s failed, error: %v", key, err)
 		return types.ActionContinue
 	}
@@ -131,7 +131,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config config.PluginConfig, body
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
@@ -139,8 +139,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.PluginConfig, 
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Debugf("[onHttpResponseBody] escaped chunk: %q", string(chunk))
+func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	log.Debugf("[onHttpResponseBody] chunk: %q", string(chunk))
 	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
 
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
@@ -154,7 +154,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	}
 
 	if !isLastChunk {
-		handlePartialChunk(ctx, config, chunk, log)
+		handlePartialChunk(ctx, c, chunk, log)
 		return chunk
 	}
 
@@ -163,9 +163,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 	var err error
 
 	if len(chunk) > 0 {
-		value, err = processNonEmptyChunk(ctx, config, chunk, log)
+		value, err = processNonEmptyChunk(ctx, c, chunk, log)
 	} else {
-		value, err = processEmptyChunk(ctx, config, chunk, log)
+		value, err = processEmptyChunk(ctx, c, chunk, log)
 	}
 
 	if err != nil {
@@ -173,10 +173,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config config.PluginConfig, chu
 		return chunk
 	}
 	// Cache the final value
-	cacheResponse(ctx, config, key.(string), value, log)
+	cacheResponse(ctx, c, key.(string), value, log)
 
 	// Handle embedding upload if available
-	uploadEmbeddingAndAnswer(ctx, config, key.(string), value, log)
+	uploadEmbeddingAndAnswer(ctx, c, key.(string), value, log)
 
 	return chunk
 }

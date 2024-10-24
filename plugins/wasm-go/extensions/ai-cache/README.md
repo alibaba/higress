@@ -34,7 +34,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | vector.type | string | optional | "" | 向量存储服务提供者类型，例如 DashVector |
 | embedding.type | string | optional | "" | 请求文本向量化服务类型，例如 DashScope |
 | cache.type | string | optional | "" | 缓存服务类型，例如 redis |
-| cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存) |
+| cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存) |
 | enableSemanticCache | bool | optional | true | 是否启用语义化缓存, 若不启用，则使用字符串匹配的方式来查找缓存，此时需要配置cache服务 |
 
 以下是vector、embedding、cache的具体配置说明，注意若不配置embedding或cache服务，则可忽略以下相应配置中的 `required` 字段。

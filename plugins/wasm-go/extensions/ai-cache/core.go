@@ -12,18 +12,18 @@ import (
 )
 
 // CheckCacheForKey checks if the key is in the cache, or triggers similarity search if not found.
-func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) error {
-	activeCacheProvider := config.GetCacheProvider()
+func CheckCacheForKey(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) error {
+	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider == nil {
 		log.Debug("No cache provider configured, performing similarity search")
-		return performSimilaritySearch(key, ctx, config, log, key, stream)
+		return performSimilaritySearch(key, ctx, c, log, key, stream)
 	}
 
 	queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
 	log.Debugf("Querying cache with key: %s", queryKey)
 
 	err := activeCacheProvider.Get(queryKey, func(response resp.Value) {
-		handleCacheResponse(key, response, ctx, log, stream, config, useSimilaritySearch)
+		handleCacheResponse(key, response, ctx, log, stream, c, useSimilaritySearch)
 	})
 
 	if err != nil {
@@ -35,10 +35,10 @@ func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginC
 }
 
 // handleCacheResponse processes cache response and handles cache hits and misses.
-func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContext, log wrapper.Log, stream bool, config config.PluginConfig, useSimilaritySearch bool) {
+func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContext, log wrapper.Log, stream bool, c config.PluginConfig, useSimilaritySearch bool) {
 	if err := response.Error(); err == nil && !response.IsNull() {
 		log.Infof("Cache hit for key: %s", key)
-		processCacheHit(key, response.String(), stream, ctx, config, log)
+		processCacheHit(key, response.String(), stream, ctx, c, log)
 		return
 	}
 
@@ -47,8 +47,8 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 		log.Errorf("Error retrieving key: %s from cache, error: %v", key, err)
 	}
 
-	if useSimilaritySearch && config.EnableSemanticCache {
-		if err := performSimilaritySearch(key, ctx, config, log, key, stream); err != nil {
+	if useSimilaritySearch && c.EnableSemanticCache {
+		if err := performSimilaritySearch(key, ctx, c, log, key, stream); err != nil {
 			log.Errorf("Failed to perform similarity search for key: %s, error: %v", key, err)
 			proxywasm.ResumeHttpRequest()
 		}
@@ -58,7 +58,7 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 }
 
 // processCacheHit handles a successful cache hit.
-func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
+func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) {
 	if stream {
 		log.Debug("streaming response is not supported for cache hit yet")
 		stream = false
@@ -75,49 +75,49 @@ func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpC
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
 	// proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, escapedResponse)), -1)
-	proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, response)), -1)
+	proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(c.ResponseTemplate, response)), -1)
 }
 
 // performSimilaritySearch determines the appropriate similarity search method to use.
-func performSimilaritySearch(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) error {
-	activeVectorProvider := config.GetVectorProvider()
+func performSimilaritySearch(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, queryString string, stream bool) error {
+	activeVectorProvider := c.GetVectorProvider()
 	if activeVectorProvider == nil {
 		return errors.New("no vector provider configured for similarity search")
 	}
 
 	// Check if the active vector provider implements the StringQuerier interface.
 	if _, ok := activeVectorProvider.(vector.StringQuerier); ok {
-		return performStringQuery(key, queryString, ctx, config, log, stream)
+		return performStringQuery(key, queryString, ctx, c, log, stream)
 	}
 
 	// Check if the active vector provider implements the EmbeddingQuerier interface.
 	if _, ok := activeVectorProvider.(vector.EmbeddingQuerier); ok {
-		return performEmbeddingQuery(key, ctx, config, log, stream)
+		return performEmbeddingQuery(key, ctx, c, log, stream)
 	}
 
 	return errors.New("no suitable querier or embedding provider available for similarity search")
 }
 
 // performStringQuery executes the string-based similarity search.
-func performStringQuery(key string, queryString string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) error {
-	stringQuerier, ok := config.GetVectorProvider().(vector.StringQuerier)
+func performStringQuery(key string, queryString string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool) error {
+	stringQuerier, ok := c.GetVectorProvider().(vector.StringQuerier)
 	if !ok {
 		return logAndReturnError(log, "active vector provider does not implement StringQuerier interface")
 	}
 
 	return stringQuerier.QueryString(queryString, ctx, log, func(results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error) {
-		handleQueryResults(key, results, ctx, log, stream, config, err)
+		handleQueryResults(key, results, ctx, log, stream, c, err)
 	})
 }
 
 // performEmbeddingQuery executes the embedding-based similarity search.
-func performEmbeddingQuery(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) error {
-	embeddingQuerier, ok := config.GetVectorProvider().(vector.EmbeddingQuerier)
+func performEmbeddingQuery(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool) error {
+	embeddingQuerier, ok := c.GetVectorProvider().(vector.EmbeddingQuerier)
 	if !ok {
 		return logAndReturnError(log, "active vector provider does not implement EmbeddingQuerier interface")
 	}
 
-	activeEmbeddingProvider := config.GetEmbeddingProvider()
+	activeEmbeddingProvider := c.GetEmbeddingProvider()
 	if activeEmbeddingProvider == nil {
 		return logAndReturnError(log, "no embedding provider configured for similarity search")
 	}
@@ -130,7 +130,7 @@ func performEmbeddingQuery(key string, ctx wrapper.HttpContext, config config.Pl
 		ctx.SetContext(CACHE_KEY_EMBEDDING_KEY, textEmbedding)
 
 		err = embeddingQuerier.QueryEmbedding(textEmbedding, ctx, log, func(results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error) {
-			handleQueryResults(key, results, ctx, log, stream, config, err)
+			handleQueryResults(key, results, ctx, log, stream, c, err)
 		})
 		if err != nil {
 			handleInternalError(err, fmt.Sprintf("Error querying vector database for key: %s", key), log)
@@ -139,7 +139,7 @@ func performEmbeddingQuery(key string, ctx wrapper.HttpContext, config config.Pl
 }
 
 // handleQueryResults processes the results of similarity search and determines next actions.
-func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, stream bool, config config.PluginConfig, err error) {
+func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, stream bool, c config.PluginConfig, err error) {
 	if err != nil {
 		handleInternalError(err, fmt.Sprintf("Error querying vector database for key: %s", key), log)
 		return
@@ -153,13 +153,13 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 
 	mostSimilarData := results[0]
 	log.Debugf("For key: %s, the most similar key found: %s with score: %f", key, mostSimilarData.Text, mostSimilarData.Score)
-	simThreshold := config.GetVectorProviderConfig().Threshold
-	simThresholdRelation := config.GetVectorProviderConfig().ThresholdRelation
+	simThreshold := c.GetVectorProviderConfig().Threshold
+	simThresholdRelation := c.GetVectorProviderConfig().ThresholdRelation
 	if compare(simThresholdRelation, mostSimilarData.Score, simThreshold) {
 		log.Infof("Key accepted: %s with score: %f below threshold", mostSimilarData.Text, mostSimilarData.Score)
 		if mostSimilarData.Answer != "" {
 			// direct return the answer if available
-			processCacheHit(key, mostSimilarData.Answer, stream, ctx, config, log)
+			processCacheHit(key, mostSimilarData.Answer, stream, ctx, c, log)
 		} else {
 			// // otherwise, continue to check cache for the most similar key
 			// err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
@@ -169,7 +169,7 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 			// }
 
 			// Otherwise, do not check the cache, directly return
-			log.Warnf("No cache hit for key: %s, however, no answer found in vector database", mostSimilarData.Text)
+			log.Warnf("Cache hit for key: %s, but no corresponding answer found in the vector database", mostSimilarData.Text)
 			proxywasm.ResumeHttpRequest()
 		}
 	} else {
@@ -196,8 +196,8 @@ func handleInternalError(err error, message string, log wrapper.Log) {
 }
 
 // Caches the response value
-func cacheResponse(ctx wrapper.HttpContext, config config.PluginConfig, key string, value string, log wrapper.Log) {
-	activeCacheProvider := config.GetCacheProvider()
+func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
+	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider != nil {
 		queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
 		log.Infof("[onHttpResponseBody] setting cache to redis, key: %s, value: %s", queryKey, value)
@@ -206,7 +206,7 @@ func cacheResponse(ctx wrapper.HttpContext, config config.PluginConfig, key stri
 }
 
 // Handles embedding upload if available
-func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfig, key string, value string, log wrapper.Log) {
+func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
 	embedding := ctx.GetContext(CACHE_KEY_EMBEDDING_KEY)
 	if embedding == nil {
 		return
@@ -218,7 +218,7 @@ func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfi
 		return
 	}
 
-	activeVectorProvider := config.GetVectorProvider()
+	activeVectorProvider := c.GetVectorProvider()
 	if activeVectorProvider == nil {
 		log.Debug("[onHttpResponseBody] no vector provider configured for uploading embedding")
 		return
