@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	higressconfig "github.com/alibaba/higress/pkg/config"
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	istio "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/model"
@@ -1880,7 +1881,7 @@ func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config
 		if len(name) > 0 {
 			return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, false, nil
 		}
-		return []string{}, true, nil
+		return []string{fmt.Sprintf("%s.%s.svc.%s", higressconfig.GatewayName, higressconfig.PodNamespace, util.GetDomainSuffix())}, true, nil
 	}
 	gatewayServices := []string{}
 	skippedAddresses := []string{}
