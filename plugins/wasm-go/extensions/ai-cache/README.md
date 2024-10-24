@@ -36,8 +36,8 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| vector.type | string | optional | "" | 向量存储服务提供者类型，例如 DashVector |
-| embedding.type | string | optional | "" | 请求文本向量化服务类型，例如 DashScope |
+| vector.type | string | optional | "" | 向量存储服务提供者类型，例如 dashvector |
+| embedding.type | string | optional | "" | 请求文本向量化服务类型，例如 dashscope |
 | cache.type | string | optional | "" | 缓存服务类型，例如 redis |
 | cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存) |
 | enableSemanticCache | bool | optional | true | 是否启用语义化缓存, 若不启用，则使用字符串匹配的方式来查找缓存，此时需要配置cache服务 |
@@ -47,23 +47,23 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 ## 向量数据库服务（vector）
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| vector.type | string | required | "" | 向量存储服务提供者类型，例如 DashVector |
+| vector.type | string | required | "" | 向量存储服务提供者类型，例如 dashvector |
 | vector.serviceName | string | required | "" | 向量存储服务名称 |
 | vector.serviceDomain | string | required | "" | 向量存储服务域名 |
 | vector.servicePort | int64 | optional | 443 | 向量存储服务端口 |
 | vector.apiKey | string | optional | ""  | 向量存储服务 API Key |
 | vector.topK | int | optional | 1 | 返回TopK结果，默认为 1 |
 | vector.timeout | uint32 | optional | 10000 | 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
-| vector.collectionID | string | optional | "" |  DashVector 向量存储服务 Collection ID |
+| vector.collectionID | string | optional | "" |  dashvector 向量存储服务 Collection ID |
 | vector.threshold | float64 | optional | 1000 | 向量相似度度量阈值 |
 | vector.thresholdRelation | string | optional | lt | 相似度度量方式有 `Cosine`, `DotProduct`, `Euclidean` 等，前两者值越大相似度越高，后者值越小相似度越高。对于 `Cosine` 和 `DotProduct` 选择 `gt`，对于 `Euclidean` 则选择 `lt`。默认为 `lt`，所有条件包括 `lt` (less than，小于)、`lte` (less than or equal to，小等于)、`gt` (greater than，大于)、`gte` (greater than or equal to，大等于) |
 
 ## 文本向量化服务（embedding）
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| embedding.type | string | required | "" | 请求文本向量化服务类型，例如 DashScope |
+| embedding.type | string | required | "" | 请求文本向量化服务类型，例如 dashscope |
 | embedding.serviceName | string | required | "" | 请求文本向量化服务名称 |
-| embedding.serviceDomain | string | optional | "" | 请求文本向量化服务域名 |
+| embedding.serviceHost | string | optional | "" | 请求文本向量化服务域名 |
 | embedding.servicePort | int64 | optional | 443 | 请求文本向量化服务端口 |
 | embedding.apiKey | string | optional | ""  | 请求文本向量化服务的 API Key |
 | embedding.timeout | uint32 | optional | 10000 | 请求文本向量化服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
@@ -74,7 +74,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | cache.type | string | required | "" | 缓存服务类型，例如 redis |
 | --- | --- | --- | --- | --- |
 | cache.serviceName | string | required | "" | 缓存服务名称 |
-| cache.serviceDomain | string | required | "" | 缓存服务域名 |
+| cache.serviceHost | string | required | "" | 缓存服务域名 |
 | cache.servicePort | int64 | optional | 6379 | 缓存服务端口 |
 | cache.username | string | optional | ""  | 缓存服务用户名 |
 | cache.password | string | optional | "" | 缓存服务密码 |

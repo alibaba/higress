@@ -84,7 +84,7 @@ type ProviderConfig struct {
 	serviceName string
 	// @Title zh-CN 向量存储服务域名
 	// @Description zh-CN 向量存储服务域名
-	serviceDomain string
+	serviceHost string
 	// @Title zh-CN 向量存储服务端口
 	// @Description zh-CN 向量存储服务端口
 	servicePort int64

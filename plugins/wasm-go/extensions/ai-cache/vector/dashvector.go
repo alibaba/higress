@@ -31,10 +31,10 @@ func (d *dashVectorProviderInitializer) ValidateConfig(config ProviderConfig) er
 func (d *dashVectorProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &DvProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.serviceName,
-			Port:        config.servicePort,
-			Domain:      config.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: config.serviceName,
+			Host: config.serviceDomain,
+			Port: int64(config.servicePort),
 		}),
 	}, nil
 }
