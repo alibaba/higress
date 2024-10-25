@@ -1,7 +1,7 @@
 use higress_wasm_rust::cluster_wrapper::{DnsCluster, StaticIpCluster};
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
-use higress_wasm_rust::redis_wrapper::RedisClient;
+use higress_wasm_rust::redis_wrapper::{RedisClient, RedisClientBuilder, RedisClientConfig};
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
 use http::Method;
 use multimap::MultiMap;
@@ -75,11 +75,21 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         self.log
             .info(&format!("on_http_request_complete_headers {:?}", headers));
         if let Some(config) = &self.config {
-            let redis_client = RedisClient::new(
+            let _redis_client = RedisClientBuilder::new(
                 &StaticIpCluster::new("redis", 80, ""),
-                config.password.as_ref(),
                 Duration::from_secs(5),
+            )
+            .password(config.password.as_ref())
+            .build();
+
+            let redis_client = RedisClient::new(
+                RedisClientConfig::new(
+                    &StaticIpCluster::new("redis", 80, ""),
+                    Duration::from_secs(5),
+                )
+                .password(config.password.as_ref()),
             );
+
             if let Some(self_rc) = self.weak.upgrade() {
                 let init_res = redis_client.init();
                 self.log.info(&format!("redis init {:?}", init_res));

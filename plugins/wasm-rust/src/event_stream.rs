@@ -33,24 +33,14 @@ pub struct EventStream {
     processed_offset: usize,
 }
 
-impl EventStream {
-    pub fn new() -> Self {
-        EventStream {
-            buffer: Vec::new(),
-            processed_offset: 0,
-        }
+impl Default for EventStream {
+    fn default() -> Self {
+        Self::new()
     }
+}
 
-    /// Update the event stream by adding new data to the buffer and resetting processed offset if needed.
-    pub fn update(&mut self, data: Vec<u8>) {
-        if self.processed_offset > 0 {
-            self.buffer.drain(0..self.processed_offset);
-            self.processed_offset = 0;
-        }
-
-        self.buffer.extend(data);
-    }
-
+impl Iterator for EventStream {
+    type Item = Vec<u8>;
     /// Get the next event from the event stream. Return the event data if available, otherwise return None.
     /// Next will consume all the data in the current buffer. However, if there is a valid event at the end of the buffer,
     /// it will return the event directly even if the data after the next `update` could be considered part of the same event
@@ -71,7 +61,8 @@ impl EventStream {
     ///     }
     /// }
     /// ```
-    pub fn next(&mut self) -> Option<Vec<u8>> {
+    ///
+    fn next(&mut self) -> Option<Self::Item> {
         let mut i = self.processed_offset;
 
         while i < self.buffer.len() {
@@ -85,6 +76,24 @@ impl EventStream {
         }
 
         None
+    }
+}
+impl EventStream {
+    pub fn new() -> Self {
+        EventStream {
+            buffer: Vec::new(),
+            processed_offset: 0,
+        }
+    }
+
+    /// Update the event stream by adding new data to the buffer and resetting processed offset if needed.
+    pub fn update(&mut self, data: Vec<u8>) {
+        if self.processed_offset > 0 {
+            self.buffer.drain(0..self.processed_offset);
+            self.processed_offset = 0;
+        }
+
+        self.buffer.extend(data);
     }
 
     /// Flush the event stream and return any remaining unprocessed event data. Return None if there is none.

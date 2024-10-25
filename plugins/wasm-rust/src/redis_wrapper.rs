@@ -19,6 +19,63 @@ fn gen_callback(call_fn: Box<RedisValueCallbackFn>) -> Box<RedisCallbackFn> {
         call_fn(&res, status, token_id);
     })
 }
+pub struct RedisClientBuilder {
+    upstream: String,
+    username: Option<String>,
+    password: Option<String>,
+    timeout: Duration,
+}
+impl RedisClientBuilder {
+    pub fn new(cluster: &dyn Cluster, timeout: Duration) -> Self {
+        RedisClientBuilder {
+            upstream: cluster.cluster_name(),
+            username: None,
+            password: None,
+            timeout,
+        }
+    }
+    pub fn username<T: AsRef<str>>(mut self, username: Option<T>) -> Self {
+        self.username = username.map(|u| u.as_ref().to_string());
+        self
+    }
+    pub fn password<T: AsRef<str>>(mut self, password: Option<T>) -> Self {
+        self.password = password.map(|p| p.as_ref().to_string());
+        self
+    }
+    pub fn build(self) -> RedisClient {
+        RedisClient {
+            upstream: self.upstream,
+            username: self.username,
+            password: self.password,
+            timeout: self.timeout,
+        }
+    }
+}
+
+pub struct RedisClientConfig {
+    upstream: String,
+    username: Option<String>,
+    password: Option<String>,
+    timeout: Duration,
+}
+impl RedisClientConfig {
+    pub fn new(cluster: &dyn Cluster, timeout: Duration) -> Self {
+        RedisClientConfig {
+            upstream: cluster.cluster_name(),
+            username: None,
+            password: None,
+            timeout,
+        }
+    }
+    pub fn username<T: AsRef<str>>(&mut self, username: Option<T>) -> &Self {
+        self.username = username.map(|u| u.as_ref().to_string());
+        self
+    }
+    pub fn password<T: AsRef<str>>(&mut self, password: Option<T>) -> &Self {
+        self.password = password.map(|p| p.as_ref().to_string());
+        self
+    }
+}
 #[derive(Debug, Clone)]
 pub struct RedisClient {
     upstream: String,
@@ -28,24 +85,12 @@ pub struct RedisClient {
 }
 
 impl RedisClient {
-    pub fn new<T: AsRef<str>>(
-        cluster: &dyn Cluster,
-        password: Option<T>,
-        timeout: Duration,
-    ) -> Self {
-        Self::new_with_username(cluster, None, password, timeout)
-    }
-    pub fn new_with_username<T: AsRef<str>>(
-        cluster: &dyn Cluster,
-        username: Option<T>,
-        password: Option<T>,
-        timeout: Duration,
-    ) -> Self {
+    pub fn new(config: &RedisClientConfig) -> Self {
         RedisClient {
-            upstream: cluster.cluster_name(),
-            username: username.map(|u| u.as_ref().to_string()),
-            password: password.map(|p| p.as_ref().to_string()),
-            timeout,
+            upstream: config.upstream.clone(),
+            username: config.username.clone(),
+            password: config.password.clone(),
+            timeout: config.timeout,
         }
     }
     pub fn init(&self) -> Result<(), Status> {
