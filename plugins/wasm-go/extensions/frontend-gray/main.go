@@ -72,8 +72,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 如果没有配置比例，则进行灰度规则匹配
 	if util.IsSupportMultiVersion(grayConfig) {
 		deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, requestPath)
-		ctx.SetContext(config.XPreHigressTag, "")
-		ctx.SetContext(grayConfig.BackendGrayTag, "")
 	} else {
 		if isPageRequest {
 			if grayConfig.TotalGrayWeight > 0 {
@@ -177,17 +175,17 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
 
-	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-	xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
+	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
+	xUniqueClient, isUniqClientOk := ctx.GetContext(config.XUniqueClientId).(string)
 
 	// 设置前端的版本
-	if frontendVersion != "" {
+	if isFeVersionOk && isUniqClientOk && frontendVersion != "" {
 		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
 	}
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
-		backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-		if backendVersion != "" {
+		backendVersion, isBackVersionOk := ctx.GetContext(grayConfig.BackendGrayTag).(string)
+		if isBackVersionOk && backendVersion != "" {
 			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
 		}
 	}
@@ -199,16 +197,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 	if !enabledGray {
 		return types.ActionContinue
 	}
-	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
-	if !ok {
-		isPageRequest = false // 默认值
-	}
+	isPageRequest, isPageRequestOk := ctx.GetContext(config.IsPageRequest).(bool)
+	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
 	// 只处理首页相关请求
-	if !isPageRequest {
+	if !isFeVersionOk || !isPageRequestOk || !isPageRequest {
 		return types.ActionContinue
 	}
 
-	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
 	isNotFound, ok := ctx.GetContext(config.IsNotFound).(bool)
 	if !ok {
 		isNotFound = false // 默认值
