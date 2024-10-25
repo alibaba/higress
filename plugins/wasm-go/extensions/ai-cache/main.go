@@ -43,7 +43,7 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) err
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	// 注意，在 parseConfig 阶段初始化 client 会出错，比如 docker compose 中的 redis 就无法使用
+	// Note that initializing the client during the parseConfig phase may cause errors, such as Redis not being usable in Docker Compose.
 	if err := c.Complete(log); err != nil {
 		log.Errorf("complete config failed: %v", err)
 		return err
@@ -136,38 +136,136 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 	return types.ActionContinue
 }
 
+// func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+// 	log.Debugf("[onHttpResponseBody] chunk: %q", string(chunk))
+// 	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
+
+// 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
+// 		return chunk
+// 	}
+
+// 	key := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
+// 	if key == nil {
+// 		log.Debug("[onHttpResponseBody] key is nil, bypass caching")
+// 		return chunk
+// 	}
+
+// 	if !isLastChunk {
+// 		handlePartialChunk(ctx, c, chunk, log)
+// 		return chunk
+// 	}
+
+// 	// Handle last chunk
+// 	var value string
+// 	var err error
+
+// 	if len(chunk) > 0 {
+// 		value, err = processNonEmptyChunk(ctx, c, chunk, log)
+// 	} else {
+// 		value, err = processEmptyChunk(ctx, c, chunk, log)
+// 	}
+
+// 	if err != nil {
+// 		log.Warnf("[onHttpResponseBody] failed to process chunk: %v", err)
+// 		return chunk
+// 	}
+// 	// Cache the final value
+// 	cacheResponse(ctx, c, key.(string), value, log)
+
+// 	// Handle embedding upload if available
+// 	uploadEmbeddingAndAnswer(ctx, c, key.(string), value, log)
+
+// 	return chunk
+// }
+
 func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	log.Debugf("[onHttpResponseBody] chunk: %q", string(chunk))
-	log.Debugf("[onHttpResponseBody] isLastChunk: %v", isLastChunk)
+	if string(chunk) == "data: [DONE]" {
+		return nil
+	}
 
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
+		// we should not cache tool call result
 		return chunk
 	}
-
 	key := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
 	if key == nil {
-		log.Debug("[onHttpResponseBody] key is nil, bypass caching")
 		return chunk
 	}
-
 	if !isLastChunk {
-		handlePartialChunk(ctx, c, chunk, log)
+		stream := ctx.GetContext(STREAM_CONTEXT_KEY)
+		if stream == nil {
+			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+			if tempContentI == nil {
+				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, chunk)
+				return chunk
+			}
+			tempContent := tempContentI.([]byte)
+			tempContent = append(tempContent, chunk...)
+			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
+		} else {
+			var partialMessage []byte
+			partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+			if partialMessageI != nil {
+				partialMessage = append(partialMessageI.([]byte), chunk...)
+			} else {
+				partialMessage = chunk
+			}
+			messages := strings.Split(string(partialMessage), "\n\n")
+			for i, msg := range messages {
+				if i < len(messages)-1 {
+					// process complete message
+					processSSEMessage(ctx, c, msg, log)
+				}
+			}
+			if !strings.HasSuffix(string(partialMessage), "\n\n") {
+				ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
+			} else {
+				ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
+			}
+		}
 		return chunk
 	}
-
-	// Handle last chunk
+	// last chunk
+	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
-	var err error
+	if stream == nil {
+		var body []byte
+		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+		if tempContentI != nil {
+			body = append(tempContentI.([]byte), chunk...)
+		} else {
+			body = chunk
+		}
+		bodyJson := gjson.ParseBytes(body)
 
-	if len(chunk) > 0 {
-		value, err = processNonEmptyChunk(ctx, c, chunk, log)
+		value = bodyJson.Get(c.CacheValueFrom).String()
+		if value == "" {
+			log.Warnf("parse value from response body failded, body:%s", body)
+			return chunk
+		}
 	} else {
-		value, err = processEmptyChunk(ctx, c, chunk, log)
-	}
-
-	if err != nil {
-		log.Warnf("[onHttpResponseBody] failed to process chunk: %v", err)
-		return chunk
+		if len(chunk) > 0 {
+			var lastMessage []byte
+			partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+			if partialMessageI != nil {
+				lastMessage = append(partialMessageI.([]byte), chunk...)
+			} else {
+				lastMessage = chunk
+			}
+			if !strings.HasSuffix(string(lastMessage), "\n\n") {
+				log.Warnf("invalid lastMessage:%s", lastMessage)
+				return chunk
+			}
+			// remove the last \n\n
+			lastMessage = lastMessage[:len(lastMessage)-2]
+			value = processSSEMessage(ctx, c, string(lastMessage), log)
+		} else {
+			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+			if tempContentI == nil {
+				return chunk
+			}
+			value = tempContentI.(string)
+		}
 	}
 	// Cache the final value
 	cacheResponse(ctx, c, key.(string), value, log)

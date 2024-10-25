@@ -42,7 +42,13 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存) |
 | enableSemanticCache | bool | optional | true | 是否启用语义化缓存, 若不启用，则使用字符串匹配的方式来查找缓存，此时需要配置cache服务 |
 
-以下是vector、embedding、cache的具体配置说明，注意若不配置embedding或cache服务，则可忽略以下相应配置中的 `required` 字段。
+根据是否需要启用语义缓存，可以只配置组件的组合为:
+1. `cache`: 仅启用字符串匹配缓存
+3. `vector (+ embedding)`: 启用语义化缓存, 其中若 `vector` 未提供字符串表征服务，则需要自行配置 `embedding` 服务
+2. `vector (+ embedding) + cache`: 启用语义化缓存并用缓存服务存储LLM响应以加速
+
+注意若不配置相关组件，则可以忽略相应组件的`required`字段。
+
 
 ## 向量数据库服务（vector）
 | Name | Type | Requirement | Default | Description |
@@ -99,22 +105,30 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 ```yaml
 embedding:
   type: dashscope
-  serviceName: [Your Service Name]
+  serviceName: my_dashscope.dns
   apiKey: [Your Key]
 
 vector:
   type: dashvector
-  serviceName: [Your Service Name]
+  serviceName: my_dashvector.dns
   collectionID: [Your Collection ID]
   serviceDomain: [Your domain]
   apiKey: [Your key]
 
 cache:
   type: redis
-  serviceName: [Your Service Name]
+  serviceName: my_redis.dns
   servicePort: 6379
   timeout: 100
 
+```
+
+旧版本配置兼容
+```yaml
+redis:
+  serviceName: my_redis.dns
+  servicePort: 6379
+  timeout: 100
 ```
 
 ## 进阶用法
@@ -128,3 +142,6 @@ GJSON PATH 支持条件判断语法，例如希望取最后一个 role 为 user 
 
 更多用法可以参考[官方文档](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，可以使用 [GJSON Playground](https://gjson.dev/) 进行语法测试。
 
+## 常见问题
+
+1. 如果返回的错误为 `error status returned by host: bad argument`，请检查`serviceName`是否正确包含了服务的类型后缀(.dns等)。

@@ -90,6 +90,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 
 }
 
+func (c *ProviderConfig) ConvertLegacyJson(json gjson.Result) {
+	c.FromJson(json)
+	c.typ = "redis"
+}
+
 func (c *ProviderConfig) Validate() error {
 	if c.typ == "" {
 		return errors.New("cache service type is required")

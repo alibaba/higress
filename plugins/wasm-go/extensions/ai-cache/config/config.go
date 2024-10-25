@@ -50,10 +50,14 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	c.vectorProviderConfig.FromJson(json.Get("vector"))
 	c.embeddingProviderConfig.FromJson(json.Get("embedding"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
+	if json.Get("redis").Exists() {
+		// compatible with legacy config
+		c.cacheProviderConfig.ConvertLegacyJson(json.Get("redis"))
+	}
 
 	c.CacheKeyStrategy = json.Get("cacheKeyStrategy").String()
 	if c.CacheKeyStrategy == "" {
-		c.CacheKeyStrategy = "lastQuestion" // 设置默认值
+		c.CacheKeyStrategy = "lastQuestion" // set default value
 	}
 	// c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
 	// if c.CacheKeyFrom == "" {
@@ -85,7 +89,7 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 	if json.Get("enableSemanticCache").Exists() {
 		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
 	} else {
-		c.EnableSemanticCache = true // 设置默认值为 true
+		c.EnableSemanticCache = true // set default value to true
 	}
 }
 
@@ -107,29 +111,34 @@ func (c *PluginConfig) Validate() error {
 		}
 	}
 
-	// vector 和 embedding 不能同时为空
-	if c.vectorProviderConfig.GetProviderType() == "" && c.embeddingProviderConfig.GetProviderType() == "" {
-		return fmt.Errorf("vector and embedding provider cannot be both empty")
+	// cache, vector, and embedding cannot all be empty
+	if c.vectorProviderConfig.GetProviderType() == "" &&
+		c.embeddingProviderConfig.GetProviderType() == "" &&
+		c.cacheProviderConfig.GetProviderType() == "" {
+		return fmt.Errorf("vector, embedding and cache provider cannot be all empty")
 	}
 
-	// 验证 CacheKeyStrategy 的值
+	// Validate the value of CacheKeyStrategy
 	if c.CacheKeyStrategy != CACHE_KEY_STRATEGY_LAST_QUESTION &&
 		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_ALL_QUESTIONS &&
 		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_DISABLED {
 		return fmt.Errorf("invalid CacheKeyStrategy: %s", c.CacheKeyStrategy)
 	}
-	// 如果启用了语义化缓存，确保必要的组件已配置
-	if c.EnableSemanticCache {
-		if c.embeddingProviderConfig.GetProviderType() == "" {
-			return fmt.Errorf("semantic cache is enabled but embedding provider is not configured")
-		}
-	}
+
+	// If semantic cache is enabled, ensure necessary components are configured
+	// if c.EnableSemanticCache {
+	// 	if c.embeddingProviderConfig.GetProviderType() == "" {
+	// 		return fmt.Errorf("semantic cache is enabled but embedding provider is not configured")
+	// 	}
+	// 	// if only configure cache, just warn the user
+	// }
 	return nil
 }
 
 func (c *PluginConfig) Complete(log wrapper.Log) error {
 	var err error
 	if c.embeddingProviderConfig.GetProviderType() != "" {
+		log.Debugf("embedding provider is set to %s", c.embeddingProviderConfig.GetProviderType())
 		c.embeddingProvider, err = embedding.CreateProvider(c.embeddingProviderConfig)
 		if err != nil {
 			return err
@@ -139,6 +148,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 		c.embeddingProvider = nil
 	}
 	if c.cacheProviderConfig.GetProviderType() != "" {
+		log.Debugf("cache provider is set to %s", c.cacheProviderConfig.GetProviderType())
 		c.cacheProvider, err = cache.CreateProvider(c.cacheProviderConfig)
 		if err != nil {
 			return err
@@ -147,9 +157,15 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 		log.Info("cache provider is not configured")
 		c.cacheProvider = nil
 	}
-	c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
-	if err != nil {
-		return err
+	if c.vectorProviderConfig.GetProviderType() != "" {
+		log.Debugf("vector provider is set to %s", c.vectorProviderConfig.GetProviderType())
+		c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Info("vector provider is not configured")
+		c.vectorProvider = nil
 	}
 	return nil
 }
