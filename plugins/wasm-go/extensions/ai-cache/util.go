@@ -35,8 +35,7 @@ func handleNonStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk 
 func handleStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
-	log.Debugf("[%s] [handleStreamChunk] chunk: %s", PLUGIN_NAME, chunk)
-	log.Debugf("[%s] [handleStreamChunk] partialMessageI: %v", PLUGIN_NAME, partialMessageI)
+	log.Debugf("[%s] [handleStreamChunk] cache content: %v", PLUGIN_NAME, ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY))
 	if partialMessageI != nil {
 		partialMessage = append(partialMessageI.([]byte), chunk...)
 	} else {
@@ -116,6 +115,11 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 
 	// skip the prefix "data:"
 	bodyJson := message[5:]
+
+	if strings.TrimSpace(bodyJson) == "[DONE]" {
+		return "", nil
+	}
+
 	// Extract values from JSON fields
 	responseBody := gjson.Get(bodyJson, c.CacheStreamValueFrom)
 	toolCalls := gjson.Get(bodyJson, c.CacheToolCallsFrom)
@@ -127,9 +131,11 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 
 	// Check if the ResponseBody field exists
 	if !responseBody.Exists() {
-		// Return an empty string if we cannot extract the content
-		log.Warnf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
-		return "", nil
+		if ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY) != nil {
+			log.Debugf("[%s] [processSSEMessage] unable to extract content from message; cache content is not nil: %s", PLUGIN_NAME, message)
+			return "", nil
+		}
+		return "", fmt.Errorf("[%s] [processSSEMessage] unable to extract content from message; cache content is nil: %s", PLUGIN_NAME, message)
 	} else {
 		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 

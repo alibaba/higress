@@ -140,6 +140,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+	log.Debugf("[onHttpResponseBody] is last chunk: %v", isLastChunk)
+	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
 	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
 		return chunk
 	}
