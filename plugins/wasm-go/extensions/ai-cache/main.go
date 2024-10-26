@@ -141,18 +141,16 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 
 func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
-		if isLastChunk {
-			// If the last chunk is an error, clear the error flag
-			ctx.SetContext(ERROR_PARTIAL_MESSAGE_KEY, nil)
-		}
 		return chunk
 	}
+
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		return chunk
 	}
 
 	key := ctx.GetContext(CACHE_KEY_CONTEXT_KEY)
 	if key == nil {
+		log.Debug("[onHttpResponseBody] key is nil, skip cache")
 		return chunk
 	}
 

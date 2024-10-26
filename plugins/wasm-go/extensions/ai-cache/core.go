@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
@@ -60,7 +61,7 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 
 // processCacheHit handles a successful cache hit.
 func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) {
-	if response == "" || response == " " {
+	if strings.TrimSpace(response) == "" {
 		log.Warnf("[%s] [processCacheHit] cached response for key %s is empty", PLUGIN_NAME, key)
 		proxywasm.ResumeHttpRequest()
 		return
@@ -69,14 +70,15 @@ func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpC
 	log.Debugf("[%s] [processCacheHit] cached response for key %s: %s", PLUGIN_NAME, key, response)
 
 	// Replace newline characters in the response with escaped characters to ensure consistent formatting
-	response = strings.ReplaceAll(response, "\n", "\\n")
+	// response = strings.ReplaceAll(response, "\n", "\\n")
+	escapedResponse := strconv.Quote(response)
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
 	if stream {
-		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(c.StreamResponseTemplate, response)), -1)
+		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(c.StreamResponseTemplate, escapedResponse)), -1)
 	} else {
-		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(c.ResponseTemplate, response)), -1)
+		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(c.ResponseTemplate, escapedResponse)), -1)
 	}
 }
 
@@ -201,7 +203,7 @@ func handleInternalError(err error, message string, log wrapper.Log) {
 
 // Caches the response value
 func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
-	if value == "" || value == " " {
+	if strings.TrimSpace(value) == "" {
 		log.Warnf("[%s] [cacheResponse] cached value for key %s is empty", PLUGIN_NAME, key)
 		return
 	}
@@ -209,8 +211,8 @@ func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, v
 	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider != nil {
 		queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
-		log.Infof("[%s] setting cache to redis, key: %s, value: %s", PLUGIN_NAME, queryKey, value)
 		_ = activeCacheProvider.Set(queryKey, value, nil)
+		log.Debugf("[%s] [cacheResponse] cache set success, key: %s, length of value: %d", PLUGIN_NAME, queryKey, len(value))
 	}
 }
 

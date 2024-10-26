@@ -45,7 +45,10 @@ func handleStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []b
 	messages := strings.Split(string(partialMessage), "\n\n")
 	for i, msg := range messages {
 		if i < len(messages)-1 {
-			processSSEMessage(ctx, c, msg, log)
+			_, err := processSSEMessage(ctx, c, msg, log)
+			if err != nil {
+				return fmt.Errorf("[%s] [handleStreamChunk] processSSEMessage failed, error: %v", PLUGIN_NAME, err)
+			}
 		}
 	}
 	if !strings.HasSuffix(string(partialMessage), "\n\n") {
@@ -66,8 +69,8 @@ func processNonStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, c
 	}
 	bodyJson := gjson.ParseBytes(body)
 	value := bodyJson.Get(c.CacheValueFrom).String()
-	if value == "" {
-		log.Warnf("[%s] [processNonStreamLastChunk] parse value from response body failed, body:%s", PLUGIN_NAME, body)
+	if strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("[%s] [processNonStreamLastChunk] parse value from response body failed, body:%s", PLUGIN_NAME, body)
 	}
 	return value, nil
 }
@@ -82,11 +85,14 @@ func processStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chun
 			lastMessage = chunk
 		}
 		if !strings.HasSuffix(string(lastMessage), "\n\n") {
-			log.Warnf("[%s] [processStreamLastChunk] invalid lastMessage:%s", PLUGIN_NAME, lastMessage)
-			return "", nil
+			return "", fmt.Errorf("[%s] [processStreamLastChunk] invalid lastMessage:%s", PLUGIN_NAME, lastMessage)
 		}
 		lastMessage = lastMessage[:len(lastMessage)-2]
-		return processSSEMessage(ctx, c, string(lastMessage), log)
+		value, err := processSSEMessage(ctx, c, string(lastMessage), log)
+		if err != nil {
+			return "", fmt.Errorf("[%s] [processStreamLastChunk] processSSEMessage failed, error: %v", PLUGIN_NAME, err)
+		}
+		return value, nil
 	}
 	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 	if tempContentI == nil {
@@ -105,8 +111,7 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 		}
 	}
 	if len(message) < 6 {
-		log.Warnf("[%s] [processSSEMessage] invalid message: %s", PLUGIN_NAME, message)
-		return "", nil
+		return "", fmt.Errorf("[%s] [processSSEMessage] invalid message: %s", PLUGIN_NAME, message)
 	}
 
 	// skip the prefix "data:"
@@ -123,8 +128,8 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 	// Check if the ResponseBody field exists
 	if !responseBody.Exists() {
 		// Return an empty string if we cannot extract the content
-		// log.Warnf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
-		return "", fmt.Errorf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
+		log.Warnf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
+		return "", nil
 	} else {
 		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 
