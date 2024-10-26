@@ -53,7 +53,7 @@ func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
 	if json.Get("redis").Exists() {
 		// compatible with legacy config
-		c.cacheProviderConfig.ConvertLegacyJson(json.Get("redis"))
+		c.cacheProviderConfig.ConvertLegacyJson(json)
 	}
 
 	c.CacheKeyStrategy = json.Get("cacheKeyStrategy").String()

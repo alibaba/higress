@@ -9,7 +9,7 @@ import (
 
 const (
 	PROVIDER_TYPE_REDIS  = "redis"
-	DEFAULT_CACHE_PREFIX = "higressAiCache:"
+	DEFAULT_CACHE_PREFIX = "higress-ai-cache:"
 )
 
 type providerInitializer interface {
@@ -91,8 +91,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 }
 
 func (c *ProviderConfig) ConvertLegacyJson(json gjson.Result) {
-	c.FromJson(json)
+	c.FromJson(json.Get("redis"))
 	c.typ = "redis"
+	if json.Get("cacheTTL").Exists() {
+		c.cacheTTL = int(json.Get("cacheTTL").Int())
+	}
 }
 
 func (c *ProviderConfig) Validate() error {

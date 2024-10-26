@@ -20,7 +20,8 @@ const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	TOOL_CALLS_CONTEXT_KEY      = "toolCalls"
 	STREAM_CONTEXT_KEY          = "stream"
-	SKIP_CACHE_HEADER           = "skip-cache"
+	SKIP_CACHE_HEADER           = "x-higress-skip-ai-cache"
+	ERROR_PARTIAL_MESSAGE_KEY   = "errorPartialMessage"
 )
 
 func main() {
@@ -134,14 +135,18 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
 	}
+
 	return types.ActionContinue
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	if string(chunk) == "data: [DONE]" {
-		return nil
+	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
+		if isLastChunk {
+			// If the last chunk is an error, clear the error flag
+			ctx.SetContext(ERROR_PARTIAL_MESSAGE_KEY, nil)
+		}
+		return chunk
 	}
-
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		return chunk
 	}
@@ -152,15 +157,26 @@ func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []
 	}
 
 	if !isLastChunk {
-		return handleNonLastChunk(ctx, c, chunk, log)
+		if err := handleNonLastChunk(ctx, c, chunk, log); err != nil {
+			log.Errorf("[onHttpResponseBody] handle non last chunk failed, error: %v", err)
+			// Set an empty struct in the context to indicate an error in processing the partial message
+			ctx.SetContext(ERROR_PARTIAL_MESSAGE_KEY, struct{}{})
+		}
+		return chunk
 	}
 
 	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
+	var err error
 	if stream == nil {
-		value = processNonStreamLastChunk(ctx, c, chunk, log)
+		value, err = processNonStreamLastChunk(ctx, c, chunk, log)
 	} else {
-		value = processStreamLastChunk(ctx, c, chunk, log)
+		value, err = processStreamLastChunk(ctx, c, chunk, log)
+	}
+
+	if err != nil {
+		log.Errorf("[onHttpResponseBody] process last chunk failed, error: %v", err)
+		return chunk
 	}
 
 	cacheResponse(ctx, c, key.(string), value, log)

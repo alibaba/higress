@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
@@ -59,7 +60,16 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 
 // processCacheHit handles a successful cache hit.
 func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) {
+	if response == "" || response == " " {
+		log.Warnf("[%s] [processCacheHit] cached response for key %s is empty", PLUGIN_NAME, key)
+		proxywasm.ResumeHttpRequest()
+		return
+	}
+
 	log.Debugf("[%s] [processCacheHit] cached response for key %s: %s", PLUGIN_NAME, key, response)
+
+	// Replace newline characters in the response with escaped characters to ensure consistent formatting
+	response = strings.ReplaceAll(response, "\n", "\\n")
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
@@ -154,18 +164,16 @@ func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.Ht
 		log.Infof("[%s] key accepted: %s with score: %f", PLUGIN_NAME, mostSimilarData.Text, mostSimilarData.Score)
 		if mostSimilarData.Answer != "" {
 			// direct return the answer if available
+			cacheResponse(ctx, c, key, mostSimilarData.Answer, log)
 			processCacheHit(key, mostSimilarData.Answer, stream, ctx, c, log)
 		} else {
-			// // otherwise, continue to check cache for the most similar key
-			// err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
-			// if err != nil {
-			// 	log.Errorf("check cache for key: %s failed, error: %v", mostSimilarData.Text, err)
-			// 	proxywasm.ResumeHttpRequest()
-			// }
-
-			// Otherwise, do not check the cache, directly return
-			log.Infof("[%s] cache hit for key: %s, but no corresponding answer found in the vector database", PLUGIN_NAME, mostSimilarData.Text)
-			proxywasm.ResumeHttpRequest()
+			if c.GetCacheProvider() != nil {
+				CheckCacheForKey(mostSimilarData.Text, ctx, c, log, stream, false)
+			} else {
+				// Otherwise, do not check the cache, directly return
+				log.Infof("[%s] cache hit for key: %s, but no corresponding answer found in the vector database", PLUGIN_NAME, mostSimilarData.Text)
+				proxywasm.ResumeHttpRequest()
+			}
 		}
 	} else {
 		log.Infof("[%s] score not meet the threshold %f: %s with score %f", PLUGIN_NAME, simThreshold, mostSimilarData.Text, mostSimilarData.Score)
@@ -193,6 +201,11 @@ func handleInternalError(err error, message string, log wrapper.Log) {
 
 // Caches the response value
 func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
+	if value == "" || value == " " {
+		log.Warnf("[%s] [cacheResponse] cached value for key %s is empty", PLUGIN_NAME, key)
+		return
+	}
+
 	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider != nil {
 		queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
