@@ -191,11 +191,11 @@ func (c *PluginConfig) GetCacheProvider() cache.Provider {
 
 func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log) {
 	keyMap := map[string]string{
-		"`cacheKeyFrom.requestBody`":         "cacheKeyFrom",
-		"`cacheValueFrom.requestBody`":       "cacheValueFrom",
-		"`cacheStreamValueFrom.requestBody`": "cacheStreamValueFrom",
-		"returnResponseTemplate":             "responseTemplate",
-		"returnStreamResponseTemplate":       "streamResponseTemplate",
+		"cacheKeyFrom.requestBody":         "cacheKeyFrom",
+		"cacheValueFrom.requestBody":       "cacheValueFrom",
+		"cacheStreamValueFrom.requestBody": "cacheStreamValueFrom",
+		"returnResponseTemplate":           "responseTemplate",
+		"returnStreamResponseTemplate":     "streamResponseTemplate",
 	}
 
 	for oldKey, newKey := range keyMap {

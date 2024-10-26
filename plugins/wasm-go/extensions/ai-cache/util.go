@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
@@ -34,6 +35,8 @@ func handleNonStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk 
 func handleStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+	log.Debugf("[%s] [handleStreamChunk] chunk: %s", PLUGIN_NAME, chunk)
+	log.Debugf("[%s] [handleStreamChunk] partialMessageI: %v", PLUGIN_NAME, partialMessageI)
 	if partialMessageI != nil {
 		partialMessage = append(partialMessageI.([]byte), chunk...)
 	} else {
@@ -120,8 +123,8 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 	// Check if the ResponseBody field exists
 	if !responseBody.Exists() {
 		// Return an empty string if we cannot extract the content
-		log.Warnf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
-		return "", nil
+		// log.Warnf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
+		return "", fmt.Errorf("[%s] [processSSEMessage] cannot extract content from message: %s", PLUGIN_NAME, message)
 	} else {
 		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 
