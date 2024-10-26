@@ -136,15 +136,17 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
 	}
 
+	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	return types.ActionContinue
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	log.Debugf("[onHttpResponseBody] is last chunk: %v", isLastChunk)
 	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
-	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
-		return chunk
-	}
 
 	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
 		return chunk

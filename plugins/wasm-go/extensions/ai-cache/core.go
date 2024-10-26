@@ -69,8 +69,7 @@ func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpC
 
 	log.Debugf("[%s] [processCacheHit] cached response for key %s: %s", PLUGIN_NAME, key, response)
 
-	// Replace newline characters in the response with escaped characters to ensure consistent formatting
-	// response = strings.ReplaceAll(response, "\n", "\\n")
+	// Escape the response to ensure consistent formatting
 	escapedResponse := strings.Trim(strconv.Quote(response), "\"")
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
