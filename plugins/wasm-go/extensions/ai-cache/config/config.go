@@ -32,7 +32,7 @@ type PluginConfig struct {
 	vectorProviderConfig    vector.ProviderConfig
 	cacheProviderConfig     cache.ProviderConfig
 
-	// CacheKeyFrom         string
+	CacheKeyFrom         string
 	CacheValueFrom       string
 	CacheStreamValueFrom string
 	CacheToolCallsFrom   string
@@ -46,7 +46,8 @@ type PluginConfig struct {
 	CacheKeyStrategy string
 }
 
-func (c *PluginConfig) FromJson(json gjson.Result) {
+func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
+
 	c.vectorProviderConfig.FromJson(json.Get("vector"))
 	c.embeddingProviderConfig.FromJson(json.Get("embedding"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
@@ -57,12 +58,12 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 
 	c.CacheKeyStrategy = json.Get("cacheKeyStrategy").String()
 	if c.CacheKeyStrategy == "" {
-		c.CacheKeyStrategy = "lastQuestion" // set default value
+		c.CacheKeyStrategy = CACHE_KEY_STRATEGY_LAST_QUESTION // set default value
 	}
-	// c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
-	// if c.CacheKeyFrom == "" {
-	// 	c.CacheKeyFrom = "messages.@reverse.0.content"
-	// }
+	c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
+	if c.CacheKeyFrom == "" {
+		c.CacheKeyFrom = "messages.@reverse.0.content"
+	}
 	c.CacheValueFrom = json.Get("cacheValueFrom").String()
 	if c.CacheValueFrom == "" {
 		c.CacheValueFrom = "choices.0.message.content"
@@ -85,12 +86,14 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 		c.ResponseTemplate = `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	}
 
-	// 默认值为 true
 	if json.Get("enableSemanticCache").Exists() {
 		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
 	} else {
 		c.EnableSemanticCache = true // set default value to true
 	}
+
+	// compatible with legacy config
+	convertLegacyMapFields(c, json, log)
 }
 
 func (c *PluginConfig) Validate() error {
@@ -184,4 +187,39 @@ func (c *PluginConfig) GetVectorProviderConfig() vector.ProviderConfig {
 
 func (c *PluginConfig) GetCacheProvider() cache.Provider {
 	return c.cacheProvider
+}
+
+func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log) {
+	keyMap := map[string]string{
+		"cacheKeyFrom.requestBody":         "cacheKeyFrom",
+		"cacheValueFrom.requestBody":       "cacheValueFrom",
+		"cacheStreamValueFrom.requestBody": "cacheStreamValueFrom",
+		"returnResponseTemplate":           "responseTemplate",
+		"returnStreamResponseTemplate":     "streamResponseTemplate",
+	}
+
+	for oldKey, newKey := range keyMap {
+		if json.Get(oldKey).Exists() {
+			log.Debugf("[convertLegacyMapFields] mapping %s to %s", oldKey, newKey)
+			setField(c, newKey, json.Get(oldKey).String(), log)
+		} else {
+			log.Debugf("[convertLegacyMapFields] %s not exists", oldKey)
+		}
+	}
+}
+
+func setField(c *PluginConfig, fieldName string, value string, log wrapper.Log) {
+	switch fieldName {
+	case "cacheKeyFrom":
+		c.CacheKeyFrom = value
+	case "cacheValueFrom":
+		c.CacheValueFrom = value
+	case "cacheStreamValueFrom":
+		c.CacheStreamValueFrom = value
+	case "responseTemplate":
+		c.ResponseTemplate = value
+	case "streamResponseTemplate":
+		c.StreamResponseTemplate = value
+	}
+	log.Debugf("[setField] set %s to %s", fieldName, value)
 }

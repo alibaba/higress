@@ -39,7 +39,7 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) err
 	// config.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
 	// config.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
 	// config.RedisConfig.FromJson(json.Get("redis"))
-	c.FromJson(json)
+	c.FromJson(json, log)
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -86,9 +86,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 
 	var key string
 	if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_LAST_QUESTION {
-		key = bodyJson.Get("messages.@reverse.0.content").String()
+		log.Debugf("[onHttpRequestBody] cache key strategy is last question, cache key from: %s", c.CacheKeyFrom)
+		key = bodyJson.Get(c.CacheKeyFrom).String()
 	} else if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_ALL_QUESTIONS {
-		// Retrieve all user messages and concatenate them
+		log.Debugf("[onHttpRequestBody] cache key strategy is all questions, cache key from: messages")
 		messages := bodyJson.Get("messages").Array()
 		var userMessages []string
 		for _, msg := range messages {
@@ -98,7 +99,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 		}
 		key = strings.Join(userMessages, "\n")
 	} else if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_DISABLED {
-		log.Debugf("[onHttpRequestBody] cache key strategy is disabled")
+		log.Info("[onHttpRequestBody] cache key strategy is disabled")
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	} else {
