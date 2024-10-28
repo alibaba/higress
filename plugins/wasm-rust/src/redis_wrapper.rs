@@ -19,6 +19,7 @@ fn gen_callback(call_fn: Box<RedisValueCallbackFn>) -> Box<RedisCallbackFn> {
         call_fn(&res, status, token_id);
     })
 }
+
 pub struct RedisClientBuilder {
     upstream: String,
     username: Option<String>,
@@ -62,6 +63,7 @@ pub struct RedisClientConfig {
     password: Option<String>,
     timeout: Duration,
 }
+
 impl RedisClientConfig {
     pub fn new(cluster: &dyn Cluster, timeout: Duration) -> Self {
         RedisClientConfig {
@@ -82,6 +84,7 @@ impl RedisClientConfig {
         self
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct RedisClient {
     upstream: String,
