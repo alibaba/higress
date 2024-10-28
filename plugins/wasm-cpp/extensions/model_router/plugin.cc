@@ -101,7 +101,7 @@ bool PluginRootContext::configure(size_t configuration_size) {
                           configuration_data->view()));
     return false;
   }
-  if (!parseAuthRuleConfig(result.value())) {
+  if (!parseRuleConfig(result.value())) {
     LOG_WARN(absl::StrCat("cannot parse plugin configuration JSON string: ",
                           configuration_data->view()));
     return false;

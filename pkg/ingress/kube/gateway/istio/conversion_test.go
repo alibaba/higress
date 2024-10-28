@@ -919,7 +919,7 @@ func TestExtractGatewayServices(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			gatewayServices:   []string{},
+			gatewayServices:   []string{"higress-gateway.higress-system.svc.cluster.local"},
 			useDefaultService: true,
 		},
 		{
@@ -1039,7 +1039,7 @@ func TestExtractGatewayServices(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			gatewayServices:   []string{},
+			gatewayServices:   []string{"higress-gateway.higress-system.svc.cluster.local"},
 			useDefaultService: true,
 		},
 	}
