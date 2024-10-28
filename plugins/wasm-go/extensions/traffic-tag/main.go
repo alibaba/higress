@@ -16,6 +16,7 @@ package main
 
 import (
 	"math/rand"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -60,7 +61,6 @@ type TrafficTagConfig struct {
 	WeightGroups    []WeightGroup    `json:"weightGroups,omitempty"`
 	DefaultTagKey   string           `json:"defaultTagKey,omitempty"`
 	DefaultTagVal   string           `json:"defaultTagVal,omitempty"`
-	randGen         *rand.Rand
 }
 
 type ConditionGroup struct {
@@ -93,8 +93,11 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) error {
-	if err := jsonValidate(json, log); err != nil {
-		return err
+
+	jsonStr := strings.TrimSpace(json.Raw)
+	if jsonStr == "{}" || jsonStr == "" {
+		log.Error("plugin config is empty")
+		return nil
 	}
 
 	err := parseContentConfig(json, config, log)
@@ -106,7 +109,17 @@ func parseConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) e
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config TrafficTagConfig, log wrapper.Log) types.Action {
-	if add := (onContentRequestHeaders(config.ConditionGroups, log) || onWeightRequestHeaders(config.WeightGroups, config.randGen, log)); !add {
+
+	add := false
+	if len(config.ConditionGroups) != 0 {
+		add = add || onContentRequestHeaders(config.ConditionGroups, log)
+	}
+
+	if !add && len(config.WeightGroups) != 0 {
+		add = add || onWeightRequestHeaders(config.WeightGroups, rand.Uint64(), log)
+	}
+
+	if !add {
 		setDefaultTag(config.DefaultTagKey, config.DefaultTagVal, log)
 	}
 

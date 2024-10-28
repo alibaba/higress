@@ -26,10 +26,6 @@ import (
 )
 
 func onContentRequestHeaders(conditionGroups []ConditionGroup, log wrapper.Log) bool {
-	if len(conditionGroups) == 0 {
-		return false
-	}
-
 	for _, cg := range conditionGroups {
 		if matchCondition(&cg, log) {
 			addTagHeader(cg.HeaderName, cg.HeaderValue, log)
