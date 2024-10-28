@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use proxy_wasm::hostcalls;
+use std::fmt::{format, Arguments};
 
 pub enum LogLevel {
     Trace,
@@ -67,5 +68,46 @@ impl Log {
 
     pub fn critical(&self, msg: &str) {
         self.log(LogLevel::Critical, msg)
+    }
+
+    fn logf(&self, level: LogLevel, format_args: Arguments) {
+        let level = match level {
+            LogLevel::Trace => proxy_wasm::types::LogLevel::Trace,
+            LogLevel::Debug => proxy_wasm::types::LogLevel::Debug,
+            LogLevel::Info => proxy_wasm::types::LogLevel::Info,
+            LogLevel::Warn => proxy_wasm::types::LogLevel::Warn,
+            LogLevel::Error => proxy_wasm::types::LogLevel::Error,
+            LogLevel::Critical => proxy_wasm::types::LogLevel::Critical,
+        };
+        if let Ok(log_level) = hostcalls::get_log_level() {
+            if (level as i32) < (log_level as i32) {
+                return;
+            }
+            hostcalls::log(level, format(format_args).as_str()).unwrap();
+        }
+    }
+
+    pub fn tracef(&self, format_args: Arguments) {
+        self.logf(LogLevel::Trace, format_args)
+    }
+
+    pub fn debugf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Debug, format_args)
+    }
+
+    pub fn infof(&self, format_args: Arguments) {
+        self.logf(LogLevel::Info, format_args)
+    }
+
+    pub fn warnf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Warn, format_args)
+    }
+
+    pub fn errorf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Error, format_args)
+    }
+
+    pub fn criticalf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Critical, format_args)
     }
 }
