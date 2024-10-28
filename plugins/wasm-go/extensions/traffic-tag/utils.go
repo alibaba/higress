@@ -15,14 +15,12 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tidwall/gjson"
 )
 
 func setDefaultTag(k string, v string, log wrapper.Log) {
@@ -74,24 +72,4 @@ func addTagHeader(key string, value string, log wrapper.Log) {
 		return
 	}
 	log.Infof("ADD HEADER: %s, value: %s", key, value)
-}
-
-func jsonValidate(json gjson.Result, log wrapper.Log) error {
-	if !json.Exists() {
-		log.Error("plugin config is missing in JSON")
-		return errors.New("plugin config is missing in JSON")
-	}
-
-	jsonStr := strings.TrimSpace(json.Raw)
-	if jsonStr == "{}" || jsonStr == "" {
-		log.Error("plugin config is empty")
-		return errors.New("plugin config is empty")
-	}
-
-	if !gjson.Valid(json.Raw) {
-		log.Error("plugin config is invalid JSON")
-		return errors.New("plugin config is invalid JSON")
-	}
-
-	return nil
 }
