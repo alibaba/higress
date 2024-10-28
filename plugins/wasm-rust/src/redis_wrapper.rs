@@ -25,6 +25,7 @@ pub struct RedisClientBuilder {
     password: Option<String>,
     timeout: Duration,
 }
+
 impl RedisClientBuilder {
     pub fn new(cluster: &dyn Cluster, timeout: Duration) -> Self {
         RedisClientBuilder {
@@ -34,14 +35,17 @@ impl RedisClientBuilder {
             timeout,
         }
     }
+
     pub fn username<T: AsRef<str>>(mut self, username: Option<T>) -> Self {
         self.username = username.map(|u| u.as_ref().to_string());
         self
     }
+
     pub fn password<T: AsRef<str>>(mut self, password: Option<T>) -> Self {
         self.password = password.map(|p| p.as_ref().to_string());
         self
     }
+
     pub fn build(self) -> RedisClient {
         RedisClient {
             upstream: self.upstream,
@@ -67,10 +71,12 @@ impl RedisClientConfig {
             timeout,
         }
     }
+
     pub fn username<T: AsRef<str>>(&mut self, username: Option<T>) -> &Self {
         self.username = username.map(|u| u.as_ref().to_string());
         self
     }
+
     pub fn password<T: AsRef<str>>(&mut self, password: Option<T>) -> &Self {
         self.password = password.map(|p| p.as_ref().to_string());
         self
@@ -93,6 +99,7 @@ impl RedisClient {
             timeout: config.timeout,
         }
     }
+
     pub fn init(&self) -> Result<(), Status> {
         internal::redis_init(
             &self.upstream,
@@ -101,12 +108,15 @@ impl RedisClient {
             self.timeout,
         )
     }
+
     fn call(&self, query: &[u8], call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         internal::dispatch_redis_call(&self.upstream, query, gen_callback(call_fn))
     }
+
     pub fn command(&self, cmd: &Cmd, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         self.call(&cmd.get_packed_command(), call_fn)
     }
+
     pub fn eval<T: ToRedisArgs>(
         &self,
         script: &str,
@@ -132,11 +142,13 @@ impl RedisClient {
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn exists(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("exists");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn expire(
         &self,
         key: &str,
@@ -147,6 +159,7 @@ impl RedisClient {
         cmd.arg(key).arg(ttl);
         self.command(&cmd, call_fn)
     }
+
     pub fn persist(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("persist");
         cmd.arg(key);
@@ -159,6 +172,7 @@ impl RedisClient {
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn set<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -169,6 +183,7 @@ impl RedisClient {
         cmd.arg(key).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn setex<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -180,6 +195,7 @@ impl RedisClient {
         cmd.arg(key).arg(ttl).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn mget(&self, keys: Vec<&str>, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("mget");
         for key in keys {
@@ -187,6 +203,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn mset<T: ToRedisArgs>(
         &self,
         kv_map: HashMap<&str, T>,
@@ -198,16 +215,19 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn incr(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("incr");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn decr(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("decr");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn incrby(
         &self,
         key: &str,
@@ -218,6 +238,7 @@ impl RedisClient {
         cmd.arg(key).arg(delta);
         self.command(&cmd, call_fn)
     }
+
     pub fn decrby(
         &self,
         key: &str,
@@ -235,6 +256,7 @@ impl RedisClient {
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn rpush<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -248,11 +270,13 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn rpop(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("rpop");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn lpush<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -266,11 +290,13 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn lpop(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("lpop");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn lindex(
         &self,
         key: &str,
@@ -281,6 +307,7 @@ impl RedisClient {
         cmd.arg(key).arg(index);
         self.command(&cmd, call_fn)
     }
+
     pub fn lrange(
         &self,
         key: &str,
@@ -292,6 +319,7 @@ impl RedisClient {
         cmd.arg(key).arg(start).arg(stop);
         self.command(&cmd, call_fn)
     }
+
     pub fn lrem<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -303,6 +331,7 @@ impl RedisClient {
         cmd.arg(key).arg(count).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn linsert_before<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -314,6 +343,7 @@ impl RedisClient {
         cmd.arg(key).arg("before").arg(pivot).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn linsert_after<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -338,6 +368,7 @@ impl RedisClient {
         cmd.arg(key).arg(field);
         self.command(&cmd, call_fn)
     }
+
     pub fn hdel(
         &self,
         key: &str,
@@ -351,11 +382,13 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn hlen(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("hlen");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn hget(
         &self,
         key: &str,
@@ -366,6 +399,7 @@ impl RedisClient {
         cmd.arg(key).arg(field);
         self.command(&cmd, call_fn)
     }
+
     pub fn hset<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -377,6 +411,7 @@ impl RedisClient {
         cmd.arg(key).arg(field).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn hmget(
         &self,
         key: &str,
@@ -390,6 +425,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn hmset<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -403,21 +439,25 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn hkeys(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("hkeys");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn hvals(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("hvals");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn hgetall(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("hgetall");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn hincrby(
         &self,
         key: &str,
@@ -429,6 +469,7 @@ impl RedisClient {
         cmd.arg(key).arg(field).arg(delta);
         self.command(&cmd, call_fn)
     }
+
     pub fn hincrbyfloat(
         &self,
         key: &str,
@@ -447,6 +488,7 @@ impl RedisClient {
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn sadd<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -460,6 +502,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn srem<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -473,6 +516,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn sismember<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -483,11 +527,13 @@ impl RedisClient {
         cmd.arg(key).arg(value);
         self.command(&cmd, call_fn)
     }
+
     pub fn smembers(&self, key: &str, call_fn: Box<RedisValueCallbackFn>) -> Result<u32, Status> {
         let mut cmd = redis::cmd("smembers");
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn sdiff(
         &self,
         key1: &str,
@@ -498,6 +544,7 @@ impl RedisClient {
         cmd.arg(key1).arg(key2);
         self.command(&cmd, call_fn)
     }
+
     pub fn sdiffstore(
         &self,
         destination: &str,
@@ -509,6 +556,7 @@ impl RedisClient {
         cmd.arg(destination).arg(key1).arg(key2);
         self.command(&cmd, call_fn)
     }
+
     pub fn sinter(
         &self,
         key1: &str,
@@ -519,6 +567,7 @@ impl RedisClient {
         cmd.arg(key1).arg(key2);
         self.command(&cmd, call_fn)
     }
+
     pub fn sinterstore(
         &self,
         destination: &str,
@@ -530,6 +579,7 @@ impl RedisClient {
         cmd.arg(destination).arg(key1).arg(key2);
         self.command(&cmd, call_fn)
     }
+
     pub fn sunion(
         &self,
         key1: &str,
@@ -540,6 +590,7 @@ impl RedisClient {
         cmd.arg(key1).arg(key2);
         self.command(&cmd, call_fn)
     }
+
     pub fn sunion_store(
         &self,
         destination: &str,
@@ -558,6 +609,7 @@ impl RedisClient {
         cmd.arg(key);
         self.command(&cmd, call_fn)
     }
+
     pub fn zadd<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -571,6 +623,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn zcount<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -582,6 +635,7 @@ impl RedisClient {
         cmd.arg(key).arg(min).arg(max);
         self.command(&cmd, call_fn)
     }
+
     pub fn zincrby<T: ToRedisArgs>(
         &self,
         key: &str,
@@ -593,6 +647,7 @@ impl RedisClient {
         cmd.arg(key).arg(delta).arg(member);
         self.command(&cmd, call_fn)
     }
+
     pub fn zscore(
         &self,
         key: &str,
@@ -603,6 +658,7 @@ impl RedisClient {
         cmd.arg(key).arg(member);
         self.command(&cmd, call_fn)
     }
+
     pub fn zrank(
         &self,
         key: &str,
@@ -613,6 +669,7 @@ impl RedisClient {
         cmd.arg(key).arg(member);
         self.command(&cmd, call_fn)
     }
+
     pub fn zrev_rank(
         &self,
         key: &str,
@@ -623,6 +680,7 @@ impl RedisClient {
         cmd.arg(key).arg(member);
         self.command(&cmd, call_fn)
     }
+
     pub fn zrem(
         &self,
         key: &str,
@@ -636,6 +694,7 @@ impl RedisClient {
         }
         self.command(&cmd, call_fn)
     }
+
     pub fn zrange(
         &self,
         key: &str,
@@ -647,6 +706,7 @@ impl RedisClient {
         cmd.arg(key).arg(start).arg(stop);
         self.command(&cmd, call_fn)
     }
+
     pub fn zrevrange(
         &self,
         key: &str,

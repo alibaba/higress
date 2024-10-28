@@ -30,6 +30,7 @@ use serde::de::DeserializeOwned;
 lazy_static! {
     static ref LOG: Log = Log::new("plugin_wrapper".to_string());
 }
+
 thread_local! {
     static HTTP_CALLBACK_DISPATCHER: HttpCallbackDispatcher = HttpCallbackDispatcher::new();
 }
@@ -49,7 +50,9 @@ where
             None => None,
         }
     }
+
     fn rule_matcher(&self) -> &SharedRuleMatcher<PluginConfig>;
+
     fn create_http_context_wrapper(
         &self,
         _context_id: u32,
@@ -63,20 +66,24 @@ pub type HttpCallbackFn = dyn FnOnce(u16, &MultiMap<String, String>, Option<Vec<
 pub struct HttpCallbackDispatcher {
     call_fns: RefCell<HashMap<u32, Box<HttpCallbackFn>>>,
 }
+
 impl Default for HttpCallbackDispatcher {
     fn default() -> Self {
         Self::new()
     }
 }
+
 impl HttpCallbackDispatcher {
     pub fn new() -> Self {
         HttpCallbackDispatcher {
             call_fns: RefCell::new(HashMap::new()),
         }
     }
+
     pub fn set(&self, token_id: u32, arg: Box<HttpCallbackFn>) {
         self.call_fns.borrow_mut().insert(token_id, arg);
     }
+
     pub fn pop(&self, token_id: u32) -> Option<Box<HttpCallbackFn>> {
         self.call_fns.borrow_mut().remove(&token_id)
     }
@@ -91,31 +98,39 @@ where
         _self_weak: Weak<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
     ) {
     }
+
     fn log(&self) -> &Log {
         &LOG
     }
+
     fn on_config(&mut self, _config: Rc<PluginConfig>) {}
+
     fn on_http_request_complete_headers(
         &mut self,
         _headers: &MultiMap<String, String>,
     ) -> HeaderAction {
         HeaderAction::Continue
     }
+
     fn on_http_response_complete_headers(
         &mut self,
         _headers: &MultiMap<String, String>,
     ) -> HeaderAction {
         HeaderAction::Continue
     }
+
     fn cache_request_body(&self) -> bool {
         false
     }
+
     fn cache_response_body(&self) -> bool {
         false
     }
+
     fn on_http_request_complete_body(&mut self, _req_body: &Bytes) -> DataAction {
         DataAction::Continue
     }
+
     fn on_http_response_complete_body(&mut self, _res_body: &Bytes) -> DataAction {
         DataAction::Continue
     }
@@ -123,9 +138,11 @@ where
     fn replace_http_request_body(&mut self, body: &[u8]) {
         self.set_http_request_body(0, i32::MAX as usize, body)
     }
+
     fn replace_http_response_body(&mut self, body: &[u8]) {
         self.set_http_response_body(0, i32::MAX as usize, body)
     }
+
     #[allow(clippy::too_many_arguments)]
     fn http_call(
         &mut self,
@@ -187,6 +204,7 @@ pub struct PluginHttpWrapper<PluginConfig> {
     rule_matcher: SharedRuleMatcher<PluginConfig>,
     http_content: Rc<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
 }
+
 impl<PluginConfig> PluginHttpWrapper<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned + Clone + 'static,
@@ -207,10 +225,12 @@ where
             http_content: rc_content,
         }
     }
+
     fn get_http_call_fn(&mut self, token_id: u32) -> Option<Box<HttpCallbackFn>> {
         HTTP_CALLBACK_DISPATCHER.with(|dispatcher| dispatcher.pop(token_id))
     }
 }
+
 impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned + Clone + 'static,
@@ -272,21 +292,25 @@ where
             .borrow_mut()
             .on_grpc_call_response(token_id, status_code, response_size)
     }
+
     fn on_grpc_stream_initial_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
             .borrow_mut()
             .on_grpc_stream_initial_metadata(token_id, num_elements)
     }
+
     fn on_grpc_stream_message(&mut self, token_id: u32, message_size: usize) {
         self.http_content
             .borrow_mut()
             .on_grpc_stream_message(token_id, message_size)
     }
+
     fn on_grpc_stream_trailing_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
             .borrow_mut()
             .on_grpc_stream_trailing_metadata(token_id, num_elements)
     }
+
     fn on_grpc_stream_close(&mut self, token_id: u32, status_code: u32) {
         self.http_content
             .borrow_mut()
@@ -297,6 +321,7 @@ where
         self.http_content.borrow_mut().on_done()
     }
 }
+
 impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned + Clone + 'static,

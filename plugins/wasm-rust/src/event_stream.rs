@@ -78,6 +78,7 @@ impl Iterator for EventStream {
         None
     }
 }
+
 impl EventStream {
     pub fn new() -> Self {
         EventStream {

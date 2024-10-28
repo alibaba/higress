@@ -390,6 +390,7 @@ pub(crate) fn redis_init(
 ) -> Result<(), Status> {
     hostcalls::redis_init(upstream, username, password, timeout)
 }
+
 pub(crate) fn dispatch_redis_call(
     upstream: &str,
     query: &[u8],
