@@ -28,15 +28,11 @@
 /// However, in the rules of event and field, there is an ambiguous grammar in the judgment of eol,
 /// and it will bring ambiguity (whether the field ends). In order to eliminate this ambiguity,
 /// we believe that CRLF as CR+LF belongs to event and field respectively.
+
+#[derive(Default)]
 pub struct EventStream {
     buffer: Vec<u8>,
     processed_offset: usize,
-}
-
-impl Default for EventStream {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Iterator for EventStream {
@@ -80,13 +76,6 @@ impl Iterator for EventStream {
 }
 
 impl EventStream {
-    pub fn new() -> Self {
-        EventStream {
-            buffer: Vec::new(),
-            processed_offset: 0,
-        }
-    }
-
     /// Update the event stream by adding new data to the buffer and resetting processed offset if needed.
     pub fn update(&mut self, data: Vec<u8>) {
         if self.processed_offset > 0 {
@@ -148,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_crlf_events() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"event1\n\nevent2\n\n".to_vec());
 
         assert_eq!(parser.next(), Some(b"event1".to_vec()));
@@ -157,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_lf_events() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"event3\n\r\nevent4\r\n".to_vec());
 
         assert_eq!(parser.next(), Some(b"event3".to_vec()));
@@ -166,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_partial_event() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"partial_event1".to_vec());
 
         assert_eq!(parser.next(), None);
@@ -177,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_mixed_eol_events() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"event5\r\nevent6\r\n\r\nevent7\r\n".to_vec());
 
         assert_eq!(parser.next(), Some(b"event5".to_vec()));
@@ -187,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_mixed2_eol_events() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"event5\r\nevent6\r\n".to_vec());
         assert_eq!(parser.next(), Some(b"event5".to_vec()));
         assert_eq!(parser.next(), Some(b"event6".to_vec()));
@@ -198,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_no_event() {
-        let mut parser = EventStream::new();
+        let mut parser = EventStream::default();
         parser.update(b"no_eol_in_this_string".to_vec());
 
         assert_eq!(parser.next(), None);
