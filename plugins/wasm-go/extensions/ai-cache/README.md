@@ -99,6 +99,31 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | responseTemplate | string | optional | `{"id":"ai-cache.hit","choices":[{"index":0,"message":{"role":"assistant","content":%s},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` | 返回 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分 |
 | streamResponseTemplate | string | optional | `data:{"id":"ai-cache.hit","choices":[{"index":0,"delta":{"role":"assistant","content":%s},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}\n\ndata:[DONE]\n\n` | 返回流式 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分 |
 
+# 向量数据库提供商特有配置
+## Chroma
+Chroma 所对应的 `vector.type` 为 `chroma`。它并无特有的配置字段。
+
+## DashVector
+DashVector 所对应的 `vector.type` 为 `dashvector`。它并无特有的配置字段。
+
+## ElasticSearch
+ElasticSearch 所对应的 `vector.type` 为 `elasticsearch`。它特有的配置字段如下：
+| 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
+|-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
+| `vector.esUsername` | string   | 非必填   | -      | ElasticSearch 用户名 |
+| `vector.esPassword` | object | 非必填 | - | ElasticSearch 密码 |
+
+## Milvus
+Milvus 所对应的 `vector.type` 为 `milvus`。它并无特有的配置字段。
+
+## Pinecone
+Pinecone 所对应的 `vector.type` 为 `pinecone`。它并无特有的配置字段。
+
+## Qdrant
+Qdrant 所对应的 `vector.type` 为 `qdrant`。它并无特有的配置字段。
+
+## Weaviate
+Weaviate 所对应的 `vector.type` 为 `weaviate`。它并无特有的配置字段。
 
 ## 配置示例
 ### 基础配置
