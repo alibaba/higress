@@ -48,6 +48,21 @@ func (d *DvProvider) GetProviderType() string {
 	return PROVIDER_TYPE_DASH_VECTOR
 }
 
+// type embeddingRequest struct {
+// 	Model      string `json:"model"`
+// 	Input      input  `json:"input"`
+// 	Parameters params `json:"parameters"`
+// }
+
+// type params struct {
+// 	TextType string `json:"text_type"`
+// }
+
+// type input struct {
+// 	Texts []string `json:"texts"`
+// }
+
+// queryResponse 定义查询响应的结构
 type queryResponse struct {
 	Code      int      `json:"code"`
 	RequestID string   `json:"request_id"`
@@ -55,15 +70,17 @@ type queryResponse struct {
 	Output    []result `json:"output"`
 }
 
+// queryRequest 定义查询请求的结构
 type queryRequest struct {
 	Vector        []float64 `json:"vector"`
 	TopK          int       `json:"topk"`
 	IncludeVector bool      `json:"include_vector"`
 }
 
+// result 定义查询结果的结构
 type result struct {
 	ID     string                 `json:"id"`
-	Vector []float64              `json:"vector,omitempty"` // 如果 vector 是空，vecotr 字段将不会被序列化
+	Vector []float64              `json:"vector,omitempty"` // omitempty 使得如果 vector 是空，它将不会被序列化
 	Fields map[string]interface{} `json:"fields"`
 	Score  float64                `json:"score"`
 }

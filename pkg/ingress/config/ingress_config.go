@@ -719,9 +719,9 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 			} else if dr.DestinationRule.TrafficPolicy != nil {
 				portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
 				portUpdated := false
-				for _, portTrafficPolicy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
-					if portTrafficPolicy.Port.Number == portTrafficPolicy.Port.Number {
-						portTrafficPolicy.Tls = portTrafficPolicy.Tls
+				for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
+					if policy.Port.Number == portTrafficPolicy.Port.Number {
+						policy.Tls = portTrafficPolicy.Tls
 						portUpdated = true
 						break
 					}

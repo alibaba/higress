@@ -15,16 +15,11 @@
 package main
 
 import (
-	"math/rand"
-
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-func onWeightRequestHeaders(weightGroups []WeightGroup, randGen *rand.Rand, log wrapper.Log) bool {
-	if len(weightGroups) == 0 {
-		return false
-	}
-	randomValue := randGen.Uint64() % TotalWeight
+func onWeightRequestHeaders(weightGroups []WeightGroup, randomNum uint64, log wrapper.Log) bool {
+	randomValue := randomNum % TotalWeight
 	log.Debugf("random value for weighted headers : %d", randomValue)
 	// CDF
 	for _, wg := range weightGroups {
