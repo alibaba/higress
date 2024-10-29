@@ -187,10 +187,9 @@ func (m *IngressTranslation) List(typ config.GroupVersionKind, namespace string)
 	higressConfig = append(higressConfig, ingressConfig...)
 	if m.kingressConfig != nil {
 		kingressConfig := m.kingressConfig.List(typ, namespace)
-		if kingressConfig == nil {
-			return nil
+		if kingressConfig != nil {
+			higressConfig = append(higressConfig, kingressConfig...)
 		}
-		higressConfig = append(higressConfig, kingressConfig...)
 	}
 	return higressConfig
 }
