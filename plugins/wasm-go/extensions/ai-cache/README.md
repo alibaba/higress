@@ -111,7 +111,7 @@ ElasticSearch 所对应的 `vector.type` 为 `elasticsearch`。它特有的配�
 | 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
 |-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
 | `vector.esUsername` | string   | 非必填   | -      | ElasticSearch 用户名 |
-| `vector.esPassword` | object | 非必填 | - | ElasticSearch 密码 |
+| `vector.esPassword` | string | 非必填 | - | ElasticSearch 密码 |
 
 ## Milvus
 Milvus 所对应的 `vector.type` 为 `milvus`。它并无特有的配置字段。
