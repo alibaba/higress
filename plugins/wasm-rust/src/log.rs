@@ -83,30 +83,60 @@ impl Log {
             if (level as i32) < (log_level as i32) {
                 return;
             }
-            hostcalls::log(level, format(format_args).as_str()).unwrap();
+            hostcalls::log(level, format!("[{}] {}", self.plugin_name, format_args).as_str()).unwrap();
         }
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.tracef(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn tracef(&self, format_args: Arguments) {
         self.logf(LogLevel::Trace, format_args)
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.debugf(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn debugf(&self, format_args: Arguments) {
         self.logf(LogLevel::Debug, format_args)
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.infof(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn infof(&self, format_args: Arguments) {
         self.logf(LogLevel::Info, format_args)
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.warnf(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn warnf(&self, format_args: Arguments) {
         self.logf(LogLevel::Warn, format_args)
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.errorf(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn errorf(&self, format_args: Arguments) {
         self.logf(LogLevel::Error, format_args)
     }
 
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.criticalf(format_args!("Hello, {}!","World"));
+    /// ```
     pub fn criticalf(&self, format_args: Arguments) {
         self.logf(LogLevel::Critical, format_args)
     }
