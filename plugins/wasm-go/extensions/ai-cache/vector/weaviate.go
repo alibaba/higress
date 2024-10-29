@@ -39,7 +39,7 @@ type WeaviateProvider struct {
 }
 
 func (c *WeaviateProvider) GetProviderType() string {
-	return providerTypeWeaviate
+	return PROVIDER_TYPE_WEAVIATE
 }
 
 func (d *WeaviateProvider) QueryEmbedding(

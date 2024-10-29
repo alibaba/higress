@@ -25,10 +25,10 @@ func (c *milvusProviderInitializer) ValidateConfig(config ProviderConfig) error 
 func (c *milvusProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &milvusProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.serviceName,
-			Port:        config.servicePort,
-			Domain:      config.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: config.serviceName,
+			Host: config.serviceHost,
+			Port: int64(config.servicePort),
 		}),
 	}, nil
 }
@@ -39,7 +39,7 @@ type milvusProvider struct {
 }
 
 func (c *milvusProvider) GetProviderType() string {
-	return providerTypeMilvus
+	return PROVIDER_TYPE_MILVUS
 }
 
 type milvusData struct {

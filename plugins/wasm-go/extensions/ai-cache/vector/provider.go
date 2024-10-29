@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	providerTypeDashVector = "dashvector"
-	providerTypeChroma     = "chroma"
-	providerTypeES         = "elasticsearch"
-	providerTypeWeaviate   = "weaviate"
-	providerTypePinecone   = "pinecone"
-	providerTypeQdrant     = "qdrant"
-	providerTypeMilvus     = "milvus"
+	PROVIDER_TYPE_DASH_VECTOR = "dashvector"
+	PROVIDER_TYPE_CHROMA      = "chroma"
+	PROVIDER_TYPE_ES          = "elasticsearch"
+	PROVIDER_TYPE_WEAVIATE    = "weaviate"
+	PROVIDER_TYPE_PINECONE    = "pinecone"
+	PROVIDER_TYPE_QDRANT      = "qdrant"
+	PROVIDER_TYPE_MILVUS      = "milvus"
 )
 
 type providerInitializer interface {
@@ -24,13 +24,13 @@ type providerInitializer interface {
 
 var (
 	providerInitializers = map[string]providerInitializer{
-		providerTypeDashVector: &dashVectorProviderInitializer{},
-		providerTypeChroma:     &chromaProviderInitializer{},
-		providerTypeWeaviate:   &weaviateProviderInitializer{},
-		providerTypeES:         &esProviderInitializer{},
-		providerTypePinecone:   &pineconeProviderInitializer{},
-		providerTypeQdrant:     &qdrantProviderInitializer{},
-		providerTypeMilvus:     &milvusProviderInitializer{},
+		PROVIDER_TYPE_DASH_VECTOR: &dashVectorProviderInitializer{},
+		PROVIDER_TYPE_CHROMA:      &chromaProviderInitializer{},
+		PROVIDER_TYPE_ES:          &weaviateProviderInitializer{},
+		PROVIDER_TYPE_WEAVIATE:    &esProviderInitializer{},
+		PROVIDER_TYPE_PINECONE:    &pineconeProviderInitializer{},
+		PROVIDER_TYPE_QDRANT:      &qdrantProviderInitializer{},
+		PROVIDER_TYPE_MILVUS:      &milvusProviderInitializer{},
 	}
 )
 

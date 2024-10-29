@@ -46,7 +46,7 @@ type pineconeProvider struct {
 }
 
 func (c *pineconeProvider) GetProviderType() string {
-	return providerTypePinecone
+	return PROVIDER_TYPE_PINECONE
 }
 
 type pineconeMetadata struct {

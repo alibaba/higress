@@ -39,7 +39,7 @@ type ESProvider struct {
 }
 
 func (c *ESProvider) GetProviderType() string {
-	return providerTypeES
+	return PROVIDER_TYPE_ES
 }
 
 func (d *ESProvider) QueryEmbedding(

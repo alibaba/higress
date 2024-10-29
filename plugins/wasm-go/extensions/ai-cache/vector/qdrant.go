@@ -40,7 +40,7 @@ type qdrantProvider struct {
 }
 
 func (c *qdrantProvider) GetProviderType() string {
-	return providerTypeQdrant
+	return PROVIDER_TYPE_QDRANT
 }
 
 type qdrantPayload struct {

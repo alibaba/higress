@@ -38,7 +38,7 @@ type ChromaProvider struct {
 }
 
 func (c *ChromaProvider) GetProviderType() string {
-	return providerTypeChroma
+	return PROVIDER_TYPE_CHROMA
 }
 
 func (d *ChromaProvider) QueryEmbedding(
