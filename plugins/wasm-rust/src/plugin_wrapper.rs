@@ -180,8 +180,8 @@ where
 
             if let Ok(token_id) = ret {
                 HTTP_CALLBACK_DISPATCHER.with(|dispatcher| dispatcher.set(token_id, call_fn));
-                self.log().debug(
-                    &format!(
+                self.log().debugf(
+                    format_args!(
                         "http call start, id: {}, cluster: {}, method: {}, url: {}, body: {:?}, timeout: {:?}",
                         token_id, cluster.cluster_name(), method.as_str(), raw_url, body, timeout
                     )
@@ -189,7 +189,8 @@ where
             }
             ret
         } else {
-            self.log().critical(&format!("invalid raw_url:{}", raw_url));
+            self.log()
+                .criticalf(format_args!("invalid raw_url:{}", raw_url));
             Err(Status::ParseFailure)
         }
     }
@@ -255,24 +256,24 @@ where
                                 status_code = code;
                                 normal_response = true;
                             } else {
-                                self.http_content
-                                    .borrow()
-                                    .log()
-                                    .error(&format!("failed to parse status: {}", header_value));
+                                self.http_content.borrow().log().errorf(format_args!(
+                                    "failed to parse status: {}",
+                                    header_value
+                                ));
                                 status_code = 500;
                             }
                         }
                         headers.insert(k, header_value);
                     }
                     Err(_) => {
-                        self.http_content.borrow().log().warn(&format!(
+                        self.http_content.borrow().log().warnf(format_args!(
                             "http call response header contains non-ASCII characters header: {}",
                             k
                         ));
                     }
                 }
             }
-            self.http_content.borrow().log().debug(&format!(
+            self.http_content.borrow().log().debugf(format_args!(
                 "http call end, id: {}, code: {}, normal: {}, body: {:?}", /*  */
                 token_id, status_code, normal_response, body
             ));
@@ -340,7 +341,7 @@ where
                     req_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.borrow().log().warn(&format!(
+                    self.http_content.borrow().log().warnf(format_args!(
                         "request http header contains non-ASCII characters header: {}",
                         k
                     ));
@@ -413,7 +414,7 @@ where
                     res_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.borrow().log().warn(&format!(
+                    self.http_content.borrow().log().warnf(format_args!(
                         "response http header contains non-ASCII characters header: {}",
                         k
                     ));
