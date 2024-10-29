@@ -9,25 +9,120 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseMessage string, log wrapper.Log) string {
+func handleNonLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
+	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
+	err := error(nil)
+	if stream == nil {
+		err = handleNonStreamChunk(ctx, c, chunk, log)
+	} else {
+		err = handleStreamChunk(ctx, c, chunk, log)
+	}
+	return err
+}
+
+func handleNonStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	if tempContentI == nil {
+		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, chunk)
+		return nil
+	}
+	tempContent := tempContentI.([]byte)
+	tempContent = append(tempContent, chunk...)
+	ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
+	return nil
+}
+
+func handleStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
+	var partialMessage []byte
+	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+	log.Debugf("[handleStreamChunk] cache content: %v", ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY))
+	if partialMessageI != nil {
+		partialMessage = append(partialMessageI.([]byte), chunk...)
+	} else {
+		partialMessage = chunk
+	}
+	messages := strings.Split(string(partialMessage), "\n\n")
+	for i, msg := range messages {
+		if i < len(messages)-1 {
+			_, err := processSSEMessage(ctx, c, msg, log)
+			if err != nil {
+				return fmt.Errorf("[handleStreamChunk] processSSEMessage failed, error: %v", err)
+			}
+		}
+	}
+	if !strings.HasSuffix(string(partialMessage), "\n\n") {
+		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
+	} else {
+		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
+	}
+	return nil
+}
+
+func processNonStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+	var body []byte
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	if tempContentI != nil {
+		body = append(tempContentI.([]byte), chunk...)
+	} else {
+		body = chunk
+	}
+	bodyJson := gjson.ParseBytes(body)
+	value := bodyJson.Get(c.CacheValueFrom).String()
+	if strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("[processNonStreamLastChunk] parse value from response body failed, body:%s", body)
+	}
+	return value, nil
+}
+
+func processStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
+	if len(chunk) > 0 {
+		var lastMessage []byte
+		partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
+		if partialMessageI != nil {
+			lastMessage = append(partialMessageI.([]byte), chunk...)
+		} else {
+			lastMessage = chunk
+		}
+		if !strings.HasSuffix(string(lastMessage), "\n\n") {
+			return "", fmt.Errorf("[processStreamLastChunk] invalid lastMessage:%s", lastMessage)
+		}
+		lastMessage = lastMessage[:len(lastMessage)-2]
+		value, err := processSSEMessage(ctx, c, string(lastMessage), log)
+		if err != nil {
+			return "", fmt.Errorf("[processStreamLastChunk] processSSEMessage failed, error: %v", err)
+		}
+		return value, nil
+	}
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	if tempContentI == nil {
+		return "", nil
+	}
+	return tempContentI.(string), nil
+}
+
+func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessage string, log wrapper.Log) (string, error) {
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string
 	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data: ") {
+		if strings.HasPrefix(msg, "data:") {
 			message = msg
 			break
 		}
 	}
 	if len(message) < 6 {
-		log.Warnf("invalid message: %s", message)
-		return ""
+		return "", fmt.Errorf("[processSSEMessage] invalid message: %s", message)
 	}
 
 	// skip the prefix "data:"
 	bodyJson := message[5:]
+
+	if strings.TrimSpace(bodyJson) == "[DONE]" {
+		return "", nil
+	}
+
 	// Extract values from JSON fields
-	responseBody := gjson.Get(bodyJson, config.CacheStreamValueFrom)
-	toolCalls := gjson.Get(bodyJson, config.CacheToolCallsFrom)
+	responseBody := gjson.Get(bodyJson, c.CacheStreamValueFrom)
+	toolCalls := gjson.Get(bodyJson, c.CacheToolCallsFrom)
 
 	if toolCalls.Exists() {
 		// TODO: Temporarily store the tool_calls value in the context for processing
@@ -36,9 +131,11 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 
 	// Check if the ResponseBody field exists
 	if !responseBody.Exists() {
-		// Return an empty string if we cannot extract the content
-		log.Warnf("cannot extract content from message: %s", message)
-		return ""
+		if ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY) != nil {
+			log.Debugf("[processSSEMessage] unable to extract content from message; cache content is not nil: %s", message)
+			return "", nil
+		}
+		return "", fmt.Errorf("[processSSEMessage] unable to extract content from message; cache content is nil: %s", message)
 	} else {
 		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 
@@ -46,119 +143,13 @@ func processSSEMessage(ctx wrapper.HttpContext, config config.PluginConfig, sseM
 		if tempContentI == nil {
 			content := responseBody.String()
 			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
-			return content
+			return content, nil
 		}
 
 		// Update the content in the cache
 		appendMsg := responseBody.String()
 		content := tempContentI.(string) + appendMsg
 		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
-		return content
+		return content, nil
 	}
-
-}
-
-// Handles partial chunks of data when the full response is not received yet.
-func handlePartialChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) {
-	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
-
-	if stream == nil {
-		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-		if tempContentI == nil {
-			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, chunk)
-		} else {
-			tempContent := append(tempContentI.([]byte), chunk...)
-			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
-		}
-	} else {
-		partialMessage := appendPartialMessage(ctx, chunk)
-		messages := strings.Split(string(partialMessage), "\n\n")
-		for _, msg := range messages[:len(messages)-1] {
-			processSSEMessage(ctx, config, msg, log)
-		}
-		savePartialMessage(ctx, partialMessage, messages)
-	}
-}
-
-// Appends the partial message chunks
-func appendPartialMessage(ctx wrapper.HttpContext, chunk []byte) []byte {
-	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
-	if partialMessageI != nil {
-		return append(partialMessageI.([]byte), chunk...)
-	}
-	return chunk
-}
-
-// Saves the remaining partial message chunk
-func savePartialMessage(ctx wrapper.HttpContext, partialMessage []byte, messages []string) {
-	if !strings.HasSuffix(string(partialMessage), "\n\n") {
-		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, []byte(messages[len(messages)-1]))
-	} else {
-		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
-	}
-}
-
-// Processes the final chunk and returns the parsed value or an error
-func processNonEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
-	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
-	var value string
-
-	if stream == nil {
-		body := appendFinalBody(ctx, chunk)
-		bodyJson := gjson.ParseBytes(body)
-		value = bodyJson.Get(config.CacheValueFrom).String()
-
-		if value == "" {
-			return "", fmt.Errorf("failed to parse value from response body: %s", body)
-		}
-	} else {
-		value, err := processFinalStreamMessage(ctx, config, log, chunk)
-		if err != nil {
-			return "", err
-		}
-		return value, nil
-	}
-
-	return value, nil
-}
-
-func processEmptyChunk(ctx wrapper.HttpContext, config config.PluginConfig, chunk []byte, log wrapper.Log) (string, error) {
-	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-	if tempContentI == nil {
-		return string(chunk), nil
-	}
-	value, ok := tempContentI.([]byte)
-	if !ok {
-		return "", fmt.Errorf("invalid type for tempContentI")
-	}
-	return string(value), nil
-}
-
-// Appends the final body chunk to the existing body content
-func appendFinalBody(ctx wrapper.HttpContext, chunk []byte) []byte {
-	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-	if tempContentI != nil {
-		return append(tempContentI.([]byte), chunk...)
-	}
-	return chunk
-}
-
-// Processes the final SSE message chunk
-func processFinalStreamMessage(ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, chunk []byte) (string, error) {
-	var lastMessage []byte
-	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
-
-	if partialMessageI != nil {
-		lastMessage = append(partialMessageI.([]byte), chunk...)
-	} else {
-		lastMessage = chunk
-	}
-
-	if !strings.HasSuffix(string(lastMessage), "\n\n") {
-		log.Warnf("[onHttpResponseBody] invalid lastMessage: %s", lastMessage)
-		return "", fmt.Errorf("invalid lastMessage format")
-	}
-
-	lastMessage = lastMessage[:len(lastMessage)-2] // Remove the last \n\n
-	return processSSEMessage(ctx, config, string(lastMessage), log), nil
 }

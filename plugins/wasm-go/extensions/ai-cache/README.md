@@ -15,6 +15,11 @@ description: AI 缓存插件配置参考
 
 LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的结果缓存，同时支持流式和非流式响应的缓存。
 
+**提示**
+
+携带请求头`x-higress-skip-ai-cache: on`时，当前请求将不会使用缓存中的内容，而是直接转发给后端服务，同时也不会缓存该请求返回响应的内容
+
+
 ## 运行属性
 
 插件执行阶段：`认证阶段`
@@ -31,34 +36,40 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| vector.type | string | optional | "" | 向量存储服务提供者类型，例如 DashVector |
-| embedding.type | string | optional | "" | 请求文本向量化服务类型，例如 DashScope |
-| cache.type | string | optional | "" | 缓存服务类型，例如 redis |
-| cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存) |
+| vector | string | optional | "" | 向量存储服务提供者类型，例如 dashvector |
+| embedding | string | optional | "" | 请求文本向量化服务类型，例如 dashscope |
+| cache | string | optional | "" | 缓存服务类型，例如 redis |
+| cacheKeyStrategy | string | optional | "lastQuestion" | 决定如何根据历史问题生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存) |
 | enableSemanticCache | bool | optional | true | 是否启用语义化缓存, 若不启用，则使用字符串匹配的方式来查找缓存，此时需要配置cache服务 |
 
-以下是vector、embedding、cache的具体配置说明，注意若不配置embedding或cache服务，则可忽略以下相应配置中的 `required` 字段。
+根据是否需要启用语义缓存，可以只配置组件的组合为:
+1. `cache`: 仅启用字符串匹配缓存
+3. `vector (+ embedding)`: 启用语义化缓存, 其中若 `vector` 未提供字符串表征服务，则需要自行配置 `embedding` 服务
+2. `vector (+ embedding) + cache`: 启用语义化缓存并用缓存服务存储LLM响应以加速
+
+注意若不配置相关组件，则可以忽略相应组件的`required`字段。
+
 
 ## 向量数据库服务（vector）
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| vector.type | string | required | "" | 向量存储服务提供者类型，例如 DashVector |
+| vector.type | string | required | "" | 向量存储服务提供者类型，例如 dashvector |
 | vector.serviceName | string | required | "" | 向量存储服务名称 |
-| vector.serviceDomain | string | required | "" | 向量存储服务域名 |
+| vector.serviceHost | string | required | "" | 向量存储服务域名 |
 | vector.servicePort | int64 | optional | 443 | 向量存储服务端口 |
 | vector.apiKey | string | optional | ""  | 向量存储服务 API Key |
 | vector.topK | int | optional | 1 | 返回TopK结果，默认为 1 |
 | vector.timeout | uint32 | optional | 10000 | 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
-| vector.collectionID | string | optional | "" |  DashVector 向量存储服务 Collection ID |
+| vector.collectionID | string | optional | "" |  dashvector 向量存储服务 Collection ID |
 | vector.threshold | float64 | optional | 1000 | 向量相似度度量阈值 |
 | vector.thresholdRelation | string | optional | lt | 相似度度量方式有 `Cosine`, `DotProduct`, `Euclidean` 等，前两者值越大相似度越高，后者值越小相似度越高。对于 `Cosine` 和 `DotProduct` 选择 `gt`，对于 `Euclidean` 则选择 `lt`。默认为 `lt`，所有条件包括 `lt` (less than，小于)、`lte` (less than or equal to，小等于)、`gt` (greater than，大于)、`gte` (greater than or equal to，大等于) |
 
 ## 文本向量化服务（embedding）
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
-| embedding.type | string | required | "" | 请求文本向量化服务类型，例如 DashScope |
+| embedding.type | string | required | "" | 请求文本向量化服务类型，例如 dashscope |
 | embedding.serviceName | string | required | "" | 请求文本向量化服务名称 |
-| embedding.serviceDomain | string | optional | "" | 请求文本向量化服务域名 |
+| embedding.serviceHost | string | optional | "" | 请求文本向量化服务域名 |
 | embedding.servicePort | int64 | optional | 443 | 请求文本向量化服务端口 |
 | embedding.apiKey | string | optional | ""  | 请求文本向量化服务的 API Key |
 | embedding.timeout | uint32 | optional | 10000 | 请求文本向量化服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
@@ -69,13 +80,13 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | cache.type | string | required | "" | 缓存服务类型，例如 redis |
 | --- | --- | --- | --- | --- |
 | cache.serviceName | string | required | "" | 缓存服务名称 |
-| cache.serviceDomain | string | required | "" | 缓存服务域名 |
+| cache.serviceHost | string | required | "" | 缓存服务域名 |
 | cache.servicePort | int64 | optional | 6379 | 缓存服务端口 |
 | cache.username | string | optional | ""  | 缓存服务用户名 |
 | cache.password | string | optional | "" | 缓存服务密码 |
 | cache.timeout | uint32 | optional | 10000 | 缓存服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
 | cache.cacheTTL | int | optional | 0 | 缓存过期时间，单位为秒。默认值是 0，即 永不过期|
-| cacheKeyPrefix | string | optional | "higressAiCache:" | 缓存 Key 的前缀，默认值为 "higressAiCache:" |
+| cacheKeyPrefix | string | optional | "higress-ai-cache:" | 缓存 Key 的前缀，默认值为 "higress-ai-cache:" |
 
 
 ## 其他配置
@@ -94,22 +105,30 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 ```yaml
 embedding:
   type: dashscope
-  serviceName: [Your Service Name]
+  serviceName: my_dashscope.dns
   apiKey: [Your Key]
 
 vector:
   type: dashvector
-  serviceName: [Your Service Name]
+  serviceName: my_dashvector.dns
   collectionID: [Your Collection ID]
   serviceDomain: [Your domain]
   apiKey: [Your key]
 
 cache:
   type: redis
-  serviceName: [Your Service Name]
+  serviceName: my_redis.dns
   servicePort: 6379
   timeout: 100
 
+```
+
+旧版本配置兼容
+```yaml
+redis:
+  serviceName: my_redis.dns
+  servicePort: 6379
+  timeout: 100
 ```
 
 ## 进阶用法
@@ -123,3 +142,6 @@ GJSON PATH 支持条件判断语法，例如希望取最后一个 role 为 user 
 
 更多用法可以参考[官方文档](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，可以使用 [GJSON Playground](https://gjson.dev/) 进行语法测试。
 
+## 常见问题
+
+1. 如果返回的错误为 `error status returned by host: bad argument`，请检查`serviceName`是否正确包含了服务的类型后缀(.dns等)。

@@ -14,7 +14,7 @@ import (
 type pineconeProviderInitializer struct{}
 
 func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if len(config.serviceDomain) == 0 {
+	if len(config.serviceHost) == 0 {
 		return errors.New("[Pinecone] serviceDomain is required")
 	}
 	if len(config.serviceName) == 0 {
@@ -32,10 +32,10 @@ func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) erro
 func (c *pineconeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &pineconeProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.serviceName,
-			Port:        config.servicePort,
-			Domain:      config.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: config.serviceName,
+			Host: config.serviceHost,
+			Port: int64(config.servicePort),
 		}),
 	}, nil
 }

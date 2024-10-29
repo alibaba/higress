@@ -82,6 +82,9 @@ static_resources:
                                     "/app1": "/mfe/app1/{version}"
                                   }
                                 },
+                                "skippedPathPrefixes": [
+                                  "/api/"
+                                ],
                                 "baseDeployment": {
                                   "version": "dev"
                                 },

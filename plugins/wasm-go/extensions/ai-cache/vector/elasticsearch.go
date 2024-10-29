@@ -25,10 +25,10 @@ func (c *esProviderInitializer) ValidateConfig(config ProviderConfig) error {
 func (c *esProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &ESProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.serviceName,
-			Port:        config.servicePort,
-			Domain:      config.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: config.serviceName,
+			Host: config.serviceHost,
+			Port: int64(config.servicePort),
 		}),
 	}, nil
 }

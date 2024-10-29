@@ -10,6 +10,12 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const (
+	CACHE_KEY_STRATEGY_LAST_QUESTION = "lastQuestion"
+	CACHE_KEY_STRATEGY_ALL_QUESTIONS = "allQuestions"
+	CACHE_KEY_STRATEGY_DISABLED      = "disabled"
+)
+
 type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
@@ -26,7 +32,7 @@ type PluginConfig struct {
 	vectorProviderConfig    vector.ProviderConfig
 	cacheProviderConfig     cache.ProviderConfig
 
-	// CacheKeyFrom         string
+	CacheKeyFrom         string
 	CacheValueFrom       string
 	CacheStreamValueFrom string
 	CacheToolCallsFrom   string
@@ -36,23 +42,28 @@ type PluginConfig struct {
 	EnableSemanticCache bool
 
 	// @Title zh-CN 缓存键策略
-	// @Description zh-CN 决定如何生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disable" (禁用缓存)
+	// @Description zh-CN 决定如何生成缓存键的策略。可选值: "lastQuestion" (使用最后一个问题), "allQuestions" (拼接所有问题) 或 "disabled" (禁用缓存)
 	CacheKeyStrategy string
 }
 
-func (c *PluginConfig) FromJson(json gjson.Result) {
+func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
+
 	c.vectorProviderConfig.FromJson(json.Get("vector"))
 	c.embeddingProviderConfig.FromJson(json.Get("embedding"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
+	if json.Get("redis").Exists() {
+		// compatible with legacy config
+		c.cacheProviderConfig.ConvertLegacyJson(json)
+	}
 
 	c.CacheKeyStrategy = json.Get("cacheKeyStrategy").String()
 	if c.CacheKeyStrategy == "" {
-		c.CacheKeyStrategy = "lastQuestion" // 设置默认值
+		c.CacheKeyStrategy = CACHE_KEY_STRATEGY_LAST_QUESTION // set default value
 	}
-	// c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
-	// if c.CacheKeyFrom == "" {
-	// 	c.CacheKeyFrom = "messages.@reverse.0.content"
-	// }
+	c.CacheKeyFrom = json.Get("cacheKeyFrom").String()
+	if c.CacheKeyFrom == "" {
+		c.CacheKeyFrom = "messages.@reverse.0.content"
+	}
 	c.CacheValueFrom = json.Get("cacheValueFrom").String()
 	if c.CacheValueFrom == "" {
 		c.CacheValueFrom = "choices.0.message.content"
@@ -75,12 +86,14 @@ func (c *PluginConfig) FromJson(json gjson.Result) {
 		c.ResponseTemplate = `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	}
 
-	// 默认值为 true
 	if json.Get("enableSemanticCache").Exists() {
 		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
 	} else {
-		c.EnableSemanticCache = true // 设置默认值为 true
+		c.EnableSemanticCache = true // set default value to true
 	}
+
+	// compatible with legacy config
+	convertLegacyMapFields(c, json, log)
 }
 
 func (c *PluginConfig) Validate() error {
@@ -101,27 +114,34 @@ func (c *PluginConfig) Validate() error {
 		}
 	}
 
-	// vector 和 embedding 不能同时为空
-	if c.vectorProviderConfig.GetProviderType() == "" && c.embeddingProviderConfig.GetProviderType() == "" {
-		return fmt.Errorf("vector and embedding provider cannot be both empty")
+	// cache, vector, and embedding cannot all be empty
+	if c.vectorProviderConfig.GetProviderType() == "" &&
+		c.embeddingProviderConfig.GetProviderType() == "" &&
+		c.cacheProviderConfig.GetProviderType() == "" {
+		return fmt.Errorf("vector, embedding and cache provider cannot be all empty")
 	}
 
-	// 验证 CacheKeyStrategy 的值
-	if c.CacheKeyStrategy != "lastQuestion" && c.CacheKeyStrategy != "allQuestions" && c.CacheKeyStrategy != "disable" {
+	// Validate the value of CacheKeyStrategy
+	if c.CacheKeyStrategy != CACHE_KEY_STRATEGY_LAST_QUESTION &&
+		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_ALL_QUESTIONS &&
+		c.CacheKeyStrategy != CACHE_KEY_STRATEGY_DISABLED {
 		return fmt.Errorf("invalid CacheKeyStrategy: %s", c.CacheKeyStrategy)
 	}
-	// 如果启用了语义化缓存，确保必要的组件已配置
-	if c.EnableSemanticCache {
-		if c.embeddingProviderConfig.GetProviderType() == "" {
-			return fmt.Errorf("semantic cache is enabled but embedding provider is not configured")
-		}
-	}
+
+	// If semantic cache is enabled, ensure necessary components are configured
+	// if c.EnableSemanticCache {
+	// 	if c.embeddingProviderConfig.GetProviderType() == "" {
+	// 		return fmt.Errorf("semantic cache is enabled but embedding provider is not configured")
+	// 	}
+	// 	// if only configure cache, just warn the user
+	// }
 	return nil
 }
 
 func (c *PluginConfig) Complete(log wrapper.Log) error {
 	var err error
 	if c.embeddingProviderConfig.GetProviderType() != "" {
+		log.Debugf("embedding provider is set to %s", c.embeddingProviderConfig.GetProviderType())
 		c.embeddingProvider, err = embedding.CreateProvider(c.embeddingProviderConfig)
 		if err != nil {
 			return err
@@ -131,6 +151,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 		c.embeddingProvider = nil
 	}
 	if c.cacheProviderConfig.GetProviderType() != "" {
+		log.Debugf("cache provider is set to %s", c.cacheProviderConfig.GetProviderType())
 		c.cacheProvider, err = cache.CreateProvider(c.cacheProviderConfig)
 		if err != nil {
 			return err
@@ -139,9 +160,15 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 		log.Info("cache provider is not configured")
 		c.cacheProvider = nil
 	}
-	c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
-	if err != nil {
-		return err
+	if c.vectorProviderConfig.GetProviderType() != "" {
+		log.Debugf("vector provider is set to %s", c.vectorProviderConfig.GetProviderType())
+		c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Info("vector provider is not configured")
+		c.vectorProvider = nil
 	}
 	return nil
 }
@@ -160,4 +187,39 @@ func (c *PluginConfig) GetVectorProviderConfig() vector.ProviderConfig {
 
 func (c *PluginConfig) GetCacheProvider() cache.Provider {
 	return c.cacheProvider
+}
+
+func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log) {
+	keyMap := map[string]string{
+		"cacheKeyFrom.requestBody":         "cacheKeyFrom",
+		"cacheValueFrom.requestBody":       "cacheValueFrom",
+		"cacheStreamValueFrom.requestBody": "cacheStreamValueFrom",
+		"returnResponseTemplate":           "responseTemplate",
+		"returnStreamResponseTemplate":     "streamResponseTemplate",
+	}
+
+	for oldKey, newKey := range keyMap {
+		if json.Get(oldKey).Exists() {
+			log.Debugf("[convertLegacyMapFields] mapping %s to %s", oldKey, newKey)
+			setField(c, newKey, json.Get(oldKey).String(), log)
+		} else {
+			log.Debugf("[convertLegacyMapFields] %s not exists", oldKey)
+		}
+	}
+}
+
+func setField(c *PluginConfig, fieldName string, value string, log wrapper.Log) {
+	switch fieldName {
+	case "cacheKeyFrom":
+		c.CacheKeyFrom = value
+	case "cacheValueFrom":
+		c.CacheValueFrom = value
+	case "cacheStreamValueFrom":
+		c.CacheStreamValueFrom = value
+	case "responseTemplate":
+		c.ResponseTemplate = value
+	case "streamResponseTemplate":
+		c.StreamResponseTemplate = value
+	}
+	log.Debugf("[setField] set %s to %s", fieldName, value)
 }

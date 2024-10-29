@@ -83,14 +83,14 @@ type StringQuerier interface {
 
 type ProviderConfig struct {
 	// @Title zh-CN 向量存储服务提供者类型
-	// @Description zh-CN 向量存储服务提供者类型，例如 DashVector、Milvus
+	// @Description zh-CN 向量存储服务提供者类型，例如 dashvector、chroma
 	typ string
 	// @Title zh-CN 向量存储服务名称
 	// @Description zh-CN 向量存储服务名称
 	serviceName string
 	// @Title zh-CN 向量存储服务域名
 	// @Description zh-CN 向量存储服务域名
-	serviceDomain string
+	serviceHost string
 	// @Title zh-CN 向量存储服务端口
 	// @Description zh-CN 向量存储服务端口
 	servicePort int64
@@ -132,7 +132,7 @@ func (c *ProviderConfig) GetProviderType() string {
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
 	c.serviceName = json.Get("serviceName").String()
-	c.serviceDomain = json.Get("serviceDomain").String()
+	c.serviceHost = json.Get("serviceHost").String()
 	c.servicePort = int64(json.Get("servicePort").Int())
 	if c.servicePort == 0 {
 		c.servicePort = 443

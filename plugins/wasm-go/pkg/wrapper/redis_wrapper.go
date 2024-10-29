@@ -237,9 +237,9 @@ func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, cal
 	args := make([]interface{}, 0)
 	args = append(args, "set")
 	args = append(args, key)
+	args = append(args, value)
 	args = append(args, "ex")
 	args = append(args, ttl)
-	args = append(args, value)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 

@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
@@ -12,22 +14,22 @@ import (
 )
 
 // CheckCacheForKey checks if the key is in the cache, or triggers similarity search if not found.
-func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) error {
-	activeCacheProvider := config.GetCacheProvider()
+func CheckCacheForKey(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool, useSimilaritySearch bool) error {
+	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider == nil {
-		log.Debug("No cache provider configured, performing similarity search")
-		return performSimilaritySearch(key, ctx, config, log, key, stream)
+		log.Debugf("[%s] [CheckCacheForKey] no cache provider configured, performing similarity search", PLUGIN_NAME)
+		return performSimilaritySearch(key, ctx, c, log, key, stream)
 	}
 
 	queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
-	log.Debugf("Querying cache with key: %s", queryKey)
+	log.Debugf("[%s] [CheckCacheForKey] querying cache with key: %s", PLUGIN_NAME, queryKey)
 
 	err := activeCacheProvider.Get(queryKey, func(response resp.Value) {
-		handleCacheResponse(key, response, ctx, log, stream, config, useSimilaritySearch)
+		handleCacheResponse(key, response, ctx, log, stream, c, useSimilaritySearch)
 	})
 
 	if err != nil {
-		log.Errorf("Failed to retrieve key: %s from cache, error: %v", key, err)
+		log.Errorf("[%s] [CheckCacheForKey] failed to retrieve key: %s from cache, error: %v", PLUGIN_NAME, key, err)
 		return err
 	}
 
@@ -35,21 +37,21 @@ func CheckCacheForKey(key string, ctx wrapper.HttpContext, config config.PluginC
 }
 
 // handleCacheResponse processes cache response and handles cache hits and misses.
-func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContext, log wrapper.Log, stream bool, config config.PluginConfig, useSimilaritySearch bool) {
+func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContext, log wrapper.Log, stream bool, c config.PluginConfig, useSimilaritySearch bool) {
 	if err := response.Error(); err == nil && !response.IsNull() {
-		log.Infof("Cache hit for key: %s", key)
-		processCacheHit(key, response.String(), stream, ctx, config, log)
+		log.Infof("[%s] cache hit for key: %s", PLUGIN_NAME, key)
+		processCacheHit(key, response.String(), stream, ctx, c, log)
 		return
 	}
 
-	log.Infof("Cache miss for key: %s", key)
+	log.Infof("[%s] [handleCacheResponse] cache miss for key: %s", PLUGIN_NAME, key)
 	if err := response.Error(); err != nil {
-		log.Errorf("Error retrieving key: %s from cache, error: %v", key, err)
+		log.Errorf("[%s] [handleCacheResponse] error retrieving key: %s from cache, error: %v", PLUGIN_NAME, key, err)
 	}
 
-	if useSimilaritySearch && config.EnableSemanticCache {
-		if err := performSimilaritySearch(key, ctx, config, log, key, stream); err != nil {
-			log.Errorf("Failed to perform similarity search for key: %s, error: %v", key, err)
+	if useSimilaritySearch && c.EnableSemanticCache {
+		if err := performSimilaritySearch(key, ctx, c, log, key, stream); err != nil {
+			log.Errorf("[%s] [handleCacheResponse] failed to perform similarity search for key: %s, error: %v", PLUGIN_NAME, key, err)
 			proxywasm.ResumeHttpRequest()
 		}
 	} else {
@@ -58,128 +60,131 @@ func handleCacheResponse(key string, response resp.Value, ctx wrapper.HttpContex
 }
 
 // processCacheHit handles a successful cache hit.
-func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log) {
-	if stream {
-		log.Debug("streaming response is not supported for cache hit yet")
-		stream = false
+func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) {
+	if strings.TrimSpace(response) == "" {
+		log.Warnf("[%s] [processCacheHit] cached response for key %s is empty", PLUGIN_NAME, key)
+		proxywasm.ResumeHttpRequest()
+		return
 	}
-	// escapedResponse, err := json.Marshal(response)
-	// log.Debugf("Cached response for key %s: %s", key, escapedResponse)
 
-	// if err != nil {
-	// 	handleInternalError(err, "Failed to marshal cached response", log)
-	// 	return
-	// }
-	log.Debugf("Cached response for key %s: %s", key, response)
+	log.Debugf("[%s] [processCacheHit] cached response for key %s: %s", PLUGIN_NAME, key, response)
+
+	// Escape the response to ensure consistent formatting
+	escapedResponse := strings.Trim(strconv.Quote(response), "\"")
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
-	// proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, escapedResponse)), -1)
-	proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(config.ResponseTemplate, response)), -1)
+	if stream {
+		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(c.StreamResponseTemplate, escapedResponse)), -1)
+	} else {
+		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "application/json; charset=utf-8"}}, []byte(fmt.Sprintf(c.ResponseTemplate, escapedResponse)), -1)
+	}
 }
 
 // performSimilaritySearch determines the appropriate similarity search method to use.
-func performSimilaritySearch(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, queryString string, stream bool) error {
-	activeVectorProvider := config.GetVectorProvider()
+func performSimilaritySearch(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, queryString string, stream bool) error {
+	activeVectorProvider := c.GetVectorProvider()
 	if activeVectorProvider == nil {
-		return errors.New("no vector provider configured for similarity search")
+		return logAndReturnError(log, "[performSimilaritySearch] no vector provider configured for similarity search")
 	}
 
 	// Check if the active vector provider implements the StringQuerier interface.
 	if _, ok := activeVectorProvider.(vector.StringQuerier); ok {
-		return performStringQuery(key, queryString, ctx, config, log, stream)
+		log.Debugf("[%s] [performSimilaritySearch] active vector provider implements StringQuerier interface, performing string query", PLUGIN_NAME)
+		return performStringQuery(key, queryString, ctx, c, log, stream)
 	}
 
 	// Check if the active vector provider implements the EmbeddingQuerier interface.
 	if _, ok := activeVectorProvider.(vector.EmbeddingQuerier); ok {
-		return performEmbeddingQuery(key, ctx, config, log, stream)
+		log.Debugf("[%s] [performSimilaritySearch] active vector provider implements EmbeddingQuerier interface, performing embedding query", PLUGIN_NAME)
+		return performEmbeddingQuery(key, ctx, c, log, stream)
 	}
 
-	return errors.New("no suitable querier or embedding provider available for similarity search")
+	return logAndReturnError(log, "[performSimilaritySearch] no suitable querier or embedding provider available for similarity search")
 }
 
 // performStringQuery executes the string-based similarity search.
-func performStringQuery(key string, queryString string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) error {
-	stringQuerier, ok := config.GetVectorProvider().(vector.StringQuerier)
+func performStringQuery(key string, queryString string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool) error {
+	stringQuerier, ok := c.GetVectorProvider().(vector.StringQuerier)
 	if !ok {
-		return logAndReturnError(log, "active vector provider does not implement StringQuerier interface")
+		return logAndReturnError(log, "[performStringQuery] active vector provider does not implement StringQuerier interface")
 	}
 
 	return stringQuerier.QueryString(queryString, ctx, log, func(results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error) {
-		handleQueryResults(key, results, ctx, log, stream, config, err)
+		handleQueryResults(key, results, ctx, log, stream, c, err)
 	})
 }
 
 // performEmbeddingQuery executes the embedding-based similarity search.
-func performEmbeddingQuery(key string, ctx wrapper.HttpContext, config config.PluginConfig, log wrapper.Log, stream bool) error {
-	embeddingQuerier, ok := config.GetVectorProvider().(vector.EmbeddingQuerier)
+func performEmbeddingQuery(key string, ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log, stream bool) error {
+	embeddingQuerier, ok := c.GetVectorProvider().(vector.EmbeddingQuerier)
 	if !ok {
-		return logAndReturnError(log, "active vector provider does not implement EmbeddingQuerier interface")
+		return logAndReturnError(log, fmt.Sprintf("[performEmbeddingQuery] active vector provider does not implement EmbeddingQuerier interface"))
 	}
 
-	activeEmbeddingProvider := config.GetEmbeddingProvider()
+	activeEmbeddingProvider := c.GetEmbeddingProvider()
 	if activeEmbeddingProvider == nil {
-		return logAndReturnError(log, "no embedding provider configured for similarity search")
+		return logAndReturnError(log, fmt.Sprintf("[performEmbeddingQuery] no embedding provider configured for similarity search"))
 	}
 
 	return activeEmbeddingProvider.GetEmbedding(key, ctx, log, func(textEmbedding []float64, err error) {
+		log.Debugf("[%s] [performEmbeddingQuery] GetEmbedding success, length of embedding: %d, error: %v", PLUGIN_NAME, len(textEmbedding), err)
 		if err != nil {
-			handleInternalError(err, fmt.Sprintf("Error getting embedding for key: %s", key), log)
+			handleInternalError(err, fmt.Sprintf("[%s] [performEmbeddingQuery] error getting embedding for key: %s", PLUGIN_NAME, key), log)
 			return
 		}
 		ctx.SetContext(CACHE_KEY_EMBEDDING_KEY, textEmbedding)
 
 		err = embeddingQuerier.QueryEmbedding(textEmbedding, ctx, log, func(results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error) {
-			handleQueryResults(key, results, ctx, log, stream, config, err)
+			handleQueryResults(key, results, ctx, log, stream, c, err)
 		})
 		if err != nil {
-			handleInternalError(err, fmt.Sprintf("Error querying vector database for key: %s", key), log)
+			handleInternalError(err, fmt.Sprintf("[%s] [performEmbeddingQuery] error querying vector database for key: %s", PLUGIN_NAME, key), log)
 		}
 	})
 }
 
 // handleQueryResults processes the results of similarity search and determines next actions.
-func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, stream bool, config config.PluginConfig, err error) {
+func handleQueryResults(key string, results []vector.QueryResult, ctx wrapper.HttpContext, log wrapper.Log, stream bool, c config.PluginConfig, err error) {
 	if err != nil {
-		handleInternalError(err, fmt.Sprintf("Error querying vector database for key: %s", key), log)
+		handleInternalError(err, fmt.Sprintf("[%s] [handleQueryResults] error querying vector database for key: %s", PLUGIN_NAME, key), log)
 		return
 	}
 
 	if len(results) == 0 {
-		log.Warnf("No similar keys found for key: %s", key)
+		log.Warnf("[%s] [handleQueryResults] no similar keys found for key: %s", PLUGIN_NAME, key)
 		proxywasm.ResumeHttpRequest()
 		return
 	}
 
 	mostSimilarData := results[0]
-	log.Debugf("For key: %s, the most similar key found: %s with score: %f", key, mostSimilarData.Text, mostSimilarData.Score)
-	simThreshold := config.GetVectorProviderConfig().Threshold
-	simThresholdRelation := config.GetVectorProviderConfig().ThresholdRelation
+	log.Debugf("[%s] [handleQueryResults] for key: %s, the most similar key found: %s with score: %f", PLUGIN_NAME, key, mostSimilarData.Text, mostSimilarData.Score)
+	simThreshold := c.GetVectorProviderConfig().Threshold
+	simThresholdRelation := c.GetVectorProviderConfig().ThresholdRelation
 	if compare(simThresholdRelation, mostSimilarData.Score, simThreshold) {
-		log.Infof("Key accepted: %s with score: %f below threshold", mostSimilarData.Text, mostSimilarData.Score)
+		log.Infof("[%s] key accepted: %s with score: %f", PLUGIN_NAME, mostSimilarData.Text, mostSimilarData.Score)
 		if mostSimilarData.Answer != "" {
 			// direct return the answer if available
-			processCacheHit(key, mostSimilarData.Answer, stream, ctx, config, log)
+			cacheResponse(ctx, c, key, mostSimilarData.Answer, log)
+			processCacheHit(key, mostSimilarData.Answer, stream, ctx, c, log)
 		} else {
-			// // otherwise, continue to check cache for the most similar key
-			// err = CheckCacheForKey(mostSimilarData.Text, ctx, config, log, stream, false)
-			// if err != nil {
-			// 	log.Errorf("check cache for key: %s failed, error: %v", mostSimilarData.Text, err)
-			// 	proxywasm.ResumeHttpRequest()
-			// }
-
-			// Otherwise, do not check the cache, directly return
-			log.Warnf("No cache hit for key: %s, however, no answer found in vector database", mostSimilarData.Text)
-			proxywasm.ResumeHttpRequest()
+			if c.GetCacheProvider() != nil {
+				CheckCacheForKey(mostSimilarData.Text, ctx, c, log, stream, false)
+			} else {
+				// Otherwise, do not check the cache, directly return
+				log.Infof("[%s] cache hit for key: %s, but no corresponding answer found in the vector database", PLUGIN_NAME, mostSimilarData.Text)
+				proxywasm.ResumeHttpRequest()
+			}
 		}
 	} else {
-		log.Infof("Score not meet the threshold %f: %s with score %f", simThreshold, mostSimilarData.Text, mostSimilarData.Score)
+		log.Infof("[%s] score not meet the threshold %f: %s with score %f", PLUGIN_NAME, simThreshold, mostSimilarData.Text, mostSimilarData.Score)
 		proxywasm.ResumeHttpRequest()
 	}
 }
 
 // logAndReturnError logs an error and returns it.
 func logAndReturnError(log wrapper.Log, message string) error {
+	message = fmt.Sprintf("[%s] %s", PLUGIN_NAME, message)
 	log.Errorf(message)
 	return errors.New(message)
 }
@@ -187,26 +192,31 @@ func logAndReturnError(log wrapper.Log, message string) error {
 // handleInternalError logs an error and resumes the HTTP request.
 func handleInternalError(err error, message string, log wrapper.Log) {
 	if err != nil {
-		log.Errorf("%s: %v", message, err)
+		log.Errorf("[%s] [handleInternalError] %s: %v", PLUGIN_NAME, message, err)
 	} else {
-		log.Errorf(message)
+		log.Errorf("[%s] [handleInternalError] %s", PLUGIN_NAME, message)
 	}
 	// proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "text/plain"}}, []byte("Internal Server Error"), -1)
 	proxywasm.ResumeHttpRequest()
 }
 
 // Caches the response value
-func cacheResponse(ctx wrapper.HttpContext, config config.PluginConfig, key string, value string, log wrapper.Log) {
-	activeCacheProvider := config.GetCacheProvider()
+func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
+	if strings.TrimSpace(value) == "" {
+		log.Warnf("[%s] [cacheResponse] cached value for key %s is empty", PLUGIN_NAME, key)
+		return
+	}
+
+	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider != nil {
 		queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
-		log.Infof("[onHttpResponseBody] setting cache to redis, key: %s, value: %s", queryKey, value)
 		_ = activeCacheProvider.Set(queryKey, value, nil)
+		log.Debugf("[%s] [cacheResponse] cache set success, key: %s, length of value: %d", PLUGIN_NAME, queryKey, len(value))
 	}
 }
 
 // Handles embedding upload if available
-func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfig, key string, value string, log wrapper.Log) {
+func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, c config.PluginConfig, key string, value string, log wrapper.Log) {
 	embedding := ctx.GetContext(CACHE_KEY_EMBEDDING_KEY)
 	if embedding == nil {
 		return
@@ -214,22 +224,22 @@ func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfi
 
 	emb, ok := embedding.([]float64)
 	if !ok {
-		log.Errorf("[onHttpResponseBody] embedding is not of expected type []float64")
+		log.Errorf("[%s] [uploadEmbeddingAndAnswer] embedding is not of expected type []float64", PLUGIN_NAME)
 		return
 	}
 
-	activeVectorProvider := config.GetVectorProvider()
+	activeVectorProvider := c.GetVectorProvider()
 	if activeVectorProvider == nil {
-		log.Debug("[onHttpResponseBody] no vector provider configured for uploading embedding")
+		log.Debugf("[%s] [uploadEmbeddingAndAnswer] no vector provider configured for uploading embedding", PLUGIN_NAME)
 		return
 	}
 
 	// Attempt to upload answer embedding first
 	if ansEmbUploader, ok := activeVectorProvider.(vector.AnswerAndEmbeddingUploader); ok {
-		log.Infof("[onHttpResponseBody] uploading answer embedding for key: %s", key)
+		log.Infof("[%s] uploading answer embedding for key: %s", PLUGIN_NAME, key)
 		err := ansEmbUploader.UploadAnswerAndEmbedding(key, emb, value, ctx, log, nil)
 		if err != nil {
-			log.Warnf("[onHttpResponseBody] failed to upload answer embedding for key: %s, error: %v", key, err)
+			log.Warnf("[%s] [uploadEmbeddingAndAnswer] failed to upload answer embedding for key: %s, error: %v", PLUGIN_NAME, key, err)
 		} else {
 			return // If successful, return early
 		}
@@ -237,10 +247,10 @@ func uploadEmbeddingAndAnswer(ctx wrapper.HttpContext, config config.PluginConfi
 
 	// If answer embedding upload fails, attempt normal embedding upload
 	if embUploader, ok := activeVectorProvider.(vector.EmbeddingUploader); ok {
-		log.Infof("[onHttpResponseBody] uploading embedding for key: %s", key)
+		log.Infof("[%s] uploading embedding for key: %s", PLUGIN_NAME, key)
 		err := embUploader.UploadEmbedding(key, emb, ctx, log, nil)
 		if err != nil {
-			log.Warnf("[onHttpResponseBody] failed to upload embedding for key: %s, error: %v", key, err)
+			log.Warnf("[%s] [uploadEmbeddingAndAnswer] failed to upload embedding for key: %s, error: %v", PLUGIN_NAME, key, err)
 		}
 	}
 }

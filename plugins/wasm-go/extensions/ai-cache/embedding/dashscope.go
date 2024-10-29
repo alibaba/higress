@@ -13,7 +13,7 @@ import (
 const (
 	DASHSCOPE_DOMAIN             = "dashscope.aliyuncs.com"
 	DASHSCOPE_PORT               = 443
-	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v1"
+	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v2"
 	DASHSCOPE_ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
@@ -31,15 +31,15 @@ func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provide
 	if c.servicePort == 0 {
 		c.servicePort = DASHSCOPE_PORT
 	}
-	if c.serviceDomain == "" {
-		c.serviceDomain = DASHSCOPE_DOMAIN
+	if c.serviceHost == "" {
+		c.serviceHost = DASHSCOPE_DOMAIN
 	}
 	return &DSProvider{
 		config: c,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: c.serviceName,
-			Port:        c.servicePort,
-			Domain:      c.serviceDomain,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: c.serviceName,
+			Host: c.serviceHost,
+			Port: int64(c.servicePort),
 		}),
 	}, nil
 }

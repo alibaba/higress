@@ -17,7 +17,7 @@
 
 
 <p>
-   <a href="README_EN.md"> English <a/> | 中文
+   <a href="README_EN.md"> English <a/>| 中文 | <a href="README_JP.md"> 日本語 <a/> 
 </p>
 
 
@@ -59,7 +59,7 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 - 8080 端口：网关 HTTP 协议入口
 - 8443 端口：网关 HTTPS 协议入口
 
-**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内不可访问的影响**
+**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
