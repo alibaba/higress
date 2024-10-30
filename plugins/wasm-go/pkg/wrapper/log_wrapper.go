@@ -36,7 +36,8 @@ type Log struct {
 }
 
 func (l Log) log(level LogLevel, msg string) {
-	msg = fmt.Sprintf("[%s] %s", l.pluginName, msg)
+	requestID, _ := proxywasm.GetProperty([]string{"x_request_id"})
+	msg = fmt.Sprintf("[%s] [%s] %s", l.pluginName, string(requestID), msg)
 	switch level {
 	case LogLevelTrace:
 		proxywasm.LogTrace(msg)

@@ -370,6 +370,8 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) 
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
+	requestID, _ := proxywasm.GetHttpRequestHeader("x-request-id")
+	_ = proxywasm.SetProperty([]string{"x_request_id"}, []byte(requestID))
 	config, err := ctx.plugin.GetMatchConfig()
 	if err != nil {
 		ctx.plugin.vm.log.Errorf("get match config failed, err:%v", err)
