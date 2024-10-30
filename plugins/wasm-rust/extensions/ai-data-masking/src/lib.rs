@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod deny_word;
+
+use crate::deny_word::DenyWord;
+use deny_word::{DenyWordAccurate, DenyWordJieba};
 use fancy_regex::Regex;
 use grok::patterns;
 use higress_wasm_rust::log::Log;
 use higress_wasm_rust::plugin_wrapper::{HttpContextWrapper, RootContextWrapper};
 use higress_wasm_rust::request_wrapper::has_request_body;
 use higress_wasm_rust::rule_matcher::{on_configure, RuleMatcher, SharedRuleMatcher};
-use jieba_rs::Jieba;
 use jsonpath_rust::{JsonPath, JsonPathValue};
 use lazy_static::lazy_static;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
@@ -29,7 +32,7 @@ use serde::Deserialize;
 use serde::Deserializer;
 use serde_json::{json, Value};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -47,13 +50,8 @@ const GROK_PATTERN: &str = r"%\{(?<name>(?<pattern>[A-z0-9]+)(?::(?<alias>[A-z0-
 #[folder = "res/"]
 struct Asset;
 
-#[derive(Default, Debug, Clone)]
-struct DenyWord {
-    jieba: Jieba,
-    words: HashSet<String>,
-}
 struct System {
-    deny_word: DenyWord,
+    deny_word: DenyWordJieba,
     grok_regex: Regex,
     grok_patterns: BTreeMap<String, String>,
 }
@@ -110,12 +108,12 @@ where
     }
 }
 
-fn deserialize_denyword<'de, D>(deserializer: D) -> Result<DenyWord, D::Error>
+fn deserialize_denyword<'de, D>(deserializer: D) -> Result<DenyWordAccurate, D::Error>
 where
     D: Deserializer<'de>,
 {
     let value: Vec<String> = Deserialize::deserialize(deserializer)?;
-    Ok(DenyWord::from_iter(value))
+    Ok(DenyWordAccurate::from_iter(value))
 }
 
 fn deserialize_jsonpath<'de, D>(deserializer: D) -> Result<Vec<JsonPath>, D::Error>
@@ -194,8 +192,11 @@ pub struct AiDataMaskingConfig {
     deny_content_type: String,
     #[serde(default)]
     replace_roles: Vec<Rule>,
-    #[serde(deserialize_with = "deserialize_denyword", default = "DenyWord::empty")]
-    deny_words: DenyWord,
+    #[serde(
+        deserialize_with = "deserialize_denyword",
+        default = "DenyWordAccurate::empty"
+    )]
+    deny_words: DenyWordAccurate,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -227,52 +228,12 @@ static SYSTEM_PATTERNS: &[(&str, &str)] = &[
     ("IDCARD", r#"\d{17}[0-9xX]|\d{15}"#),
 ];
 
-impl DenyWord {
-    fn empty() -> Self {
-        DenyWord {
-            jieba: Jieba::empty(),
-            words: HashSet::new(),
-        }
-    }
-    fn from_iter<T: IntoIterator<Item = impl Into<String>>>(words: T) -> Self {
-        let mut deny_word = DenyWord::empty();
-
-        for word in words {
-            let word_s = word.into();
-            let w = word_s.trim();
-            if w.is_empty() {
-                continue;
-            }
-            deny_word.jieba.add_word(w, None, None);
-            deny_word.words.insert(w.to_string());
-        }
-
-        deny_word
-    }
-    fn default() -> Self {
-        if let Some(file) = Asset::get("sensitive_word_dict.txt") {
-            if let Ok(data) = std::str::from_utf8(file.data.as_ref()) {
-                return DenyWord::from_iter(data.split('\n'));
-            }
-        }
-        DenyWord::empty()
-    }
-
-    fn check(&self, message: &str) -> Option<String> {
-        for word in self.jieba.cut(message, true) {
-            if self.words.contains(word) {
-                return Some(word.to_string());
-            }
-        }
-        None
-    }
-}
 impl System {
     fn new() -> Self {
         let grok_regex = Regex::new(GROK_PATTERN).unwrap();
         let grok_patterns = BTreeMap::new();
         let mut system = System {
-            deny_word: DenyWord::default(),
+            deny_word: DenyWordJieba::new(),
             grok_regex,
             grok_patterns,
         };
@@ -335,6 +296,7 @@ impl System {
         (ret, ok)
     }
 }
+
 impl AiDataMaskingRoot {
     fn new() -> Self {
         AiDataMaskingRoot {
@@ -382,6 +344,7 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
         }))
     }
 }
+
 impl AiDataMasking {
     fn check_message(&self, message: &str) -> bool {
         if let Some(config) = &self.config {
@@ -532,6 +495,7 @@ impl AiDataMasking {
 }
 
 impl Context for AiDataMasking {}
+
 impl HttpContext for AiDataMasking {
     fn on_http_request_headers(
         &mut self,
@@ -607,6 +571,7 @@ impl HttpContext for AiDataMasking {
         DataAction::Continue
     }
 }
+
 impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
     fn log(&self) -> &Log {
         &self.log
