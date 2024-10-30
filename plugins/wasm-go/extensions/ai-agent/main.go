@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -199,7 +200,7 @@ func extractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func jsonFormat(config PluginConfig, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
+func jsonFormat(config PluginConfig, assistantMessage Message, actionInput string, headers [][2]string, stream bool, rawResponse Response, log wrapper.Log) string {
 	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, config.JsonResp.JsonSchema, actionInput)
 
 	messages := []dashscope.Message{{Role: "user", Content: prompt}}
@@ -227,10 +228,10 @@ func jsonFormat(config PluginConfig, assistantMessage Message, actionInput strin
 				jsonStr = content
 			}
 
-			if streamMode {
-				stream(jsonStr, rawResponse, log)
+			if stream {
+				streamResponse(jsonStr, rawResponse, log)
 			} else {
-				noneStream(assistantMessage, jsonStr, rawResponse, log)
+				noneStreamResponse(assistantMessage, jsonStr, rawResponse, log)
 			}
 		}, uint32(config.LLMInfo.MaxExecutionTime))
 	if err != nil {
@@ -240,7 +241,7 @@ func jsonFormat(config PluginConfig, assistantMessage Message, actionInput strin
 	return content
 }
 
-func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
+func noneStreamResponse(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
 	assistantMessage.Role = "assistant"
 	assistantMessage.Content = actionInput
 	rawResponse.Choices[0].Message = assistantMessage
@@ -256,7 +257,7 @@ func noneStream(assistantMessage Message, actionInput string, rawResponse Respon
 	}
 }
 
-func stream(actionInput string, rawResponse Response, log wrapper.Log) {
+func streamResponse(actionInput string, rawResponse Response, log wrapper.Log) {
 	headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
 	proxywasm.ReplaceHttpResponseHeaders(headers)
 	// Remove quotes from actionInput
@@ -304,20 +305,20 @@ func toolsCallResult(ctx wrapper.HttpContext, config PluginConfig, content strin
 				if retType == types.ActionContinue {
 					//得到了Final Answer
 					var assistantMessage Message
-					var streamMode bool
+					var stream bool
 					if ctx.GetContext(StreamContextKey) == nil {
-						streamMode = false
-					} else {
-						streamMode = true
-					}
-
-					if config.JsonResp.Enable {
-						jsonFormat(config, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
-					} else {
-						if streamMode {
-							stream(actionInput, rawResponse, log)
+						stream = false
+						if config.JsonResp.Enable {
+							jsonFormat(config, assistantMessage, actionInput, headers, stream, rawResponse, log)
 						} else {
-							noneStream(assistantMessage, actionInput, rawResponse, log)
+							noneStreamResponse(assistantMessage, actionInput, rawResponse, log)
+						}
+					} else {
+						stream = true
+						if config.JsonResp.Enable {
+							jsonFormat(config, assistantMessage, actionInput, headers, stream, rawResponse, log)
+						} else {
+							streamResponse(actionInput, rawResponse, log)
 						}
 					}
 				}
@@ -400,7 +401,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 
 	//没得到最终答案
 
-	var url string
+	var urlStr string
 	var headers [][2]string
 	var apiClient wrapper.HttpClient
 	var method string
@@ -428,17 +429,17 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 				headers = [][2]string{{"Content-Type", "application/json"}}
 				if apisParam.APIKey.Name != "" {
 					if apisParam.APIKey.In == "query" {
-						key = "?" + apisParam.APIKey.Name + "=" + apisParam.APIKey.Value
+						key = "?" + url.QueryEscape(apisParam.APIKey.Name) + "=" + url.QueryEscape(apisParam.APIKey.Value)
 					} else if apisParam.APIKey.In == "header" {
 						headers = append(headers, [2]string{"Authorization", apisParam.APIKey.Name + " " + apisParam.APIKey.Value})
 					}
 				}
 
 				// 组装 URL 和请求体
-				url = apisParam.URL + tools_param.Path + key
+				urlStr = apisParam.URL + tools_param.Path + key
 
 				// 解析URL模板以查找路径参数
-				urlParts := strings.Split(url, "/")
+				urlParts := strings.Split(urlStr, "/")
 				for i, part := range urlParts {
 					if strings.Contains(part, "{") && strings.Contains(part, "}") {
 						for _, param := range tools_param.ParamName {
@@ -448,7 +449,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 									// 删除已经使用过的
 									delete(data, param)
 									// 替换模板中的占位符
-									urlParts[i] = value.(string)
+									urlParts[i] = url.QueryEscape(value.(string))
 								}
 							}
 						}
@@ -456,17 +457,17 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 				}
 
 				// 重新组合URL
-				url = strings.Join(urlParts, "/")
+				urlStr = strings.Join(urlParts, "/")
 
 				if method == "GET" {
 					queryParams := make([]string, 0, len(tools_param.ParamName))
 					for _, param := range tools_param.ParamName {
 						if value, ok := data[param]; ok {
-							queryParams = append(queryParams, fmt.Sprintf("%s=%v", param, value))
+							queryParams = append(queryParams, fmt.Sprintf("%s=%v", url.QueryEscape(param), url.QueryEscape(fmt.Sprintf("%v", value))))
 						}
 					}
 					if len(queryParams) > 0 {
-						url += "&" + strings.Join(queryParams, "&")
+						urlStr += "&" + strings.Join(queryParams, "&")
 					}
 				} else if method == "POST" {
 					var err error
@@ -477,7 +478,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 					}
 				}
 
-				log.Infof("url: %s", url)
+				log.Infof("url: %s", urlStr)
 
 				apiClient = config.APIClient[i]
 				break
@@ -488,7 +489,7 @@ func toolsCall(ctx wrapper.HttpContext, config PluginConfig, content string, raw
 	if apiClient != nil {
 		err := apiClient.Call(
 			method,
-			url,
+			urlStr,
 			headers,
 			reqBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
