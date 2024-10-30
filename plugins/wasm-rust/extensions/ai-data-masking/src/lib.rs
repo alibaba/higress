@@ -15,7 +15,6 @@
 mod deny_word;
 
 use crate::deny_word::DenyWord;
-use deny_word::{DenyWordAccurate, DenyWordJieba};
 use fancy_regex::Regex;
 use grok::patterns;
 use higress_wasm_rust::log::Log;
@@ -51,7 +50,7 @@ const GROK_PATTERN: &str = r"%\{(?<name>(?<pattern>[A-z0-9]+)(?::(?<alias>[A-z0-
 struct Asset;
 
 struct System {
-    deny_word: DenyWordJieba,
+    deny_word: DenyWord,
     grok_regex: Regex,
     grok_patterns: BTreeMap<String, String>,
 }
@@ -108,12 +107,12 @@ where
     }
 }
 
-fn deserialize_denyword<'de, D>(deserializer: D) -> Result<DenyWordAccurate, D::Error>
+fn deserialize_denyword<'de, D>(deserializer: D) -> Result<DenyWord, D::Error>
 where
     D: Deserializer<'de>,
 {
     let value: Vec<String> = Deserialize::deserialize(deserializer)?;
-    Ok(DenyWordAccurate::from_iter(value))
+    Ok(DenyWord::from_iter(value))
 }
 
 fn deserialize_jsonpath<'de, D>(deserializer: D) -> Result<Vec<JsonPath>, D::Error>
@@ -192,11 +191,8 @@ pub struct AiDataMaskingConfig {
     deny_content_type: String,
     #[serde(default)]
     replace_roles: Vec<Rule>,
-    #[serde(
-        deserialize_with = "deserialize_denyword",
-        default = "DenyWordAccurate::empty"
-    )]
-    deny_words: DenyWordAccurate,
+    #[serde(deserialize_with = "deserialize_denyword", default = "DenyWord::empty")]
+    deny_words: DenyWord,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -233,7 +229,7 @@ impl System {
         let grok_regex = Regex::new(GROK_PATTERN).unwrap();
         let grok_patterns = BTreeMap::new();
         let mut system = System {
-            deny_word: DenyWordJieba::new(),
+            deny_word: DenyWord::system(),
             grok_regex,
             grok_patterns,
         };

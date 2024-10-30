@@ -27,7 +27,6 @@ dependencies = [
 name = "ai-data-masking"
 version = "0.1.0"
 dependencies = [
- "cedarwood",
  "fancy-regex",
  "grok",
  "higress-wasm-rust",
