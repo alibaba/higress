@@ -696,7 +696,7 @@ downstream:
     initialConnectionWindowSize: 1048576
   routeTimeout: 0
 
-# Upstream config settings 
+# Upstream config settings
 upstream:
   idleTimeout: 10
   connectionBufferLimits: 10485760
