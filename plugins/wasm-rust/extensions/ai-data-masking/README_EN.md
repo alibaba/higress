@@ -31,7 +31,7 @@ Plugin Execution Priority: `991`
 |  deny_openai           | bool             | true           |  Intercept openai protocol          |
 |  deny_jsonpath         | string           |   []           |  Intercept specified jsonpath       |
 |  deny_raw              | bool             | false          |  Intercept raw body                 |
-|  system_deny           | bool             | true           |  Enable built-in interception rules  |
+|  system_deny           | bool             | false          |  Enable built-in interception rules  |
 |  deny_code             | int              | 200            |  HTTP status code when intercepted   |
 |  deny_message          | string           | Sensitive words found in the question or answer have been blocked | AI returned message when intercepted |
 |  deny_raw_message      | string           | {"errmsg":"Sensitive words found in the question or answer have been blocked"} | Content returned when not openai intercepted |

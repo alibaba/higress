@@ -82,7 +82,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	providerConfig := pluginConfig.GetProviderConfig()
 	if apiName == "" && !providerConfig.IsOriginal() {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
+		// _ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
+		log.Debugf("[onHttpRequestHeader] no send response")
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
