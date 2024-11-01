@@ -684,3 +684,19 @@ tracing:
   # zipkin:
   # service: ""
   # port: 9411
+
+# Downstream config settings
+downstream:
+  idleTimeout: 180
+  maxRequestHeadersKb: 60
+  connectionBufferLimits: 32768
+  http2:
+    maxConcurrentStreams: 100
+    initialStreamWindowSize: 65535
+    initialConnectionWindowSize: 1048576
+  routeTimeout: 0
+
+# Upstream config settings
+upstream:
+  idleTimeout: 10
+  connectionBufferLimits: 10485760
