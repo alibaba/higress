@@ -1,15 +1,16 @@
 package provider
 
 import (
+	"encoding/json"
 	"errors"
 	"math/rand"
 	"net/http"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 type ApiName string
@@ -107,16 +108,22 @@ var (
 
 type Provider interface {
 	GetProviderType() string
-	TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log)
-	TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error)
 }
 
 type RequestHeadersHandler interface {
 	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
 }
 
+type TransformRequestHeadersHandler interface {
+	TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log)
+}
+
 type RequestBodyHandler interface {
 	OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+type TransformRequestBodyHandler interface {
+	TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error)
 }
 
 type ResponseHeadersHandler interface {
@@ -373,20 +380,51 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 	return initializer.CreateProvider(pc)
 }
 
-func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request *chatCompletionRequest, log wrapper.Log) error {
-	model := request.Model
-	if model == "" {
-		return errors.New("missing model in chat completion request")
+func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, request interface{}, body []byte, log wrapper.Log) error {
+	switch req := request.(type) {
+	case *chatCompletionRequest:
+		if err := decodeChatCompletionRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req, log)
+	case *embeddingsRequest:
+		if err := decodeEmbeddingsRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req, log)
+	default:
+		return errors.New("unsupported request type")
+	}
+}
+
+func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interface{}, log wrapper.Log) error {
+	var model *string
+
+	switch req := request.(type) {
+	case *chatCompletionRequest:
+		model = &req.Model
+	case *embeddingsRequest:
+		model = &req.Model
+	default:
+		return errors.New("unsupported request type")
 	}
 
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, c.modelMapping, log)
+	return c.mapModel(ctx, model, log)
+}
+
+func (c *ProviderConfig) mapModel(ctx wrapper.HttpContext, model *string, log wrapper.Log) error {
+	if *model == "" {
+		return errors.New("missing model in request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, *model)
+
+	mappedModel := getMappedModel(*model, c.modelMapping, log)
 	if mappedModel == "" {
 		return errors.New("model becomes empty after applying the configured mapping")
 	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
 
+	*model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, *model)
 	return nil
 }
 
@@ -425,4 +463,66 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c *ProviderConfig) handleRequestBody(
+	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log,
+) (types.Action, error) {
+	// use original protocol
+	if c.protocol == protocolOriginal {
+		if apiName == ApiNameChatCompletion {
+			if c.context == nil {
+				return types.ActionContinue, nil
+			}
+			err := contextCache.GetContextFromFile(ctx, provider, body, log)
+			if err == nil {
+				return types.ActionPause, nil
+			}
+			return types.ActionContinue, err
+		}
+		return types.ActionContinue, nil
+	}
+
+	// use openai protocol
+	var err error
+	if handler, ok := provider.(TransformRequestBodyHandler); ok {
+		body, err = handler.TransformRequestBody(ctx, apiName, body, log)
+	} else {
+		body, err = c.defaultTransformRequestBody(ctx, body, log)
+	}
+
+	if err != nil {
+		return types.ActionContinue, err
+	}
+
+	if apiName == ApiNameChatCompletion {
+		if c.context == nil {
+			return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+		}
+		err = contextCache.GetContextFromFile(ctx, provider, body, log)
+
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
+	}
+	return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+}
+
+func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) {
+	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
+		originalHeaders := util.GetOriginaHttplHeaders()
+		handler.TransformRequestHeaders(ctx, apiName, originalHeaders, log)
+		util.ReplaceOriginalHttpHeaders(originalHeaders)
+	}
+}
+
+func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	err := c.parseRequestAndMapModel(ctx, request, body, log)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(request)
 }

@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -45,9 +44,7 @@ func (g *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	originalHeaders := util.GetOriginaHttplHeaders()
-	g.TransformRequestHeaders(originalHeaders, ctx, log)
-	util.ReplaceOriginalHttpHeaders(originalHeaders)
+	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
@@ -55,34 +52,12 @@ func (g *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	modifiedBody, err := g.TransformRequestBody(body, ctx, log)
-	if err != nil {
-		return types.ActionContinue, err
-	}
-	err = replaceHttpJsonRequestBody(modifiedBody, log)
-	if err != nil {
-		return types.ActionContinue, err
-	}
-	return types.ActionContinue, nil
+	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }
 
-func (g *groqProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+func (g *groqProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteHttpRequestPath(headers, groqChatCompletionPath)
 	util.OverwriteHttpRequestHost(headers, groqDomain)
 	util.OverwriteHttpRequestAuthorization(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (g *groqProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return nil, err
-	}
-
-	err := g.config.setRequestModel(ctx, request, log)
-	if err != nil {
-		return nil, err
-	}
-
-	return json.Marshal(request)
 }

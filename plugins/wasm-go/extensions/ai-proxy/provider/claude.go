@@ -106,15 +106,11 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-
-	originalHeaders := util.GetOriginaHttplHeaders()
-	c.TransformRequestHeaders(originalHeaders, ctx, log)
-	util.ReplaceOriginalHttpHeaders(originalHeaders)
-
+	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
-func (c *claudeProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
+func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteHttpRequestPath(headers, claudeChatCompletionPath)
 	util.OverwriteHttpRequestHost(headers, claudeDomain)
 
@@ -133,41 +129,12 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-
-	// use original protocol
-	if c.config.protocol == protocolOriginal {
-		if c.config.context == nil {
-			return types.ActionContinue, nil
-		}
-
-		request := &claudeTextGenRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		return types.ActionContinue, nil
-	}
-
-	// use openai protocol
-	modifiedBody, err := c.TransformRequestBody(body, ctx, log)
-	if err != nil {
-		return types.ActionContinue, err
-	}
-	err = replaceHttpJsonRequestBody(modifiedBody, log)
-	if err != nil {
-		return types.ActionContinue, err
-	}
-
-	return types.ActionContinue, nil
-
+	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
 }
 
-func (c *claudeProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
+func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return nil, err
-	}
-
-	err := c.config.setRequestModel(ctx, request, log)
+	err := c.config.parseRequestAndMapModel(ctx, request, body, log)
 	if err != nil {
 		return nil, err
 	}
@@ -346,4 +313,19 @@ func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextG
 
 func (c *claudeProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, onlyOneSystemBeforeFile bool) ([]byte, error) {
+	request := &claudeTextGenRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	if request.System == "" {
+		request.System = content
+	} else {
+		request.System = content + "\n" + request.System
+	}
+
+	return json.Marshal(request)
 }

@@ -24,7 +24,6 @@ func CreateHeaders(kvs ...string) [][2]string {
 	return headers
 }
 
-// TODO: remove
 func OverwriteRequestHost(host string) error {
 	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-HOST", originHost)
@@ -32,7 +31,6 @@ func OverwriteRequestHost(host string) error {
 	return proxywasm.ReplaceHttpRequestHeader(":authority", host)
 }
 
-// TODO: remove
 func OverwriteRequestPath(path string) error {
 	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-PATH", originPath)
@@ -40,7 +38,6 @@ func OverwriteRequestPath(path string) error {
 	return proxywasm.ReplaceHttpRequestHeader(":path", path)
 }
 
-// TODO: remove
 func OverwriteRequestAuthorization(credential string) error {
 	if exist, _ := proxywasm.GetHttpRequestHeader("X-HI-ORIGINAL-AUTH"); exist == "" {
 		if originAuth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil {

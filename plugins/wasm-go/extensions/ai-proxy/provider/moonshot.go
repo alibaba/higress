@@ -50,16 +50,6 @@ type moonshotProvider struct {
 	contextCache *contextCache
 }
 
-func (m *moonshotProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *moonshotProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (m *moonshotProvider) GetProviderType() string {
 	return providerTypeMoonshot
 }

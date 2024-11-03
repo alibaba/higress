@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -108,16 +107,6 @@ type hunyuanProvider struct {
 
 	client       wrapper.HttpClient
 	contextCache *contextCache
-}
-
-func (m *hunyuanProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *hunyuanProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (m *hunyuanProvider) GetProviderType() string {

@@ -3,7 +3,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
@@ -14,6 +13,13 @@ func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) er
 	}
 	if request.Messages == nil || len(request.Messages) == 0 {
 		return fmt.Errorf("no message found in the request body: %s", body)
+	}
+	return nil
+}
+
+func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
 	}
 	return nil
 }
@@ -57,6 +63,32 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	} else {
 		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
 	}
+}
+
+func defaultInsertHttpContextMessage(body []byte, content string) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	fileMessage := chatMessage{
+		Role:    roleSystem,
+		Content: content,
+	}
+	var firstNonSystemMessageIndex int
+	for i, message := range request.Messages {
+		if message.Role != roleSystem {
+			firstNonSystemMessageIndex = i
+			break
+		}
+	}
+	if firstNonSystemMessageIndex == 0 {
+		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
+	} else {
+		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
+	}
+
+	return json.Marshal(request)
 }
 
 func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {

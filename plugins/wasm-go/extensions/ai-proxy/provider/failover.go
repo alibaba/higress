@@ -63,6 +63,8 @@ const (
 	removeApiTokenOperation            = "removeApiToken"
 	addApiTokenRequestCountOperation   = "addApiTokenRequestCount"
 	resetApiTokenRequestCountOperation = "resetApiTokenRequestCount"
+	ctxRequestHost                     = "requestHost"
+	ctxRequestPath                     = "requestPath"
 )
 
 var (
@@ -150,11 +152,12 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 						ctx := createHttpContext()
 						ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 
-						originalHeaders := util.SliceToHeader(headers)
-						activeProvider.TransformRequestHeaders(originalHeaders, ctx, log)
-						modifiedHeaders := util.HeaderToSlice(originalHeaders)
-						modifiedBody, _ := activeProvider.TransformRequestBody(body, ctx, log)
+						modifiedHeaders, modifiedBody, err := c.transformRequestHeadersAndBody(ctx, activeProvider, headers, body, log)
+						if err != nil {
+							log.Errorf("Failed to transform request headers and body: %v", err)
+						}
 
+						// The apiToken for ChatCompletion and Embeddings can be the same, so we only need to health check ChatCompletion
 						err = healthCheckClient.Post(healthCheckEndpoint.Path, modifiedHeaders, modifiedBody, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 							if statusCode == 200 {
 								c.handleAvailableApiToken(apiToken, log)
@@ -169,6 +172,25 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 		})
 	}
 	return nil
+}
+
+func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext, activeProvider Provider, headers [][2]string, body []byte, log wrapper.Log) ([][2]string, []byte, error) {
+	originalHeaders := util.SliceToHeader(headers)
+	if handler, ok := activeProvider.(TransformRequestHeadersHandler); ok {
+		handler.TransformRequestHeaders(ctx, ApiNameChatCompletion, originalHeaders, log)
+	}
+	modifiedHeaders := util.HeaderToSlice(originalHeaders)
+
+	var err error
+	if handler, ok := activeProvider.(TransformRequestBodyHandler); ok {
+		body, err = handler.TransformRequestBody(ctx, ApiNameChatCompletion, body, log)
+	} else {
+		body, err = c.defaultTransformRequestBody(ctx, body, log)
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to transform request body: %v", err)
+	}
+	return modifiedHeaders, body, nil
 }
 
 func createHttpContext() *wrapper.CommonHttpCtx[any] {
@@ -283,7 +305,7 @@ func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Lo
 
 // When number of request failures exceeds the threshold,
 // remove the apiToken from the available list and add it to the unavailable list
-func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.Log) {
+func (c *ProviderConfig) handleUnavailableApiToken(ctx wrapper.HttpContext, apiToken string, log wrapper.Log) {
 	failureApiTokenRequestCount, _, err := getApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount)
 	if err != nil {
 		log.Errorf("Failed to get failureApiTokenRequestCount: %v", err)
@@ -307,7 +329,7 @@ func (c *ProviderConfig) handleUnavailableApiToken(apiToken string, log wrapper.
 		addApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
 		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
 		// Set the request host and path to shared data in case they are needed in apiToken health check
-		c.setHealthCheckEndpoint(log)
+		c.setHealthCheckEndpoint(ctx, log)
 	} else {
 		log.Debugf("apiToken %s is still available as it has not reached the failure threshold, the number of failed request: %d", apiToken, failureCount)
 		addApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
@@ -511,9 +533,9 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(apiTokenInUse string, log wrapper.Log) {
+func (c *ProviderConfig) OnRequestFailed(ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) {
 	if c.isFailoverEnabled() {
-		c.handleUnavailableApiToken(apiTokenInUse, log)
+		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
 }
 
@@ -533,22 +555,33 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.L
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 }
 
-func (c *ProviderConfig) setHealthCheckEndpoint(log wrapper.Log) {
+func (c *ProviderConfig) setHealthCheckEndpoint(ctx wrapper.HttpContext, log wrapper.Log) {
 	cluster, err := proxywasm.GetProperty([]string{"cluster_name"})
 	if err != nil {
 		log.Errorf("Failed to get cluster_name: %v", err)
 	}
-	hostPath := HealthCheckEndpoint{
-		Host:    wrapper.GetRequestHost(),
-		Path:    wrapper.GetRequestPath(),
+
+	host := wrapper.GetRequestHost()
+	if host == "" {
+		host = ctx.GetContext(ctxRequestHost).(string)
+	}
+	path := wrapper.GetRequestPath()
+	if path == "" {
+		path = ctx.GetContext(ctxRequestPath).(string)
+	}
+
+	healthCheckEndpoint := HealthCheckEndpoint{
+		Host:    host,
+		Path:    path,
 		Cluster: string(cluster),
 	}
-	hostPathByte, err := json.Marshal(hostPath)
+
+	healthCheckEndpointByte, err := json.Marshal(healthCheckEndpoint)
 	if err != nil {
 		log.Errorf("Failed to marshal request host and path: %v", err)
 
 	}
-	err = proxywasm.SetSharedData(c.failover.ctxHealthCheckEndpoint, hostPathByte, 0)
+	err = proxywasm.SetSharedData(c.failover.ctxHealthCheckEndpoint, healthCheckEndpointByte, 0)
 	if err != nil {
 		log.Errorf("Failed to set request host and path: %v", err)
 	}

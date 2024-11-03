@@ -4,12 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 // githubProvider is the provider for GitHub OpenAI service.
@@ -25,16 +23,6 @@ type githubProviderInitializer struct {
 type githubProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
-}
-
-func (m *githubProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *githubProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (m *githubProviderInitializer) ValidateConfig(config ProviderConfig) error {

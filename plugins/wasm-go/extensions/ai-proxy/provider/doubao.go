@@ -3,8 +3,6 @@ package provider
 import (
 	"errors"
 	"fmt"
-	"net/http"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -35,16 +33,6 @@ func (m *doubaoProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 type doubaoProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
-}
-
-func (m *doubaoProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *doubaoProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (m *doubaoProvider) GetProviderType() string {

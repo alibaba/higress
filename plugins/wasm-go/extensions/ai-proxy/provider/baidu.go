@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -51,16 +50,6 @@ func (b *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 type baiduProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
-}
-
-func (b *baiduProvider) TransformRequestHeaders(headers http.Header, ctx wrapper.HttpContext, log wrapper.Log) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (b *baiduProvider) TransformRequestBody(body []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (b *baiduProvider) GetProviderType() string {
