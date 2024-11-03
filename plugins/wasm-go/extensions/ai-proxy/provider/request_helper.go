@@ -65,32 +65,6 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	}
 }
 
-func defaultInsertHttpContextMessage(body []byte, content string) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	if err := json.Unmarshal(body, request); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
-	}
-
-	fileMessage := chatMessage{
-		Role:    roleSystem,
-		Content: content,
-	}
-	var firstNonSystemMessageIndex int
-	for i, message := range request.Messages {
-		if message.Role != roleSystem {
-			firstNonSystemMessageIndex = i
-			break
-		}
-	}
-	if firstNonSystemMessageIndex == 0 {
-		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
-	} else {
-		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
-	}
-
-	return json.Marshal(request)
-}
-
 func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
 	body, err := json.Marshal(response)
 	if err != nil {

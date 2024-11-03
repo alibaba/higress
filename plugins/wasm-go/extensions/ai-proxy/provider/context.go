@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -153,4 +154,30 @@ func insertContext(provider Provider, content string, err error, body []byte, lo
 	if err := replaceHttpJsonRequestBody(body, log); err != nil {
 		_ = util.SendResponse(500, fmt.Sprintf("ai-proxy.%s.replace_request_body_failed", typ), util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
 	}
+}
+
+func defaultInsertHttpContextMessage(body []byte, content string) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	fileMessage := chatMessage{
+		Role:    roleSystem,
+		Content: content,
+	}
+	var firstNonSystemMessageIndex int
+	for i, message := range request.Messages {
+		if message.Role != roleSystem {
+			firstNonSystemMessageIndex = i
+			break
+		}
+	}
+	if firstNonSystemMessageIndex == 0 {
+		request.Messages = append([]chatMessage{fileMessage}, request.Messages...)
+	} else {
+		request.Messages = append(request.Messages[:firstNonSystemMessageIndex], append([]chatMessage{fileMessage}, request.Messages[firstNonSystemMessageIndex:]...)...)
+	}
+
+	return json.Marshal(request)
 }
