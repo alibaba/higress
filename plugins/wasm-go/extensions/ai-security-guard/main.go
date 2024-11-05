@@ -470,7 +470,7 @@ func marshalStr(raw string, log wrapper.Log) string {
 	}
 	marshalledHelper, _ := json.Marshal(helper)
 	marshalledRaw := gjson.GetBytes(marshalledHelper, "placeholder").Raw
-	if len(marshalledRaw) > 2 {
+	if len(marshalledRaw) >= 2 {
 		return marshalledRaw[1 : len(marshalledRaw)-1]
 	} else {
 		log.Errorf("failed to marshal json string, raw string is: %s", raw)
