@@ -511,7 +511,7 @@ func (c *ProviderConfig) handleRequestBody(
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) {
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
-		originalHeaders := util.GetOriginaHttplHeaders()
+		originalHeaders := util.GetOriginalHttpHeaders()
 		handler.TransformRequestHeaders(ctx, apiName, originalHeaders, log)
 		util.ReplaceOriginalHttpHeaders(originalHeaders)
 	}

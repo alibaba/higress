@@ -1,8 +1,9 @@
 package util
 
 import (
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"net/http"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 const (
@@ -68,7 +69,6 @@ func OverwriteHttpRequestAuthorization(headers http.Header, credential string) {
 		}
 	}
 	headers.Set("Authorization", credential)
-
 }
 
 func HeaderToSlice(header http.Header) [][2]string {
@@ -91,7 +91,7 @@ func SliceToHeader(slice [][2]string) http.Header {
 	return header
 }
 
-func GetOriginaHttplHeaders() http.Header {
+func GetOriginalHttpHeaders() http.Header {
 	originalHeaders, _ := proxywasm.GetHttpRequestHeaders()
 	return SliceToHeader(originalHeaders)
 }
