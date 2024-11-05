@@ -470,16 +470,6 @@ func (c *ProviderConfig) handleRequestBody(
 ) (types.Action, error) {
 	// use original protocol
 	if c.protocol == protocolOriginal {
-		if apiName == ApiNameChatCompletion {
-			if c.context == nil {
-				return types.ActionContinue, nil
-			}
-			err := contextCache.GetContextFromFile(ctx, provider, body, log)
-			if err == nil {
-				return types.ActionPause, nil
-			}
-			return types.ActionContinue, err
-		}
 		return types.ActionContinue, nil
 	}
 
