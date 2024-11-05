@@ -88,6 +88,7 @@ type AISecurityConfig struct {
 	client                        wrapper.HttpClient
 	ak                            string
 	sk                            string
+	token                         string
 	checkRequest                  bool
 	requestCheckService           string
 	requestContentJsonPath        string
@@ -179,6 +180,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	if config.ak == "" || config.sk == "" {
 		return errors.New("invalid AK/SK config")
 	}
+	config.token = json.Get("securityToken").String()
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
 	config.protocolOriginal = json.Get("protocol").String() == "original"
@@ -270,6 +272,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		"Timestamp":         timestamp,
 		"Service":           config.requestCheckService,
 		"ServiceParameters": fmt.Sprintf(`{"content": "%s"}`, marshalStr(content, log)),
+	}
+	if config.token != "" {
+		params["SecurityToken"] = config.token
 	}
 	signature := getSign(params, config.sk+"&")
 	reqParams := url.Values{}
@@ -392,6 +397,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		"Timestamp":         timestamp,
 		"Service":           config.responseCheckService,
 		"ServiceParameters": fmt.Sprintf(`{"content": "%s"}`, marshalStr(content, log)),
+	}
+	if config.token != "" {
+		params["SecurityToken"] = config.token
 	}
 	signature := getSign(params, config.sk+"&")
 	reqParams := url.Values{}
