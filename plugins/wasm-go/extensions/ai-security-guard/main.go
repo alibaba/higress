@@ -306,16 +306,16 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
 				denyMessage = response.Data.Advice[0].Answer
 			}
-			marshaledDenyMessage := marshalStr(denyMessage, log)
+			marshalledDenyMessage := marshalStr(denyMessage, log)
 			if config.protocolOriginal {
-				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshaledDenyMessage), -1)
+				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
 			} else if gjson.GetBytes(body, "stream").Bool() {
 				randomID := generateRandomID()
-				jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshaledDenyMessage, randomID, model))
+				jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
 				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 			} else {
 				randomID := generateRandomID()
-				jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshaledDenyMessage))
+				jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
 				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 			}
 			ctx.DontReadResponseBody()
@@ -429,16 +429,16 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
 				denyMessage = response.Data.Advice[0].Answer
 			}
-			marshaledDenyMessage := marshalStr(denyMessage, log)
+			marshalledDenyMessage := marshalStr(denyMessage, log)
 			var jsonData []byte
 			if config.protocolOriginal {
-				jsonData = []byte(marshaledDenyMessage)
+				jsonData = []byte(marshalledDenyMessage)
 			} else if isStreamingResponse {
 				randomID := generateRandomID()
-				jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshaledDenyMessage, randomID, model))
+				jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
 			} else {
 				randomID := generateRandomID()
-				jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshaledDenyMessage))
+				jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
 			}
 			delete(hdsMap, "content-length")
 			hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}
@@ -468,10 +468,10 @@ func marshalStr(raw string, log wrapper.Log) string {
 	helper := map[string]string{
 		"placeholder": raw,
 	}
-	marshaledHelper, _ := json.Marshal(helper)
-	marshaledRaw := gjson.GetBytes(marshaledHelper, "placeholder").Raw
-	if len(marshaledRaw) > 2 {
-		return marshaledRaw[1 : len(marshaledRaw)-1]
+	marshalledHelper, _ := json.Marshal(helper)
+	marshalledRaw := gjson.GetBytes(marshalledHelper, "placeholder").Raw
+	if len(marshalledRaw) > 2 {
+		return marshalledRaw[1 : len(marshalledRaw)-1]
 	} else {
 		log.Errorf("failed to marshal json string, raw string is: %s", raw)
 		return ""
