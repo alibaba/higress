@@ -173,8 +173,8 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		log.Errorf("error status: %s, error message: %v", status, err)
 		return types.ActionContinue
 	}
-	cacheControl, err := proxywasm.GetHttpResponseHeader("cache-control")
-	if err == nil && !strings.Contains(cacheControl, "no-cache") {
+	cacheControl, _ := proxywasm.GetHttpResponseHeader("cache-control")
+	if !strings.Contains(cacheControl, "no-cache") {
 		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
 	}
 
