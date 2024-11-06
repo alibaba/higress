@@ -35,7 +35,7 @@ jobs:
       TINYGO_VERSION: 0.28.1
       ORAS_VERSION: 1.0.0
     steps:
-      - name: Set plugin_type、 plugin_name and version from inputs or ref_name
+      - name: Set plugin_type, plugin_name and version from inputs or ref_name
         id: set_vars
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
