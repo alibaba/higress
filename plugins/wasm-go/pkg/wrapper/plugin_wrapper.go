@@ -24,13 +24,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
-	_ "github.com/higress-group/nottinygc"
 )
-
-//export sched_yield
-func sched_yield() int32 {
-	return 0
-}
 
 type HttpContext interface {
 	Scheme() string
@@ -370,6 +364,8 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) 
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
+	requestID, _ := proxywasm.GetHttpRequestHeader("x-request-id")
+	_ = proxywasm.SetProperty([]string{"x_request_id"}, []byte(requestID))
 	config, err := ctx.plugin.GetMatchConfig()
 	if err != nil {
 		ctx.plugin.vm.log.Errorf("get match config failed, err:%v", err)

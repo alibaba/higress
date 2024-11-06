@@ -116,6 +116,12 @@ data:
     {{- $existingData = index $existingConfig.data "higress" | default "{}" | fromYaml }}
     {{- end }}
     {{- $newData := dict }}
+    {{- if hasKey .Values "upstream" }}
+    {{- $_ := set $newData "upstream" .Values.upstream }}
+    {{- end }}
+    {{- if hasKey .Values "downstream" }}
+    {{- $_ := set $newData "downstream" .Values.downstream }}
+    {{- end }}
     {{- if and (hasKey .Values "tracing") .Values.tracing.enable }}
     {{- $_ := set $newData "tracing" .Values.tracing }}
     {{- end }}
