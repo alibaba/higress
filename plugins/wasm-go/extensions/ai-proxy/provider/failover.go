@@ -462,6 +462,7 @@ func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, 
 			log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
 		}
 		if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
+			log.Infof("reset apiToken %s request failure count", apiTokenInUse)
 			resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiTokenInUse, log)
 		}
 	}
