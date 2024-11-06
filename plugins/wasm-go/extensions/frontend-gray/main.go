@@ -72,6 +72,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 如果没有配置比例，则进行灰度规则匹配
 	if util.IsSupportMultiVersion(grayConfig) {
 		deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, requestPath)
+		log.Infof("multi version %v", deployment)
 	} else {
 		if isPageRequest {
 			if grayConfig.TotalGrayWeight > 0 {
@@ -172,8 +173,10 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		log.Errorf("error status: %s, error message: %v", status, err)
 		return types.ActionContinue
 	}
-
-	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
+	cacheControl, err := proxywasm.GetHttpResponseHeader("cache-control")
+	if err == nil && !strings.Contains(cacheControl, "no-cache") {
+		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
+	}
 
 	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
 	xUniqueClient, isUniqClientOk := ctx.GetContext(config.XUniqueClientId).(string)
