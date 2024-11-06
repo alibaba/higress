@@ -129,3 +129,10 @@ rules:
   - apiGroups: ["networking.internal.knative.dev"]
     resources: ["ingresses/status"]
     verbs: ["get","patch","update"]
+  # gateway api need
+  - apiGroups: ["apps"]
+    verbs: [ "get", "watch", "list", "update", "patch", "create", "delete" ]
+    resources: [ "deployments" ]
+  - apiGroups: [""]
+    verbs: [ "get", "watch", "list", "update", "patch", "create", "delete" ]
+    resources: [ "serviceaccounts"]
