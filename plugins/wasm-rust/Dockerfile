@@ -1,11 +1,12 @@
 FROM rust:1.80 as builder
 WORKDIR /workspace
-RUN apt update && apt-get install gcc gcc-multilib llvm clang -y && apt clean
 RUN rustup target add wasm32-wasi
 ARG PLUGIN_NAME="say-hello"
 ARG BUILD_OPTS="--release"
+ARG PREPARE_BUILD="scripts/prepare_build.sh"
 COPY . .
 WORKDIR /workspace/extensions/$PLUGIN_NAME
+RUN test -f $PREPARE_BUILD && sh $PREPARE_BUILD || true
 RUN cargo build --target wasm32-wasi $BUILD_OPTS \
     && cp target/wasm32-wasi/release/*.wasm /main.wasm
 

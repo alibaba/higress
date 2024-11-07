@@ -1,0 +1,2 @@
+#!/bin/sh
+apt update && apt-get install gcc gcc-multilib llvm clang -y && apt clean
