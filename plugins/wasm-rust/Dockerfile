@@ -6,7 +6,7 @@ ARG BUILD_OPTS="--release"
 ARG PREPARE_BUILD="scripts/prepare_build.sh"
 COPY . .
 WORKDIR /workspace/extensions/$PLUGIN_NAME
-RUN test -f $PREPARE_BUILD && sh $PREPARE_BUILD || true
+RUN if [ -f $PREPARE_BUILD ]; then sh $PREPARE_BUILD; fi
 RUN cargo build --target wasm32-wasi $BUILD_OPTS \
     && cp target/wasm32-wasi/release/*.wasm /main.wasm
 
