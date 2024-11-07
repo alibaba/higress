@@ -57,15 +57,17 @@ description: 前端灰度插件配置参考
 
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
-| `version`         | string       | 必填   | -   | Base版本的版本号，作为兜底的版本                                         |
+| `version`         | string       | 必填   | -   | Base版本的版本号，作为兜底的版本 |
+| `versionPredicates`  | string | 必填   | -   | 和`version`含义相同，但是满足多版本的需求：根据不同路由映射不同的`Version`版本。一般用于微前端的场景：一个主应用需要管理多个微应用 |
 
 `grayDeployments`字段配置说明：
 
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
-| `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本。如果是非CDN部署，在header添加`x-higress-tag`                     |
+| `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本。如果是非CDN部署，在header添加`x-higress-tag` |
+| `versionPredicates`  | string | 必填   | -   | 和`version`含义相同，但是满足多版本的需求：根据不同路由映射不同的`Version`版本。一般用于微前端的场景：一个主应用需要管理多个微应用 |
 | `backendVersion`  | string | 必填   | -   | 后端灰度版本，配合`key`为`${backendGrayTag}`，写入cookie中 |
-| `name` | string | 必填   | -   | 规则名称和`rules[].name`关联，                          |
+| `name` | string | 必填   | -   | 规则名称和`rules[].name`关联 |
 | `enabled`  | boolean   | 必填   | -   | 是否启动当前灰度规则                                      |
 | `weight`  | int   | 非必填   | -   | 按照比例灰度，比如`50`。注意：灰度规则权重总和不能超过100，如果同时配置了`grayKey`以及`grayDeployments[0].weight`按照比例灰度优先生效 |
 > 为了实现按比例（weight） 进行灰度发布，并确保用户粘滞，我们需要确认客户端的唯一性。如果配置了 grayKey，则将其用作唯一标识；如果未配置 grayKey，则使用客户端的访问 IP 地址作为唯一标识。
