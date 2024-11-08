@@ -4,12 +4,7 @@ Higress is a cloud-native api gateway based on Alibaba's internal gateway practi
 
 Powered by Istio and Envoy, Higress realizes the integration of the triple gateway architecture of traffic gateway, microservice gateway and security gateway, thereby greatly reducing the costs of deployment, operation and maintenance.
 
-## Prerequisites
-
-* Kubernetes v1.14+
-* Helm v3+
-
-## Get Repo Info
+## Setup Repo Info
 
 ```console
 helm repo add higress.io https://higress.io/helm-charts
