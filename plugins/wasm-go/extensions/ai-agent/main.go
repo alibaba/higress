@@ -200,20 +200,20 @@ func extractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func jsonFormat(LLMClient wrapper.HttpClient, LLMInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
+func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
 	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, jsonSchema, actionInput)
 
 	messages := []dashscope.Message{{Role: "user", Content: prompt}}
 
 	completion := dashscope.Completion{
-		Model:    LLMInfo.Model,
+		Model:    llmInfo.Model,
 		Messages: messages,
 	}
 
 	completionSerialized, _ := json.Marshal(completion)
 	var content string
-	err := LLMClient.Post(
-		LLMInfo.Path,
+	err := llmClient.Post(
+		llmInfo.Path,
 		headers,
 		completionSerialized,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -233,7 +233,7 @@ func jsonFormat(LLMClient wrapper.HttpClient, LLMInfo LLMInfo, jsonSchema map[st
 			} else {
 				noneStream(assistantMessage, jsonStr, rawResponse, log)
 			}
-		}, uint32(LLMInfo.MaxExecutionTime))
+		}, uint32(llmInfo.MaxExecutionTime))
 	if err != nil {
 		log.Debugf("[onHttpRequestBody] completion err: %s", err.Error())
 		proxywasm.ResumeHttpRequest()
@@ -271,7 +271,7 @@ func stream(actionInput string, rawResponse Response, log wrapper.Log) {
 	proxywasm.ResumeHttpResponse()
 }
 
-func toolsCallResult(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LLMInfo, JsonResp JsonResp, APIsParam []APIsParam, APIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
+func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
 	if statusCode != http.StatusOK {
 		log.Debugf("statusCode: %d", statusCode)
 	}
@@ -283,15 +283,15 @@ func toolsCallResult(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMI
 	dashscope.MessageStore.AddForUser(observation)
 
 	completion := dashscope.Completion{
-		Model:     LLMInfo.Model,
+		Model:     llmInfo.Model,
 		Messages:  dashscope.MessageStore,
-		MaxTokens: LLMInfo.MaxTokens,
+		MaxTokens: llmInfo.MaxTokens,
 	}
 
-	headers := [][2]string{{"Content-Type", "application/json"}, {"Authorization", "Bearer " + LLMInfo.APIKey}}
+	headers := [][2]string{{"Content-Type", "application/json"}, {"Authorization", "Bearer " + llmInfo.APIKey}}
 	completionSerialized, _ := json.Marshal(completion)
-	err := LLMClient.Post(
-		LLMInfo.Path,
+	err := llmClient.Post(
+		llmInfo.Path,
 		headers,
 		completionSerialized,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -301,22 +301,22 @@ func toolsCallResult(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMI
 			log.Infof("[toolsCall] content: %s", responseCompletion.Choices[0].Message.Content)
 
 			if responseCompletion.Choices[0].Message.Content != "" {
-				retType, actionInput := toolsCall(ctx, LLMClient, LLMInfo, JsonResp, APIsParam, APIClient, responseCompletion.Choices[0].Message.Content, rawResponse, log)
+				retType, actionInput := toolsCall(ctx, llmClient, llmInfo, jsonResp, aPIsParam, aPIClient, responseCompletion.Choices[0].Message.Content, rawResponse, log)
 				if retType == types.ActionContinue {
 					//得到了Final Answer
 					var assistantMessage Message
 					var streamMode bool
 					if ctx.GetContext(StreamContextKey) == nil {
 						streamMode = false
-						if JsonResp.Enable {
-							jsonFormat(LLMClient, LLMInfo, JsonResp.JsonSchema, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
+						if jsonResp.Enable {
+							jsonFormat(llmClient, llmInfo, jsonResp.JsonSchema, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
 						} else {
 							noneStream(assistantMessage, actionInput, rawResponse, log)
 						}
 					} else {
 						streamMode = true
-						if JsonResp.Enable {
-							jsonFormat(LLMClient, LLMInfo, JsonResp.JsonSchema, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
+						if jsonResp.Enable {
+							jsonFormat(llmClient, llmInfo, jsonResp.JsonSchema, assistantMessage, actionInput, headers, streamMode, rawResponse, log)
 						} else {
 							stream(actionInput, rawResponse, log)
 						}
@@ -325,7 +325,7 @@ func toolsCallResult(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMI
 			} else {
 				proxywasm.ResumeHttpRequest()
 			}
-		}, uint32(LLMInfo.MaxExecutionTime))
+		}, uint32(llmInfo.MaxExecutionTime))
 	if err != nil {
 		log.Debugf("[onHttpRequestBody] completion err: %s", err.Error())
 		proxywasm.ResumeHttpRequest()
@@ -379,7 +379,7 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 	return "", ""
 }
 
-func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LLMInfo, JsonResp JsonResp, APIsParam []APIsParam, APIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log) (types.Action, string) {
+func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log) (types.Action, string) {
 	dashscope.MessageStore.AddForAssistant(content)
 
 	action, actionInput := outputParser(content, log)
@@ -390,9 +390,9 @@ func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LL
 	}
 	count := ctx.GetContext(ToolCallsCount).(int)
 	count++
-	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d", count, LLMInfo.MaxIterations)
+	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d", count, llmInfo.MaxIterations)
 	//函数递归调用次数，达到了预设的循环次数，强制结束
-	if int64(count) > LLMInfo.MaxIterations {
+	if int64(count) > llmInfo.MaxIterations {
 		ctx.SetContext(ToolCallsCount, 0)
 		return types.ActionContinue, ""
 	} else {
@@ -406,10 +406,9 @@ func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LL
 	var apiClient wrapper.HttpClient
 	var method string
 	var reqBody []byte
-	var key string
 	var maxExecutionTime int64
 
-	for i, apisParam := range APIsParam {
+	for i, apisParam := range aPIsParam {
 		maxExecutionTime = apisParam.MaxExecutionTime
 		for _, tools_param := range apisParam.ToolsParam {
 			if action == tools_param.ToolName {
@@ -449,15 +448,12 @@ func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LL
 				// 重新组合URL
 				urlStr = strings.Join(urlParts, "/")
 
+				queryParams := make([][2]string, 0)
 				if method == "GET" {
-					queryParams := make([]string, 0, len(tools_param.ParamName))
 					for _, param := range tools_param.ParamName {
 						if value, ok := data[param]; ok {
-							queryParams = append(queryParams, fmt.Sprintf("%s=%v", url.QueryEscape(param), url.QueryEscape(fmt.Sprintf("%v", value))))
+							queryParams = append(queryParams, [2]string{param, fmt.Sprintf("%v", value)})
 						}
-					}
-					if len(queryParams) > 0 {
-						urlStr += "?" + strings.Join(queryParams, "&")
 					}
 				} else if method == "POST" {
 					var err error
@@ -472,22 +468,26 @@ func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LL
 				headers = [][2]string{{"Content-Type", "application/json"}}
 				if apisParam.APIKey.Name != "" {
 					if apisParam.APIKey.In == "query" {
-						if method == "GET" {
-							key = "&" + url.QueryEscape(apisParam.APIKey.Name) + "=" + url.QueryEscape(apisParam.APIKey.Value)
-						} else if method == "POST" {
-							key = "?" + url.QueryEscape(apisParam.APIKey.Name) + "=" + url.QueryEscape(apisParam.APIKey.Value)
-						}
+						queryParams = append(queryParams, [2]string{apisParam.APIKey.Name, apisParam.APIKey.Value})
 					} else if apisParam.APIKey.In == "header" {
 						headers = append(headers, [2]string{"Authorization", apisParam.APIKey.Name + " " + apisParam.APIKey.Value})
 					}
 				}
 
-				// 将 key 拼接到 url 后面
-				urlStr += key
+				if len(queryParams) > 0 {
+					// 将 key 拼接到 url 后面
+					urlStr += "?"
+					for i, param := range queryParams {
+						if i != 0 {
+							urlStr += "&"
+						}
+						urlStr += url.QueryEscape(param[0]) + "=" + url.QueryEscape(param[1])
+					}
+				}
 
 				log.Debugf("url: %s", urlStr)
 
-				apiClient = APIClient[i]
+				apiClient = aPIClient[i]
 				break
 			}
 		}
@@ -500,7 +500,7 @@ func toolsCall(ctx wrapper.HttpContext, LLMClient wrapper.HttpClient, LLMInfo LL
 			headers,
 			reqBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-				toolsCallResult(ctx, LLMClient, LLMInfo, JsonResp, APIsParam, APIClient, content, rawResponse, log, statusCode, responseBody)
+				toolsCallResult(ctx, llmClient, llmInfo, jsonResp, aPIsParam, aPIClient, content, rawResponse, log, statusCode, responseBody)
 			}, uint32(maxExecutionTime))
 		if err != nil {
 			log.Debugf("tool calls error: %s", err.Error())
