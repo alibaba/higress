@@ -1,0 +1,35 @@
+name: "Helm Docs"
+
+on:
+  pull_request:
+    branches:
+      - "*"
+
+  push:
+
+jobs:
+
+  helm:
+    name: Helm Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.9'
+
+      - name: Run helm-docs
+        run: |
+          GOBIN=$PWD GO111MODULE=on go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
+          ./helm-docs -c ${GITHUB_WORKSPACE}/helm/higress -f ../core/values.yaml
+          DIFF=$(git diff ${GITHUB_WORKSPACE}/helm/higress/*md)
+          if [ ! -z "$DIFF" ]; then
+            echo "Please use helm-docs in your clone, of your fork, of the project, and commit a updated README.md for the chart."
+          fi
+          git diff --exit-code
+          rm -f ./helm-docs
