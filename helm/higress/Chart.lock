@@ -1,9 +1,9 @@
 dependencies:
 - name: higress-core
   repository: file://../core
-  version: 2.0.2
+  version: 2.0.3
 - name: higress-console
   repository: https://higress.io/helm-charts/
-  version: 1.4.4
-digest: sha256:a424449caa01a71798c7fec9769ef97be7658354c028a3cede4790e4b6094532
-generated: "2024-10-28T18:50:27.528097+08:00"
+  version: 1.4.5
+digest: sha256:74b772113264168483961f5d0424459fd7359adc509a4b50400229581d7cddbf
+generated: "2024-11-08T14:06:51.871719+08:00"
