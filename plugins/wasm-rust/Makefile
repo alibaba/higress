@@ -28,14 +28,12 @@ lint:
 	cargo clippy --workspace --all-features --all-targets --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 
 builder:
-	docker buildx build --no-cache \
-			--platform linux/amd64,linux/arm64 \
+	DOCKER_BUILDKIT=1 docker build \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg ORAS_VERSION=$(ORAS_VERSION) \
 			--build-arg HIGRESS_VERSION=$(HIGRESS_VERSION) \
 			-f DockerfileBuilder \
 			-t ${BUILDER} \
-			--push \
 			.
 	@echo ""
 	@echo "image: ${BUILDER}"
