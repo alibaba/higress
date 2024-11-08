@@ -1,3 +1,4 @@
+<a name="readme-top"></a>
 <h1 align="center">
     <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
@@ -87,3 +88,19 @@ Higress would not be possible without the valuable open-source work of projects 
 
 - Higress Console: https://github.com/higress-group/higress-console
 - Higress Standalone: https://github.com/higress-group/higress-standalone
+
+### Contributors
+
+<a href="https://github.com/alibaba/higress/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=alibaba/higress"/>
+</a>
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=alibaba/higress&type=Date)](https://star-history.com/#alibaba/higress&Date)
+
+<p align="right" style="font-size: 14px; color: #555; margin-top: 20px;">
+    <a href="#readme-top" style="text-decoration: none; color: #007bff; font-weight: bold;">
+        ↑ Back to Top ↑
+    </a>
+</p>
