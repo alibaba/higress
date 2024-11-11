@@ -17,5 +17,4 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
-	gitlab.alibaba-inc.com/ram-sdk-family/sts-openapi-go-sdk v0.0.0-20200409090916-15cae868f548 // indirect
 )
