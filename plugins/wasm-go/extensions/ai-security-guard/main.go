@@ -35,6 +35,7 @@ func main() {
 }
 
 const (
+	MaxRisk    = "max"
 	HighRisk   = "high"
 	MediumRisk = "medium"
 	LowRisk    = "low"
@@ -44,8 +45,6 @@ const (
 	OpenAIStreamResponseChunk  = `data:{"id":"%s","object":"chat.completion.chunk","model":"%s","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
 	OpenAIStreamResponseEnd    = `data:{"id":"%s","object":"chat.completion.chunk","model":"%s","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}`
 	OpenAIStreamResponseFormat = OpenAIStreamResponseChunk + "\n\n" + OpenAIStreamResponseEnd + "\n\n" + `data: [DONE]`
-
-	// TracingPrefix = "trace_span_tag."
 
 	DefaultRequestCheckService       = "llm_query_moderation"
 	DefaultResponseCheckService      = "llm_response_moderation"
@@ -114,6 +113,8 @@ func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) 
 
 func riskLevelToInt(riskLevel string) int {
 	switch riskLevel {
+	case MaxRisk:
+		return 4
 	case HighRisk:
 		return 3
 	case MediumRisk:
@@ -218,7 +219,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	if obj := json.Get("riskLevelBar"); obj.Exists() {
 		config.riskLevelBar = obj.String()
 		if riskLevelToInt(config.riskLevelBar) <= 0 {
-			return errors.New("invalid risk level, value must be one of [high, medium, low]")
+			return errors.New("invalid risk level, value must be one of [max, high, medium, low]")
 		}
 	} else {
 		config.riskLevelBar = HighRisk
