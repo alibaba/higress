@@ -75,7 +75,7 @@ impl RootContext for SseTimingRoot {
             rule_matcher: self.rule_matcher.clone(),
             vendor: "higress".into(),
             is_event_stream: false,
-            event_stream: EventStream::new(),
+            event_stream: EventStream::default(),
             start_time: self.get_current_time(),
         }))
     }
