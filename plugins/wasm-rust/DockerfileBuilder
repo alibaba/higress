@@ -8,10 +8,7 @@ FROM $BASE_IMAGE
 
 LABEL rust_version=$RUST_VERSION oras_version=$ORAS_VERSION
 
-RUN apt-get update \
-  && apt-get install -y wget gcc gcc-multilib llvm clang \
-  && rustup target add wasm32-wasi \
-  && rm -rf /var/lib/apt/lists/*
+RUN rustup target add wasm32-wasi
 
 RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
     rust_version=${RUST_VERSION:-1.82}; \
