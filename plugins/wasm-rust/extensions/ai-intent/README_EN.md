@@ -19,27 +19,36 @@ Plugin execution priority: `700`
 
 | Name           |   Data Type        | Requirement | Default Value | Description                                                      |
 | -------------- | --------------- | ----------- | ------------- | --------------------------------------------------------------- |
-| `scene.category`         | string          | Required     | -             | Preset scene categories, separated by "|", e.g.: "Finance|E-commerce|Law|Higress" |
-| `scene.prompt`         | string          | Optional     | You are a smart category recognition assistant responsible for determining which preset category a user’s question belongs to based on the question posed by the user and the preset categories, and returning the corresponding category. The user's question is: %s, the preset categories are %s, directly return a specific category; if not found, return 'NotFound'.     | llm request prompt template |
-| `llm.proxyServiceName`         | string          | Required     | -             | Newly created Higress service pointing to the large model (use the FQDN value from Higress) |
-| `llm.proxyUrl`         | string          | Required     | -             | The full path to the large model route request address, which can be the gateway’s own address or the address of another large model (OpenAI protocol), for example: http://127.0.0.1:80/intent/compatible-mode/v1/chat/completions |
-| `llm.proxyDomain`         | string          | Optional     |   Retrieved from proxyUrl      | Domain of the large model service |
-| `llm.proxyPort`         | string          | Optional     | Retrieved from proxyUrl     | Port number of the large model service |
-| `llm.proxyApiKey`         | string          | Optional     | -             | API_KEY corresponding to the external large model service when using it |
-| `llm.proxyModel`         | string          | Optional     | qwen-long      | Type of the large model |
-| `llm.proxyTimeout`         | number          | Optional     | 10000         | Timeout for calling the large model, unit ms, default: 10000ms |
+| `scene.categories[].use_for`         | string          | Required     | -      |  |
+| `scene.categories[].options`         | array of string          | Required     | -      | |
+| `scene.prompt`         | string          | Optional     | YYou are an intelligent category recognition assistant, responsible for determining which preset category a question belongs to based on the user's query and predefined categories, and providing the corresponding category. <br>The user's question is: '${question}'<br>The preset categories are: <br>${categories}<br><br>Please respond directly with the category in the following manner:<br>- {"useFor": "scene1", "result": "result1"}<br>- {"useFor": "scene2", result: "result2"}<br>Ensure that different `useFor` are on different lines, and that `useFor` and `result` appear on the same line.    | llm request prompt template |
+| `llm.proxy_service_name`         | string          | Required     | -             | Newly created Higress service pointing to the large model (use the FQDN value from Higress) |
+| `llm.proxy_url`         | string          | Required     | -             | The full path to the large model route request address, which can be the gateway’s own address or the address of another large model (OpenAI protocol), for example: http://127.0.0.1:80/intent/compatible-mode/v1/chat/completions |
+| `llm.proxy_domain`         | string          | Optional     |   Retrieved from proxyUrl      | Domain of the large model service |
+| `llm.proxy_port`         | string          | Optional     | Retrieved from proxyUrl     | Port number of the large model service |
+| `llm.proxy_api_key`         | string          | Optional     | -             | API_KEY corresponding to the external large model service when using it |
+| `llm.proxy_model`         | string          | Optional     | qwen-long      | Type of the large model |
+| `llm.proxy_timeout`         | number          | Optional     | 10000         | Timeout for calling the large model, unit ms, default: 10000ms |
 
 ## Configuration Example
 ```yaml
 scene:
   category: "Finance|E-commerce|Law|Higress"
-  prompt: "You are a smart category recognition assistant responsible for determining which preset category a user's question belongs to based on the question posed by the user and the preset categories, and returning the corresponding category. The user's question is: '%s', the preset categories are '%s', directly return a specific category; if not found, return 'NotFound'."
+  prompt: "You are an intelligent category recognition assistant, responsible for determining which preset category a question belongs to based on the user's query and predefined categories, and providing the corresponding category. 
+The user's question is: '${question}'
+The preset categories are: 
+${categories}
+
+Please respond directly with the category in the following manner:
+- {\"useFor\": \"scene1\", \"result\": \"result1\"}
+- {\"useFor\": \"scene2\", \"result\": \"result2\"}
+Ensure that different `useFor` are on different lines, and that `useFor` and `result` appear on the same line."
 llm:
-  proxyServiceName: "intent-service.static"
-  proxyUrl: "http://127.0.0.1:80/intent/compatible-mode/v1/chat/completions"
-  proxyDomain: "127.0.0.1"
-  proxyPort: "80"
-  proxyModel: "qwen-long"
-  proxyApiKey: ""
-  proxyTimeout: "10000"
+  proxy_service_name: "intent-service.static"
+  proxy_url: "http://127.0.0.1:80/intent/compatible-mode/v1/chat/completions"
+  proxy_domain: "127.0.0.1"
+  proxy_port: 80
+  proxy_model: "qwen-long"
+  proxy_api_key: ""
+  proxy_timeout: 10000
 ```
