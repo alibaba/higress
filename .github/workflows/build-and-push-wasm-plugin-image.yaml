@@ -42,7 +42,6 @@ jobs:
             plugin_type="${{ github.event.inputs.plugin_type }}"
             plugin_name="${{ github.event.inputs.plugin_name }}"
             version="${{ github.event.inputs.version }}"
-            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${{ env.RUST_VERSION }}-oras${{ env.ORAS_VERSION }}"
           else
             ref_name=${{ github.ref_name }}
             plugin_type=${ref_name#*-} # 删除插件类型前面的字段(wasm-)
@@ -50,9 +49,12 @@ jobs:
             plugin_name=${ref_name#*-*-} # 删除插件名前面的字段(wasm-go-)
             plugin_name=${plugin_name%-*} # 删除插件名后面的字段(-vX.Y.Z)
             version=$(echo "$ref_name" | awk -F'v' '{print $2}')
+          fi
+          if [[ "$plugin_type" == "rust" ]]; then
+            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${{ env.RUST_VERSION }}-oras${{ env.ORAS_VERSION }}"
+          else
             builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${{ env.GO_VERSION }}-tinygo${{ env.TINYGO_VERSION }}-oras${{ env.ORAS_VERSION }}"
           fi
-
           echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
           echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV
           echo "VERSION=$version" >> $GITHUB_ENV
