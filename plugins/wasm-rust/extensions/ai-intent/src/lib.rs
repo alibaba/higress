@@ -138,11 +138,11 @@ fn proxy_timeout_default() -> u64 {
 }
 
 fn request_body_default() -> JsonPath {
-    JsonPath::from_str("messages.@reverse.0.content").unwrap()
+    JsonPath::from_str("messages.@reverse[0].content").unwrap()
 }
 
 fn response_body_default() -> JsonPath {
-    JsonPath::from_str("choices.0.message.content").unwrap()
+    JsonPath::from_str("choices[0]message.content").unwrap()
 }
 
 fn deserialize_jsonpath<'de, D>(deserializer: D) -> Result<JsonPath, D::Error>
