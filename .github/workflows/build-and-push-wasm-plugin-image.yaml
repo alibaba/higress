@@ -45,7 +45,7 @@ jobs:
           else
             ref_name=${{ github.ref_name }}
             plugin_type=${ref_name#*-} # 删除插件类型前面的字段(wasm-)
-            plugin_type=${plugin_type%-*} # 删除插件类型后面的字段(-{plugin_name}-vX.Y.Z)
+            plugin_type=${plugin_type%%-*} # 删除插件类型后面的字段(-{plugin_name}-vX.Y.Z)
             plugin_name=${ref_name#*-*-} # 删除插件名前面的字段(wasm-go-)
             plugin_name=${plugin_name%-*} # 删除插件名后面的字段(-vX.Y.Z)
             version=$(echo "$ref_name" | awk -F'v' '{print $2}')
