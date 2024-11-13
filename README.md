@@ -62,10 +62,11 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 
 **Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
-**一键部署：**
-我们提供了一键部署到阿里云的解决方案，操作更加便捷 [![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
-
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
+
+如果您是在云上部署，生产环境推荐使用[企业版](https://higress.io/cloud/)，开发测试可以使用下面一键部署社区版：
+
+[![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
 
 
 ## 使用场景
