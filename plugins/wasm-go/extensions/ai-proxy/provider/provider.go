@@ -109,6 +109,9 @@ var (
 
 type Provider interface {
 	GetProviderType() string
+}
+
+type ApiNameHandler interface {
 	GetApiName(path string) ApiName
 }
 
@@ -536,14 +539,4 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 		return nil, err
 	}
 	return json.Marshal(request)
-}
-
-func GetOpenAiApiName(path string) ApiName {
-	if strings.HasSuffix(path, "/v1/chat/completions") {
-		return ApiNameChatCompletion
-	}
-	if strings.HasSuffix(path, "/v1/embeddings") {
-		return ApiNameEmbeddings
-	}
-	return ""
 }

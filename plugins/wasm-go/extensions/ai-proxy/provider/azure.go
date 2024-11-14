@@ -5,15 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-)
-
-const (
-	azureChatCompletionPath = "/chat/completions"
 )
 
 // azureProvider is the provider for Azure OpenAI service.
@@ -78,11 +73,4 @@ func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
 	util.OverwriteRequestAuthorizationHeader(headers, "api-key "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (m *azureProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, azureChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

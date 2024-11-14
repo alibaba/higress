@@ -13,8 +13,7 @@ import (
 const (
 	cloudflareDomain = "api.cloudflare.com"
 	// https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/
-	cloudflareChatCompletionPath     = "/v1/chat/completions"
-	cloudflareChatCompletionFullPath = "/client/v4/accounts/{account_id}/ai/v1/chat/completions"
+	cloudflareChatCompletionPath = "/client/v4/accounts/{account_id}/ai/v1/chat/completions"
 )
 
 type cloudflareProviderInitializer struct {
@@ -59,16 +58,9 @@ func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiN
 }
 
 func (c *cloudflareProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, strings.Replace(cloudflareChatCompletionFullPath, "{account_id}", c.config.cloudflareAccountId, 1))
+	util.OverwriteRequestPathHeader(headers, strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	util.OverwriteRequestHostHeader(headers, cloudflareDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+c.config.GetApiTokenInUse(ctx))
 	headers.Del("Accept-Encoding")
 	headers.Del("Content-Length")
-}
-
-func (c *cloudflareProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, cloudflareChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

@@ -80,13 +80,12 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
-
-	var apiName provider.ApiName
+	apiName := getOpenAiApiName(path.Path)
 	providerConfig := pluginConfig.GetProviderConfig()
 	if providerConfig.IsOriginal() {
-		apiName = activeProvider.GetApiName(path.Path)
-	} else {
-		apiName = provider.GetOpenAiApiName(path.Path)
+		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
+			apiName = handler.GetApiName(path.Path)
+		}
 	}
 
 	if apiName == "" {
@@ -262,4 +261,14 @@ func checkStream(ctx *wrapper.HttpContext, log *wrapper.Log) {
 		}
 		(*ctx).BufferResponseBody()
 	}
+}
+
+func getOpenAiApiName(path string) provider.ApiName {
+	if strings.HasSuffix(path, "/v1/chat/completions") {
+		return provider.ApiNameChatCompletion
+	}
+	if strings.HasSuffix(path, "/v1/embeddings") {
+		return provider.ApiNameEmbeddings
+	}
+	return ""
 }

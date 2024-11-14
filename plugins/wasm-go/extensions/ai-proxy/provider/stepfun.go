@@ -2,12 +2,10 @@ package provider
 
 import (
 	"errors"
-	"net/http"
-	"strings"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"net/http"
 )
 
 const (
@@ -61,11 +59,4 @@ func (m *stepfunProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 	util.OverwriteRequestHostHeader(headers, stepfunDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (m *stepfunProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, stepfunChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

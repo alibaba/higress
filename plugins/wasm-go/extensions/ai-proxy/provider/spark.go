@@ -180,10 +180,3 @@ func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 	headers.Del("Accept-Encoding")
 	headers.Del("Content-Length")
 }
-
-func (p *sparkProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, sparkChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
-}

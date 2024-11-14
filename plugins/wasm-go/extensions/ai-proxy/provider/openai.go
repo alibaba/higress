@@ -112,7 +112,3 @@ func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 	}
 	return json.Marshal(request)
 }
-
-func (m *openaiProvider) GetApiName(path string) ApiName {
-	return GetOpenAiApiName(path)
-}

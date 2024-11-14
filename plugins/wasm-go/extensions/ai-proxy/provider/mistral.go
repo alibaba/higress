@@ -6,12 +6,10 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
-	"strings"
 )
 
 const (
-	mistralDomain             = "api.mistral.ai"
-	mistralChatCompletionPath = "/v1/chat/completions"
+	mistralDomain = "api.mistral.ai"
 )
 
 type mistralProviderInitializer struct{}
@@ -58,11 +56,4 @@ func (m *mistralProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 	util.OverwriteRequestHostHeader(headers, mistralDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (m *mistralProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, mistralChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

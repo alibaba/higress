@@ -6,7 +6,6 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
-	"strings"
 )
 
 // deepseekProvider is the provider for deepseek Ai service.
@@ -62,11 +61,4 @@ func (m *deepseekProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiN
 	util.OverwriteRequestHostHeader(headers, deepseekDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (m *deepseekProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, deepseekChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

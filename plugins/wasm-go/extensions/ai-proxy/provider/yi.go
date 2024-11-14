@@ -3,7 +3,6 @@ package provider
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -61,11 +60,4 @@ func (m *yiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName Ap
 	util.OverwriteRequestHostHeader(headers, yiDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
-}
-
-func (m *yiProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, yiChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

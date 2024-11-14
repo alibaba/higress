@@ -7,7 +7,6 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
-	"strings"
 )
 
 // ollamaProvider is the provider for Ollama service.
@@ -68,11 +67,4 @@ func (m *ollamaProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	util.OverwriteRequestPathHeader(headers, ollamaChatCompletionPath)
 	util.OverwriteRequestHostHeader(headers, m.serviceDomain)
 	headers.Del("Content-Length")
-}
-
-func (m *ollamaProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, ollamaChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }

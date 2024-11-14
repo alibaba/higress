@@ -3,7 +3,6 @@ package provider
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -12,8 +11,7 @@ import (
 
 // ai360Provider is the provider for 360 OpenAI service.
 const (
-	ai360Domain             = "api.360.cn"
-	ai360ChatCompletionPath = "/v1/chat/completions"
+	ai360Domain = "api.360.cn"
 )
 
 type ai360ProviderInitializer struct {
@@ -63,11 +61,4 @@ func (m *ai360Provider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 	util.OverwriteRequestAuthorizationHeader(headers, "Authorization "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Accept-Encoding")
 	headers.Del("Content-Length")
-}
-
-func (m *ai360Provider) GetApiName(path string) ApiName {
-	if strings.Contains(path, ai360ChatCompletionPath) {
-		return ApiNameChatCompletion
-	}
-	return ""
 }
