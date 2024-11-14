@@ -2,11 +2,12 @@ package provider
 
 import (
 	"errors"
+	"net/http"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-	"strings"
 )
 
 // baichuanProvider is the provider for baichuan Ai service.

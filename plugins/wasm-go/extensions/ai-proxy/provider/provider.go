@@ -3,13 +3,13 @@ package provider
 import (
 	"encoding/json"
 	"errors"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"math/rand"
 	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
