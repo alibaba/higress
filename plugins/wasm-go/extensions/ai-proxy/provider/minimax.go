@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -78,12 +79,15 @@ func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestHost(minimaxDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
+}
+
+func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestHostHeader(headers, minimaxDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }
 
 func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -107,51 +111,16 @@ func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		return m.handleRequestBodyByChatCompletionPro(body, log)
 	} else {
 		// 使用ChatCompletion v2接口
-		return m.handleRequestBodyByChatCompletionV2(body, log)
+		return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 	}
+}
+
+func (m *minimaxProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+	return m.handleRequestBodyByChatCompletionV2(body, headers, log)
 }
 
 // handleRequestBodyByChatCompletionPro 使用ChatCompletion Pro接口处理请求体
 func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log wrapper.Log) (types.Action, error) {
-	// 使用minimax接口协议
-	if m.config.protocol == protocolOriginal {
-		request := &minimaxChatCompletionV2Request{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 根据模型重写requestPath
-		if m.config.minimaxGroupId == "" {
-			return types.ActionContinue, errors.New(fmt.Sprintf("missing minimaxGroupId in provider config when use %s model ", request.Model))
-		}
-		_ = util.OverwriteRequestPath(fmt.Sprintf("%s?GroupId=%s", minimaxChatCompletionProPath, m.config.minimaxGroupId))
-
-		if m.config.context == nil {
-			return types.ActionContinue, nil
-		}
-
-		err := m.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			m.setBotSettings(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
-
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
@@ -174,6 +143,9 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 			log.Errorf("failed to load context file: %v", err)
 			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
 		}
+		// 由于 minimaxChatCompletionV2（格式和 OpenAI 一致）和 minimaxChatCompletionPro（格式和 OpenAI 不一致）中 insertHttpContextMessage 的逻辑不同，无法做到同一个 provider 统一
+		// 因此对于 minimaxChatCompletionPro 需要手动处理 context 消息
+		// minimaxChatCompletionV2 交给默认的 defaultInsertHttpContextMessage 方法插入 context 消息
 		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, content)
 		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
 			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
@@ -186,37 +158,17 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 }
 
 // handleRequestBodyByChatCompletionV2 使用ChatCompletion v2接口处理请求体
-func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+		return nil, err
 	}
 
 	// 映射模型重写requestPath
 	request.Model = getMappedModel(request.Model, m.config.modelMapping, log)
-	_ = util.OverwriteRequestPath(minimaxChatCompletionV2Path)
+	util.OverwriteRequestPathHeader(headers, minimaxChatCompletionV2Path)
 
-	if m.contextCache == nil {
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	}
-
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return body, nil
 }
 
 func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -473,4 +425,11 @@ func (m *minimaxProvider) responseV2ToOpenAI(response *minimaxChatCompletionV2Re
 
 func (m *minimaxProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (m *minimaxProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, minimaxChatCompletionV2Path) || strings.Contains(path, minimaxChatCompletionProPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

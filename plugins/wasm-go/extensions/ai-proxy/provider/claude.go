@@ -111,8 +111,8 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteHttpRequestPath(headers, claudeChatCompletionPath)
-	util.OverwriteHttpRequestHost(headers, claudeDomain)
+	util.OverwriteRequestPathHeader(headers, claudeChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
 	headers.Add("x-api-key", c.config.GetApiTokenInUse(ctx))
 
@@ -134,16 +134,9 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 
 func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	err := c.config.parseRequestAndMapModel(ctx, request, body, log)
-	if err != nil {
+	if err := c.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err
 	}
-
-	streaming := request.Stream
-	if streaming {
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-	}
-
 	claudeRequest := c.buildClaudeTextGenRequest(request)
 	return json.Marshal(claudeRequest)
 }
@@ -328,4 +321,11 @@ func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, o
 	}
 
 	return json.Marshal(request)
+}
+
+func (c *claudeProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, claudeChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

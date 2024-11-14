@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,8 +18,11 @@ import (
 // geminiProvider is the provider for google gemini/gemini flash service.
 
 const (
-	geminiApiKeyHeader = "x-goog-api-key"
-	geminiDomain       = "generativelanguage.googleapis.com"
+	geminiApiKeyHeader             = "x-goog-api-key"
+	geminiDomain                   = "generativelanguage.googleapis.com"
+	geminiChatCompletionPath       = "generateContent"
+	geminiChatCompletionStreamPath = "streamGenerateContent?alt=sse"
+	geminiEmbeddingPath            = "batchEmbedContents"
 )
 
 type geminiProviderInitializer struct {
@@ -51,157 +55,56 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-
-	_ = proxywasm.ReplaceHttpRequestHeader(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
-	_ = util.OverwriteRequestHost(geminiDomain)
-
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
 }
 
+func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestHostHeader(headers, geminiDomain)
+	headers.Add(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
+}
+
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+		return types.ActionContinue, errUnsupportedApiName
+	}
+	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
+}
+
+func (g *geminiProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	if apiName == ApiNameChatCompletion {
-		return g.onChatCompletionRequestBody(ctx, body, log)
-	} else if apiName == ApiNameEmbeddings {
-		return g.onEmbeddingsRequestBody(ctx, body, log)
+		return g.onChatCompletionRequestBody(ctx, body, headers, log)
+	} else {
+		return g.onEmbeddingsRequestBody(ctx, body, headers, log)
 	}
-	return types.ActionContinue, errUnsupportedApiName
 }
 
-func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
-	// 使用gemini接口协议
-	if g.config.protocol == protocolOriginal {
-		request := &geminiChatRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 根据模型重写requestPath
-		path := g.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
-		_ = util.OverwriteRequestPath(path)
-
-		// 移除多余的model和stream字段
-		request = &geminiChatRequest{
-			Contents:         request.Contents,
-			SafetySettings:   request.SafetySettings,
-			GenerationConfig: request.GenerationConfig,
-			Tools:            request.Tools,
-		}
-		if g.config.context == nil {
-			return types.ActionContinue, replaceJsonRequestBody(request, log)
-		}
-
-		err := g.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.gemini.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			g.setSystemContent(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.gemini.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
+func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+	err := g.config.parseRequestAndMapModel(ctx, request, body, log)
+	if err != nil {
+		return nil, err
 	}
+	path := g.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
+	util.OverwriteRequestPathHeader(headers, path)
 
-	// 映射模型重写requestPath
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, g.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := g.getRequestPath(ApiNameChatCompletion, mappedModel, request.Stream)
-	_ = util.OverwriteRequestPath(path)
-
-	if g.config.context == nil {
-		geminiRequest := g.buildGeminiChatRequest(request)
-		return types.ActionContinue, replaceJsonRequestBody(geminiRequest, log)
-	}
-
-	err := g.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.gemini.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		geminiRequest := g.buildGeminiChatRequest(request)
-		if err := replaceJsonRequestBody(geminiRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.gemini.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	geminiRequest := g.buildGeminiChatRequest(request)
+	return json.Marshal(geminiRequest)
 }
 
-func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
-	// 使用gemini接口协议
-	if g.config.protocol == protocolOriginal {
-		request := &geminiBatchEmbeddingRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 根据模型重写requestPath
-		path := g.getRequestPath(ApiNameEmbeddings, request.Model, false)
-		_ = util.OverwriteRequestPath(path)
-
-		// 移除多余的model字段
-		request = &geminiBatchEmbeddingRequest{
-			Requests: request.Requests,
-		}
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	}
+func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	request := &embeddingsRequest{}
-	if err := json.Unmarshal(body, request); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
+	if err := g.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+		return nil, err
 	}
-
-	// 映射模型重写requestPath
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in embeddings request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, g.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := g.getRequestPath(ApiNameEmbeddings, mappedModel, false)
-	_ = util.OverwriteRequestPath(path)
+	path := g.getRequestPath(ApiNameEmbeddings, request.Model, false)
+	util.OverwriteRequestPathHeader(headers, path)
 
 	geminiRequest := g.buildBatchEmbeddingRequest(request)
-	return types.ActionContinue, replaceJsonRequestBody(geminiRequest, log)
+	return json.Marshal(geminiRequest)
 }
 
 func (g *geminiProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -285,11 +188,11 @@ func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body 
 func (g *geminiProvider) getRequestPath(apiName ApiName, geminiModel string, stream bool) string {
 	action := ""
 	if apiName == ApiNameEmbeddings {
-		action = "batchEmbedContents"
+		action = geminiEmbeddingPath
 	} else if stream {
-		action = "streamGenerateContent?alt=sse"
+		action = geminiChatCompletionStreamPath
 	} else {
-		action = "generateContent"
+		action = geminiChatCompletionPath
 	}
 	return fmt.Sprintf("/v1/models/%s:%s", geminiModel, action)
 }
@@ -604,4 +507,14 @@ func (g *geminiProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, gemini
 
 func (g *geminiProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (g *geminiProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, geminiChatCompletionPath) || strings.Contains(path, geminiChatCompletionStreamPath) {
+		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, geminiEmbeddingPath) {
+		return ApiNameEmbeddings
+	}
+	return ""
 }

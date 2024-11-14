@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -58,32 +59,28 @@ func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(moonshotChatCompletionPath)
-	_ = util.OverwriteRequestHost(moonshotDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
+func (m *moonshotProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, moonshotChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, moonshotDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
+}
+
+// moonshot 有自己获取 context 的配置（moonshotFileId），因此无法复用 handleRequestBody 方法
+// moonshot 的 body 没有修改，无须实现TransformRequestBody，使用默认的 defaultTransformRequestBody 方法
 func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 
 	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
+	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return types.ActionContinue, err
 	}
-
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	mappedModel := getMappedModel(model, m.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
 
 	if m.config.moonshotFileId == "" && m.contextCache == nil {
 		return types.ActionContinue, replaceJsonRequestBody(request, log)
@@ -153,4 +150,11 @@ func (m *moonshotProvider) sendRequest(method, path, body, apiKey string, callba
 	default:
 		return errors.New("unsupported method: " + method)
 	}
+}
+
+func (m *moonshotProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, moonshotChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

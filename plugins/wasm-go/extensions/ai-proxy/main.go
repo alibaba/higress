@@ -80,9 +80,16 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
-	apiName := getOpenAiApiName(path.Path)
+
+	var apiName provider.ApiName
 	providerConfig := pluginConfig.GetProviderConfig()
-	if apiName == "" && !providerConfig.IsOriginal() {
+	if providerConfig.IsOriginal() {
+		apiName = activeProvider.GetApiName(path.Path)
+	} else {
+		apiName = provider.GetOpenAiApiName(path.Path)
+	}
+
+	if apiName == "" {
 		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		_ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
 		return types.ActionContinue
@@ -245,16 +252,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		return types.ActionContinue
 	}
 	return types.ActionContinue
-}
-
-func getOpenAiApiName(path string) provider.ApiName {
-	if strings.HasSuffix(path, "/v1/chat/completions") {
-		return provider.ApiNameChatCompletion
-	}
-	if strings.HasSuffix(path, "/v1/embeddings") {
-		return provider.ApiNameEmbeddings
-	}
-	return ""
 }
 
 func checkStream(ctx *wrapper.HttpContext, log *wrapper.Log) {

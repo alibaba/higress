@@ -179,17 +179,22 @@ func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext,
 	if handler, ok := activeProvider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, ApiNameChatCompletion, originalHeaders, log)
 	}
-	modifiedHeaders := util.HeaderToSlice(originalHeaders)
 
 	var err error
 	if handler, ok := activeProvider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, ApiNameChatCompletion, body, log)
+	} else if handler, ok := activeProvider.(TransformRequestBodyHeadersHandler); ok {
+		headers := util.GetOriginalHttpHeaders()
+		body, err = handler.TransformRequestBodyHeaders(ctx, ApiNameChatCompletion, body, originalHeaders, log)
+		util.ReplaceOriginalHttpHeaders(headers)
 	} else {
-		body, err = c.defaultTransformRequestBody(ctx, body, log)
+		body, err = c.defaultTransformRequestBody(ctx, ApiNameChatCompletion, body, log)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to transform request body: %v", err)
 	}
+
+	modifiedHeaders := util.HeaderToSlice(originalHeaders)
 	return modifiedHeaders, body, nil
 }
 

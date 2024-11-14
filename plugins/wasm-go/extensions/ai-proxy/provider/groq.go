@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -56,8 +57,15 @@ func (g *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 }
 
 func (g *groqProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteHttpRequestPath(headers, groqChatCompletionPath)
-	util.OverwriteHttpRequestHost(headers, groqDomain)
-	util.OverwriteHttpRequestAuthorization(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
+	util.OverwriteRequestPathHeader(headers, groqChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, groqDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
+}
+
+func (g *groqProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, groqChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

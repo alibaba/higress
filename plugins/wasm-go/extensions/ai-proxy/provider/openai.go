@@ -1,12 +1,13 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -57,27 +58,31 @@ func (m *openaiProvider) GetProviderType() string {
 }
 
 func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
+	return types.ActionContinue, nil
+}
+
+func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	if m.customPath == "" {
 		switch apiName {
 		case ApiNameChatCompletion:
-			_ = util.OverwriteRequestPath(defaultOpenaiChatCompletionPath)
+			util.OverwriteRequestPathHeader(headers, defaultOpenaiChatCompletionPath)
 		case ApiNameEmbeddings:
 			ctx.DontReadRequestBody()
-			_ = util.OverwriteRequestPath(defaultOpenaiEmbeddingsPath)
+			util.OverwriteRequestPathHeader(headers, defaultOpenaiEmbeddingsPath)
 		}
 	} else {
-		_ = util.OverwriteRequestPath(m.customPath)
+		util.OverwriteRequestPathHeader(headers, m.customPath)
 	}
 	if m.customDomain == "" {
-		_ = util.OverwriteRequestHost(defaultOpenaiDomain)
+		util.OverwriteRequestHostHeader(headers, defaultOpenaiDomain)
 	} else {
-		_ = util.OverwriteRequestHost(m.customDomain)
+		util.OverwriteRequestHostHeader(headers, m.customDomain)
 	}
 	if len(m.config.apiTokens) > 0 {
-		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetApiTokenInUse(ctx))
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	}
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+	headers.Del("Content-Length")
 }
 
 func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -85,9 +90,13 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+}
+
+func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+		return nil, err
 	}
 	if m.config.responseJsonSchema != nil {
 		log.Debugf("[ai-proxy] set response format to %s", m.config.responseJsonSchema)
@@ -101,27 +110,9 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 			request.StreamOptions.IncludeUsage = true
 		}
 	}
-	if m.contextCache == nil {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-		return types.ActionContinue, nil
-	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.openai.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.openai.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return json.Marshal(request)
+}
+
+func (m *openaiProvider) GetApiName(path string) ApiName {
+	return GetOpenAiApiName(path)
 }

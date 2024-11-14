@@ -2,19 +2,19 @@ package provider
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
 	cloudflareDomain = "api.cloudflare.com"
 	// https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/
-	cloudflareChatCompletionPath = "/client/v4/accounts/{account_id}/ai/v1/chat/completions"
+	cloudflareChatCompletionPath     = "/v1/chat/completions"
+	cloudflareChatCompletionFullPath = "/client/v4/accounts/{account_id}/ai/v1/chat/completions"
 )
 
 type cloudflareProviderInitializer struct {
@@ -47,13 +47,7 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
-	_ = util.OverwriteRequestHost(cloudflareDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + c.config.GetApiTokenInUse(ctx))
-
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
@@ -61,49 +55,20 @@ func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiN
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
+}
 
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, c.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+func (c *cloudflareProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, strings.Replace(cloudflareChatCompletionFullPath, "{account_id}", c.config.cloudflareAccountId, 1))
+	util.OverwriteRequestHostHeader(headers, cloudflareDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+c.config.GetApiTokenInUse(ctx))
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
+}
 
-	streaming := request.Stream
-	if streaming {
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+func (c *cloudflareProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, cloudflareChatCompletionPath) {
+		return ApiNameChatCompletion
 	}
-
-	if c.contextCache == nil {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.cloudflare.transform_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-		return types.ActionContinue, nil
-	}
-	err := c.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.cloudflare.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.cloudflare.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return ""
 }

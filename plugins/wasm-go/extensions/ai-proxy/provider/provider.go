@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"errors"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -108,6 +109,7 @@ var (
 
 type Provider interface {
 	GetProviderType() string
+	GetApiName(path string) ApiName
 }
 
 type RequestHeadersHandler interface {
@@ -124,6 +126,12 @@ type RequestBodyHandler interface {
 
 type TransformRequestBodyHandler interface {
 	TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error)
+}
+
+// TransformRequestBodyHeadersHandler allows to transform request headers based on the request body.
+// Some providers (e.g. baidu, gemini) transform request headers (e.g., path) based on the request body (e.g., model).
+type TransformRequestBodyHeadersHandler interface {
+	TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error)
 }
 
 type ResponseHeadersHandler interface {
@@ -386,6 +394,12 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 		if err := decodeChatCompletionRequest(body, req); err != nil {
 			return err
 		}
+
+		streaming := req.Stream
+		if streaming {
+			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+		}
+
 		return c.setRequestModel(ctx, req, log)
 	case *embeddingsRequest:
 		if err := decodeEmbeddingsRequest(body, req); err != nil {
@@ -477,8 +491,12 @@ func (c *ProviderConfig) handleRequestBody(
 	var err error
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body, log)
+	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
+		headers := util.GetOriginalHttpHeaders()
+		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers, log)
+		util.ReplaceOriginalHttpHeaders(headers)
 	} else {
-		body, err = c.defaultTransformRequestBody(ctx, body, log)
+		body, err = c.defaultTransformRequestBody(ctx, apiName, body, log)
 	}
 
 	if err != nil {
@@ -507,12 +525,25 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	}
 }
 
-func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	err := c.parseRequestAndMapModel(ctx, request, body, log)
-	if err != nil {
+func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	var request interface{}
+	if apiName == ApiNameChatCompletion {
+		request = &chatCompletionRequest{}
+	} else {
+		request = &embeddingsRequest{}
+	}
+	if err := c.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err
 	}
-
 	return json.Marshal(request)
+}
+
+func GetOpenAiApiName(path string) ApiName {
+	if strings.HasSuffix(path, "/v1/chat/completions") {
+		return ApiNameChatCompletion
+	}
+	if strings.HasSuffix(path, "/v1/embeddings") {
+		return ApiNameEmbeddings
+	}
+	return ""
 }

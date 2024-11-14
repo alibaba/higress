@@ -25,13 +25,6 @@ func CreateHeaders(kvs ...string) [][2]string {
 	return headers
 }
 
-func OverwriteRequestHost(host string) error {
-	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
-		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-HOST", originHost)
-	}
-	return proxywasm.ReplaceHttpRequestHeader(":authority", host)
-}
-
 func OverwriteRequestPath(path string) error {
 	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-PATH", originPath)
@@ -48,21 +41,21 @@ func OverwriteRequestAuthorization(credential string) error {
 	return proxywasm.ReplaceHttpRequestHeader("Authorization", credential)
 }
 
-func OverwriteHttpRequestHost(headers http.Header, host string) {
+func OverwriteRequestHostHeader(headers http.Header, host string) {
 	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
 		headers.Set("X-ENVOY-ORIGINAL-HOST", originHost)
 	}
 	headers.Set(":authority", host)
 }
 
-func OverwriteHttpRequestPath(headers http.Header, path string) {
+func OverwriteRequestPathHeader(headers http.Header, path string) {
 	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
 		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	headers.Set(":path", path)
 }
 
-func OverwriteHttpRequestAuthorization(headers http.Header, credential string) {
+func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {
 	if exist := headers.Get("X-HI-ORIGINAL-AUTH"); exist == "" {
 		if originAuth := headers.Get("Authorization"); originAuth != "" {
 			headers.Set("X-HI-ORIGINAL-AUTH", originAuth)
