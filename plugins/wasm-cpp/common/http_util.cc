@@ -19,7 +19,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-
 #include "common/common_util.h"
 
 namespace Wasm::Common::Http {
@@ -190,7 +189,8 @@ std::vector<std::string> getAllOfHeader(std::string_view key) {
   std::vector<std::string> result;
   auto headers = getRequestHeaderPairs()->pairs();
   for (auto& header : headers) {
-    if (absl::EqualsIgnoreCase(Wasm::Common::stdToAbsl(header.first), Wasm::Common::stdToAbsl(key))) {
+    if (absl::EqualsIgnoreCase(Wasm::Common::stdToAbsl(header.first),
+                               Wasm::Common::stdToAbsl(key))) {
       result.push_back(std::string(header.second));
     }
   }
@@ -225,7 +225,8 @@ void forEachCookie(
         v = v.substr(1, v.size() - 2);
       }
 
-      if (!cookie_consumer(Wasm::Common::abslToStd(k), Wasm::Common::abslToStd(v))) {
+      if (!cookie_consumer(Wasm::Common::abslToStd(k),
+                           Wasm::Common::abslToStd(v))) {
         return;
       }
     }
@@ -265,7 +266,63 @@ std::string buildOriginalUri(std::optional<uint32_t> max_path_length) {
   auto scheme = scheme_ptr->view();
   auto host_ptr = getRequestHeader(Header::Host);
   auto host = host_ptr->view();
-  return absl::StrCat(Wasm::Common::stdToAbsl(scheme), "://", Wasm::Common::stdToAbsl(host),  Wasm::Common::stdToAbsl(final_path));
+  return absl::StrCat(Wasm::Common::stdToAbsl(scheme), "://",
+                      Wasm::Common::stdToAbsl(host),
+                      Wasm::Common::stdToAbsl(final_path));
+}
+
+void extractHostPathFromUri(const absl::string_view& uri,
+                            absl::string_view& host, absl::string_view& path) {
+  /**
+   *  URI RFC: https://www.ietf.org/rfc/rfc2396.txt
+   *
+   *  Example:
+   *  uri  = "https://example.com:8443/certs"
+   *  pos:         ^
+   *  host_pos:       ^
+   *  path_pos:                       ^
+   *  host = "example.com:8443"
+   *  path = "/certs"
+   */
+  const auto pos = uri.find("://");
+  // Start position of the host
+  const auto host_pos = (pos == std::string::npos) ? 0 : pos + 3;
+  // Start position of the path
+  const auto path_pos = uri.find('/', host_pos);
+  if (path_pos == std::string::npos) {
+    // If uri doesn't have "/", the whole string is treated as host.
+    host = uri.substr(host_pos);
+    path = "/";
+  } else {
+    host = uri.substr(host_pos, path_pos - host_pos);
+    path = uri.substr(path_pos);
+  }
+}
+
+void extractPathWithoutArgsFromUri(const std::string_view& uri,
+                                   std::string_view& path_without_args) {
+  auto params_pos = uri.find('?');
+  size_t uri_end;
+  if (params_pos == std::string::npos) {
+    uri_end = uri.size();
+  } else {
+    uri_end = params_pos;
+  }
+  path_without_args = uri.substr(0, uri_end);
+}
+
+bool hasRequestBody() {
+  auto contentType = getRequestHeader("content-type")->toString();
+  auto contentLengthStr = getRequestHeader("content-length")->toString();
+  auto transferEncoding = getRequestHeader("transfer-encoding")->toString();
+
+  if (!contentType.empty()) {
+    return true;
+  }
+  if (!contentLengthStr.empty()) {
+    return true;
+  }
+  return transferEncoding.find("chunked") != std::string::npos;
 }
 
 }  // namespace Wasm::Common::Http
