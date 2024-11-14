@@ -2,16 +2,16 @@ diff --git a/absl/time/internal/cctz/src/time_zone_format.cc b/absl/time/interna
 index d8cb047..0c5f182 100644
 --- a/absl/time/internal/cctz/src/time_zone_format.cc
 +++ b/absl/time/internal/cctz/src/time_zone_format.cc
-@@ -18,6 +18,8 @@
- #endif
- #endif
+@@ -12,6 +12,8 @@
+ //   See the License for the specific language governing permissions and
+ //   limitations under the License.
  
 +#define HAS_STRPTIME 0
 +
- #if defined(HAS_STRPTIME) && HAS_STRPTIME
- #if !defined(_XOPEN_SOURCE)
- #define _XOPEN_SOURCE  // Definedness suffices for strptime.
-@@ -58,7 +60,7 @@ namespace {
+ #if !defined(HAS_STRPTIME)
+ #if !defined(_MSC_VER) && !defined(__MINGW32__)
+ #define HAS_STRPTIME 1  // assume everyone has strptime() except windows
+@@ -58,7 +60,7 @@
  
  #if !HAS_STRPTIME
  // Build a strptime() using C++11's std::get_time().
@@ -20,7 +20,7 @@ index d8cb047..0c5f182 100644
    std::istringstream input(s);
    input >> std::get_time(tm, fmt);
    if (input.fail()) return nullptr;
-@@ -648,7 +650,7 @@ const char* ParseSubSeconds(const char* dp, detail::femtoseconds* subseconds) {
+@@ -648,7 +650,7 @@
  // Parses a string into a std::tm using strptime(3).
  const char* ParseTM(const char* dp, const char* fmt, std::tm* tm) {
    if (dp != nullptr) {
