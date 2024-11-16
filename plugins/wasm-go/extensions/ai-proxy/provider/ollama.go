@@ -3,11 +3,10 @@ package provider
 import (
 	"errors"
 	"fmt"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"net/http"
 )
 
 // ollamaProvider is the provider for Ollama service.
@@ -53,10 +52,7 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(ollamaChatCompletionPath)
-	_ = util.OverwriteRequestHost(m.serviceDomain)
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
@@ -64,51 +60,11 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+}
 
-	if m.config.modelMapping == nil && m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
-
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	mappedModel := getMappedModel(model, m.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-
-	if m.contextCache != nil {
-		err := m.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.ollama.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			insertContextMessage(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.ollama.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		} else {
-			return types.ActionContinue, err
-		}
-	} else {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.ollama.transform_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			return types.ActionContinue, err
-		}
-		_ = proxywasm.ResumeHttpRequest()
-		return types.ActionPause, nil
-	}
+func (m *ollamaProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, ollamaChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, m.serviceDomain)
+	headers.Del("Content-Length")
 }
