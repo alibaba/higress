@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -105,102 +106,39 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	c.config.handleRequestHeaders(c, ctx, apiName, log)
+	return types.ActionContinue, nil
+}
 
-	_ = util.OverwriteRequestPath(claudeChatCompletionPath)
-	_ = util.OverwriteRequestHost(claudeDomain)
-	_ = proxywasm.ReplaceHttpRequestHeader("x-api-key", c.config.GetRandomToken())
+func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, claudeChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, claudeDomain)
+
+	headers.Add("x-api-key", c.config.GetApiTokenInUse(ctx))
 
 	if c.config.claudeVersion == "" {
 		c.config.claudeVersion = defaultVersion
 	}
-	_ = proxywasm.AddHttpRequestHeader("anthropic-version", c.config.claudeVersion)
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 
-	return types.ActionContinue, nil
+	headers.Add("anthropic-version", c.config.claudeVersion)
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
+}
 
-	// use original protocol
-	if c.config.protocol == protocolOriginal {
-		if c.config.context == nil {
-			return types.ActionContinue, nil
-		}
-
-		request := &claudeTextGenRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-
-		err := c.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
-
-	// use openai protocol
+func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+	if err := c.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+		return nil, err
 	}
-
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, c.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-
-	streaming := request.Stream
-	if streaming {
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-	}
-
-	if c.config.context == nil {
-		claudeRequest := c.buildClaudeTextGenRequest(request)
-		return types.ActionContinue, replaceJsonRequestBody(claudeRequest, log)
-	}
-
-	err := c.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.claude.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		claudeRequest := c.buildClaudeTextGenRequest(request)
-		if err := replaceJsonRequestBody(claudeRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.claude.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	claudeRequest := c.buildClaudeTextGenRequest(request)
+	return json.Marshal(claudeRequest)
 }
 
 func (c *claudeProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -368,4 +306,26 @@ func createChatCompletionResponse(ctx wrapper.HttpContext, response *claudeTextG
 
 func (c *claudeProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, onlyOneSystemBeforeFile bool) ([]byte, error) {
+	request := &claudeTextGenRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+
+	if request.System == "" {
+		request.System = content
+	} else {
+		request.System = content + "\n" + request.System
+	}
+
+	return json.Marshal(request)
+}
+
+func (c *claudeProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, claudeChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }
