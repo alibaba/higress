@@ -73,23 +73,25 @@ static_resources:
                                 ],
                                 "rewrite": {
                                   "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
-                                  "notFoundUri": "/cygtapi/{version}/333.html",
                                   "indexRouting": {
-                                    "/app1": "/cygtapi/{version}/index.html",
-                                    "/": "/cygtapi/{version}/index.html"
+                                    "/app1": "/mfe/app1/{version}/index.html",
+                                    "/": "/mfe/app1/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/": "/cygtapi/{version}",
-                                    "/app1": "/cygtapi/{version}"
+                                    "/": "/mfe/app1/{version}",
+                                    "/app1": "/mfe/app1/{version}"
                                   }
                                 },
+                                "skippedPathPrefixes": [
+                                  "/api/"
+                                ],
                                 "baseDeployment": {
-                                  "version": "base"
+                                  "version": "dev"
                                 },
                                 "grayDeployments": [
                                   {
                                     "name": "beta-user",
-                                    "version": "gray",
+                                    "version": "0.0.1",
                                     "enabled": true
                                   }
                                 ],
@@ -107,8 +109,7 @@ static_resources:
                                       "<script>console.log('hello world after2')</script>"
                                     ]
                                   }
-                                },
-                                "html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n<body>\n\t测试替换html版本\n\t<br />\n\t版本: {version}\n\t<br />\n\t<script src=\"./{version}/a.js\"></script>\n</body>\n</html>"
+                                }
                               }
                   - name: envoy.filters.http.router
                     typed_config:

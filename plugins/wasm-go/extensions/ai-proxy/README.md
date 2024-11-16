@@ -680,6 +680,18 @@ provider:
   timeout: 1200000
 ```
 
+### 使用 original 协议代理 Coze 应用
+
+**配置信息**
+
+```yaml
+provider:
+  type: coze
+  apiTokens:
+    - YOUR_COZE_API_KEY
+  protocol: original
+```
+
 ### 使用月之暗面配合其原生的文件上下文
 
 提前上传文件至月之暗面，以文件内容作为上下文使用其 AI 服务。

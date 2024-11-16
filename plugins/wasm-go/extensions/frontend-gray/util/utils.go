@@ -47,7 +47,39 @@ func GetRealIpFromXff(xff string) string {
 	return ""
 }
 
-func IsGrayEnabled(grayConfig config.GrayConfig) bool {
+func IsRequestSkippedByHeaders(grayConfig config.GrayConfig) bool {
+	secFetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
+	upgrade, _ := proxywasm.GetHttpRequestHeader("upgrade")
+	if len(grayConfig.SkippedByHeaders) == 0 {
+		// 默认不走插件逻辑的header
+		return secFetchMode == "cors" || upgrade == "websocket"
+	}
+	for headerKey, headerValue := range grayConfig.SkippedByHeaders {
+		requestHeader, _ := proxywasm.GetHttpRequestHeader(headerKey)
+		if requestHeader == headerValue {
+			return true
+		}
+	}
+	return false
+}
+
+func IsGrayEnabled(grayConfig config.GrayConfig, requestPath string) bool {
+	// 当前路径中前缀为 SkipedRoute，则不走插件逻辑
+	for _, prefix := range grayConfig.SkippedPathPrefixes {
+		if strings.HasPrefix(requestPath, prefix) {
+			return false
+		}
+	}
+
+	//  如果是首页，进入插件逻辑
+	if IsPageRequest(requestPath) {
+		return true
+	}
+	// 检查header标识，判断是否需要跳过
+	if IsRequestSkippedByHeaders(grayConfig) {
+		return false
+	}
+
 	// 检查是否存在重写主机
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		return true
@@ -132,18 +164,38 @@ var indexSuffixes = []string{
 	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
 }
 
-func IsPageRequest(fetchMode string, myPath string) bool {
-	if fetchMode == "cors" {
-		return false
+func IsPageRequest(requestPath string) bool {
+	if requestPath == "/" || requestPath == "" {
+		return true
 	}
-	ext := path.Ext(myPath)
+	ext := path.Ext(requestPath)
 	return ext == "" || ContainsValue(indexSuffixes, ext)
+}
+
+// SortKeysByLengthAndLexicographically 按长度降序和字典序排序键
+func SortKeysByLengthAndLexicographically(matchRules map[string]string) []string {
+	keys := make([]string, 0, len(matchRules))
+	for prefix := range matchRules {
+		keys = append(keys, prefix)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j]) // 按长度排序
+		}
+		return keys[i] < keys[j] // 按字典序排序
+	})
+	return keys
 }
 
 // 首页Rewrite
 func IndexRewrite(path, version string, matchRules map[string]string) string {
-	for prefix, rewrite := range matchRules {
+	// 使用新的排序函数
+	keys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键以找到最长匹配
+	for _, prefix := range keys {
 		if strings.HasPrefix(path, prefix) {
+			rewrite := matchRules[prefix]
 			newPath := strings.Replace(rewrite, "{version}", version, -1)
 			return newPath
 		}
@@ -152,18 +204,21 @@ func IndexRewrite(path, version string, matchRules map[string]string) string {
 }
 
 func PrefixFileRewrite(path, version string, matchRules map[string]string) string {
-	var matchedPrefix, replacement string
-	for prefix, template := range matchRules {
+	// 对规则的键进行排序
+	sortedKeys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键
+	for _, prefix := range sortedKeys {
 		if strings.HasPrefix(path, prefix) {
-			if len(prefix) > len(matchedPrefix) { // 找到更长的前缀
-				matchedPrefix = prefix
-				replacement = strings.Replace(template, "{version}", version, 1)
-			}
+			// 找到第一个匹配的前缀就停止,因为它是最长的匹配
+			replacement := strings.Replace(matchRules[prefix], "{version}", version, 1)
+			newPath := strings.Replace(path, prefix, replacement+"/", 1)
+			return filepath.Clean(newPath)
 		}
 	}
-	// 将path 中的前缀部分用 replacement 替换掉
-	newPath := strings.Replace(path, matchedPrefix, replacement+"/", 1)
-	return filepath.Clean(newPath)
+
+	// 如果没有匹配,返回原始路径
+	return path
 }
 
 func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isPageRequest bool) *config.Deployment {
@@ -219,6 +274,43 @@ func GetGrayKey(grayKeyValueByCookie string, grayKeyValueByHeader string, graySu
 		}
 	}
 	return grayKeyValue
+}
+
+// 如果基础部署或任何灰度部署中包含VersionPredicates，则认为是多版本配置
+func IsSupportMultiVersion(grayConfig config.GrayConfig) bool {
+	if len(grayConfig.BaseDeployment.VersionPredicates) > 0 {
+		return true
+	}
+	for _, deployment := range grayConfig.GrayDeployments {
+		if len(deployment.VersionPredicates) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterMultiVersionGrayRule 过滤多版本灰度规则
+func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, requestPath string) *config.Deployment {
+	// 首先根据灰度键值获取当前部署
+	currentDeployment := FilterGrayRule(grayConfig, grayKeyValue)
+
+	// 创建一个新的部署对象，初始化版本为当前部署的版本
+	deployment := &config.Deployment{
+		Version: currentDeployment.Version,
+	}
+
+	// 对版本谓词的键进行排序
+	keys := SortKeysByLengthAndLexicographically(currentDeployment.VersionPredicates)
+
+	// 遍历排序后的键
+	for _, prefix := range keys {
+		// 如果请求路径以当前前缀开头
+		if strings.HasPrefix(requestPath, prefix) {
+			deployment.Version = currentDeployment.VersionPredicates[prefix]
+			return deployment
+		}
+	}
+	return deployment
 }
 
 // FilterGrayRule 过滤灰度规则

@@ -42,6 +42,12 @@ namespace Wasm::Common::Http {
 using QueryParams = std::map<std::string, std::string>;
 using SystemTime = std::chrono::time_point<std::chrono::system_clock>;
 
+namespace Status {
+constexpr int OK = 200;
+constexpr int InternalServerError = 500;
+constexpr int Unauthorized = 401;
+}  // namespace Status
+
 namespace Header {
 constexpr std::string_view Scheme(":scheme");
 constexpr std::string_view Method(":method");
@@ -52,14 +58,17 @@ constexpr std::string_view Accept("accept");
 constexpr std::string_view ContentMD5("content-md5");
 constexpr std::string_view ContentType("content-type");
 constexpr std::string_view ContentLength("content-length");
+constexpr std::string_view TransferEncoding("transfer-encoding");
 constexpr std::string_view UserAgent("user-agent");
 constexpr std::string_view Date("date");
 constexpr std::string_view Cookie("cookie");
+constexpr std::string_view StrictTransportSecurity("strict-transport-security");
 }  // namespace Header
 
 namespace ContentTypeValues {
 constexpr std::string_view Grpc{"application/grpc"};
-}
+constexpr std::string_view Json{"application/json"};
+}  // namespace ContentTypeValues
 
 class PercentEncoding {
  public:
@@ -142,4 +151,10 @@ std::unordered_map<std::string, std::string> parseCookies(
 
 std::string buildOriginalUri(std::optional<uint32_t> max_path_length);
 
+void extractHostPathFromUri(const absl::string_view& uri,
+                            absl::string_view& host, absl::string_view& path);
+
+void extractPathWithoutArgsFromUri(const std::string_view& uri,
+                                   std::string_view& path_without_args);
+bool hasRequestBody();
 }  // namespace Wasm::Common::Http

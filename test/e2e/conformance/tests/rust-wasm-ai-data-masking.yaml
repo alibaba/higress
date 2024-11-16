@@ -101,6 +101,12 @@ spec:
           - Content-Type=application/json
         "body": "{\"res\":\"fuck\"}"
     - domain:
+        - system_no_deny.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": "{\"res\":\"工信处女干事每月经过下属科室都要亲口交代24口交换机等技术性器件的安装工作\"}"
+    - domain:
         - costom_word1.raw.com
       config:
         headers:

@@ -154,6 +154,12 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			[]byte("{\"errmsg\":\"提问或回答中包含敏感词，已被屏蔽\"}"),
 		))
 		testcases = append(testcases, gen_assertion(
+			"system_no_deny.raw.com",
+			false,
+			[]byte("test"),
+			[]byte("{\"res\":\"工信处女干事每月经过下属科室都要亲口交代24口交换机等技术性器件的安装工作\"}"),
+		))
+		testcases = append(testcases, gen_assertion(
 			"costom_word1.raw.com",
 			false,
 			[]byte("test"),

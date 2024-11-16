@@ -12,6 +12,7 @@ const (
 	XPreHigressTag  = "x-pre-higress-tag"
 	IsPageRequest   = "is-page-request"
 	IsNotFound      = "is-not-found"
+	EnabledGray     = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -24,11 +25,12 @@ type GrayRule struct {
 }
 
 type Deployment struct {
-	Name           string
-	Enabled        bool
-	Version        string
-	BackendVersion string
-	Weight         int
+	Name              string
+	Enabled           bool
+	Version           string
+	BackendVersion    string
+	Weight            int
+	VersionPredicates map[string]string
 }
 
 type Rewrite struct {
@@ -49,17 +51,20 @@ type BodyInjection struct {
 }
 
 type GrayConfig struct {
-	UserStickyMaxAge string
-	TotalGrayWeight  int
-	GrayKey          string
-	GraySubKey       string
-	Rules            []*GrayRule
-	Rewrite          *Rewrite
-	Html             string  
-	BaseDeployment   *Deployment
-	GrayDeployments  []*Deployment
-	BackendGrayTag   string
-	Injection        *Injection
+	UserStickyMaxAge    string
+	TotalGrayWeight     int
+	GrayKey             string
+	LocalStorageGrayKey string
+	GraySubKey          string
+	Rules               []*GrayRule
+	Rewrite             *Rewrite
+	Html                string
+	BaseDeployment      *Deployment
+	GrayDeployments     []*Deployment
+	BackendGrayTag      string
+	Injection           *Injection
+	SkippedPathPrefixes []string
+	SkippedByHeaders    map[string]string
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -81,11 +86,17 @@ func convertToStringMap(result gjson.Result) map[string]string {
 
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	// 解析 GrayKey
+	grayConfig.LocalStorageGrayKey = json.Get("localStorageGrayKey").String()
 	grayConfig.GrayKey = json.Get("grayKey").String()
+	if grayConfig.LocalStorageGrayKey != "" {
+		grayConfig.GrayKey = grayConfig.LocalStorageGrayKey
+	}
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
 	grayConfig.Html = json.Get("html").String()
+	grayConfig.SkippedPathPrefixes = convertToStringList(json.Get("skippedPathPrefixes").Array())
+	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天
@@ -119,8 +130,9 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayDeployments := json.Get("grayDeployments").Array()
 
 	grayConfig.BaseDeployment = &Deployment{
-		Name:    baseDeployment.Get("name").String(),
-		Version: strings.Trim(baseDeployment.Get("version").String(), " "),
+		Name:              baseDeployment.Get("name").String(),
+		Version:           strings.Trim(baseDeployment.Get("version").String(), " "),
+		VersionPredicates: convertToStringMap(baseDeployment.Get("versionPredicates")),
 	}
 	for _, item := range grayDeployments {
 		if !item.Get("enabled").Bool() {
@@ -128,11 +140,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		}
 		grayWeight := int(item.Get("weight").Int())
 		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &Deployment{
-			Name:           item.Get("name").String(),
-			Enabled:        item.Get("enabled").Bool(),
-			Version:        strings.Trim(item.Get("version").String(), " "),
-			BackendVersion: item.Get("backendVersion").String(),
-			Weight:         grayWeight,
+			Name:              item.Get("name").String(),
+			Enabled:           item.Get("enabled").Bool(),
+			Version:           strings.Trim(item.Get("version").String(), " "),
+			BackendVersion:    item.Get("backendVersion").String(),
+			Weight:            grayWeight,
+			VersionPredicates: convertToStringMap(item.Get("versionPredicates")),
 		})
 		grayConfig.TotalGrayWeight += grayWeight
 	}

@@ -60,7 +60,7 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) 
 	}
 	status := json.Get("status")
 	if status.Exists() && status.Uint() > 1 {
-		config.Status = uint32(header.Uint())
+		config.Status = uint32(status.Uint())
 	} else {
 		config.Status = DefaultDenyStatus
 	}

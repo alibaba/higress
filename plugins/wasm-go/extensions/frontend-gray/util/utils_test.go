@@ -53,6 +53,30 @@ func TestIndexRewrite(t *testing.T) {
 	}
 }
 
+func TestIndexRewrite2(t *testing.T) {
+	matchRules := map[string]string{
+		"/":       "/{version}/index.html",
+		"/sta":    "/sta/{version}/index.html",
+		"/static": "/static/{version}/index.html",
+	}
+
+	var tests = []struct {
+		path, output string
+	}{
+		{"/static123", "/static/v1.0.0/index.html"},
+		{"/static", "/static/v1.0.0/index.html"},
+		{"/sta", "/sta/v1.0.0/index.html"},
+		{"/", "/v1.0.0/index.html"},
+	}
+	for _, test := range tests {
+		testName := test.path
+		t.Run(testName, func(t *testing.T) {
+			output := IndexRewrite(testName, "v1.0.0", matchRules)
+			assert.Equal(t, test.output, output)
+		})
+	}
+}
+
 func TestPrefixFileRewrite(t *testing.T) {
 	matchRules := map[string]string{
 		// 前缀匹配
@@ -84,22 +108,20 @@ func TestPrefixFileRewrite(t *testing.T) {
 
 func TestIsPageRequest(t *testing.T) {
 	var tests = []struct {
-		fetchMode string
-		p         string
-		output    bool
+		p      string
+		output bool
 	}{
-		{"cors", "/js/a.js", false},
-		{"no-cors", "/js/a.js", false},
-		{"no-cors", "/images/a.png", false},
-		{"no-cors", "/index", true},
-		{"cors", "/inde", false},
-		{"no-cors", "/index.html", true},
-		{"no-cors", "/demo.php", true},
+		{"/js/a.js", false},
+		{"/js/a.js", false},
+		{"/images/a.png", false},
+		{"/index", true},
+		{"/index.html", true},
+		{"/demo.php", true},
 	}
 	for _, test := range tests {
 		testPath := test.p
 		t.Run(testPath, func(t *testing.T) {
-			output := IsPageRequest(test.fetchMode, testPath)
+			output := IsPageRequest(testPath)
 			assert.Equal(t, test.output, output)
 		})
 	}

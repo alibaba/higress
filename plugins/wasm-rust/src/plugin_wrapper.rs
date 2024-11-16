@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use crate::cluster_wrapper::Cluster;
@@ -29,9 +31,13 @@ lazy_static! {
     static ref LOG: Log = Log::new("plugin_wrapper".to_string());
 }
 
-pub trait RootContextWrapper<PluginConfig, HttpCallArg: 'static = ()>: RootContext
+thread_local! {
+    static HTTP_CALLBACK_DISPATCHER: HttpCallbackDispatcher = HttpCallbackDispatcher::new();
+}
+
+pub trait RootContextWrapper<PluginConfig>: RootContext
 where
-    PluginConfig: Default + DeserializeOwned + 'static + Clone,
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
 {
     // fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
     fn create_http_context_use_wrapper(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
@@ -44,86 +50,97 @@ where
             None => None,
         }
     }
+
     fn rule_matcher(&self) -> &SharedRuleMatcher<PluginConfig>;
+
     fn create_http_context_wrapper(
         &self,
         _context_id: u32,
-    ) -> Option<Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>> {
+    ) -> Option<Box<dyn HttpContextWrapper<PluginConfig>>> {
         None
     }
 }
-pub type HttpCallbackFn<T> = dyn FnOnce(&mut T, u16, &MultiMap<String, String>, Option<Vec<u8>>);
 
-pub struct HttpCallArgStorage<HttpCallArg> {
-    args: HashMap<u32, HttpCallArg>,
+pub type HttpCallbackFn = dyn FnOnce(u16, &MultiMap<String, String>, Option<Vec<u8>>);
+
+pub struct HttpCallbackDispatcher {
+    call_fns: RefCell<HashMap<u32, Box<HttpCallbackFn>>>,
 }
-impl<HttpCallArg> Default for HttpCallArgStorage<HttpCallArg> {
+
+impl Default for HttpCallbackDispatcher {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<HttpCallArg> HttpCallArgStorage<HttpCallArg> {
+
+impl HttpCallbackDispatcher {
     pub fn new() -> Self {
-        HttpCallArgStorage {
-            args: HashMap::new(),
+        HttpCallbackDispatcher {
+            call_fns: RefCell::new(HashMap::new()),
         }
     }
-    pub fn set(&mut self, token_id: u32, arg: HttpCallArg) {
-        self.args.insert(token_id, arg);
+
+    pub fn set(&self, token_id: u32, arg: Box<HttpCallbackFn>) {
+        self.call_fns.borrow_mut().insert(token_id, arg);
     }
-    pub fn pop(&mut self, token_id: u32) -> Option<HttpCallArg> {
-        self.args.remove(&token_id)
+
+    pub fn pop(&self, token_id: u32) -> Option<Box<HttpCallbackFn>> {
+        self.call_fns.borrow_mut().remove(&token_id)
     }
 }
-pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
+
+pub trait HttpContextWrapper<PluginConfig>: HttpContext
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
+    fn init_self_weak(
+        &mut self,
+        _self_weak: Weak<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
+    ) {
+    }
+
     fn log(&self) -> &Log {
         &LOG
     }
-    fn on_config(&mut self, _config: &PluginConfig) {}
+
+    fn on_config(&mut self, _config: Rc<PluginConfig>) {}
+
     fn on_http_request_complete_headers(
         &mut self,
         _headers: &MultiMap<String, String>,
     ) -> HeaderAction {
         HeaderAction::Continue
     }
+
     fn on_http_response_complete_headers(
         &mut self,
         _headers: &MultiMap<String, String>,
     ) -> HeaderAction {
         HeaderAction::Continue
     }
+
     fn cache_request_body(&self) -> bool {
         false
     }
+
     fn cache_response_body(&self) -> bool {
         false
     }
+
     fn on_http_request_complete_body(&mut self, _req_body: &Bytes) -> DataAction {
         DataAction::Continue
     }
+
     fn on_http_response_complete_body(&mut self, _res_body: &Bytes) -> DataAction {
         DataAction::Continue
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn on_http_call_response_detail(
-        &mut self,
-        _token_id: u32,
-        _arg: HttpCallArg,
-        _status_code: u16,
-        _headers: &MultiMap<String, String>,
-        _body: Option<Vec<u8>>,
-    ) {
-    }
     fn replace_http_request_body(&mut self, body: &[u8]) {
         self.set_http_request_body(0, i32::MAX as usize, body)
     }
+
     fn replace_http_response_body(&mut self, body: &[u8]) {
         self.set_http_response_body(0, i32::MAX as usize, body)
-    }
-
-    fn get_http_call_storage(&mut self) -> Option<&mut HttpCallArgStorage<HttpCallArg>> {
-        None
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -134,7 +151,7 @@ pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
         raw_url: &str,
         headers: MultiMap<String, String>,
         body: Option<&[u8]>,
-        arg: HttpCallArg,
+        call_fn: Box<HttpCallbackFn>,
         timeout: Duration,
     ) -> Result<u32, Status> {
         if let Ok(uri) = raw_url.parse::<Uri>() {
@@ -162,58 +179,63 @@ pub trait HttpContextWrapper<PluginConfig, HttpCallArg = ()>: HttpContext {
             );
 
             if let Ok(token_id) = ret {
-                if let Some(storage) = self.get_http_call_storage() {
-                    storage.set(token_id, arg);
-                    self.log().debug(
-                        &format!(
-                            "http call start, id: {}, cluster: {}, method: {}, url: {}, body: {:?}, timeout: {:?}",
-                            token_id, cluster.cluster_name(), method.as_str(), raw_url, body, timeout
-                        )
-                    );
-                } else {
-                    return Err(Status::InternalFailure);
-                }
+                HTTP_CALLBACK_DISPATCHER.with(|dispatcher| dispatcher.set(token_id, call_fn));
+                self.log().debugf(
+                    format_args!(
+                        "http call start, id: {}, cluster: {}, method: {}, url: {}, body: {:?}, timeout: {:?}",
+                        token_id, cluster.cluster_name(), method.as_str(), raw_url, body, timeout
+                    )
+                );
             }
             ret
         } else {
-            self.log().critical(&format!("invalid raw_url:{}", raw_url));
+            self.log()
+                .criticalf(format_args!("invalid raw_url:{}", raw_url));
             Err(Status::ParseFailure)
         }
     }
 }
-pub struct PluginHttpWrapper<PluginConfig, HttpCallArg = ()> {
-    req_headers: MultiMap<String, String>,
-    res_headers: MultiMap<String, String>,
+
+downcast_rs::impl_downcast!(HttpContextWrapper<PluginConfig> where PluginConfig: Default + DeserializeOwned + Clone);
+
+pub struct PluginHttpWrapper<PluginConfig> {
     req_body_len: usize,
     res_body_len: usize,
-    config: Option<PluginConfig>,
+    config: Option<Rc<PluginConfig>>,
     rule_matcher: SharedRuleMatcher<PluginConfig>,
-    http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
+    http_content: Rc<RefCell<Box<dyn HttpContextWrapper<PluginConfig>>>>,
 }
-impl<PluginConfig, HttpCallArg> PluginHttpWrapper<PluginConfig, HttpCallArg> {
+
+impl<PluginConfig> PluginHttpWrapper<PluginConfig>
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
     pub fn new(
         rule_matcher: &SharedRuleMatcher<PluginConfig>,
-        http_content: Box<dyn HttpContextWrapper<PluginConfig, HttpCallArg>>,
+        http_content: Box<dyn HttpContextWrapper<PluginConfig>>,
     ) -> Self {
+        let rc_content = Rc::new(RefCell::new(http_content));
+        rc_content
+            .borrow_mut()
+            .init_self_weak(Rc::downgrade(&rc_content));
         PluginHttpWrapper {
-            req_headers: MultiMap::new(),
-            res_headers: MultiMap::new(),
             req_body_len: 0,
             res_body_len: 0,
             config: None,
             rule_matcher: rule_matcher.clone(),
-            http_content,
+            http_content: rc_content,
         }
     }
-    fn get_http_call_arg(&mut self, token_id: u32) -> Option<HttpCallArg> {
-        if let Some(storage) = self.http_content.get_http_call_storage() {
-            storage.pop(token_id)
-        } else {
-            None
-        }
+
+    fn get_http_call_fn(&mut self, token_id: u32) -> Option<Box<HttpCallbackFn>> {
+        HTTP_CALLBACK_DISPATCHER.with(|dispatcher| dispatcher.pop(token_id))
     }
 }
-impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, HttpCallArg> {
+
+impl<PluginConfig> Context for PluginHttpWrapper<PluginConfig>
+where
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
+{
     fn on_http_call_response(
         &mut self,
         token_id: u32,
@@ -221,7 +243,7 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
         body_size: usize,
         num_trailers: usize,
     ) {
-        if let Some(arg) = self.get_http_call_arg(token_id) {
+        if let Some(call_fn) = self.get_http_call_fn(token_id) {
             let body = self.get_http_call_response_body(0, body_size);
             let mut headers = MultiMap::new();
             let mut status_code = 502;
@@ -234,79 +256,92 @@ impl<PluginConfig, HttpCallArg> Context for PluginHttpWrapper<PluginConfig, Http
                                 status_code = code;
                                 normal_response = true;
                             } else {
-                                self.http_content
-                                    .log()
-                                    .error(&format!("failed to parse status: {}", header_value));
+                                self.http_content.borrow().log().errorf(format_args!(
+                                    "failed to parse status: {}",
+                                    header_value
+                                ));
                                 status_code = 500;
                             }
                         }
                         headers.insert(k, header_value);
                     }
                     Err(_) => {
-                        self.http_content.log().warn(&format!(
+                        self.http_content.borrow().log().warnf(format_args!(
                             "http call response header contains non-ASCII characters header: {}",
                             k
                         ));
                     }
                 }
             }
-            self.http_content.log().warn(&format!(
-                "http call end, id: {}, code: {}, normal: {}, body: {:?}",
+            self.http_content.borrow().log().debugf(format_args!(
+                "http call end, id: {}, code: {}, normal: {}, body: {:?}", /*  */
                 token_id, status_code, normal_response, body
             ));
-            self.http_content.on_http_call_response_detail(
-                token_id,
-                arg,
-                status_code,
-                &headers,
-                body,
-            )
+            call_fn(status_code, &headers, body)
         } else {
-            self.http_content
-                .on_http_call_response(token_id, num_headers, body_size, num_trailers)
+            self.http_content.borrow_mut().on_http_call_response(
+                token_id,
+                num_headers,
+                body_size,
+                num_trailers,
+            )
         }
     }
 
     fn on_grpc_call_response(&mut self, token_id: u32, status_code: u32, response_size: usize) {
         self.http_content
+            .borrow_mut()
             .on_grpc_call_response(token_id, status_code, response_size)
     }
+
     fn on_grpc_stream_initial_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_initial_metadata(token_id, num_elements)
     }
+
     fn on_grpc_stream_message(&mut self, token_id: u32, message_size: usize) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_message(token_id, message_size)
     }
+
     fn on_grpc_stream_trailing_metadata(&mut self, token_id: u32, num_elements: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_trailing_metadata(token_id, num_elements)
     }
+
     fn on_grpc_stream_close(&mut self, token_id: u32, status_code: u32) {
         self.http_content
+            .borrow_mut()
             .on_grpc_stream_close(token_id, status_code)
     }
 
     fn on_done(&mut self) -> bool {
-        self.http_content.on_done()
+        self.http_content.borrow_mut().on_done()
     }
 }
-impl<PluginConfig, HttpCallArg> HttpContext for PluginHttpWrapper<PluginConfig, HttpCallArg>
+
+impl<PluginConfig> HttpContext for PluginHttpWrapper<PluginConfig>
 where
-    PluginConfig: Default + DeserializeOwned + Clone,
+    PluginConfig: Default + DeserializeOwned + Clone + 'static,
 {
     fn on_http_request_headers(&mut self, num_headers: usize, end_of_stream: bool) -> HeaderAction {
         let binding = self.rule_matcher.borrow();
         self.config = binding.get_match_config().map(|config| config.1.clone());
+        if self.config.is_none() {
+            return HeaderAction::Continue;
+        }
 
+        let mut req_headers = MultiMap::new();
         for (k, v) in self.get_http_request_headers_bytes() {
             match String::from_utf8(v) {
                 Ok(header_value) => {
-                    self.req_headers.insert(k, header_value);
+                    req_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.log().warn(&format!(
+                    self.http_content.borrow().log().warnf(format_args!(
                         "request http header contains non-ASCII characters header: {}",
                         k
                     ));
@@ -315,22 +350,28 @@ where
         }
 
         if let Some(config) = &self.config {
-            self.http_content.on_config(config);
+            self.http_content.borrow_mut().on_config(config.clone());
         }
         let ret = self
             .http_content
+            .borrow_mut()
             .on_http_request_headers(num_headers, end_of_stream);
         if ret != HeaderAction::Continue {
             return ret;
         }
         self.http_content
-            .on_http_request_complete_headers(&self.req_headers)
+            .borrow_mut()
+            .on_http_request_complete_headers(&req_headers)
     }
 
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if !self.http_content.cache_request_body() {
+        if self.config.is_none() {
+            return DataAction::Continue;
+        }
+        if !self.http_content.borrow().cache_request_body() {
             return self
                 .http_content
+                .borrow_mut()
                 .on_http_request_body(body_size, end_of_stream);
         }
         self.req_body_len += body_size;
@@ -343,11 +384,18 @@ where
                 req_body = body;
             }
         }
-        self.http_content.on_http_request_complete_body(&req_body)
+        self.http_content
+            .borrow_mut()
+            .on_http_request_complete_body(&req_body)
     }
 
     fn on_http_request_trailers(&mut self, num_trailers: usize) -> Action {
-        self.http_content.on_http_request_trailers(num_trailers)
+        if self.config.is_none() {
+            return Action::Continue;
+        }
+        self.http_content
+            .borrow_mut()
+            .on_http_request_trailers(num_trailers)
     }
 
     fn on_http_response_headers(
@@ -355,13 +403,18 @@ where
         num_headers: usize,
         end_of_stream: bool,
     ) -> HeaderAction {
+        if self.config.is_none() {
+            return HeaderAction::Continue;
+        }
+
+        let mut res_headers = MultiMap::new();
         for (k, v) in self.get_http_response_headers_bytes() {
             match String::from_utf8(v) {
                 Ok(header_value) => {
-                    self.res_headers.insert(k, header_value);
+                    res_headers.insert(k, header_value);
                 }
                 Err(_) => {
-                    self.http_content.log().warn(&format!(
+                    self.http_content.borrow().log().warnf(format_args!(
                         "response http header contains non-ASCII characters header: {}",
                         k
                     ));
@@ -371,18 +424,24 @@ where
 
         let ret = self
             .http_content
+            .borrow_mut()
             .on_http_response_headers(num_headers, end_of_stream);
         if ret != HeaderAction::Continue {
             return ret;
         }
         self.http_content
-            .on_http_response_complete_headers(&self.res_headers)
+            .borrow_mut()
+            .on_http_response_complete_headers(&res_headers)
     }
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
-        if !self.http_content.cache_response_body() {
+        if self.config.is_none() {
+            return DataAction::Continue;
+        }
+        if !self.http_content.borrow().cache_response_body() {
             return self
                 .http_content
+                .borrow_mut()
                 .on_http_response_body(body_size, end_of_stream);
         }
         self.res_body_len += body_size;
@@ -397,14 +456,21 @@ where
                 res_body = body;
             }
         }
-        self.http_content.on_http_response_complete_body(&res_body)
+        self.http_content
+            .borrow_mut()
+            .on_http_response_complete_body(&res_body)
     }
 
     fn on_http_response_trailers(&mut self, num_trailers: usize) -> Action {
-        self.http_content.on_http_response_trailers(num_trailers)
+        if self.config.is_none() {
+            return Action::Continue;
+        }
+        self.http_content
+            .borrow_mut()
+            .on_http_response_trailers(num_trailers)
     }
 
     fn on_log(&mut self) {
-        self.http_content.on_log()
+        self.http_content.borrow_mut().on_log()
     }
 }

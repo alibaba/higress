@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
@@ -21,27 +22,29 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeader),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 	)
 }
 
 func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
 	// 解析json 为GrayConfig
 	config.JsonToGrayConfig(json, grayConfig)
-	log.Infof("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
+	log.Debugf("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	requestPath = path.Clean(requestPath)
+	enabledGray := util.IsGrayEnabled(grayConfig, requestPath)
+	ctx.SetContext(config.EnabledGray, enabledGray)
+
+	if !enabledGray {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
 	cookies, _ := proxywasm.GetHttpRequestHeader("cookie")
-	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	fetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
-
-	isPageRequest := util.IsPageRequest(fetchMode, path)
+	isPageRequest := util.IsPageRequest(requestPath)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
 	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
@@ -67,22 +70,28 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 
 	// 如果没有配置比例，则进行灰度规则匹配
-	if isPageRequest {
-		if grayConfig.TotalGrayWeight > 0 {
-			log.Infof("grayConfig.TotalGrayWeight: %v", grayConfig.TotalGrayWeight)
-			deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
-		} else {
-			deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
-		}
-		log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, path, deployment.BackendVersion, preVersion, preUniqueClientId)
+	if util.IsSupportMultiVersion(grayConfig) {
+		deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, requestPath)
+		log.Infof("multi version %v", deployment)
 	} else {
-		grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
-		deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
+		if isPageRequest {
+			if grayConfig.TotalGrayWeight > 0 {
+				log.Infof("grayConfig.TotalGrayWeight: %v", grayConfig.TotalGrayWeight)
+				deployment = util.FilterGrayWeight(&grayConfig, preVersion, preUniqueClientId, uniqueClientId)
+			} else {
+				deployment = util.FilterGrayRule(&grayConfig, grayKeyValue)
+			}
+			log.Infof("index deployment: %v, path: %v, backend: %v, xPreHigressVersion: %s,%s", deployment, requestPath, deployment.BackendVersion, preVersion, preUniqueClientId)
+		} else {
+			grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue)
+			deployment = util.GetVersion(grayConfig, grayDeployment, preVersion, isPageRequest)
+		}
+		ctx.SetContext(config.XPreHigressTag, deployment.Version)
+		ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	}
+
 	proxywasm.AddHttpRequestHeader(config.XHigressTag, deployment.Version)
 
-	ctx.SetContext(config.XPreHigressTag, deployment.Version)
-	ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	ctx.SetContext(config.IsPageRequest, isPageRequest)
 	ctx.SetContext(config.XUniqueClientId, uniqueClientId)
 
@@ -92,21 +101,24 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 
 	if hasRewrite {
-		rewritePath := path
+		rewritePath := requestPath
 		if isPageRequest {
-			rewritePath = util.IndexRewrite(path, deployment.Version, grayConfig.Rewrite.Index)
+			rewritePath = util.IndexRewrite(requestPath, deployment.Version, grayConfig.Rewrite.Index)
 		} else {
-			rewritePath = util.PrefixFileRewrite(path, deployment.Version, grayConfig.Rewrite.File)
+			rewritePath = util.PrefixFileRewrite(requestPath, deployment.Version, grayConfig.Rewrite.File)
 		}
-		log.Infof("rewrite path: %s %s %v", path, deployment.Version, rewritePath)
-		proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
+		if requestPath != rewritePath {
+			log.Infof("rewrite path:%s, rewritePath:%s, Version:%v", requestPath, rewritePath, deployment.Version)
+			proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
+		}
 	}
-
 	return types.ActionContinue
 }
 
 func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
+	if !enabledGray {
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
@@ -117,6 +129,9 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if !isPageRequest {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	} else {
+		// 不会进去Streaming 的Body处理
+		ctx.BufferResponseBody()
 	}
 
 	status, err := proxywasm.GetHttpResponseHeader(":status")
@@ -158,33 +173,40 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		log.Errorf("error status: %s, error message: %v", status, err)
 		return types.ActionContinue
 	}
+	cacheControl, _ := proxywasm.GetHttpResponseHeader("cache-control")
+	if !strings.Contains(cacheControl, "no-cache") {
+		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
+	}
 
-	// 不会进去Streaming 的Body处理
-	ctx.BufferResponseBody()
-	proxywasm.ReplaceHttpResponseHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
-
-	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
-	xUniqueClient := ctx.GetContext(config.XUniqueClientId).(string)
+	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
+	xUniqueClient, isUniqClientOk := ctx.GetContext(config.XUniqueClientId).(string)
 
 	// 设置前端的版本
-	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	if isFeVersionOk && isUniqClientOk && frontendVersion != "" {
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, xUniqueClient, grayConfig.UserStickyMaxAge))
+	}
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
-		backendVersion := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
+		backendVersion, isBackVersionOk := ctx.GetContext(grayConfig.BackendGrayTag).(string)
+		if isBackVersionOk && backendVersion != "" {
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
+		}
 	}
 	return types.ActionContinue
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log wrapper.Log) types.Action {
-	if !util.IsGrayEnabled(grayConfig) {
+	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
+	if !enabledGray {
 		return types.ActionContinue
 	}
-	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
-	if !ok {
-		isPageRequest = false // 默认值
+	isPageRequest, isPageRequestOk := ctx.GetContext(config.IsPageRequest).(bool)
+	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
+	// 只处理首页相关请求
+	if !isFeVersionOk || !isPageRequestOk || !isPageRequest {
+		return types.ActionContinue
 	}
-	frontendVersion := ctx.GetContext(config.XPreHigressTag).(string)
+
 	isNotFound, ok := ctx.GetContext(config.IsNotFound).(bool)
 	if !ok {
 		isNotFound = false // 默认值
@@ -212,7 +234,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionContinue
 	}
 
-	if isPageRequest && isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
+	// 针对404页面处理
+	if isNotFound && grayConfig.Rewrite.Host != "" && grayConfig.Rewrite.NotFound != "" {
 		client := wrapper.NewClusterClient(wrapper.RouteCluster{Host: grayConfig.Rewrite.Host})
 
 		client.Get(strings.Replace(grayConfig.Rewrite.NotFound, "{version}", frontendVersion, -1), nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -222,20 +245,18 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionPause
 	}
 
-	if isPageRequest {
-		// 将原始字节转换为字符串
-		newBody := string(body)
-
-		newBody = util.InjectContent(newBody, grayConfig.Injection)
-
-		if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
-			return types.ActionContinue
-		}
+	// 处理响应体HTML
+	newBody := string(body)
+	newBody = util.InjectContent(newBody, grayConfig.Injection)
+	if grayConfig.LocalStorageGrayKey != "" {
+		localStr := strings.ReplaceAll(`<script>
+		!function(){var o,e,n="@@X_GRAY_KEY",t=document.cookie.split("; ").filter(function(o){return 0===o.indexOf(n+"=")});try{"undefined"!=typeof localStorage&&null!==localStorage&&(o=localStorage.getItem(n),e=0<t.length?decodeURIComponent(t[0].split("=")[1]):null,o)&&o.indexOf("=")<0&&e&&e!==o&&(document.cookie=n+"="+encodeURIComponent(o)+"; path=/;",window.location.reload())}catch(o){}}();
+		</script>
+		`, "@@X_GRAY_KEY", grayConfig.LocalStorageGrayKey)
+		newBody = strings.ReplaceAll(newBody, "<body>", "<body>\n"+localStr)
 	}
-
+	if err := proxywasm.ReplaceHttpResponseBody([]byte(newBody)); err != nil {
+		return types.ActionContinue
+	}
 	return types.ActionContinue
-}
-
-func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.GrayConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
-	return chunk
 }
