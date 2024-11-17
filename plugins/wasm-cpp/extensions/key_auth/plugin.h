@@ -36,7 +36,16 @@ namespace key_auth {
 
 #endif
 
+struct Consumer {
+  std::string name;
+  std::string credential;
+  std::optional<std::vector<std::string>> keys;
+  std::optional<bool> in_query = std::nullopt;
+  std::optional<bool> in_header = std::nullopt;
+};
+
 struct KeyAuthConfigRule {
+  std::vector<Consumer> consumers;
   std::unordered_set<std::string> credentials;
   std::unordered_map<std::string, std::string> credential_to_name;
   std::string realm = "MSE Gateway";
@@ -61,7 +70,8 @@ class PluginRootContext : public RootContext,
 
  private:
   bool parsePluginConfig(const json&, KeyAuthConfigRule&) override;
-  std::string extractCredential(const KeyAuthConfigRule&);
+  std::string extractCredential(bool in_header, bool in_query,
+                                const std::string& key);
 };
 
 // Per-stream context.

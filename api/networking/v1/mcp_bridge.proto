@@ -64,4 +64,6 @@ message RegistryConfig {
   string consulServiceTag = 15;
   int64  consulRefreshInterval = 16;
   string authSecretName = 17;
+  string protocol = 18;
+  string sni = 19;
 }

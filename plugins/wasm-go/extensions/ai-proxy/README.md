@@ -15,6 +15,11 @@ description: AI 代理插件配置参考
 
 > 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
 
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`100`
+
 
 ## 配置字段
 
@@ -138,6 +143,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 360智脑所对应的 `type` 为 `ai360`。它并无特有的配置字段。
 
+#### GitHub模型
+
+GitHub模型所对应的 `type` 为 `github`。它并无特有的配置字段。
+
 #### Mistral
 
 Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
@@ -209,6 +218,10 @@ DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 | 名称         | 数据类型 | 填写要求 | 默认值 | 描述                         |
 | ------------ | -------- | -------- | ------ | ---------------------------- |
 | `targetLang` | string   | 必填     | -      | DeepL 翻译服务需要的目标语种 |
+
+#### Cohere
+
+Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 
 ## 用法示例
 
@@ -597,6 +610,77 @@ provider:
 }
 ```
 
+### 使用original协议代理百炼智能体应用
+
+**配置信息**
+
+```yaml
+provider:
+  type: qwen
+  apiTokens:
+    - "YOUR_DASHSCOPE_API_TOKEN"
+  protocol: original
+```
+
+**请求实例**
+```json
+{
+  "input": {
+      "prompt": "介绍一下Dubbo"
+  },
+  "parameters":  {},
+  "debug": {}
+}
+```
+
+**响应实例**
+
+```json
+{
+    "output": {
+        "finish_reason": "stop",
+        "session_id": "677e7e8fbb874e1b84792b65042e1599",
+        "text": "Apache Dubbo 是一个..."
+    },
+    "usage": {
+        "models": [
+            {
+                "output_tokens": 449,
+                "model_id": "qwen-max",
+                "input_tokens": 282
+            }
+        ]
+    },
+    "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+}
+```
+
+### 使用 OpenAI 协议代理豆包大模型服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
+```
+
+### 使用 original 协议代理 Coze 应用
+
+**配置信息**
+
+```yaml
+provider:
+  type: coze
+  apiTokens:
+    - YOUR_COZE_API_KEY
+  protocol: original
+```
+
 ### 使用月之暗面配合其原生的文件上下文
 
 提前上传文件至月之暗面，以文件内容作为上下文使用其 AI 服务。
@@ -765,6 +849,7 @@ provider:
   }
 }
 ```
+
 ### 使用 OpenAI 协议代理混元服务
 
 **配置信息**
@@ -782,9 +867,10 @@ provider:
 ```
 
 **请求示例**
-请求脚本：
-```sh
 
+请求脚本：
+
+```shell
 curl --location 'http://<your higress domain>/v1/chat/completions' \
 --header 'Content-Type:  application/json' \
 --data '{
@@ -948,6 +1034,107 @@ provider:
 }
 ```
 
+### 使用 OpenAI 协议代理 GitHub 模型服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: github
+  apiTokens:
+    - "YOUR_GITHUB_ACCESS_TOKEN"
+  modelMapping:
+    "gpt-4o": "gpt-4o"
+    "gpt-4": "Phi-3.5-MoE-instruct"
+    "gpt-3.5": "cohere-command-r-08-2024"
+    "text-embedding-3-large": "text-embedding-3-large"
+```
+
+**请求示例**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is the capital of France?"
+    }
+  ],
+  "stream": true,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "max_tokens": 1000,
+  "model": "gpt-4o"
+}
+```
+
+**响应示例**
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The capital of France is Paris.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1728131051,
+  "id": "chatcmpl-AEy7PU2JImdsD1W6Jw8GigZSEnM2u",
+  "model": "gpt-4o-2024-08-06",
+  "object": "chat.completion",
+  "system_fingerprint": "fp_67802d9a6d",
+  "usage": {
+    "completion_tokens": 7,
+    "prompt_tokens": 24,
+    "total_tokens": 31
+  }
+}
+```
+
+**文本向量请求示例**
+
+```json
+{
+  "input": ["first phrase", "second phrase", "third phrase"],
+  "model": "text-embedding-3-large"
+}
+```
+
+响应示例：
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "index": 0,
+      "embedding": [
+        -0.0012583479,
+        0.0020349282,
+        ...
+        0.012051377,
+        -0.0053306012,
+        0.0060688322
+      ]
+    }
+  ],
+  "model": "text-embedding-3-large",
+  "usage": {
+    "prompt_tokens": 6,
+    "total_tokens": 6
+  }
+}
+```
+
 ### 使用 OpenAI 协议代理360智脑服务
 
 **配置信息**
@@ -956,7 +1143,7 @@ provider:
 provider:
   type: ai360
   apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
+    - "YOUR_360_API_TOKEN"
   modelMapping:
     "gpt-4o": "360gpt-turbo-responsibility-8k"
     "gpt-4": "360gpt2-pro"

@@ -155,44 +155,12 @@ data:
             "transport_api_version": "V3",
             "grpc_service": {
               "envoy_grpc": {
-                "cluster_name": "service_skywalking"
+                "cluster_name": "outbound|{{ .Values.tracing.skywalking.port }}||{{ .Values.tracing.skywalking.service }}"
               }
             }
           }
         }
-      ],
-      "static_resources": {
-        "clusters": [
-          {
-            "name": "service_skywalking",
-            "type": "LOGICAL_DNS",
-            "connect_timeout": "5s",
-            "http2_protocol_options": {
-            },
-            "dns_lookup_family": "V4_ONLY",
-            "lb_policy": "ROUND_ROBIN",
-            "load_assignment": {
-              "cluster_name": "service_skywalking",
-              "endpoints": [
-                {
-                  "lb_endpoints": [
-                    {
-                      "endpoint": {
-                        "address": {
-                          "socket_address": {
-                            "address": "{{ .Values.tracing.skywalking.service }}",
-                            "port_value": "{{ .Values.tracing.skywalking.port }}"
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        ]
-      }
+      ]
     }
 ---
 {{- end }}

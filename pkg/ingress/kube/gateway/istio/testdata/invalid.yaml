@@ -55,22 +55,23 @@ spec:
     hostname: "*.example"
     port: 8080 # Test service has port 80 with targetPort 8080
     protocol: HTTP
----
-apiVersion: gateway.networking.k8s.io/v1alpha2
-kind: Gateway
-metadata:
-  name: invalid-gateway-address
-  namespace: invalid-gateway-address
-spec:
-  gatewayClassName: higress
-  addresses:
-  - value: 1.2.3.4
-    type: istio.io/FakeType
-  listeners:
-  - name: default
-    hostname: "*.domain.example"
-    port: 80
-    protocol: HTTP
+#---
+# Higress 仅支持 addresses type 为 Hostname
+#apiVersion: gateway.networking.k8s.io/v1alpha2
+#kind: Gateway
+#metadata:
+#  name: invalid-gateway-address
+#  namespace: invalid-gateway-address
+#spec:
+#  gatewayClassName: higress
+#  addresses:
+#  - value: 1.2.3.4
+#    type: istio.io/FakeType
+#  listeners:
+#  - name: default
+#    hostname: "*.domain.example"
+#    port: 80
+#    protocol: HTTP
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: Gateway

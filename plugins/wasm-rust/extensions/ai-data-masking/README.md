@@ -1,51 +1,42 @@
-# 功能说明
+---
+title: AI 数据脱敏
+keywords: [higress,ai data masking]
+description: AI 数据脱敏插件配置参考
+---
+
+## 功能说明
 
   对请求/返回中的敏感词拦截、替换
 
-![image](https://github.com/user-attachments/assets/f281c8c3-9613-4053-94aa-067694cc5fd4)
+![image](https://img.alicdn.com/imgextra/i4/O1CN0156Wtko1T9JO0RiWow_!!6000000002339-0-tps-1314-638.jpg)
 
-  
-```mermaid
-sequenceDiagram
-    participant 用户
-    participant 敏感词插件
-    participant 后端服务
-
-    用户->>敏感词插件: 请求数据(如:包含admin@gmail.com)
-    敏感词插件->>敏感词插件: 数据解析
-    opt 如果包含拦截词
-    敏感词插件-->>用户: 返回预设错误消息 (拦截)
-    end
-    opt 替换敏感词
-    敏感词插件->>后端服务: 关键词替换后的请求数据 (将admin@gmail.com替换为****@gmail.com)
-    后端服务->>敏感词插件: 原始返回响应(包含 ****@gmail.com)
-    敏感词插件->>用户: 数据恢复后的相应数据(将****@gmail.com恢复为admin@gmail.com)
-    end
-```
-
-## 处理数据范围
+### 处理数据范围
   - openai协议：请求/返回对话内容
   - jsonpath：只处理指定字段
   - raw：整个请求/返回body
 
-## 敏感词拦截
+### 敏感词拦截
   - 处理数据范围中出现敏感词直接拦截，返回预设错误信息
   - 支持系统内置敏感词库和自定义敏感词
 
-## 敏感词替换
+### 敏感词替换
   - 将请求数据中出现的敏感词替换为脱敏字符串，传递给后端服务。可保证敏感数据不出域
   - 部分脱敏数据在后端服务返回后可进行还原
   - 自定义规则支持标准正则和grok规则，替换字符串支持变量替换
 
+## 运行属性
 
-# 配置字段
+插件执行阶段：`认证阶段`
+插件执行优先级：`991`
+
+## 配置字段
 
 | 名称 | 数据类型 | 默认值 | 描述 |
 | -------- | --------  | -------- | -------- |
 |  deny_openai            | bool            | true  |  对openai协议进行拦截 |
 |  deny_jsonpath          | string          |   []  |  对指定jsonpath拦截 |
 |  deny_raw               | bool            | false |  对原始body拦截 |
-|  system_deny            | bool            | true  |  开启内置拦截规则  |
+|  system_deny            | bool            | false |  开启内置拦截规则  |
 |  deny_code              | int             | 200   |  拦截时http状态码   |
 |  deny_message           | string          | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
 |  deny_raw_message       | string          | {"errmsg":"提问或回答中包含敏感词，已被屏蔽"} |  非openai拦截时返回内容   |
@@ -57,7 +48,7 @@ sequenceDiagram
 |  replace_roles.restore  | bool            | false |  是否恢复  |
 |  replace_roles.value    | string          |   -   |  替换值（支持正则变量）  |
 
-# 配置示例
+## 配置示例
 
 ```yaml
 system_deny: true
@@ -98,17 +89,17 @@ replace_roles:
     # hash后的值提供给大模型，从大模型返回的数据中会将hash值还原为原始值
 ```
 
-# 敏感词替换样例
+## 敏感词替换样例
 
-## 用户请求内容
+### 用户请求内容
 
   请将 `curl http://172.20.5.14/api/openai/v1/chat/completions -H "Authorization: sk-12345" -H "Auth: test@gmail.com"` 改成post方式
 
-## 处理后请求大模型内容
+### 处理后请求大模型内容
 
   `curl http://***.***.***.***/api/openai/v1/chat/completions -H "Authorization: 48a7e98a91d93896d8dac522c5853948" -H "Auth: ****@gmail.com"` 改成post方式
 
-## 大模型返回内容
+### 大模型返回内容
 
   您想要将一个 `curl` 的 GET 请求转换为 POST 请求，并且这个请求是向一个特定的 API 发送数据。下面是修改后的 `curl` 命令，以 POST 方式发送：
 
@@ -129,7 +120,7 @@ curl -X POST \
 
 请注意，您需要将 `"key":"value"` 替换为您实际要发送的数据内容。如果您的 API 接受不同的数据结构或者需要特定的字段，请根据实际情况调整这部分内容。
 
-## 处理后返回用户内容
+### 处理后返回用户内容
 
   您想要将一个 `curl` 的 GET 请求转换为 POST 请求，并且这个请求是向一个特定的 API 发送数据。下面是修改后的 `curl` 命令，以 POST 方式发送：
 
@@ -151,7 +142,7 @@ curl -X POST \
 请注意，您需要将 `"key":"value"` 替换为您实际要发送的数据内容。如果您的 API 接受不同的数据结构或者需要特定的字段，请根据实际情况调整这部分内容。
 
 
-# 相关说明
+## 相关说明
 
  - 流模式中如果脱敏后的词被多个chunk拆分，可能无法进行还原
  - 流模式中，如果敏感词语被多个chunk拆分，可能会有敏感词的一部分返回给用户的情况

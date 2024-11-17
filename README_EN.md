@@ -15,7 +15,7 @@
 
 
 <p>
-   English | <a href="README.md">中文<a/>
+   English | <a href="README.md">中文<a/> | <a href="README_JP.md">日本語<a/>
 </p>
 
 Higress is a cloud-native api gateway based on Alibaba's internal gateway practices. 
@@ -47,7 +47,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
   Higress can function as a microservice gateway, which can discovery microservices from various service registries, such as Nacos, ZooKeeper, Consul, Eureka, etc.
   
-  It deeply integrates of [Dubbo](https://github.com/apache/dubbo), [Nacos](https://github.com/alibaba/nacos), [Sentinel](https://github.com/alibaba/Sentinel) and other microservice technology stacks.
+  It deeply integrates with [Dubbo](https://github.com/apache/dubbo), [Nacos](https://github.com/alibaba/nacos), [Sentinel](https://github.com/alibaba/Sentinel) and other microservice technology stacks.
   
 - **Security gateway**:
 
@@ -57,7 +57,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 - **Easy to use**
 
-  Provide one-stop gateway solutions for traffic scheduling, service management, and security protection, support Console, K8s Ingress, and Gateway API configuration methods, and also support HTTP to Dubbo protocol conversion, and easily complete protocol mapping configuration.  
+  Provides one-stop gateway solutions for traffic scheduling, service management, and security protection, support Console, K8s Ingress, and Gateway API configuration methods, and also support HTTP to Dubbo protocol conversion, and easily complete protocol mapping configuration.  
   
 - **Easy to expand**
 
@@ -73,7 +73,7 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
   
 - **Security**
 
-  Provides JWT, OIDC, custom authentication and authentication, deeply integrates open source web application firewall.
+  Provides JWT, OIDC, custom authentication and authentication, deeply integrates open-source web application firewall.
 
 ## Community
 
@@ -81,4 +81,9 @@ Powered by [Istio](https://github.com/istio/istio) and [Envoy](https://github.co
 
 ### Thanks
 
-Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank-you to Envoy and Istio.
+Higress would not be possible without the valuable open-source work of projects in the community. We would like to extend a special thank you to Envoy and Istio.
+
+### Related Repositories
+
+- Higress Console: https://github.com/higress-group/higress-console
+- Higress Standalone: https://github.com/higress-group/higress-standalone

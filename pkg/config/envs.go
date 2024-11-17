@@ -19,6 +19,7 @@ import "istio.io/pkg/env"
 var (
 	PodNamespace = env.RegisterStringVar("POD_NAMESPACE", "higress-system", "").Get()
 	PodName      = env.RegisterStringVar("POD_NAME", "", "").Get()
+	GatewayName  = env.RegisterStringVar("GATEWAY_NAME", "higress-gateway", "").Get()
 	// Revision is the value of the Istio control plane revision, e.g. "canary",
 	// and is the value used by the "istio.io/rev" label.
 	Revision = env.Register("REVISION", "", "").Get()

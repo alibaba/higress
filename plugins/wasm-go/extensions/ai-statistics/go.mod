@@ -10,8 +10,6 @@ require (
 	github.com/tidwall/gjson v1.14.3
 )
 
-require github.com/tetratelabs/wazero v1.7.1 // indirect
-
 require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
@@ -19,5 +17,4 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
-	github.com/wasilibs/go-re2 v1.5.3
 )

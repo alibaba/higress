@@ -13,81 +13,157 @@ Parameters:
 Format the arguments as a JSON object.`
 
 /*
-Answer the following questions as best you can, but speaking as a pirate might speak. You have access to the following tools:
+Respond to the human as helpfully and accurately as possible. You have access to the following tools:
 
-%s
+{{tools_desc}}
 
-Use the following format:
+Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
+Valid "action" values: "Final Answer" or {{tool_names}}
 
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of %s
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question, please give the most direct answer directly in Chinese, not English, and do not add extra content.
+Provide only ONE action per $JSON_BLOB, as shown:
 
-Begin! Remember to speak as a pirate when giving your final answer. Use lots of "Arg"s
+```
 
-Question: %s
+	{
+	  "action": $TOOL_NAME,
+	  "action_input": $ACTION_INPUT
+	}
+
+```
+
+Follow this format:
+
+Question: input question to answer
+Thought: consider previous and subsequent steps
+Action:
+```
+$JSON_BLOB
+```
+Observation: action result
+... (repeat Thought/Action/Observation N times)
+Thought: I know what to respond
+Action:
+```
+
+	{
+	  "action": "Final Answer",
+	  "action_input": "Final response to human"
+	}
+
+```
+
+Begin! Reminder to ALWAYS respond with a valid json blob of a single action. Use tools if necessary. Respond directly if appropriate. Format is Action:```$JSON_BLOB```then Observation:.
+{{historic_messages}}
+Question: {{query}}
 */
 const EN_Template = `
-Answer the following questions as best you can, but speaking as a pirate might speak. You have access to the following tools:
+Respond to the human as helpfully and accurately as possible.You have access to the following tools:
 
 %s
 
-Use the following format:
+Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
+Valid "action" values: "Final Answer" or %s
 
+Provide only ONE action per $JSON_BLOB, as shown:
+` + "```" + `
+{
+  "action": $TOOL_NAME,
+  "action_input": $ACTION_INPUT
+}
+` + "```" + `
+Follow this format:
 Question: %s
-Thought: %s
-Action: the action to take, should be one of %s
-Action Input: %s
-Observation: %s
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: %s
-Final Answer: %s
+Thought: %s 
+Action: ` + "```" + `$JSON_BLOB` + "```" + `
 
+Observation: %s 
+... (repeat Thought/Action/Observation N times)
+Thought: %s
+Action:` + "```" + `
+{
+  "action": "Final Answer",
+  "action_input": "Final response to human"
+}
+` + "```" + `
+Begin! Reminder to ALWAYS respond with a valid json blob of a single action. Use tools if necessary. Respond directly if appropriate.Format is Action:` + "```" + `$JSON_BLOB` + "```" + `then Observation:.
 %s
-
 Question: %s
 `
 
 /*
-尽你所能回答以下问题。你可以使用以下工具：
+尽可能帮助和准确地回答人的问题。您可以使用以下工具：
 
-%s
+{tool_descs}
 
-请使用以下格式，其中Action字段后必须跟着Action Input字段，并且不要将Action Input替换成Input或者tool等字段，不能出现格式以外的字段名，每个字段在每个轮次只出现一次：
-Question: 你需要回答的输入问题
-Thought: 你应该总是思考该做什么
-Action: 要采取的动作，动作只能是%s中的一个 ，一定不要加入其它内容
-Action Input: 行动的输入，必须出现在Action后。
-Observation: 行动的结果
-...（这个Thought/Action/Action Input/Observation可以重复N次）
-Thought: 我现在知道最终答案
-Final Answer: 对原始输入问题的最终答案
+使用 json blob，通过提供 action key（工具名称）和 action_input key（工具输入）来指定工具。
+有效的 "action"值为 "Final Answer"或 {tool_names}
 
-再次重申，不要修改以上模板的字段名称，开始吧！
+每个 $JSON_BLOB 只能提供一个操作，如图所示：
 
-Question: %s
+```
+
+	{{
+	  "action": $TOOL_NAME,
+	  "action_input": $ACTION_INPUT
+	}}
+
+```
+
+按照以下格式:
+Question: 输入要回答的问题
+Thought: 考虑之前和之后的步骤
+Action:
+```
+$JSON_BLOB
+```
+
+Observation: 行动结果
+...（这个Thought/Action//Observation可以重复N次）
+Thought: 我知道该回应什么
+Action:
+```
+
+	{{
+	  "action": "Final Answer",
+	  "action_input": "Final response to human"
+	}}
+
+```
+
+开始！提醒您始终使用单个操作的有效 json blob 进行响应。必要时使用工具。如果合适，可直接响应。格式为 Action:```$JSON_BLOB```then Observation:.
+{historic_messages}
+Question: {input}
 */
 const CH_Template = `
-尽你所能回答以下问题。你可以使用以下工具：
+尽可能帮助和准确地回答人的问题。您可以使用以下工具：
 
 %s
 
-请使用以下格式，其中Action字段后必须跟着Action Input字段，并且不要将Action Input替换成Input或者tool等字段，不能出现格式以外的字段名，每个字段在每个轮次只出现一次：
+使用 json blob，通过提供 action key（工具名称）和 action_input key（工具输入）来指定工具。
+有效的 "action"值为 "Final Answer"或 %s
+
+每个 $JSON_BLOB 只能提供一个操作，如图所示：
+` + "```" + `
+{
+  "action": $TOOL_NAME,
+  "action_input": $ACTION_INPUT
+}
+` + "```" + `
+按照以下格式:
 Question: %s
 Thought: %s 
-Action: 要采取的动作，动作只能是%s中的一个 ，一定不要加入其它内容
-Action Input: %s
+Action: ` + "```" + `$JSON_BLOB` + "```" + `
+
 Observation: %s 
-...（这个Thought/Action/Action Input/Observation可以重复N次） 
+...（这个Thought/Action//Observation可以重复N次）
 Thought: %s
-Final Answer: %s
-
+Action:` + "```" + `
+{
+  "action": "Final Answer",
+  "action_input": "Final response to human"
+}
+` + "```" + `
+开始！提醒您始终使用单个操作的有效 json blob 进行响应。必要时使用工具。如果合适，可直接响应。格式为 Action:` + "```" + `$JSON_BLOB` + "```" + `then Observation:.
 %s
-
 Question: %s
 `

@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 [**官网**](https://higress.cn/) &nbsp; |
-&nbsp; [**文档**](https://higress.cn/docs/latest/user/quickstart/) &nbsp; |
+&nbsp; [**文档**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
 &nbsp; [**博客**](https://higress.cn/blog/) &nbsp; |
 &nbsp; [**电子书**](https://higress.cn/docs/ebook/wasm14/) &nbsp; |
 &nbsp; [**开发指引**](https://higress.cn/docs/latest/dev/architecture/) &nbsp; |
@@ -17,18 +17,19 @@
 
 
 <p>
-   <a href="README_EN.md"> English <a/> | 中文
+   <a href="README_EN.md"> English <a/>| 中文 | <a href="README_JP.md"> 日本語 <a/> 
 </p>
 
 
-Higress 是基于阿里内部多年的 Envoy Gateway 实践沉淀，以开源 [Istio](https://github.com/istio/istio) 与 [Envoy](https://github.com/envoyproxy/envoy) 为核心构建的云原生 API 网关。
+Higress 是一款云原生 API 网关，内核基于 Istio 和 Envoy，可以用 Go/Rust/JS 等编写 Wasm 插件，提供了数十个现成的通用插件，以及开箱即用的控制台（demo 点[这里](http://demo.higress.io/)）
 
-Higress 在阿里内部作为 AI 网关，承载了通义千问 APP、百炼大模型 API、机器学习 PAI 平台等 AI 业务的流量。
+Higress 在阿里内部为解决 Tengine reload 对长连接业务有损，以及 gRPC/Dubbo 负载均衡能力不足而诞生。
 
-Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时具备丰富的 AI 可观测、多模型负载均衡/fallback、AI token 流控、AI 缓存等能力：
+阿里云基于 Higress 构建了云原生 API 网关产品，为大量企业客户提供 99.99% 的网关高可用保障服务能力。
 
-![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
+Higress 基于 AI 网关能力，支撑了通义千问 APP、百炼大模型 API、机器学习 PAI 平台等 AI 业务。同时服务国内头部的 AIGC 企业（如零一万物），以及 AI 产品（如 FastGPT）
 
+![](https://img.alicdn.com/imgextra/i2/O1CN011AbR8023V8R5N0HcA_!!6000000007260-2-tps-1080-606.png)
 
 
 ## Summary
@@ -58,7 +59,7 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 - 8080 端口：网关 HTTP 协议入口
 - 8443 端口：网关 HTTPS 协议入口
 
-**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内不可访问的影响**
+**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
@@ -67,23 +68,32 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 - **AI 网关**:
 
-  Higress 提供了一站式的 AI 插件集，可以增强依赖 AI 能力业务的稳定性、灵活性、可观测性，使得业务与 AI 的集成更加便捷和高效。
+  Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时具备丰富的 AI 可观测、多模型负载均衡/fallback、AI token 流控、AI 缓存等能力：
+
+  ![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
 
 - **Kubernetes Ingress 网关**:
 
   Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
   
   支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，支持用户从 Ingress API 平滑迁移到 Gateway API。
+
+  相比 ingress-nginx，资源开销大幅下降，路由变更生效速度有十倍提升：
+
+  ![](https://img.alicdn.com/imgextra/i1/O1CN01bhEtb229eeMNBWmdP_!!6000000008093-2-tps-750-547.png)
+  ![](https://img.alicdn.com/imgextra/i1/O1CN01bqRets1LsBGyitj4S_!!6000000001354-2-tps-887-489.png)
   
 - **微服务网关**:
 
   Higress 可以作为微服务网关, 能够对接多种类型的注册中心发现服务配置路由，例如 Nacos, ZooKeeper, Consul, Eureka 等。
   
   并且深度集成了 [Dubbo](https://github.com/apache/dubbo), [Nacos](https://github.com/alibaba/nacos), [Sentinel](https://github.com/alibaba/Sentinel) 等微服务技术栈，基于 Envoy C++ 网关内核的出色性能，相比传统 Java 类微服务网关，可以显著降低资源使用率，减少成本。
+
+  ![](https://img.alicdn.com/imgextra/i4/O1CN01v4ZbCj1dBjePSMZ17_!!6000000003698-0-tps-1613-926.jpg)
   
 - **安全防护网关**:
 
-  Higress 可以作为安全防护网关， 提供 WAF 的能力，并且支持多种认证鉴权策略，例如 key-auth, hmac-auth, jwt-auth, basic-auth, oidc 等。  
+  Higress 可以作为安全防护网关， 提供 WAF 的能力，并且支持多种认证鉴权策略，例如 key-auth, hmac-auth, jwt-auth, basic-auth, oidc 等。 
 
 ## 核心优势
 
@@ -165,7 +175,7 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 ### 交流群
 
-![image](https://img.alicdn.com/imgextra/i2/O1CN01qPd7Ix1uZPVEsWjWp_!!6000000006051-0-tps-720-405.jpg)
+![image](https://img.alicdn.com/imgextra/i2/O1CN01BkopaB22ZsvamFftE_!!6000000007135-0-tps-720-405.jpg)
 
 ### 技术分享
 
@@ -173,3 +183,7 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 ![](https://img.alicdn.com/imgextra/i1/O1CN01WnQt0q1tcmqVDU73u_!!6000000005923-0-tps-258-258.jpg)
 
+### 关联仓库
+
+- Higress 控制台：https://github.com/higress-group/higress-console
+- Higress（独立运行版）：https://github.com/higress-group/higress-standalone

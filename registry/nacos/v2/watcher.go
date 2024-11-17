@@ -66,7 +66,7 @@ type watcher struct {
 	isStop               bool
 	addrProvider         *address.NacosAddressProvider
 	updateCacheWhenEmpty bool
-	nacosClientConfig     *constant.ClientConfig
+	nacosClientConfig    *constant.ClientConfig
 	authOption           provider.AuthOption
 }
 
@@ -413,7 +413,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 		if err != nil {
 			if strings.Contains(err.Error(), "hosts is empty") {
 				if w.updateCacheWhenEmpty {
-					w.cache.DeleteServiceEntryWrapper(host)
+					w.cache.DeleteServiceWrapper(host)
 				}
 			} else {
 				log.Errorf("callback error:%v", err)
@@ -425,11 +425,12 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			return
 		}
 		serviceEntry := w.generateServiceEntry(host, services)
-		w.cache.UpdateServiceEntryWrapper(host, &memory.ServiceEntryWrapper{
+		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
 			ServiceName:  serviceName,
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,
 			RegistryType: w.Type,
+			RegistryName: w.Name,
 		})
 	}
 }
@@ -487,7 +488,7 @@ func (w *watcher) Stop() {
 		suffix := strings.Join([]string{s[0], w.NacosNamespace, "nacos"}, common.DotSeparator)
 		suffix = strings.ReplaceAll(suffix, common.Underscore, common.Hyphen)
 		host := strings.Join([]string{s[1], suffix}, common.DotSeparator)
-		w.cache.DeleteServiceEntryWrapper(host)
+		w.cache.DeleteServiceWrapper(host)
 	}
 
 	w.isStop = true

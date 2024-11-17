@@ -52,6 +52,15 @@ type WrapperGateway struct {
 	Host          string
 }
 
+func CreateMcpServiceKey(host string, portNumber int32) ServiceKey {
+	return ServiceKey{
+		Namespace:   "mcp",
+		Name:        host,
+		ServiceFQDN: host,
+		Port:        portNumber,
+	}
+}
+
 func (w *WrapperGateway) IsHTTPS() bool {
 	if w.Gateway == nil || len(w.Gateway.Servers) == 0 {
 		return false

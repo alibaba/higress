@@ -24,26 +24,28 @@ import (
 	"istio.io/pkg/log"
 
 	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 )
 
 type Cache interface {
-	UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper)
-	DeleteServiceEntryWrapper(service string)
+	UpdateServiceWrapper(service string, data *ServiceWrapper)
+	DeleteServiceWrapper(service string)
 	PurgeStaleService()
 	UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
 	GetServiceByEndpoints(requestVersions, endpoints map[string]bool, versionKey string, protocol common.Protocol) map[string][]string
 	GetAllServiceEntry() []*v1alpha3.ServiceEntry
-	GetAllServiceEntryWrapper() []*ServiceEntryWrapper
-	GetIncrementalServiceEntryWrapper() (updatedList []*ServiceEntryWrapper, deletedList []*ServiceEntryWrapper)
+	GetAllServiceWrapper() []*ServiceWrapper
+	GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule
+	GetIncrementalServiceWrapper() (updatedList []*ServiceWrapper, deletedList []*ServiceWrapper)
 	RemoveEndpointByIp(ip string)
 }
 
 func NewCache() Cache {
 	return &store{
 		mux:           &sync.RWMutex{},
-		sew:           make(map[string]*ServiceEntryWrapper),
-		toBeUpdated:   make([]*ServiceEntryWrapper, 0),
-		toBeDeleted:   make([]*ServiceEntryWrapper, 0),
+		sew:           make(map[string]*ServiceWrapper),
+		toBeUpdated:   make([]*ServiceWrapper, 0),
+		toBeDeleted:   make([]*ServiceWrapper, 0),
 		ip2services:   make(map[string]map[string]bool),
 		deferedDelete: make(map[string]struct{}),
 	}
@@ -51,9 +53,9 @@ func NewCache() Cache {
 
 type store struct {
 	mux           *sync.RWMutex
-	sew           map[string]*ServiceEntryWrapper
-	toBeUpdated   []*ServiceEntryWrapper
-	toBeDeleted   []*ServiceEntryWrapper
+	sew           map[string]*ServiceWrapper
+	toBeUpdated   []*ServiceWrapper
+	toBeDeleted   []*ServiceWrapper
 	ip2services   map[string]map[string]bool
 	deferedDelete map[string]struct{}
 }
@@ -94,7 +96,7 @@ func (s *store) UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId,
 	return
 }
 
-func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper) {
+func (s *store) UpdateServiceWrapper(service string, data *ServiceWrapper) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -116,7 +118,7 @@ func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrap
 	log.Infof("ServiceEntry updated, host:%s", service)
 }
 
-func (s *store) DeleteServiceEntryWrapper(service string) {
+func (s *store) DeleteServiceWrapper(service string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -199,31 +201,46 @@ func (s *store) GetAllServiceEntry() []*v1alpha3.ServiceEntry {
 	return seList
 }
 
-// GetAllServiceEntryWrapper get all ServiceEntryWrapper in the store for xds push
-func (s *store) GetAllServiceEntryWrapper() []*ServiceEntryWrapper {
+// GetAllServiceWrapper get all ServiceWrapper in the store for xds push
+func (s *store) GetAllServiceWrapper() []*ServiceWrapper {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer s.cleanUpdateAndDeleteArray()
 
-	sewList := make([]*ServiceEntryWrapper, 0)
+	sewList := make([]*ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.sew {
 		sewList = append(sewList, serviceEntryWrapper.DeepCopy())
 	}
 	return sewList
 }
 
-// GetIncrementalServiceEntryWrapper get incremental ServiceEntryWrapper in the store for xds push
-func (s *store) GetIncrementalServiceEntryWrapper() ([]*ServiceEntryWrapper, []*ServiceEntryWrapper) {
+// GetAllDestinationRuleWrapper get all DestinationRuleWrapper in the store for xds push
+func (s *store) GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer s.cleanUpdateAndDeleteArray()
 
-	updatedList := make([]*ServiceEntryWrapper, 0)
+	drwList := make([]*ingress.WrapperDestinationRule, 0)
+	for _, serviceEntryWrapper := range s.sew {
+		if serviceEntryWrapper.DestinationRuleWrapper != nil {
+			drwList = append(drwList, serviceEntryWrapper.DeepCopy().DestinationRuleWrapper)
+		}
+	}
+	return drwList
+}
+
+// GetIncrementalServiceWrapper get incremental ServiceWrapper in the store for xds push
+func (s *store) GetIncrementalServiceWrapper() ([]*ServiceWrapper, []*ServiceWrapper) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	defer s.cleanUpdateAndDeleteArray()
+
+	updatedList := make([]*ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.toBeUpdated {
 		updatedList = append(updatedList, serviceEntryWrapper.DeepCopy())
 	}
 
-	deletedList := make([]*ServiceEntryWrapper, 0)
+	deletedList := make([]*ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.toBeDeleted {
 		deletedList = append(deletedList, serviceEntryWrapper.DeepCopy())
 	}
@@ -236,7 +253,7 @@ func (s *store) cleanUpdateAndDeleteArray() {
 	s.toBeDeleted = nil
 }
 
-func (s *store) updateIpMap(service string, data *ServiceEntryWrapper) {
+func (s *store) updateIpMap(service string, data *ServiceWrapper) {
 	for _, ep := range data.ServiceEntry.Endpoints {
 		if s.ip2services[ep.Address] == nil {
 			s.ip2services[ep.Address] = make(map[string]bool)

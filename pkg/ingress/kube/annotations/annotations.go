@@ -69,6 +69,8 @@ type Ingress struct {
 
 	Auth *AuthConfig
 
+	Mirror *MirrorConfig
+
 	Destination *DestinationConfig
 
 	IgnoreCase *IgnoreCaseConfig
@@ -161,6 +163,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			localRateLimit{},
 			fallback{},
 			auth{},
+			mirror{},
 			destination{},
 			ignoreCaseMatching{},
 			match{},
@@ -182,6 +185,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			retry{},
 			localRateLimit{},
 			fallback{},
+			mirror{},
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},

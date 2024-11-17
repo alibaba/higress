@@ -69,6 +69,10 @@ spec:
                 fieldPath: spec.serviceAccountName
           - name: DOMAIN_SUFFIX
             value: {{ .Values.global.proxy.clusterDomain }}
+          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
+            value: "true"
+          - name: GATEWAY_NAME
+            value: {{ include "gateway.name" . }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
@@ -133,6 +137,8 @@ spec:
           env:
           - name: PILOT_ENABLE_QUIC_LISTENERS
             value: "true"
+          - name: VALIDATION_WEBHOOK_CONFIG_NAME
+            value: ""
           - name: ISTIO_DUAL_STACK
             value: "{{ .Values.global.enableIPv6 }}"
           - name: PILOT_ENABLE_HEADLESS_SERVICE_POD_LISTENERS
@@ -215,6 +221,8 @@ spec:
           {{- end }}
           {{- if .Values.global.enableGatewayAPI }}
           - name: PILOT_ENABLE_GATEWAY_API
+            value: "true"
+          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
             value: "true"
           - name: PILOT_ENABLE_GATEWAY_API_STATUS
             value: "true"

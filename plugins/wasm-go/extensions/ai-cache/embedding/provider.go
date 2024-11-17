@@ -2,22 +2,13 @@ package embedding
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 const (
-	providerTypeDashScope    = "dashscope"
-	CacheKeyContextKey       = "cacheKey"
-	CacheContentContextKey   = "cacheContent"
-	PartialMessageContextKey = "partialMessage"
-	ToolCallsContextKey      = "toolCalls"
-	StreamContextKey         = "stream"
-	CacheKeyPrefix           = "higressAiCache"
-	DefaultCacheKeyPrefix    = "higressAiCache"
-	queryEmbeddingKey        = "queryEmbedding"
+	PROVIDER_TYPE_DASHSCOPE = "dashscope"
 )
 
 type providerInitializer interface {
@@ -27,22 +18,32 @@ type providerInitializer interface {
 
 var (
 	providerInitializers = map[string]providerInitializer{
-		providerTypeDashScope: &dashScopeProviderInitializer{},
+		PROVIDER_TYPE_DASHSCOPE: &dashScopeProviderInitializer{},
 	}
 )
 
 type ProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务提供者类型
 	// @Description zh-CN 文本特征提取服务提供者类型，例如 DashScope
-	typ string `json:"type"`
-	// @Title zh-CN DashScope 阿里云大模型服务名
-	// @Description zh-CN 调用阿里云的大模型服务
-	serviceName string             `require:"true" yaml:"serviceName" json:"serviceName"`
-	serviceHost string             `require:"false" yaml:"serviceHost" json:"serviceHost"`
-	servicePort int64              `require:"false" yaml:"servicePort" json:"servicePort"`
-	apiKey      string             `require:"false" yaml:"apiKey" json:"apiKey"`
-	timeout     uint32             `require:"false" yaml:"timeout" json:"timeout"`
-	client      wrapper.HttpClient `yaml:"-"`
+	typ string
+	// @Title zh-CN DashScope 文本特征提取服务名称
+	// @Description zh-CN 文本特征提取服务名称
+	serviceName string
+	// @Title zh-CN 文本特征提取服务域名
+	// @Description zh-CN 文本特征提取服务域名
+	serviceHost string
+	// @Title zh-CN 文本特征提取服务端口
+	// @Description zh-CN 文本特征提取服务端口
+	servicePort int64
+	// @Title zh-CN 文本特征提取服务 API Key
+	// @Description zh-CN 文本特征提取服务 API Key
+	apiKey string
+	// @Title zh-CN 文本特征提取服务超时时间
+	// @Description zh-CN 文本特征提取服务超时时间
+	timeout uint32
+	// @Title zh-CN 文本特征提取服务使用的模型
+	// @Description zh-CN 用于文本特征提取的模型名称, 在 DashScope 中默认为 "text-embedding-v1"
+	model string
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
@@ -52,14 +53,28 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.servicePort = json.Get("servicePort").Int()
 	c.apiKey = json.Get("apiKey").String()
 	c.timeout = uint32(json.Get("timeout").Int())
+	c.model = json.Get("model").String()
 	if c.timeout == 0 {
-		c.timeout = 1000
+		c.timeout = 10000
 	}
 }
 
 func (c *ProviderConfig) Validate() error {
-	if len(c.serviceName) == 0 {
-		return errors.New("serviceName is required")
+	if c.serviceName == "" {
+		return errors.New("embedding service name is required")
+	}
+	if c.apiKey == "" {
+		return errors.New("embedding service API key is required")
+	}
+	if c.typ == "" {
+		return errors.New("embedding service type is required")
+	}
+	initializer, has := providerInitializers[c.typ]
+	if !has {
+		return errors.New("unknown embedding service provider type: " + c.typ)
+	}
+	if err := initializer.ValidateConfig(*c); err != nil {
+		return err
 	}
 	return nil
 }
@@ -82,5 +97,5 @@ type Provider interface {
 		queryString string,
 		ctx wrapper.HttpContext,
 		log wrapper.Log,
-		callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error
+		callback func(emb []float64, err error)) error
 }

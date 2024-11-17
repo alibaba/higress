@@ -1,15 +1,20 @@
-## 简介
+---
+title: AI 意图识别
+keywords: [ AI网关, AI意图识别 ]
+description: AI 意图识别插件配置参考
+---
 
-**Note**
-
-> 需要数据面的proxy wasm版本大于等于0.2.100
-
-> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
+## 功能说明
 
 LLM 意图识别插件，能够智能判断用户请求与某个领域或agent的功能契合度，从而提升不同模型的应用效果和用户体验
 
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`700`
+
 ## 配置说明
-> 1.该插件的优先级要高于ai-cache、ai-proxy等后续使用意图的插件，后续插件可以通过proxywasm.GetProperty([]string{"intent_category"})方法获取到意图主题，按照意图主题去做不同缓存库或者大模型的选择
+> 1.该插件的优先级高于ai-proxy等后续使用意图的插件，后续插件可以通过proxywasm.GetProperty([]string{"intent_category"})方法获取到意图主题，按照意图主题去做不同缓存库或者大模型的选择
 
 > 2.需新建一条higress的大模型路由，供该插件访问大模型,如：路由以 /intent 作为前缀，服务选择大模型服务，为该路由开启ai-proxy插件
 
@@ -19,7 +24,7 @@ LLM 意图识别插件，能够智能判断用户请求与某个领域或agent�
 
 | 名称           |   数据类型        | 填写要求 | 默认值 | 描述                                                         |
 | -------------- | --------------- | -------- | ------ | ------------------------------------------------------------ |
-| `scene.category`         | string          | 必填     | -      | 预设场景类别，以"|"分割，如："金融|电商|法律|Higress"|
+| `scene.category`         | string          | 必填     | -      | 预设场景类别，以`|`分割，如：`金融|电商|法律|Higress`|
 | `scene.prompt`         | string          | 非必填     | 你是一个智能类别识别助手，负责根据用户提出的问题和预设的类别，确定问题属于哪个预设的类别，并给出相应的类别。用户提出的问题为:%s,预设的类别为%s，直接返回一种具体类别，如果没有找到就返回'NotFound'。     | llm请求prompt模板 |
 | `llm.proxyServiceName`         | string          | 必填     | -      | 新建的higress服务，指向大模型 (取higress中的 FQDN 值)|
 | `llm.proxyUrl`         | string          | 必填     | -      | 大模型路由请求地址全路径，可以是网关自身的地址，也可以是其他大模型的地址（openai协议），例如：http://127.0.0.1:80/intent/compatible-mode/v1/chat/completions |

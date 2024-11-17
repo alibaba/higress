@@ -3,16 +3,18 @@ package embedding
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 const (
-	domain    = "dashscope.aliyuncs.com"
-	port      = 443
-	modelName = "text-embedding-v1"
-	endpoint  = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	DASHSCOPE_DOMAIN             = "dashscope.aliyuncs.com"
+	DASHSCOPE_PORT               = 443
+	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v2"
+	DASHSCOPE_ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
 type dashScopeProviderInitializer struct {
@@ -20,30 +22,30 @@ type dashScopeProviderInitializer struct {
 
 func (d *dashScopeProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if config.apiKey == "" {
-		return errors.New("DashScopeKey is required")
+		return errors.New("[DashScope] apiKey is required")
 	}
 	return nil
 }
 
 func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
-		c.servicePort = port
+		c.servicePort = DASHSCOPE_PORT
 	}
 	if c.serviceHost == "" {
-		c.serviceHost = domain
+		c.serviceHost = DASHSCOPE_DOMAIN
 	}
 	return &DSProvider{
 		config: c,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: c.serviceName,
-			Port:        c.servicePort,
-			Domain:      c.serviceHost,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: c.serviceName,
+			Host: c.serviceHost,
+			Port: int64(c.servicePort),
 		}),
 	}, nil
 }
 
 func (d *DSProvider) GetProviderType() string {
-	return providerTypeDashScope
+	return PROVIDER_TYPE_DASHSCOPE
 }
 
 type Embedding struct {
@@ -91,8 +93,13 @@ type DSProvider struct {
 
 func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
 
+	model := d.config.model
+
+	if model == "" {
+		model = DASHSCOPE_DEFAULT_MODEL_NAME
+	}
 	data := EmbeddingRequest{
-		Model: modelName,
+		Model: model,
 		Input: Input{
 			Texts: texts,
 		},
@@ -101,38 +108,33 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		},
 	}
 
-	// 序列化请求体并处理错误
 	requestBody, err := json.Marshal(data)
 	if err != nil {
-		log.Errorf("Failed to marshal request data: %v", err)
+		log.Errorf("failed to marshal request data: %v", err)
 		return "", nil, nil, err
 	}
 
-	// 检查 DashScopeKey 是否为空
 	if d.config.apiKey == "" {
-		err := errors.New("DashScopeKey is empty")
-		log.Errorf("Failed to construct headers: %v", err)
+		err := errors.New("dashScopeKey is empty")
+		log.Errorf("failed to construct headers: %v", err)
 		return "", nil, nil, err
 	}
 
-	// 设置请求头
 	headers := [][2]string{
 		{"Authorization", "Bearer " + d.config.apiKey},
 		{"Content-Type", "application/json"},
 	}
 
-	return endpoint, headers, requestBody, err
+	return DASHSCOPE_ENDPOINT, headers, requestBody, err
 }
 
-// Result 定义查询结果的结构
 type Result struct {
 	ID     string                 `json:"id"`
-	Vector []float64              `json:"vector,omitempty"` // omitempty 使得如果 vector 是空，它将不会被序列化
+	Vector []float64              `json:"vector,omitempty"`
 	Fields map[string]interface{} `json:"fields"`
 	Score  float64                `json:"score"`
 }
 
-// 返回指针防止拷贝 Embedding
 func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) {
 	var resp Response
 	err := json.Unmarshal(responseBody, &resp)
@@ -146,41 +148,40 @@ func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(emb []float64, statusCode int, responseHeaders http.Header, responseBody []byte)) error {
-	Emb_url, Emb_headers, Emb_requestBody, err := d.constructParameters([]string{queryString}, log)
+	callback func(emb []float64, err error)) error {
+	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
-		log.Errorf("Failed to construct parameters: %v", err)
+		log.Errorf("failed to construct parameters: %v", err)
 		return err
 	}
 
 	var resp *Response
-	d.client.Post(Emb_url, Emb_headers, Emb_requestBody,
+	err = d.client.Post(embUrl, embHeaders, embRequestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+
 			if statusCode != http.StatusOK {
-				log.Errorf("Failed to fetch embeddings, statusCode: %d, responseBody: %s", statusCode, string(responseBody))
-				err = errors.New("failed to get embedding")
-				callback(nil, statusCode, responseHeaders, responseBody)
+				err = errors.New("failed to get embedding due to status code: " + strconv.Itoa(statusCode))
+				callback(nil, err)
 				return
 			}
 
-			log.Infof("Get embedding response: %d, %s", statusCode, responseBody)
+			log.Debugf("get embedding response: %d, %s", statusCode, responseBody)
 
 			resp, err = d.parseTextEmbedding(responseBody)
 			if err != nil {
-				log.Errorf("Failed to parse response: %v", err)
-				callback(nil, statusCode, responseHeaders, responseBody)
+				err = fmt.Errorf("failed to parse response: %v", err)
+				callback(nil, err)
 				return
 			}
 
 			if len(resp.Output.Embeddings) == 0 {
-				log.Errorf("No embedding found in response")
 				err = errors.New("no embedding found in response")
-				callback(nil, statusCode, responseHeaders, responseBody)
+				callback(nil, err)
 				return
 			}
 
-			callback(resp.Output.Embeddings[0].Embedding, statusCode, responseHeaders, responseBody)
+			callback(resp.Output.Embeddings[0].Embedding, nil)
 
 		}, d.config.timeout)
-	return nil
+	return err
 }

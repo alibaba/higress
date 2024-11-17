@@ -56,21 +56,24 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: |
                               {
-                                "provider": {
-                                  "type": "moonshot",
-                                  "domain": "api.moonshot.cn",
-                                  "apiTokens": [
-                                    "****",
-                                    "****"
-                                  ],
-                                  "timeout": 1200000,
-                                  "modelMapping": {
-                                    "gpt-3": "moonshot-v1-8k",
-                                    "gpt-35-turbo": "moonshot-v1-32k",
-                                    "gpt-4-turbo": "moonshot-v1-128k",
-                                    "*": "moonshot-v1-8k"
-                                  },
-                                }
+                                "activeProviderId": "moonshot",
+                                "providers": [
+                                  {
+                                    "type": "moonshot",
+                                    "domain": "api.moonshot.cn",
+                                    "apiTokens": [
+                                      "****",
+                                      "****"
+                                    ],
+                                    "timeout": 1200000,
+                                    "modelMapping": {
+                                      "gpt-3": "moonshot-v1-8k",
+                                      "gpt-35-turbo": "moonshot-v1-32k",
+                                      "gpt-4-turbo": "moonshot-v1-128k",
+                                      "*": "moonshot-v1-8k"
+                                    },
+                                  }
+                                ]
                               }
                   - name: envoy.filters.http.router
   clusters:

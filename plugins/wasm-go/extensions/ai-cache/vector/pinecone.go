@@ -3,6 +3,7 @@ package vector
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -12,17 +13,18 @@ import (
 
 type pineconeProviderInitializer struct{}
 
-const pineconePort = 443
-
 func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if len(config.PineconeApiEndpoint) == 0 {
-		return errors.New("PineconeApiEndpoint is required")
+	if len(config.serviceHost) == 0 {
+		return errors.New("[Pinecone] serviceDomain is required")
 	}
-	if len(config.PineconeServiceName) == 0 {
-		return errors.New("PineconeServiceName is required")
+	if len(config.serviceName) == 0 {
+		return errors.New("[Pinecone] serviceName is required")
 	}
-	if len(config.PineconeApiKey) == 0 {
-		return errors.New("PineconeApiKey is required")
+	if len(config.apiKey) == 0 {
+		return errors.New("[Pinecone] apiKey is required")
+	}
+	if len(config.collectionID) == 0 {
+		return errors.New("[Pinecone] collectionID is required")
 	}
 	return nil
 }
@@ -30,10 +32,10 @@ func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) erro
 func (c *pineconeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &pineconeProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			ServiceName: config.PineconeServiceName,
-			Port:        pineconePort,
-			Domain:      config.PineconeApiEndpoint,
+		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+			FQDN: config.serviceName,
+			Host: config.serviceHost,
+			Port: int64(config.servicePort),
 		}),
 	}, nil
 }
@@ -44,15 +46,12 @@ type pineconeProvider struct {
 }
 
 func (c *pineconeProvider) GetProviderType() string {
-	return providerTypePinecone
-}
-
-func (d *pineconeProvider) GetThreshold() float64 {
-	return d.config.PineconeThreshold
+	return PROVIDER_TYPE_PINECONE
 }
 
 type pineconeMetadata struct {
 	Question string `json:"question"`
+	Answer   string `json:"answer"`
 }
 
 type pineconeVector struct {
@@ -66,20 +65,21 @@ type pineconeInsertRequest struct {
 	Namespace string           `json:"namespace"`
 }
 
-func (d *pineconeProvider) UploadEmbedding(
-	queryEmb []float64,
+func (d *pineconeProvider) UploadAnswerAndEmbedding(
 	queryString string,
+	queryEmb []float64,
+	queryAnswer string,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log)) {
-	// 最少需要填写的参数为 class, vector 和 question
+	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	// 最少需要填写的参数为 vector 和 question
 	// 下面是一个例子
 	// {
 	// 	"vectors": [
 	// 	  {
 	// 		"id": "A",
 	// 		"values": [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-	// 		"metadata": {"question": "你好"}
+	// 		"metadata": {"question": "你好", "answer": "你也好"}
 	// 	  }
 	// 	]
 	// }
@@ -88,29 +88,29 @@ func (d *pineconeProvider) UploadEmbedding(
 			{
 				ID:         uuid.New().String(),
 				Values:     queryEmb,
-				Properties: pineconeMetadata{Question: queryString},
+				Properties: pineconeMetadata{Question: queryString, Answer: queryAnswer},
 			},
 		},
-		Namespace: d.config.PineconeNamespace,
+		Namespace: d.config.collectionID,
 	})
 
 	if err != nil {
 		log.Errorf("[Pinecone] Failed to marshal upload embedding request body: %v", err)
-		return
+		return err
 	}
 
-	d.client.Post(
+	return d.client.Post(
 		"/vectors/upsert",
 		[][2]string{
 			{"Content-Type", "application/json"},
-			{"Api-Key", d.config.PineconeApiKey},
+			{"Api-Key", d.config.apiKey},
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("[Pinecone] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
-			callback(ctx, log)
+			log.Debugf("[Pinecone] statusCode:%d, responseBody:%s", statusCode, string(responseBody))
+			callback(ctx, log, err)
 		},
-		d.config.PineconeTimeout,
+		d.config.timeout,
 	)
 }
 
@@ -126,7 +126,7 @@ func (d *pineconeProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
 	log wrapper.Log,
-	callback func(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log)) {
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
 	// 最少需要填写的参数为 vector
 	// 下面是一个例子
 	// {
@@ -136,45 +136,62 @@ func (d *pineconeProvider) QueryEmbedding(
 	// 	"includeMetadata": false
 	// }
 	requestBody, err := json.Marshal(pineconeQueryRequest{
-		Namespace:       d.config.PineconeNamespace,
+		Namespace:       d.config.collectionID,
 		Vector:          emb,
-		TopK:            d.config.PineconeTopK,
+		TopK:            d.config.topK,
 		IncludeMetadata: true,
 		IncludeValues:   false,
 	})
 	if err != nil {
 		log.Errorf("[Pinecone] Failed to marshal query embedding: %v", err)
-		return
+		return err
 	}
 
-	d.client.Post(
+	return d.client.Post(
 		"/query",
 		[][2]string{
 			{"Content-Type", "application/json"},
-			{"Api-Key", d.config.PineconeApiKey},
+			{"Api-Key", d.config.apiKey},
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Infof("Query embedding response: %d, %s", statusCode, responseBody)
-			callback(responseBody, ctx, log)
+			log.Debugf("[Pinecone] Query embedding response: %d, %s", statusCode, responseBody)
+			results, err := d.parseQueryResponse(responseBody, log)
+			if err != nil {
+				err = fmt.Errorf("[Pinecone] Failed to parse query response: %v", err)
+			}
+			callback(results, ctx, log, err)
 		},
-		d.config.PineconeTimeout,
+		d.config.timeout,
 	)
 }
 
-func (d *pineconeProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) (QueryEmbeddingResult, error) {
+func (d *pineconeProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
 	if !gjson.GetBytes(responseBody, "matches.0.score").Exists() {
 		log.Errorf("[Pinecone] No distance found in response body: %s", responseBody)
-		return QueryEmbeddingResult{}, nil
+		return nil, errors.New("[Pinecone] No distance found in response body")
 	}
 
 	if !gjson.GetBytes(responseBody, "matches.0.metadata.question").Exists() {
 		log.Errorf("[Pinecone] No question found in response body: %s", responseBody)
-		return QueryEmbeddingResult{}, nil
+		return nil, errors.New("[Pinecone] No question found in response body")
 	}
 
-	return QueryEmbeddingResult{
-		MostSimilarData: gjson.GetBytes(responseBody, "matches.0.metadata.question").String(),
-		Score:           gjson.GetBytes(responseBody, "matches.0.score").Float(),
-	}, nil
+	if !gjson.GetBytes(responseBody, "matches.0.metadata.answer").Exists() {
+		log.Errorf("[Pinecone] No answer found in response body: %s", responseBody)
+		return nil, errors.New("[Pinecone] No answer found in response body")
+	}
+
+	resultNum := gjson.GetBytes(responseBody, "matches.#").Int()
+	results := make([]QueryResult, 0, resultNum)
+	for i := 0; i < int(resultNum); i++ {
+		result := QueryResult{
+			Text:   gjson.GetBytes(responseBody, fmt.Sprintf("matches.%d.metadata.question", i)).String(),
+			Score:  gjson.GetBytes(responseBody, fmt.Sprintf("matches.%d.score", i)).Float(),
+			Answer: gjson.GetBytes(responseBody, fmt.Sprintf("matches.%d.metadata.answer", i)).String(),
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }

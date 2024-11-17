@@ -53,6 +53,7 @@ import (
 	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/cert"
+	higressconst "github.com/alibaba/higress/pkg/config/constants"
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
@@ -628,8 +629,8 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 	if m.RegistryReconciler == nil {
 		return nil
 	}
-	serviceEntries := m.RegistryReconciler.GetAllServiceEntryWrapper()
-	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
+	serviceEntries := m.RegistryReconciler.GetAllServiceWrapper()
+	IngressLog.Infof("Found mcp serviceEntries %v", serviceEntries)
 	out := make([]config.Config, 0, len(serviceEntries))
 	for _, se := range serviceEntries {
 		out = append(out, config.Config{
@@ -638,6 +639,10 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 				Name:              se.ServiceEntry.Hosts[0],
 				Namespace:         "mcp",
 				CreationTimestamp: se.GetCreateTime(),
+				Labels: map[string]string{
+					higressconst.RegistryTypeLabelKey: se.RegistryType,
+					higressconst.RegistryNameLabelKey: se.RegistryName,
+				},
 			},
 			Spec: se.ServiceEntry,
 		})
@@ -703,6 +708,32 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 		destinationRules[serviceName] = dr
 	}
 
+	if m.RegistryReconciler != nil {
+		drws := m.RegistryReconciler.GetAllDestinationRuleWrapper()
+		IngressLog.Infof("Found mcp destinationRules: %v", drws)
+		for _, destinationRuleWrapper := range drws {
+			serviceName := destinationRuleWrapper.ServiceKey.ServiceFQDN
+			dr, exist := destinationRules[serviceName]
+			if !exist {
+				destinationRules[serviceName] = destinationRuleWrapper
+			} else if dr.DestinationRule.TrafficPolicy != nil {
+				portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
+				portUpdated := false
+				for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
+					if policy.Port.Number == portTrafficPolicy.Port.Number {
+						policy.Tls = portTrafficPolicy.Tls
+						portUpdated = true
+						break
+					}
+				}
+				if portUpdated {
+					continue
+				}
+				dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, portTrafficPolicy)
+			}
+		}
+	}
+
 	out := make([]config.Config, 0, len(destinationRules))
 	for _, dr := range destinationRules {
 		sort.SliceStable(dr.DestinationRule.TrafficPolicy.PortLevelSettings, func(i, j int) bool {
@@ -727,6 +758,7 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 			Spec: dr.DestinationRule,
 		})
 	}
+
 	return out
 }
 
@@ -1034,16 +1066,27 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 	}
 	if m.RegistryReconciler == nil {
 		m.RegistryReconciler = reconcile.NewReconciler(func() {
-			metadata := config.Meta{
+			seMetadata := config.Meta{
 				Name:             "mcpbridge-serviceentry",
 				Namespace:        m.namespace,
 				GroupVersionKind: gvk.ServiceEntry,
 				// Set this label so that we do not compare configs and just push.
 				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 			}
+			drMetadata := config.Meta{
+				Name:             "mcpbridge-destinationrule",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.DestinationRule,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
 			for _, f := range m.serviceEntryHandlers {
 				IngressLog.Debug("McpBridge triggerd serviceEntry update")
-				f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventUpdate)
+				f(config.Config{Meta: seMetadata}, config.Config{Meta: seMetadata}, istiomodel.EventUpdate)
+			}
+			for _, f := range m.destinationRuleHandlers {
+				IngressLog.Debug("McpBridge triggerd destinationRule update")
+				f(config.Config{Meta: drMetadata}, config.Config{Meta: drMetadata}, istiomodel.EventUpdate)
 			}
 		}, m.localKubeClient, m.namespace)
 	}
@@ -1489,7 +1532,7 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 	}, nil
 }
 
-func QueryByName(serviceEntries []*memory.ServiceEntryWrapper, serviceName string) (*memory.ServiceEntryWrapper, error) {
+func QueryByName(serviceEntries []*memory.ServiceWrapper, serviceName string) (*memory.ServiceWrapper, error) {
 	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
 	for _, se := range serviceEntries {
 		if se.ServiceName == serviceName {
@@ -1499,7 +1542,7 @@ func QueryByName(serviceEntries []*memory.ServiceEntryWrapper, serviceName strin
 	return nil, fmt.Errorf("can't find ServiceEntry by serviceName:%v", serviceName)
 }
 
-func QueryRpcServiceVersion(serviceEntry *memory.ServiceEntryWrapper, serviceName string) (string, error) {
+func QueryRpcServiceVersion(serviceEntry *memory.ServiceWrapper, serviceName string) (string, error) {
 	IngressLog.Infof("Found http2rpc serviceEntry %s", serviceEntry)
 	IngressLog.Infof("Found http2rpc ServiceEntry %s", serviceEntry.ServiceEntry)
 	IngressLog.Infof("Found http2rpc WorkloadSelector %s", serviceEntry.ServiceEntry.WorkloadSelector)

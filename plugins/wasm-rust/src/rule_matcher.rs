@@ -20,6 +20,7 @@ use proxy_wasm::traits::RootContext;
 use proxy_wasm::types::LogLevel;
 use serde::de::DeserializeOwned;
 use serde_json::{from_slice, Map, Value};
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -50,13 +51,13 @@ struct RuleConfig<PluginConfig> {
     category: Category,
     routes: HashSet<String>,
     hosts: Vec<HostMatcher>,
-    config: PluginConfig,
+    config: Rc<PluginConfig>,
 }
 
 #[derive(Default)]
 pub struct RuleMatcher<PluginConfig> {
     rule_config: Vec<RuleConfig<PluginConfig>>,
-    global_config: Option<PluginConfig>,
+    global_config: Option<Rc<PluginConfig>>,
 }
 
 impl<PluginConfig> RuleMatcher<PluginConfig>
@@ -71,7 +72,7 @@ where
         let mut key_count = object.len();
 
         if object.is_empty() {
-            self.global_config = Some(PluginConfig::default());
+            self.global_config = Some(Rc::new(PluginConfig::default()));
             return Ok(());
         }
 
@@ -86,7 +87,7 @@ where
         if key_count > 0 {
             match serde_json::from_value::<PluginConfig>(config.clone()) {
                 Ok(plugin_config) => {
-                    self.global_config = Some(plugin_config);
+                    self.global_config = Some(Rc::new(plugin_config));
                 }
                 Err(err) => {
                     log(
@@ -134,14 +135,14 @@ where
                 category,
                 routes,
                 hosts,
-                config,
+                config: Rc::new(config),
             })
         }
 
         Ok(())
     }
 
-    pub fn get_match_config(&self) -> Option<(i64, &PluginConfig)> {
+    pub fn get_match_config(&self) -> Option<(i64, Rc<PluginConfig>)> {
         let host = get_http_request_header(":authority").unwrap_or_default();
         let route_name = get_property(vec!["route_name"]).unwrap_or_default();
 
@@ -149,7 +150,7 @@ where
             match rule.category {
                 Category::Host => {
                     if self.host_match(rule, host.as_str()) {
-                        return Some((i as i64, &rule.config));
+                        return Some((i as i64, rule.config.clone()));
                     }
                 }
                 Category::Route => {
@@ -158,7 +159,7 @@ where
                             .unwrap_or_else(|_| "".to_string())
                             .as_str(),
                     ) {
-                        return Some((i as i64, &rule.config));
+                        return Some((i as i64, rule.config.clone()));
                     }
                 }
             }
@@ -166,14 +167,16 @@ where
 
         self.global_config
             .as_ref()
-            .map(|config| (usize::MAX as i64, config))
+            .map(|config| (usize::MAX as i64, config.clone()))
     }
 
     pub fn rewrite_config(&mut self, rewrite: fn(config: &PluginConfig) -> PluginConfig) {
-        self.global_config = self.global_config.as_ref().map(rewrite);
+        if let Some(global_config) = &self.global_config {
+            self.global_config = Some(Rc::new(rewrite(global_config.borrow())));
+        }
 
         for rule_config in &mut self.rule_config {
-            rule_config.config = rewrite(&rule_config.config);
+            rule_config.config = Rc::new(rewrite(rule_config.config.borrow()));
         }
     }
 

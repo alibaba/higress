@@ -7,14 +7,16 @@ description: AI 历史对话插件配置参考
 ## 功能说明
 
 `AI 历史对话` 基于请求头实现用户身份识别，并自动缓存对应用户的历史对话,且在后续对话中自动填充到上下文。同时支持用户主动查询历史对话。
+
 **Note**
 
-> 需要数据面的proxy wasm版本大于等于0.2.100
-
-> 编译时，需要带上版本的tag，例如：
-`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
-
 > 路径后缀匹配 `ai-history/query` 时，会返回历史对话
+
+## 运行属性
+
+插件执行阶段：`默认阶段`
+插件执行优先级：`650`
+
 
 ## 配置字段
 

@@ -26,7 +26,7 @@ global:
   autoscalingv2API: true
   local: false # When deploying to a local cluster (e.g.: kind cluster), set this to true.
   kind: false # Deprecated. Please use "global.local" instead. Will be removed later.
-  enableIstioAPI: false
+  enableIstioAPI: true
   enableGatewayAPI: false
   # Deprecated
   enableHigressIstio: false
@@ -135,7 +135,6 @@ global:
     #     Redirect only selected ports:            --includeInboundPorts="80,8080"
     excludeInboundPorts: ""
     includeInboundPorts: "*"
-
 
     # istio egress capture allowlist
     # https://istio.io/docs/tasks/traffic-management/egress.html#calling-external-services-directly
@@ -322,8 +321,8 @@ global:
       # Host:Port for submitting traces to the Datadog agent.
       address: "$(HOST_IP):8126"
     lightstep:
-      address: ""                # example: lightstep-satellite:443
-      accessToken: ""            # example: abcdefg1234567
+      address: "" # example: lightstep-satellite:443
+      accessToken: "" # example: abcdefg1234567
     stackdriver:
       # enables trace output to stdout.
       debug: false
@@ -449,25 +448,25 @@ gateway:
     prometheus.io/scrape: "true"
     prometheus.io/path: "/stats/prometheus"
     sidecar.istio.io/inject: "false"
-  
+
   # Define the security context for the pod.
   # If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443.
   # On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl.
   securityContext: ~
   containerSecurityContext: ~
-  
+
   service:
     # Type of service. Set to "None" to disable the service entirely
     type: LoadBalancer
     ports:
-    - name: http2
-      port: 80
-      protocol: TCP
-      targetPort: 80
-    - name: https
-      port: 443
-      protocol: TCP
-      targetPort: 443
+      - name: http2
+        port: 80
+        protocol: TCP
+        targetPort: 80
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 443
     annotations: {}
     loadBalancerIP: ""
     loadBalancerClass: ""
@@ -476,7 +475,7 @@ gateway:
 
   rollingMaxSurge: 100%
   rollingMaxUnavailable: 25%
-    
+
   resources:
     requests:
       cpu: 2000m
@@ -484,22 +483,39 @@ gateway:
     limits:
       cpu: 2000m
       memory: 2048Mi
-  
+
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 80
-  
+
   nodeSelector: {}
-  
+
   tolerations: []
-  
+
   affinity: {}
-  
+
   # If specified, the gateway will act as a network gateway for the given network.
   networkGateway: ""
-  
+
+  metrics:
+    # If true, create PodMonitor or VMPodScrape for gateway
+    enabled: false
+    # provider group name for CustomResourceDefinition, can be monitoring.coreos.com or operator.victoriametrics.com
+    provider: monitoring.coreos.com
+    interval: ""
+    scrapeTimeout: ""
+    honorLabels: false
+    # for monitoring.coreos.com/v1.PodMonitor
+    metricRelabelings: []
+    relabelings: []
+    # for operator.victoriametrics.com/v1beta1.VMPodScrape
+    metricRelabelConfigs: []
+    relabelConfigs: []
+    # some more raw podMetricsEndpoints spec
+    rawSpec: {}
+
 controller:
   name: "higress-controller"
   replicas: 1
@@ -510,22 +526,20 @@ controller:
   env: {}
 
   labels: {}
-  
-  probe: {
-    httpGet: {
-      path: /ready,
-      port: 8888,
-    },
-    initialDelaySeconds: 1,
-    periodSeconds: 3,
-    timeoutSeconds: 5
-  }
-  
+
+  probe:
+    {
+      httpGet: { path: /ready, port: 8888 },
+      initialDelaySeconds: 1,
+      periodSeconds: 3,
+      timeoutSeconds: 5,
+    }
+
   imagePullSecrets: []
 
   rbac:
     create: true
-  
+
   serviceAccount:
     # Specifies whether a service account should be created
     create: true
@@ -534,37 +548,30 @@ controller:
     # The name of the service account to use.
     # If not set and create is true, a name is generated using the fullname template
     name: ""
-  
+
   podAnnotations: {}
-  
-  podSecurityContext: {}
+
+  podSecurityContext:
+    {}
     # fsGroup: 2000
-  
-  ports: [
-    {
-      "name": "http",
-      "protocol": "TCP",
-      "port": 8888,
-      "targetPort": 8888,
-    },
-    {
-      "name": "http-solver",
-      "protocol": "TCP",
-      "port": 8889,
-      "targetPort": 8889,
-    },
-    {
-      "name": "grpc",
-      "protocol": "TCP",
-      "port": 15051,
-      "targetPort": 15051,
-    }
-  ]
-  
+
+  ports:
+    [
+      { "name": "http", "protocol": "TCP", "port": 8888, "targetPort": 8888 },
+      {
+        "name": "http-solver",
+        "protocol": "TCP",
+        "port": 8889,
+        "targetPort": 8889,
+      },
+      { "name": "grpc", "protocol": "TCP", "port": 15051, "targetPort": 15051 },
+    ]
+
   service:
     type: ClusterIP
-  
-  securityContext: {}
+
+  securityContext:
+    {}
     # capabilities:
     #   drop:
     #   - ALL
@@ -579,11 +586,11 @@ controller:
     limits:
       cpu: 1000m
       memory: 2048Mi
-  
+
   nodeSelector: {}
-  
+
   tolerations: []
-  
+
   affinity: {}
 
   autoscaling:
@@ -594,7 +601,7 @@ controller:
   automaticHttps:
     enabled: true
     email: ""
-  
+
 ## Discovery Settings
 pilot:
   autoscaleEnabled: false
@@ -656,7 +663,6 @@ pilot:
   # Additional labels to apply to the deployment.
   deploymentLabels: {}
 
-
   ## Mesh config settings
 
   # Install the mesh config map, generated from values.yaml.
@@ -666,16 +672,15 @@ pilot:
   # Additional labels to apply on the pod level for monitoring and logging configuration.
   podLabels: {}
 
-
 # Tracing config settings
 tracing:
   enable: false
   sampling: 100
   timeout: 500
   skywalking:
-   # access_token: ""
-   service: ""
-   port: 11800
+    # access_token: ""
+    service: ""
+    port: 11800
   # zipkin:
-    # service: ""
-    # port: 9411
+  # service: ""
+  # port: 9411

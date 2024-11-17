@@ -25,7 +25,7 @@ TARGET_ARCH ?= amd64
 
 GOARCH_LOCAL := $(TARGET_ARCH)
 GOOS_LOCAL := $(TARGET_OS)
-RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w -X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
+RELEASE_LDFLAGS='$(GO_LDFLAGS) -extldflags -static -s -w'
 
 export OUT:=$(TARGET_OUT)
 export OUT_LINUX:=$(TARGET_OUT_LINUX)
@@ -68,21 +68,21 @@ default: build
 
 .PHONY: go.test.coverage
 go.test.coverage: prebuild
-	go test -ldflags "-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
+	go test ./cmd/... ./pkg/... -race -coverprofile=coverage.xml -covermode=atomic
 
 .PHONY: build
 build: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=$(GOOS_LOCAL) GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT)/ $(HIGRESS_BINARIES)
 
 .PHONY: build-linux
 build-linux: prebuild $(OUT)
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=$(GOARCH_LOCAL) LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh $(OUT_LINUX)/ $(HIGRESS_BINARIES)
 
 $(AMD64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=amd64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_amd64/ $(HIGRESS_BINARIES)
 
 $(ARM64_OUT_LINUX)/higress:
-	GOPROXY=$(GOPROXY) GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
+	GOPROXY="$(GOPROXY)" GOOS=linux GOARCH=arm64 LDFLAGS=$(RELEASE_LDFLAGS) tools/hack/gobuild.sh ./out/linux_arm64/ $(HIGRESS_BINARIES)
 
 .PHONY: build-hgctl
 build-hgctl: prebuild $(OUT)
@@ -101,11 +101,11 @@ build-hgctl-multiarch: prebuild $(OUT)
 
 .PHONY: build-hgctl-macos-arm64
 build-hgctl-macos-arm64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=arm64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_arm64/ $(HGCTL_BINARIES)
 
 .PHONY: build-hgctl-macos-amd64
 build-hgctl-macos-amd64: prebuild $(OUT)
-	CGO_ENABLED=1 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 LDFLAGS="-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn" PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
+	CGO_ENABLED=1 STATIC=0 GOPROXY=$(GOPROXY) GOOS=darwin GOARCH=amd64 PROJECT_DIR="$(HGCTL_PROJECT_DIR)" tools/hack/gobuild.sh ../out/darwin_amd64/ $(HGCTL_BINARIES)
 
 # Create targets for OUT_LINUX/binary
 # There are two use cases here:
@@ -144,7 +144,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0-rc.1/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -187,8 +187,8 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= a6c313d41b3b54f0e3ed81fc676c520160cfed05
-ISTIO_LATEST_IMAGE_TAG ?= a9a55b3895bbf64a1ad8f724b2de3de017831e38
+ENVOY_LATEST_IMAGE_TAG ?= 2.0.1
+ISTIO_LATEST_IMAGE_TAG ?= 2.0.1
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -221,11 +221,15 @@ clean-higress: ## Cleans all the intermediate files and folders previously gener
 	rm -rf $(DIRS_TO_CLEAN)
 
 clean-istio:
+	rm -rf external/api
+	rm -rf external/client-go
 	rm -rf external/istio
+	rm -rf external/pkg
 
 clean-gateway: clean-istio
 	rm -rf external/envoy
 	rm -rf external/proxy
+	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
 
 clean-env:
