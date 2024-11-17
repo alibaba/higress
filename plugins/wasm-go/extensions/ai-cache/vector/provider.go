@@ -26,8 +26,8 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		PROVIDER_TYPE_DASH_VECTOR: &dashVectorProviderInitializer{},
 		PROVIDER_TYPE_CHROMA:      &chromaProviderInitializer{},
-		PROVIDER_TYPE_ES:          &weaviateProviderInitializer{},
-		PROVIDER_TYPE_WEAVIATE:    &esProviderInitializer{},
+		PROVIDER_TYPE_ES:          &esProviderInitializer{},
+		PROVIDER_TYPE_WEAVIATE:    &weaviateProviderInitializer{},
 		PROVIDER_TYPE_PINECONE:    &pineconeProviderInitializer{},
 		PROVIDER_TYPE_QDRANT:      &qdrantProviderInitializer{},
 		PROVIDER_TYPE_MILVUS:      &milvusProviderInitializer{},

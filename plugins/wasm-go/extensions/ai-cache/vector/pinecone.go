@@ -15,16 +15,13 @@ type pineconeProviderInitializer struct{}
 
 func (c *pineconeProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	if len(config.serviceHost) == 0 {
-		return errors.New("[Pinecone] serviceDomain is required")
+		return errors.New("[Pinecone] serviceHost is required")
 	}
 	if len(config.serviceName) == 0 {
 		return errors.New("[Pinecone] serviceName is required")
 	}
 	if len(config.apiKey) == 0 {
 		return errors.New("[Pinecone] apiKey is required")
-	}
-	if len(config.collectionID) == 0 {
-		return errors.New("[Pinecone] collectionID is required")
 	}
 	return nil
 }

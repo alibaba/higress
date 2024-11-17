@@ -82,11 +82,16 @@ func (d *ESProvider) QueryEmbedding(
 	)
 }
 
-// base64 编码 ES 身份认证字符串
+// base64 编码 ES 身份认证字符串或使用 Apikey
 func (d *ESProvider) getCredentials() string {
-	credentials := fmt.Sprintf("%s:%s", d.config.esUsername, d.config.esPassword)
-	encodedCredentials := base64.StdEncoding.EncodeToString([]byte(credentials))
-	return fmt.Sprintf("Basic %s", encodedCredentials)
+	if len(d.config.apiKey) != 0 {
+		return fmt.Sprintf("ApiKey %s", d.config.apiKey)
+	} else {
+		credentials := fmt.Sprintf("%s:%s", d.config.esUsername, d.config.esPassword)
+		encodedCredentials := base64.StdEncoding.EncodeToString([]byte(credentials))
+		return fmt.Sprintf("Basic %s", encodedCredentials)
+	}
+
 }
 
 func (d *ESProvider) UploadAnswerAndEmbedding(

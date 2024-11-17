@@ -88,6 +88,7 @@ func (d *WeaviateProvider) QueryEmbedding(
 		"/v1/graphql",
 		[][2]string{
 			{"Content-Type", "application/json"},
+			{"Authorization", fmt.Sprintf("Bearer %s", d.config.apiKey)},
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -128,6 +129,7 @@ func (d *WeaviateProvider) UploadAnswerAndEmbedding(
 		"/v1/objects",
 		[][2]string{
 			{"Content-Type", "application/json"},
+			{"Authorization", fmt.Sprintf("Bearer %s", d.config.apiKey)},
 		},
 		requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
