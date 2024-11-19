@@ -467,7 +467,7 @@ func (c *ProviderConfig) ResetApiTokenRequestFailureCount(apiTokenInUse string, 
 			log.Errorf("failed to get failureApiTokenRequestCount: %v", err)
 		}
 		if _, ok := failureApiTokenRequestCount[apiTokenInUse]; ok {
-			log.Infof("reset apiToken %s request failure count", apiTokenInUse)
+			log.Infof("Reset apiToken %s request failure count", apiTokenInUse)
 			resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiTokenInUse, log)
 		}
 	}
@@ -489,7 +489,7 @@ func modifyApiTokenRequestCount(key, apiToken string, op string, log wrapper.Log
 
 		apiTokenRequestCountByte, err := json.Marshal(apiTokenRequestCount)
 		if err != nil {
-			log.Errorf("failed to marshal apiTokenRequestCount: %v", err)
+			log.Errorf("Failed to marshal apiTokenRequestCount: %v", err)
 		}
 
 		if err := proxywasm.SetSharedData(key, apiTokenRequestCountByte, cas); err == nil {
@@ -551,7 +551,7 @@ func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
 
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
 	var apiToken string
-	if c.isFailoverEnabled() {
+	if c.isFailoverEnabled() || c.useGlobalApiToken {
 		// if enable apiToken failover, only use available apiToken
 		apiToken = c.GetGlobalRandomToken(log)
 	} else {
