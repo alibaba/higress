@@ -34,6 +34,7 @@ import (
 	extensions "istio.io/api/extensions/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
 	istiotype "istio.io/api/type/v1beta1"
+	"istio.io/istio/pilot/pkg/features"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	"istio.io/istio/pkg/cluster"
@@ -235,8 +236,9 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) {
 		ingressController = ingressv1.NewController(m.localKubeClient, m.localKubeClient, options, secretController)
 	}
 	m.remoteIngressControllers[options.ClusterId] = ingressController
-
-	m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options)
+	if features.EnableGatewayAPI {
+		m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options)
+	}
 }
 
 func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []config.Config {

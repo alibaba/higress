@@ -69,10 +69,12 @@ spec:
                 fieldPath: spec.serviceAccountName
           - name: DOMAIN_SUFFIX
             value: {{ .Values.global.proxy.clusterDomain }}
-          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
-            value: "true"
           - name: GATEWAY_NAME
             value: {{ include "gateway.name" . }}
+          - name: PILOT_ENABLE_GATEWAY_API
+            value: "{{ .Values.global.enableGatewayAPI }}"
+          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
+            value: "{{ .Values.global.enableGatewayAPI }}"
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
@@ -219,16 +221,14 @@ spec:
           - name: HIGRESS_ENABLE_ISTIO_API
             value: "true"
           {{- end }}
-          {{- if .Values.global.enableGatewayAPI }}
           - name: PILOT_ENABLE_GATEWAY_API
-            value: "true"
+            value: "false"
           - name: PILOT_ENABLE_ALPHA_GATEWAY_API
-            value: "true"
+            value: "false"
           - name: PILOT_ENABLE_GATEWAY_API_STATUS
-            value: "true"
+            value: "false"
           - name: PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER
             value: "false"
-          {{- end }}
           {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
             value: "higress-ca-root-cert"

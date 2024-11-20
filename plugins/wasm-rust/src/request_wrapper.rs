@@ -14,6 +14,7 @@ fn get_request_head(head: &str, log_flag: &str) -> String {
         String::new()
     }
 }
+
 pub fn get_request_scheme() -> String {
     get_request_head(":scheme", "head")
 }
@@ -57,6 +58,7 @@ pub fn is_binary_response_body() -> bool {
     }
     false
 }
+
 pub fn has_request_body() -> bool {
     let content_type = internal::get_http_request_header("content-type");
     let content_length_str = internal::get_http_request_header("content-length");

@@ -211,6 +211,15 @@ type LLMInfo struct {
 	MaxTokens int64 `yaml:"maxToken" json:"maxTokens"`
 }
 
+type JsonResp struct {
+	// @Title zh-CN Enable
+	// @Description zh-CN 是否要启用json格式化输出
+	Enable bool `yaml:"enable" json:"enable"`
+	// @Title zh-CN Json Schema
+	// @Description zh-CN 用以验证响应json的Json Schema, 为空则只验证返回的响应是否为合法json
+	JsonSchema map[string]interface{} `required:"false" json:"jsonSchema" yaml:"jsonSchema"`
+}
+
 type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
@@ -225,6 +234,7 @@ type PluginConfig struct {
 	LLMClient      wrapper.HttpClient `yaml:"-" json:"-"`
 	APIsParam      []APIsParam        `yaml:"-" json:"-"`
 	PromptTemplate PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
+	JsonResp       JsonResp           `yaml:"jsonResp" json:"jsonResp"`
 }
 
 func initResponsePromptTpl(gjson gjson.Result, c *PluginConfig) {
@@ -401,4 +411,16 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 		Port: c.LLMInfo.ServicePort,
 		Host: c.LLMInfo.Domain,
 	})
+}
+
+func initJsonResp(gjson gjson.Result, c *PluginConfig) {
+	c.JsonResp.Enable = false
+	if c.JsonResp.Enable = gjson.Get("jsonResp.enable").Bool(); c.JsonResp.Enable {
+		c.JsonResp.JsonSchema = nil
+		if jsonSchemaValue := gjson.Get("jsonResp.jsonSchema"); jsonSchemaValue.Exists() {
+			if schemaValue, ok := jsonSchemaValue.Value().(map[string]interface{}); ok {
+				c.JsonResp.JsonSchema = schemaValue
+			}
+		}
+	}
 }

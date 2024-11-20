@@ -60,10 +60,10 @@ impl SseTimingRoot {
 impl Context for SseTimingRoot {}
 
 impl RootContext for SseTimingRoot {
-    fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
+    fn on_configure(&mut self, plugin_configuration_size: usize) -> bool {
         on_configure(
             self,
-            _plugin_configuration_size,
+            plugin_configuration_size,
             self.rule_matcher.borrow_mut().deref_mut(),
             &self.log,
         )
@@ -75,7 +75,7 @@ impl RootContext for SseTimingRoot {
             rule_matcher: self.rule_matcher.clone(),
             vendor: "higress".into(),
             is_event_stream: false,
-            event_stream: EventStream::new(),
+            event_stream: EventStream::default(),
             start_time: self.get_current_time(),
         }))
     }
