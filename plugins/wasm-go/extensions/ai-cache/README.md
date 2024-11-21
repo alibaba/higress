@@ -60,7 +60,7 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | vector.apiKey | string | optional | ""  | 向量存储服务 API Key |
 | vector.topK | int | optional | 1 | 返回TopK结果，默认为 1 |
 | vector.timeout | uint32 | optional | 10000 | 请求向量存储服务的超时时间，单位为毫秒。默认值是10000，即10秒 |
-| vector.collectionID | string | optional | "" |  dashvector 向量存储服务 Collection ID |
+| vector.collectionID | string | optional | "" | 向量存储服务 Collection ID |
 | vector.threshold | float64 | optional | 1000 | 向量相似度度量阈值 |
 | vector.thresholdRelation | string | optional | lt | 相似度度量方式有 `Cosine`, `DotProduct`, `Euclidean` 等，前两者值越大相似度越高，后者值越小相似度越高。对于 `Cosine` 和 `DotProduct` 选择 `gt`，对于 `Euclidean` 则选择 `lt`。默认为 `lt`，所有条件包括 `lt` (less than，小于)、`lte` (less than or equal to，小等于)、`gt` (greater than，大于)、`gte` (greater than or equal to，大等于) |
 
@@ -99,6 +99,45 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 | responseTemplate | string | optional | `{"id":"ai-cache.hit","choices":[{"index":0,"message":{"role":"assistant","content":%s},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` | 返回 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分 |
 | streamResponseTemplate | string | optional | `data:{"id":"ai-cache.hit","choices":[{"index":0,"delta":{"role":"assistant","content":%s},"finish_reason":"stop"}],"model":"gpt-4o","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}\n\ndata:[DONE]\n\n` | 返回流式 HTTP 响应的模版，用 %s 标记需要被 cache value 替换的部分 |
 
+# 向量数据库提供商特有配置
+## Chroma
+Chroma 所对应的 `vector.type` 为 `chroma`。它并无特有的配置字段。需要提前创建 Collection，并填写 Collection ID 至配置项 `vector.collectionID`，一个 Collection ID 的示例为 `52bbb8b3-724c-477b-a4ce-d5b578214612`。
+
+## DashVector
+DashVector 所对应的 `vector.type` 为 `dashvector`。它并无特有的配置字段。需要提前创建 Collection，并填写 `Collection 名称` 至配置项 `vector.collectionID`。
+
+## ElasticSearch
+ElasticSearch 所对应的 `vector.type` 为 `elasticsearch`。需要提前创建 Index 并填写 Index Name 至配置项 `vector.collectionID` 。
+
+当前依赖于 [KNN](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html) 方法，请保证 ES 版本支持 `KNN`，当前已在 `8.16` 版本测试。
+
+它特有的配置字段如下：
+| 名称              | 数据类型 | 填写要求 | 默认值 | 描述                                                                          |
+|-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
+| `vector.esUsername` | string   | 非必填   | -      | ElasticSearch 用户名 |
+| `vector.esPassword` | string | 非必填 | - | ElasticSearch 密码 |
+
+
+`vector.esUsername` 和 `vector.esPassword` 用于 Basic 认证。同时也支持 Api Key 认证，当填写了 `vector.apiKey` 时，则启用 Api Key 认证，如果使用 SaaS 版本需要填写 `encoded` 的值。
+
+## Milvus
+Milvus 所对应的 `vector.type` 为 `milvus`。它并无特有的配置字段。需要提前创建 Collection，并填写 Collection Name 至配置项 `vector.collectionID`。
+
+## Pinecone
+Pinecone 所对应的 `vector.type` 为 `pinecone`。它并无特有的配置字段。需要提前创建 Index，并填写 Index 访问域名至 `vector.serviceHost`。
+
+Pinecone 中的 `Namespace` 参数通过插件的 `vector.collectionID` 进行配置，如果不填写 `vector.collectionID`，则默认为 Default Namespace。
+
+## Qdrant
+Qdrant 所对应的 `vector.type` 为 `qdrant`。它并无特有的配置字段。需要提前创建 Collection，并填写 Collection Name 至配置项 `vector.collectionID`。
+
+## Weaviate
+Weaviate 所对应的 `vector.type` 为 `weaviate`。它并无特有的配置字段。
+需要提前创建 Collection，并填写 Collection Name 至配置项 `vector.collectionID`。
+
+需要注意的是 Weaviate 会设置首字母自动大写，在填写配置 `collectionID` 的时候需要将首字母设置为大写。
+
+如果使用 SaaS 需要填写 `vector.serviceHost` 参数。
 
 ## 配置示例
 ### 基础配置
