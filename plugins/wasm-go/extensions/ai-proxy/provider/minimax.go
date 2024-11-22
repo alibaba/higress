@@ -141,14 +141,14 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.minimax.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			util.ErrorHandler("ai-proxy.minimax.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 		}
 		// 由于 minimaxChatCompletionV2（格式和 OpenAI 一致）和 minimaxChatCompletionPro（格式和 OpenAI 不一致）中 insertHttpContextMessage 的逻辑不同，无法做到同一个 provider 统一
 		// 因此对于 minimaxChatCompletionPro 需要手动处理 context 消息
 		// minimaxChatCompletionV2 交给默认的 defaultInsertHttpContextMessage 方法插入 context 消息
 		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, content)
 		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.minimax.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
+			util.ErrorHandler("ai-proxy.minimax.insert_ctx_failed", fmt.Errorf("failed to replace Request body: %v", err))
 		}
 	}, log)
 	if err == nil {
