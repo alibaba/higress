@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "extensions/model_router/plugin.h"
+#include "extensions/model_mapper/plugin.h"
 
 #include <cstddef>
 
@@ -23,11 +23,11 @@
 
 namespace proxy_wasm {
 namespace null_plugin {
-namespace model_router {
+namespace model_mapper {
 
 NullPluginRegistry* context_registry_;
-RegisterNullVmPluginFactory register_model_router_plugin("model_router", []() {
-  return std::make_unique<NullPlugin>(model_router::context_registry_);
+RegisterNullVmPluginFactory register_model_mapper_plugin("model_mapper", []() {
+  return std::make_unique<NullPlugin>(model_mapper::context_registry_);
 });
 
 class MockContext : public proxy_wasm::ContextBase {
@@ -50,16 +50,16 @@ class MockContext : public proxy_wasm::ContextBase {
   MOCK_METHOD(WasmResult, getProperty, (std::string_view, std::string*));
   MOCK_METHOD(WasmResult, setProperty, (std::string_view, std::string_view));
 };
-class ModelRouterTest : public ::testing::Test {
+class ModelMapperTest : public ::testing::Test {
  protected:
-  ModelRouterTest() {
+  ModelMapperTest() {
     // Initialize test VM
     test_vm_ = createNullVm();
     wasm_base_ = std::make_unique<WasmBase>(
         std::move(test_vm_), "test-vm", "", "",
         std::unordered_map<std::string, std::string>{},
         AllowedCapabilitiesMap{});
-    wasm_base_->load("model_router");
+    wasm_base_->load("model_mapper");
     wasm_base_->initialize();
     // Initialize host side context
     mock_context_ = std::make_unique<MockContext>(wasm_base_.get());
@@ -110,36 +110,47 @@ class ModelRouterTest : public ::testing::Test {
                            std::string_view value) { return WasmResult::Ok; });
     ON_CALL(*mock_context_, getProperty(testing::_, testing::_))
         .WillByDefault([&](std::string_view path, std::string* result) {
-          *result = route_name_;
+          if (absl::StartsWith(path, "route_name")) {
+            *result = route_name_;
+          } else if (absl::StartsWith(path, "cluster_name")) {
+            *result = service_name_;
+          }
           return WasmResult::Ok;
         });
     ON_CALL(*mock_context_, setProperty(testing::_, testing::_))
         .WillByDefault(
             [&](std::string_view, std::string_view) { return WasmResult::Ok; });
   }
-  ~ModelRouterTest() override {}
+  ~ModelMapperTest() override {}
   std::unique_ptr<WasmBase> wasm_base_;
   std::unique_ptr<WasmVm> test_vm_;
   std::unique_ptr<MockContext> mock_context_;
   std::unique_ptr<PluginRootContext> root_context_;
   std::unique_ptr<PluginContext> context_;
   std::string route_name_;
+  std::string service_name_;
   std::string path_;
   BufferBase body_;
   BufferBase config_;
 };
 
-TEST_F(ModelRouterTest, RewriteModelAndHeader) {
+TEST_F(ModelMapperTest, ModelMappingTest) {
   std::string configuration = R"(
 {
-  "addProviderHeader": "x-higress-llm-provider"
-    })";
+  "modelMapping": {
+     "*": "qwen-long",
+     "gpt-4*": "qwen-max",
+     "gpt-4o": "qwen-turbo",
+     "gpt-4o-mini": "qwen-plus",
+     "text-embedding-v1": ""
+  }
+})";
 
   config_.set(configuration);
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   path_ = "/v1/chat/completions";
-  std::string request_json = R"({"model": "qwen/qwen-long"})";
+  std::string request_json = R"({"model": "gpt-3.5"})";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
       .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
@@ -147,77 +158,98 @@ TEST_F(ModelRouterTest, RewriteModelAndHeader) {
         return WasmResult::Ok;
       });
 
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4"})";
   EXPECT_CALL(*mock_context_,
-              replaceHeaderMapValue(testing::_,
-                                    std::string_view("x-higress-llm-provider"),
-                                    std::string_view("qwen")));
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-max"})");
+        return WasmResult::Ok;
+      });
 
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
-}
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
 
-TEST_F(ModelRouterTest, ModelToHeader) {
-  std::string configuration = R"(
-{
-  "modelToHeader": "x-higress-llm-model"
-    })";
-
-  config_.set(configuration);
-  EXPECT_TRUE(root_context_->configure(configuration.size()));
-
-  path_ = "/v1/chat/completions";
-  std::string request_json = R"({"model": "qwen-long"})";
+  request_json = R"({"model": "gpt-4o"})";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
-      .Times(0);
-
-  EXPECT_CALL(
-      *mock_context_,
-      replaceHeaderMapValue(testing::_, std::string_view("x-higress-llm-model"),
-                            std::string_view("qwen-long")));
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
 
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
-}
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
 
-TEST_F(ModelRouterTest, IgnorePath) {
-  std::string configuration = R"(
-{
-  "addProviderHeader": "x-higress-llm-provider"
-    })";
+  request_json = R"({"model": "gpt-4o-mini"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-plus"})");
+        return WasmResult::Ok;
+      });
 
-  config_.set(configuration);
-  EXPECT_TRUE(root_context_->configure(configuration.size()));
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
 
-  path_ = "/v1/chat/xxxx";
-  std::string request_json = R"({"model": "qwen/qwen-long"})";
+  request_json = R"({"model": "text-embedding-v1"})";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
       .Times(0);
 
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({})";
   EXPECT_CALL(*mock_context_,
-              replaceHeaderMapValue(testing::_,
-                                    std::string_view("x-higress-llm-provider"),
-                                    std::string_view("qwen")))
-      .Times(0);
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
 
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
-            FilterHeadersStatus::Continue);
-  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
 }
 
-TEST_F(ModelRouterTest, RouteLevelRewriteModelAndHeader) {
+TEST_F(ModelMapperTest, RouteLevelModelMappingTest) {
   std::string configuration = R"(
 {
   "_rules_": [
     {
       "_match_route_": ["route-a"],
-      "addProviderHeader": "x-higress-llm-provider"
+      "_match_service_": ["service-1"],
+      "modelMapping": {
+        "*": "qwen-long"
+      }
+    },
+    {
+      "_match_route_": ["route-b"],
+      "_match_service_": ["service-2"],
+      "modelMapping": {
+        "*": "qwen-max"
+      }
+    },
+    {
+      "_match_route_": ["route-b"],
+      "_match_service_": ["service-3"],
+      "modelMapping": {
+        "*": "qwen-turbo"
+      }
     }
 ]})";
 
@@ -225,26 +257,45 @@ TEST_F(ModelRouterTest, RouteLevelRewriteModelAndHeader) {
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   path_ = "/api/v1/chat/completions";
-  std::string request_json = R"({"model": "qwen/qwen-long"})";
+  std::string request_json = R"({"model": "gpt-4"})";
+  body_.set(request_json);
+  route_name_ = "route-a";
+  service_name_ = "outbound|80||service-1";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
       .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
         EXPECT_EQ(body, R"({"model":"qwen-long"})");
         return WasmResult::Ok;
       });
-
-  EXPECT_CALL(*mock_context_,
-              replaceHeaderMapValue(testing::_,
-                                    std::string_view("x-higress-llm-provider"),
-                                    std::string_view("qwen")));
-
-  body_.set(request_json);
-  route_name_ = "route-a";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  route_name_ = "route-b";
+  service_name_ = "outbound|80||service-2";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-max"})");
+        return WasmResult::Ok;
+      });
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  route_name_ = "route-b";
+  service_name_ = "outbound|80||service-3";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
 }
 
-}  // namespace model_router
+}  // namespace model_mapper
 }  // namespace null_plugin
 }  // namespace proxy_wasm

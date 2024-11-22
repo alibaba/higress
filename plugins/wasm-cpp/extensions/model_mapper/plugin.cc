@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "extensions/model_router/plugin.h"
+#include "extensions/model_mapper/plugin.h"
 
 #include <array>
 #include <limits>
@@ -32,13 +32,13 @@ using ::Wasm::Common::JsonValueAs;
 
 namespace proxy_wasm {
 namespace null_plugin {
-namespace model_router {
+namespace model_mapper {
 
 PROXY_WASM_NULL_PLUGIN_REGISTRY
 
 #endif
 
-static RegisterContextFactory register_ModelRouter(
+static RegisterContextFactory register_ModelMapper(
     CONTEXT_FACTORY(PluginContext), ROOT_FACTORY(PluginRootContext));
 
 namespace {
@@ -50,7 +50,7 @@ constexpr std::string_view DefaultMaxBodyBytes = "10485760";
 }  // namespace
 
 bool PluginRootContext::parsePluginConfig(const json& configuration,
-                                          ModelRouterConfigRule& rule) {
+                                          ModelMapperConfigRule& rule) {
   if (auto it = configuration.find("modelKey"); it != configuration.end()) {
     if (it->is_string()) {
       rule.model_key_ = it->get<std::string>();
@@ -60,22 +60,36 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     }
   }
 
-  if (auto it = configuration.find("addProviderHeader");
-      it != configuration.end()) {
-    if (it->is_string()) {
-      rule.add_provider_header_ = it->get<std::string>();
-    } else {
-      LOG_ERROR("Invalid type for addProviderHeader. Expected string.");
+  if (auto it = configuration.find("modelMapping"); it != configuration.end()) {
+    if (!it->is_object()) {
+      LOG_ERROR("Invalid type for modelMapping. Expected object.");
       return false;
     }
-  }
-
-  if (auto it = configuration.find("modelToHeader");
-      it != configuration.end()) {
-    if (it->is_string()) {
-      rule.model_to_header_ = it->get<std::string>();
-    } else {
-      LOG_ERROR("Invalid type for modelToHeader. Expected string.");
+    auto model_mapping = it->get<Wasm::Common::JsonObject>();
+    if (!JsonObjectIterate(model_mapping, [&](std::string key) -> bool {
+          auto model_json = model_mapping.find(key);
+          if (!model_json->is_string()) {
+            LOG_ERROR(
+                "Invalid type for item in modelMapping. Expected string.");
+            return false;
+          }
+          if (key == "*") {
+            rule.default_model_mapping_ = model_json->get<std::string>();
+            return true;
+          }
+          if (absl::EndsWith(key, "*")) {
+            rule.prefix_model_mapping_.emplace_back(
+                absl::StripSuffix(key, "*"), model_json->get<std::string>());
+            return true;
+          }
+          auto ret = rule.exact_model_mapping_.emplace(
+              key, model_json->get<std::string>());
+          if (!ret.second) {
+            LOG_ERROR("Duplicate key in modelMapping: " + key);
+            return false;
+          }
+          return true;
+        })) {
       return false;
     }
   }
@@ -88,17 +102,16 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
             }
             return false;
           })) {
-    LOG_ERROR("Invalid type for item in enableOnPathSuffix. Expected string.");
+    LOG_WARN("Invalid type for item in enableOnPathSuffix. Expected string.");
     return false;
   }
-
   return true;
 }
 
 bool PluginRootContext::onConfigure(size_t size) {
   // Parse configuration JSON string.
   if (size > 0 && !configure(size)) {
-    LOG_ERROR("configuration has errors initialization will not continue.");
+    LOG_WARN("configuration has errors initialization will not continue.");
     return false;
   }
   return true;
@@ -110,20 +123,20 @@ bool PluginRootContext::configure(size_t configuration_size) {
   // Parse configuration JSON string.
   auto result = ::Wasm::Common::JsonParse(configuration_data->view());
   if (!result) {
-    LOG_ERROR(absl::StrCat("cannot parse plugin configuration JSON string: ",
-                           configuration_data->view()));
+    LOG_WARN(absl::StrCat("cannot parse plugin configuration JSON string: ",
+                          configuration_data->view()));
     return false;
   }
   if (!parseRuleConfig(result.value())) {
-    LOG_ERROR(absl::StrCat("cannot parse plugin configuration JSON string: ",
-                           configuration_data->view()));
+    LOG_WARN(absl::StrCat("cannot parse plugin configuration JSON string: ",
+                          configuration_data->view()));
     return false;
   }
   return true;
 }
 
 FilterHeadersStatus PluginRootContext::onHeader(
-    const ModelRouterConfigRule& rule) {
+    const ModelMapperConfigRule& rule) {
   if (!Wasm::Common::Http::hasRequestBody()) {
     return FilterHeadersStatus::Continue;
   }
@@ -156,38 +169,41 @@ FilterHeadersStatus PluginRootContext::onHeader(
   return FilterHeadersStatus::StopIteration;
 }
 
-FilterDataStatus PluginRootContext::onBody(const ModelRouterConfigRule& rule,
+FilterDataStatus PluginRootContext::onBody(const ModelMapperConfigRule& rule,
                                            std::string_view body) {
+  const auto& exact_model_mapping = rule.exact_model_mapping_;
+  const auto& prefix_model_mapping = rule.prefix_model_mapping_;
+  const auto& default_model_mapping = rule.default_model_mapping_;
   const auto& model_key = rule.model_key_;
-  const auto& add_provider_header = rule.add_provider_header_;
-  const auto& model_to_header = rule.model_to_header_;
   auto body_json_opt = ::Wasm::Common::JsonParse(body);
   if (!body_json_opt) {
     LOG_WARN(absl::StrCat("cannot parse body to JSON string: ", body));
     return FilterDataStatus::Continue;
   }
   auto body_json = body_json_opt.value();
+  std::string old_model;
   if (body_json.contains(model_key)) {
-    std::string model_value = body_json[model_key];
-    if (!model_to_header.empty()) {
-      replaceRequestHeader(model_to_header, model_value);
-    }
-    if (!add_provider_header.empty()) {
-      auto pos = model_value.find('/');
-      if (pos != std::string::npos) {
-        const auto& provider = model_value.substr(0, pos);
-        const auto& model = model_value.substr(pos + 1);
-        replaceRequestHeader(add_provider_header, provider);
-        body_json[model_key] = model;
-        setBuffer(WasmBufferType::HttpRequestBody, 0,
-                  std::numeric_limits<size_t>::max(), body_json.dump());
-        LOG_DEBUG(absl::StrCat("model route to provider:", provider,
-                               ", model:", model));
-      } else {
-        LOG_DEBUG(absl::StrCat("model route to provider not work, model:",
-                               model_value));
+    old_model = body_json[model_key];
+  }
+  std::string model =
+      default_model_mapping.empty() ? old_model : default_model_mapping;
+  if (auto it = exact_model_mapping.find(old_model);
+      it != exact_model_mapping.end()) {
+    model = it->second;
+  } else {
+    for (auto& prefix_model_pair : prefix_model_mapping) {
+      if (absl::StartsWith(old_model, prefix_model_pair.first)) {
+        model = prefix_model_pair.second;
+        break;
       }
     }
+  }
+  if (!model.empty() && model != old_model) {
+    body_json[model_key] = model;
+    setBuffer(WasmBufferType::HttpRequestBody, 0,
+              std::numeric_limits<size_t>::max(), body_json.dump());
+    LOG_DEBUG(
+        absl::StrCat("model mapped, before:", old_model, ", after:", model));
   }
   return FilterDataStatus::Continue;
 }
@@ -220,7 +236,7 @@ FilterDataStatus PluginContext::onRequestBody(size_t body_size,
 
 #ifdef NULL_PLUGIN
 
-}  // namespace model_router
+}  // namespace model_mapper
 }  // namespace null_plugin
 }  // namespace proxy_wasm
 
