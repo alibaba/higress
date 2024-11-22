@@ -32,14 +32,15 @@
 
 namespace proxy_wasm {
 namespace null_plugin {
-namespace model_router {
+namespace model_mapper {
 
 #endif
 
-struct ModelRouterConfigRule {
+struct ModelMapperConfigRule {
   std::string model_key_ = "model";
-  std::string add_provider_header_;
-  std::string model_to_header_;
+  std::map<std::string, std::string> exact_model_mapping_;
+  std::vector<std::pair<std::string, std::string>> prefix_model_mapping_;
+  std::string default_model_mapping_;
   std::vector<std::string> enable_on_path_suffix_ = {"/v1/chat/completions"};
 };
 
@@ -47,18 +48,18 @@ struct ModelRouterConfigRule {
 // thread. It has the same lifetime as the worker thread and acts as target for
 // interactions that outlives individual stream, e.g. timer, async calls.
 class PluginRootContext : public RootContext,
-                          public RouteRuleMatcher<ModelRouterConfigRule> {
+                          public RouteRuleMatcher<ModelMapperConfigRule> {
  public:
   PluginRootContext(uint32_t id, std::string_view root_id)
       : RootContext(id, root_id) {}
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
-  FilterHeadersStatus onHeader(const ModelRouterConfigRule&);
-  FilterDataStatus onBody(const ModelRouterConfigRule&, std::string_view);
+  FilterHeadersStatus onHeader(const ModelMapperConfigRule&);
+  FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view);
   bool configure(size_t);
 
  private:
-  bool parsePluginConfig(const json&, ModelRouterConfigRule&) override;
+  bool parsePluginConfig(const json&, ModelMapperConfigRule&) override;
 };
 
 // Per-stream context.
@@ -74,12 +75,12 @@ class PluginContext : public Context {
   }
 
   size_t body_total_size_ = 0;
-  const ModelRouterConfigRule* config_ = nullptr;
+  const ModelMapperConfigRule* config_ = nullptr;
 };
 
 #ifdef NULL_PLUGIN
 
-}  // namespace model_router
+}  // namespace model_mapper
 }  // namespace null_plugin
 }  // namespace proxy_wasm
 
