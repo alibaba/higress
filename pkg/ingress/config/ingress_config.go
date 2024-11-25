@@ -906,6 +906,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				StructValue: rule.Config,
 			}
 
+			validRule := false
 			var matchItems []*_struct.Value
 			// match ingress
 			for _, ing := range rule.Ingress {
@@ -916,6 +917,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
+				validRule = true
 				v.StructValue.Fields["_match_route_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
@@ -923,11 +925,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 						},
 					},
 				}
-				ruleValues = append(ruleValues, &_struct.Value{
-					Kind: v,
-				})
 			}
 			// match service
+			matchItems = nil
 			for _, service := range rule.Service {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
@@ -936,6 +936,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
+				validRule = true
 				v.StructValue.Fields["_match_service_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
@@ -943,11 +944,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 						},
 					},
 				}
-				ruleValues = append(ruleValues, &_struct.Value{
-					Kind: v,
-				})
 			}
 			// match domain
+			matchItems = nil
 			for _, domain := range rule.Domain {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
@@ -956,6 +955,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
+				validRule = true
 				v.StructValue.Fields["_match_domain_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
@@ -963,11 +963,12 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 						},
 					},
 				}
+			}
+			if validRule {
 				ruleValues = append(ruleValues, &_struct.Value{
 					Kind: v,
 				})
-			}
-			if len(ruleValues) == 0 {
+			} else {
 				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
 			}
 		}
