@@ -50,10 +50,10 @@ func (t *OpenAIProvider) GetProviderType() string {
 }
 
 type OpenAIResponse struct {
-	Object string       `json:"object"`
-	Data   OpenAIResult `json:"data"`
-	Model  string       `json:"model"`
-	Error  *OpenAIError `json:"error"`
+	Object string         `json:"object"`
+	Data   []OpenAIResult `json:"data"`
+	Model  string         `json:"model"`
+	Error  *OpenAIError   `json:"error"`
 }
 
 type OpenAIResult struct {
@@ -143,13 +143,13 @@ func (t *OpenAIProvider) GetEmbedding(
 
 			log.Debugf("get embedding response: %d, %s", statusCode, responseBody)
 
-			if len(resp.Data.Embedding) == 0 {
+			if len(resp.Data) == 0 {
 				err = errors.New("no embedding found in response")
 				callback(nil, err)
 				return
 			}
 
-			callback(resp.Data.Embedding, nil)
+			callback(resp.Data[0].Embedding, nil)
 
 		}, t.config.timeout)
 	return err
