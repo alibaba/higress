@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -114,26 +115,27 @@ func (m *hunyuanProvider) GetProviderType() string {
 }
 
 func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	// log.Debugf("hunyuanProvider.OnRequestHeaders called! hunyunSecretKey/id is: %s/%s", m.config.hunyuanAuthKey, m.config.hunyuanAuthId)
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-
-	_ = util.OverwriteRequestHost(hunyuanDomain)
-	_ = util.OverwriteRequestPath(hunyuanRequestPath)
-
-	// 添加hunyuan需要的自定义字段
-	_ = proxywasm.ReplaceHttpRequestHeader(actionKey, hunyuanChatCompletionTCAction)
-	_ = proxywasm.ReplaceHttpRequestHeader(versionKey, versionValue)
-
-	// 删除一些字段
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
 }
 
+func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestHostHeader(headers, hunyuanDomain)
+	util.OverwriteRequestPathHeader(headers, hunyuanRequestPath)
+
+	// 添加 hunyuan 需要的自定义字段
+	headers.Add(actionKey, hunyuanChatCompletionTCAction)
+	headers.Add(versionKey, versionValue)
+
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
+}
+
+// hunyuan 的 OnRequestBody 逻辑中包含了对 headers 签名的逻辑，并且插入 context 以后还要重新计算签名，因此无法复用 handleRequestBody 方法
 func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
@@ -142,7 +144,6 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	// 为header添加时间戳字段 （因为需要根据body进行签名时依赖时间戳，故于body处理部分创建时间戳）
 	var timestamp int64 = time.Now().Unix()
 	_ = proxywasm.ReplaceHttpRequestHeader(timestampKey, fmt.Sprintf("%d", timestamp))
-	// log.Debugf("#debug nash5# OnRequestBody set timestamp header: ", timestamp)
 
 	// 使用混元本身接口的协议
 	if m.config.protocol == protocolOriginal {
@@ -198,7 +199,6 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
-	// log.Debugf("#debug nash5# OnRequestBody call hunyuan api using openai's api!")
 
 	model := request.Model
 	if model == "" {
@@ -235,18 +235,6 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			string(body),
 		)
 		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
-		// log.Debugf("#debug nash5# OnRequestBody done, body is: ", string(body))
-
-		// // 打印所有的headers
-		// headers, err2 := proxywasm.GetHttpRequestHeaders()
-		// if err2 != nil {
-		// 	log.Errorf("failed to get request headers: %v", err2)
-		// } else {
-		// 	// 迭代并打印所有请求头
-		// 	for _, header := range headers {
-		// 		log.Infof("#debug nash5# inB Request header - %s: %s", header[0], header[1])
-		// 	}
-		// }
 		return types.ActionContinue, replaceJsonRequestBody(hunyuanRequest, log)
 	}
 
@@ -275,6 +263,32 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
+}
+
+// hunyuan 的 TransformRequestBodyHeaders 方法只在 failover 健康检查的时候会调用
+func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	err := m.config.parseRequestAndMapModel(ctx, request, body, log)
+	if err != nil {
+		return nil, err
+	}
+
+	hunyuanRequest := m.buildHunyuanTextGenerationRequest(request)
+
+	var timestamp int64 = time.Now().Unix()
+	_ = proxywasm.ReplaceHttpRequestHeader(timestampKey, fmt.Sprintf("%d", timestamp))
+	// 根据确定好的payload进行签名：
+	body, _ = json.Marshal(hunyuanRequest)
+	authorizedValueNew := GetTC3Authorizationcode(
+		m.config.hunyuanAuthId,
+		m.config.hunyuanAuthKey,
+		timestamp,
+		hunyuanDomain,
+		hunyuanChatCompletionTCAction,
+		string(body),
+	)
+	util.OverwriteRequestAuthorizationHeader(headers, authorizedValueNew)
+	return json.Marshal(hunyuanRequest)
 }
 
 func (m *hunyuanProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -560,4 +574,8 @@ func GetTC3Authorizationcode(secretId string, secretKey string, timestamp int64,
 	// 	-d '%s'`, host, authorization, host, action, timestamp, payload)
 	// fmt.Println(curl)
 	return authorization
+}
+
+func (m *hunyuanProvider) GetApiName(path string) ApiName {
+	return ApiNameChatCompletion
 }

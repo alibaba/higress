@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,7 +17,8 @@ import (
 // baiduProvider is the provider for baidu ernie bot service.
 
 const (
-	baiduDomain = "aip.baidubce.com"
+	baiduDomain             = "aip.baidubce.com"
+	baiduChatCompletionPath = "/chat"
 )
 
 var baiduModelToPathSuffixMap = map[string]string{
@@ -60,98 +62,35 @@ func (b *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestHost(baiduDomain)
-
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
+	b.config.handleRequestHeaders(b, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return types.HeaderStopIteration, nil
+}
+
+func (b *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestHostHeader(headers, baiduDomain)
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
 }
 
 func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	// 使用文心一言接口协议
-	if b.config.protocol == protocolOriginal {
-		request := &baiduTextGenRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 根据模型重写requestPath
-		path := b.getRequestPath(request.Model)
-		_ = util.OverwriteRequestPath(path)
+	return b.config.handleRequestBody(b, b.contextCache, ctx, apiName, body, log)
+}
 
-		if b.config.context == nil {
-			return types.ActionContinue, nil
-		}
-
-		err := b.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			b.setSystemContent(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
+func (b *baiduProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+	err := b.config.parseRequestAndMapModel(ctx, request, body, log)
+	if err != nil {
+		return nil, err
 	}
+	path := b.getRequestPath(ctx, request.Model)
+	util.OverwriteRequestPathHeader(headers, path)
 
-	// 映射模型重写requestPath
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, b.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := b.getRequestPath(mappedModel)
-	_ = util.OverwriteRequestPath(path)
-
-	if b.config.context == nil {
-		baiduRequest := b.baiduTextGenRequest(request)
-		return types.ActionContinue, replaceJsonRequestBody(baiduRequest, log)
-	}
-
-	err := b.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		baiduRequest := b.baiduTextGenRequest(request)
-		if err := replaceJsonRequestBody(baiduRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	baiduRequest := b.baiduTextGenRequest(request)
+	return json.Marshal(baiduRequest)
 }
 
 func (b *baiduProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -226,13 +165,13 @@ type baiduTextGenRequest struct {
 	UserId          string        `json:"user_id,omitempty"`
 }
 
-func (b *baiduProvider) getRequestPath(baiduModel string) string {
+func (b *baiduProvider) getRequestPath(ctx wrapper.HttpContext, baiduModel string) string {
 	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
 	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
 	if !ok {
 		suffix = baiduModel
 	}
-	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetRandomToken())
+	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetApiTokenInUse(ctx))
 }
 
 func (b *baiduProvider) setSystemContent(request *baiduTextGenRequest, content string) {
@@ -338,4 +277,11 @@ func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, resp
 
 func (b *baiduProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (b *baiduProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, baiduChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

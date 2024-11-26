@@ -2,6 +2,7 @@ package provider
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -38,7 +39,12 @@ func (m *cozeProvider) GetProviderType() string {
 }
 
 func (m *cozeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = util.OverwriteRequestHost(cozeDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return types.ActionContinue, nil
+}
+
+func (m *cozeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestHostHeader(headers, cozeDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }

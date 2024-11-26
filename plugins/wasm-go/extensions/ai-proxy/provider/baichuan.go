@@ -2,11 +2,10 @@ package provider
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -47,10 +46,7 @@ func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(baichuanChatCompletionPath)
-	_ = util.OverwriteRequestHost(baichuanDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
@@ -58,28 +54,12 @@ func (m *baichuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.baichuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.baichuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+}
+
+func (m *baichuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, baichuanChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, baichuanDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }

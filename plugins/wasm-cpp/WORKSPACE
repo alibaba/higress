@@ -27,13 +27,17 @@ http_archive(
     url = "https://github.com/higress-group/proxy-wasm-cpp-sdk/archive/" + PROXY_WASM_CPP_SDK_SHA + ".tar.gz",
 )
 
-load("@proxy_wasm_cpp_sdk//bazel/dep:deps.bzl", "wasm_dependencies")
+load("@proxy_wasm_cpp_sdk//bazel:repositories.bzl", "proxy_wasm_cpp_sdk_repositories")
 
-wasm_dependencies()
+proxy_wasm_cpp_sdk_repositories()
 
-load("@proxy_wasm_cpp_sdk//bazel/dep:deps_extra.bzl", "wasm_dependencies_extra")
+load("@proxy_wasm_cpp_sdk//bazel:dependencies.bzl", "proxy_wasm_cpp_sdk_dependencies")
 
-wasm_dependencies_extra()
+proxy_wasm_cpp_sdk_dependencies()
+
+load("@proxy_wasm_cpp_sdk//bazel:dependencies_extra.bzl", "proxy_wasm_cpp_sdk_dependencies_extra")
+
+proxy_wasm_cpp_sdk_dependencies_extra()
 
 load("@istio_ecosystem_wasm_extensions//bazel:wasm.bzl", "wasm_libraries")
 

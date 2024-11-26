@@ -8,8 +8,8 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
-func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header) error {
-	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, reconvertHeaders(headers), nil, -1)
+func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header, body []byte) error {
+	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, reconvertHeaders(headers), body, -1)
 }
 
 func reconvertHeaders(headers http.Header) [][2]string {
