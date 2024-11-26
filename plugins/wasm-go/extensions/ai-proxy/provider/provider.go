@@ -351,8 +351,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.baiduApiTokenServicePort == 0 {
 		c.baiduApiTokenServicePort = baiduApiTokenPort
 	}
-
-	c.useGlobalApiToken = json.Get("useGlobalApiToken").Bool()
 }
 
 func (c *ProviderConfig) Validate() error {
