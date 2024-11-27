@@ -171,7 +171,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		return nil
 	}
 
-	IngressLog.Debugf("ingress: %s, event: %s", namespacedName, event)
+	IngressLog.Infof("ingress: %s, event: %s", namespacedName, event)
 
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.

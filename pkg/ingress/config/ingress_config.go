@@ -316,7 +316,7 @@ func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, 
 	case gvk.WasmPlugin:
 		result = m.convertWasmPlugin(wrapperConfigs)
 	}
-	IngressLog.Infof("resource type %s, configs number %d", typ, len(result))
+	IngressLog.Infof("resource type %s, ingress number %d, convert configs number %d", typ, len(configs), len(result))
 	return result
 }
 
