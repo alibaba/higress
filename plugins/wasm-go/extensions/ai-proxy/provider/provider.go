@@ -151,6 +151,12 @@ type ResponseBodyHandler interface {
 	OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
 }
 
+// TickFuncHandler allows the provider to execute a function periodically
+// Use case: the maximum expiration time of baidu apiToken is 24 hours, need to refresh periodically
+type TickFuncHandler interface {
+	GetTickFunc(log wrapper.Log) (tickPeriod int64, tickFunc func())
+}
+
 type ProviderConfig struct {
 	// @Title zh-CN ID
 	// @Description zh-CN AI服务提供商标识
@@ -227,6 +233,17 @@ type ProviderConfig struct {
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
+	// @Title zh-CN Baidu 的 Access Key 和 Secret Key，中间用 : 分隔，用于申请 apiToken
+	baiduAccessKeyAndSecret []string `required:"false" yaml:"baiduAccessKeyAndSecret" json:"baiduAccessKeyAndSecret"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务名称
+	baiduApiTokenServiceName string `required:"false" yaml:"baiduApiTokenServiceName" json:"baiduApiTokenServiceName"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务域名
+	baiduApiTokenServiceHost string `required:"false" yaml:"baiduApiTokenServiceHost" json:"baiduApiTokenServiceHost"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务端口
+	baiduApiTokenServicePort int64 `required:"false" yaml:"baiduApiTokenServicePort" json:"baiduApiTokenServicePort"`
+	// @Title zh-CN 是否使用全局的 apiToken
+	// @Description zh-CN 如果没有启用 apiToken failover，但是 apiToken 的状态又需要在多个 Wasm VM 中同步时需要将该参数设置为 true，例如 Baidu 的 apiToken 需要定时刷新
+	useGlobalApiToken bool `required:"false" yaml:"useGlobalApiToken" json:"useGlobalApiToken"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -320,6 +337,19 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	if failoverJson.Exists() {
 		c.failover.FromJson(failoverJson)
+	}
+
+	for _, accessKeyAndSecret := range json.Get("baiduAccessKeyAndSecret").Array() {
+		c.baiduAccessKeyAndSecret = append(c.baiduAccessKeyAndSecret, accessKeyAndSecret.String())
+	}
+	c.baiduApiTokenServiceName = json.Get("baiduApiTokenServiceName").String()
+	c.baiduApiTokenServiceHost = json.Get("baiduApiTokenServiceHost").String()
+	if c.baiduApiTokenServiceHost == "" {
+		c.baiduApiTokenServiceHost = baiduApiTokenDomain
+	}
+	c.baiduApiTokenServicePort = json.Get("baiduApiTokenServicePort").Int()
+	if c.baiduApiTokenServicePort == 0 {
+		c.baiduApiTokenServicePort = baiduApiTokenPort
 	}
 }
 
