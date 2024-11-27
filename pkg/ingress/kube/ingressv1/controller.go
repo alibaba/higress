@@ -162,6 +162,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 			delete(c.ingresses, namespacedName.String())
 			c.mutex.Unlock()
 		} else {
+			IngressLog.Warnf("ingressLister Get failed, ingress: %s, err: %v", namespacedName, err)
 			return err
 		}
 	}
@@ -181,7 +182,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 			return err
 		}
 		if !shouldProcess {
-			IngressLog.Infof("no need process, ingress %s", namespacedName)
+			IngressLog.Infof("no need process, ingress: %s", namespacedName)
 			return nil
 		}
 	}
@@ -279,10 +280,17 @@ func (c *controller) List() []config.Config {
 	for _, raw := range c.ingressInformer.Informer.GetStore().List() {
 		ing, ok := raw.(*ingress.Ingress)
 		if !ok {
+			IngressLog.Warnf("get ingress from informer failed: %v", raw)
 			continue
 		}
 
-		if should, err := c.shouldProcessIngress(ing); !should || err != nil {
+		should, err := c.shouldProcessIngress(ing)
+		if err != nil {
+			IngressLog.Warnf("check should process ingress failed: %v", err)
+			continue
+		}
+		if !should {
+			IngressLog.Debugf("no need process ingress: %s/%s", ing.Namespace, ing.Name)
 			continue
 		}
 
