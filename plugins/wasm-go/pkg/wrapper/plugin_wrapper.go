@@ -98,79 +98,157 @@ func RegisteTickFunc(tickPeriod int64, tickFunc func()) {
 	globalOnTickFuncs = append(globalOnTickFuncs, TickFuncEntry{0, tickPeriod, tickFunc})
 }
 
-func SetCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) {
-	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, setFuncs...))
+func SetCtx[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) {
+	proxywasm.SetVMContext(NewCommonVmCtx(pluginName, options...))
 }
 
-type SetPluginFunc[PluginConfig any] func(*CommonVmCtx[PluginConfig])
-
-func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.parseConfig = f
-	}
+func SetCtxWithOptions[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) {
+	proxywasm.SetVMContext(NewCommonVmCtxWithOptions(pluginName, options...))
 }
 
-func ParseOverrideConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig], g ParseRuleConfigFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.parseConfig = f
-		ctx.parseRuleConfig = g
-	}
+type CtxOption[PluginConfig any] interface {
+	Apply(*CommonVmCtx[PluginConfig])
 }
 
-func ProcessRequestHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpRequestHeaders = f
-	}
+type parseConfigOption[PluginConfig any] struct {
+	f ParseConfigFunc[PluginConfig]
 }
 
-func ProcessRequestBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpRequestBody = f
-	}
+func (o parseConfigOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.parseConfig = o.f
 }
 
-func ProcessStreamingRequestBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpStreamingRequestBody = f
-	}
+func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return parseConfigOption[PluginConfig]{f}
 }
 
-func ProcessResponseHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpResponseHeaders = f
-	}
+type parseOverrideConfigOption[PluginConfig any] struct {
+	parseConfigF     ParseConfigFunc[PluginConfig]
+	parseRuleConfigF ParseRuleConfigFunc[PluginConfig]
 }
 
-func ProcessResponseBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpResponseBody = f
-	}
+func (o *parseOverrideConfigOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.parseConfig = o.parseConfigF
+	ctx.parseRuleConfig = o.parseRuleConfigF
 }
 
-func ProcessStreamingResponseBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpStreamingResponseBody = f
-	}
+func ParseOverrideConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig], g ParseRuleConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseOverrideConfigOption[PluginConfig]{f, g}
 }
 
-func ProcessStreamDoneBy[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) SetPluginFunc[PluginConfig] {
-	return func(ctx *CommonVmCtx[PluginConfig]) {
-		ctx.onHttpStreamDone = f
-	}
+type onProcessRequestHeadersOption[PluginConfig any] struct {
+	f onHttpHeadersFunc[PluginConfig]
+}
+
+func (o *onProcessRequestHeadersOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpRequestHeaders = o.f
+}
+
+func ProcessRequestHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestHeadersOption[PluginConfig]{f}
+}
+
+type onProcessRequestBodyOption[PluginConfig any] struct {
+	f onHttpBodyFunc[PluginConfig]
+}
+
+func (o *onProcessRequestBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpRequestBody = o.f
+}
+
+func ProcessRequestBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestBodyOption[PluginConfig]{f}
+}
+
+type onProcessStreamingRequestBodyOption[PluginConfig any] struct {
+	f onHttpStreamingBodyFunc[PluginConfig]
+}
+
+func (o *onProcessStreamingRequestBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpStreamingRequestBody = o.f
+}
+
+func ProcessStreamingRequestBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingRequestBodyOption[PluginConfig]{f}
+}
+
+type onProcessResponseHeadersOption[PluginConfig any] struct {
+	f onHttpHeadersFunc[PluginConfig]
+}
+
+func (o *onProcessResponseHeadersOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpResponseHeaders = o.f
+}
+
+func ProcessResponseHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseHeadersOption[PluginConfig]{f}
+}
+
+type onProcessResponseBodyOption[PluginConfig any] struct {
+	f onHttpBodyFunc[PluginConfig]
+}
+
+func (o *onProcessResponseBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpResponseBody = o.f
+}
+
+func ProcessResponseBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseBodyOption[PluginConfig]{f}
+}
+
+type onProcessStreamingResponseBodyOption[PluginConfig any] struct {
+	f onHttpStreamingBodyFunc[PluginConfig]
+}
+
+func (o *onProcessStreamingResponseBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpStreamingResponseBody = o.f
+}
+
+func ProcessStreamingResponseBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingResponseBodyOption[PluginConfig]{f}
+}
+
+type onProcessStreamDoneOption[PluginConfig any] struct {
+	f onHttpStreamDoneFunc[PluginConfig]
+}
+
+func (o *onProcessStreamDoneOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.onHttpStreamDone = o.f
+}
+
+func ProcessStreamDoneBy[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamDoneOption[PluginConfig]{f}
+}
+
+type logOption[PluginConfig any] struct {
+	logger Log
+}
+
+func (o *logOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	ctx.log = o.logger
+}
+
+func WithLogger[PluginConfig any](logger Log) CtxOption[PluginConfig] {
+	return &logOption[PluginConfig]{logger}
 }
 
 func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) error {
 	return nil
 }
 
-func NewCommonVmCtx[PluginConfig any](pluginName string, setFuncs ...SetPluginFunc[PluginConfig]) *CommonVmCtx[PluginConfig] {
+func NewCommonVmCtx[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
+	logger := &DefaultLog{pluginName}
+	opts := append([]CtxOption[PluginConfig]{WithLogger[PluginConfig](logger)}, options...)
+	return NewCommonVmCtxWithOptions(pluginName, opts...)
+}
+
+func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
 		pluginName:      pluginName,
-		log:             Log{pluginName},
 		hasCustomConfig: true,
 	}
-	for _, set := range setFuncs {
-		set(ctx)
+	for _, opt := range options {
+		opt.Apply(ctx)
 	}
 	if ctx.parseConfig == nil {
 		var config PluginConfig

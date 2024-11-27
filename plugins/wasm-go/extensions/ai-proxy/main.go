@@ -190,14 +190,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
 		action, err := handler.OnResponseHeaders(ctx, apiName, log)
 		if err == nil {
-			checkStream(&ctx, &log)
+			checkStream(&ctx, log)
 			return action
 		}
 		_ = util.SendResponse(500, "ai-proxy.proc_resp_headers_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to process response headers: %v", err))
 		return types.ActionContinue
 	}
 
-	checkStream(&ctx, &log)
+	checkStream(&ctx, log)
 	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleBody && !needHandleStreamingBody {
@@ -254,7 +254,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 	return types.ActionContinue
 }
 
-func checkStream(ctx *wrapper.HttpContext, log *wrapper.Log) {
+func checkStream(ctx *wrapper.HttpContext, log wrapper.Log) {
 	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
 	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
 		if err != nil {
