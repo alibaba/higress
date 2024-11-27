@@ -173,7 +173,7 @@ func (s *CertMgr) Reconcile(ctx context.Context, oldConfig *Config, newConfig *C
 		s.cache.Start()
 		// sync domains
 		s.configMgr.SetConfig(newConfig)
-		CertLog.Infof("certMgr start to manageSync domains:+v%", newDomains)
+		CertLog.Infof("certMgr start to manageSync domains: %+v", newDomains)
 		s.manageSync(context.Background(), newDomains)
 		CertLog.Infof("certMgr manageSync domains done")
 	} else {
