@@ -16,4 +16,4 @@ package log
 
 import "istio.io/istio/pkg/log"
 
-var IngressLog = log.RegisterScope("ingress", "Higress Ingress process.", 0)
+var IngressLog = log.RegisterScope("ingress", "Higress Ingress process.")
