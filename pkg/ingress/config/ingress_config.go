@@ -303,21 +303,21 @@ func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, 
 	common.SortIngressByCreationTime(configs)
 	wrapperConfigs := m.createWrapperConfigs(configs)
 
-	IngressLog.Infof("resource type %s, configs number %d", typ, len(wrapperConfigs))
+	var result []config.Config
 	switch typ {
 	case gvk.Gateway:
-		return m.convertGateways(wrapperConfigs)
+		result = m.convertGateways(wrapperConfigs)
 	case gvk.VirtualService:
-		return m.convertVirtualService(wrapperConfigs)
+		result = m.convertVirtualService(wrapperConfigs)
 	case gvk.DestinationRule:
-		return m.convertDestinationRule(wrapperConfigs)
+		result = m.convertDestinationRule(wrapperConfigs)
 	case gvk.ServiceEntry:
-		return m.convertServiceEntry(wrapperConfigs)
+		result = m.convertServiceEntry(wrapperConfigs)
 	case gvk.WasmPlugin:
-		return m.convertWasmPlugin(wrapperConfigs)
+		result = m.convertWasmPlugin(wrapperConfigs)
 	}
-
-	return nil
+	IngressLog.Infof("resource type %s, configs number %d", typ, len(result))
+	return result
 }
 
 func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, namespace string) []config.Config {
