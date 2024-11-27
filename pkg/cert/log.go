@@ -16,4 +16,4 @@ package cert
 
 import "istio.io/istio/pkg/log"
 
-var CertLog = log.RegisterScope("cert", "Higress Cert process.", 0)
+var CertLog = log.RegisterScope("cert", "Higress Cert process.")
