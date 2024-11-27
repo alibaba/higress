@@ -712,7 +712,6 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 
 	if m.RegistryReconciler != nil {
 		drws := m.RegistryReconciler.GetAllDestinationRuleWrapper()
-		IngressLog.Infof("Found mcp destinationRules: %v", drws)
 		for _, destinationRuleWrapper := range drws {
 			serviceName := destinationRuleWrapper.ServiceKey.ServiceFQDN
 			dr, exist := destinationRules[serviceName]
