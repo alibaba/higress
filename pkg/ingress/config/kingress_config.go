@@ -493,7 +493,7 @@ func (m *KIngressConfig) HasSynced() bool {
 	defer m.mutex.RUnlock()
 
 	for _, remoteIngressController := range m.remoteIngressControllers {
-		IngressLog.Info("In Kingress Synced.", remoteIngressController)
+		IngressLog.Info("In Kingress Synced.")
 		if !remoteIngressController.HasSynced() {
 			return false
 		}
