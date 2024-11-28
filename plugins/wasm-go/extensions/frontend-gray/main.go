@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -35,6 +36,10 @@ func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.L
 func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
 	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
 	requestPath = path.Clean(requestPath)
+	parsedURL, err := url.Parse(requestPath)
+	if err == nil {
+		requestPath = parsedURL.Path
+	}
 	enabledGray := util.IsGrayEnabled(grayConfig, requestPath)
 	ctx.SetContext(config.EnabledGray, enabledGray)
 
