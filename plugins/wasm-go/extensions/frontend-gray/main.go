@@ -39,6 +39,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	parsedURL, err := url.Parse(requestPath)
 	if err == nil {
 		requestPath = parsedURL.Path
+	} else {
+		log.Errorf("parse request path failed: %v", err)
 	}
 	enabledGray := util.IsGrayEnabled(grayConfig, requestPath)
 	ctx.SetContext(config.EnabledGray, enabledGray)
