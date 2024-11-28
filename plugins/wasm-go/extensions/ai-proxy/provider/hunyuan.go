@@ -23,6 +23,8 @@ import (
 const (
 	hunyuanDomain                 = "hunyuan.tencentcloudapi.com"
 	hunyuanRequestPath            = "/"
+	hunyuanOpenAiDomain           = "api.hunyuan.cloud.tencent.com"
+	hunyuanOpenAiRequestPath      = "/v1/chat/completions"
 	hunyuanChatCompletionTCAction = "ChatCompletions"
 
 	// headers necessary for TC hunyuan api call:
@@ -87,8 +89,13 @@ type hunyuanChatMessage struct {
 
 func (m *hunyuanProviderInitializer) ValidateConfig(config ProviderConfig) error {
 	// 校验hunyuan id 和 key的合法性
-	if len(config.hunyuanAuthId) != hunyuanAuthIdLen || len(config.hunyuanAuthKey) != hunyuanAuthKeyLen {
-		return errors.New("hunyuanAuthId / hunyuanAuthKey is illegal in config file")
+
+	// update: 仅仅当使用混元的接口时才需要校验，原始openai格式的接口不需要校验
+	// ref: https://cloud.tencent.com/document/product/1729/111007
+	if config.protocol == protocolOriginal {
+		if len(config.hunyuanAuthId) != hunyuanAuthIdLen || len(config.hunyuanAuthKey) != hunyuanAuthKeyLen {
+			return errors.New("hunyuanAuthId / hunyuanAuthKey is illegal in config file")
+		}
 	}
 	return nil
 }
@@ -119,17 +126,24 @@ func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
-	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	// 当对接混元原始支持openai的接口时，不需要延迟处理, 否则需要在修改请求体时重新计算签名
+	if m.config.protocol == protocolOriginal {
+		return types.HeaderStopIteration, nil
+	}
+	return types.ActionContinue, nil
 }
 
 func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestHostHeader(headers, hunyuanDomain)
-	util.OverwriteRequestPathHeader(headers, hunyuanRequestPath)
-
-	// 添加 hunyuan 需要的自定义字段
-	headers.Add(actionKey, hunyuanChatCompletionTCAction)
-	headers.Add(versionKey, versionValue)
+	if m.config.protocol == protocolOriginal {
+		// 添加 hunyuan 需要的自定义字段
+		util.OverwriteRequestHostHeader(headers, hunyuanDomain)
+		util.OverwriteRequestPathHeader(headers, hunyuanRequestPath)
+		headers.Add(actionKey, hunyuanChatCompletionTCAction)
+		headers.Add(versionKey, versionValue)
+	} else {
+		util.OverwriteRequestHostHeader(headers, hunyuanOpenAiDomain)
+		util.OverwriteRequestPathHeader(headers, hunyuanOpenAiRequestPath)
+	}
 
 	headers.Del("Accept-Encoding")
 	headers.Del("Content-Length")
@@ -139,6 +153,10 @@ func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
+	}
+	// 如果是原始的openai接口，不需要重写请求体, 不需要重新计算签名
+	if m.config.protocol != protocolOriginal {
+		return types.ActionContinue, nil
 	}
 
 	// 为header添加时间戳字段 （因为需要根据body进行签名时依赖时间戳，故于body处理部分创建时间戳）
