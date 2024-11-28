@@ -188,6 +188,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 通义千问服务域名
+	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 dashscope.aliyuncs.com, 当使用金融云服务时，可以设置为 dashscope-finance.aliyuncs.com
+	qwenDomain string `required:"false" yaml:"qwenDomain" json:"qwenDomain"`
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
@@ -278,6 +281,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	c.qwenDomain = json.Get("qwenDomain").String()
+	if c.qwenDomain != "" {
+		// TODO: validate the domain, if not valid, set to default
+	}
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
