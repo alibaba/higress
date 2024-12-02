@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -17,11 +18,20 @@ const (
 	DASHSCOPE_ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 
+var dashScopeConfig dashScopeProviderConfig
+
 type dashScopeProviderInitializer struct {
 }
+type dashScopeProviderConfig struct {
+	apiKey string
+}
 
-func (d *dashScopeProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if config.apiKey == "" {
+func (c *dashScopeProviderInitializer) CreateConfig(json gjson.Result) {
+	dashScopeConfig.apiKey = json.Get("apiKey").String()
+}
+
+func (c *dashScopeProviderInitializer) ValidateConfig() error {
+	if dashScopeConfig.apiKey == "" {
 		return errors.New("[DashScope] apiKey is required")
 	}
 	return nil
@@ -114,14 +124,14 @@ func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (strin
 		return "", nil, nil, err
 	}
 
-	if d.config.apiKey == "" {
+	if dashScopeConfig.apiKey == "" {
 		err := errors.New("dashScopeKey is empty")
 		log.Errorf("failed to construct headers: %v", err)
 		return "", nil, nil, err
 	}
 
 	headers := [][2]string{
-		{"Authorization", "Bearer " + d.config.apiKey},
+		{"Authorization", "Bearer " + dashScopeConfig.apiKey},
 		{"Content-Type", "application/json"},
 	}
 
