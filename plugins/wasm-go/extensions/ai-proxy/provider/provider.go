@@ -134,7 +134,7 @@ type TransformRequestBodyHandler interface {
 }
 
 // TransformRequestBodyHeadersHandler allows to transform request headers based on the request body.
-// Some providers (e.g. baidu, gemini) transform request headers (e.g., path) based on the request body (e.g., model).
+// Some providers (e.g. gemini) transform request headers (e.g., path) based on the request body (e.g., model).
 type TransformRequestBodyHeadersHandler interface {
 	TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error)
 }

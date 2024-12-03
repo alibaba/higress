@@ -158,11 +158,11 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 
 	streaming := request.Stream
 	if streaming {
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-		_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+		headers.Set("Accept", "text/event-stream")
+		headers.Set("X-DashScope-SSE", "enable")
 	} else {
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
-		_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
+		headers.Set("Accept", "*/*")
+		headers.Del("X-DashScope-SSE")
 	}
 
 	return m.buildQwenTextGenerationRequest(ctx, request, streaming)
