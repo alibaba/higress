@@ -41,6 +41,12 @@ type HttpContext interface {
 	GetContext(key string) interface{}
 	GetBoolContext(key string, defaultValue bool) bool
 	GetStringContext(key, defaultValue string) string
+	GetCustomLog(key string) interface{}
+	SetCustomLog(key string, value interface{})
+	// You can call this function to set custom log
+	WriteCustomLog() error
+	// You can call this function to set custom log with your specific key
+	WriteCustomLogWithKey(key string) error
 	// If the onHttpRequestBody handle is not set, the request body will not be read by default
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
@@ -266,6 +272,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 		plugin:      ctx,
 		contextID:   contextID,
 		userContext: map[string]interface{}{},
+		customLog:   map[string]interface{}{},
 	}
 	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil {
 		httpCtx.needRequestBody = true
@@ -295,6 +302,7 @@ type CommonHttpCtx[PluginConfig any] struct {
 	responseBodySize      int
 	contextID             uint32
 	userContext           map[string]interface{}
+	customLog             map[string]interface{}
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {
@@ -303,6 +311,22 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetCustomLog(key string, value interface{}) {
+	ctx.customLog[key] = value
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetCustomLog(key string) interface{} {
+	return ctx.customLog[key]
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) WriteCustomLog() error {
+	return extendAccessLog(CustomLogKey, ctx.customLog)
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) WriteCustomLogWithKey(key string) error {
+	return extendAccessLog(key, ctx.customLog)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue bool) bool {
