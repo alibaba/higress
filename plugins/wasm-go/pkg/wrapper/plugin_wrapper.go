@@ -28,11 +28,6 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
 
-//export sched_yield
-func sched_yield() int32 {
-	return 0
-}
-
 const (
 	CustomLogKey       = "custom_log"
 	AILogKey           = "ai_log"
