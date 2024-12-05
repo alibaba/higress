@@ -23,7 +23,7 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDomain                   = "dashscope.aliyuncs.com"
+	qwenDefaultDomain            = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
 	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
@@ -64,7 +64,11 @@ type qwenProvider struct {
 }
 
 func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestHostHeader(headers, qwenDomain)
+	if m.config.qwenDomain != "" {
+		util.OverwriteRequestHostHeader(headers, m.config.qwenDomain)
+	} else {
+		util.OverwriteRequestHostHeader(headers, qwenDefaultDomain)
+	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
 	if m.config.qwenEnableCompatible {
