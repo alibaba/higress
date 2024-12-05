@@ -15,6 +15,8 @@
 package wrapper
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 	"unsafe"
@@ -32,6 +34,12 @@ func sched_yield() int32 {
 	return 0
 }
 
+const (
+	CustomLogKey       = "custom_log"
+	AILogKey           = "ai_log"
+	TraceSpanTagPrefix = "trace_span_tag."
+)
+
 type HttpContext interface {
 	Scheme() string
 	Host() string
@@ -41,12 +49,14 @@ type HttpContext interface {
 	GetContext(key string) interface{}
 	GetBoolContext(key string, defaultValue bool) bool
 	GetStringContext(key, defaultValue string) string
-	GetCustomLog(key string) interface{}
-	SetCustomLog(key string, value interface{})
+	GetAttribute(key string) interface{}
+	SetAttribute(key string, value interface{})
 	// You can call this function to set custom log
-	WriteCustomLog() error
+	WriteAttributeToLog() error
 	// You can call this function to set custom log with your specific key
-	WriteCustomLogWithKey(key string) error
+	WriteAttributeToLogWithKey(key string) error
+	// You can call this function to set custom trace span attribute
+	WriteAttributeToTrace() error
 	// If the onHttpRequestBody handle is not set, the request body will not be read by default
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
@@ -269,10 +279,10 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnTick() {
 
 func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types.HttpContext {
 	httpCtx := &CommonHttpCtx[PluginConfig]{
-		plugin:      ctx,
-		contextID:   contextID,
-		userContext: map[string]interface{}{},
-		customLog:   map[string]interface{}{},
+		plugin:        ctx,
+		contextID:     contextID,
+		userContext:   map[string]interface{}{},
+		userAttribute: map[string]interface{}{},
 	}
 	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil {
 		httpCtx.needRequestBody = true
@@ -302,7 +312,7 @@ type CommonHttpCtx[PluginConfig any] struct {
 	responseBodySize      int
 	contextID             uint32
 	userContext           map[string]interface{}
-	customLog             map[string]interface{}
+	userAttribute         map[string]interface{}
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {
@@ -313,20 +323,62 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) SetCustomLog(key string, value interface{}) {
-	ctx.customLog[key] = value
+func (ctx *CommonHttpCtx[PluginConfig]) SetAttribute(key string, value interface{}) {
+	ctx.userAttribute[key] = value
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) GetCustomLog(key string) interface{} {
-	return ctx.customLog[key]
+func (ctx *CommonHttpCtx[PluginConfig]) GetAttribute(key string) interface{} {
+	return ctx.userAttribute[key]
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) WriteCustomLog() error {
-	return extendAccessLog(CustomLogKey, ctx.customLog)
+func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToLog() error {
+	return ctx.WriteAttributeToLogWithKey(CustomLogKey)
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) WriteCustomLogWithKey(key string) error {
-	return extendAccessLog(key, ctx.customLog)
+func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToLogWithKey(key string) error {
+	// e.g. {\"field1\":\"value1\",\"field2\":\"value2\"}
+	preMarshalledJsonLogStr, _ := proxywasm.GetProperty([]string{key})
+	newAttributeMap := map[string]interface{}{}
+	if string(preMarshalledJsonLogStr) != "" {
+		// e.g. {"field1":"value1","field2":"value2"}
+		preJsonLogStr := unmarshalStr(fmt.Sprintf(`"%s"`, string(preMarshalledJsonLogStr)))
+		err := json.Unmarshal([]byte(preJsonLogStr), &newAttributeMap)
+		if err != nil {
+			ctx.plugin.vm.log.Warnf("Unmarshal failed, will overwrite %s, pre value is: %s", key, string(preMarshalledJsonLogStr))
+			return err
+		}
+	}
+	// update customLog
+	for k, v := range ctx.userAttribute {
+		newAttributeMap[k] = v
+	}
+	// e.g. {"field1":"value1","field2":2,"field3":"value3"}
+	jsonStr, _ := json.Marshal(newAttributeMap)
+	// e.g. {\"field1\":\"value1\",\"field2\":2,\"field3\":\"value3\"}
+	marshalledJsonStr := marshalStr(string(jsonStr))
+	if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+		ctx.plugin.vm.log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
+		return err
+	}
+	return nil
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToTrace() error {
+	for k, v := range ctx.userAttribute {
+		traceSpanTag := TraceSpanTagPrefix + k
+		traceSpanValue := fmt.Sprint(v)
+		var err error
+		if traceSpanValue != "" {
+			err = proxywasm.SetProperty([]string{traceSpanTag}, []byte(traceSpanValue))
+		} else {
+			err = fmt.Errorf("value of %s is empty", traceSpanTag)
+		}
+		if err != nil {
+			ctx.plugin.vm.log.Warnf("Failed to set trace attribute - %s: %s", traceSpanTag, traceSpanValue)
+			return err
+		}
+	}
+	return nil
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue bool) bool {
