@@ -43,14 +43,14 @@ type HttpContext interface {
 	GetContext(key string) interface{}
 	GetBoolContext(key string, defaultValue bool) bool
 	GetStringContext(key, defaultValue string) string
-	GetAttribute(key string) interface{}
-	SetAttribute(key string, value interface{})
+	GetUserAttribute(key string) interface{}
+	SetUserAttribute(key string, value interface{})
 	// You can call this function to set custom log
-	WriteAttributeToLog() error
+	WriteUserAttributeToLog() error
 	// You can call this function to set custom log with your specific key
-	WriteAttributeToLogWithKey(key string) error
+	WriteUserAttributeToLogWithKey(key string) error
 	// You can call this function to set custom trace span attribute
-	WriteAttributeToTrace() error
+	WriteUserAttributeToTrace() error
 	// If the onHttpRequestBody handle is not set, the request body will not be read by default
 	DontReadRequestBody()
 	// If the onHttpResponseBody handle is not set, the request body will not be read by default
@@ -395,19 +395,19 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetContext(key string) interface{} {
 	return ctx.userContext[key]
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) SetAttribute(key string, value interface{}) {
+func (ctx *CommonHttpCtx[PluginConfig]) SetUserAttribute(key string, value interface{}) {
 	ctx.userAttribute[key] = value
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) GetAttribute(key string) interface{} {
+func (ctx *CommonHttpCtx[PluginConfig]) GetUserAttribute(key string) interface{} {
 	return ctx.userAttribute[key]
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToLog() error {
-	return ctx.WriteAttributeToLogWithKey(CustomLogKey)
+func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToLog() error {
+	return ctx.WriteUserAttributeToLogWithKey(CustomLogKey)
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToLogWithKey(key string) error {
+func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToLogWithKey(key string) error {
 	// e.g. {\"field1\":\"value1\",\"field2\":\"value2\"}
 	preMarshalledJsonLogStr, _ := proxywasm.GetProperty([]string{key})
 	newAttributeMap := map[string]interface{}{}
@@ -435,7 +435,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToLogWithKey(key string) e
 	return nil
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToTrace() error {
+func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToTrace() error {
 	for k, v := range ctx.userAttribute {
 		traceSpanTag := TraceSpanTagPrefix + k
 		traceSpanValue := fmt.Sprint(v)
