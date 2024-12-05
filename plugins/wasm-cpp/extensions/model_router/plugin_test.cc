@@ -40,6 +40,11 @@ class MockContext : public proxy_wasm::ContextBase {
   MOCK_METHOD(WasmResult, getHeaderMapValue,
               (WasmHeaderMapType /* type */, std::string_view /* key */,
                std::string_view* /*result */));
+  MOCK_METHOD(WasmResult, replaceHeaderMapValue,
+              (WasmHeaderMapType /* type */, std::string_view /* key */,
+               std::string_view /* value */));
+  MOCK_METHOD(WasmResult, removeHeaderMapValue,
+              (WasmHeaderMapType /* type */, std::string_view /* key */));
   MOCK_METHOD(WasmResult, addHeaderMapValue,
               (WasmHeaderMapType, std::string_view, std::string_view));
   MOCK_METHOD(WasmResult, getProperty, (std::string_view, std::string*));
@@ -84,7 +89,19 @@ class ModelRouterTest : public ::testing::Test {
             *result = "application/json";
           } else if (header == "content-length") {
             *result = "1024";
+          } else if (header == ":path") {
+            *result = path_;
           }
+          return WasmResult::Ok;
+        });
+    ON_CALL(*mock_context_,
+            replaceHeaderMapValue(WasmHeaderMapType::RequestHeaders, testing::_,
+                                  testing::_))
+        .WillByDefault([&](WasmHeaderMapType, std::string_view key,
+                           std::string_view value) { return WasmResult::Ok; });
+    ON_CALL(*mock_context_,
+            removeHeaderMapValue(WasmHeaderMapType::RequestHeaders, testing::_))
+        .WillByDefault([&](WasmHeaderMapType, std::string_view key) {
           return WasmResult::Ok;
         });
     ON_CALL(*mock_context_, addHeaderMapValue(WasmHeaderMapType::RequestHeaders,
@@ -107,6 +124,7 @@ class ModelRouterTest : public ::testing::Test {
   std::unique_ptr<PluginRootContext> root_context_;
   std::unique_ptr<PluginContext> context_;
   std::string route_name_;
+  std::string path_;
   BufferBase body_;
   BufferBase config_;
 };
@@ -114,12 +132,13 @@ class ModelRouterTest : public ::testing::Test {
 TEST_F(ModelRouterTest, RewriteModelAndHeader) {
   std::string configuration = R"(
 {
-  "enable": true
+  "addProviderHeader": "x-higress-llm-provider"
     })";
 
   config_.set(configuration);
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
+  path_ = "/v1/chat/completions";
   std::string request_json = R"({"model": "qwen/qwen-long"})";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
@@ -128,12 +147,99 @@ TEST_F(ModelRouterTest, RewriteModelAndHeader) {
         return WasmResult::Ok;
       });
 
-  EXPECT_CALL(
-      *mock_context_,
-      addHeaderMapValue(testing::_, std::string_view("x-higress-llm-provider"),
-                        std::string_view("qwen")));
+  EXPECT_CALL(*mock_context_,
+              replaceHeaderMapValue(testing::_,
+                                    std::string_view("x-higress-llm-provider"),
+                                    std::string_view("qwen")));
 
   body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelRouterTest, ModelToHeader) {
+  std::string configuration = R"(
+{
+  "modelToHeader": "x-higress-llm-model"
+    })";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "qwen-long"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+
+  EXPECT_CALL(
+      *mock_context_,
+      replaceHeaderMapValue(testing::_, std::string_view("x-higress-llm-model"),
+                            std::string_view("qwen-long")));
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelRouterTest, IgnorePath) {
+  std::string configuration = R"(
+{
+  "addProviderHeader": "x-higress-llm-provider"
+    })";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/xxxx";
+  std::string request_json = R"({"model": "qwen/qwen-long"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+
+  EXPECT_CALL(*mock_context_,
+              replaceHeaderMapValue(testing::_,
+                                    std::string_view("x-higress-llm-provider"),
+                                    std::string_view("qwen")))
+      .Times(0);
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelRouterTest, RouteLevelRewriteModelAndHeader) {
+  std::string configuration = R"(
+{
+  "_rules_": [
+    {
+      "_match_route_": ["route-a"],
+      "addProviderHeader": "x-higress-llm-provider"
+    }
+]})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/api/v1/chat/completions";
+  std::string request_json = R"({"model": "qwen/qwen-long"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
+
+  EXPECT_CALL(*mock_context_,
+              replaceHeaderMapValue(testing::_,
+                                    std::string_view("x-higress-llm-provider"),
+                                    std::string_view("qwen")));
+
+  body_.set(request_json);
+  route_name_ = "route-a";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
   EXPECT_EQ(context_->onRequestBody(28, true), FilterDataStatus::Continue);

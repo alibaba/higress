@@ -1,9 +1,9 @@
 package config
 
 import (
-	"github.com/tidwall/gjson"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 // @Name ai-proxy
@@ -75,13 +75,22 @@ func (c *PluginConfig) Validate() error {
 	return nil
 }
 
-func (c *PluginConfig) Complete() error {
+func (c *PluginConfig) Complete(log wrapper.Log) error {
 	if c.activeProviderConfig == nil {
 		c.activeProvider = nil
 		return nil
 	}
 	var err error
 	c.activeProvider, err = provider.CreateProvider(*c.activeProviderConfig)
+
+	providerConfig := c.GetProviderConfig()
+	err = providerConfig.SetApiTokensFailover(log, c.activeProvider)
+
+	if handler, ok := c.activeProvider.(provider.TickFuncHandler); ok {
+		tickPeriod, tickFunc := handler.GetTickFunc(log)
+		wrapper.RegisteTickFunc(tickPeriod, tickFunc)
+	}
+
 	return err
 }
 

@@ -31,12 +31,32 @@ const (
 	LogLevelCritical
 )
 
-type Log struct {
+type Log interface {
+	Trace(msg string)
+	Tracef(format string, args ...interface{})
+	Debug(msg string)
+	Debugf(format string, args ...interface{})
+	Info(msg string)
+	Infof(format string, args ...interface{})
+	Warn(msg string)
+	Warnf(format string, args ...interface{})
+	Error(msg string)
+	Errorf(format string, args ...interface{})
+	Critical(msg string)
+	Criticalf(format string, args ...interface{})
+}
+
+type DefaultLog struct {
 	pluginName string
 }
 
-func (l Log) log(level LogLevel, msg string) {
-	msg = fmt.Sprintf("[%s] %s", l.pluginName, msg)
+func (l *DefaultLog) log(level LogLevel, msg string) {
+	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
+	requestID := string(requestIDRaw)
+	if requestID == "" {
+		requestID = "nil"
+	}
+	msg = fmt.Sprintf("[%s] [%s] %s", l.pluginName, requestID, msg)
 	switch level {
 	case LogLevelTrace:
 		proxywasm.LogTrace(msg)
@@ -53,8 +73,13 @@ func (l Log) log(level LogLevel, msg string) {
 	}
 }
 
-func (l Log) logFormat(level LogLevel, format string, args ...interface{}) {
-	format = fmt.Sprintf("[%s] %s", l.pluginName, format)
+func (l *DefaultLog) logFormat(level LogLevel, format string, args ...interface{}) {
+	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
+	requestID := string(requestIDRaw)
+	if requestID == "" {
+		requestID = "nil"
+	}
+	format = fmt.Sprintf("[%s] [%s] %s", l.pluginName, requestID, format)
 	switch level {
 	case LogLevelTrace:
 		proxywasm.LogTracef(format, args...)
@@ -71,50 +96,50 @@ func (l Log) logFormat(level LogLevel, format string, args ...interface{}) {
 	}
 }
 
-func (l Log) Trace(msg string) {
+func (l *DefaultLog) Trace(msg string) {
 	l.log(LogLevelTrace, msg)
 }
 
-func (l Log) Tracef(format string, args ...interface{}) {
+func (l *DefaultLog) Tracef(format string, args ...interface{}) {
 	l.logFormat(LogLevelTrace, format, args...)
 }
 
-func (l Log) Debug(msg string) {
+func (l *DefaultLog) Debug(msg string) {
 	l.log(LogLevelDebug, msg)
 }
 
-func (l Log) Debugf(format string, args ...interface{}) {
+func (l *DefaultLog) Debugf(format string, args ...interface{}) {
 	l.logFormat(LogLevelDebug, format, args...)
 }
 
-func (l Log) Info(msg string) {
+func (l *DefaultLog) Info(msg string) {
 	l.log(LogLevelInfo, msg)
 }
 
-func (l Log) Infof(format string, args ...interface{}) {
+func (l *DefaultLog) Infof(format string, args ...interface{}) {
 	l.logFormat(LogLevelInfo, format, args...)
 }
 
-func (l Log) Warn(msg string) {
+func (l *DefaultLog) Warn(msg string) {
 	l.log(LogLevelWarn, msg)
 }
 
-func (l Log) Warnf(format string, args ...interface{}) {
+func (l *DefaultLog) Warnf(format string, args ...interface{}) {
 	l.logFormat(LogLevelWarn, format, args...)
 }
 
-func (l Log) Error(msg string) {
+func (l *DefaultLog) Error(msg string) {
 	l.log(LogLevelError, msg)
 }
 
-func (l Log) Errorf(format string, args ...interface{}) {
+func (l *DefaultLog) Errorf(format string, args ...interface{}) {
 	l.logFormat(LogLevelError, format, args...)
 }
 
-func (l Log) Critical(msg string) {
+func (l *DefaultLog) Critical(msg string) {
 	l.log(LogLevelCritical, msg)
 }
 
-func (l Log) Criticalf(format string, args ...interface{}) {
+func (l *DefaultLog) Criticalf(format string, args ...interface{}) {
 	l.logFormat(LogLevelCritical, format, args...)
 }

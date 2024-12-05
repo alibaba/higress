@@ -14,3 +14,4 @@ multimap = "0"
 http = "1"
 lazy_static = "1"
 downcast-rs="1"
+redis={version = "0", default-features = false}

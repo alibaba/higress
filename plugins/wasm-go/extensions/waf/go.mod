@@ -6,8 +6,8 @@ require (
 	github.com/alibaba/higress/plugins/wasm-go v0.0.0
 	github.com/corazawaf/coraza-wasilibs v0.0.0-20230408002644-e2e3af21f503
 	github.com/corazawaf/coraza/v3 v3.0.0-rc.1.0.20230407165813-a18681b1ec28
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240711023527-ba358c48772f
-	github.com/tidwall/gjson v1.14.4
+	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/tidwall/gjson v1.17.3
 )
 
 require (

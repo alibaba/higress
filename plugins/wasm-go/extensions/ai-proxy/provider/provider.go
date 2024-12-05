@@ -1,14 +1,17 @@
 package provider
 
 import (
+	"encoding/json"
 	"errors"
 	"math/rand"
+	"net/http"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 type ApiName string
@@ -110,12 +113,30 @@ type Provider interface {
 	GetProviderType() string
 }
 
+type ApiNameHandler interface {
+	GetApiName(path string) ApiName
+}
+
 type RequestHeadersHandler interface {
 	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
 }
 
+type TransformRequestHeadersHandler interface {
+	TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log)
+}
+
 type RequestBodyHandler interface {
 	OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+type TransformRequestBodyHandler interface {
+	TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error)
+}
+
+// TransformRequestBodyHeadersHandler allows to transform request headers based on the request body.
+// Some providers (e.g. gemini) transform request headers (e.g., path) based on the request body (e.g., model).
+type TransformRequestBodyHeadersHandler interface {
+	TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error)
 }
 
 type ResponseHeadersHandler interface {
@@ -128,6 +149,12 @@ type StreamingResponseBodyHandler interface {
 
 type ResponseBodyHandler interface {
 	OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+// TickFuncHandler allows the provider to execute a function periodically
+// Use case: the maximum expiration time of baidu apiToken is 24 hours, need to refresh periodically
+type TickFuncHandler interface {
+	GetTickFunc(log wrapper.Log) (tickPeriod int64, tickFunc func())
 }
 
 type ProviderConfig struct {
@@ -143,6 +170,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN apiToken 故障切换
+	// @Description zh-CN 当 apiToken 不可用时移出 apiTokens 列表，对移除的 apiToken 进行健康检查，当重新可用后加回 apiTokens 列表
+	failover *failover `required:"false" yaml:"failover" json:"failover"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
 	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
@@ -158,6 +188,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 通义千问服务域名
+	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 dashscope.aliyuncs.com, 当使用金融云服务时，可以设置为 dashscope-finance.aliyuncs.com
+	qwenDomain string `required:"false" yaml:"qwenDomain" json:"qwenDomain"`
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
@@ -203,6 +236,17 @@ type ProviderConfig struct {
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
+	// @Title zh-CN Baidu 的 Access Key 和 Secret Key，中间用 : 分隔，用于申请 apiToken
+	baiduAccessKeyAndSecret []string `required:"false" yaml:"baiduAccessKeyAndSecret" json:"baiduAccessKeyAndSecret"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务名称
+	baiduApiTokenServiceName string `required:"false" yaml:"baiduApiTokenServiceName" json:"baiduApiTokenServiceName"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务域名
+	baiduApiTokenServiceHost string `required:"false" yaml:"baiduApiTokenServiceHost" json:"baiduApiTokenServiceHost"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务端口
+	baiduApiTokenServicePort int64 `required:"false" yaml:"baiduApiTokenServicePort" json:"baiduApiTokenServicePort"`
+	// @Title zh-CN 是否使用全局的 apiToken
+	// @Description zh-CN 如果没有启用 apiToken failover，但是 apiToken 的状态又需要在多个 Wasm VM 中同步时需要将该参数设置为 true，例如 Baidu 的 apiToken 需要定时刷新
+	useGlobalApiToken bool `required:"false" yaml:"useGlobalApiToken" json:"useGlobalApiToken"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -237,6 +281,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	c.qwenDomain = json.Get("qwenDomain").String()
+	if c.qwenDomain != "" {
+		// TODO: validate the domain, if not valid, set to default
+	}
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -289,6 +337,27 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			}
 		}
 	}
+
+	failoverJson := json.Get("failover")
+	c.failover = &failover{
+		enabled: false,
+	}
+	if failoverJson.Exists() {
+		c.failover.FromJson(failoverJson)
+	}
+
+	for _, accessKeyAndSecret := range json.Get("baiduAccessKeyAndSecret").Array() {
+		c.baiduAccessKeyAndSecret = append(c.baiduAccessKeyAndSecret, accessKeyAndSecret.String())
+	}
+	c.baiduApiTokenServiceName = json.Get("baiduApiTokenServiceName").String()
+	c.baiduApiTokenServiceHost = json.Get("baiduApiTokenServiceHost").String()
+	if c.baiduApiTokenServiceHost == "" {
+		c.baiduApiTokenServiceHost = baiduApiTokenDomain
+	}
+	c.baiduApiTokenServicePort = json.Get("baiduApiTokenServicePort").Int()
+	if c.baiduApiTokenServicePort == 0 {
+		c.baiduApiTokenServicePort = baiduApiTokenPort
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -300,6 +369,12 @@ func (c *ProviderConfig) Validate() error {
 	}
 	if c.context != nil {
 		if err := c.context.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.failover.enabled {
+		if err := c.failover.Validate(); err != nil {
 			return err
 		}
 	}
@@ -355,6 +430,60 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 	return initializer.CreateProvider(pc)
 }
 
+func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, request interface{}, body []byte, log wrapper.Log) error {
+	switch req := request.(type) {
+	case *chatCompletionRequest:
+		if err := decodeChatCompletionRequest(body, req); err != nil {
+			return err
+		}
+
+		streaming := req.Stream
+		if streaming {
+			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+		}
+
+		return c.setRequestModel(ctx, req, log)
+	case *embeddingsRequest:
+		if err := decodeEmbeddingsRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req, log)
+	default:
+		return errors.New("unsupported request type")
+	}
+}
+
+func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interface{}, log wrapper.Log) error {
+	var model *string
+
+	switch req := request.(type) {
+	case *chatCompletionRequest:
+		model = &req.Model
+	case *embeddingsRequest:
+		model = &req.Model
+	default:
+		return errors.New("unsupported request type")
+	}
+
+	return c.mapModel(ctx, model, log)
+}
+
+func (c *ProviderConfig) mapModel(ctx wrapper.HttpContext, model *string, log wrapper.Log) error {
+	if *model == "" {
+		return errors.New("missing model in request")
+	}
+	ctx.SetContext(ctxKeyOriginalRequestModel, *model)
+
+	mappedModel := getMappedModel(*model, c.modelMapping, log)
+	if mappedModel == "" {
+		return errors.New("model becomes empty after applying the configured mapping")
+	}
+
+	*model = mappedModel
+	ctx.SetContext(ctxKeyFinalRequestModel, *model)
+	return nil
+}
+
 func getMappedModel(model string, modelMapping map[string]string, log wrapper.Log) string {
 	mappedModel := doGetMappedModel(model, modelMapping, log)
 	if len(mappedModel) != 0 {
@@ -390,4 +519,63 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c *ProviderConfig) handleRequestBody(
+	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log,
+) (types.Action, error) {
+	// use original protocol
+	if c.protocol == protocolOriginal {
+		return types.ActionContinue, nil
+	}
+
+	// use openai protocol
+	var err error
+	if handler, ok := provider.(TransformRequestBodyHandler); ok {
+		body, err = handler.TransformRequestBody(ctx, apiName, body, log)
+	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
+		headers := util.GetOriginalHttpHeaders()
+		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers, log)
+		util.ReplaceOriginalHttpHeaders(headers)
+	} else {
+		body, err = c.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
+
+	if err != nil {
+		return types.ActionContinue, err
+	}
+
+	if apiName == ApiNameChatCompletion {
+		if c.context == nil {
+			return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+		}
+		err = contextCache.GetContextFromFile(ctx, provider, body, log)
+
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
+	}
+	return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+}
+
+func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) {
+	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
+		originalHeaders := util.GetOriginalHttpHeaders()
+		handler.TransformRequestHeaders(ctx, apiName, originalHeaders, log)
+		util.ReplaceOriginalHttpHeaders(originalHeaders)
+	}
+}
+
+func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	var request interface{}
+	if apiName == ApiNameChatCompletion {
+		request = &chatCompletionRequest{}
+	} else {
+		request = &embeddingsRequest{}
+	}
+	if err := c.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+		return nil, err
+	}
+	return json.Marshal(request)
 }

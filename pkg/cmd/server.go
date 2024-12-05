@@ -25,7 +25,7 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/keepalive"
-	"istio.io/pkg/log"
+	"istio.io/istio/pkg/log"
 )
 
 var (

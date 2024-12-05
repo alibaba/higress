@@ -17,10 +17,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	regexp "github.com/wasilibs/go-re2"
@@ -85,7 +83,6 @@ func parseWeightConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.
 	var parseError error
 	var accumulatedWeight int64
 	config.WeightGroups = []WeightGroup{}
-	config.randGen = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// parse default tag key and value
 	if k, v := json.Get(DefaultTagKey), json.Get(DefaultTagVal); k.Exists() && v.Exists() {

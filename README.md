@@ -1,3 +1,4 @@
+<a name="readme-top"></a>
 <h1 align="center">
     <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
@@ -59,9 +60,13 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 - 8080 端口：网关 HTTP 协议入口
 - 8443 端口：网关 HTTPS 协议入口
 
-**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内不可访问的影响**
+**Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
+
+如果您是在云上部署，生产环境推荐使用[企业版](https://higress.io/cloud/)，开发测试可以使用下面一键部署社区版：
+
+[![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
 
 
 ## 使用场景
@@ -187,3 +192,19 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 - Higress 控制台：https://github.com/higress-group/higress-console
 - Higress（独立运行版）：https://github.com/higress-group/higress-standalone
+
+### 贡献者
+
+<a href="https://github.com/alibaba/higress/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=alibaba/higress"/>
+</a>
+
+### Star History
+
+[![Star History](https://api.star-history.com/svg?repos=alibaba/higress&type=Date)](https://star-history.com/#alibaba/higress&Date)
+
+<p align="right" style="font-size: 14px; color: #555; margin-top: 20px;">
+    <a href="#readme-top" style="text-decoration: none; color: #007bff; font-weight: bold;">
+        ↑ 返回顶部 ↑
+    </a>
+</p>

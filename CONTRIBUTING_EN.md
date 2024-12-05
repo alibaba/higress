@@ -1,6 +1,6 @@
 # Contributing to Higress
 
-It is warmly welcomed if you have interest to hack on Higress. First, we encourage this kind of willing very much. And here is a list of contributing guide for you.
+Your interest in contributing to Higress is warmly welcomed. First, we encourage this kind of willing very much. And here is a list of contributing guide for you.
 
 [[中文贡献文档](./CONTRIBUTING_CN.md)]
 
