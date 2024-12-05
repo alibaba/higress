@@ -374,8 +374,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) WriteAttributeToTrace() error {
 			err = fmt.Errorf("value of %s is empty", traceSpanTag)
 		}
 		if err != nil {
-			ctx.plugin.vm.log.Warnf("Failed to set trace attribute - %s: %s", traceSpanTag, traceSpanValue)
-			return err
+			ctx.plugin.vm.log.Warnf("Failed to set trace attribute - %s: %s, error message: %v", traceSpanTag, traceSpanValue, err)
 		}
 	}
 	return nil
