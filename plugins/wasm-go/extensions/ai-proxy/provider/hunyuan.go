@@ -172,7 +172,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.hunyuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				util.ErrorHandler("ai-proxy.hunyuan.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 			}
 			m.insertContextMessageIntoHunyuanRequest(request, content)
 
@@ -182,7 +182,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -244,7 +244,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.hunyuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			util.ErrorHandler("ai-proxy.hunyuan.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 			return
 		}
 		insertContextMessage(request, content)
@@ -256,7 +256,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 		if err := replaceJsonRequestBody(hunyuanRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
