@@ -10,10 +10,12 @@ import (
 const (
 	PROVIDER_TYPE_DASHSCOPE = "dashscope"
 	PROVIDER_TYPE_TEXTIN    = "textin"
+	PROVIDER_TYPE_COHERE    = "cohere"
 )
 
 type providerInitializer interface {
-	ValidateConfig(ProviderConfig) error
+	CreateConfig(json gjson.Result)
+	ValidateConfig() error
 	CreateProvider(ProviderConfig) (Provider, error)
 }
 
@@ -21,6 +23,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		PROVIDER_TYPE_DASHSCOPE: &dashScopeProviderInitializer{},
 		PROVIDER_TYPE_TEXTIN:    &textInProviderInitializer{},
+		PROVIDER_TYPE_COHERE:    &cohereProviderInitializer{},
 	}
 )
 
@@ -37,54 +40,43 @@ type ProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务端口
 	// @Description zh-CN 文本特征提取服务端口
 	servicePort int64
-	// @Title zh-CN 文本特征提取服务 API Key
-	// @Description zh-CN 文本特征提取服务 API Key
-	apiKey string
-	//@Title zh-CN TextIn x-ti-app-id
-	// @Description zh-CN 仅适用于 TextIn 服务。参考 https://www.textin.com/document/acge_text_embedding
-	textinAppId string
-	//@Title zh-CN TextIn x-ti-secret-code
-	// @Description zh-CN 仅适用于 TextIn 服务。参考 https://www.textin.com/document/acge_text_embedding
-	textinSecretCode string
-	//@Title zh-CN TextIn request matryoshka_dim
-	// @Description zh-CN 仅适用于 TextIn 服务, 指定返回的向量维度。参考 https://www.textin.com/document/acge_text_embedding
-	textinMatryoshkaDim int
 	// @Title zh-CN 文本特征提取服务超时时间
 	// @Description zh-CN 文本特征提取服务超时时间
 	timeout uint32
 	// @Title zh-CN 文本特征提取服务使用的模型
 	// @Description zh-CN 用于文本特征提取的模型名称, 在 DashScope 中默认为 "text-embedding-v1"
-	model string
+	model       string
+	initializer providerInitializer
 }
 
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.typ = json.Get("type").String()
+	i, has := providerInitializers[c.typ]
+	if has {
+		i.CreateConfig(json)
+		c.initializer = i
+	}
 	c.serviceName = json.Get("serviceName").String()
 	c.serviceHost = json.Get("serviceHost").String()
 	c.servicePort = json.Get("servicePort").Int()
-	c.apiKey = json.Get("apiKey").String()
-	c.textinAppId = json.Get("textinAppId").String()
-	c.textinSecretCode = json.Get("textinSecretCode").String()
-	c.textinMatryoshkaDim = int(json.Get("textinMatryoshkaDim").Int())
 	c.timeout = uint32(json.Get("timeout").Int())
 	c.model = json.Get("model").String()
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
 }
-
 func (c *ProviderConfig) Validate() error {
 	if c.serviceName == "" {
 		return errors.New("embedding service name is required")
 	}
-	if c.typ == "" {
-		return errors.New("embedding service type is required")
-	}
-	initializer, has := providerInitializers[c.typ]
+	// if c.typ == "" {
+	// 	return errors.New("embedding service type is required")
+	// }
+	_, has := providerInitializers[c.typ]
 	if !has {
 		return errors.New("unknown embedding service provider type: " + c.typ)
 	}
-	if err := initializer.ValidateConfig(*c); err != nil {
+	if err := c.initializer.ValidateConfig(); err != nil {
 		return err
 	}
 	return nil
