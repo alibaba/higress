@@ -139,7 +139,7 @@ func insertContext(provider Provider, content string, err error, body []byte, lo
 	typ := provider.GetProviderType()
 	if err != nil {
 		log.Errorf("failed to load context file: %v", err)
-		_ = util.SendResponse(500, fmt.Sprintf("ai-proxy.%s.load_ctx_failed", typ), util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.load_ctx_failed", typ), fmt.Errorf("failed to load context file: %v", err))
 	}
 
 	if inserter, ok := provider.(ContextInserter); ok {
@@ -149,10 +149,10 @@ func insertContext(provider Provider, content string, err error, body []byte, lo
 	}
 
 	if err != nil {
-		_ = util.SendResponse(500, fmt.Sprintf("ai-proxy.%s.insert_ctx_failed", typ), util.MimeTypeTextPlain, fmt.Sprintf("failed to insert context message: %v", err))
+		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.insert_ctx_failed", typ), fmt.Errorf("failed to insert context message: %v", err))
 	}
 	if err := replaceHttpJsonRequestBody(body, log); err != nil {
-		_ = util.SendResponse(500, fmt.Sprintf("ai-proxy.%s.replace_request_body_failed", typ), util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.replace_request_body_failed", typ), fmt.Errorf("failed to replace request body: %v", err))
 	}
 }
 
