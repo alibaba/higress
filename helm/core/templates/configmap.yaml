@@ -20,11 +20,7 @@
     # When processing a leaf namespace Istio will search for declarations in that namespace first
     # and if none are found it will search in the root namespace. Any matching declaration found in the root namespace
     # is processed as if it were declared in the leaf namespace.
-    {{- if .Values.global.enableHigressIstio }}
-    rootNamespace: {{ .Values.meshConfig.rootNamespace | default .Values.global.istioNamespace }}
-    {{- else }}
     rootNamespace: {{ .Release.Namespace }}
-    {{- end }}
 
     configSources:
       - address: "xds://127.0.0.1:15051"
@@ -85,11 +81,7 @@
       discoveryAddress: {{ printf "istiod.%s.svc" .Release.Namespace }}:15012
       {{- end }}
       {{- else }}
-      {{- if .Values.global.enableHigressIstio }}
-      discoveryAddress: {{ printf "istiod.%s.svc" .Values.global.istioNamespace }}:15012
-      {{- else }}
       discoveryAddress: {{ include "controller.name" . }}.{{.Release.Namespace}}.svc:15012
-      {{- end }}
       {{- end }}
       proxyStatsMatcher:
         inclusionRegexps:
