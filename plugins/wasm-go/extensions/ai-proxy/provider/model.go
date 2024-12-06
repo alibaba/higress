@@ -85,6 +85,7 @@ type chatMessage struct {
 	Role      string     `json:"role,omitempty"`
 	Content   any        `json:"content,omitempty"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Partial   bool       `json:"partial,omitempty"`
 }
 
 type messageContent struct {
