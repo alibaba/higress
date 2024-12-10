@@ -3,16 +3,15 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 // azureProvider is the provider for Azure OpenAI service.
-
 type azureProviderInitializer struct {
 }
 
@@ -55,47 +54,38 @@ func (m *azureProvider) GetProviderType() string {
 }
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = util.OverwriteRequestPath(m.serviceUrl.RequestURI())
-	_ = util.OverwriteRequestHost(m.serviceUrl.Host)
-	_ = proxywasm.ReplaceHttpRequestHeader("api-key", m.config.apiTokens[0])
-	if apiName == ApiNameChatCompletion {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	} else {
-		ctx.DontReadRequestBody()
+	if apiName != ApiNameChatCompletion {
+		return types.ActionContinue, errUnsupportedApiName
 	}
+	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return types.ActionContinue, nil
 }
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
-		// We don't need to process the request body for other APIs.
-		return types.ActionContinue, nil
+		return types.ActionContinue, errUnsupportedApiName
 	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-	if m.contextCache == nil {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+}
+
+func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	u, e := url.Parse(ctx.Path())
+	if e == nil {
+		customApiVersion := u.Query().Get("api-version")
+		if customApiVersion == "" {
+			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+		} else {
+			q := m.serviceUrl.Query()
+			q.Set("api-version", customApiVersion)
+			newUrl := *m.serviceUrl
+			newUrl.RawQuery = q.Encode()
+			util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
 		}
-		return types.ActionContinue, nil
+	} else {
+		log.Errorf("failed to parse request path: %v", e)
+		util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.azure.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.azure.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
+	util.OverwriteRequestAuthorizationHeader(headers, "api-key "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }

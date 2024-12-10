@@ -96,7 +96,6 @@ spec:
           volumeMounts:
           - name: log
             mountPath: /var/log
-{{- if not .Values.global.enableHigressIstio }}
         - name: discovery
           image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Chart.AppVersion }}"
 {{- if .Values.global.imagePullPolicy }}
@@ -229,10 +228,8 @@ spec:
             value: "false"
           - name: PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER
             value: "false"
-          {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
             value: "higress-ca-root-cert"
-          {{- end }}
           {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
 {{- if .Values.pilot.resources }}
@@ -269,7 +266,6 @@ spec:
           - name: extracacerts
             mountPath: /cacerts
           {{- end }}
-{{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -285,7 +281,6 @@ spec:
       volumes:
       - name: log
         emptyDir: {}
-      {{- if not .Values.global.enableHigressIstio }}
       - name: config
         configMap:
           name: higress-config
@@ -317,4 +312,3 @@ spec:
         configMap:
           name: pilot-jwks-extra-cacerts{{- if not (eq .Values.revision "") }}-{{ .Values.revision }}{{- end }}
   {{- end }}
-      {{- end }}

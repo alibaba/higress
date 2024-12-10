@@ -37,9 +37,10 @@ namespace model_router {
 #endif
 
 struct ModelRouterConfigRule {
-  bool enable_ = false;
   std::string model_key_ = "model";
-  std::string add_header_key_ = "x-higress-llm-provider";
+  std::string add_provider_header_;
+  std::string model_to_header_;
+  std::vector<std::string> enable_on_path_suffix_ = {"/v1/chat/completions"};
 };
 
 // PluginRootContext is the root context for all streams processed by the

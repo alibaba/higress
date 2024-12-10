@@ -303,21 +303,21 @@ func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, 
 	common.SortIngressByCreationTime(configs)
 	wrapperConfigs := m.createWrapperConfigs(configs)
 
-	IngressLog.Infof("resource type %s, configs number %d", typ, len(wrapperConfigs))
+	var result []config.Config
 	switch typ {
 	case gvk.Gateway:
-		return m.convertGateways(wrapperConfigs)
+		result = m.convertGateways(wrapperConfigs)
 	case gvk.VirtualService:
-		return m.convertVirtualService(wrapperConfigs)
+		result = m.convertVirtualService(wrapperConfigs)
 	case gvk.DestinationRule:
-		return m.convertDestinationRule(wrapperConfigs)
+		result = m.convertDestinationRule(wrapperConfigs)
 	case gvk.ServiceEntry:
-		return m.convertServiceEntry(wrapperConfigs)
+		result = m.convertServiceEntry(wrapperConfigs)
 	case gvk.WasmPlugin:
-		return m.convertWasmPlugin(wrapperConfigs)
+		result = m.convertWasmPlugin(wrapperConfigs)
 	}
-
-	return nil
+	IngressLog.Infof("resource type %s, ingress number %d, convert configs number %d", typ, len(configs), len(result))
+	return result
 }
 
 func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, namespace string) []config.Config {
@@ -712,7 +712,6 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 
 	if m.RegistryReconciler != nil {
 		drws := m.RegistryReconciler.GetAllDestinationRuleWrapper()
-		IngressLog.Infof("Found mcp destinationRules: %v", drws)
 		for _, destinationRuleWrapper := range drws {
 			serviceName := destinationRuleWrapper.ServiceKey.ServiceFQDN
 			dr, exist := destinationRules[serviceName]
@@ -906,6 +905,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				StructValue: rule.Config,
 			}
 
+			validRule := false
 			var matchItems []*_struct.Value
 			// match ingress
 			for _, ing := range rule.Ingress {
@@ -916,6 +916,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
+				validRule = true
 				v.StructValue.Fields["_match_route_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
@@ -923,12 +924,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 						},
 					},
 				}
-				ruleValues = append(ruleValues, &_struct.Value{
-					Kind: v,
-				})
-				continue
 			}
 			// match service
+			matchItems = nil
 			for _, service := range rule.Service {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
@@ -937,6 +935,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				})
 			}
 			if len(matchItems) > 0 {
+				validRule = true
 				v.StructValue.Fields["_match_service_"] = &_struct.Value{
 					Kind: &_struct.Value_ListValue{
 						ListValue: &_struct.ListValue{
@@ -944,12 +943,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 						},
 					},
 				}
-				ruleValues = append(ruleValues, &_struct.Value{
-					Kind: v,
-				})
-				continue
 			}
 			// match domain
+			matchItems = nil
 			for _, domain := range rule.Domain {
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
@@ -957,19 +953,23 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 					},
 				})
 			}
-			if len(matchItems) == 0 {
+			if len(matchItems) > 0 {
+				validRule = true
+				v.StructValue.Fields["_match_domain_"] = &_struct.Value{
+					Kind: &_struct.Value_ListValue{
+						ListValue: &_struct.ListValue{
+							Values: matchItems,
+						},
+					},
+				}
+			}
+			if validRule {
+				ruleValues = append(ruleValues, &_struct.Value{
+					Kind: v,
+				})
+			} else {
 				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
 			}
-			v.StructValue.Fields["_match_domain_"] = &_struct.Value{
-				Kind: &_struct.Value_ListValue{
-					ListValue: &_struct.ListValue{
-						Values: matchItems,
-					},
-				},
-			}
-			ruleValues = append(ruleValues, &_struct.Value{
-				Kind: v,
-			})
 		}
 		if len(ruleValues) > 0 {
 			hasValidRule = true
