@@ -10,6 +10,7 @@ import (
 const (
 	PROVIDER_TYPE_DASHSCOPE = "dashscope"
 	PROVIDER_TYPE_TEXTIN    = "textin"
+	PROVIDER_TYPE_OPENAI    = "openai"
 )
 
 type providerInitializer interface {
@@ -21,6 +22,7 @@ var (
 	providerInitializers = map[string]providerInitializer{
 		PROVIDER_TYPE_DASHSCOPE: &dashScopeProviderInitializer{},
 		PROVIDER_TYPE_TEXTIN:    &textInProviderInitializer{},
+		PROVIDER_TYPE_OPENAI:    &openAIProviderInitializer{},
 	}
 )
 
