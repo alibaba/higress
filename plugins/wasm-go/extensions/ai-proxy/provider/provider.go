@@ -118,7 +118,7 @@ type ApiNameHandler interface {
 }
 
 type RequestHeadersHandler interface {
-	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error
 }
 
 type TransformRequestHeadersHandler interface {
