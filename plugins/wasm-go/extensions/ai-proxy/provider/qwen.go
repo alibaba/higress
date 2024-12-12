@@ -185,16 +185,6 @@ func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []b
 	return json.Marshal(qwenRequest)
 }
 
-func (m *qwenProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if m.config.protocol == protocolOriginal {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
-	}
-
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
-}
-
 func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if m.config.qwenEnableCompatible || name != ApiNameChatCompletion {
 		return chunk, nil
@@ -280,35 +270,33 @@ func (m *qwenProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 	return []byte(modifiedResponseChunk), nil
 }
 
-func (m *qwenProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	if m.config.qwenEnableCompatible {
-		return types.ActionContinue, nil
+		return body, nil
 	}
 	if apiName == ApiNameChatCompletion {
 		return m.onChatCompletionResponseBody(ctx, body, log)
-	}
-	if apiName == ApiNameEmbeddings {
+	} else {
 		return m.onEmbeddingsResponseBody(ctx, body, log)
 	}
-	return types.ActionContinue, errUnsupportedApiName
 }
 
-func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
 	qwenResponse := &qwenTextGenResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
 	response := m.buildChatCompletionResponse(ctx, qwenResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
-func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
 	qwenResponse := &qwenTextEmbeddingResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
 	}
 	response := m.buildEmbeddingsResponse(ctx, qwenResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 func (m *qwenProvider) buildQwenTextGenerationRequest(ctx wrapper.HttpContext, origRequest *chatCompletionRequest, streaming bool) ([]byte, error) {

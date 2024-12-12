@@ -19,7 +19,7 @@ import (
 
 type failover struct {
 	// @Title zh-CN 是否启用 apiToken 的 failover 机制
-	enabled bool `required:"true" yaml:"enabled" json:"enabled"`
+	enabled bool `required:"false" yaml:"enabled" json:"enabled"`
 	// @Title zh-CN 触发 failover 连续请求失败的阈值
 	failureThreshold int64 `required:"false" yaml:"failureThreshold" json:"failureThreshold"`
 	// @Title zh-CN 健康检测的成功阈值
@@ -29,7 +29,7 @@ type failover struct {
 	// @Title zh-CN 健康检测的超时时间，单位毫秒
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
-	healthCheckModel string `required:"true" yaml:"healthCheckModel" json:"healthCheckModel"`
+	healthCheckModel string `required:"false" yaml:"healthCheckModel" json:"healthCheckModel"`
 	// @Title zh-CN 本次请求使用的 apiToken
 	ctxApiTokenInUse string
 	// @Title zh-CN 记录 apiToken 请求失败的次数，key 为 apiToken，value 为失败次数
@@ -184,9 +184,9 @@ func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext,
 	if handler, ok := activeProvider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, ApiNameChatCompletion, body, log)
 	} else if handler, ok := activeProvider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalHttpHeaders()
+		headers := util.GetOriginalRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, ApiNameChatCompletion, body, originalHeaders, log)
-		util.ReplaceOriginalHttpHeaders(headers)
+		util.ReplaceRequestHeaders(headers)
 	} else {
 		body, err = c.defaultTransformRequestBody(ctx, ApiNameChatCompletion, body, log)
 	}
@@ -539,10 +539,15 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) {
+func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) types.Action {
 	if c.isFailoverEnabled() {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
+	if c.isRetryOnFailureEnabled() {
+		c.retryFailedRequest(activeProvider, ctx, log)
+		return types.HeaderStopAllIterationAndWatermark
+	}
+	return types.ActionContinue
 }
 
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
@@ -557,7 +562,7 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.L
 	} else {
 		apiToken = c.GetRandomToken()
 	}
-	log.Debugf("[onHttpRequestHeader] use apiToken %s to send request", apiToken)
+	log.Debugf("Use apiToken %s to send request", apiToken)
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 }
 

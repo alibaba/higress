@@ -107,16 +107,6 @@ func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 	return json.Marshal(geminiRequest)
 }
 
-func (g *geminiProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if g.config.protocol == protocolOriginal {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
-	}
-
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
-}
-
 func (g *geminiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	log.Infof("chunk body:%s", string(chunk))
 	if isLastChunk || len(chunk) == 0 {
@@ -150,39 +140,38 @@ func (g *geminiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 	return []byte(modifiedResponseChunk), nil
 }
 
-func (g *geminiProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (g *geminiProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	if apiName == ApiNameChatCompletion {
 		return g.onChatCompletionResponseBody(ctx, body, log)
-	} else if apiName == ApiNameEmbeddings {
+	} else {
 		return g.onEmbeddingsResponseBody(ctx, body, log)
 	}
-	return types.ActionContinue, errUnsupportedApiName
 }
 
-func (g *geminiProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+func (g *geminiProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
 	geminiResponse := &geminiChatResponse{}
 	if err := json.Unmarshal(body, geminiResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal gemini chat response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal gemini chat response: %v", err)
 	}
 	if geminiResponse.Error != nil {
-		return types.ActionContinue, fmt.Errorf("gemini chat completion response error, error_code: %d, error_status:%s, error_message: %s",
+		return nil, fmt.Errorf("gemini chat completion response error, error_code: %d, error_status:%s, error_message: %s",
 			geminiResponse.Error.Code, geminiResponse.Error.Status, geminiResponse.Error.Message)
 	}
 	response := g.buildChatCompletionResponse(ctx, geminiResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
-func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) (types.Action, error) {
+func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
 	geminiResponse := &geminiEmbeddingResponse{}
 	if err := json.Unmarshal(body, geminiResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal gemini embeddings response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal gemini embeddings response: %v", err)
 	}
 	if geminiResponse.Error != nil {
-		return types.ActionContinue, fmt.Errorf("gemini embeddings response error, error_code: %d, error_status:%s, error_message: %s",
+		return nil, fmt.Errorf("gemini embeddings response error, error_code: %d, error_status:%s, error_message: %s",
 			geminiResponse.Error.Code, geminiResponse.Error.Status, geminiResponse.Error.Message)
 	}
 	response := g.buildEmbeddingsResponse(ctx, geminiResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 func (g *geminiProvider) getRequestPath(apiName ApiName, geminiModel string, stream bool) string {

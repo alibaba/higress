@@ -171,11 +171,10 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, heade
 	return body, nil
 }
 
-func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	// 使用minimax接口协议,跳过OnStreamingResponseBody()和OnResponseBody()
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
 	}
 	// 模型对应接口为ChatCompletion v2,跳过OnStreamingResponseBody()和OnResponseBody()
 	model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
@@ -183,11 +182,9 @@ func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName Api
 		_, ok := chatCompletionProModels[model]
 		if !ok {
 			ctx.DontReadResponseBody()
-			return types.ActionContinue, nil
 		}
 	}
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
+	headers.Del("Content-Length")
 }
 
 // OnStreamingResponseBody 只处理使用OpenAI协议 且 模型对应接口为ChatCompletion Pro的流式响应
@@ -226,17 +223,16 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	return []byte(modifiedResponseChunk), nil
 }
 
-// OnResponseBody 只处理使用OpenAI协议 且 模型对应接口为ChatCompletion Pro的流式响应
-func (m *minimaxProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	minimaxResp := &minimaxChatCompletionV2Resp{}
 	if err := json.Unmarshal(body, minimaxResp); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal minimax response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal minimax response: %v", err)
 	}
 	if minimaxResp.BaseResp.StatusCode != 0 {
-		return types.ActionContinue, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
+		return nil, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
 	}
 	response := m.responseV2ToOpenAI(minimaxResp)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 // minimaxChatCompletionV2Request 表示ChatCompletion V2请求的结构体

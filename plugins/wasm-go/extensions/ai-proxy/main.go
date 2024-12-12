@@ -20,8 +20,6 @@ import (
 const (
 	pluginName = "ai-proxy"
 
-	ctxKeyApiName = "apiName"
-
 	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
 )
 
@@ -94,7 +92,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		log.Debugf("[onHttpRequestHeader] no send response")
 		return types.ActionContinue
 	}
-	ctx.SetContext(ctxKeyApiName, apiName)
+	ctx.SetContext(provider.CtxKeyApiName, apiName)
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
@@ -132,7 +130,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
-		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 
 		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
 		if settingErr != nil {
@@ -180,32 +178,25 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 			log.Errorf("unable to load :status header from response: %v", err)
 		}
 		ctx.DontReadResponseBody()
-		providerConfig.OnRequestFailed(ctx, apiTokenInUse, log)
-
-		return types.ActionContinue
+		return providerConfig.OnRequestFailed(activeProvider, ctx, apiTokenInUse, log)
 	}
 
 	// Reset ctxApiTokenRequestFailureCount if the request is successful,
 	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
 	providerConfig.ResetApiTokenRequestFailureCount(apiTokenInUse, log)
 
-	if handler, ok := activeProvider.(provider.ResponseHeadersHandler); ok {
-		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
-		action, err := handler.OnResponseHeaders(ctx, apiName, log)
-		if err == nil {
-			checkStream(&ctx, log)
-			return action
-		}
-		util.ErrorHandler("ai-proxy.proc_resp_headers_failed", fmt.Errorf("failed to process response headers: %v", err))
-		return types.ActionContinue
+	headers := util.GetOriginalResponseHeaders()
+	if handler, ok := activeProvider.(provider.TransformResponseHeadersHandler); ok {
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+		handler.TransformResponseHeaders(ctx, apiName, headers, log)
+	} else {
+		providerConfig.DefaultTransformResponseHeaders(ctx, headers)
 	}
+	util.ReplaceResponseHeaders(headers)
 
 	checkStream(&ctx, log)
-	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if !needHandleBody && !needHandleStreamingBody {
-		ctx.DontReadResponseBody()
-	} else if !needHandleStreamingBody {
+	if !needHandleStreamingBody {
 		ctx.BufferResponseBody()
 	}
 
@@ -224,7 +215,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	log.Debugf("isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
 
 	if handler, ok := activeProvider.(provider.StreamingResponseBodyHandler); ok {
-		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk, log)
 		if err == nil && modifiedChunk != nil {
 			return modifiedChunk
@@ -243,16 +234,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 	}
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
-	//log.Debugf("response body: %s", string(body))
 
-	if handler, ok := activeProvider.(provider.ResponseBodyHandler); ok {
-		apiName, _ := ctx.GetContext(ctxKeyApiName).(provider.ApiName)
-		action, err := handler.OnResponseBody(ctx, apiName, body, log)
-		if err == nil {
-			return action
+	if handler, ok := activeProvider.(provider.TransformResponseBodyHandler); ok {
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+		body, err := handler.TransformResponseBody(ctx, apiName, body, log)
+		if err != nil {
+			util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
+			return types.ActionContinue
 		}
-		util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
-		return types.ActionContinue
+		if err = provider.ReplaceHttpJsonResponseBody(body, log); err != nil {
+			util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
+		}
 	}
 	return types.ActionContinue
 }

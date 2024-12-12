@@ -41,6 +41,7 @@ description: AI 代理插件配置参考
 | `context`        | object          | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                             |
 | `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                           |
 | `failover`       | object | 非必填   | -      | 配置 apiToken 的 failover 策略，当 apiToken 不可用时，将其移出 apiToken 列表，待健康检测通过后重新添加回 apiToken 列表                                                                      |
+| `retryOnFailure` | object | 非必填   | -      | 当请求失败时立即进行重试                                                                                                                                              |  
 
 `context`的配置字段说明如下：
 
@@ -78,14 +79,22 @@ custom-setting会遵循如下表格，根据`name`和协议来替换对应的字
 
 `failover` 的配置字段说明如下：
 
-| 名称               | 数据类型   | 填写要求 | 默认值   | 描述                          |
-|------------------|--------|------|-------|-----------------------------|
-| enabled | bool   | 非必填   | false | 是否启用 apiToken 的 failover 机制 |
-| failureThreshold | int    | 非必填   | 3     | 触发 failover 连续请求失败的阈值（次数）   |
-| successThreshold | int    | 非必填   | 1     | 健康检测的成功阈值（次数）               |
-| healthCheckInterval | int    | 非必填   | 5000  | 健康检测的间隔时间，单位毫秒              |
-| healthCheckTimeout | int    | 非必填   | 5000  | 健康检测的超时时间，单位毫秒              |
-| healthCheckModel | string | 必填   |      | 健康检测使用的模型                   |
+| 名称               | 数据类型   | 填写要求            | 默认值   | 描述                          |
+|------------------|--------|-----------------|-------|-----------------------------|
+| enabled | bool   | 非必填             | false | 是否启用 apiToken 的 failover 机制 |
+| failureThreshold | int    | 非必填             | 3     | 触发 failover 连续请求失败的阈值（次数）   |
+| successThreshold | int    | 非必填             | 1     | 健康检测的成功阈值（次数）               |
+| healthCheckInterval | int    | 非必填             | 5000  | 健康检测的间隔时间，单位毫秒              |
+| healthCheckTimeout | int    | 非必填             | 5000  | 健康检测的超时时间，单位毫秒              |
+| healthCheckModel | string | 启用 failover 时必填 |      | 健康检测使用的模型                   |
+
+`retryOnFailure` 的配置字段说明如下：
+
+| 名称               | 数据类型   | 填写要求            | 默认值   | 描述          |
+|------------------|--------|-----------------|-------|-------------|
+| enabled | bool   | 非必填             | false | 是否启用失败请求重试  |
+| maxRetries | int    | 非必填             | 1     | 最大重试次数      |
+| retryTimeout | int    | 非必填             | 5000  | 重试超时时间，单位毫秒 |
 
 ### 提供商特有配置
 
