@@ -33,6 +33,9 @@ const (
 	CtxGeneralAtrribute        = "attributes"
 	CtxLogAtrribute            = "logAttributes"
 	CtxStreamingBodyBuffer     = "streamingBodyBuffer"
+	RouteName                  = "route"
+	ClusterName                = "cluster"
+	APIName                    = "api"
 
 	// Source Type
 	FixedValue            = "fixed_value"
@@ -90,6 +93,19 @@ func getRouteName() (string, error) {
 	}
 }
 
+func getAPIName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "-", err
+	} else {
+		parts := strings.Split(string(raw), "@")
+		if len(parts) != 5 {
+			return "-", errors.New("not api type")
+		} else {
+			return strings.Join(parts[:3], "@"), nil
+		}
+	}
+}
+
 func getClusterName() (string, error) {
 	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err != nil {
 		return "-", err
@@ -132,6 +148,13 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
+	route, _ := getRouteName()
+	cluster, _ := getClusterName()
+	api, _ := getAPIName()
+	ctx.SetContext(RouteName, route)
+	ctx.SetContext(ClusterName, cluster)
+	ctx.SetContext(APIName, api)
+	ctx.SetUserAttribute(APIName, api)
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 
 	// Set user defined log & span attributes which type is fixed_value
@@ -210,9 +233,6 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 			setAttributeBySource(ctx, config, ResponseStreamingBody, streamingBodyBuffer, log)
 		}
 
-		// Write inner filter states which can be used by other plugins such as ai-token-ratelimit
-		writeFilterStates(ctx, log)
-
 		// Write log
 		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
@@ -240,9 +260,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, ResponseBody, body, log)
-
-	// Write inner filter states which can be used by other plugins such as ai-token-ratelimit
-	writeFilterStates(ctx, log)
 
 	// Write log
 	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
@@ -353,16 +370,6 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, l
 	return value
 }
 
-func setFilterState(key string, value interface{}, log wrapper.Log) {
-	if value != "" {
-		if e := proxywasm.SetProperty([]string{key}, []byte(fmt.Sprint(value))); e != nil {
-			log.Warnf("failed to set %s in filter state: %v", key, e)
-		}
-	} else {
-		log.Debugf("failed to write filter state [%s], because it's value is empty")
-	}
-}
-
 // Set the tracing span with value.
 func setSpanAttribute(key, value string, log wrapper.Log) {
 	if value != "" {
@@ -375,25 +382,23 @@ func setSpanAttribute(key, value string, log wrapper.Log) {
 	}
 }
 
-func writeFilterStates(ctx wrapper.HttpContext, log wrapper.Log) {
-	setFilterState(Model, ctx.GetUserAttribute(Model), log)
-	setFilterState(InputToken, ctx.GetUserAttribute(InputToken), log)
-	setFilterState(OutputToken, ctx.GetUserAttribute(OutputToken), log)
-}
-
 func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) {
-	route, _ := getRouteName()
-	cluster, _ := getClusterName()
+	route := ctx.GetContext(RouteName).(string)
+	cluster := ctx.GetContext(ClusterName).(string)
 	// Generate usage metrics
 	var model string
 	var inputToken, outputToken int64
 	if ctx.GetUserAttribute(Model) == nil || ctx.GetUserAttribute(InputToken) == nil || ctx.GetUserAttribute(OutputToken) == nil {
-		log.Warnf("Get usage information failed, skip metric record")
+		log.Warnf("get usage information failed, skip metric record")
 		return
 	}
 	model = ctx.GetUserAttribute(Model).(string)
 	inputToken = ctx.GetUserAttribute(InputToken).(int64)
 	outputToken = ctx.GetUserAttribute(OutputToken).(int64)
+	if inputToken == 0 || outputToken == 0 {
+		log.Warnf("inputToken and outputToken cannot equal to 0, skip metric record")
+		return
+	}
 	config.incrementCounter(generateMetricName(route, cluster, model, InputToken), uint64(inputToken))
 	config.incrementCounter(generateMetricName(route, cluster, model, OutputToken), uint64(outputToken))
 
