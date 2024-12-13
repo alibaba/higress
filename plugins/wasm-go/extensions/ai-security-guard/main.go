@@ -53,6 +53,7 @@ const (
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
 	DefaultDenyMessage               = "很抱歉，我无法回答您的问题"
+	DefaultTimeout                   = 2000
 
 	AliyunUserAgent = "CIPFrom/AIGateway"
 	LengthLimit     = 1800
@@ -100,6 +101,7 @@ type AISecurityConfig struct {
 	denyMessage                   string
 	protocolOriginal              bool
 	riskLevelBar                  string
+	timeout                       uint32
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -224,6 +226,11 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 		}
 	} else {
 		config.riskLevelBar = HighRisk
+	}
+	if obj := json.Get("timeout"); obj.Exists() {
+		config.timeout = uint32(obj.Int())
+	} else {
+		config.timeout = DefaultTimeout
 	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
@@ -352,7 +359,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, 2000)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpRequest()
@@ -512,7 +519,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, 2000)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpResponse()
