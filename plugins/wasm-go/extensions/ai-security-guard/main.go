@@ -378,20 +378,6 @@ func convertHeaders(hs [][2]string) map[string][]string {
 	return ret
 }
 
-// headers: map[string][]string -> [][2]string
-func reconvertHeaders(hs map[string][]string) [][2]string {
-	var ret [][2]string
-	for k, vs := range hs {
-		for _, v := range vs {
-			ret = append(ret, [2]string{k, v})
-		}
-	}
-	sort.SliceStable(ret, func(i, j int) bool {
-		return ret[i][0] < ret[j][0]
-	})
-	return ret
-}
-
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
 	if !config.checkResponse {
 		log.Debugf("response checking is disabled")
