@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
@@ -62,7 +63,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.serviceName = json.Get("serviceName").String()
 	c.servicePort = int(json.Get("servicePort").Int())
 	if !json.Get("servicePort").Exists() {
-		c.servicePort = 6379
+		if strings.HasSuffix(c.serviceName, ".static") {
+			// use default logic port which is 80 for static service
+			c.servicePort = 80
+		} else {
+			c.servicePort = 6379
+		}
 	}
 	c.serviceHost = json.Get("serviceHost").String()
 	c.username = json.Get("username").String()
