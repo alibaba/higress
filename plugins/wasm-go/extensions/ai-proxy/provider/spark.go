@@ -67,12 +67,12 @@ func (p *sparkProvider) GetProviderType() string {
 	return providerTypeSpark
 }
 
-func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
