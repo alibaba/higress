@@ -169,6 +169,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body, log)
+
+	// Write log
+	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	return types.ActionContinue
 }
 
