@@ -150,10 +150,12 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
-	api, _ := getAPIName()
+	api, api_error := getAPIName()
+	if api_error == nil {
+		route = api
+	}
 	ctx.SetContext(RouteName, route)
 	ctx.SetContext(ClusterName, cluster)
-	ctx.SetContext(APIName, api)
 	ctx.SetUserAttribute(APIName, api)
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 
