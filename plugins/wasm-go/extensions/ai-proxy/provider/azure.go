@@ -53,12 +53,12 @@ func (m *azureProvider) GetProviderType() string {
 	return providerTypeAzure
 }
 
-func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {

@@ -76,12 +76,12 @@ func (d *deeplProvider) GetProviderType() string {
 	return providerTypeDeepl
 }
 
-func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {

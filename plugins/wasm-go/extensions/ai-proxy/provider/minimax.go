@@ -65,13 +65,13 @@ func (m *minimaxProvider) GetProviderType() string {
 	return providerTypeMinimax
 }
 
-func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {

@@ -51,13 +51,13 @@ func (g *geminiProvider) GetProviderType() string {
 	return providerTypeGemini
 }
 
-func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {

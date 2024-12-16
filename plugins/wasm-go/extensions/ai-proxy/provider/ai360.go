@@ -40,13 +40,13 @@ func (m *ai360Provider) GetProviderType() string {
 	return providerTypeAi360
 }
 
-func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *ai360Provider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {

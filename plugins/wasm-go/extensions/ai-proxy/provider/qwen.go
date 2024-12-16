@@ -95,20 +95,20 @@ func (m *qwenProvider) GetProviderType() string {
 	return providerTypeQwen
 }
 
-func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()
-		return types.ActionContinue, nil
+		return nil
 	}
 
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {

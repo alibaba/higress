@@ -6,7 +6,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
@@ -38,9 +37,9 @@ func (m *cozeProvider) GetProviderType() string {
 	return providerTypeCoze
 }
 
-func (m *cozeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *cozeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (m *cozeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
