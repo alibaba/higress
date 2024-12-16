@@ -102,12 +102,12 @@ func (c *claudeProvider) GetProviderType() string {
 	return providerTypeClaude
 }
 
-func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
