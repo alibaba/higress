@@ -103,7 +103,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		providerConfig.SetApiTokenInUse(ctx, log)
 
 		hasRequestBody := wrapper.HasRequestBody()
-		action, err := handler.OnRequestHeaders(ctx, apiName, log)
+		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			if hasRequestBody {
 				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
@@ -111,7 +111,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 				// as long as onHttpRequestBody can be called.
 				return types.HeaderStopIteration
 			}
-			return action
+			return types.ActionContinue
 		}
 
 		util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
