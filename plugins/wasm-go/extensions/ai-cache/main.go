@@ -128,8 +128,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
 	skipCache := ctx.GetContext(SKIP_CACHE_HEADER)
 	if skipCache != nil {
+		ctx.SetUserAttribute("cache_status", "skip")
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	}
+	if ctx.GetContext(CACHE_KEY_CONTEXT_KEY) != nil {
+		ctx.SetUserAttribute("cache_status", "miss")
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	}
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {

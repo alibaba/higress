@@ -53,6 +53,7 @@ const (
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
 	DefaultDenyMessage               = "很抱歉，我无法回答您的问题"
+	DefaultTimeout                   = 2000
 
 	AliyunUserAgent = "CIPFrom/AIGateway"
 	LengthLimit     = 1800
@@ -100,6 +101,7 @@ type AISecurityConfig struct {
 	denyMessage                   string
 	protocolOriginal              bool
 	riskLevelBar                  string
+	timeout                       uint32
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -225,6 +227,11 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	} else {
 		config.riskLevelBar = HighRisk
 	}
+	if obj := json.Get("timeout"); obj.Exists() {
+		config.timeout = uint32(obj.Int())
+	} else {
+		config.timeout = DefaultTimeout
+	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
@@ -253,6 +260,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("checking request body...")
+	startTime := time.Now().UnixMilli()
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext("requestModel", model)
@@ -279,6 +287,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		}
 		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
 			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "request pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 				proxywasm.ResumeHttpRequest()
 			} else {
 				singleCall()
@@ -305,7 +317,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		}
 		ctx.DontReadResponseBody()
 		config.incrementCounter("ai_sec_request_deny", 1)
-		ctx.SetUserAttribute("safecheck_status", "request deny")
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
 		if response.Data.Advice != nil {
 			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
 			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
@@ -345,7 +359,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpRequest()
@@ -361,20 +375,6 @@ func convertHeaders(hs [][2]string) map[string][]string {
 		k, v := strings.ToLower(h[0]), h[1]
 		ret[k] = append(ret[k], v)
 	}
-	return ret
-}
-
-// headers: map[string][]string -> [][2]string
-func reconvertHeaders(hs map[string][]string) [][2]string {
-	var ret [][2]string
-	for k, vs := range hs {
-		for _, v := range vs {
-			ret = append(ret, [2]string{k, v})
-		}
-	}
-	sort.SliceStable(ret, func(i, j int) bool {
-		return ret[i][0] < ret[j][0]
-	})
 	return ret
 }
 
@@ -401,6 +401,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("checking response body...")
+	startTime := time.Now().UnixMilli()
 	hdsMap := ctx.GetContext("headers").(map[string][]string)
 	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
@@ -433,6 +434,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		}
 		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
 			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "response pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 				proxywasm.ResumeHttpResponse()
 			} else {
 				singleCall()
@@ -458,6 +463,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 		}
 		config.incrementCounter("ai_sec_response_deny", 1)
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
 		ctx.SetUserAttribute("safecheck_status", "response deny")
 		if response.Data.Advice != nil {
 			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
@@ -498,7 +505,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			reqParams.Add(k, v)
 		}
 		reqParams.Add("Signature", signature)
-		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpResponse()
