@@ -384,26 +384,20 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	headers, err := proxywasm.GetHttpResponseHeaders()
-	if err != nil {
-		log.Warnf("failed to get response headers: %v", err)
-		return types.ActionContinue
-	}
-	hdsMap := convertHeaders(headers)
-	if !strings.Contains(strings.Join(hdsMap[":status"], ";"), "200") {
+	statusCode, _ := proxywasm.GetHttpResponseHeader(":status")
+	if statusCode != "200" {
 		log.Debugf("response is not 200, skip response body check")
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	ctx.SetContext("headers", hdsMap)
 	return types.HeaderStopIteration
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("checking response body...")
 	startTime := time.Now().UnixMilli()
-	hdsMap := ctx.GetContext("headers").(map[string][]string)
-	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	isStreamingResponse := strings.Contains(contentType, "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
 	var content string
 	if isStreamingResponse {
