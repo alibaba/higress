@@ -27,6 +27,7 @@ const (
 	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
 	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
+	qwenBailianPath              = "/api/v1/apps"
 	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
@@ -71,7 +72,8 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
-	if m.config.qwenEnableCompatible {
+	if m.config.IsOriginal() {
+	} else if m.config.qwenEnableCompatible {
 		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
 	} else if apiName == ApiNameChatCompletion {
 		util.OverwriteRequestPathHeader(headers, qwenChatCompletionPath)
@@ -762,6 +764,7 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	switch {
 	case strings.Contains(path, qwenChatCompletionPath),
 		strings.Contains(path, qwenMultimodalGenerationPath),
+		strings.Contains(path, qwenBailianPath),
 		strings.Contains(path, qwenCompatiblePath):
 		return ApiNameChatCompletion
 	case strings.Contains(path, qwenTextEmbeddingPath):
