@@ -309,25 +309,20 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			key = attribute.Key
 			switch source {
 			case FixedValue:
-				log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, attribute.Value)
 				value = attribute.Value
 			case RequestHeader:
 				value, _ = proxywasm.GetHttpRequestHeader(attribute.Value)
-				log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, value)
 			case RequestBody:
 				value = gjson.GetBytes(body, attribute.Value).Value()
-				log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, value)
 			case ResponseHeader:
 				value, _ = proxywasm.GetHttpResponseHeader(attribute.Value)
-				log.Debugf("[log attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, value)
 			case ResponseStreamingBody:
 				value = extractStreamingBodyByJsonPath(body, attribute.Value, attribute.Rule, log)
-				log.Debugf("[log attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, value)
 			case ResponseBody:
 				value = gjson.GetBytes(body, attribute.Value).Value()
-				log.Debugf("[log attribute] source type: %s, key: %s, value: %+v", source, attribute.Key, value)
 			default:
 			}
+			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
 				ctx.SetUserAttribute(key, value)
 			}
