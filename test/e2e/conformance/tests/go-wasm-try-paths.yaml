@@ -28,9 +28,7 @@ spec:
   matchRules:
     - config:
         servicePort: 8080
-        serviceName: infra-backend-v2
-        namespace: higress-conformance-infra
-        serviceSource: k8s
+        host: infra-backend-v2.higress-conformance-infra.svc.cluster.local
         tryPaths:
           - /path1
       configDisable: false
