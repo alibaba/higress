@@ -29,8 +29,6 @@ func main() {
 	)
 }
 
-// var oidcHandler *oidc.OAuthProxy
-
 type PluginConfig struct {
 	oidcHandler *oidc.OAuthProxy
 	options     *options.Options
