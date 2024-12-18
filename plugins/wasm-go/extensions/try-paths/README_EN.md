@@ -11,12 +11,8 @@ description: request retry
 
 | Name | Data Type | Fill Requirement |  Default Value | Description |
 | -------- | -------- | -------- | -------- | -------- |
-| serviceSource  | string           | Required    | -          | Support k8s,nacos,ip,dns                                 |
-| domain         | string           | Optional    | -          | Service Domain (Required when serviceSource is `dns`)                 |
-| host           | string           | Optional    | -          | Access host address(Required when serviceSource is `k8s,nacos,ip`) |
-| serviceName    | string           | Optional    | -          | Service Name（Required when serviceSource is `k8s,nacos,ip,dns`）    |
-| servicePort    | string           | Optional    | -          | Service Port（Required when serviceSource is `k8s,nacos,ip,dns`）    |
-| namespace      | string           | Optional    | -          | Service Namespace（Required when serviceSource is `k8s,nacos`）           |
+| host         | string           | Required  | -          | the FQDN format of the host, i.e. <bucket name>.oss-cn-hangzhou.aliyuncs.com                 |
+| servicePort    | string           | Required    | -          | Service Port    |
 | tryPaths       | array of string  | Required    | -          | Try path list，`index.html`，`$uri/`, `index.html` for example        |
 | tryCodes       | array of int     | Optional    | [403, 404] | Try response code，can be customized                    |
 | timeout        | int              | Optional    | 1000       | The timeout for try request，unit is ms                                     |
@@ -26,10 +22,7 @@ description: request retry
 ## scene with try-paths plugin configured
 
 ```yaml
-namespace: "default"
-serviceName: "oss"
 servicePort: 80
-serviceSource: "k8s"
 host: "<bucket name>.oss-cn-hangzhou.aliyuncs.com"
 tryPaths:
 - "$uri/"

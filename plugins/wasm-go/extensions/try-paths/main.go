@@ -66,8 +66,8 @@ func tryHttpCall(config TryPathsConfig, index int, path string, log wrapper.Log)
 		return
 	}
 
-	log.Debugf("try path start, path: %s", config.tryPaths[index])
 	requestPath := strings.Replace(config.tryPaths[index], VariableReplacedStr, path, -1)
+	log.Debugf("try path start, path: %s", requestPath)
 	err := config.client.Get(requestPath, nil,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if !contains(config.tryCodes, statusCode) {
@@ -78,7 +78,7 @@ func tryHttpCall(config TryPathsConfig, index int, path string, log wrapper.Log)
 		}, config.timeout)
 
 	if err != nil {
-		log.Errorf("try path failed, error: %s", err.Error())
+		log.Errorf("try path failed, path %s, error: %s", requestPath, err.Error())
 		tryHttpCall(config, index+1, path, log)
 	}
 }

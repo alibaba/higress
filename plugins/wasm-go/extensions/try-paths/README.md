@@ -11,12 +11,8 @@ description: 请求重试
 
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
 | -------- | -------- | -------- | -------- | -------- |
-| serviceSource  | string           | 必填    | -          | 支持k8s,nacos,ip,dns                                 |
-| domain         | string           | 非必填  | -          | 服务主机（serviceSource为`dns`必填）                 |
-| host         | string           | 非必填  | -            | 访问的域名地址(serviceSource为`k8s,nacos,ip`填写有效) |
-| serviceName    | string           | 非必填  | -          | 服务名称（serviceSource为`k8s,nacos,ip,dns`必填）    |
-| servicePort    | string           | 非必填  | -          | 服务端口（serviceSource为`k8s,nacos,ip,dns`必填）    |
-| namespace      | string           | 非必填  | -          | 服务命名空间（serviceSource为`k8s,nacos`必填）        |
+| host         | string           | 必填  | -          | FQDN格式的主机名称，比如<bucket name>.oss-cn-hangzhou.aliyuncs.com                 |
+| servicePort    | string           | 必填  | -          | 服务端口    |
 | tryPaths       | array of string  | 必填    | -          | 重试路径，比如`index.html`，`$uri`, `index.html`     |
 | tryCodes       | array of int     | 非必填  | [403, 404] | 重试状态码，可自定义                                  |
 | timeout        | int              | 非必填  | 1000       | 重试请求的超时时间，单位ms                             |
@@ -27,10 +23,7 @@ description: 请求重试
 ## 配置了try-paths插件的场景
 
 ```yaml
-namespace: "default"
-serviceName: "oss"
 servicePort: 80
-serviceSource: "k8s"
 host: "<bucket name>.oss-cn-hangzhou.aliyuncs.com"
 tryPaths:
 - "$uri/"
