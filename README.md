@@ -6,10 +6,13 @@
 </h1>
 <h4 align="center"> AI Native API Gateway </h4>
 
+<div align="center">
+    
 [![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 <a href="https://trendshift.io/repositories/10918" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10918" alt="alibaba%2Fhigress | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</div>
 
 [**官网**](https://higress.cn/) &nbsp; |
 &nbsp; [**文档**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
