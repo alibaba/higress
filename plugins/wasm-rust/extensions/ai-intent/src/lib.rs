@@ -251,9 +251,9 @@ impl HttpContext for AiIntent {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct IntentRes{
+struct IntentRes {
     use_for: String,
-    result: String
+    result: String,
 }
 
 impl AiIntent {
@@ -279,23 +279,23 @@ impl AiIntent {
                     category
                 ));
                 let skips = ["'", "```"];
-                for line in category.split('\n'){
+                for line in category.split('\n') {
                     let mut start = 0;
                     let mut end = 0;
-                    loop{
+                    loop {
                         let mut change = false;
-                    
-                        for s in skips{
-                            if (&line[start..]).starts_with(s){
+
+                        for s in skips {
+                            if line[start..].starts_with(s) {
                                 start += s.len();
                                 change = true;
                             }
-                            if (&line[..(line.len() - end)]).starts_with(s){
+                            if line[..(line.len() - end)].starts_with(s) {
                                 end += s.len();
                                 change = true;
                             }
                         }
-                        if !change{
+                        if !change {
                             break;
                         }
                     }
@@ -303,7 +303,10 @@ impl AiIntent {
 
                     if let Ok(r) = serde_json::from_str(json_line) {
                         let res: IntentRes = r;
-                        self.set_property(vec![&format!("intent_category:{}", res.use_for)], Some(res.result.as_bytes()));
+                        self.set_property(
+                            vec![&format!("intent_category:{}", res.use_for)],
+                            Some(res.result.as_bytes()),
+                        );
                     }
                 }
             }
