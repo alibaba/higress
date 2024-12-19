@@ -27,6 +27,12 @@ lint:
 	cargo fmt --all --check --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 	cargo clippy --workspace --all-features --all-targets --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 
+test-base:
+	cargo test --lib
+
+test:
+	cargo test --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
+
 builder:
 	DOCKER_BUILDKIT=1 docker build \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
