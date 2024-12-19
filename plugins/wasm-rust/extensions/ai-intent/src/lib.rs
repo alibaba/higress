@@ -123,9 +123,13 @@ The preset categories are:
 ${categories}
 
 Please respond directly with the category in the following manner:
-- {"useFor": "scene1", "result": "result1"}
-- {"useFor": "scene2", result: "result2"}
-Ensure that different `useFor` are on different lines, and that `useFor` and `result` appear on the same line.
+```
+[
+{"use_for":"scene1","result":"result1"},
+{"use_for":"scene2","result":"result2"}
+]
+```
+Ensure that different `use_for` are on different lines, and that `use_for` and `result` appear on the same line.
 "#.to_string()
 }
 
@@ -138,11 +142,11 @@ fn proxy_timeout_default() -> u64 {
 }
 
 fn request_body_default() -> JsonPath {
-    JsonPath::from_str("messages.@reverse[0].content").unwrap()
+    JsonPath::from_str("$.messages[0].content").unwrap()
 }
 
 fn response_body_default() -> JsonPath {
-    JsonPath::from_str("choices[0]message.content").unwrap()
+    JsonPath::from_str("$.choices[0].message.content").unwrap()
 }
 
 fn deserialize_jsonpath<'de, D>(deserializer: D) -> Result<JsonPath, D::Error>
@@ -246,6 +250,12 @@ impl HttpContext for AiIntent {
     }
 }
 
+#[derive(Debug, Deserialize, Clone)]
+struct IntentRes{
+    use_for: String,
+    result: String
+}
+
 impl AiIntent {
     fn parse_intent(
         &self,
@@ -268,12 +278,38 @@ impl AiIntent {
                     "parse_intent response category is: : {}",
                     category
                 ));
-                for _cate in &config.categories {
-                    todo!()
+                let skips = ["'", "```"];
+                for line in category.split('\n'){
+                    let mut start = 0;
+                    let mut end = 0;
+                    loop{
+                        let mut change = false;
+                    
+                        for s in skips{
+                            if (&line[start..]).starts_with(s){
+                                start += s.len();
+                                change = true;
+                            }
+                            if (&line[..(line.len() - end)]).starts_with(s){
+                                end += s.len();
+                                change = true;
+                            }
+                        }
+                        if !change{
+                            break;
+                        }
+                    }
+                    let json_line = &line[start..(line.len() - end)];
+
+                    if let Ok(r) = serde_json::from_str(json_line) {
+                        let res: IntentRes = r;
+                        self.set_property(vec![&format!("intent_category:{}", res.use_for)], Some(res.result.as_bytes()));
+                    }
                 }
             }
         }
     }
+
     fn http_call_intent(&mut self, config: &AiIntentConfig, message: &str) -> bool {
         self.log
             .infof(format_args!("original_question is:{}", message));
