@@ -86,6 +86,6 @@ func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 		util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 	}
 	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
-	util.OverwriteRequestAuthorizationHeader(headers, "api-key "+m.config.GetApiTokenInUse(ctx))
+	headers.Set("api-key", m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
 }
