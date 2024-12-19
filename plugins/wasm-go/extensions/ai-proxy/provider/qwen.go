@@ -276,9 +276,11 @@ func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 	}
 	if apiName == ApiNameChatCompletion {
 		return m.onChatCompletionResponseBody(ctx, body, log)
-	} else {
+	}
+	if apiName == ApiNameEmbeddings {
 		return m.onEmbeddingsResponseBody(ctx, body, log)
 	}
+	return nil, errUnsupportedApiName
 }
 
 func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
