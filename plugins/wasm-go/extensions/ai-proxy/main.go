@@ -92,6 +92,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		log.Warnf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		return types.ActionContinue
 	}
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
+
 	ctx.SetContext(ctxKeyApiName, apiName)
 
 	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
@@ -101,8 +104,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
-		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-		ctx.DisableReroute()
 		// Set the apiToken for the current request.
 		providerConfig.SetApiTokenInUse(ctx, log)
 
