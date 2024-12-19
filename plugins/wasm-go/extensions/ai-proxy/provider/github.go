@@ -68,8 +68,6 @@ func (m *githubProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 		util.OverwriteRequestPathHeader(headers, githubEmbeddingPath)
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, m.config.GetApiTokenInUse(ctx))
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
 }
 
 func (m *githubProvider) GetApiName(path string) ApiName {
