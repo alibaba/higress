@@ -70,7 +70,7 @@ func (c *ProviderConfig) retryCall(
 	retryClient *wrapper.ClusterClient[wrapper.RouteCluster]) {
 
 	retryCount := ctx.GetContext(ctxRetryCount).(int)
-	log.Debugf("Sending retry request: %d/%d", retryCount, c.retryOnFailure.maxRetries)
+	log.Debugf("Sended retry request: %d/%d", retryCount, c.retryOnFailure.maxRetries)
 
 	if statusCode == 200 {
 		log.Debugf("Retry request succeeded")
