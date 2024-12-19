@@ -60,6 +60,7 @@ const (
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
 	ctxKeyApiKey               = "apiKey"
 	CtxKeyApiName              = "apiName"
+	ctxKeyIsStreaming          = "isStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
@@ -452,6 +453,9 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 		streaming := req.Stream
 		if streaming {
 			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+			ctx.SetContext(ctxKeyIsStreaming, true)
+		} else {
+			ctx.SetContext(ctxKeyIsStreaming, false)
 		}
 
 		return c.setRequestModel(ctx, req, log)
