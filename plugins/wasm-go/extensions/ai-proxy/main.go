@@ -95,9 +95,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 	ctx.DisableReroute()
 
-	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if needHandleBody || needHandleStreamingBody {
+	if needHandleStreamingBody {
 		proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	}
 
