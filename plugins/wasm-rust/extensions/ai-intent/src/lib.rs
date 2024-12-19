@@ -299,6 +299,9 @@ impl AiIntent {
                             break;
                         }
                     }
+                    if start + end >= line.len() {
+                        continue;
+                    }
                     let json_line = &line[start..(line.len() - end)];
 
                     if let Ok(r) = serde_json::from_str(json_line) {
