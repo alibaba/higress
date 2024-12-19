@@ -63,12 +63,12 @@ func (g *baiduProvider) GetProviderType() string {
 	return providerTypeBaidu
 }
 
-func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {

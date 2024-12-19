@@ -101,27 +101,25 @@ func (c *claudeProvider) GetProviderType() string {
 	return providerTypeClaude
 }
 
-func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteRequestPathHeader(headers, claudeChatCompletionPath)
 	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
-	headers.Add("x-api-key", c.config.GetApiTokenInUse(ctx))
+	headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))
 
 	if c.config.claudeVersion == "" {
 		c.config.claudeVersion = defaultVersion
 	}
 
-	headers.Add("anthropic-version", c.config.claudeVersion)
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
+	headers.Set("anthropic-version", c.config.claudeVersion)
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {

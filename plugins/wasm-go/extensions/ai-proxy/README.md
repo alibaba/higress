@@ -183,9 +183,10 @@ Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
 
 MiniMax所对应的 `type` 为 `minimax`。它特有的配置字段如下：
 
-| 名称             | 数据类型 | 填写要求                                                     | 默认值 | 描述                                                         |
-| ---------------- | -------- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| `minimaxGroupId` | string   | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时必填 | -      | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时会使用ChatCompletion Pro，需要设置groupID |
+| 名称             | 数据类型 | 填写要求                       | 默认值 | 描述                                                             |
+| ---------------- | -------- | ------------------------------ | ------ |----------------------------------------------------------------|
+| `minimaxApiType` | string   | v2 和 pro 中选填一项           | v2     | v2 代表 ChatCompletion v2 API，pro 代表 ChatCompletion Pro API      |
+| `minimaxGroupId` | string   | `minimaxApiType` 为 pro 时必填 | -      | `minimaxApiType` 为 pro 时使用 ChatCompletion Pro API，需要设置 groupID |
 
 #### Anthropic Claude
 
@@ -1009,17 +1010,16 @@ provider:
   apiTokens:
     - "YOUR_MINIMAX_API_TOKEN"
   modelMapping:
-    "gpt-3": "abab6.5g-chat"
-    "gpt-4": "abab6.5-chat"
-    "*": "abab6.5g-chat"
-  minimaxGroupId: "YOUR_MINIMAX_GROUP_ID"
+    "gpt-3": "abab6.5s-chat"
+    "gpt-4": "abab6.5g-chat"
+    "*": "abab6.5t-chat"
 ```
 
 **请求示例**
 
 ```json
 {
-    "model": "gpt-4-turbo",
+    "model": "gpt-3",
     "messages": [
         {
             "role": "user",
@@ -1034,27 +1034,33 @@ provider:
 
 ```json
 {
-    "id": "02b2251f8c6c09d68c1743f07c72afd7",
+    "id": "03ac4fcfe1c6cc9c6a60f9d12046e2b4",
     "choices": [
         {
             "finish_reason": "stop",
             "index": 0,
             "message": {
-                "content": "你好！我是MM智能助理，一款由MiniMax自研的大型语言模型。我可以帮助你解答问题，提供信息，进行对话等。有什么可以帮助你的吗？",
-                "role": "assistant"
+                "content": "你好，我是一个由MiniMax公司研发的大型语言模型，名为MM智能助理。我可以帮助回答问题、提供信息、进行对话和执行多种语言处理任务。如果你有任何问题或需要帮助，请随时告诉我！",
+                "role": "assistant",
+                "name": "MM智能助理",
+                "audio_content": ""
             }
         }
     ],
-    "created": 1717760544,
+    "created": 1734155471,
     "model": "abab6.5s-chat",
     "object": "chat.completion",
     "usage": {
-        "total_tokens": 106
+        "total_tokens": 116,
+        "total_characters": 0,
+        "prompt_tokens": 70,
+        "completion_tokens": 46
     },
     "input_sensitive": false,
     "output_sensitive": false,
     "input_sensitive_type": 0,
     "output_sensitive_type": 0,
+    "output_sensitive_int": 0,
     "base_resp": {
         "status_code": 0,
         "status_msg": ""

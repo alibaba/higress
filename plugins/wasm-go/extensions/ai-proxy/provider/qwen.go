@@ -27,6 +27,7 @@ const (
 	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
 	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
+	qwenBailianPath              = "/api/v1/apps"
 	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
@@ -71,16 +72,14 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
-	if m.config.qwenEnableCompatible {
+	if m.config.IsOriginal() {
+	} else if m.config.qwenEnableCompatible {
 		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
 	} else if apiName == ApiNameChatCompletion {
 		util.OverwriteRequestPathHeader(headers, qwenChatCompletionPath)
 	} else if apiName == ApiNameEmbeddings {
 		util.OverwriteRequestPathHeader(headers, qwenTextEmbeddingPath)
 	}
-
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
@@ -95,20 +94,19 @@ func (m *qwenProvider) GetProviderType() string {
 	return providerTypeQwen
 }
 
-func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()
-		return types.ActionContinue, nil
+		return nil
 	}
 
-	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -752,6 +750,7 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	switch {
 	case strings.Contains(path, qwenChatCompletionPath),
 		strings.Contains(path, qwenMultimodalGenerationPath),
+		strings.Contains(path, qwenBailianPath),
 		strings.Contains(path, qwenCompatiblePath):
 		return ApiNameChatCompletion
 	case strings.Contains(path, qwenTextEmbeddingPath):
