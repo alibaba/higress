@@ -101,55 +101,58 @@ func processStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chun
 }
 
 func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessage string, log wrapper.Log) (string, error) {
-	subMessages := strings.Split(sseMessage, "\n")
-	var message string
-	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data:") {
-			message = msg
-			break
+	content := ""
+	for _, chunk := range strings.Split(sseMessage, "\n\n") {
+		log.Infof("chunk _ : %s", chunk)
+		subMessages := strings.Split(chunk, "\n")
+		var message string
+		for _, msg := range subMessages {
+			if strings.HasPrefix(msg, "data:") {
+				message = msg
+				break
+			}
 		}
-	}
-	if len(message) < 6 {
-		return "", fmt.Errorf("[processSSEMessage] invalid message: %s", message)
-	}
-
-	// skip the prefix "data:"
-	bodyJson := message[5:]
-
-	if strings.TrimSpace(bodyJson) == "[DONE]" {
-		return "", nil
-	}
-
-	// Extract values from JSON fields
-	responseBody := gjson.Get(bodyJson, c.CacheStreamValueFrom)
-	toolCalls := gjson.Get(bodyJson, c.CacheToolCallsFrom)
-
-	if toolCalls.Exists() {
-		// TODO: Temporarily store the tool_calls value in the context for processing
-		ctx.SetContext(TOOL_CALLS_CONTEXT_KEY, toolCalls.String())
-	}
-
-	// Check if the ResponseBody field exists
-	if !responseBody.Exists() {
-		if ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY) != nil {
-			log.Debugf("[processSSEMessage] unable to extract content from message; cache content is not nil: %s", message)
-			return "", nil
+		if len(message) < 6 {
+			return content, fmt.Errorf("[processSSEMessage] invalid message: %s", message)
 		}
-		return "", fmt.Errorf("[processSSEMessage] unable to extract content from message; cache content is nil: %s", message)
-	} else {
-		tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
 
-		// If there is no content in the cache, initialize and set the content
-		if tempContentI == nil {
-			content := responseBody.String()
-			ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
+		// skip the prefix "data:"
+		bodyJson := message[5:]
+
+		if strings.TrimSpace(bodyJson) == "[DONE]" {
 			return content, nil
 		}
 
-		// Update the content in the cache
-		appendMsg := responseBody.String()
-		content := tempContentI.(string) + appendMsg
-		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
-		return content, nil
+		// Extract values from JSON fields
+		responseBody := gjson.Get(bodyJson, c.CacheStreamValueFrom)
+		toolCalls := gjson.Get(bodyJson, c.CacheToolCallsFrom)
+
+		if toolCalls.Exists() {
+			// TODO: Temporarily store the tool_calls value in the context for processing
+			ctx.SetContext(TOOL_CALLS_CONTEXT_KEY, toolCalls.String())
+		}
+
+		// Check if the ResponseBody field exists
+		if !responseBody.Exists() {
+			if ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY) != nil {
+				log.Debugf("[processSSEMessage] unable to extract content from message; cache content is not nil: %s", message)
+				return content, nil
+			}
+			return content, fmt.Errorf("[processSSEMessage] unable to extract content from message; cache content is nil: %s", message)
+		} else {
+			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+
+			// If there is no content in the cache, initialize and set the content
+			if tempContentI == nil {
+				content = responseBody.String()
+				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
+			} else {
+				// Update the content in the cache
+				appendMsg := responseBody.String()
+				content = tempContentI.(string) + appendMsg
+				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
+			}
+		}
 	}
+	return content, nil
 }

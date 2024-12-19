@@ -114,13 +114,13 @@ func (m *hunyuanProvider) GetProviderType() string {
 	return providerTypeHunyuan
 }
 
-func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
@@ -128,11 +128,8 @@ func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 	util.OverwriteRequestPathHeader(headers, hunyuanRequestPath)
 
 	// 添加 hunyuan 需要的自定义字段
-	headers.Add(actionKey, hunyuanChatCompletionTCAction)
-	headers.Add(versionKey, versionValue)
-
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
+	headers.Set(actionKey, hunyuanChatCompletionTCAction)
+	headers.Set(versionKey, versionValue)
 }
 
 // hunyuan 的 OnRequestBody 逻辑中包含了对 headers 签名的逻辑，并且插入 context 以后还要重新计算签名，因此无法复用 handleRequestBody 方法
