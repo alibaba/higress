@@ -80,9 +80,6 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	} else if apiName == ApiNameEmbeddings {
 		util.OverwriteRequestPathHeader(headers, qwenTextEmbeddingPath)
 	}
-
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
@@ -109,7 +106,6 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 		return nil
 	}
 
-	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return nil
 }
 

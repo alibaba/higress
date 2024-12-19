@@ -177,6 +177,4 @@ func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 	util.OverwriteRequestPathHeader(headers, sparkChatCompletionPath)
 	util.OverwriteRequestHostHeader(headers, sparkHost)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+p.config.GetApiTokenInUse(ctx))
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
 }

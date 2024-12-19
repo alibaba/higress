@@ -62,9 +62,7 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteRequestHostHeader(headers, geminiDomain)
-	headers.Add(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
+	headers.Set(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
 }
 
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
