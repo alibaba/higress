@@ -10,7 +10,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -139,27 +138,16 @@ func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 	return json.Marshal(claudeRequest)
 }
 
-func (c *claudeProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	claudeResponse := &claudeTextGenResponse{}
 	if err := json.Unmarshal(body, claudeResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal claude response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal claude response: %v", err)
 	}
 	if claudeResponse.Error != nil {
-		return types.ActionContinue, fmt.Errorf("claude response error, error_type: %s, error_message: %s", claudeResponse.Error.Type, claudeResponse.Error.Message)
+		return nil, fmt.Errorf("claude response error, error_type: %s, error_message: %s", claudeResponse.Error.Type, claudeResponse.Error.Message)
 	}
 	response := c.responseClaude2OpenAI(ctx, claudeResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
-}
-
-func (c *claudeProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	// use original protocol, skip OnStreamingResponseBody() and OnResponseBody()
-	if c.config.protocol == protocolOriginal {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
-	}
-
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
+	return json.Marshal(response)
 }
 
 func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
