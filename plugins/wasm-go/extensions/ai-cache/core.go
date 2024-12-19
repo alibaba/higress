@@ -74,6 +74,9 @@ func processCacheHit(key string, response string, stream bool, ctx wrapper.HttpC
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
+	ctx.SetUserAttribute("cache_status", "hit")
+	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+
 	if stream {
 		proxywasm.SendHttpResponseWithDetail(200, "ai-cache.hit", [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}, []byte(fmt.Sprintf(c.StreamResponseTemplate, escapedResponse)), -1)
 	} else {

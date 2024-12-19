@@ -1,46 +1,53 @@
 package provider
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
-// baiduProvider is the provider for baidu ernie bot service.
-
+// baiduProvider is the provider for baidu service.
 const (
-	baiduDomain = "aip.baidubce.com"
+	baiduDomain             = "qianfan.baidubce.com"
+	baiduChatCompletionPath = "/v2/chat/completions"
+	baiduApiTokenDomain     = "iam.bj.baidubce.com"
+	baiduApiTokenPort       = 443
+	baiduApiTokenPath       = "/v1/BCE-BEARER/token"
+	// refresh apiToken every 1 hour
+	baiduApiTokenRefreshInterval = 3600
+	// authorizationString expires in 30 minutes, authorizationString is used to generate apiToken
+	// the default expiration time of apiToken is 24 hours
+	baiduAuthorizationStringExpirationSeconds = 1800
+	bce_prefix                                = "x-bce-"
 )
 
-var baiduModelToPathSuffixMap = map[string]string{
-	"ERNIE-4.0-8K":     "completions_pro",
-	"ERNIE-3.5-8K":     "completions",
-	"ERNIE-3.5-128K":   "ernie-3.5-128k",
-	"ERNIE-Speed-8K":   "ernie_speed",
-	"ERNIE-Speed-128K": "ernie-speed-128k",
-	"ERNIE-Tiny-8K":    "ernie-tiny-8k",
-	"ERNIE-Bot-8K":     "ernie_bot_8k",
-	"BLOOMZ-7B":        "bloomz_7b1",
-}
+type baiduProviderInitializer struct{}
 
-type baiduProviderInitializer struct {
-}
-
-func (b *baiduProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
-		return errors.New("no apiToken found in provider config")
+func (g *baiduProviderInitializer) ValidateConfig(config ProviderConfig) error {
+	if config.baiduAccessKeyAndSecret == nil || len(config.baiduAccessKeyAndSecret) == 0 {
+		return errors.New("no baiduAccessKeyAndSecret found in provider config")
+	}
+	if config.baiduApiTokenServiceName == "" {
+		return errors.New("no baiduApiTokenServiceName found in provider config")
+	}
+	if !config.failover.enabled {
+		config.useGlobalApiToken = true
 	}
 	return nil
 }
 
-func (b *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+func (g *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	return &baiduProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -52,290 +59,235 @@ type baiduProvider struct {
 	contextCache *contextCache
 }
 
-func (b *baiduProvider) GetProviderType() string {
+func (g *baiduProvider) GetProviderType() string {
 	return providerTypeBaidu
 }
 
-func (b *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
+	if apiName != ApiNameChatCompletion {
+		return errUnsupportedApiName
+	}
+	g.config.handleRequestHeaders(g, ctx, apiName, log)
+	return nil
+}
+
+func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestHost(baiduDomain)
-
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-
-	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }
 
-func (b *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	// 使用文心一言接口协议
-	if b.config.protocol == protocolOriginal {
-		request := &baiduTextGenRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 根据模型重写requestPath
-		path := b.getRequestPath(request.Model)
-		_ = util.OverwriteRequestPath(path)
-
-		if b.config.context == nil {
-			return types.ActionContinue, nil
-		}
-
-		err := b.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			b.setSystemContent(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		}
-		return types.ActionContinue, err
-	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-
-	// 映射模型重写requestPath
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	mappedModel := getMappedModel(model, b.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-	path := b.getRequestPath(mappedModel)
-	_ = util.OverwriteRequestPath(path)
-
-	if b.config.context == nil {
-		baiduRequest := b.baiduTextGenRequest(request)
-		return types.ActionContinue, replaceJsonRequestBody(baiduRequest, log)
-	}
-
-	err := b.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.baidu.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		baiduRequest := b.baiduTextGenRequest(request)
-		if err := replaceJsonRequestBody(baiduRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.baidu.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace Request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+func (g *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, baiduChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, baiduDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }
 
-func (b *baiduProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	// 使用文心一言接口协议,跳过OnStreamingResponseBody()和OnResponseBody()
-	if b.config.protocol == protocolOriginal {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
+func (g *baiduProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, baiduChatCompletionPath) {
+		return ApiNameChatCompletion
 	}
-
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
+	return ""
 }
 
-func (b *baiduProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if isLastChunk || len(chunk) == 0 {
-		return nil, nil
+func generateAuthorizationString(accessKeyAndSecret string, expirationInSeconds int) string {
+	c := strings.Split(accessKeyAndSecret, ":")
+	credentials := BceCredentials{
+		AccessKeyId:     c[0],
+		SecretAccessKey: c[1],
 	}
-	// sample event response:
-	// data: {"id":"as-vb0m37ti8y","object":"chat.completion","created":1709089502,"sentence_id":0,"is_end":false,"is_truncated":false,"result":"当然可以，","need_clear_history":false,"finish_reason":"normal","usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}
+	httpMethod := "GET"
+	path := baiduApiTokenPath
+	headers := map[string]string{"host": baiduApiTokenDomain}
+	timestamp := time.Now().Unix()
 
-	// sample end event response:
-	// data: {"id":"as-vb0m37ti8y","object":"chat.completion","created":1709089531,"sentence_id":20,"is_end":true,"is_truncated":false,"result":"","need_clear_history":false,"finish_reason":"normal","usage":{"prompt_tokens":5,"completion_tokens":420,"total_tokens":425}}
-	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
-			continue
-		}
-		data = data[6:]
-		var baiduResponse baiduTextGenStreamResponse
-		if err := json.Unmarshal([]byte(data), &baiduResponse); err != nil {
-			log.Errorf("unable to unmarshal baidu response: %v", err)
-			continue
-		}
-		response := b.streamResponseBaidu2OpenAI(ctx, &baiduResponse)
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return nil, err
-		}
-		b.appendResponse(responseBuilder, string(responseBody))
+	headersToSign := make([]string, 0, len(headers))
+	for k := range headers {
+		headersToSign = append(headersToSign, k)
 	}
-	modifiedResponseChunk := responseBuilder.String()
-	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
-	return []byte(modifiedResponseChunk), nil
+
+	return sign(credentials, httpMethod, path, headers, timestamp, expirationInSeconds, headersToSign)
 }
 
-func (b *baiduProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	baiduResponse := &baiduTextGenResponse{}
-	if err := json.Unmarshal(body, baiduResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal baidu response: %v", err)
-	}
-	if baiduResponse.ErrorMsg != "" {
-		return types.ActionContinue, fmt.Errorf("baidu response error, error_code: %d, error_message: %s", baiduResponse.ErrorCode, baiduResponse.ErrorMsg)
-	}
-	response := b.responseBaidu2OpenAI(ctx, baiduResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+// BceCredentials holds the access key and secret key
+type BceCredentials struct {
+	AccessKeyId     string
+	SecretAccessKey string
 }
 
-type baiduTextGenRequest struct {
-	Model           string        `json:"model"`
-	Messages        []chatMessage `json:"messages"`
-	Temperature     float64       `json:"temperature,omitempty"`
-	TopP            float64       `json:"top_p,omitempty"`
-	PenaltyScore    float64       `json:"penalty_score,omitempty"`
-	Stream          bool          `json:"stream,omitempty"`
-	System          string        `json:"system,omitempty"`
-	DisableSearch   bool          `json:"disable_search,omitempty"`
-	EnableCitation  bool          `json:"enable_citation,omitempty"`
-	MaxOutputTokens int           `json:"max_output_tokens,omitempty"`
-	UserId          string        `json:"user_id,omitempty"`
-}
-
-func (b *baiduProvider) getRequestPath(baiduModel string) string {
-	// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/clntwmv7t
-	suffix, ok := baiduModelToPathSuffixMap[baiduModel]
-	if !ok {
-		suffix = baiduModel
+// normalizeString performs URI encoding according to RFC 3986
+func normalizeString(inStr string, encodingSlash bool) string {
+	if inStr == "" {
+		return ""
 	}
-	return fmt.Sprintf("/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/%s?access_token=%s", suffix, b.config.GetRandomToken())
-}
 
-func (b *baiduProvider) setSystemContent(request *baiduTextGenRequest, content string) {
-	request.System = content
-}
-
-func (b *baiduProvider) baiduTextGenRequest(request *chatCompletionRequest) *baiduTextGenRequest {
-	baiduRequest := baiduTextGenRequest{
-		Messages:        make([]chatMessage, 0, len(request.Messages)),
-		Temperature:     request.Temperature,
-		TopP:            request.TopP,
-		PenaltyScore:    request.FrequencyPenalty,
-		Stream:          request.Stream,
-		DisableSearch:   false,
-		EnableCitation:  false,
-		MaxOutputTokens: request.MaxTokens,
-		UserId:          request.User,
-	}
-	for _, message := range request.Messages {
-		if message.Role == roleSystem {
-			baiduRequest.System = message.StringContent()
+	var result strings.Builder
+	for _, ch := range []byte(inStr) {
+		if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') || ch == '.' || ch == '-' ||
+			ch == '_' || ch == '~' || (!encodingSlash && ch == '/') {
+			result.WriteByte(ch)
 		} else {
-			baiduRequest.Messages = append(baiduRequest.Messages, chatMessage{
-				Role:    message.Role,
-				Content: message.Content,
-			})
+			result.WriteString(fmt.Sprintf("%%%02X", ch))
 		}
 	}
-	return &baiduRequest
+	return result.String()
 }
 
-type baiduTextGenResponse struct {
-	Id               string                    `json:"id"`
-	Object           string                    `json:"object"`
-	Created          int64                     `json:"created"`
-	Result           string                    `json:"result"`
-	IsTruncated      bool                      `json:"is_truncated"`
-	NeedClearHistory bool                      `json:"need_clear_history"`
-	Usage            baiduTextGenResponseUsage `json:"usage"`
-	baiduTextGenResponseError
-}
-
-type baiduTextGenResponseError struct {
-	ErrorCode int    `json:"error_code"`
-	ErrorMsg  string `json:"error_msg"`
-}
-
-type baiduTextGenStreamResponse struct {
-	baiduTextGenResponse
-	SentenceId int  `json:"sentence_id"`
-	IsEnd      bool `json:"is_end"`
-}
-
-type baiduTextGenResponseUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
-
-func (b *baiduProvider) responseBaidu2OpenAI(ctx wrapper.HttpContext, response *baiduTextGenResponse) *chatCompletionResponse {
-	choice := chatCompletionChoice{
-		Index:        0,
-		Message:      &chatMessage{Role: roleAssistant, Content: response.Result},
-		FinishReason: finishReasonStop,
+// getCanonicalTime generates a timestamp in UTC format
+func getCanonicalTime(timestamp int64) string {
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
 	}
-	return &chatCompletionResponse{
-		Id:                response.Id,
-		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
-		SystemFingerprint: "",
-		Object:            objectChatCompletion,
-		Choices:           []chatCompletionChoice{choice},
-		Usage: usage{
-			PromptTokens:     response.Usage.PromptTokens,
-			CompletionTokens: response.Usage.CompletionTokens,
-			TotalTokens:      response.Usage.TotalTokens,
-		},
+	t := time.Unix(timestamp, 0).UTC()
+	return t.Format("2006-01-02T15:04:05Z")
+}
+
+// getCanonicalUri generates a canonical URI
+func getCanonicalUri(path string) string {
+	return normalizeString(path, false)
+}
+
+// getCanonicalHeaders generates canonical headers
+func getCanonicalHeaders(headers map[string]string, headersToSign []string) string {
+	if len(headers) == 0 {
+		return ""
+	}
+
+	// If headersToSign is not specified, use default headers
+	if len(headersToSign) == 0 {
+		headersToSign = []string{"host", "content-md5", "content-length", "content-type"}
+	}
+
+	// Convert headersToSign to a map for easier lookup
+	headerMap := make(map[string]bool)
+	for _, header := range headersToSign {
+		headerMap[strings.ToLower(strings.TrimSpace(header))] = true
+	}
+
+	// Create a slice to hold the canonical headers
+	var canonicalHeaders []string
+	for k, v := range headers {
+		k = strings.ToLower(strings.TrimSpace(k))
+		v = strings.TrimSpace(v)
+
+		// Add headers that start with x-bce- or are in headersToSign
+		if strings.HasPrefix(k, bce_prefix) || headerMap[k] {
+			canonicalHeaders = append(canonicalHeaders,
+				fmt.Sprintf("%s:%s", normalizeString(k, true), normalizeString(v, true)))
+		}
+	}
+
+	// Sort the canonical headers
+	sort.Strings(canonicalHeaders)
+
+	return strings.Join(canonicalHeaders, "\n")
+}
+
+// sign generates the authorization string
+func sign(credentials BceCredentials, httpMethod, path string, headers map[string]string,
+	timestamp int64, expirationInSeconds int,
+	headersToSign []string) string {
+
+	// Generate sign key
+	signKeyInfo := fmt.Sprintf("bce-auth-v1/%s/%s/%d",
+		credentials.AccessKeyId,
+		getCanonicalTime(timestamp),
+		expirationInSeconds)
+
+	// Generate sign key using HMAC-SHA256
+	h := hmac.New(sha256.New, []byte(credentials.SecretAccessKey))
+	h.Write([]byte(signKeyInfo))
+	signKey := hex.EncodeToString(h.Sum(nil))
+
+	// Generate canonical URI
+	canonicalUri := getCanonicalUri(path)
+
+	// Generate canonical headers
+	canonicalHeaders := getCanonicalHeaders(headers, headersToSign)
+
+	// Generate string to sign
+	stringToSign := strings.Join([]string{
+		httpMethod,
+		canonicalUri,
+		"",
+		canonicalHeaders,
+	}, "\n")
+
+	// Calculate final signature
+	h = hmac.New(sha256.New, []byte(signKey))
+	h.Write([]byte(stringToSign))
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	// Generate final authorization string
+	if len(headersToSign) > 0 {
+		return fmt.Sprintf("%s/%s/%s", signKeyInfo, strings.Join(headersToSign, ";"), signature)
+	}
+	return fmt.Sprintf("%s//%s", signKeyInfo, signature)
+}
+
+// GetTickFunc Refresh apiToken (apiToken) periodically, the maximum apiToken expiration time is 24 hours
+func (g *baiduProvider) GetTickFunc(log wrapper.Log) (tickPeriod int64, tickFunc func()) {
+	vmID := generateVMID()
+
+	return baiduApiTokenRefreshInterval * 1000, func() {
+		// Only the Wasm VM that successfully acquires the lease will refresh the apiToken
+		if g.config.tryAcquireOrRenewLease(vmID, log) {
+			log.Debugf("Successfully acquired or renewed lease for baidu apiToken refresh task, vmID: %v", vmID)
+			// Get the apiToken that is about to expire, will be removed after the new apiToken is obtained
+			oldApiTokens, _, err := getApiTokens(g.config.failover.ctxApiTokens)
+			if err != nil {
+				log.Errorf("Get old apiToken failed: %v", err)
+				return
+			}
+			log.Debugf("Old apiTokens: %v", oldApiTokens)
+
+			for _, accessKeyAndSecret := range g.config.baiduAccessKeyAndSecret {
+				authorizationString := generateAuthorizationString(accessKeyAndSecret, baiduAuthorizationStringExpirationSeconds)
+				log.Debugf("Generate authorizationString: %v", authorizationString)
+				g.generateNewApiToken(authorizationString, log)
+			}
+
+			// remove old old apiToken
+			for _, token := range oldApiTokens {
+				log.Debugf("Remove old apiToken: %v", token)
+				removeApiToken(g.config.failover.ctxApiTokens, token, log)
+			}
+		}
 	}
 }
 
-func (b *baiduProvider) streamResponseBaidu2OpenAI(ctx wrapper.HttpContext, response *baiduTextGenStreamResponse) *chatCompletionResponse {
-	choice := chatCompletionChoice{
-		Index:   0,
-		Message: &chatMessage{Role: roleAssistant, Content: response.Result},
-	}
-	if response.IsEnd {
-		choice.FinishReason = finishReasonStop
-	}
-	return &chatCompletionResponse{
-		Id:                response.Id,
-		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
-		SystemFingerprint: "",
-		Object:            objectChatCompletionChunk,
-		Choices:           []chatCompletionChoice{choice},
-		Usage: usage{
-			PromptTokens:     response.Usage.PromptTokens,
-			CompletionTokens: response.Usage.CompletionTokens,
-			TotalTokens:      response.Usage.TotalTokens,
-		},
-	}
-}
+func (g *baiduProvider) generateNewApiToken(authorizationString string, log wrapper.Log) {
+	client := wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: g.config.baiduApiTokenServiceName,
+		Host: g.config.baiduApiTokenServiceHost,
+		Port: g.config.baiduApiTokenServicePort,
+	})
 
-func (b *baiduProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
-	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+	headers := [][2]string{
+		{"content-type", "application/json"},
+		{"Authorization", authorizationString},
+	}
+
+	var apiToken string
+	err := client.Get(baiduApiTokenPath, headers, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		if statusCode == 201 {
+			var response map[string]interface{}
+			err := json.Unmarshal(responseBody, &response)
+			if err != nil {
+				log.Errorf("Unmarshal response failed: %v", err)
+			} else {
+				apiToken = response["token"].(string)
+				addApiToken(g.config.failover.ctxApiTokens, apiToken, log)
+			}
+		} else {
+			log.Errorf("Get apiToken failed, status code: %d, response body: %s", statusCode, string(responseBody))
+		}
+	}, 30000)
+
+	if err != nil {
+		log.Errorf("Get apiToken failed: %v", err)
+	}
 }

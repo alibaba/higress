@@ -6,8 +6,13 @@
 </h1>
 <h4 align="center"> AI Native API Gateway </h4>
 
+<div align="center">
+    
 [![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+
+<a href="https://trendshift.io/repositories/10918" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10918" alt="alibaba%2Fhigress | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</div>
 
 [**官网**](https://higress.cn/) &nbsp; |
 &nbsp; [**文档**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
@@ -15,6 +20,7 @@
 &nbsp; [**电子书**](https://higress.cn/docs/ebook/wasm14/) &nbsp; |
 &nbsp; [**开发指引**](https://higress.cn/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**AI插件**](https://higress.cn/plugin/) &nbsp;
+
 
 
 <p>
@@ -63,6 +69,10 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 **Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
+
+如果您是在云上部署，生产环境推荐使用[企业版](https://higress.io/cloud/)，开发测试可以使用下面一键部署社区版：
+
+[![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
 
 
 ## 使用场景

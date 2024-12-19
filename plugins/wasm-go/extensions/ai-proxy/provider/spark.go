@@ -2,8 +2,8 @@ package provider
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -67,52 +67,19 @@ func (p *sparkProvider) GetProviderType() string {
 	return providerTypeSpark
 }
 
-func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestHost(sparkHost)
-	_ = util.OverwriteRequestPath(sparkChatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("Bearer " + p.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+	p.config.handleRequestHeaders(p, ctx, apiName, log)
+	return nil
 }
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	// 使用Spark协议
-	if p.config.protocol == protocolOriginal {
-		request := &sparkRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("request model is empty")
-		}
-		// 目前星火在模型名称错误时，也会调用generalv3，这里还是按照输入的模型名称设置响应里的模型名称
-		ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	} else {
-		// 使用openai协议
-		request := &chatCompletionRequest{}
-		if err := decodeChatCompletionRequest(body, request); err != nil {
-			return types.ActionContinue, err
-		}
-		if request.Model == "" {
-			return types.ActionContinue, errors.New("missing model in chat completion request")
-		}
-		// 映射模型
-		mappedModel := getMappedModel(request.Model, p.config.modelMapping, log)
-		if mappedModel == "" {
-			return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-		}
-		ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
-		request.Model = mappedModel
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	}
+	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)
 }
 
 func (p *sparkProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
@@ -204,4 +171,12 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 
 func (p *sparkProvider) appendResponse(responseBuilder *strings.Builder, responseBody string) {
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+}
+
+func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+	util.OverwriteRequestPathHeader(headers, sparkChatCompletionPath)
+	util.OverwriteRequestHostHeader(headers, sparkHost)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+p.config.GetApiTokenInUse(ctx))
+	headers.Del("Accept-Encoding")
+	headers.Del("Content-Length")
 }

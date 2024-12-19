@@ -7,9 +7,6 @@ Rendering the pod template of gateway component.
 template:
   metadata:
     annotations:
-    {{- if .Values.global.enableHigressIstio }}
-      "enableHigressIstio": "true"
-    {{- end }}
     {{- if .Values.gateway.podAnnotations }}
       {{- toYaml .Values.gateway.podAnnotations | nindent 6 }}
     {{- end }}
@@ -268,11 +265,7 @@ template:
     {{- end }}
     - name: higress-ca-root-cert
       configMap:
-    {{- if .Values.global.enableHigressIstio }}
-        name: istio-ca-root-cert
-    {{- else }}
         name: higress-ca-root-cert
-    {{- end }}
     - name: config
       configMap:
         name: higress-config

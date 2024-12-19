@@ -31,15 +31,16 @@ description: AI 代理插件配置参考
 
 `provider`的配置字段说明如下：
 
-| 名称           | 数据类型        | 填写要求 | 默认值 | 描述                                                                                                                                                                                                                                                           |
-| -------------- | --------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                  |
-| `type`         | string          | 必填     | -      | AI 服务提供商名称                                                                                                                                                                                                                                              |
-| `apiTokens`    | array of string | 非必填   | -      | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。                                                                                                                                     |
-| `timeout`      | number          | 非必填   | -      | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                                                                                                                                                                                 |
-| `modelMapping` | map of string   | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。 |
-| `protocol`     | string          | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                                                                          |
-| `context`      | object          | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                                                                                                                         |
-| `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                                                                                                                 |
+| 名称               | 数据类型        | 填写要求 | 默认值 | 描述                                                                                                                                                        |
+|------------------| --------------- | -------- | ------ |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`           | string          | 必填     | -      | AI 服务提供商名称                                                                                                                                                |
+| `apiTokens`      | array of string | 非必填   | -      | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。                                                                                     |
+| `timeout`        | number          | 非必填   | -      | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟                                                                                                                    |
+| `modelMapping`   | map of string   | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。 |
+| `protocol`       | string          | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                          |
+| `context`        | object          | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                             |
+| `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                           |
+| `failover`       | object | 非必填   | -      | 配置 apiToken 的 failover 策略，当 apiToken 不可用时，将其移出 apiToken 列表，待健康检测通过后重新添加回 apiToken 列表                                                                      |
 
 `context`的配置字段说明如下：
 
@@ -75,6 +76,16 @@ custom-setting会遵循如下表格，根据`name`和协议来替换对应的字
 如果启用了raw模式，custom-setting会直接用输入的`name`和`value`去更改请求中的json内容，而不对参数名称做任何限制和修改。
 对于大多数协议，custom-setting都会在json内容的根路径修改或者填充参数。对于`qwen`协议，ai-proxy会在json的`parameters`子路径下做配置。对于`gemini`协议，则会在`generation_config`子路径下做配置。
 
+`failover` 的配置字段说明如下：
+
+| 名称               | 数据类型   | 填写要求 | 默认值   | 描述                          |
+|------------------|--------|------|-------|-----------------------------|
+| enabled | bool   | 非必填   | false | 是否启用 apiToken 的 failover 机制 |
+| failureThreshold | int    | 非必填   | 3     | 触发 failover 连续请求失败的阈值（次数）   |
+| successThreshold | int    | 非必填   | 1     | 健康检测的成功阈值（次数）               |
+| healthCheckInterval | int    | 非必填   | 5000  | 健康检测的间隔时间，单位毫秒              |
+| healthCheckTimeout | int    | 非必填   | 5000  | 健康检测的超时时间，单位毫秒              |
+| healthCheckModel | string | 必填   |      | 健康检测使用的模型                   |
 
 ### 提供商特有配置
 
@@ -137,7 +148,15 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 #### 文心一言（Baidu）
 
-文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
+文心一言所对应的 `type` 为 `baidu`。它特有的配置字段如下：
+
+| 名称                 | 数据类型            | 填写要求 | 默认值 | 描述                                                        |
+|--------------------|-----------------|------|-----|-----------------------------------------------------------|
+| `baiduAccessKeyAndSecret`      | array of string | 必填   | -   | Baidu 的 Access Key 和 Secret Key，中间用 `:` 分隔，用于申请 apiToken。 |
+| `baiduApiTokenServiceName`      | string          | 必填   | -   | 请求刷新百度 apiToken 服务名称。                                     |
+| `baiduApiTokenServiceHost`      | string          | 非必填  | -   | 请求刷新百度 apiToken 服务域名，默认是 iam.bj.baidubce.com。             |
+| `baiduApiTokenServicePort`      | int64           | 非必填  | -   | 请求刷新百度 apiToken 服务端口，默认是 443。                             |
+
 
 #### 360智脑
 
@@ -155,9 +174,10 @@ Mistral 所对应的 `type` 为 `mistral`。它并无特有的配置字段。
 
 MiniMax所对应的 `type` 为 `minimax`。它特有的配置字段如下：
 
-| 名称             | 数据类型 | 填写要求                                                     | 默认值 | 描述                                                         |
-| ---------------- | -------- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| `minimaxGroupId` | string   | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时必填 | -      | 当使用`abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`四种模型时会使用ChatCompletion Pro，需要设置groupID |
+| 名称             | 数据类型 | 填写要求                       | 默认值 | 描述                                                             |
+| ---------------- | -------- | ------------------------------ | ------ |----------------------------------------------------------------|
+| `minimaxApiType` | string   | v2 和 pro 中选填一项           | v2     | v2 代表 ChatCompletion v2 API，pro 代表 ChatCompletion Pro API      |
+| `minimaxGroupId` | string   | `minimaxApiType` 为 pro 时必填 | -      | `minimaxApiType` 为 pro 时使用 ChatCompletion Pro API，需要设置 groupID |
 
 #### Anthropic Claude
 
@@ -981,17 +1001,16 @@ provider:
   apiTokens:
     - "YOUR_MINIMAX_API_TOKEN"
   modelMapping:
-    "gpt-3": "abab6.5g-chat"
-    "gpt-4": "abab6.5-chat"
-    "*": "abab6.5g-chat"
-  minimaxGroupId: "YOUR_MINIMAX_GROUP_ID"
+    "gpt-3": "abab6.5s-chat"
+    "gpt-4": "abab6.5g-chat"
+    "*": "abab6.5t-chat"
 ```
 
 **请求示例**
 
 ```json
 {
-    "model": "gpt-4-turbo",
+    "model": "gpt-3",
     "messages": [
         {
             "role": "user",
@@ -1006,27 +1025,33 @@ provider:
 
 ```json
 {
-    "id": "02b2251f8c6c09d68c1743f07c72afd7",
+    "id": "03ac4fcfe1c6cc9c6a60f9d12046e2b4",
     "choices": [
         {
             "finish_reason": "stop",
             "index": 0,
             "message": {
-                "content": "你好！我是MM智能助理，一款由MiniMax自研的大型语言模型。我可以帮助你解答问题，提供信息，进行对话等。有什么可以帮助你的吗？",
-                "role": "assistant"
+                "content": "你好，我是一个由MiniMax公司研发的大型语言模型，名为MM智能助理。我可以帮助回答问题、提供信息、进行对话和执行多种语言处理任务。如果你有任何问题或需要帮助，请随时告诉我！",
+                "role": "assistant",
+                "name": "MM智能助理",
+                "audio_content": ""
             }
         }
     ],
-    "created": 1717760544,
+    "created": 1734155471,
     "model": "abab6.5s-chat",
     "object": "chat.completion",
     "usage": {
-        "total_tokens": 106
+        "total_tokens": 116,
+        "total_characters": 0,
+        "prompt_tokens": 70,
+        "completion_tokens": 46
     },
     "input_sensitive": false,
     "output_sensitive": false,
     "input_sensitive_type": 0,
     "output_sensitive_type": 0,
+    "output_sensitive_int": 0,
     "base_resp": {
         "status_code": 0,
         "status_msg": ""
