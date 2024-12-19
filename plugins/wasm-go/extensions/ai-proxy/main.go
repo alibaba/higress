@@ -89,12 +89,16 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	if apiName == "" {
-		log.Debugf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		// _ = util.SendResponse(404, "ai-proxy.unknown_api", util.MimeTypeTextPlain, "API not found: "+path.Path)
-		log.Debugf("[onHttpRequestHeader] no send response")
+		log.Warnf("[onHttpRequestHeader] unsupported path: %s", path.Path)
 		return types.ActionContinue
 	}
 	ctx.SetContext(ctxKeyApiName, apiName)
+
+	_, needHandleBody := activeProvider.(provider.ResponseBodyHandler)
+	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
+	if needHandleBody || needHandleStreamingBody {
+		proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	}
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
@@ -106,11 +110,12 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err == nil {
 			if hasRequestBody {
+				proxywasm.RemoveHttpRequestHeader("Content-Length")
 				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
-				// Always return types.HeaderStopIteration to support fallback routing,
-				// as long as onHttpRequestBody can be called.
+				// Delay the header processing to allow changing in OnRequestBody
 				return types.HeaderStopIteration
 			}
+			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
 
