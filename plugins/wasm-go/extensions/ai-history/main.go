@@ -194,6 +194,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
 	identityKey := ctx.GetStringContext(IdentityKey, "")
+	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
+	if question == "" {
+		log.Debug("parse question from request body failed")
+		return types.ActionContinue
+	}
+	ctx.SetContext(QuestionContextKey, question)
 	err := config.redisClient.Get(config.CacheKeyPrefix+identityKey, func(response resp.Value) {
 		if err := response.Error(); err != nil {
 			log.Errorf("redis get  failed, err:%v", err)
@@ -230,13 +236,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
 		}
-		question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
-		if question == "" {
-			log.Debug("parse question from request body failed")
-			_ = proxywasm.ResumeHttpRequest()
-			return
-		}
-		ctx.SetContext(QuestionContextKey, question)
 		fillHistoryCnt := getIntQueryParameter("fill_history_cnt", path, config.FillHistoryCnt) * 2
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
@@ -317,38 +316,39 @@ func getIntQueryParameter(name string, path string, defaultValue int) int {
 }
 
 func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log wrapper.Log) string {
-	subMessages := strings.Split(sseMessage, "\n")
-	var message string
-	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data:") {
-			message = msg
-			break
+	content := ""
+	for _, chunk := range strings.Split(sseMessage, "\n\n") {
+		subMessages := strings.Split(chunk, "\n")
+		var message string
+		for _, msg := range subMessages {
+			if strings.HasPrefix(msg, "data:") {
+				message = msg
+				break
+			}
 		}
-	}
-	if len(message) < 6 {
-		log.Errorf("invalid message:%s", message)
-		return ""
-	}
-	// skip the prefix "data:"
-	bodyJson := message[5:]
-	if gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Exists() {
-		tempContentI := ctx.GetContext(AnswerContentContextKey)
-		if tempContentI == nil {
-			content := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
-			ctx.SetContext(AnswerContentContextKey, content)
+		if len(message) < 6 {
+			log.Errorf("invalid message:%s", message)
 			return content
 		}
-		append := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
-		content := tempContentI.(string) + append
-		ctx.SetContext(AnswerContentContextKey, content)
-		return content
-	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
-		// TODO: compatible with other providers
-		ctx.SetContext(ToolCallsContextKey, struct{}{})
-		return ""
+		// skip the prefix "data:"
+		bodyJson := message[5:]
+		if gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Exists() {
+			tempContentI := ctx.GetContext(AnswerContentContextKey)
+			if tempContentI == nil {
+				content = TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
+				ctx.SetContext(AnswerContentContextKey, content)
+			} else {
+				append := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
+				content = tempContentI.(string) + append
+				ctx.SetContext(AnswerContentContextKey, content)
+			}
+		} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
+			// TODO: compatible with other providers
+			ctx.SetContext(ToolCallsContextKey, struct{}{})
+		}
+		log.Debugf("unknown message:%s", bodyJson)
 	}
-	log.Debugf("unknown message:%s", bodyJson)
-	return ""
+	return content
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
