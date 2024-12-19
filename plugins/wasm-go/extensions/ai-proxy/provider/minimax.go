@@ -153,7 +153,6 @@ func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiN
 	// Skip OnStreamingResponseBody() and OnResponseBody() when the model corresponds to the chat completion V2 interface.
 	if minimaxApiTypePro != m.config.minimaxApiType {
 		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
 	}
 }
 
