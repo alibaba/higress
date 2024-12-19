@@ -37,7 +37,7 @@ func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 	return err
 }
 
-func replaceHttpJsonRequestBody(body []byte, log wrapper.Log) error {
+func replaceRequestBody(body []byte, log wrapper.Log) error {
 	log.Debugf("request body: %s", string(body))
 	err := proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
@@ -65,7 +65,7 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	}
 }
 
-func ReplaceHttpJsonResponseBody(body []byte, log wrapper.Log) error {
+func ReplaceResponseBody(body []byte, log wrapper.Log) error {
 	log.Debugf("response body: %s", string(body))
 	err := proxywasm.ReplaceHttpResponseBody(body)
 	if err != nil {

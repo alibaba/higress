@@ -242,7 +242,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 			util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
-		if err = provider.ReplaceHttpJsonResponseBody(body, log); err != nil {
+		if err = provider.ReplaceResponseBody(body, log); err != nil {
 			util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 		}
 	}

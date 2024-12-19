@@ -564,7 +564,7 @@ func (c *ProviderConfig) handleRequestBody(
 
 	if apiName == ApiNameChatCompletion {
 		if c.context == nil {
-			return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+			return types.ActionContinue, replaceRequestBody(body, log)
 		}
 		err = contextCache.GetContextFromFile(ctx, provider, body, log)
 
@@ -573,7 +573,7 @@ func (c *ProviderConfig) handleRequestBody(
 		}
 		return types.ActionContinue, err
 	}
-	return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+	return types.ActionContinue, replaceRequestBody(body, log)
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) {
