@@ -448,7 +448,7 @@ mod tests {
         let config = get_config();
         let ir = IntentRes::new("intent-route".to_string(), "Others".to_string());
         let dc = IntentRes::new("disable-cache".to_string(), "Time-sensitive".to_string());
-        let res = vec![vec![], vec![dc.clone()], vec![ir.clone(), dc.clone()]];
+        let res = [vec![], vec![dc.clone()], vec![ir.clone(), dc.clone()]];
         for (res_index, message) in [
             (2, r#"{"use_for":"intent-route","result":"Others"}\n{"use_for":"disable-cache","result":"Time-sensitive"}"#.replace("\\n", "\n")),
             (1, r#"{"use_for": "disable-cache", "result": "Time-sensitive"}"#.replace("\\n", "\n")),
