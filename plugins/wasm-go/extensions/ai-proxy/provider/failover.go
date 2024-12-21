@@ -543,7 +543,7 @@ func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.Ht
 	if c.isFailoverEnabled() {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
-	if c.isRetryOnFailureEnabled() && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
+	if c.isRetryOnFailureEnabled() && ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
 		c.retryFailedRequest(activeProvider, ctx, log)
 		return types.HeaderStopAllIterationAndWatermark
 	}
