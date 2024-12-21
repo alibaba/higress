@@ -86,12 +86,22 @@ func SliceToHeader(slice [][2]string) http.Header {
 	return header
 }
 
-func GetOriginalHttpHeaders() http.Header {
+func GetOriginalRequestHeaders() http.Header {
 	originalHeaders, _ := proxywasm.GetHttpRequestHeaders()
 	return SliceToHeader(originalHeaders)
 }
 
-func ReplaceOriginalHttpHeaders(headers http.Header) {
+func GetOriginalResponseHeaders() http.Header {
+	originalHeaders, _ := proxywasm.GetHttpResponseHeaders()
+	return SliceToHeader(originalHeaders)
+}
+
+func ReplaceRequestHeaders(headers http.Header) {
 	modifiedHeaders := HeaderToSlice(headers)
 	_ = proxywasm.ReplaceHttpRequestHeaders(modifiedHeaders)
+}
+
+func ReplaceResponseHeaders(headers http.Header) {
+	modifiedHeaders := HeaderToSlice(headers)
+	_ = proxywasm.ReplaceHttpResponseHeaders(modifiedHeaders)
 }

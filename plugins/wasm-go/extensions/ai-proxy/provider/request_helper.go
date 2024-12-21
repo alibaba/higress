@@ -37,7 +37,7 @@ func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 	return err
 }
 
-func replaceHttpJsonRequestBody(body []byte, log wrapper.Log) error {
+func replaceRequestBody(body []byte, log wrapper.Log) error {
 	log.Debugf("request body: %s", string(body))
 	err := proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
@@ -65,15 +65,11 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	}
 }
 
-func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
-	body, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("unable to marshal response: %v", err)
-	}
+func ReplaceResponseBody(body []byte, log wrapper.Log) error {
 	log.Debugf("response body: %s", string(body))
-	err = proxywasm.ReplaceHttpResponseBody(body)
+	err := proxywasm.ReplaceHttpResponseBody(body)
 	if err != nil {
 		return fmt.Errorf("unable to replace the original response body: %v", err)
 	}
-	return err
+	return nil
 }
