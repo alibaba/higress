@@ -2,11 +2,12 @@ package provider
 
 import (
 	"errors"
+	"net/http"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-	"strings"
 )
 
 // githubProvider is the provider for GitHub OpenAI service.
@@ -42,13 +43,13 @@ func (m *githubProvider) GetProviderType() string {
 	return providerTypeGithub
 }
 
-func (m *githubProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *githubProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *githubProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
@@ -67,8 +68,6 @@ func (m *githubProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 		util.OverwriteRequestPathHeader(headers, githubEmbeddingPath)
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, m.config.GetApiTokenInUse(ctx))
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
 }
 
 func (m *githubProvider) GetApiName(path string) ApiName {

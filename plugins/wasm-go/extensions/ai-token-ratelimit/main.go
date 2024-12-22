@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/url"
@@ -61,9 +62,9 @@ const (
 	ConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
 	CookieHeader   string = "cookie"
 
-	RateLimitLimitHeader     string = "X-RateLimit-Limit"     // 限制的总请求数
-	RateLimitRemainingHeader string = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
-	RateLimitResetHeader     string = "X-RateLimit-Reset"     // 限流重置时间（触发限流时返回）
+	RateLimitLimitHeader     string = "X-TokenRateLimit-Limit"     // 限制的总请求数
+	RateLimitRemainingHeader string = "X-TokenRateLimit-Remaining" // 剩余还可以发送的请求数
+	RateLimitResetHeader     string = "X-TokenRateLimit-Reset"     // 限流重置时间（触发限流时返回）
 )
 
 type LimitContext struct {
@@ -124,6 +125,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		}
 		if context.remaining < 0 {
 			// 触发限流
+			ctx.SetUserAttribute("token_ratelimit_status", "limited")
+			ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 			rejected(config, context)
 		} else {
 			proxywasm.ResumeHttpRequest()
@@ -137,39 +140,49 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
-	if !endOfStream {
-		return data
+	var inputToken, outputToken int64
+	if inputToken, outputToken, ok := getUsage(data); ok {
+		ctx.SetContext("input_token", inputToken)
+		ctx.SetContext("output_token", outputToken)
 	}
-	inputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.input_token"})
-	if err != nil {
-		return data
+	if endOfStream {
+		if ctx.GetContext("input_token") == nil || ctx.GetContext("output_token") == nil {
+			return data
+		}
+		inputToken = ctx.GetContext("input_token").(int64)
+		outputToken = ctx.GetContext("output_token").(int64)
+		limitRedisContext, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
+		if !ok {
+			return data
+		}
+		keys := []interface{}{limitRedisContext.key}
+		args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
+		err := config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
+		if err != nil {
+			log.Errorf("redis call failed: %v", err)
+		}
 	}
-	outputTokenStr, err := proxywasm.GetProperty([]string{"filter_state", "wasm.output_token"})
-	if err != nil {
-		return data
-	}
-	inputToken, err := strconv.Atoi(string(inputTokenStr))
-	if err != nil {
-		return data
-	}
-	outputToken, err := strconv.Atoi(string(outputTokenStr))
-	if err != nil {
-		return data
-	}
-	limitRedisContext, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
-	if !ok {
-		return data
-	}
-	keys := []interface{}{limitRedisContext.key}
-	args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
+	return data
+}
 
-	err = config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
-	if err != nil {
-		log.Errorf("redis call failed: %v", err)
-		return data
-	} else {
-		return data
+func getUsage(data []byte) (inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
+	for _, chunk := range chunks {
+		// the feature strings are used to identify the usage data, like:
+		// {"model":"gpt2","usage":{"prompt_tokens":1,"completion_tokens":1}}
+		if !bytes.Contains(chunk, []byte("prompt_tokens")) || !bytes.Contains(chunk, []byte("completion_tokens")) {
+			continue
+		}
+		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
+		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
+		if inputTokenObj.Exists() && outputTokenObj.Exists() {
+			inputTokenUsage = inputTokenObj.Int()
+			outputTokenUsage = outputTokenObj.Int()
+			ok = true
+			return
+		}
 	}
+	return
 }
 
 func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {

@@ -42,12 +42,12 @@ func (m *baichuanProvider) GetProviderType() string {
 	return providerTypeBaichuan
 }
 
-func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
-	return types.ActionContinue, nil
+	return nil
 }
 
 func (m *baichuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
