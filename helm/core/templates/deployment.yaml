@@ -1,6 +1,7 @@
 {{- if eq .Values.gateway.kind "Deployment" -}}
-{{- $unprivilegedPortSupported := true }}
-{{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
+{{- if eq .Values.gateway.unprivilegedPortSupported nil -}}
+  {{- $unprivilegedPortSupported := true }}
+  {{- range $index, $node := (lookup "v1" "Node" "default" "").items }}
     {{- $kernelVersion := $node.status.nodeInfo.kernelVersion }}
     {{- if $kernelVersion }}
       {{- $kernelVersion = regexFind "^(\\d+\\.\\d+\\.\\d+)" $kernelVersion }}
@@ -8,8 +9,9 @@
       {{- $unprivilegedPortSupported = false }}
       {{- end }}
     {{- end }}
+  {{- end -}}
+  {{- $_ := set .Values.gateway "unprivilegedPortSupported" $unprivilegedPortSupported -}}
 {{- end -}}
-{{- $_ := set .Values.gateway "unprivilegedPortSupported" $unprivilegedPortSupported -}}
 
 apiVersion: apps/v1
 kind: Deployment
