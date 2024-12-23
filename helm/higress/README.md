@@ -149,6 +149,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.serviceAccount.name | string | `""` | The name of the service account to use. If not set, the release name is used |
 | gateway.tag | string | `""` |  |
 | gateway.tolerations | list | `[]` |  |
+| gateway.unprivilegedPortSupported | string | `nil` |  |
 | global.autoscalingv2API | bool | `true` | whether to use autoscaling/v2 template for HPA settings for internal usage only, not to be configured by users. |
 | global.caAddress | string | `""` | The customized CA address to retrieve certificates for the pods in the cluster. CSR clients such as the Istio Agent and ingress gateways can use this to specify the CA endpoint. If not set explicitly, default to the Istio discovery address. |
 | global.caName | string | `""` | The name of the CA for workload certificates. For example, when caName=GkeWorkloadCertificate, GKE workload certificates will be used as the certificates for workloads. The default value is "" and when caName="", the CA will be configured by other mechanisms (e.g., environmental variable CA_PROVIDER). |
