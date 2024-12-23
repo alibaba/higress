@@ -252,6 +252,9 @@ DeepL 所对应的 `type` 为 `deepl`。它特有的配置字段如下：
 
 Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 
+#### Together-AI
+Together-AI 所对应的 `type` 为 `together-ai`。它并无特有的配置字段。
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -1504,6 +1507,61 @@ provider:
   "usage": {}
 }
 ```
+
+### 使用 OpenAI 协议代理 Together-AI 服务
+
+**配置信息**
+```yaml
+provider:
+  type: together-ai
+  apiTokens:
+    - "YOUR_TOGETHER_AI_API_TOKEN"
+  modelMapping:
+    "*": "Qwen/Qwen2.5-72B-Instruct-Turbo"
+```
+
+**请求示例**
+```json
+{
+    "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ]
+}
+```
+
+**响应示例**
+```json
+{
+  "id": "8f5809d54b73efac",
+  "object": "chat.completion",
+  "created": 1734785851,
+  "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+  "prompt": [],
+  "choices": [
+    {
+      "finish_reason": "eos",
+      "seed": 12830868308626506000,
+      "logprobs": null,
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I am Qwen, a large language model created by Alibaba Cloud. I am designed to assist users in generating various types of text, such as articles, stories, poems, and more, as well as answering questions and providing information on a wide range of topics. How can I assist you today?",
+        "tool_calls": []
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 33,
+    "completion_tokens": 61,
+    "total_tokens": 94
+  }
+}
+```
+
 
 ## 完整配置示例
 
