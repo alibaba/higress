@@ -1356,6 +1356,60 @@ Here, `model` denotes the service tier of DeepL and can only be either `Free` or
 }
 ```
 
+### Utilizing OpenAI Protocol Proxy for Together-AI Services
+
+**Configuration Information**
+```yaml
+provider:
+  type: together-ai
+  apiTokens:
+    - "YOUR_TOGETHER_AI_API_TOKEN"
+  modelMapping:
+    "*": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+```
+
+**Request Example**
+```json
+{
+    "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ]
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "8f5809d54b73efac",
+  "object": "chat.completion",
+  "created": 1734785851,
+  "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+  "prompt": [],
+  "choices": [
+    {
+      "finish_reason": "eos",
+      "seed": 12830868308626506000,
+      "logprobs": null,
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I am Qwen, a large language model created by Alibaba Cloud. I am designed to assist users in generating various types of text, such as articles, stories, poems, and more, as well as answering questions and providing information on a wide range of topics. How can I assist you today?",
+        "tool_calls": []
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 33,
+    "completion_tokens": 61,
+    "total_tokens": 94
+  }
+}
+```
+
 ## Full Configuration Example
 
 ### Kubernetes Example
