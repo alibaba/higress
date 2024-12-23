@@ -33,7 +33,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8181
-          command: [ "opa", "run", "-s" ]
+          command: [ "opa", "run", "-s", "-a", ":8181"]
 ---
 apiVersion: v1
 kind: Service
