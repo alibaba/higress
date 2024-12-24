@@ -299,7 +299,7 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
-	tools/hack/docker-pull-image.sh openpolicyagent/opa latest
+	tools/hack/docker-pull-image.sh openpolicyagent/opa 1.0.0
 	tools/hack/docker-pull-image.sh curlimages/curl latest
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
@@ -312,7 +312,7 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
-	tools/hack/kind-load-image.sh openpolicyagent/opa latest
+	tools/hack/kind-load-image.sh openpolicyagent/opa 1.0.0
 	tools/hack/kind-load-image.sh curlimages/curl latest
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
