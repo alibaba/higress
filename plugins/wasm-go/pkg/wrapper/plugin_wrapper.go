@@ -45,6 +45,8 @@ type HttpContext interface {
 	GetStringContext(key, defaultValue string) string
 	GetUserAttribute(key string) interface{}
 	SetUserAttribute(key string, value interface{})
+	SetUserAttributeMap(kvmap map[string]interface{})
+	GetUserAttributeMap() map[string]interface{}
 	// You can call this function to set custom log
 	WriteUserAttributeToLog() error
 	// You can call this function to set custom log with your specific key
@@ -401,6 +403,14 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetUserAttribute(key string, value inter
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetUserAttribute(key string) interface{} {
 	return ctx.userAttribute[key]
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) SetUserAttributeMap(kvmap map[string]interface{}) {
+	ctx.userAttribute = kvmap
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetUserAttributeMap() map[string]interface{} {
+	return ctx.userAttribute
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToLog() error {

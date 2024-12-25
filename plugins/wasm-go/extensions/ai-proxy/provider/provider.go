@@ -46,6 +46,7 @@ const (
 	providerTypeCohere     = "cohere"
 	providerTypeDoubao     = "doubao"
 	providerTypeCoze       = "coze"
+	providerTypeTogetherAI = "together-ai"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -106,6 +107,7 @@ var (
 		providerTypeCohere:     &cohereProviderInitializer{},
 		providerTypeDoubao:     &doubaoProviderInitializer{},
 		providerTypeCoze:       &cozeProviderInitializer{},
+		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 	}
 )
 
@@ -118,7 +120,7 @@ type ApiNameHandler interface {
 }
 
 type RequestHeadersHandler interface {
-	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error
 }
 
 type TransformRequestHeadersHandler interface {
@@ -206,8 +208,11 @@ type ProviderConfig struct {
 	// @Title zh-CN hunyuan api id for authorization
 	// @Description zh-CN 仅适用于Hun Yuan AI服务鉴权
 	hunyuanAuthId string `required:"false" yaml:"hunyuanAuthId" json:"hunyuanAuthId"`
+	// @Title zh-CN minimax API type
+	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
+	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
 	// @Title zh-CN minimax group id
-	// @Description zh-CN 仅适用于minimax使用ChatCompletion Pro接口的模型
+	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型为 pro 时必填
 	minimaxGroupId string `required:"false" yaml:"minimaxGroupId" json:"minimaxGroupId"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
@@ -303,6 +308,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.claudeVersion = json.Get("claudeVersion").String()
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
+	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
 	if c.typ == providerTypeGemini {

@@ -17,6 +17,7 @@ package wrapper
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 
@@ -28,7 +29,7 @@ import (
 type RedisResponseCallback func(response resp.Value)
 
 type RedisClient interface {
-	Init(username, password string, timeout int64) error
+	Init(username, password string, timeout int64, opts ...optionFunc) error
 	// with this function, you can call redis as if you are using redis-cli
 	Command(cmds []interface{}, callback RedisResponseCallback) error
 	Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error
@@ -103,15 +104,31 @@ type RedisClient interface {
 }
 
 type RedisClusterClient[C Cluster] struct {
-	cluster C
+	cluster        C
+	ready          bool
+	checkReadyFunc func() error
+	option         redisOption
+}
+
+type redisOption struct {
+	dataBase int
+}
+
+type optionFunc func(*redisOption)
+
+func WithDataBase(dataBase int) optionFunc {
+	return func(o *redisOption) {
+		o.dataBase = dataBase
+	}
 }
 
 func NewRedisClusterClient[C Cluster](cluster C) *RedisClusterClient[C] {
-	return &RedisClusterClient[C]{cluster: cluster}
-}
-
-func RedisInit(cluster Cluster, username, password string, timeout uint32) error {
-	return proxywasm.RedisInit(cluster.ClusterName(), username, password, timeout)
+	return &RedisClusterClient[C]{
+		cluster: cluster,
+		checkReadyFunc: func() error {
+			return errors.New("redis client is not ready, please call Init() first")
+		},
+	}
 }
 
 func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback) error {
@@ -165,19 +182,46 @@ func respString(args []interface{}) []byte {
 	return buf.Bytes()
 }
 
-func (c RedisClusterClient[C]) Init(username, password string, timeout int64) error {
-	err := RedisInit(c.cluster, username, password, uint32(timeout))
-	if err != nil {
-		proxywasm.LogCriticalf("failed to init redis: %v", err)
+func (c *RedisClusterClient[C]) Init(username, password string, timeout int64, opts ...optionFunc) error {
+	for _, opt := range opts {
+		opt(&c.option)
 	}
-	return err
+	clusterName := c.cluster.ClusterName()
+	if c.option.dataBase != 0 {
+		clusterName = fmt.Sprintf("%s?db=%d", clusterName, c.option.dataBase)
+	}
+	err := proxywasm.RedisInit(clusterName, username, password, uint32(timeout))
+	if err != nil {
+		c.checkReadyFunc = func() error {
+			if c.ready {
+				return nil
+			}
+			initErr := proxywasm.RedisInit(clusterName, username, password, uint32(timeout))
+			if initErr != nil {
+				return initErr
+			}
+			c.ready = true
+			return nil
+		}
+		proxywasm.LogWarnf("failed to init redis: %v, will retry after", err)
+		return nil
+	}
+	c.checkReadyFunc = func() error { return nil }
+	c.ready = true
+	return nil
 }
 
-func (c RedisClusterClient[C]) Command(cmds []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Command(cmds []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	return RedisCall(c.cluster, respString(cmds), callback)
 }
 
-func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	params := make([]interface{}, 0)
 	params = append(params, "eval")
 	params = append(params, script)
@@ -188,21 +232,30 @@ func (c RedisClusterClient[C]) Eval(script string, numkeys int, keys, args []int
 }
 
 // Key
-func (c RedisClusterClient[C]) Del(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Del(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "del")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Exists(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Exists(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "exists")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Expire(key string, ttl int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Expire(key string, ttl int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "expire")
 	args = append(args, key)
@@ -210,7 +263,10 @@ func (c RedisClusterClient[C]) Expire(key string, ttl int, callback RedisRespons
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Persist(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Persist(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "persist")
 	args = append(args, key)
@@ -218,14 +274,20 @@ func (c RedisClusterClient[C]) Persist(key string, callback RedisResponseCallbac
 }
 
 // String
-func (c RedisClusterClient[C]) Get(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Get(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "get")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Set(key string, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Set(key string, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "set")
 	args = append(args, key)
@@ -233,7 +295,10 @@ func (c RedisClusterClient[C]) Set(key string, value interface{}, callback Redis
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "set")
 	args = append(args, key)
@@ -243,7 +308,10 @@ func (c RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, cal
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) MGet(keys []string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) MGet(keys []string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "mget")
 	for _, k := range keys {
@@ -252,7 +320,10 @@ func (c RedisClusterClient[C]) MGet(keys []string, callback RedisResponseCallbac
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) MSet(kvMap map[string]interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) MSet(kvMap map[string]interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "mset")
 	for k, v := range kvMap {
@@ -262,21 +333,30 @@ func (c RedisClusterClient[C]) MSet(kvMap map[string]interface{}, callback Redis
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Incr(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Incr(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "incr")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) Decr(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) Decr(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "decr")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) IncrBy(key string, delta int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) IncrBy(key string, delta int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "incrby")
 	args = append(args, key)
@@ -284,7 +364,10 @@ func (c RedisClusterClient[C]) IncrBy(key string, delta int, callback RedisRespo
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) DecrBy(key string, delta int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) DecrBy(key string, delta int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "decrby")
 	args = append(args, key)
@@ -293,14 +376,20 @@ func (c RedisClusterClient[C]) DecrBy(key string, delta int, callback RedisRespo
 }
 
 // List
-func (c RedisClusterClient[C]) LLen(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LLen(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "llen")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) RPush(key string, vals []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) RPush(key string, vals []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "rpush")
 	args = append(args, key)
@@ -310,14 +399,20 @@ func (c RedisClusterClient[C]) RPush(key string, vals []interface{}, callback Re
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) RPop(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) RPop(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "rpop")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LPush(key string, vals []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LPush(key string, vals []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "lpush")
 	args = append(args, key)
@@ -327,14 +422,20 @@ func (c RedisClusterClient[C]) LPush(key string, vals []interface{}, callback Re
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LPop(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LPop(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "lpop")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LIndex(key string, index int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LIndex(key string, index int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "lindex")
 	args = append(args, key)
@@ -342,7 +443,10 @@ func (c RedisClusterClient[C]) LIndex(key string, index int, callback RedisRespo
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LRange(key string, start, stop int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LRange(key string, start, stop int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "lrange")
 	args = append(args, key)
@@ -351,7 +455,10 @@ func (c RedisClusterClient[C]) LRange(key string, start, stop int, callback Redi
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LRem(key string, count int, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LRem(key string, count int, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "lrem")
 	args = append(args, key)
@@ -360,7 +467,10 @@ func (c RedisClusterClient[C]) LRem(key string, count int, value interface{}, ca
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LInsertBefore(key string, pivot, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LInsertBefore(key string, pivot, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "linsert")
 	args = append(args, key)
@@ -370,7 +480,10 @@ func (c RedisClusterClient[C]) LInsertBefore(key string, pivot, value interface{
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) LInsertAfter(key string, pivot, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) LInsertAfter(key string, pivot, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "linsert")
 	args = append(args, key)
@@ -381,7 +494,10 @@ func (c RedisClusterClient[C]) LInsertAfter(key string, pivot, value interface{}
 }
 
 // Hash
-func (c RedisClusterClient[C]) HExists(key, field string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HExists(key, field string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hexists")
 	args = append(args, key)
@@ -389,7 +505,10 @@ func (c RedisClusterClient[C]) HExists(key, field string, callback RedisResponse
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HDel(key string, fields []string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HDel(key string, fields []string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hdel")
 	args = append(args, key)
@@ -399,14 +518,20 @@ func (c RedisClusterClient[C]) HDel(key string, fields []string, callback RedisR
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HLen(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HLen(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hlen")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HGet(key, field string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HGet(key, field string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hget")
 	args = append(args, key)
@@ -414,7 +539,10 @@ func (c RedisClusterClient[C]) HGet(key, field string, callback RedisResponseCal
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HSet(key, field string, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HSet(key, field string, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hset")
 	args = append(args, key)
@@ -423,7 +551,10 @@ func (c RedisClusterClient[C]) HSet(key, field string, value interface{}, callba
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HMGet(key string, fields []string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HMGet(key string, fields []string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hmget")
 	args = append(args, key)
@@ -433,7 +564,10 @@ func (c RedisClusterClient[C]) HMGet(key string, fields []string, callback Redis
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HMSet(key string, kvMap map[string]interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HMSet(key string, kvMap map[string]interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hmset")
 	args = append(args, key)
@@ -444,28 +578,40 @@ func (c RedisClusterClient[C]) HMSet(key string, kvMap map[string]interface{}, c
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HKeys(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HKeys(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hkeys")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HVals(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HVals(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hvals")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HGetAll(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HGetAll(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hgetall")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HIncrBy(key, field string, delta int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HIncrBy(key, field string, delta int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hincrby")
 	args = append(args, key)
@@ -474,7 +620,10 @@ func (c RedisClusterClient[C]) HIncrBy(key, field string, delta int, callback Re
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) HIncrByFloat(key, field string, delta float64, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) HIncrByFloat(key, field string, delta float64, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "hincrbyfloat")
 	args = append(args, key)
@@ -484,14 +633,20 @@ func (c RedisClusterClient[C]) HIncrByFloat(key, field string, delta float64, ca
 }
 
 // Set
-func (c RedisClusterClient[C]) SCard(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SCard(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "scard")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SAdd(key string, vals []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SAdd(key string, vals []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sadd")
 	args = append(args, key)
@@ -501,7 +656,10 @@ func (c RedisClusterClient[C]) SAdd(key string, vals []interface{}, callback Red
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SRem(key string, vals []interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SRem(key string, vals []interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "srem")
 	args = append(args, key)
@@ -511,7 +669,10 @@ func (c RedisClusterClient[C]) SRem(key string, vals []interface{}, callback Red
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SIsMember(key string, value interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SIsMember(key string, value interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sismember")
 	args = append(args, key)
@@ -519,14 +680,20 @@ func (c RedisClusterClient[C]) SIsMember(key string, value interface{}, callback
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SMembers(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SMembers(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "smembers")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SDiff(key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SDiff(key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sdiff")
 	args = append(args, key1)
@@ -534,7 +701,10 @@ func (c RedisClusterClient[C]) SDiff(key1, key2 string, callback RedisResponseCa
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SDiffStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SDiffStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sdiffstore")
 	args = append(args, destination)
@@ -543,7 +713,10 @@ func (c RedisClusterClient[C]) SDiffStore(destination, key1, key2 string, callba
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SInter(key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SInter(key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sinter")
 	args = append(args, key1)
@@ -551,7 +724,10 @@ func (c RedisClusterClient[C]) SInter(key1, key2 string, callback RedisResponseC
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SInterStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SInterStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sinterstore")
 	args = append(args, destination)
@@ -560,7 +736,10 @@ func (c RedisClusterClient[C]) SInterStore(destination, key1, key2 string, callb
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SUnion(key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SUnion(key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sunion")
 	args = append(args, key1)
@@ -568,7 +747,10 @@ func (c RedisClusterClient[C]) SUnion(key1, key2 string, callback RedisResponseC
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) SUnionStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) SUnionStore(destination, key1, key2 string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "sunionstore")
 	args = append(args, destination)
@@ -578,14 +760,20 @@ func (c RedisClusterClient[C]) SUnionStore(destination, key1, key2 string, callb
 }
 
 // ZSet
-func (c RedisClusterClient[C]) ZCard(key string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZCard(key string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zcard")
 	args = append(args, key)
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZAdd(key string, msMap map[string]interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZAdd(key string, msMap map[string]interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zadd")
 	args = append(args, key)
@@ -596,7 +784,10 @@ func (c RedisClusterClient[C]) ZAdd(key string, msMap map[string]interface{}, ca
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZCount(key string, min interface{}, max interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZCount(key string, min interface{}, max interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zcount")
 	args = append(args, key)
@@ -605,7 +796,10 @@ func (c RedisClusterClient[C]) ZCount(key string, min interface{}, max interface
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZIncrBy(key string, member string, delta interface{}, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZIncrBy(key string, member string, delta interface{}, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zincrby")
 	args = append(args, key)
@@ -614,7 +808,10 @@ func (c RedisClusterClient[C]) ZIncrBy(key string, member string, delta interfac
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZScore(key, member string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZScore(key, member string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zscore")
 	args = append(args, key)
@@ -622,7 +819,10 @@ func (c RedisClusterClient[C]) ZScore(key, member string, callback RedisResponse
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZRank(key, member string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZRank(key, member string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zrank")
 	args = append(args, key)
@@ -630,7 +830,10 @@ func (c RedisClusterClient[C]) ZRank(key, member string, callback RedisResponseC
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZRevRank(key, member string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZRevRank(key, member string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zrevrank")
 	args = append(args, key)
@@ -638,7 +841,10 @@ func (c RedisClusterClient[C]) ZRevRank(key, member string, callback RedisRespon
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZRem(key string, members []string, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZRem(key string, members []string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zrem")
 	args = append(args, key)
@@ -648,7 +854,10 @@ func (c RedisClusterClient[C]) ZRem(key string, members []string, callback Redis
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZRange(key string, start, stop int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZRange(key string, start, stop int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zrange")
 	args = append(args, key)
@@ -657,7 +866,10 @@ func (c RedisClusterClient[C]) ZRange(key string, start, stop int, callback Redi
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c RedisClusterClient[C]) ZRevRange(key string, start, stop int, callback RedisResponseCallback) error {
+func (c *RedisClusterClient[C]) ZRevRange(key string, start, stop int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
 	args := make([]interface{}, 0)
 	args = append(args, "zrevrange")
 	args = append(args, key)

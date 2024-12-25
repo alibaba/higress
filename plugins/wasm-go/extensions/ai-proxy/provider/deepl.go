@@ -76,19 +76,17 @@ func (d *deeplProvider) GetProviderType() string {
 	return providerTypeDeepl
 }
 
-func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteRequestPathHeader(headers, deeplChatCompletionPath)
 	util.OverwriteRequestAuthorizationHeader(headers, "DeepL-Auth-Key "+d.config.GetApiTokenInUse(ctx))
-	headers.Del("Content-Length")
-	headers.Del("Accept-Encoding")
 }
 
 func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
