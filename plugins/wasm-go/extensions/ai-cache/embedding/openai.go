@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -31,11 +30,10 @@ type openAIProviderConfig struct {
 func (c *openAIProviderInitializer) InitConfig(json gjson.Result) {
 	openAIConfig.apiKey = json.Get("apiKey").String()
 }
+
 func (c *openAIProviderInitializer) ValidateConfig() error {
 	if openAIConfig.apiKey == "" {
-		return errors.New("[Cohere] apiKey is required")
-	}
-	return nil
+		return errors.New("[openAI] apiKey is required")
 }
 
 func (t *openAIProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
