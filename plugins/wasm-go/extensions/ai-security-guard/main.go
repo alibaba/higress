@@ -53,8 +53,10 @@ const (
 	DefaultStreamingResponseJsonPath = "choices.0.delta.content"
 	DefaultDenyCode                  = 200
 	DefaultDenyMessage               = "很抱歉，我无法回答您的问题"
+	DefaultTimeout                   = 2000
 
 	AliyunUserAgent = "CIPFrom/AIGateway"
+	LengthLimit     = 1800
 )
 
 type Response struct {
@@ -99,6 +101,7 @@ type AISecurityConfig struct {
 	denyMessage                   string
 	protocolOriginal              bool
 	riskLevelBar                  string
+	timeout                       uint32
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -224,6 +227,11 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 	} else {
 		config.riskLevelBar = HighRisk
 	}
+	if obj := json.Get("timeout"); obj.Exists() {
+		config.timeout = uint32(obj.Int())
+	} else {
+		config.timeout = DefaultTimeout
+	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
@@ -252,6 +260,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("checking request body...")
+	startTime := time.Now().UnixMilli()
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext("requestModel", model)
@@ -260,73 +269,103 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 		log.Info("request content is empty. skip")
 		return types.ActionContinue
 	}
-	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	randomID, _ := generateHexID(16)
-	params := map[string]string{
-		"Format":            "JSON",
-		"Version":           "2022-03-02",
-		"SignatureMethod":   "Hmac-SHA1",
-		"SignatureNonce":    randomID,
-		"SignatureVersion":  "1.0",
-		"Action":            "TextModerationPlus",
-		"AccessKeyId":       config.ak,
-		"Timestamp":         timestamp,
-		"Service":           config.requestCheckService,
-		"ServiceParameters": fmt.Sprintf(`{"content": "%s"}`, marshalStr(content, log)),
-	}
-	if config.token != "" {
-		params["SecurityToken"] = config.token
-	}
-	signature := getSign(params, config.sk+"&")
-	reqParams := url.Values{}
-	for k, v := range params {
-		reqParams.Add(k, v)
-	}
-	reqParams.Add("Signature", signature)
-	err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
-		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Info(string(responseBody))
-			if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+	contentIndex := 0
+	sessionID, _ := generateHexID(20)
+	var singleCall func()
+	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		var response Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Error("failed to unmarshal aliyun content security response at request phase")
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
+			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "request pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 				proxywasm.ResumeHttpRequest()
-				return
-			}
-			var response Response
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				log.Error("failed to unmarshal aliyun content security response at request phase")
-				proxywasm.ResumeHttpRequest()
-				return
-			}
-			if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
-				proxywasm.ResumeHttpRequest()
-				return
-			}
-			denyMessage := DefaultDenyMessage
-			if config.denyMessage != "" {
-				denyMessage = config.denyMessage
-			} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-				denyMessage = response.Data.Advice[0].Answer
-			}
-			marshalledDenyMessage := marshalStr(denyMessage, log)
-			if config.protocolOriginal {
-				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
-			} else if gjson.GetBytes(body, "stream").Bool() {
-				randomID := generateRandomID()
-				jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
-				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 			} else {
-				randomID := generateRandomID()
-				jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
-				proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+				singleCall()
 			}
-			ctx.DontReadResponseBody()
-			config.incrementCounter("ai_sec_request_deny", 1)
-		},
-	)
-	if err != nil {
-		log.Errorf("failed call the safe check service: %v", err)
-		return types.ActionContinue
+			return
+		}
+		denyMessage := DefaultDenyMessage
+		if config.denyMessage != "" {
+			denyMessage = config.denyMessage
+		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
+			denyMessage = response.Data.Advice[0].Answer
+		}
+		marshalledDenyMessage := marshalStr(denyMessage, log)
+		if config.protocolOriginal {
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
+		} else if gjson.GetBytes(body, "stream").Bool() {
+			randomID := generateRandomID()
+			jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+		} else {
+			randomID := generateRandomID()
+			jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+		}
+		ctx.DontReadResponseBody()
+		config.incrementCounter("ai_sec_request_deny", 1)
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
+		if response.Data.Advice != nil {
+			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
+			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
+		}
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	}
+	singleCall = func() {
+		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+		randomID, _ := generateHexID(16)
+		var nextContentIndex int
+		if contentIndex+LengthLimit >= len(content) {
+			nextContentIndex = len(content)
+		} else {
+			nextContentIndex = contentIndex + LengthLimit
+		}
+		contentPiece := content[contentIndex:nextContentIndex]
+		contentIndex = nextContentIndex
+		log.Debugf("current content piece: %s", contentPiece)
+		params := map[string]string{
+			"Format":            "JSON",
+			"Version":           "2022-03-02",
+			"SignatureMethod":   "Hmac-SHA1",
+			"SignatureNonce":    randomID,
+			"SignatureVersion":  "1.0",
+			"Action":            "TextModerationPlus",
+			"AccessKeyId":       config.ak,
+			"Timestamp":         timestamp,
+			"Service":           config.requestCheckService,
+			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, sessionID, marshalStr(contentPiece, log)),
+		}
+		if config.token != "" {
+			params["SecurityToken"] = config.token
+		}
+		signature := getSign(params, config.sk+"&")
+		reqParams := url.Values{}
+		for k, v := range params {
+			reqParams.Add(k, v)
+		}
+		reqParams.Add("Signature", signature)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
+		if err != nil {
+			log.Errorf("failed call the safe check service: %v", err)
+			proxywasm.ResumeHttpRequest()
+		}
+	}
+	singleCall()
 	return types.ActionPause
 }
 
@@ -339,40 +378,26 @@ func convertHeaders(hs [][2]string) map[string][]string {
 	return ret
 }
 
-// headers: map[string][]string -> [][2]string
-func reconvertHeaders(hs map[string][]string) [][2]string {
-	var ret [][2]string
-	for k, vs := range hs {
-		for _, v := range vs {
-			ret = append(ret, [2]string{k, v})
-		}
-	}
-	sort.SliceStable(ret, func(i, j int) bool {
-		return ret[i][0] < ret[j][0]
-	})
-	return ret
-}
-
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
 	if !config.checkResponse {
 		log.Debugf("response checking is disabled")
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	headers, err := proxywasm.GetHttpResponseHeaders()
-	if err != nil {
-		log.Warnf("failed to get response headers: %v", err)
+	statusCode, _ := proxywasm.GetHttpResponseHeader(":status")
+	if statusCode != "200" {
+		log.Debugf("response is not 200, skip response body check")
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	hdsMap := convertHeaders(headers)
-	ctx.SetContext("headers", hdsMap)
 	return types.HeaderStopIteration
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("checking response body...")
-	hdsMap := ctx.GetContext("headers").(map[string][]string)
-	isStreamingResponse := strings.Contains(strings.Join(hdsMap["content-type"], ";"), "event-stream")
+	startTime := time.Now().UnixMilli()
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	isStreamingResponse := strings.Contains(contentType, "event-stream")
 	model := ctx.GetStringContext("requestModel", "unknown")
 	var content string
 	if isStreamingResponse {
@@ -385,73 +410,102 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 		log.Info("response content is empty. skip")
 		return types.ActionContinue
 	}
-	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	randomID, _ := generateHexID(16)
-	params := map[string]string{
-		"Format":            "JSON",
-		"Version":           "2022-03-02",
-		"SignatureMethod":   "Hmac-SHA1",
-		"SignatureNonce":    randomID,
-		"SignatureVersion":  "1.0",
-		"Action":            "TextModerationPlus",
-		"AccessKeyId":       config.ak,
-		"Timestamp":         timestamp,
-		"Service":           config.responseCheckService,
-		"ServiceParameters": fmt.Sprintf(`{"content": "%s"}`, marshalStr(content, log)),
-	}
-	if config.token != "" {
-		params["SecurityToken"] = config.token
-	}
-	signature := getSign(params, config.sk+"&")
-	reqParams := url.Values{}
-	for k, v := range params {
-		reqParams.Add(k, v)
-	}
-	reqParams.Add("Signature", signature)
-	err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil,
-		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			defer proxywasm.ResumeHttpResponse()
-			log.Info(string(responseBody))
-			if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
-				return
-			}
-			var response Response
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				log.Error("failed to unmarshal aliyun content security response at response phase")
-				return
-			}
-			if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
-				return
-			}
-			denyMessage := DefaultDenyMessage
-			if config.denyMessage != "" {
-				denyMessage = config.denyMessage
-			} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-				denyMessage = response.Data.Advice[0].Answer
-			}
-			marshalledDenyMessage := marshalStr(denyMessage, log)
-			var jsonData []byte
-			if config.protocolOriginal {
-				jsonData = []byte(marshalledDenyMessage)
-			} else if isStreamingResponse {
-				randomID := generateRandomID()
-				jsonData = []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
+	contentIndex := 0
+	sessionID, _ := generateHexID(20)
+	var singleCall func()
+	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			proxywasm.ResumeHttpResponse()
+			return
+		}
+		var response Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Error("failed to unmarshal aliyun content security response at response phase")
+			proxywasm.ResumeHttpResponse()
+			return
+		}
+		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
+			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "response pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+				proxywasm.ResumeHttpResponse()
 			} else {
-				randomID := generateRandomID()
-				jsonData = []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
+				singleCall()
 			}
-			delete(hdsMap, "content-length")
-			hdsMap[":status"] = []string{fmt.Sprint(config.denyCode)}
-			proxywasm.ReplaceHttpResponseHeaders(reconvertHeaders(hdsMap))
-			proxywasm.ReplaceHttpResponseBody(jsonData)
-			config.incrementCounter("ai_sec_response_deny", 1)
-		},
-	)
-	if err != nil {
-		log.Errorf("failed call the safe check service: %v", err)
-		return types.ActionContinue
+			return
+		}
+		denyMessage := DefaultDenyMessage
+		if config.denyMessage != "" {
+			denyMessage = config.denyMessage
+		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
+			denyMessage = response.Data.Advice[0].Answer
+		}
+		marshalledDenyMessage := marshalStr(denyMessage, log)
+		if config.protocolOriginal {
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
+		} else if isStreamingResponse {
+			randomID := generateRandomID()
+			jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, model, marshalledDenyMessage, randomID, model))
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+		} else {
+			randomID := generateRandomID()
+			jsonData := []byte(fmt.Sprintf(OpenAIResponseFormat, randomID, model, marshalledDenyMessage))
+			proxywasm.SendHttpResponse(uint32(config.denyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+		}
+		config.incrementCounter("ai_sec_response_deny", 1)
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "response deny")
+		if response.Data.Advice != nil {
+			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
+			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
+		}
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	}
+	singleCall = func() {
+		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+		randomID, _ := generateHexID(16)
+		var nextContentIndex int
+		if contentIndex+LengthLimit >= len(content) {
+			nextContentIndex = len(content)
+		} else {
+			nextContentIndex = contentIndex + LengthLimit
+		}
+		contentPiece := content[contentIndex:nextContentIndex]
+		contentIndex = nextContentIndex
+		log.Debugf("current content piece: %s", contentPiece)
+		params := map[string]string{
+			"Format":            "JSON",
+			"Version":           "2022-03-02",
+			"SignatureMethod":   "Hmac-SHA1",
+			"SignatureNonce":    randomID,
+			"SignatureVersion":  "1.0",
+			"Action":            "TextModerationPlus",
+			"AccessKeyId":       config.ak,
+			"Timestamp":         timestamp,
+			"Service":           config.responseCheckService,
+			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, sessionID, marshalStr(contentPiece, log)),
+		}
+		if config.token != "" {
+			params["SecurityToken"] = config.token
+		}
+		signature := getSign(params, config.sk+"&")
+		reqParams := url.Values{}
+		for k, v := range params {
+			reqParams.Add(k, v)
+		}
+		reqParams.Add("Signature", signature)
+		err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
+		if err != nil {
+			log.Errorf("failed call the safe check service: %v", err)
+			proxywasm.ResumeHttpResponse()
+		}
+	}
+	singleCall()
 	return types.ActionPause
 }
 

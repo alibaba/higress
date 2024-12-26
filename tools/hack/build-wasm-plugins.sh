@@ -33,6 +33,7 @@ elif [ "$TYPE" == "RUST" ]
 then
     cd ./plugins/wasm-rust/
     make lint-base
+    make test-base
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
         EXTENSIONS_DIR=$(pwd)"/extensions/"
         echo "🚀 Build all Rust WasmPlugins under folder of $EXTENSIONS_DIR"
@@ -42,6 +43,7 @@ then
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
                     PLUGIN_NAME=${name} make lint 
+                    PLUGIN_NAME=${name} make test 
                     PLUGIN_NAME=${name} make build
                 fi
             done

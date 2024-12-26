@@ -46,6 +46,7 @@ const (
 	providerTypeCohere     = "cohere"
 	providerTypeDoubao     = "doubao"
 	providerTypeCoze       = "coze"
+	providerTypeTogetherAI = "together-ai"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -58,7 +59,9 @@ const (
 	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming = "incrementalStreaming"
-	ctxKeyApiName              = "apiKey"
+	ctxKeyApiKey               = "apiKey"
+	CtxKeyApiName              = "apiName"
+	ctxKeyIsStreaming          = "isStreaming"
 	ctxKeyStreamingBody        = "streamingBody"
 	ctxKeyOriginalRequestModel = "originalRequestModel"
 	ctxKeyFinalRequestModel    = "finalRequestModel"
@@ -106,6 +109,7 @@ var (
 		providerTypeCohere:     &cohereProviderInitializer{},
 		providerTypeDoubao:     &doubaoProviderInitializer{},
 		providerTypeCoze:       &cozeProviderInitializer{},
+		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 	}
 )
 
@@ -113,20 +117,24 @@ type Provider interface {
 	GetProviderType() string
 }
 
-type ApiNameHandler interface {
-	GetApiName(path string) ApiName
-}
-
 type RequestHeadersHandler interface {
-	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
-}
-
-type TransformRequestHeadersHandler interface {
-	TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log)
+	OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error
 }
 
 type RequestBodyHandler interface {
 	OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+}
+
+type StreamingResponseBodyHandler interface {
+	OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error)
+}
+
+type ApiNameHandler interface {
+	GetApiName(path string) ApiName
+}
+
+type TransformRequestHeadersHandler interface {
+	TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log)
 }
 
 type TransformRequestBodyHandler interface {
@@ -134,21 +142,23 @@ type TransformRequestBodyHandler interface {
 }
 
 // TransformRequestBodyHeadersHandler allows to transform request headers based on the request body.
-// Some providers (e.g. baidu, gemini) transform request headers (e.g., path) based on the request body (e.g., model).
+// Some providers (e.g. gemini) transform request headers (e.g., path) based on the request body (e.g., model).
 type TransformRequestBodyHeadersHandler interface {
 	TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error)
 }
 
-type ResponseHeadersHandler interface {
-	OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error)
+type TransformResponseHeadersHandler interface {
+	TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log)
 }
 
-type StreamingResponseBodyHandler interface {
-	OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error)
+type TransformResponseBodyHandler interface {
+	TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error)
 }
 
-type ResponseBodyHandler interface {
-	OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error)
+// TickFuncHandler allows the provider to execute a function periodically
+// Use case: the maximum expiration time of baidu apiToken is 24 hours, need to refresh periodically
+type TickFuncHandler interface {
+	GetTickFunc(log wrapper.Log) (tickPeriod int64, tickFunc func())
 }
 
 type ProviderConfig struct {
@@ -167,6 +177,9 @@ type ProviderConfig struct {
 	// @Title zh-CN apiToken 故障切换
 	// @Description zh-CN 当 apiToken 不可用时移出 apiTokens 列表，对移除的 apiToken 进行健康检查，当重新可用后加回 apiTokens 列表
 	failover *failover `required:"false" yaml:"failover" json:"failover"`
+	// @Title zh-CN 失败请求重试
+	// @Description zh-CN 对失败的请求立即进行重试
+	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
 	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
@@ -182,6 +195,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 启用通义千问搜索服务
 	// @Description zh-CN 仅适用于通义千问服务，表示是否启用通义千问的互联网搜索功能。
 	qwenEnableSearch bool `required:"false" yaml:"qwenEnableSearch" json:"qwenEnableSearch"`
+	// @Title zh-CN 通义千问服务域名
+	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 dashscope.aliyuncs.com, 当使用金融云服务时，可以设置为 dashscope-finance.aliyuncs.com
+	qwenDomain string `required:"false" yaml:"qwenDomain" json:"qwenDomain"`
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
@@ -197,8 +213,11 @@ type ProviderConfig struct {
 	// @Title zh-CN hunyuan api id for authorization
 	// @Description zh-CN 仅适用于Hun Yuan AI服务鉴权
 	hunyuanAuthId string `required:"false" yaml:"hunyuanAuthId" json:"hunyuanAuthId"`
+	// @Title zh-CN minimax API type
+	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
+	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
 	// @Title zh-CN minimax group id
-	// @Description zh-CN 仅适用于minimax使用ChatCompletion Pro接口的模型
+	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型为 pro 时必填
 	minimaxGroupId string `required:"false" yaml:"minimaxGroupId" json:"minimaxGroupId"`
 	// @Title zh-CN 模型名称映射表
 	// @Description zh-CN 用于将请求中的模型名称映射为目标AI服务商支持的模型名称。支持通过“*”来配置全局映射
@@ -227,6 +246,17 @@ type ProviderConfig struct {
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
+	// @Title zh-CN Baidu 的 Access Key 和 Secret Key，中间用 : 分隔，用于申请 apiToken
+	baiduAccessKeyAndSecret []string `required:"false" yaml:"baiduAccessKeyAndSecret" json:"baiduAccessKeyAndSecret"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务名称
+	baiduApiTokenServiceName string `required:"false" yaml:"baiduApiTokenServiceName" json:"baiduApiTokenServiceName"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务域名
+	baiduApiTokenServiceHost string `required:"false" yaml:"baiduApiTokenServiceHost" json:"baiduApiTokenServiceHost"`
+	// @Title zh-CN 请求刷新百度 apiToken 服务端口
+	baiduApiTokenServicePort int64 `required:"false" yaml:"baiduApiTokenServicePort" json:"baiduApiTokenServicePort"`
+	// @Title zh-CN 是否使用全局的 apiToken
+	// @Description zh-CN 如果没有启用 apiToken failover，但是 apiToken 的状态又需要在多个 Wasm VM 中同步时需要将该参数设置为 true，例如 Baidu 的 apiToken 需要定时刷新
+	useGlobalApiToken bool `required:"false" yaml:"useGlobalApiToken" json:"useGlobalApiToken"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -261,6 +291,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	c.qwenDomain = json.Get("qwenDomain").String()
+	if c.qwenDomain != "" {
+		// TODO: validate the domain, if not valid, set to default
+	}
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -279,6 +313,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.claudeVersion = json.Get("claudeVersion").String()
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
+	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
 	if c.typ == providerTypeGemini {
@@ -321,6 +356,27 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if failoverJson.Exists() {
 		c.failover.FromJson(failoverJson)
 	}
+
+	retryOnFailureJson := json.Get("retryOnFailure")
+	c.retryOnFailure = &retryOnFailure{
+		enabled: false,
+	}
+	if retryOnFailureJson.Exists() {
+		c.retryOnFailure.FromJson(retryOnFailureJson)
+	}
+
+	for _, accessKeyAndSecret := range json.Get("baiduAccessKeyAndSecret").Array() {
+		c.baiduAccessKeyAndSecret = append(c.baiduAccessKeyAndSecret, accessKeyAndSecret.String())
+	}
+	c.baiduApiTokenServiceName = json.Get("baiduApiTokenServiceName").String()
+	c.baiduApiTokenServiceHost = json.Get("baiduApiTokenServiceHost").String()
+	if c.baiduApiTokenServiceHost == "" {
+		c.baiduApiTokenServiceHost = baiduApiTokenDomain
+	}
+	c.baiduApiTokenServicePort = json.Get("baiduApiTokenServicePort").Int()
+	if c.baiduApiTokenServicePort == 0 {
+		c.baiduApiTokenServicePort = baiduApiTokenPort
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -356,10 +412,10 @@ func (c *ProviderConfig) Validate() error {
 }
 
 func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
-	ctxApiKey := ctx.GetContext(ctxKeyApiName)
+	ctxApiKey := ctx.GetContext(ctxKeyApiKey)
 	if ctxApiKey == nil {
 		ctxApiKey = c.GetRandomToken()
-		ctx.SetContext(ctxKeyApiName, ctxApiKey)
+		ctx.SetContext(ctxKeyApiKey, ctxApiKey)
 	}
 	return ctxApiKey.(string)
 }
@@ -403,6 +459,9 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 		streaming := req.Stream
 		if streaming {
 			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+			ctx.SetContext(ctxKeyIsStreaming, true)
+		} else {
+			ctx.SetContext(ctxKeyIsStreaming, false)
 		}
 
 		return c.setRequestModel(ctx, req, log)
@@ -497,9 +556,9 @@ func (c *ProviderConfig) handleRequestBody(
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body, log)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalHttpHeaders()
+		headers := util.GetOriginalRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers, log)
-		util.ReplaceOriginalHttpHeaders(headers)
+		util.ReplaceRequestHeaders(headers)
 	} else {
 		body, err = c.defaultTransformRequestBody(ctx, apiName, body, log)
 	}
@@ -508,9 +567,14 @@ func (c *ProviderConfig) handleRequestBody(
 		return types.ActionContinue, err
 	}
 
+	// If retryOnFailure is enabled, save the transformed body to the context in case of retry
+	if c.isRetryOnFailureEnabled() {
+		ctx.SetContext(ctxRequestBody, body)
+	}
+
 	if apiName == ApiNameChatCompletion {
 		if c.context == nil {
-			return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+			return types.ActionContinue, replaceRequestBody(body, log)
 		}
 		err = contextCache.GetContextFromFile(ctx, provider, body, log)
 
@@ -519,14 +583,14 @@ func (c *ProviderConfig) handleRequestBody(
 		}
 		return types.ActionContinue, err
 	}
-	return types.ActionContinue, replaceHttpJsonRequestBody(body, log)
+	return types.ActionContinue, replaceRequestBody(body, log)
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) {
+	headers := util.GetOriginalRequestHeaders()
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
-		originalHeaders := util.GetOriginalHttpHeaders()
-		handler.TransformRequestHeaders(ctx, apiName, originalHeaders, log)
-		util.ReplaceOriginalHttpHeaders(originalHeaders)
+		handler.TransformRequestHeaders(ctx, apiName, headers, log)
+		util.ReplaceRequestHeaders(headers)
 	}
 }
 
@@ -541,4 +605,12 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 		return nil, err
 	}
 	return json.Marshal(request)
+}
+
+func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
+	if c.protocol == protocolOriginal {
+		ctx.DontReadResponseBody()
+	} else {
+		headers.Del("Content-Length")
+	}
 }

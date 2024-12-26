@@ -13,8 +13,10 @@ const (
 	MimeTypeApplicationJson = "application/json"
 )
 
-func SendResponse(statusCode uint32, statusCodeDetails string, contentType, body string) error {
-	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetails, CreateHeaders(HeaderContentType, contentType), []byte(body), -1)
+type ErrorHandlerFunc func(statusCodeDetails string, err error) error
+
+var ErrorHandler ErrorHandlerFunc = func(statusCodeDetails string, err error) error {
+	return proxywasm.SendHttpResponseWithDetail(500, statusCodeDetails, CreateHeaders(HeaderContentType, MimeTypeTextPlain), []byte(err.Error()), -1)
 }
 
 func CreateHeaders(kvs ...string) [][2]string {
@@ -84,12 +86,22 @@ func SliceToHeader(slice [][2]string) http.Header {
 	return header
 }
 
-func GetOriginalHttpHeaders() http.Header {
+func GetOriginalRequestHeaders() http.Header {
 	originalHeaders, _ := proxywasm.GetHttpRequestHeaders()
 	return SliceToHeader(originalHeaders)
 }
 
-func ReplaceOriginalHttpHeaders(headers http.Header) {
+func GetOriginalResponseHeaders() http.Header {
+	originalHeaders, _ := proxywasm.GetHttpResponseHeaders()
+	return SliceToHeader(originalHeaders)
+}
+
+func ReplaceRequestHeaders(headers http.Header) {
 	modifiedHeaders := HeaderToSlice(headers)
 	_ = proxywasm.ReplaceHttpRequestHeaders(modifiedHeaders)
+}
+
+func ReplaceResponseHeaders(headers http.Header) {
+	modifiedHeaders := HeaderToSlice(headers)
+	_ = proxywasm.ReplaceHttpResponseHeaders(modifiedHeaders)
 }

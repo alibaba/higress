@@ -40,8 +40,6 @@ global:
   enableIstioAPI: true
   # -- If true, Higress Controller will monitor Gateway API resources as well
   enableGatewayAPI: false
-  # Deprecated
-  enableHigressIstio: false
   # -- Used to locate istiod.
   istioNamespace: istio-system
   # -- enable pod disruption budget for the control plane, which is used to
@@ -467,6 +465,7 @@ gateway:
   # On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl.
   securityContext: ~
   containerSecurityContext: ~
+  unprivilegedPortSupported: ~
 
   service:
     # -- Type of service. Set to "None" to disable the service entirely

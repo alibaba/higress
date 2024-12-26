@@ -114,13 +114,13 @@ func (m *hunyuanProvider) GetProviderType() string {
 	return providerTypeHunyuan
 }
 
-func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
+func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
-	return types.HeaderStopIteration, nil
+	return nil
 }
 
 func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
@@ -128,11 +128,8 @@ func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 	util.OverwriteRequestPathHeader(headers, hunyuanRequestPath)
 
 	// 添加 hunyuan 需要的自定义字段
-	headers.Add(actionKey, hunyuanChatCompletionTCAction)
-	headers.Add(versionKey, versionValue)
-
-	headers.Del("Accept-Encoding")
-	headers.Del("Content-Length")
+	headers.Set(actionKey, hunyuanChatCompletionTCAction)
+	headers.Set(versionKey, versionValue)
 }
 
 // hunyuan 的 OnRequestBody 逻辑中包含了对 headers 签名的逻辑，并且插入 context 以后还要重新计算签名，因此无法复用 handleRequestBody 方法
@@ -172,7 +169,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 			if err != nil {
 				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.hunyuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+				util.ErrorHandler("ai-proxy.hunyuan.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 			}
 			m.insertContextMessageIntoHunyuanRequest(request, content)
 
@@ -182,7 +179,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+				util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 			}
 		}, log)
 		if err == nil {
@@ -244,7 +241,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		}()
 		if err != nil {
 			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.hunyuan.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
+			util.ErrorHandler("ai-proxy.hunyuan.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 			return
 		}
 		insertContextMessage(request, content)
@@ -256,7 +253,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
 		if err := replaceJsonRequestBody(hunyuanRequest, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.hunyuan.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
+			util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 		}
 	}, log)
 	if err == nil {
@@ -289,11 +286,6 @@ func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, a
 	)
 	util.OverwriteRequestAuthorizationHeader(headers, authorizedValueNew)
 	return json.Marshal(hunyuanRequest)
-}
-
-func (m *hunyuanProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
 }
 
 func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
@@ -412,21 +404,14 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	return []byte(openAIChunk.String()), nil
 }
 
-func (m *hunyuanProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-
+func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	log.Debugf("#debug nash5# onRespBody's resp is: %s", string(body))
 	hunyuanResponse := &hunyuanTextGenResponseNonStreaming{}
 	if err := json.Unmarshal(body, hunyuanResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal hunyuan response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal hunyuan response: %v", err)
 	}
-
-	if m.config.protocol == protocolOriginal {
-		return types.ActionContinue, replaceJsonResponseBody(hunyuanResponse, log)
-	}
-
 	response := m.buildChatCompletionResponse(ctx, hunyuanResponse)
-
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 func (m *hunyuanProvider) insertContextMessageIntoHunyuanRequest(request *hunyuanTextGenRequest, content string) {
