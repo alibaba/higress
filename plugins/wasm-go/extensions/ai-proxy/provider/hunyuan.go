@@ -288,11 +288,6 @@ func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, a
 	return json.Marshal(hunyuanRequest)
 }
 
-func (m *hunyuanProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
-}
-
 func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if m.config.protocol == protocolOriginal {
 		return chunk, nil
@@ -409,21 +404,14 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	return []byte(openAIChunk.String()), nil
 }
 
-func (m *hunyuanProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-
+func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	log.Debugf("#debug nash5# onRespBody's resp is: %s", string(body))
 	hunyuanResponse := &hunyuanTextGenResponseNonStreaming{}
 	if err := json.Unmarshal(body, hunyuanResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal hunyuan response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal hunyuan response: %v", err)
 	}
-
-	if m.config.protocol == protocolOriginal {
-		return types.ActionContinue, replaceJsonResponseBody(hunyuanResponse, log)
-	}
-
 	response := m.buildChatCompletionResponse(ctx, hunyuanResponse)
-
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 func (m *hunyuanProvider) insertContextMessageIntoHunyuanRequest(request *hunyuanTextGenRequest, content string) {
