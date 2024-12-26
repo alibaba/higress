@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -8,17 +9,6 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
-
-func handleNonLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
-	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
-	err := error(nil)
-	if stream == nil {
-		err = handleNonStreamChunk(ctx, c, chunk, log)
-	} else {
-		err = handleStreamChunk(ctx, c, chunk, log)
-	}
-	return err
-}
 
 func handleNonStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
 	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
@@ -30,6 +20,12 @@ func handleNonStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk 
 	tempContent = append(tempContent, chunk...)
 	ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContent)
 	return nil
+}
+
+func unifySSEChunk(data []byte) []byte {
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
+	return data
 }
 
 func handleStreamChunk(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, log wrapper.Log) error {
@@ -103,7 +99,7 @@ func processStreamLastChunk(ctx wrapper.HttpContext, c config.PluginConfig, chun
 func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessage string, log wrapper.Log) (string, error) {
 	content := ""
 	for _, chunk := range strings.Split(sseMessage, "\n\n") {
-		log.Infof("chunk _ : %s", chunk)
+		log.Debugf("single sse message: %s", chunk)
 		subMessages := strings.Split(chunk, "\n")
 		var message string
 		for _, msg := range subMessages {
@@ -140,19 +136,15 @@ func processSSEMessage(ctx wrapper.HttpContext, c config.PluginConfig, sseMessag
 			}
 			return content, fmt.Errorf("[processSSEMessage] unable to extract content from message; cache content is nil: %s", message)
 		} else {
-			tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
-
-			// If there is no content in the cache, initialize and set the content
-			if tempContentI == nil {
-				content = responseBody.String()
-				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
-			} else {
-				// Update the content in the cache
-				appendMsg := responseBody.String()
-				content = tempContentI.(string) + appendMsg
-				ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
-			}
+			content += responseBody.String()
 		}
+	}
+	tempContentI := ctx.GetContext(CACHE_CONTENT_CONTEXT_KEY)
+	// If there is no content in the cache, initialize and set the content
+	if tempContentI == nil {
+		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, content)
+	} else {
+		ctx.SetContext(CACHE_CONTENT_CONTEXT_KEY, tempContentI.(string)+content)
 	}
 	return content, nil
 }
