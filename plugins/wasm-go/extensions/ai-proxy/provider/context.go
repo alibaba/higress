@@ -151,7 +151,7 @@ func insertContext(provider Provider, content string, err error, body []byte, lo
 	if err != nil {
 		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.insert_ctx_failed", typ), fmt.Errorf("failed to insert context message: %v", err))
 	}
-	if err := replaceHttpJsonRequestBody(body, log); err != nil {
+	if err := replaceRequestBody(body, log); err != nil {
 		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.replace_request_body_failed", typ), fmt.Errorf("failed to replace request body: %v", err))
 	}
 }

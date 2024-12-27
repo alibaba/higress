@@ -144,19 +144,16 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, heade
 	return sjson.SetBytes(body, "model", mappedModel)
 }
 
-func (m *minimaxProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	// Skip OnStreamingResponseBody() and OnResponseBody() when using original protocol.
+// Skip OnStreamingResponseBody() and OnResponseBody() when using original protocol.
+func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
 	}
+
 	// Skip OnStreamingResponseBody() and OnResponseBody() when the model corresponds to the chat completion V2 interface.
 	if minimaxApiTypePro != m.config.minimaxApiType {
 		ctx.DontReadResponseBody()
-		return types.ActionContinue, nil
 	}
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
 }
 
 // OnStreamingResponseBody handles streaming response chunks from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
@@ -196,16 +193,16 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 }
 
 // OnResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
-func (m *minimaxProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	minimaxResp := &minimaxChatCompletionV2Resp{}
 	if err := json.Unmarshal(body, minimaxResp); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal minimax response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal minimax response: %v", err)
 	}
 	if minimaxResp.BaseResp.StatusCode != 0 {
-		return types.ActionContinue, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
+		return nil, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
 	}
 	response := m.responseV2ToOpenAI(minimaxResp)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 // minimaxChatCompletionV2Request represents the structure of a chat completion V2 request.
