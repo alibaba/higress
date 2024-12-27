@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"net/http"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -18,9 +20,21 @@ const (
 type openAIProviderInitializer struct {
 }
 
-func (t *openAIProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	if config.apiKey == "" {
-		return errors.New("[OpenAI] embedding service ApiKey is required")
+var openAIConfig openAIProviderConfig
+
+type openAIProviderConfig struct {
+	// @Title zh-CN 文本特征提取服务 API Key
+	// @Description zh-CN 文本特征提取服务 API Key
+	apiKey string
+}
+
+func (c *openAIProviderInitializer) InitConfig(json gjson.Result) {
+	openAIConfig.apiKey = json.Get("apiKey").String()
+}
+
+func (c *openAIProviderInitializer) ValidateConfig() error {
+	if openAIConfig.apiKey == "" {
+		return errors.New("[openAI] apiKey is required")
 	}
 	return nil
 }
@@ -97,7 +111,7 @@ func (t *OpenAIProvider) constructParameters(text string, log wrapper.Log) (stri
 	}
 
 	headers := [][2]string{
-		{"Authorization", fmt.Sprintf("Bearer %s", t.config.apiKey)},
+		{"Authorization", fmt.Sprintf("Bearer %s", openAIConfig.apiKey)},
 		{"Content-Type", "application/json"},
 	}
 
