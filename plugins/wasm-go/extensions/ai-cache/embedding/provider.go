@@ -76,8 +76,7 @@ func (c *ProviderConfig) Validate() error {
 	if c.typ == "" {
 		return errors.New("embedding service type is required")
 	}
-	_, has := providerInitializers[c.typ]
-	if !has {
+	if c.initializer == nil {
 		return errors.New("unknown embedding service provider type: " + c.typ)
 	}
 	if err := c.initializer.ValidateConfig(); err != nil {
