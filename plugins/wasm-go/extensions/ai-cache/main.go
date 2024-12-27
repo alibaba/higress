@@ -164,22 +164,26 @@ func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []
 		return chunk
 	}
 
+	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
+	var err error
 	if !isLastChunk {
-		if err := handleNonLastChunk(ctx, c, chunk, log); err != nil {
+		if stream == nil {
+			err = handleNonStreamChunk(ctx, c, chunk, log)
+		} else {
+			err = handleStreamChunk(ctx, c, unifySSEChunk(chunk), log)
+		}
+		if err != nil {
 			log.Errorf("[onHttpResponseBody] handle non last chunk failed, error: %v", err)
 			// Set an empty struct in the context to indicate an error in processing the partial message
 			ctx.SetContext(ERROR_PARTIAL_MESSAGE_KEY, struct{}{})
 		}
 		return chunk
 	}
-
-	stream := ctx.GetContext(STREAM_CONTEXT_KEY)
 	var value string
-	var err error
 	if stream == nil {
 		value, err = processNonStreamLastChunk(ctx, c, chunk, log)
 	} else {
-		value, err = processStreamLastChunk(ctx, c, chunk, log)
+		value, err = processStreamLastChunk(ctx, c, unifySSEChunk(chunk), log)
 	}
 
 	if err != nil {
