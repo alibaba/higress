@@ -27,13 +27,11 @@ import (
 )
 
 const (
-	authTLSSecret      = "auth-tls-secret"
-	sslCipher          = "ssl-cipher"
-	gatewaySdsCaSuffix = "-cacert"
-	annotationMinTLSVersion = "tls-min-version" 
-	annotationMaxTLSVersion = "tls-max-version"
-	RuleMinVersion map[string]string
-	RuleMaxVersion map[string]string
+	authTLSSecret      		= "auth-tls-secret"
+	sslCipher          		= "ssl-cipher"
+	gatewaySdsCaSuffix 		= "-cacert"
+	annotationMinTLSVersion = "tls-min-protocol-version" 
+	annotationMaxTLSVersion = "tls-max-protocol-version"
 )
 
 var (
@@ -45,8 +43,8 @@ type DownstreamTLSConfig struct {
 	CipherSuites []string
 	Mode         networking.ServerTLSSettings_TLSmode
 	CASecretName types.NamespacedName
-	MinVersion string
-	MaxVersion string
+	MinVersion   string
+	MaxVersion   string
 }
 
 type downstreamTLS struct{}
@@ -58,8 +56,6 @@ func (d downstreamTLS) Parse(annotations Annotations, config *Ingress, _ *Global
 
 	downstreamTLSConfig := &DownstreamTLSConfig{
 		Mode: networking.ServerTLSSettings_SIMPLE,
-		RuleMinVersion: make(map[string]string),
-		RuleMaxVersion: make(map[string]string),
 	}
 	defer func() {
 		config.DownstreamTLS = downstreamTLSConfig
@@ -97,18 +93,6 @@ func (d downstreamTLS) Parse(annotations Annotations, config *Ingress, _ *Global
 	if maxVersion, err := annotations.ParseStringASAP(annotationMaxTLSVersion); err == nil {
 		downstreamTLSConfig.MaxVersion = maxVersion
 	}
-	
-	for key, value := range annotations {
-			if strings.HasPrefix(key, annotationMinTLSVersion+".") {
-					ruleName := strings.TrimPrefix(key, annotationMinTLSVersion+".")
-					downstreamTLSConfig.RuleMinVersion[ruleName] = value
-			}
-			if strings.HasPrefix(key, annotationMaxTLSVersion+".") {
-					ruleName := strings.TrimPrefix(key, annotationMaxTLSVersion+".")
-					downstreamTLSConfig.RuleMaxVersion[ruleName] = value
-			}
-	}
-
 
 	return nil
 }
@@ -136,25 +120,24 @@ func (d downstreamTLS) ApplyGateway(gateway *networking.Gateway, config *Ingress
 				server.Tls.CipherSuites = downstreamTLSConfig.CipherSuites
 			}
 
-			ruleName := getRuleName(server)
-
-			// 优先使用规则级别的TLS版本设置
-			if minVersion, exists := downstreamTLSConfig.RuleMinVersion[ruleName]; exists {
-					server.Tls.MinProtocolVersion = convertTLSVersion(minVersion)
-			} else if downstreamTLSConfig.MinVersion != "" {
-					// 回退到全局设置
-					server.Tls.MinProtocolVersion = convertTLSVersion(downstreamTLSConfig.MinVersion)
+			if downstreamTLSConfig.MinVersion != "" {
+				if version, err := convertTLSVersion(downstreamTLSConfig.MinVersion); err != nil {
+						IngressLog.Errorf("Invalid minimum TLS version: %v", err)
+				} else {
+						server.Tls.MinProtocolVersion = version
+				}
 			}
 
-			if maxVersion, exists := downstreamTLSConfig.RuleMaxVersion[ruleName]; exists {
-					server.Tls.MaxProtocolVersion = convertTLSVersion(maxVersion)
-			} else if downstreamTLSConfig.MaxVersion != "" {
-					// 回退到全局设置
-					server.Tls.MaxProtocolVersion = convertTLSVersion(downstreamTLSConfig.MaxVersion)
+			if downstreamTLSConfig.MaxVersion != "" {
+				if version, err := convertTLSVersion(downstreamTLSConfig.MaxVersion); err != nil {
+						IngressLog.Errorf("Invalid maximum TLS version: %v", err)
+				} else {
+						server.Tls.MaxProtocolVersion = version
+				}
 			}
+		
 		}
 	}
-	
 }
 
 func needDownstreamTLS(annotations Annotations) bool {
@@ -166,21 +149,14 @@ func needDownstreamTLS(annotations Annotations) bool {
 
 func convertTLSVersion(version string) networking.ServerTLSSettings_TLSProtocol {
 		switch version {
-		case "TLSv1_0":
-				return networking.ServerTLSSettings_TLSV1_0
-		case "TLSv1_1":
+		case "TLSv1.0":
+			return networking.ServerTLSSettings_TLSV1_0
+		case "TLSv1.1":
 				return networking.ServerTLSSettings_TLSV1_1
-		case "TLSv1_2":
+		case "TLSv1.2":
 				return networking.ServerTLSSettings_TLSV1_2
-		case "TLSv1_3":
-				return networking.ServerTLSSettings_TLSV1_3
+		case "TLSv1.3":
 		default:
-				return networking.ServerTLSSettings_TLS_AUTO
+			return networking.ServerTLSSettings_TLS_AUTO, fmt.Errorf("invalid TLS version: %s. Valid values are: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3", version)
 		}
-}
-
-func getRuleName(server *networking.Server) string {
-		// 从server配置中提取规则名称
-		// 可以使用server.Name或其他标识
-		return server.Name
 }
