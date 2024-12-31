@@ -331,9 +331,9 @@ validate_service_name: 'api.dns'
 validate_service_port: 443
 match_type: 'whitelist'
 match_list:
-	- match_rule_domain: '*.bar.com'
-	  match_rule_path: '/foo'
-    match_rule_type: 'prefix'
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/headers'
+      match_rule_type: 'prefix'
 ```
 
 #### 访问服务页面，未登陆的话进行跳转
