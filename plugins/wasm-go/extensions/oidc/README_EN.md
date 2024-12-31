@@ -29,6 +29,7 @@ Plugin execution priority: `350`
 | client_secret                 | string       | The OAuth Client Secret                                      |                   |
 | provider                      | string       | OAuth provider                                               | oidc              |
 | pass_authorization_header     | bool         | Pass OIDC IDToken to upstream via Authorization Bearer header | true              |
+| pass_access_token             | bool         | pass OIDC Access Token to upstream via X-Forwarded-Access-Token header. | False             |
 | oidc_issuer_url               | string       | The OpenID Connect issuer URL, e.g. `"https://dev-o43xb1mz7ya7ach4.us.auth0.com"` |                   |
 | oidc_verifier_request_timeout | uint32       | OIDC verifier discovery request timeout                      | 2000(ms)          |
 | scope                         | string       | OAuth scope specification                                    |                   |
@@ -253,6 +254,54 @@ Directly login using a RAM user or click the main account login.
 
 #### Successful Login Redirects to Service Page
 ![aliyun_result](https://gw.alicdn.com/imgextra/i3/O1CN015pGvi51eakt3pFS8Y_!!6000000003888-0-tps-3840-2160.jpg)
+
+### Github Configuration Example
+
+#### Step 1: Configure Github OAuth App
+
+Create a new OAuth Apphttps://github.com/settings/developers创建OAuth
+
+#### Step 2: Higress Configure Service Source
+
+* Create a DNS service with the source address set to github.com.
+* Create a DNS service with the source address set to api.github.com (used to validate the access token in the OIDC flow).
+
+![github_service](https://www.helloimg.com/i/2024/12/31/677398a2b34be.png)
+
+#### Step 3: OIDC Service HTTPS Protocol
+Configure Ingress for the two created DNS services by referring to Step 3 of Auth0.
+
+#### Step 4: Wasm Plugin Configuration
+
+```yaml
+redirect_url: 'http://foo.bar.com/oauth2/callback'
+provider: github
+oidc_issuer_url: 'https://github.com/'
+pass_access_token: true
+client_id: 'XXXXXXXXXXXXXXXX'
+client_secret: 'XXXXXXXXXXXXXXXX'
+scope: 'user repo'
+cookie_secret: 'nqavJrGvRmQxWwGNptLdyUVKcBNZ2b18Guc1n_8DCfY='
+service_name: 'github.dns'
+service_port: 443
+validate_service_name: 'api.dns'
+validate_service_port: 443
+match_type: 'whitelist'
+match_list:
+	- match_rule_domain: '*.bar.com'
+	  match_rule_path: '/foo'
+    match_rule_type: 'prefix'
+```
+
+#### Access Service Page; Redirect if Not Logged In
+
+![github_login](https://www.helloimg.com/i/2024/12/31/6773983f64b3c.png)
+
+#### Successful Login Redirects to Service Page
+
+With pass_access_token=true configured, the access_token will be included in the X-Forwarded-Access-Token header.
+
+![github_result](https://www.helloimg.com/i/2024/12/31/677398de64872.png)
 
 ### OIDC Flow Diagram
 <p align="center">
