@@ -301,7 +301,7 @@ match_list:
 
 #### Step 1: 配置 Github OAuth应用
 
-通过https://github.com/settings/developers创建OAuth App
+通过 https://github.com/settings/developers 创建OAuthApp
 
 #### Step 2: Higress 配置服务来源
 

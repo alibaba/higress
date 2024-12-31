@@ -259,7 +259,7 @@ Directly login using a RAM user or click the main account login.
 
 #### Step 1: Configure Github OAuth App
 
-Create a new OAuth Apphttps://github.com/settings/developers创建OAuth
+Create a new OAuth App: https://github.com/settings/developers
 
 #### Step 2: Higress Configure Service Source
 
