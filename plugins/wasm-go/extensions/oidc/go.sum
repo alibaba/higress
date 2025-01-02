@@ -15,6 +15,8 @@ github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 h1:IHDghbG
 github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520/go.mod h1:Nz8ORLaFiLWotg6GeKlJMhv8cci8mM43uEnLA5t8iew=
 github.com/higress-group/oauth2-proxy v1.0.1-0.20241112053537-6731cf68d467 h1:A/29Au8/Eoys+2oXRWnY2draLKCZ7Yg4gbg2cWi57lE=
 github.com/higress-group/oauth2-proxy v1.0.1-0.20241112053537-6731cf68d467/go.mod h1:UOXEF1DEkmLIfVO0p+gP5ceGPuWHI4IKMmQGt8aUTrw=
+github.com/higress-group/oauth2-proxy v1.0.1-0.20241227095721-c1a05d79c2a3 h1:wy/whwuL2rJ1BVhysgjGJ3cZ8kPxmX+2YP72fbvVZ9U=
+github.com/higress-group/oauth2-proxy v1.0.1-0.20241227095721-c1a05d79c2a3/go.mod h1:UOXEF1DEkmLIfVO0p+gP5ceGPuWHI4IKMmQGt8aUTrw=
 github.com/higress-group/proxy-wasm-go-sdk v1.0.0 h1:BZRNf4R7jr9hwRivg/E29nkVaKEak5MWjBDhWjuHijU=
 github.com/higress-group/proxy-wasm-go-sdk v1.0.0/go.mod h1:iiSyFbo+rAtbtGt/bsefv8GU57h9CCLYGJA74/tF5/0=
 github.com/justinas/alice v1.2.0 h1:+MHSA/vccVCF4Uq37S42jwlkvI2Xzl7zTPCN5BnZNVo=

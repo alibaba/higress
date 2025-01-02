@@ -32,6 +32,7 @@ description: OIDC 认证插件配置参考
 | client_secret                 | string       | the OAuth Client Secret                                      |                   |
 | provider                      | string       | OAuth provider                                               | oidc              |
 | pass_authorization_header     | bool         | pass OIDC IDToken to upstream via Authorization Bearer header | true              |
+| pass_access_token             | bool         | pass OIDC Access Token to upstream via X-Forwarded-Access-Token header. | False             |
 | oidc_issuer_url               | string       | the OpenID Connect issuer URL, e.g. `"https://dev-o43xb1mz7ya7ach4.us.auth0.com"` |                   |
 | oidc_verifier_request_timeout | uint32       | OIDC verifier discovery request timeout                      | 2000(ms)          |
 | scope                         | string       | OAuth scope specification                                    |                   |
@@ -296,6 +297,55 @@ match_list:
 
 ![aliyun_result](https://gw.alicdn.com/imgextra/i3/O1CN015pGvi51eakt3pFS8Y_!!6000000003888-0-tps-3840-2160.jpg)
 
+### Github 配置示例
+
+#### Step 1: 配置 Github OAuth应用
+
+通过 https://github.com/settings/developers 创建OAuthApp
+
+#### Step 2: Higress 配置服务来源
+
+* 创建DNS类型服务来源地址为github.com
+* 创建DNS类型服务来源地址为api.github.com（用于验证OIDC流程中的access_token）
+
+![github_service](https://www.helloimg.com/i/2024/12/31/677398a2b34be.png)
+
+#### Step 3: OIDC 服务 HTTPS 配置
+
+参考Auth0的Step3对创建的两个DNS服务配置Ingress
+
+#### Step 4: Wasm 插件配置
+
+```yaml
+redirect_url: 'http://foo.bar.com/oauth2/callback'
+provider: github
+oidc_issuer_url: 'https://github.com/'
+pass_access_token: true
+client_id: 'XXXXXXXXXXXXXXXX'
+client_secret: 'XXXXXXXXXXXXXXXX'
+scope: 'user repo'
+cookie_secret: 'nqavJrGvRmQxWwGNptLdyUVKcBNZ2b18Guc1n_8DCfY='
+service_name: 'github.dns'
+service_port: 443
+validate_service_name: 'api.dns'
+validate_service_port: 443
+match_type: 'whitelist'
+match_list:
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/headers'
+      match_rule_type: 'prefix'
+```
+
+#### 访问服务页面，未登陆的话进行跳转
+
+![github_login](https://www.helloimg.com/i/2024/12/31/6773983f64b3c.png)
+
+#### 登陆成功跳转到服务页面
+
+配置了`pass_access_token=true`后会在`X-Forwarded-Access-Token`header头中携带access_token
+
+![github_result](https://www.helloimg.com/i/2024/12/31/677398de64872.png)
+
 ### OIDC 流程图
 
 <p align="center">
@@ -423,4 +473,3 @@ curl -X POST \
 
 4. 携带 Authorization 的标头对应 access_token 访问对应 API
 5. 后端服务根据 access_token 获取用户授权信息并返回对应的 HTTP 响应
-
