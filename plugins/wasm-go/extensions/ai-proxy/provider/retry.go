@@ -30,7 +30,7 @@ func (r *retryOnFailure) FromJson(json gjson.Result) {
 	}
 	r.retryTimeout = json.Get("retryTimeout").Int()
 	if r.retryTimeout == 0 {
-		r.retryTimeout = 5000
+		r.retryTimeout = 30 * 1000
 	}
 }
 
