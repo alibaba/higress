@@ -16,6 +16,7 @@ package annotations
 
 import (
 	"strings"
+	"fmt"
 
 	networking "istio.io/api/networking/v1alpha3"
 	gatewaytool "istio.io/istio/pkg/config/gateway"
@@ -148,15 +149,16 @@ func needDownstreamTLS(annotations Annotations) bool {
 }
 
 func convertTLSVersion(version string) (networking.ServerTLSSettings_TLSProtocol, error)  {
-		switch version {
-		case "TLSv1.0":
-			return networking.ServerTLSSettings_TLSV1_0 , nil
-		case "TLSv1.1":
-				return networking.ServerTLSSettings_TLSV1_1 , nil
-		case "TLSv1.2":
-				return networking.ServerTLSSettings_TLSV1_2 , nil
-		case "TLSv1.3":
-		default:
-			return networking.ServerTLSSettings_TLS_AUTO, fmt.Errorf("invalid TLS version: %s. Valid values are: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3", version)
-		}
+	switch version {
+	case "TLSv1.0":
+		return networking.ServerTLSSettings_TLSV1_0 , nil
+	case "TLSv1.1":
+			return networking.ServerTLSSettings_TLSV1_1 , nil
+	case "TLSv1.2":
+			return networking.ServerTLSSettings_TLSV1_2 , nil
+	case "TLSv1.3":
+	default:
+		return networking.ServerTLSSettings_TLS_AUTO, fmt.Errorf("invalid TLS version: %s. Valid values are: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3", version)
+	}
+	return networking.ServerTLSSettings_TLS_AUTO, fmt.Errorf("unreachable code, but required by compiler")
 }
