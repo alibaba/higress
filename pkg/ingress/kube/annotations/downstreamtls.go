@@ -147,14 +147,14 @@ func needDownstreamTLS(annotations Annotations) bool {
 		annotations.HasASAP(annotationMaxTLSVersion)
 }
 
-func convertTLSVersion(version string) networking.ServerTLSSettings_TLSProtocol {
+func convertTLSVersion(version string) (networking.ServerTLSSettings_TLSProtocol, error)  {
 		switch version {
 		case "TLSv1.0":
-			return networking.ServerTLSSettings_TLSV1_0
+			return networking.ServerTLSSettings_TLSV1_0 , nil
 		case "TLSv1.1":
-				return networking.ServerTLSSettings_TLSV1_1
+				return networking.ServerTLSSettings_TLSV1_1 , nil
 		case "TLSv1.2":
-				return networking.ServerTLSSettings_TLSV1_2
+				return networking.ServerTLSSettings_TLSV1_2 , nil
 		case "TLSv1.3":
 		default:
 			return networking.ServerTLSSettings_TLS_AUTO, fmt.Errorf("invalid TLS version: %s. Valid values are: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3", version)

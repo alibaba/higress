@@ -15,479 +15,316 @@
 package annotations
 
 import (
-		"reflect"
-		"testing"
+	"reflect"
+	"testing"
 
-		networking "istio.io/api/networking/v1alpha3"
-		"k8s.io/apimachinery/pkg/types"
+	networking "istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var parser = downstreamTLS{}
 
 func TestParse(t *testing.T) {
-		testCases := []struct {
-				name   string
-				input  map[string]string
-				expect *DownstreamTLSConfig
-		}{
-				{
-						name: "empty annotations",
+	testCases := []struct {
+		name   string
+		input  map[string]string
+		expect *DownstreamTLSConfig
+	}{
+		{
+			name: "empty config",
+		},
+		{
+			name: "ssl cipher only",
+			input: map[string]string{
+				buildNginxAnnotationKey(sslCipher): "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
+			},
+			expect: &DownstreamTLSConfig{
+				Mode:         networking.ServerTLSSettings_SIMPLE,
+				CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
+			},
+		},
+		{
+			name: "with TLS version config",
+			input: map[string]string{
+				buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1.2",
+				buildNginxAnnotationKey(annotationMaxTLSVersion): "TLSv1.3",
+			},
+			expect: &DownstreamTLSConfig{
+				Mode:       networking.ServerTLSSettings_SIMPLE,
+				MinVersion: "TLSv1.2",
+				MaxVersion: "TLSv1.3",
+			},
+		},
+		{
+			name: "complete config",
+			input: map[string]string{
+				buildNginxAnnotationKey(authTLSSecret):           "test",
+				buildNginxAnnotationKey(sslCipher):               "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
+				buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1.2",
+				buildNginxAnnotationKey(annotationMaxTLSVersion): "TLSv1.3",
+			},
+			expect: &DownstreamTLSConfig{
+				CASecretName: types.NamespacedName{
+					Namespace: "foo",
+					Name:      "test",
 				},
-				{
-						name: "cipher suite only",
-						input: map[string]string{
-								buildNginxAnnotationKey(sslCipher): "ECDHE-RSA-AES256-GCM-SHA384:AES128-SHA",
-						},
-						expect: &DownstreamTLSConfig{
-								Mode:           networking.ServerTLSSettings_SIMPLE,
-								CipherSuites:   []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
-								RuleMinVersion: make(map[string]string),
-								RuleMaxVersion: make(map[string]string),
-						},
-				},
-				{
-						name: "global TLS version only",
-						input: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1_2",
-								buildNginxAnnotationKey(annotationMaxTLSVersion): "TLSv1_3",
-						},
-						expect: &DownstreamTLSConfig{
-								Mode:           networking.ServerTLSSettings_SIMPLE,
-								MinVersion:     "TLSv1_2",
-								MaxVersion:     "TLSv1_3",
-								RuleMinVersion: make(map[string]string),
-								RuleMaxVersion: make(map[string]string),
-						},
-				},
-				{
-						name: "rule specific TLS version",
-						input: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_1",
-								buildNginxAnnotationKey(annotationMaxTLSVersion + ".rule1"): "TLSv1_2",
-						},
-						expect: &DownstreamTLSConfig{
-								Mode:           networking.ServerTLSSettings_SIMPLE,
-								RuleMinVersion: map[string]string{"rule1": "TLSv1_1"},
-								RuleMaxVersion: map[string]string{"rule1": "TLSv1_2"},
-						},
-				},
-				{
-						name: "global and rule specific TLS version",
-						input: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion):           "TLSv1_2",
-								buildNginxAnnotationKey(annotationMaxTLSVersion):           "TLSv1_3",
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_1",
-								buildNginxAnnotationKey(annotationMaxTLSVersion + ".rule1"): "TLSv1_2",
-						},
-						expect: &DownstreamTLSConfig{
-								Mode:           networking.ServerTLSSettings_SIMPLE,
-								MinVersion:     "TLSv1_2",
-								MaxVersion:     "TLSv1_3",
-								RuleMinVersion: map[string]string{"rule1": "TLSv1_1"},
-								RuleMaxVersion: map[string]string{"rule1": "TLSv1_2"},
-						},
-				},
-				{
-						name: "multiple rules TLS version",
-						input: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_1",
-								buildNginxAnnotationKey(annotationMaxTLSVersion + ".rule1"): "TLSv1_2",
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule2"): "TLSv1_2",
-								buildNginxAnnotationKey(annotationMaxTLSVersion + ".rule2"): "TLSv1_3",
-						},
-						expect: &DownstreamTLSConfig{
-								Mode: networking.ServerTLSSettings_SIMPLE,
-								RuleMinVersion: map[string]string{
-										"rule1": "TLSv1_1",
-										"rule2": "TLSv1_2",
-								},
-								RuleMaxVersion: map[string]string{
-										"rule1": "TLSv1_2",
-										"rule2": "TLSv1_3",
-								},
-						},
-				},
-				{
-						name: "complete configuration",
-						input: map[string]string{
-								buildHigressAnnotationKey(authTLSSecret):                   "test/foo",
-								buildHigressAnnotationKey(annotationMinTLSVersion):         "TLSv1_2",
-								buildHigressAnnotationKey(annotationMaxTLSVersion):         "TLSv1_3",
-								buildHigressAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_1",
-								buildHigressAnnotationKey(annotationMaxTLSVersion + ".rule1"): "TLSv1_2",
-								DefaultAnnotationsPrefix + "/" + sslCipher:                 "ECDHE-RSA-AES256-GCM-SHA384",
-						},
-						expect: &DownstreamTLSConfig{
-								CASecretName: types.NamespacedName{
-										Namespace: "test",
-										Name:      "foo",
-								},
-								Mode:         networking.ServerTLSSettings_MUTUAL,
-								MinVersion:   "TLSv1_2",
-								MaxVersion:   "TLSv1_3",
-								CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
-								RuleMinVersion: map[string]string{"rule1": "TLSv1_1"},
-								RuleMaxVersion: map[string]string{"rule1": "TLSv1_2"},
-						},
-				},
-		}
+				Mode:         networking.ServerTLSSettings_MUTUAL,
+				CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384", "AES128-SHA"},
+				MinVersion:   "TLSv1.2",
+				MaxVersion:   "TLSv1.3",
+			},
+		},
+	}
 
-		for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-						config := &Ingress{
-								Meta: Meta{
-										Namespace: "foo",
-								},
-						}
-						err := parser.Parse(tc.input, config, nil)
-						if err != nil {
-								t.Fatalf("Parse failed: %v", err)
-						}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Ingress{
+				Meta: Meta{
+					Namespace: "foo",
+				},
+			}
+			err := parser.Parse(tc.input, config, nil)
+			if err != nil {
+				t.Fatalf("Parse failed: %v", err)
+			}
+			if !reflect.DeepEqual(tc.expect, config.DownstreamTLS) {
+				t.Fatalf("Parse result mismatch:\nExpect: %+v\nGot: %+v", tc.expect, config.DownstreamTLS)
+			}
+		})
+	}
+}
 
-						if !reflect.DeepEqual(tc.expect, config.DownstreamTLS) {
-								t.Fatalf("Parse result mismatch:\nExpect: %+v\nGot: %+v", tc.expect, config.DownstreamTLS)
-						}
-				})
-		}
+func TestConvertTLSVersion(t *testing.T) {
+	testCases := []struct {
+		name    string
+		version string
+		expect  networking.ServerTLSSettings_TLSProtocol
+		wantErr bool
+	}{
+		{
+			name:    "TLS 1.0",
+			version: "TLSv1.0",
+			expect:  networking.ServerTLSSettings_TLSV1_0,
+		},
+		{
+			name:    "TLS 1.1",
+			version: "TLSv1.1",
+			expect:  networking.ServerTLSSettings_TLSV1_1,
+		},
+		{
+			name:    "TLS 1.2",
+			version: "TLSv1.2",
+			expect:  networking.ServerTLSSettings_TLSV1_2,
+		},
+		{
+			name:    "TLS 1.3",
+			version: "TLSv1.3",
+			expect:  networking.ServerTLSSettings_TLSV1_3,
+		},
+		{
+			name:    "invalid version",
+			version: "invalid",
+			expect:  networking.ServerTLSSettings_TLS_AUTO,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := convertTLSVersion(tc.version)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if result != tc.expect {
+					t.Errorf("Expected %v but got %v", tc.expect, result)
+				}
+			}
+		})
+	}
 }
 
 func TestApplyGateway(t *testing.T) {
 	testCases := []struct {
-			name   string
-			input  *networking.Gateway
-			config *Ingress
-			expect *networking.Gateway
+		name   string
+		input  *networking.Gateway
+		config *Ingress
+		expect *networking.Gateway
 	}{
-			{
-					name: "global TLS version only",
-					input: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode: networking.ServerTLSSettings_SIMPLE,
-											},
-									},
-							},
+		{
+			name: "apply TLS version",
+			input: &networking.Gateway{
+				Servers: []*networking.Server{
+					{
+						Port: &networking.Port{
+							Protocol: "HTTPS",
+						},
+						Tls: &networking.ServerTLSSettings{
+							Mode: networking.ServerTLSSettings_SIMPLE,
+						},
 					},
-					config: &Ingress{
-							DownstreamTLS: &DownstreamTLSConfig{
-									Mode:           networking.ServerTLSSettings_SIMPLE,
-									MinVersion:     "TLSv1_2",
-									MaxVersion:     "TLSv1_3",
-									RuleMinVersion: make(map[string]string),
-									RuleMaxVersion: make(map[string]string),
-							},
-					},
-					expect: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode:              networking.ServerTLSSettings_SIMPLE,
-													MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-													MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
-											},
-									},
-							},
-					},
+				},
 			},
-			{
-					name: "rule specific TLS version",
-					input: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode: networking.ServerTLSSettings_SIMPLE,
-											},
-									},
-							},
-					},
-					config: &Ingress{
-							DownstreamTLS: &DownstreamTLSConfig{
-									Mode: networking.ServerTLSSettings_SIMPLE,
-									RuleMinVersion: map[string]string{
-											"rule1": "TLSv1_1",
-									},
-									RuleMaxVersion: map[string]string{
-											"rule1": "TLSv1_2",
-									},
-							},
-					},
-					expect: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode:              networking.ServerTLSSettings_SIMPLE,
-													MinProtocolVersion: networking.ServerTLSSettings_TLSV1_1,
-													MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-											},
-									},
-							},
-					},
+			config: &Ingress{
+				DownstreamTLS: &DownstreamTLSConfig{
+					MinVersion: "TLSv1.2",
+					MaxVersion: "TLSv1.3",
+				},
 			},
-			{
-					name: "rule override global TLS version",
-					input: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode: networking.ServerTLSSettings_SIMPLE,
-											},
-									},
-							},
+			expect: &networking.Gateway{
+				Servers: []*networking.Server{
+					{
+						Port: &networking.Port{
+							Protocol: "HTTPS",
+						},
+						Tls: &networking.ServerTLSSettings{
+							Mode:               networking.ServerTLSSettings_SIMPLE,
+							MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
+							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
+						},
 					},
-					config: &Ingress{
-							DownstreamTLS: &DownstreamTLSConfig{
-									Mode:       networking.ServerTLSSettings_SIMPLE,
-									MinVersion: "TLSv1_2",
-									MaxVersion: "TLSv1_3",
-									RuleMinVersion: map[string]string{
-											"rule1": "TLSv1_1",
-									},
-									RuleMaxVersion: map[string]string{
-											"rule1": "TLSv1_2",
-									},
-							},
-					},
-					expect: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode:              networking.ServerTLSSettings_SIMPLE,
-													MinProtocolVersion: networking.ServerTLSSettings_TLSV1_1,
-													MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-											},
-									},
-							},
-					},
+				},
 			},
-			{
-					name: "complete configuration with cipher suites",
-					input: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode:           networking.ServerTLSSettings_SIMPLE,
-													CredentialName: "kubernetes-ingress://cluster/foo/bar",
-											},
-									},
-							},
+		},
+		{
+			name: "complete config",
+			input: &networking.Gateway{
+				Servers: []*networking.Server{
+					{
+						Port: &networking.Port{
+							Protocol: "HTTPS",
+						},
+						Tls: &networking.ServerTLSSettings{
+							Mode:           networking.ServerTLSSettings_SIMPLE,
+							CredentialName: "kubernetes-ingress://cluster/foo/bar",
+						},
 					},
-					config: &Ingress{
-							DownstreamTLS: &DownstreamTLSConfig{
-									Mode:       networking.ServerTLSSettings_MUTUAL,
-									MinVersion: "TLSv1_2",
-									MaxVersion: "TLSv1_3",
-									RuleMinVersion: map[string]string{
-											"rule1": "TLSv1_1",
-									},
-									RuleMaxVersion: map[string]string{
-											"rule1": "TLSv1_2",
-									},
-									CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
-									CASecretName: types.NamespacedName{
-											Namespace: "foo",
-											Name:      "bar",
-									},
-							},
-					},
-					expect: &networking.Gateway{
-							Servers: []*networking.Server{
-									{
-											Name: "rule1",
-											Port: &networking.Port{
-													Protocol: "HTTPS",
-											},
-											Tls: &networking.ServerTLSSettings{
-													Mode:              networking.ServerTLSSettings_MUTUAL,
-													CredentialName:    "kubernetes-ingress://cluster/foo/bar",
-													MinProtocolVersion: networking.ServerTLSSettings_TLSV1_1,
-													MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
-													CipherSuites:      []string{"ECDHE-RSA-AES256-GCM-SHA384"},
-											},
-									},
-							},
-					},
+				},
 			},
+			config: &Ingress{
+				DownstreamTLS: &DownstreamTLSConfig{
+					CASecretName: types.NamespacedName{
+						Namespace: "foo",
+						Name:      "bar",
+					},
+					Mode:         networking.ServerTLSSettings_MUTUAL,
+					CipherSuites: []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+					MinVersion:   "TLSv1.2",
+					MaxVersion:   "TLSv1.3",
+				},
+			},
+			expect: &networking.Gateway{
+				Servers: []*networking.Server{
+					{Port: &networking.Port{
+						Protocol: "HTTPS",
+					},
+						Tls: &networking.ServerTLSSettings{
+							CredentialName:     "kubernetes-ingress://cluster/foo/bar",
+							Mode:               networking.ServerTLSSettings_MUTUAL,
+							CipherSuites:       []string{"ECDHE-RSA-AES256-GCM-SHA384"},
+							MinProtocolVersion: networking.ServerTLSSettings_TLSV1_2,
+							MaxProtocolVersion: networking.ServerTLSSettings_TLSV1_3,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid TLS version",
+			input: &networking.Gateway{
+				Servers: []*networking.Server{
+					{
+						Port: &networking.Port{
+							Protocol: "HTTPS",
+						},
+						Tls: &networking.ServerTLSSettings{
+							Mode: networking.ServerTLSSettings_SIMPLE,
+						},
+					},
+				},
+			},
+			config: &Ingress{
+				DownstreamTLS: &DownstreamTLSConfig{
+					MinVersion: "invalid",
+					MaxVersion: "invalid",
+				},
+			},
+			expect: &networking.Gateway{
+				Servers: []*networking.Server{
+					{
+						Port: &networking.Port{
+							Protocol: "HTTPS",
+						},
+						Tls: &networking.ServerTLSSettings{
+							Mode: networking.ServerTLSSettings_SIMPLE,
+							// Invalid versions should default to TLS_AUTO
+							MinProtocolVersion: networking.ServerTLSSettings_TLS_AUTO,
+							MaxProtocolVersion: networking.ServerTLSSettings_TLS_AUTO,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-					parser.ApplyGateway(tc.input, tc.config)
-					if !reflect.DeepEqual(tc.input, tc.expect) {
-							t.Fatalf("ApplyGateway result mismatch:\nExpect: %+v\nGot: %+v", tc.expect, tc.input)
-					}
-			})
+		t.Run(tc.name, func(t *testing.T) {
+			parser.ApplyGateway(tc.input, tc.config)
+			if !reflect.DeepEqual(tc.input, tc.expect) {
+				t.Fatalf("ApplyGateway result mismatch for %s:\nExpect: %+v\nGot: %+v",
+					tc.name, tc.expect, tc.input)
+			}
+		})
 	}
 }
 
-	func TestConvertTLSVersion(t *testing.T) {
-		testCases := []struct {
-				name    string
-				version string
-				expect  networking.ServerTLSSettings_TLSProtocol
-		}{
-				{
-						name:    "TLS 1.0",
-						version: "TLSv1_0",
-						expect:  networking.ServerTLSSettings_TLSV1_0,
-				},
-				{
-						name:    "TLS 1.1",
-						version: "TLSv1_1",
-						expect:  networking.ServerTLSSettings_TLSV1_1,
-				},
-				{
-						name:    "TLS 1.2",
-						version: "TLSv1_2",
-						expect:  networking.ServerTLSSettings_TLSV1_2,
-				},
-				{
-						name:    "TLS 1.3",
-						version: "TLSv1_3",
-						expect:  networking.ServerTLSSettings_TLSV1_3,
-				},
-				{
-						name:    "invalid version",
-						version: "invalid",
-						expect:  networking.ServerTLSSettings_TLS_AUTO,
-				},
-				{
-						name:    "empty version",
-						version: "",
-						expect:  networking.ServerTLSSettings_TLS_AUTO,
-				},
-		}
-
-		for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-						result := convertTLSVersion(tc.version)
-						if result != tc.expect {
-								t.Errorf("convertTLSVersion(%s) = %v, want %v", tc.version, result, tc.expect)
-						}
-				})
-		}
+func TestNeedDownstreamTLS(t *testing.T) {
+	testCases := []struct {
+		name        string
+		annotations map[string]string
+		expect      bool
+	}{
+		{
+			name:        "empty annotations",
+			annotations: map[string]string{},
+			expect:      false,
+		},
+		{
+			name: "with ssl cipher",
+			annotations: map[string]string{
+				buildNginxAnnotationKey(sslCipher): "ECDHE-RSA-AES256-GCM-SHA384",
+			},
+			expect: true,
+		},
+		{
+			name: "with TLS version",
+			annotations: map[string]string{
+				buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1.2",
+			},
+			expect: true,
+		},
+		{
+			name: "with multiple TLS configs",
+			annotations: map[string]string{
+				buildNginxAnnotationKey(sslCipher):               "ECDHE-RSA-AES256-GCM-SHA384",
+				buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1.2",
+				buildNginxAnnotationKey(annotationMaxTLSVersion): "TLSv1.3",
+			},
+			expect: true,
+		},
 	}
 
-	func TestNeedDownstreamTLS(t *testing.T) {
-		testCases := []struct {
-				name        string
-				annotations map[string]string
-				expect      bool
-		}{
-				{
-						name:        "empty annotations",
-						annotations: map[string]string{},
-						expect:      false,
-				},
-				{
-						name: "ssl cipher only",
-						annotations: map[string]string{
-								buildNginxAnnotationKey(sslCipher): "ECDHE-RSA-AES256-GCM-SHA384",
-						},
-						expect: true,
-				},
-				{
-						name: "auth TLS secret only",
-						annotations: map[string]string{
-								buildNginxAnnotationKey(authTLSSecret): "test/foo",
-						},
-						expect: true,
-				},
-				{
-						name: "global TLS version only",
-						annotations: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion): "TLSv1_2",
-						},
-						expect: true,
-				},
-				{
-						name: "rule specific TLS version only",
-						annotations: map[string]string{
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_2",
-						},
-						expect: true,
-				},
-				{
-						name: "multiple TLS configurations",
-						annotations: map[string]string{
-								buildNginxAnnotationKey(sslCipher):                          "ECDHE-RSA-AES256-GCM-SHA384",
-								buildNginxAnnotationKey(annotationMinTLSVersion):            "TLSv1_2",
-								buildNginxAnnotationKey(annotationMinTLSVersion + ".rule1"): "TLSv1_1",
-						},
-						expect: true,
-				},
-		}
-
-		for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-						result := needDownstreamTLS(Annotations(tc.annotations))
-						if result != tc.expect {
-								t.Errorf("needDownstreamTLS() = %v, want %v", result, tc.expect)
-						}
-				})
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := needDownstreamTLS(tc.annotations)
+			if result != tc.expect {
+				t.Errorf("needDownstreamTLS() for %s = %v, want %v",
+					tc.name, result, tc.expect)
+			}
+		})
 	}
-
-	func TestExtraSecret(t *testing.T) {
-		testCases := []struct {
-				name           string
-				credentialName string
-				expect         types.NamespacedName
-		}{
-				{
-						name:           "valid credential name",
-						credentialName: "kubernetes-ingress://cluster/foo/bar",
-						expect: types.NamespacedName{
-								Namespace: "foo",
-								Name:      "bar",
-						},
-				},
-				{
-						name:           "invalid credential name",
-						credentialName: "invalid-format",
-						expect:        types.NamespacedName{},
-				},
-				{
-						name:           "empty credential name",
-						credentialName: "",
-						expect:        types.NamespacedName{},
-				},
-		}
-
-		for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-						result := extraSecret(tc.credentialName)
-						if !reflect.DeepEqual(result, tc.expect) {
-								t.Errorf("extraSecret(%s) = %v, want %v", tc.credentialName, result, tc.expect)
-						}
-				})
-		}
-	}
+}
