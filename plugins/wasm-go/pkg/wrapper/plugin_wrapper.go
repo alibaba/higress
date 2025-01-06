@@ -65,9 +65,9 @@ type HttpContext interface {
 	// You need to call this before making any header modification operations.
 	DisableReroute()
 	// Note that this parameter affects the gateway's memory usage！Support setting a maximum buffer size for each request body individually in request phase.
-	SetRequestBodyBufferLimit(size uint32)
+	SetRequestBodyBufferLimit(byteSize uint32)
 	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
-	SetResponseBodyBufferLimit(size uint32)
+	SetResponseBodyBufferLimit(byteSize uint32)
 }
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error

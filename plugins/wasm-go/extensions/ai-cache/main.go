@@ -22,6 +22,8 @@ const (
 	STREAM_CONTEXT_KEY          = "stream"
 	SKIP_CACHE_HEADER           = "x-higress-skip-ai-cache"
 	ERROR_PARTIAL_MESSAGE_KEY   = "errorPartialMessage"
+
+	DEFAULT_MAX_BODY_BYTES uint32 = 10 * 1024 * 1024
 )
 
 func main() {
@@ -69,6 +71,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wr
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
+	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
@@ -140,6 +143,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
+	} else {
+		ctx.SetResponseBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	}
 
 	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
