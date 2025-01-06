@@ -261,6 +261,7 @@ func checkStream(ctx *wrapper.HttpContext, log wrapper.Log) {
 			log.Errorf("unable to load content-type header from response: %v", err)
 		}
 		(*ctx).BufferResponseBody()
+		ctx.SetResponseBodyBufferLimit(defaultMaxBodyBytes)
 	}
 }
 
