@@ -143,6 +143,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(STREAM_CONTEXT_KEY, struct{}{})
+	} else {
+		ctx.SetResponseBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	}
 
 	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
