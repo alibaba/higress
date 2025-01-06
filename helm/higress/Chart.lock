@@ -4,6 +4,6 @@ dependencies:
   version: 2.0.5
 - name: higress-console
   repository: https://higress.io/helm-charts/
-  version: 1.4.6
-digest: sha256:1b633caa0a778af98bf8d7c2fe5cb9434b3fa14e76edd5a7d8f761b8b2835e8e
-generated: "2025-01-06T17:47:35.005956949+08:00"
+  version: 2.0.0
+digest: sha256:afa6e01514c1f60aa13d82b381505bd95abb12a453ea393a9e159ffdb680720e
+generated: "2025-01-06T19:12:52.663112981+08:00"
