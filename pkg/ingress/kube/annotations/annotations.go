@@ -138,10 +138,6 @@ type AnnotationHandler interface {
 	RouteHandler
 	TrafficPolicyHandler
 }
-type TLSConfig struct {
-	MinVersion string
-	MaxVersion string
-}
 
 type AnnotationHandlerManager struct {
 	parsers                []Parser
@@ -173,7 +169,6 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			match{},
 			headerControl{},
 			http2rpc{},
-			tls{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},
@@ -198,7 +193,6 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 		trafficPolicyHandlers: []TrafficPolicyHandler{
 			upstreamTLS{},
 			loadBalance{},
-			tls{},
 		},
 	}
 }
