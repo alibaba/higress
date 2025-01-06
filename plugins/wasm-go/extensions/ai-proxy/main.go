@@ -199,7 +199,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	}
 	util.ReplaceResponseHeaders(headers)
 
-	checkStream(&ctx, log)
+	checkStream(ctx, log)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleStreamingBody {
 		ctx.BufferResponseBody()
@@ -254,13 +254,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 	return types.ActionContinue
 }
 
-func checkStream(ctx *wrapper.HttpContext, log wrapper.Log) {
+func checkStream(ctx wrapper.HttpContext, log wrapper.Log) {
 	contentType, err := proxywasm.GetHttpResponseHeader("Content-Type")
 	if err != nil || !strings.HasPrefix(contentType, "text/event-stream") {
 		if err != nil {
 			log.Errorf("unable to load content-type header from response: %v", err)
 		}
-		(*ctx).BufferResponseBody()
+		ctx.BufferResponseBody()
 		ctx.SetResponseBodyBufferLimit(defaultMaxBodyBytes)
 	}
 }
