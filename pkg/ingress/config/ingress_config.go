@@ -151,7 +151,6 @@ type IngressConfig struct {
 	clusterId cluster.ID
 
 	httpsConfigMgr *cert.ConfigMgr
-
 }
 
 func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressConfig {
