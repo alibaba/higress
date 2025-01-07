@@ -136,6 +136,8 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: PILOT_ENABLE_LDS_CACHE
+            valvue: "{{ .Values.global.enableLDSCache }}"
           - name: PILOT_ENABLE_QUIC_LISTENERS
             value: "true"
           - name: VALIDATION_WEBHOOK_CONFIG_NAME
