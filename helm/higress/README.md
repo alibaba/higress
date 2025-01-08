@@ -162,6 +162,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableH3 | bool | `false` |  |
 | global.enableIPv6 | bool | `false` |  |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
+| global.enableLDSCache | bool | `true` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enableSRDS | bool | `true` |  |
 | global.enableStatus | bool | `true` | If true, Higress Controller will update the status field of Ingress resources. When migrating from Nginx Ingress, in order to avoid status field of Ingress objects being overwritten, this parameter needs to be set to false, so Higress won't write the entry IP to the status field of the corresponding Ingress object. |
@@ -175,7 +176,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.istiod | object | `{"enableAnalysis":false}` | Enabled by default in master for maximising testing. |
 | global.jwtPolicy | string | `"third-party-jwt"` | Configure the policy for validating JWT. Currently, two options are supported: "third-party-jwt" and "first-party-jwt". |
 | global.kind | bool | `false` |  |
-| global.liteMetrics | bool | `true` |  |
+| global.liteMetrics | bool | `false` |  |
 | global.local | bool | `false` | When deploying to a local cluster (e.g.: kind cluster), set this to true. |
 | global.logAsJson | bool | `false` |  |
 | global.logging | object | `{"level":"default:info"}` | Comma-separated minimum per-scope logging level of messages to output, in the form of <scope>:<level>,<scope>:<level> The control plane has different scopes depending on component, but can configure default log level across all components If empty, default scope and level will be used as configured in code |
