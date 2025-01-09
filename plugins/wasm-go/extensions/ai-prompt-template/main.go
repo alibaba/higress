@@ -34,7 +34,7 @@ func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log wrapper.
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig, log wrapper.Log) types.Action {
 	templateEnable, _ := proxywasm.GetHttpRequestHeader("template-enable")
-	if templateEnable != "true" {
+	if templateEnable == "false" {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
