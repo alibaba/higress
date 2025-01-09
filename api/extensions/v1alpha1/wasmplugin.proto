@@ -112,7 +112,7 @@ message WasmPlugin {
   // Extended by Higress, matching rules take effect
   repeated MatchRule match_rules = 102;
   // disable the default config
-  bool default_config_disable = 103;
+  google.protobuf.BoolValue default_config_disable = 103;
 }
 
 // Extended by Higress
@@ -120,7 +120,7 @@ message MatchRule {
   repeated string ingress = 1;
   repeated string domain = 2;
   google.protobuf.Struct config = 3;
-  bool config_disable = 4;
+  google.protobuf.BoolValue config_disable = 4;
   repeated string service = 5;
 }
 
