@@ -881,7 +881,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	if result.PluginConfig != nil {
 		return result, nil
 	}
-	if !obj.DefaultConfigDisable {
+	if !isBoolValueTrue(obj.DefaultConfigDisable) {
 		result.PluginConfig = obj.DefaultConfig
 	}
 	hasValidRule := false
@@ -893,7 +893,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		}
 		var ruleValues []*_struct.Value
 		for _, rule := range obj.MatchRules {
-			if rule.ConfigDisable {
+			if isBoolValueTrue(rule.ConfigDisable) {
 				continue
 			}
 			if rule.Config == nil {
@@ -982,11 +982,15 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 			}
 		}
 	}
-	if !hasValidRule && obj.DefaultConfigDisable {
+	if !hasValidRule && isBoolValueTrue(obj.DefaultConfigDisable) {
 		return nil, nil
 	}
 	return result, nil
 
+}
+
+func isBoolValueTrue(b *wrappers.BoolValue) bool {
+	return b != nil && b.Value
 }
 
 func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.ClusterNamespacedName) {
