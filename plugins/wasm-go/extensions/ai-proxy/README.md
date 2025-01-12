@@ -247,6 +247,9 @@ Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 #### Together-AI
 Together-AI 所对应的 `type` 为 `together-ai`。它并无特有的配置字段。
 
+#### Dify
+Dify 所对应的 `type` 为 `dify`。它并无特有的配置字段。
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -1550,6 +1553,57 @@ provider:
     "prompt_tokens": 33,
     "completion_tokens": 61,
     "total_tokens": 94
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Dify 服务
+
+**配置信息**
+```yaml
+provider:
+  type: dify
+  apiTokens:
+    - "YOUR_DIFY_API_TOKEN"
+  modelMapping:
+    "*": "dify"
+```
+
+**请求示例**
+```json
+{
+  "model": "gpt-4-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+```json
+{
+  "id": "e33fc636-f9e8-4fae-8d5e-fbd0acb09401",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是ChatGPT，由OpenAI开发的人工智能语言模型。我可以帮助回答问题、提供建议或进行各种对话。如果你有任何需要，随时告诉我哦！"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1736657752,
+  "model": "dify",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 16,
+    "completion_tokens": 243,
+    "total_tokens": 259
   }
 }
 ```

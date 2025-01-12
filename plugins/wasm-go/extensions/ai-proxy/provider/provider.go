@@ -47,6 +47,7 @@ const (
 	providerTypeDoubao     = "doubao"
 	providerTypeCoze       = "coze"
 	providerTypeTogetherAI = "together-ai"
+	providerTypeDify       = "dify"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -110,6 +111,7 @@ var (
 		providerTypeDoubao:     &doubaoProviderInitializer{},
 		providerTypeCoze:       &cozeProviderInitializer{},
 		providerTypeTogetherAI: &togetherAIProviderInitializer{},
+		providerTypeDify:       &difyProviderInitializer{},
 	}
 )
 
