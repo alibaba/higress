@@ -136,8 +136,10 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          - name: ENABLE_PUSH_ALL_MCP_CLUSTERS
+            value: "{{ .Values.global.enablePushAllMCPClusters }}"
           - name: PILOT_ENABLE_LDS_CACHE
-            valvue: "{{ .Values.global.enableLDSCache }}"
+            value: "{{ .Values.global.enableLDSCache }}"
           - name: PILOT_ENABLE_QUIC_LISTENERS
             value: "true"
           - name: VALIDATION_WEBHOOK_CONFIG_NAME
