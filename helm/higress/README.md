@@ -164,6 +164,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
 | global.enableLDSCache | bool | `true` |  |
 | global.enableProxyProtocol | bool | `false` |  |
+| global.enablePushAllMCPClusters | bool | `true` |  |
 | global.enableSRDS | bool | `true` |  |
 | global.enableStatus | bool | `true` | If true, Higress Controller will update the status field of Ingress resources. When migrating from Nginx Ingress, in order to avoid status field of Ingress objects being overwritten, this parameter needs to be set to false, so Higress won't write the entry IP to the status field of the corresponding Ingress object. |
 | global.externalIstiod | bool | `false` | Configure a remote cluster data plane controlled by an external istiod. When set to true, istiod is not deployed locally and only a subset of the other discovery charts are enabled. |
