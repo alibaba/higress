@@ -38,7 +38,7 @@ Attribute 配置说明:
 `value_source` 的各种取值含义如下：
 
 - `fixed_value`：固定值
-- `requeset_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
+- `request_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
 - `request_body` ：attrribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
 - `response_header` ：attrribute 值通过 http 响应头获取，value 配置为header key
 - `response_body` ：attrribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
