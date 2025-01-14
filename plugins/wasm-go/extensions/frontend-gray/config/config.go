@@ -64,6 +64,7 @@ type GrayConfig struct {
 	BackendGrayTag      string
 	Injection           *Injection
 	SkippedPathPrefixes []string
+	IncludePathPrefixes []string
 	SkippedByHeaders    map[string]string
 }
 
@@ -97,6 +98,7 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.Html = json.Get("html").String()
 	grayConfig.SkippedPathPrefixes = convertToStringList(json.Get("skippedPathPrefixes").Array())
 	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
+	grayConfig.IncludePathPrefixes = convertToStringList(json.Get("includePathPrefixes").Array())
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天

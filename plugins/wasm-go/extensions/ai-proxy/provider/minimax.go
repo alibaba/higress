@@ -93,10 +93,6 @@ func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	}
 }
 
-func (m *minimaxProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
-	return m.handleRequestBodyByChatCompletionV2(body, headers, log)
-}
-
 // handleRequestBodyByChatCompletionPro processes the request body using the chat completion Pro API.
 func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log wrapper.Log) (types.Action, error) {
 	request := &chatCompletionRequest{}
@@ -109,7 +105,7 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 	_ = util.OverwriteRequestPath(fmt.Sprintf("%s?GroupId=%s", minimaxChatCompletionProPath, m.config.minimaxGroupId))
 
 	if m.config.context == nil {
-		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, "")
+		minimaxRequest := m.buildMinimaxChatCompletionProRequest(request, "")
 		return types.ActionContinue, replaceJsonRequestBody(minimaxRequest, log)
 	}
 
@@ -124,7 +120,7 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		// Since minimaxChatCompletionV2 (format consistent with OpenAI) and minimaxChatCompletionPro (different format from OpenAI) have different logic for insertHttpContextMessage, we cannot unify them within one provider.
 		// For minimaxChatCompletionPro, we need to manually handle context messages.
 		// minimaxChatCompletionV2 uses the default defaultInsertHttpContextMessage method to insert context messages.
-		minimaxRequest := m.buildMinimaxChatCompletionV2Request(request, content)
+		minimaxRequest := m.buildMinimaxChatCompletionProRequest(request, content)
 		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
 			util.ErrorHandler("ai-proxy.minimax.insert_ctx_failed", fmt.Errorf("failed to replace Request body: %v", err))
 		}
@@ -133,6 +129,10 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
+}
+
+func (m *minimaxProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+	return m.handleRequestBodyByChatCompletionV2(body, headers, log)
 }
 
 // handleRequestBodyByChatCompletionV2 processes the request body using the chat completion V2 API.
@@ -144,15 +144,13 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, heade
 	return sjson.SetBytes(body, "model", mappedModel)
 }
 
-// Skip OnStreamingResponseBody() and OnResponseBody() when using original protocol.
 func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	if m.config.protocol == protocolOriginal {
+	// Skip OnStreamingResponseBody() and OnResponseBody() when using the original protocol
+	// or when the model corresponds to the chat completion V2 interface.
+	if m.config.protocol == protocolOriginal || minimaxApiTypePro != m.config.minimaxApiType {
 		ctx.DontReadResponseBody()
-	}
-
-	// Skip OnStreamingResponseBody() and OnResponseBody() when the model corresponds to the chat completion V2 interface.
-	if minimaxApiTypePro != m.config.minimaxApiType {
-		ctx.DontReadResponseBody()
+	} else {
+		headers.Del("Content-Length")
 	}
 }
 
@@ -174,12 +172,12 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 			continue
 		}
 		data = data[6:]
-		var minimaxResp minimaxChatCompletionV2Resp
+		var minimaxResp minimaxChatCompletionProResp
 		if err := json.Unmarshal([]byte(data), &minimaxResp); err != nil {
 			log.Errorf("unable to unmarshal minimax response: %v", err)
 			continue
 		}
-		response := m.responseV2ToOpenAI(&minimaxResp)
+		response := m.responseProToOpenAI(&minimaxResp)
 		responseBody, err := json.Marshal(response)
 		if err != nil {
 			log.Errorf("unable to marshal response: %v", err)
@@ -192,21 +190,21 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	return []byte(modifiedResponseChunk), nil
 }
 
-// OnResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
+// TransformResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
 func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
-	minimaxResp := &minimaxChatCompletionV2Resp{}
+	minimaxResp := &minimaxChatCompletionProResp{}
 	if err := json.Unmarshal(body, minimaxResp); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal minimax response: %v", err)
 	}
 	if minimaxResp.BaseResp.StatusCode != 0 {
 		return nil, fmt.Errorf("minimax response error, error_code: %d, error_message: %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg)
 	}
-	response := m.responseV2ToOpenAI(minimaxResp)
+	response := m.responseProToOpenAI(minimaxResp)
 	return json.Marshal(response)
 }
 
-// minimaxChatCompletionV2Request represents the structure of a chat completion V2 request.
-type minimaxChatCompletionV2Request struct {
+// minimaxChatCompletionProRequest represents the structure of a chat completion Pro request.
+type minimaxChatCompletionProRequest struct {
 	Model             string                  `json:"model"`
 	Stream            bool                    `json:"stream,omitempty"`
 	TokensToGenerate  int64                   `json:"tokens_to_generate,omitempty"`
@@ -237,19 +235,17 @@ type minimaxReplyConstraints struct {
 	SenderName string `json:"sender_name"`
 }
 
-// minimaxChatCompletionV2Resp represents the structure of a Minimax Chat Completion V2 response.
-type minimaxChatCompletionV2Resp struct {
-	Created             int64           `json:"created"`
-	Model               string          `json:"model"`
-	Reply               string          `json:"reply"`
-	InputSensitive      bool            `json:"input_sensitive,omitempty"`
-	InputSensitiveType  int64           `json:"input_sensitive_type,omitempty"`
-	OutputSensitive     bool            `json:"output_sensitive,omitempty"`
-	OutputSensitiveType int64           `json:"output_sensitive_type,omitempty"`
-	Choices             []minimaxChoice `json:"choices,omitempty"`
-	Usage               minimaxUsage    `json:"usage,omitempty"`
-	Id                  string          `json:"id"`
-	BaseResp            minimaxBaseResp `json:"base_resp"`
+// minimaxChatCompletionProResp represents the structure of a Minimax Chat Completion Pro response.
+type minimaxChatCompletionProResp struct {
+	Created         int64           `json:"created"`
+	Model           string          `json:"model"`
+	Reply           string          `json:"reply"`
+	InputSensitive  bool            `json:"input_sensitive,omitempty"`
+	OutputSensitive bool            `json:"output_sensitive,omitempty"`
+	Choices         []minimaxChoice `json:"choices,omitempty"`
+	Usage           minimaxUsage    `json:"usage,omitempty"`
+	Id              string          `json:"id"`
+	BaseResp        minimaxBaseResp `json:"base_resp"`
 }
 
 // minimaxBaseResp contains error status code and details.
@@ -267,7 +263,9 @@ type minimaxChoice struct {
 
 // minimaxUsage represents token usage statistics.
 type minimaxUsage struct {
-	TotalTokens int64 `json:"total_tokens"`
+	TotalTokens      int64 `json:"total_tokens"`
+	PromptTokens     int64 `json:"prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens"`
 }
 
 func (m *minimaxProvider) parseModel(body []byte) (string, error) {
@@ -282,7 +280,7 @@ func (m *minimaxProvider) parseModel(body []byte) (string, error) {
 	return model, nil
 }
 
-func (m *minimaxProvider) setBotSettings(request *minimaxChatCompletionV2Request, botSettingContent string) {
+func (m *minimaxProvider) setBotSettings(request *minimaxChatCompletionProRequest, botSettingContent string) {
 	if len(request.BotSettings) == 0 {
 		request.BotSettings = []minimaxBotSetting{
 			{
@@ -304,7 +302,7 @@ func (m *minimaxProvider) setBotSettings(request *minimaxChatCompletionV2Request
 	}
 }
 
-func (m *minimaxProvider) buildMinimaxChatCompletionV2Request(request *chatCompletionRequest, botSettingContent string) *minimaxChatCompletionV2Request {
+func (m *minimaxProvider) buildMinimaxChatCompletionProRequest(request *chatCompletionRequest, botSettingContent string) *minimaxChatCompletionProRequest {
 	var messages []minimaxMessage
 	var botSetting []minimaxBotSetting
 	var botName string
@@ -343,7 +341,7 @@ func (m *minimaxProvider) buildMinimaxChatCompletionV2Request(request *chatCompl
 		SenderType: senderTypeBot,
 		SenderName: determineName(botName, defaultBotName),
 	}
-	result := &minimaxChatCompletionV2Request{
+	result := &minimaxChatCompletionProRequest{
 		Model:             request.Model,
 		Stream:            request.Stream,
 		TokensToGenerate:  int64(request.MaxTokens),
@@ -359,7 +357,7 @@ func (m *minimaxProvider) buildMinimaxChatCompletionV2Request(request *chatCompl
 	return result
 }
 
-func (m *minimaxProvider) responseV2ToOpenAI(response *minimaxChatCompletionV2Resp) *chatCompletionResponse {
+func (m *minimaxProvider) responseProToOpenAI(response *minimaxChatCompletionProResp) *chatCompletionResponse {
 	var choices []chatCompletionChoice
 	messageIndex := 0
 	for _, choice := range response.Choices {
@@ -384,7 +382,9 @@ func (m *minimaxProvider) responseV2ToOpenAI(response *minimaxChatCompletionV2Re
 		Model:   response.Model,
 		Choices: choices,
 		Usage: usage{
-			TotalTokens: int(response.Usage.TotalTokens),
+			TotalTokens:      int(response.Usage.TotalTokens),
+			PromptTokens:     int(response.Usage.PromptTokens),
+			CompletionTokens: int(response.Usage.CompletionTokens),
 		},
 	}
 }

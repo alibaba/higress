@@ -38,7 +38,7 @@ Attribute Configuration instructions:
 The meanings of various values for `value_source` ​​are as follows:
 
 - `fixed_value`: fixed value
-- `requeset_header`: The attrribute is obtained through the http request header
+- `request_header`: The attrribute is obtained through the http request header
 - `request_body`: The attrribute is obtained through the http request body
 - `response_header`: The attrribute is obtained through the http response header
 - `response_body`: The attrribute is obtained through the http response body

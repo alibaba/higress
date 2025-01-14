@@ -12,6 +12,7 @@ header:
     - 'LICENSE'
     - 'api/**'
     - 'samples/**'
+    - 'docs/**'
     - '.github/**'
     - '.licenserc.yaml'
     - 'helm/**'
