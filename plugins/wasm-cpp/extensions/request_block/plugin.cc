@@ -15,6 +15,7 @@
 #include "extensions/request_block/plugin.h"
 
 #include <array>
+#include <memory>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -90,6 +91,48 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     return false;
   }
   if (!JsonArrayIterate(
+          configuration, "block_exact_urls", [&](const json& item) -> bool {
+            auto url = JsonValueAs<std::string>(item);
+            if (url.second != Wasm::Common::JsonParserResultDetail::OK) {
+              LOG_WARN("cannot parse block_exact_urls");
+              return false;
+            }
+            if (rule.case_sensitive) {
+              rule.block_exact_urls.push_back(std::move(url.first.value()));
+            } else {
+              rule.block_exact_urls.push_back(
+                  absl::AsciiStrToLower(url.first.value()));
+            }
+            return true;
+          })) {
+    LOG_WARN("failed to parse configuration for block_exact_urls.");
+    return false;
+  }
+  if (!JsonArrayIterate(
+          configuration, "block_regexp_urls", [&](const json& item) -> bool {
+            auto url = JsonValueAs<std::string>(item);
+            if (url.second != Wasm::Common::JsonParserResultDetail::OK) {
+              LOG_WARN("cannot parse block_regexp_urls");
+              return false;
+            }
+            std::string regex;
+            if (rule.case_sensitive) {
+              regex = url.first.value();
+            } else {
+              regex = absl::AsciiStrToLower(url.first.value());
+            }
+            auto re = std::make_unique<ReMatcher>(regex);
+            if (!re->error().empty()) {
+              LOG_WARN(re->error());
+              return false;
+            }
+            rule.block_regexp_urls.push_back(std::move(re));
+            return true;
+          })) {
+    LOG_WARN("failed to parse configuration for block_regexp_urls.");
+    return false;
+  }
+  if (!JsonArrayIterate(
           configuration, "block_headers", [&](const json& item) -> bool {
             auto header = JsonValueAs<std::string>(item);
             if (header.second != Wasm::Common::JsonParserResultDetail::OK) {
@@ -125,8 +168,28 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     LOG_WARN("failed to parse configuration for block_bodys.");
     return false;
   }
+  // compatiable
+  if (!JsonArrayIterate(
+          configuration, "block_bodies", [&](const json& item) -> bool {
+            auto body = JsonValueAs<std::string>(item);
+            if (body.second != Wasm::Common::JsonParserResultDetail::OK) {
+              LOG_WARN("cannot parse block_bodies");
+              return false;
+            }
+            if (rule.case_sensitive) {
+              rule.block_bodys.push_back(std::move(body.first.value()));
+            } else {
+              rule.block_bodys.push_back(
+                  absl::AsciiStrToLower(body.first.value()));
+            }
+            return true;
+          })) {
+    LOG_WARN("failed to parse configuration for block_bodies.");
+    return false;
+  }
   if (rule.block_bodys.empty() && rule.block_headers.empty() &&
-      rule.block_urls.empty()) {
+      rule.block_urls.empty() && rule.block_exact_urls.empty() &&
+      rule.block_regexp_urls.empty()) {
     LOG_WARN("there is no block rules");
     return false;
   }
@@ -171,6 +234,18 @@ bool PluginRootContext::checkHeader(const RequestBlockConfigRule& rule,
     } else {
       urlstr = absl::AsciiStrToLower(request_url);
       url = urlstr;
+    }
+    for (const auto& block_url : rule.block_exact_urls) {
+      if (url == block_url) {
+        sendLocalResponse(rule.blocked_code, "", rule.blocked_message, {});
+        return false;
+      }
+    }
+    for (const auto& block_url : rule.block_regexp_urls) {
+      if (block_url->match(url)) {
+        sendLocalResponse(rule.blocked_code, "", rule.blocked_message, {});
+        return false;
+      }
     }
     for (const auto& block_url : rule.block_urls) {
       if (absl::StrContains(url, block_url)) {
