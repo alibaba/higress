@@ -127,6 +127,8 @@ TEST_F(RequestBlockTest, CaseSensitive) {
   std::string configuration = R"(
 {
    "block_urls": ["?foo=bar", "swagger.html"],
+   "block_exact_urls": ["/hello.html?abc=123"],
+   "block_regexp_urls": [".*monkey.*"],
    "block_headers": ["headerKey", "headerValue"],
    "block_bodys": ["Hello World"]
 })";
@@ -145,6 +147,22 @@ TEST_F(RequestBlockTest, CaseSensitive) {
             FilterHeadersStatus::StopIteration);
 
   path_ = "/swagger.html?foo=BAR";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(403, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/hello.html?abc=123";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(403, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/black/Monkey";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+
+  path_ = "/black/monkey";
   EXPECT_CALL(*mock_context_, sendLocalResponse(403, testing::_, testing::_,
                                                 testing::_, testing::_));
   EXPECT_EQ(context_->onRequestHeaders(0, false),
@@ -188,6 +206,8 @@ TEST_F(RequestBlockTest, CaseInsensitive) {
    "blocked_code": 404,
    "block_urls": ["?foo=bar", "swagger.html"],
    "block_headers": ["headerKey", "headerValue"],
+   "block_exact_urls": ["/hello.html?abc=123"],
+   "block_regexp_urls": [".*monkey.*"],
    "block_bodys": ["Hello World"]
 })";
 
@@ -201,6 +221,24 @@ TEST_F(RequestBlockTest, CaseInsensitive) {
             FilterHeadersStatus::StopIteration);
 
   path_ = "/swagger.html?foo=bar";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(404, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/Hello.html?abc=123";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(404, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/black/Monkey";
+  EXPECT_CALL(*mock_context_, sendLocalResponse(404, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/black/monkey";
   EXPECT_CALL(*mock_context_, sendLocalResponse(404, testing::_, testing::_,
                                                 testing::_, testing::_));
   EXPECT_EQ(context_->onRequestHeaders(0, false),
@@ -222,6 +260,26 @@ TEST_F(RequestBlockTest, CaseInsensitive) {
   headers_ = {{"abc", "123"}};
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
+
+  body_.set("hello world");
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_CALL(*mock_context_, sendLocalResponse(404, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestBody(11, true),
+            FilterDataStatus::StopIterationNoBuffer);
+}
+
+TEST_F(RequestBlockTest, Bodies) {
+  std::string configuration = R"(
+{
+   "case_sensitive": false,
+   "blocked_code": 404,
+   "block_bodies": ["Hello World"]
+})";
+
+  config_.set({configuration.data(), configuration.size()});
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   body_.set("hello world");
   EXPECT_EQ(context_->onRequestHeaders(0, false),
