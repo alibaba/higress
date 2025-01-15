@@ -22,6 +22,7 @@
 #include <unordered_map>
 
 #include "common/http_util.h"
+#include "common/regex.h"
 #include "common/route_rule_matcher.h"
 #define ASSERT(_X) assert(_X)
 
@@ -39,11 +40,16 @@ namespace request_block {
 
 #endif
 
+using ReMatcher = Wasm::Common::Regex::CompiledGoogleReMatcher;
+using ReMatcherPtr = std::unique_ptr<ReMatcher>;
+
 struct RequestBlockConfigRule {
   int blocked_code = 403;
   std::string blocked_message;
   bool case_sensitive = true;
   std::vector<std::string> block_urls;
+  std::vector<std::string> block_exact_urls;
+  std::vector<ReMatcherPtr> block_regexp_urls;
   std::vector<std::string> block_headers;
   std::vector<std::string> block_bodys;
 };
