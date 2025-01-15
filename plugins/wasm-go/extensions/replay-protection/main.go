@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"regexp"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -14,7 +16,6 @@ func main() {
 		"replay-protection",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 	)
 }
 
@@ -22,8 +23,11 @@ type ReplayProtectionConfig struct {
 	ForceNonce  bool // 是否启用强制 nonce 校验
 	NonceTTL    int  // Nonce 的过期时间（单位：秒）
 	Redis       RedisConfig
-	NonceMinLen int // nonce 最小长度
-	NonceMaxLen int // nonce 最大长度
+	NonceMinLen int    // nonce 最小长度
+	NonceMaxLen int    // nonce 最大长度
+	NonceHeader string //nonce头部
+	RejectCode  uint32 //状态码
+	RejectMsg   string //响应体
 }
 
 type RedisConfig struct {
@@ -35,6 +39,21 @@ func parseConfig(json gjson.Result, config *ReplayProtectionConfig, log wrapper.
 	redisConfig := json.Get("redis")
 	if !redisConfig.Exists() {
 		return fmt.Errorf("missing redis config")
+	}
+
+	config.NonceHeader = json.Get("nonce_header").String()
+	if config.NonceHeader == "" {
+		config.NonceHeader = "X-Mse-Nonce"
+	}
+
+	config.RejectCode = uint32(json.Get("reject_code").Int())
+	if config.RejectCode == 0 {
+		config.RejectCode = 429
+	}
+
+	config.RejectMsg = json.Get("reject_msg").String()
+	if config.RejectMsg == "" {
+		config.RejectMsg = "Duplicate nonce"
 	}
 
 	serviceName := redisConfig.Get("serviceName").String()
@@ -81,7 +100,12 @@ func parseConfig(json gjson.Result, config *ReplayProtectionConfig, log wrapper.
 		config.NonceMaxLen = 128
 	}
 
-	return config.Redis.client.Init(username, password, timeout)
+	err := config.Redis.client.Init(username, password, timeout)
+	if err != nil {
+		log.Errorf("Failed to initialize Redis client: %v", err)
+		return fmt.Errorf("Redis initialization error: %w", err)
+	}
+	return nil
 }
 
 func validateNonce(nonce string, config *ReplayProtectionConfig) error {
@@ -98,7 +122,7 @@ func validateNonce(nonce string, config *ReplayProtectionConfig) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig, log wrapper.Log) types.Action {
-	nonce, _ := proxywasm.GetHttpRequestHeader("x-apigw-nonce")
+	nonce, _ := proxywasm.GetHttpRequestHeader(config.NonceHeader)
 	if config.ForceNonce && nonce == "" {
 		// 强制模式下，缺失 nonce 拒绝请求
 		log.Warnf("Missing nonce header")
@@ -113,33 +137,31 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig
 
 	if err := validateNonce(nonce, &config); err != nil {
 		log.Warnf("Invalid nonce: %v", err)
-		proxywasm.SendHttpResponse(429, nil, []byte("Invalid nonce"), -1)
+		proxywasm.SendHttpResponse(400, nil, []byte("Invalid nonce"), -1)
 		return types.ActionPause
 	}
 
 	redisKey := fmt.Sprintf("%s:%s", config.Redis.keyPrefix, nonce)
 
 	// 校验 nonce 是否已存在
-	err := config.Redis.client.Get(redisKey, func(response resp.Value) {
+	err := config.Redis.client.SetNX(redisKey, "1", config.NonceTTL, func(response resp.Value) {
 		if response.Error() != nil {
 			log.Errorf("Redis error: %v", response.Error())
+			proxywasm.SendHttpResponse(500, nil, []byte("Internal Server Error"), -1)
+			return
+		} else if response.Integer() == 1 {
+			// SETNX 成功,请求通过
 			proxywasm.ResumeHttpRequest()
-		} else if response.String() == "" {
-			// nonce 不存在：存储 nonce 并设置过期时间
-			err := config.Redis.client.SetEx(redisKey, "1", config.NonceTTL, func(response resp.Value) {
-				if response.Error() != nil {
-					log.Errorf("Redis error: %v", response.Error())
-				}
-				proxywasm.ResumeHttpRequest()
-			})
-			if err != nil {
-				log.Errorf("Failed to set nonce in Redis: %v", err)
-				proxywasm.ResumeHttpRequest()
-			}
+			return
 		} else {
-			// nonce 已存在：拒绝请求
+			// nonce 已存在,拒绝请求
 			log.Warnf("Duplicate nonce detected: %s", nonce)
-			proxywasm.SendHttpResponse(429, nil, []byte("Request replay detected"), -1)
+			proxywasm.SendHttpResponse(
+				config.RejectCode,
+				nil,
+				[]byte(fmt.Sprintf("%s: %s", config.RejectMsg, nonce)),
+				-1,
+			)
 		}
 	})
 
@@ -147,13 +169,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig
 		log.Errorf("Redis connection failed: %v", err)
 		proxywasm.SendHttpResponse(500, nil, []byte("Internal Server Error"), -1)
 		return types.ActionPause
-	}
-}
-
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig, log wrapper.Log) types.Action {
-	nonce, _ := proxywasm.GetHttpRequestHeader("x-apigw-nonce")
-	if nonce != "" {
-		proxywasm.AddHttpResponseHeader("x-apigw-nonce", nonce)
 	}
 	return types.ActionContinue
 }

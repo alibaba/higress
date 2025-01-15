@@ -23,17 +23,16 @@ The Nonce (Number used ONCE) replay protection plugin prevents request replay at
 |-----------|------|----------|---------|-------------|
 | force_nonce | bool | No | true | Whether to enforce nonce requirement |
 | nonce_ttl | int | No | 900 | Nonce validity period (seconds) |
+| nonce_header          | string | No       | X-Mse-Nonce   | Request header name for the nonce              |
+| nonce_ttl             | int    | No       | 900           | Nonce validity period (seconds)                 |
 | nonce_min_length | int | No | 8 | Minimum nonce length |
 | nonce_max_length | int | No | 128 | Maximum nonce length |
-
-### Redis Configuration
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| serviceName | string | Yes | - | Redis service name |
-| servicePort | int | No | 6379 | Redis service port |
-| timeout | int | No | 1000 | Redis operation timeout (ms) |
-| keyPrefix | string | No | "replay-protection" | Redis key prefix |
+| reject_code       | int | No | 429 | error code when request rejected |
+| reject_msg        | string | No | "Duplicate nonce" | error massage when request rejected  |
+| redis.serviceName | string | Yes | - | Redis service name |
+| sredis.ervicePort | int | No | 6379 | Redis service port |
+| redis.timeout | int | No | 1000 | Redis operation timeout (ms) |
+| redis.keyPrefix | string | No | "replay-protection" | Redis key prefix |
 
 ## Configuration Example
 
@@ -47,8 +46,11 @@ spec:
   defaultConfig:
     force_nonce: true
     nonce_ttl: 900
+    nonce_header:""
     nonce_min_length: 8
     nonce_max_length: 128
+    reject_code: 429
+    reject_msg: "Duplicate nonce" 
     redis:
       serviceName: "redis.higress"
       servicePort: 6379
@@ -63,7 +65,9 @@ url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/replay-protection:v1.0.0
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| x-apigw-nonce | Depends on force_nonce | Random generated nonce value in base64 format |
+| `X-Mse-Nonce` | Depends on force_nonce | Random generated nonce value in base64 format |
+
+>Note: The default nonce header is X-Mse-Nonce. You can customize it using the nonce_header configuration.
 
 ### Usage Example
 
@@ -85,4 +89,11 @@ curl -X POST 'https://api.example.com/path' \
     "message": "Duplicate nonce detected"
 }
 ```
+## Error Response Examples
 
+| Error Scenario              | Status Code | Error Message               |
+|-----------------------------|-------------|-----------------------------|
+| Missing nonce header         | `400`       | `Missing nonce header`        |
+| Nonce length not valid       | `400`       | `Invalid nonce length`        |
+| Nonce not Base64-encoded     | `400`       | `Invalid nonce format`        |
+| Duplicate nonce (replay attack) | `429`       | `Duplicate nonce`             |
