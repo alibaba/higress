@@ -36,6 +36,7 @@ const (
 	RouteName                  = "route"
 	ClusterName                = "cluster"
 	APIName                    = "api"
+	ConsumerKey                = "x-mse-consumer"
 
 	// Source Type
 	FixedValue            = "fixed_value"
@@ -81,8 +82,8 @@ type AIStatisticsConfig struct {
 	shouldBufferStreamingBody bool
 }
 
-func generateMetricName(route, cluster, model, metricName string) string {
-	return fmt.Sprintf("route.%s.upstream.%s.model.%s.metric.%s", route, cluster, model, metricName)
+func generateMetricName(route, cluster, model, consumer, metricName string) string {
+	return fmt.Sprintf("route.%s.upstream.%s.model.%s.consumer.%s.metric.%s", route, cluster, model, consumer, metricName)
 }
 
 func getRouteName() (string, error) {
@@ -115,6 +116,9 @@ func getClusterName() (string, error) {
 }
 
 func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64) {
+	if inc == 0 {
+		return
+	}
 	counter, ok := config.counterMetrics[metricName]
 	if !ok {
 		counter = proxywasm.DefineCounterMetric(metricName)
@@ -158,6 +162,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 	ctx.SetContext(ClusterName, cluster)
 	ctx.SetUserAttribute(APIName, api)
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
+	if consumer, _ := proxywasm.GetHttpRequestHeader(ConsumerKey); consumer != "" {
+		ctx.SetContext(ConsumerKey, consumer)
+	}
 
 	// Set user defined log & span attributes which type is fixed_value
 	setAttributeBySource(ctx, config, FixedValue, nil, log)
@@ -388,6 +395,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 	var ok bool
 	var route, cluster, model string
 	var inputToken, outputToken uint64
+	consumer := ctx.GetStringContext(ConsumerKey, "none")
 	route, ok = ctx.GetContext(RouteName).(string)
 	if !ok {
 		log.Warnf("RouteName typd assert failed, skip metric record")
@@ -421,8 +429,8 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 		log.Warnf("inputToken and outputToken cannot equal to 0, skip metric record")
 		return
 	}
-	config.incrementCounter(generateMetricName(route, cluster, model, InputToken), inputToken)
-	config.incrementCounter(generateMetricName(route, cluster, model, OutputToken), outputToken)
+	config.incrementCounter(generateMetricName(route, cluster, model, consumer, InputToken), inputToken)
+	config.incrementCounter(generateMetricName(route, cluster, model, consumer, OutputToken), outputToken)
 
 	// Generate duration metrics
 	var llmFirstTokenDuration, llmServiceDuration uint64
@@ -433,8 +441,8 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 			log.Warnf("LLMFirstTokenDuration typd assert failed")
 			return
 		}
-		config.incrementCounter(generateMetricName(route, cluster, model, LLMFirstTokenDuration), llmFirstTokenDuration)
-		config.incrementCounter(generateMetricName(route, cluster, model, LLMStreamDurationCount), 1)
+		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMFirstTokenDuration), llmFirstTokenDuration)
+		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMStreamDurationCount), 1)
 	}
 	if ctx.GetUserAttribute(LLMServiceDuration) != nil {
 		llmServiceDuration, ok = convertToUInt(ctx.GetUserAttribute(LLMServiceDuration))
@@ -442,8 +450,8 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 			log.Warnf("LLMServiceDuration typd assert failed")
 			return
 		}
-		config.incrementCounter(generateMetricName(route, cluster, model, LLMServiceDuration), llmServiceDuration)
-		config.incrementCounter(generateMetricName(route, cluster, model, LLMDurationCount), 1)
+		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMServiceDuration), llmServiceDuration)
+		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMDurationCount), 1)
 	}
 }
 
