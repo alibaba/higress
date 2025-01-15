@@ -26,6 +26,7 @@ proxy_wasm_cc_binary(
         "@com_google_absl//absl/time",
         "//common:json_util",
         "//common:http_util",
+        "//common:regex_util",
         "//common:rule_util",
     ],
 )
@@ -44,6 +45,7 @@ cc_library(
         "//common:json_util",
         "@proxy_wasm_cpp_host//:lib",
         "//common:http_util_nullvm",
+        "//common:regex_util",
         "//common:rule_util_nullvm",
     ],
 )

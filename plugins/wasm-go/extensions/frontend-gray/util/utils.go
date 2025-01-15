@@ -64,7 +64,13 @@ func IsRequestSkippedByHeaders(grayConfig config.GrayConfig) bool {
 }
 
 func IsGrayEnabled(grayConfig config.GrayConfig, requestPath string) bool {
-	// 当前路径中前缀为 SkipedRoute，则不走插件逻辑
+	for _, prefix := range grayConfig.IncludePathPrefixes {
+		if strings.HasPrefix(requestPath, prefix) {
+			return true
+		}
+	}
+
+	// 当前路径中前缀为 SkippedPathPrefixes，则不走插件逻辑
 	for _, prefix := range grayConfig.SkippedPathPrefixes {
 		if strings.HasPrefix(requestPath, prefix) {
 			return false

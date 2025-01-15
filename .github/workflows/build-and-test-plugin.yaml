@@ -6,11 +6,15 @@ on:
     paths:
       - 'plugins/**'
       - 'test/**'
+      - 'helm/**'
+      - 'Makefile.core.mk'
   pull_request:
     branches: [ "*" ]
     paths:
       - 'plugins/**'
       - 'test/**'
+      - 'helm/**'
+      - 'Makefile.core.mk'
   workflow_dispatch: ~      
 
 jobs:
