@@ -51,7 +51,7 @@ type sparkStreamResponse struct {
 	Created int64  `json:"created"`
 }
 
-func (i *sparkProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 

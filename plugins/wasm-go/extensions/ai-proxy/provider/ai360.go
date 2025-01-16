@@ -22,7 +22,7 @@ type ai360Provider struct {
 	contextCache *contextCache
 }
 
-func (m *ai360ProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *ai360ProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
