@@ -85,7 +85,7 @@ type hunyuanChatMessage struct {
 	Content string `json:"Content,omitempty"`
 }
 
-func (m *hunyuanProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *hunyuanProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	// 校验hunyuan id 和 key的合法性
 	if len(config.hunyuanAuthId) != hunyuanAuthIdLen || len(config.hunyuanAuthKey) != hunyuanAuthKeyLen {
 		return errors.New("hunyuanAuthId / hunyuanAuthKey is illegal in config file")

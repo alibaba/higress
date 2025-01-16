@@ -38,7 +38,7 @@ const (
 type minimaxProviderInitializer struct {
 }
 
-func (m *minimaxProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	// If using the chat completion Pro API, a group ID must be set.
 	if minimaxApiTypePro == config.minimaxApiType && config.minimaxGroupId == "" {
 		return errors.New(fmt.Sprintf("missing minimaxGroupId in provider config when minimaxApiType is %s", minimaxApiTypePro))

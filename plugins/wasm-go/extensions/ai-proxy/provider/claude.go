@@ -78,7 +78,7 @@ type claudeTextGenDelta struct {
 	StopSequence *string `json:"stop_sequence"`
 }
 
-func (c *claudeProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}

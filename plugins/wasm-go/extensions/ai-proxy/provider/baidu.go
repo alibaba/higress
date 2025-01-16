@@ -34,16 +34,15 @@ const (
 
 type baiduProviderInitializer struct{}
 
-func (g *baiduProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (g *baiduProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.baiduAccessKeyAndSecret == nil || len(config.baiduAccessKeyAndSecret) == 0 {
 		return errors.New("no baiduAccessKeyAndSecret found in provider config")
 	}
 	if config.baiduApiTokenServiceName == "" {
 		return errors.New("no baiduApiTokenServiceName found in provider config")
 	}
-	if !config.failover.enabled {
-		config.useGlobalApiToken = true
-	}
+	// baidu use access key and access secret to refresh apiToken regularly, the apiToken should be accessed globally (via all Wasm VMs)
+	config.useGlobalApiToken = true
 	return nil
 }
 
