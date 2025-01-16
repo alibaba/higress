@@ -50,7 +50,7 @@ spec:
     nonce_header:""
     nonce_min_length: 8
     nonce_max_length: 128
-    base64_validate: true
+    validate_base64: true
     reject_code: 429
     reject_msg: "Duplicate nonce" 
     redis:

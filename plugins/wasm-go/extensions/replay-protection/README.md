@@ -28,7 +28,7 @@ Nonce (Number used ONCE) 防重放插件通过验证请求中的一次性随机�
 | `nonce_max_length`| int    | 否   | `128`           | nonce 值的最大长度。               |
 | `reject_code`     | int    | 否   | `429`           | 拒绝请求时返回的状态码。             |
 | `reject_msg`      | string | 否   | `"Duplicate nonce"` | 拒绝请求时返回的错误信息。           |
-| validate_base64 | bool    | 否   | false  | 是否校验 nonce 的 base64 编码格式 |
+| `validate_base64` | bool    | 否   | `false`  | 是否校验 nonce 的 base64 编码格式 |
 | `redis.serviceName` | string | 是   | 无               | Redis 服务名称，用于存储 nonce 值。   |
 | `redis.servicePort` | int    | 否   | `6379`          | Redis 服务端口。                  |
 | `redis.timeout`   | int    | 否   | `1000`          | Redis 操作超时时间（单位：毫秒）。     |
@@ -51,7 +51,7 @@ spec:
     nonce_ttl: 900                # nonce 有效期设置为 900 秒
     nonce_min_length: 8           # nonce 最小长度
     nonce_max_length: 128         # nonce 最大长度
-    base64_validate: true         # 是否开启base64格式校验
+    validate_base64: true         # 是否开启base64格式校验
     reject_code: 429              # 拒绝请求时返回的状态码
     reject_msg: "Duplicate nonce" # 拒绝请求时返回的错误信息
     redis:

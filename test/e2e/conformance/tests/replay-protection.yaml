@@ -1,0 +1,89 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Deploy Redis service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: higress-conformance-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.2
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: higress-conformance-infra
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+---
+# Configure WasmPlugin
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: replay-protection
+  namespace: higress-conformance-infra
+spec:
+  defaultConfig:
+    force_nonce: true
+    nonce_ttl: 10
+    nonce_header: "X-Mse-Nonce"
+    nonce_min_length: 8
+    nonce_max_length: 128
+    validate_base64: true
+    reject_code: 429
+    reject_msg: "Duplicate nonce"
+    redis:
+      serviceName: "redis.higress-conformance-infra"
+      servicePort: 6379
+      timeout: 1000
+      keyPrefix: "replay-protection"
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/replay-protection:1.0.0
+---
+# Configure HTTPRoute
+apiVersion: networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: replay-protection
+  namespace: higress-conformance-infra
+spec:
+  parentRefs:
+    - name: higress-gateway
+      namespace: higress-system
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /get
+      backendRefs:
+        - name: infra-backend-v1
+          port: 8080
