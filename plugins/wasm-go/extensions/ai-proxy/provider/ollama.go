@@ -19,7 +19,7 @@ const (
 type ollamaProviderInitializer struct {
 }
 
-func (m *ollamaProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *ollamaProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.ollamaServerHost == "" {
 		return errors.New("missing ollamaServerHost in provider config")
 	}

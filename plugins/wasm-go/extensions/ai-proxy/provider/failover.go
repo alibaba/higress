@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
@@ -558,7 +558,8 @@ func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
 func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext, log wrapper.Log) {
 	var apiToken string
 	if c.isFailoverEnabled() || c.useGlobalApiToken {
-		// if enable apiToken failover, only use available apiToken
+		// if enable apiToken failover, only use available apiToken from global apiTokens list
+		// or the apiToken need to be accessed globally (via all Wasm VMs, e.g. baidu),
 		apiToken = c.GetGlobalRandomToken(log)
 	} else {
 		apiToken = c.GetRandomToken()

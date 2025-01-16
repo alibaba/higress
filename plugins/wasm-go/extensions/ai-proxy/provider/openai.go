@@ -22,7 +22,7 @@ const (
 type openaiProviderInitializer struct {
 }
 
-func (m *openaiProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 

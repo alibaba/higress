@@ -76,7 +76,7 @@ const (
 )
 
 type providerInitializer interface {
-	ValidateConfig(ProviderConfig) error
+	ValidateConfig(*ProviderConfig) error
 	CreateProvider(ProviderConfig) (Provider, error)
 }
 
@@ -405,7 +405,7 @@ func (c *ProviderConfig) Validate() error {
 	if !has {
 		return errors.New("unknown provider type: " + c.typ)
 	}
-	if err := initializer.ValidateConfig(*c); err != nil {
+	if err := initializer.ValidateConfig(c); err != nil {
 		return err
 	}
 	return nil
