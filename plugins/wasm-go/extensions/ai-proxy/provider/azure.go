@@ -15,7 +15,7 @@ import (
 type azureProviderInitializer struct {
 }
 
-func (m *azureProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *azureProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.azureServiceUrl == "" {
 		return errors.New("missing azureServiceUrl in provider config")
 	}

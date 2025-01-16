@@ -57,7 +57,7 @@ type deeplResponseTranslation struct {
 	Text                   string `json:"text"`
 }
 
-func (d *deeplProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (d *deeplProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.targetLang == "" {
 		return errors.New("missing targetLang in deepl provider config")
 	}

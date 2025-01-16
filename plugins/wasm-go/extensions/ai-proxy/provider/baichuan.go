@@ -19,7 +19,7 @@ const (
 type baichuanProviderInitializer struct {
 }
 
-func (m *baichuanProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *baichuanProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
