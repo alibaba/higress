@@ -29,8 +29,9 @@ The Nonce (Number used ONCE) replay protection plugin prevents request replay at
 | nonce_max_length | int | No | 128 | Maximum nonce length |
 | reject_code       | int | No | 429 | error code when request rejected |
 | reject_msg        | string | No | "Duplicate nonce" | error massage when request rejected  |
+| validate_base64 | bool    | No   | false  | Whether to validate the base64 encoding format of the nonce. |
 | redis.serviceName | string | Yes | - | Redis service name |
-| sredis.ervicePort | int | No | 6379 | Redis service port |
+| redis.servicePort | int | No | 6379 | Redis service port |
 | redis.timeout | int | No | 1000 | Redis operation timeout (ms) |
 | redis.keyPrefix | string | No | "replay-protection" | Redis key prefix |
 
@@ -49,6 +50,7 @@ spec:
     nonce_header:""
     nonce_min_length: 8
     nonce_max_length: 128
+    base64_validate: true
     reject_code: 429
     reject_msg: "Duplicate nonce" 
     redis:

@@ -26,6 +26,7 @@ type ReplayProtectionConfig struct {
 	NonceMinLen int    // nonce 最小长度
 	NonceMaxLen int    // nonce 最大长度
 	NonceHeader string //nonce头部
+	ValidateBase64 bool   // 是否校验 base64 编码格式
 	RejectCode  uint32 //状态码
 	RejectMsg   string //响应体
 }
@@ -45,6 +46,8 @@ func parseConfig(json gjson.Result, config *ReplayProtectionConfig, log wrapper.
 	if config.NonceHeader == "" {
 		config.NonceHeader = "X-Mse-Nonce"
 	}
+	
+	config.ValidateBase64 = json.Get("validate_base64").Bool() 
 
 	config.RejectCode = uint32(json.Get("reject_code").Int())
 	if config.RejectCode == 0 {
@@ -113,10 +116,11 @@ func validateNonce(nonce string, config *ReplayProtectionConfig) error {
 		return fmt.Errorf("invalid nonce length: must be between %d and %d",
 			config.NonceMinLen, config.NonceMaxLen)
 	}
-
-	if !regexp.MustCompile(`^[a-zA-Z0-9+/=-]+$`).MatchString(nonce) {
-		return fmt.Errorf("invalid nonce format: must be base64 encoded")
-	}
+	if config.ValidateBase64 {
+        if !regexp.MustCompile(`^[a-zA-Z0-9+/=-]+$`).MatchString(nonce) {
+            return fmt.Errorf("invalid nonce format: must be base64 encoded")
+        }
+    }
 
 	return nil
 }
