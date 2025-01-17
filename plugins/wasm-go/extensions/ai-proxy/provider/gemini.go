@@ -28,7 +28,7 @@ const (
 type geminiProviderInitializer struct {
 }
 
-func (g *geminiProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
