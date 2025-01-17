@@ -19,7 +19,7 @@ jobs:
       - name: Download Helm Charts Index
         uses: doggycool/ossutil-github-action@master
         with:
-          ossArgs: 'cp -r -u oss://higress-website-cn-hongkong/helm-charts/index.yaml ./artifact/'
+          ossArgs: 'cp oss://higress-website-cn-hongkong/helm-charts/index.yaml ./artifact/'
           accessKey: ${{ secrets.ACCESS_KEYID }}
           accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
           endpoint: oss-cn-hongkong.aliyuncs.com
