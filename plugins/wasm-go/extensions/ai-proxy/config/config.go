@@ -86,11 +86,6 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	providerConfig := c.GetProviderConfig()
 	err = providerConfig.SetApiTokensFailover(log, c.activeProvider)
 
-	if handler, ok := c.activeProvider.(provider.TickFuncHandler); ok {
-		tickPeriod, tickFunc := handler.GetTickFunc(log)
-		wrapper.RegisteTickFunc(tickPeriod, tickFunc)
-	}
-
 	return err
 }
 
