@@ -168,3 +168,207 @@ rejected_msg: '{"code":-1,"msg":"Too many requests"}'
 redis:
   service_name: redis.static
 ```
+
+## Example
+
+The AI Token Rate Limiting Plugin relies on Redis to track the remaining available tokens, so the Redis service must be deployed first.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+  selector:
+    app: redis
+---
+```
+
+In this example, qwen is used as the AI service provider. Additionally, the AI Statistics Plugin must be configured, as the AI Token Rate Limiting Plugin depends on it to calculate the number of tokens consumed per request. The following configuration limits the total number of input and output tokens to 200 per minute.
+
+```yaml
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy
+  namespace: higress-system
+spec:
+  matchRules:
+  - config:
+      provider:
+        type: qwen
+        apiTokens:
+        - "<YOUR_API_TOKEN>"
+        modelMapping:
+          'gpt-3': "qwen-turbo"
+          'gpt-35-turbo': "qwen-plus"
+          'gpt-4-turbo': "qwen-max"
+          '*': "qwen-turbo"
+    ingress:
+    - qwen
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:v1.0.0
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-statistics
+  namespace: higress-system
+spec:
+  defaultConfig:
+    enable: true
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-statistics:v1.0.0
+  phase: UNSPECIFIED_PHASE
+  priority: 200
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-token-ratelimit
+  namespace: higress-system
+spec:
+  defaultConfig:
+    rule_name: default_limit_by_param_apikey
+    rule_items:
+    - limit_by_param: apikey
+      limit_keys:
+      - key: 123456
+        token_per_minute: 200
+    redis:
+      # By default, to reduce data plane pressure, the `global.onlyPushRouteCluster` parameter in Higress is set to true, meaning that Kubernetes Services are not automatically discovered.
+      # If you need to use Kubernetes Service for service discovery, set `global.onlyPushRouteCluster` to false,
+      # allowing you to directly set `service_name` to the Kubernetes Service without needing to create an McpBridge and an Ingress route for Redis.
+      # service_name: redis.default.svc.cluster.local
+      service_name: redis.dns
+      service_port: 6379
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:v1.0.0
+  phase: UNSPECIFIED_PHASE
+  priority: 600
+```
+
+Note that the `service_name` in the Redis configuration of the AI Token Rate Limiting Plugin is derived from the service source configured in McpBridge. Additionally, we need to configure the access address of the qnwen service in McpBridge.
+
+```yaml
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+  - domain: dashscope.aliyuncs.com
+    name: qwen
+    port: 443
+    type: dns
+  - domain: redis.default.svc.cluster.local # Kubernetes Service
+    name: redis
+    type: dns
+    port: 6379
+```
+
+Create two routing rules separately.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/backend-protocol: HTTPS
+    higress.io/destination: qwen.dns
+    higress.io/proxy-ssl-name: dashscope.aliyuncs.com
+    higress.io/proxy-ssl-server-name: "on"
+  labels:
+    higress.io/resource-definer: higress
+  name: qwen
+  namespace: higress-system
+spec:
+  ingressClassName: higress
+  rules:
+  - host: qwen-test.com
+    http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: redis.dns
+    higress.io/ignore-path-case: "false"
+  labels:
+    higress.io/resource-definer: higress
+  name: redis
+spec:
+  ingressClassName: higress
+  rules:
+  - http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /
+        pathType: Prefix
+```
+
+The rate limiting effect is triggered as follows:
+
+```bash
+curl "http://qwen-test.com:18000/v1/chat/completions?apikey=123456" -H "Content-Type: application/json"  -d '{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "stream": false
+}'
+{"id":"88cfa80f-545d-93b4-8ff3-3f5245ca33ba","choices":[{"index":0,"message":{"role":"assistant","content":"I am Tongyi Qianwen, an AI assistant developed by Alibaba Cloud. I can answer various questions, provide information, and have conversations with users. How can I assist you?"},"finish_reason":"stop"}],"created":1719909825,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":13,"completion_tokens":33,"total_tokens":46}}
+curl "http://qwen-test.com:18000/v1/chat/completions?apikey=123456" -H "Content-Type: application/json"  -d '{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "stream": false
+}'
+Too many requests  # Rate limiting successful
+```
