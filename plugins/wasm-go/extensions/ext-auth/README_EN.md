@@ -1,7 +1,7 @@
+---
 title: External Authentication
 keywords: [higress, auth]
-description: The Ext authentication plugin implements the function of calling an external authorization service for authentication and authorization.
-
+description: The Ext Authentication plugin implements the capability to call external authorization services for authentication and authorization.
 ---
 
 ## Feature Description
