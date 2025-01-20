@@ -247,6 +247,17 @@ Cohere 所对应的 `type` 为 `cohere`。它并无特有的配置字段。
 #### Together-AI
 Together-AI 所对应的 `type` 为 `together-ai`。它并无特有的配置字段。
 
+#### Dify
+Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                         |
+| -- | -------- |------| ------ | ---------------------------- |
+| `difyApiUrl` | string   | 非必填  | -      | dify私有化部署的url |
+| `botType` | string   | 非必填  | -      | dify的应用类型，Chat/Completion/Agent/Workflow |
+| `inputVariable` | string   | 非必填  | -      | dify中应用类型为workflow时需要设置输入变量，当botType为workflow时一起使用 |
+| `outputVariable` | string   | 非必填  | -      | dify中应用类型为workflow时需要设置输出变量，当botType为workflow时一起使用 |
+
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -421,25 +432,25 @@ URL: http://your-domain/v1/chat/completions
 
 ```json
 {
-    "model": "gpt-4o",
-    "messages": [
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
         {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
-                    }
-                },
-                {
-                    "type": "text",
-                    "text": "这个图片是哪里？"
-                }
-            ]
+          "type": "image_url",
+          "image_url": {
+            "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
+          }
+        },
+        {
+          "type": "text",
+          "text": "这个图片是哪里？"
         }
-    ],
-    "temperature": 0.3
+      ]
+    }
+  ],
+  "temperature": 0.3
 }
 ```
 
@@ -447,28 +458,28 @@ URL: http://your-domain/v1/chat/completions
 
 ```json
 {
-    "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {
-                        "text": "这张照片显示的是一位女士和一只狗在海滩上。由于我无法获取具体的地理位置信息，所以不能确定这是哪个地方的海滩。但是从视觉内容来看，它可能是一个位于沿海地区的沙滩海岸线，并且有海浪拍打着岸边。这样的场景在全球许多美丽的海滨地区都可以找到。如果您需要更精确的信息，请提供更多的背景或细节描述。"
-                    }
-                ]
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1723949230,
-    "model": "qwen-vl-plus",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 1279,
-        "completion_tokens": 78
+  "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "text": "这张照片显示的是一位女士和一只狗在海滩上。由于我无法获取具体的地理位置信息，所以不能确定这是哪个地方的海滩。但是从视觉内容来看，它可能是一个位于沿海地区的沙滩海岸线，并且有海浪拍打着岸边。这样的场景在全球许多美丽的海滨地区都可以找到。如果您需要更精确的信息，请提供更多的背景或细节描述。"
+          }
+        ]
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1723949230,
+  "model": "qwen-vl-plus",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 1279,
+    "completion_tokens": 78
+  }
 }
 ```
 
@@ -591,8 +602,8 @@ provider:
   modelMapping:
     "*": "qwen-long" # 通义千问的文件上下文只能在 qwen-long 模型下使用
   qwenFileIds:
-  - "file-fe-xxx"
-  - "file-fe-yyy"
+    - "file-fe-xxx"
+    - "file-fe-yyy"
 ```
 
 **请求示例**
@@ -650,7 +661,7 @@ provider:
 ```json
 {
   "input": {
-      "prompt": "介绍一下Dubbo"
+    "prompt": "介绍一下Dubbo"
   },
   "parameters":  {},
   "debug": {}
@@ -661,21 +672,21 @@ provider:
 
 ```json
 {
-    "output": {
-        "finish_reason": "stop",
-        "session_id": "677e7e8fbb874e1b84792b65042e1599",
-        "text": "Apache Dubbo 是一个..."
-    },
-    "usage": {
-        "models": [
-            {
-                "output_tokens": 449,
-                "model_id": "qwen-max",
-                "input_tokens": 282
-            }
-        ]
-    },
-    "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
+  "output": {
+    "finish_reason": "stop",
+    "session_id": "677e7e8fbb874e1b84792b65042e1599",
+    "text": "Apache Dubbo 是一个..."
+  },
+  "usage": {
+    "models": [
+      {
+        "output_tokens": 449,
+        "model_id": "qwen-max",
+        "input_tokens": 282
+      }
+    ]
+  },
+  "request_id": "b59e45e3-5af4-91df-b7c6-9d746fd3297c"
 }
 ```
 
@@ -918,25 +929,25 @@ curl --location 'http://<your higress domain>/v1/chat/completions' \
 
 ```json
 {
-    "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
-    "choices": [
-        {
-            "index": 0,
-            "delta": {
-                "role": "assistant",
-                "content": "你好！我是一名专业的开发人员。"
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1717493117,
-    "model": "hunyuan-lite",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 15,
-        "completion_tokens": 9,
-        "total_tokens": 24
+  "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "role": "assistant",
+        "content": "你好！我是一名专业的开发人员。"
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1717493117,
+  "model": "hunyuan-lite",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 9,
+    "total_tokens": 24
+  }
 }
 ```
 
@@ -958,14 +969,14 @@ provider:
 
 ```json
 {
-    "model": "gpt-4-turbo",
-    "messages": [
-        {
-            "role": "user",
-            "content": "你好，你是谁？"
-        }
-    ],
-    "stream": false
+  "model": "gpt-4-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
 }
 ```
 
@@ -973,25 +984,25 @@ provider:
 
 ```json
 {
-    "id": "as-e90yfg1pk1",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "你好，我是文心一言，英文名是ERNIE Bot。我能够与人对话互动，回答问题，协助创作，高效便捷地帮助人们获取信息、知识和灵感。"
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1717251488,
-    "model": "ERNIE-4.0",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 4,
-        "completion_tokens": 33,
-        "total_tokens": 37
+  "id": "as-e90yfg1pk1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好，我是文心一言，英文名是ERNIE Bot。我能够与人对话互动，回答问题，协助创作，高效便捷地帮助人们获取信息、知识和灵感。"
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1717251488,
+  "model": "ERNIE-4.0",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 4,
+    "completion_tokens": 33,
+    "total_tokens": 37
+  }
 }
 ```
 
@@ -1014,14 +1025,14 @@ provider:
 
 ```json
 {
-    "model": "gpt-3",
-    "messages": [
-        {
-            "role": "user",
-            "content": "你好，你是谁？"
-        }
-    ],
-    "stream": false
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
 }
 ```
 
@@ -1029,37 +1040,37 @@ provider:
 
 ```json
 {
-    "id": "03ac4fcfe1c6cc9c6a60f9d12046e2b4",
-    "choices": [
-        {
-            "finish_reason": "stop",
-            "index": 0,
-            "message": {
-                "content": "你好，我是一个由MiniMax公司研发的大型语言模型，名为MM智能助理。我可以帮助回答问题、提供信息、进行对话和执行多种语言处理任务。如果你有任何问题或需要帮助，请随时告诉我！",
-                "role": "assistant",
-                "name": "MM智能助理",
-                "audio_content": ""
-            }
-        }
-    ],
-    "created": 1734155471,
-    "model": "abab6.5s-chat",
-    "object": "chat.completion",
-    "usage": {
-        "total_tokens": 116,
-        "total_characters": 0,
-        "prompt_tokens": 70,
-        "completion_tokens": 46
-    },
-    "input_sensitive": false,
-    "output_sensitive": false,
-    "input_sensitive_type": 0,
-    "output_sensitive_type": 0,
-    "output_sensitive_int": 0,
-    "base_resp": {
-        "status_code": 0,
-        "status_msg": ""
+  "id": "03ac4fcfe1c6cc9c6a60f9d12046e2b4",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "你好，我是一个由MiniMax公司研发的大型语言模型，名为MM智能助理。我可以帮助回答问题、提供信息、进行对话和执行多种语言处理任务。如果你有任何问题或需要帮助，请随时告诉我！",
+        "role": "assistant",
+        "name": "MM智能助理",
+        "audio_content": ""
+      }
     }
+  ],
+  "created": 1734155471,
+  "model": "abab6.5s-chat",
+  "object": "chat.completion",
+  "usage": {
+    "total_tokens": 116,
+    "total_characters": 0,
+    "prompt_tokens": 70,
+    "completion_tokens": 46
+  },
+  "input_sensitive": false,
+  "output_sensitive": false,
+  "input_sensitive_type": 0,
+  "output_sensitive_type": 0,
+  "output_sensitive_int": 0,
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": ""
+  }
 }
 ```
 
@@ -1348,18 +1359,18 @@ provider:
 
 ```json
 {
-    "model": "gpt-4o",
-    "messages": [
-        {
-            "role": "system",
-            "content": "你是一名专业的开发人员！"
-        },
-        {
-            "role": "user",
-            "content": "你好，你是谁？"
-        }
-    ],
-    "stream": false
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一名专业的开发人员！"
+    },
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
 }
 ```
 
@@ -1367,24 +1378,24 @@ provider:
 
 ```json
 {
-    "id": "cha000c23c6@dx190ef0b4b96b8f2532",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "你好！我是一名专业的开发人员，擅长编程和解决技术问题。有什么我可以帮助你的吗？"
-            }
-        }
-    ],
-    "created": 1721997415,
-    "model": "generalv3.5",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 10,
-        "completion_tokens": 19,
-        "total_tokens": 29
+  "id": "cha000c23c6@dx190ef0b4b96b8f2532",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一名专业的开发人员，擅长编程和解决技术问题。有什么我可以帮助你的吗？"
+      }
     }
+  ],
+  "created": 1721997415,
+  "model": "generalv3.5",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 19,
+    "total_tokens": 29
+  }
 }
 ```
 
@@ -1410,14 +1421,14 @@ provider:
 
 ```json
 {
-    "model": "gpt-3.5",
-    "messages": [
-        {
-            "role": "user",
-            "content": "Who are you?"
-        }
-    ],
-    "stream": false
+  "model": "gpt-3.5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
 }
 ```
 
@@ -1425,25 +1436,25 @@ provider:
 
 ```json
 {
-    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
-            },
-            "finish_reason": "stop"
-        }
-    ],
-    "created": 1722756984,
-    "model": "gemini-pro",
-    "object": "chat.completion",
-    "usage": {
-        "prompt_tokens": 5,
-        "completion_tokens": 29,
-        "total_tokens": 34
+  "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+      },
+      "finish_reason": "stop"
     }
+  ],
+  "created": 1722756984,
+  "model": "gemini-pro",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 5,
+    "completion_tokens": 29,
+    "total_tokens": 34
+  }
 }
 ```
 
@@ -1515,13 +1526,13 @@ provider:
 **请求示例**
 ```json
 {
-    "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
-    "messages": [
-        {
-            "role": "user",
-            "content": "Who are you?"
-        }
-    ]
+  "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ]
 }
 ```
 
@@ -1554,6 +1565,57 @@ provider:
 }
 ```
 
+### 使用 OpenAI 协议代理 Dify 服务
+
+**配置信息**
+```yaml
+provider:
+  type: dify
+  apiTokens:
+    - "YOUR_DIFY_API_TOKEN"
+  modelMapping:
+    "*": "dify"
+```
+
+**请求示例**
+```json
+{
+  "model": "gpt-4-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+```json
+{
+  "id": "e33fc636-f9e8-4fae-8d5e-fbd0acb09401",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是ChatGPT，由OpenAI开发的人工智能语言模型。我可以帮助回答问题、提供建议或进行各种对话。如果你有任何需要，随时告诉我哦！"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1736657752,
+  "model": "dify",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 16,
+    "completion_tokens": 243,
+    "total_tokens": 259
+  }
+}
+```
+
 
 ## 完整配置示例
 
@@ -1569,13 +1631,13 @@ metadata:
   namespace: higress-system
 spec:
   matchRules:
-  - config:
-      provider:
-        type: groq
-        apiTokens: 
-          - "YOUR_API_TOKEN"
-    ingress:
-    - groq
+    - config:
+        provider:
+          type: groq
+          apiTokens:
+            - "YOUR_API_TOKEN"
+      ingress:
+        - groq
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
 ---
 apiVersion: networking.k8s.io/v1
@@ -1593,16 +1655,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: <YOUR-DOMAIN> 
-    http:
-      paths:
-      - backend:
-          resource:
-            apiGroup: networking.higress.io
-            kind: McpBridge
-            name: default
-        path: /
-        pathType: Prefix
+    - host: <YOUR-DOMAIN>
+      http:
+        paths:
+          - backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: default
+            path: /
+            pathType: Prefix
 ---
 apiVersion: networking.higress.io/v1
 kind: McpBridge
@@ -1611,10 +1673,10 @@ metadata:
   namespace: higress-system
 spec:
   registries:
-  - domain: api.groq.com
-    name: groq
-    port: 443
-    type: dns
+    - domain: api.groq.com
+      name: groq
+      port: 443
+      type: dns
 ```
 
 访问示例：
