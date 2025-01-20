@@ -17,9 +17,11 @@ package common
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"sort"
 	"strings"
+	"time"
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -34,6 +36,30 @@ import (
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
+
+const (
+	defaultInterval = 3 * time.Second
+	defaultTimeout  = 1 * time.Minute
+)
+
+type retry struct {
+	interval time.Duration
+	timeout  time.Duration
+}
+
+type RetryOption func(o *retry)
+
+func WithInterval(interval time.Duration) RetryOption {
+	return func(r *retry) {
+		r.interval = interval
+	}
+}
+
+func WithTimeout(timeout time.Duration) RetryOption {
+	return func(r *retry) {
+		r.timeout = timeout
+	}
+}
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 	if resource == nil || resource.APIGroup == nil ||
@@ -65,6 +91,62 @@ func V1Available(client kube.Client) bool {
 	return runningVersion.AtLeast(version119)
 }
 
+func V1Available(client kube.Client, retryOptions ...RetryOption) bool {
+	retry := &retry{
+		interval: defaultInterval,
+		timeout:  defaultTimeout,
+	}
+
+	for _, option := range retryOptions {
+		option(retry)
+	}
+
+	// most case is greater than 1.18
+	supportV1 := true
+	err := wait.PollImmediate(retry.interval, retry.timeout, func() (done bool, err error) {
+		available, err := v1Available(client)
+		if err != nil {
+			IngressLog.Errorf("check v1 available error: %v", err)
+			// retry
+			return false, nil
+		}
+		supportV1 = available
+		// we have done.
+		return true, nil
+	})
+
+	if err != nil {
+		IngressLog.Errorf("check v1 available finally error: %v", err)
+	}
+
+	return supportV1
+}
+
+func IsRunningVersionAtLeast(atLeastVersionStr string, client kube.Client) (bool, error) {
+	atLeastVersion, _ := version.ParseGeneric(atLeastVersionStr)
+
+	serverVersion, err := client.GetKubernetesVersion()
+	if err != nil {
+		// Consider the new ingress package is available as default
+		return true
+		queryK8sVersionFail.Increment()
+		return false, err
+	}
+
+	runningVersion, err := version.ParseGeneric(serverVersion.String())
+	if err != nil {
+		// Consider the new ingress package is available as default
+		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
+		return true
+		queryK8sVersionFail.Increment()
+		return false, err
+	}
+
+	return runningVersion.AtLeast(version119)
+	return runningVersion.AtLeast(atLeastVersion), nil
+}
+
+
 // NetworkingIngressAvailable check if the "networking" group Ingress is available.
 func NetworkingIngressAvailable(client kube.Client) bool {
 	// check kubernetes version to use new ingress package or not
@@ -82,6 +164,45 @@ func NetworkingIngressAvailable(client kube.Client) bool {
 	}
 
 	return runningVersion.AtLeast(version118)
+}
+
+func NetworkingIngressAvailable(client kube.Client, retryOptions ...RetryOption) bool {
+	retry := &retry{
+		interval: defaultInterval,
+		timeout:  defaultTimeout,
+	}
+
+	serverVersion, err := client.GetKubernetesVersion()
+	if err != nil {
+		return false
+	for _, option := range retryOptions {
+		option(retry)
+	}
+
+	runningVersion, err := version.ParseGeneric(serverVersion.String())
+	// most case is greater than or equal 1.18.
+	supportNetworking := true
+
+	err := wait.PollImmediate(retry.interval, retry.timeout, func() (done bool, err error) {
+		available, err := networkingIngressAvailable(client)
+		if err != nil {
+			IngressLog.Errorf("check networking available error: %v", err)
+			// retry
+			return false, nil
+		}
+		supportNetworking = available
+		// we have done.
+		return true, nil
+	})
+
+	if err != nil {
+		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
+		return false
+		IngressLog.Errorf("check networking available finally error: %v", err)
+	}
+
+	return runningVersion.AtLeast(version118)
+	return supportNetworking
 }
 
 // SortIngressByCreationTime sorts the list of config objects in ascending order by their creation time (if available).
