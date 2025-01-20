@@ -128,7 +128,7 @@ template:
         - name: ISTIO_META_REQUESTED_NETWORK_VIEW
           value: "{{.}}"
         {{- end }}
-        {{- range $key, $val := .Values.env }}
+        {{- range $key, $val := .Values.gateway.env }}
         - name: {{ $key }}
           value: {{ $val | quote }}
         {{- end }}
