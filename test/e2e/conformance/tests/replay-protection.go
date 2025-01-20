@@ -80,7 +80,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 						Path:             "/get",
 						UnfollowRedirect: true,
 						Headers: map[string]string{
-							"X-Mse-Nonce": "invalid-nonce",
+							"X-Higress-Nonce": "invalid-nonce",
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
@@ -109,7 +109,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 						Path:             "/get",
 						UnfollowRedirect: true,
 						Headers: map[string]string{
-							"X-Mse-Nonce": generateBase64Nonce(32),
+							"X-Higress-Nonce": generateBase64Nonce(32),
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
@@ -138,7 +138,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 						Path:             "/get",
 						UnfollowRedirect: true,
 						Headers: map[string]string{
-							"X-Mse-Nonce": replayNonce,
+							"X-Higress-Nonce": replayNonce,
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{

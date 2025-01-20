@@ -56,7 +56,7 @@ spec:
   defaultConfig:
     force_nonce: true
     nonce_ttl: 10
-    nonce_header: "X-Mse-Nonce"
+    nonce_header: "X-Higress-Nonce"
     nonce_min_length: 8
     nonce_max_length: 128
     validate_base64: true
@@ -67,7 +67,7 @@ spec:
       servicePort: 6379
       timeout: 1000
       keyPrefix: "replay-protection"
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/replay-protection:1.0.0
+  url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
 ---
 # Configure HTTPRoute
 apiVersion: networking.k8s.io/v1
@@ -81,6 +81,9 @@ spec:
       namespace: higress-system
   rules:
     - matches:
+         - headers:  
+          - name: host
+            exact: foo.com
         - path:
             type: PathPrefix
             value: /get

@@ -20,15 +20,15 @@ func main() {
 }
 
 type ReplayProtectionConfig struct {
-	ForceNonce     bool // 是否启用强制 nonce 校验
-	NonceTTL       int  // Nonce 的过期时间（单位：秒）
+	ForceNonce     bool // Whether to enforce nonce verification
+	NonceTTL       int  // Expiration time of the nonce (in seconds)
 	Redis          RedisConfig
-	NonceMinLen    int    // nonce 最小长度
-	NonceMaxLen    int    // nonce 最大长度
-	NonceHeader    string //nonce头部
-	ValidateBase64 bool   // 是否校验 base64 编码格式
-	RejectCode     uint32 //状态码
-	RejectMsg      string //响应体
+	NonceMinLen    int    // Minimum length of the nonce
+	NonceMaxLen    int    // Maximum length of the nonce
+	NonceHeader    string // Name of the nonce heade
+	ValidateBase64 bool   // Whether to validate base64 encoding format
+	RejectCode     uint32 // Response code
+	RejectMsg      string // Response body
 }
 
 type RedisConfig struct {
@@ -128,13 +128,13 @@ func validateNonce(nonce string, config *ReplayProtectionConfig) error {
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig, log wrapper.Log) types.Action {
 	nonce, _ := proxywasm.GetHttpRequestHeader(config.NonceHeader)
 	if config.ForceNonce && nonce == "" {
-		// 强制模式下，缺失 nonce 拒绝请求
+		// In force mode, reject the request if the nonce header is missing
 		log.Warnf("Missing nonce header")
 		proxywasm.SendHttpResponse(400, nil, []byte("Missing nonce header"), -1)
 		return types.ActionPause
 	}
 
-	// 如果没有 nonce，直接放行（非强制模式时）
+	// If there is no nonce, pass through directly (when not in force mode)
 	if nonce == "" {
 		return types.ActionContinue
 	}
@@ -147,18 +147,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig
 
 	redisKey := fmt.Sprintf("%s:%s", config.Redis.keyPrefix, nonce)
 
-	// 校验 nonce 是否已存在
+	// Check if the nonce already exists
 	err := config.Redis.client.SetNX(redisKey, "1", config.NonceTTL, func(response resp.Value) {
 		if response.Error() != nil {
 			log.Errorf("Redis error: %v", response.Error())
 			proxywasm.SendHttpResponse(500, nil, []byte("Internal Server Error"), -1)
 			return
 		} else if response.Integer() == 1 {
-			// SETNX 成功,请求通过
+			// SETNX successful, pass the request
 			proxywasm.ResumeHttpRequest()
 			return
 		} else {
-			// nonce 已存在,拒绝请求
+			// Nonce already exists, reject the request
 			log.Warnf("Duplicate nonce detected: %s", nonce)
 			proxywasm.SendHttpResponse(
 				config.RejectCode,

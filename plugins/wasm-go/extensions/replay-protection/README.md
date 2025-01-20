@@ -22,7 +22,7 @@ Nonce (Number used ONCE) 防重放插件通过验证请求中的一次性随机�
 | 配置项               | 类型   | 必填 | 默认值          | 说明                              |
 |-------------------|--------|------|-----------------|---------------------------------|
 | `force_nonce`     | bool   | 否   | `true`          | 是否强制要求请求携带 nonce 值。       |
-| `nonce_header`    | string | 否   | `X-Mse-Nonce`   | 指定携带 nonce 值的请求头名称。       |
+| `nonce_header`    | string | 否   | `X-Higress-Nonce`   | 指定携带 nonce 值的请求头名称。       |
 | `nonce_ttl`       | int    | 否   | `900`           | nonce 的有效期（单位：秒）。         |
 | `nonce_min_length`| int    | 否   | `8`             | nonce 值的最小长度。               |
 | `nonce_max_length`| int    | 否   | `128`           | nonce 值的最大长度。               |
@@ -47,7 +47,7 @@ metadata:
 spec:
   defaultConfig:
     force_nonce: true
-    nonce_header: "X-Mse-Nonce"    # 指定 nonce 请求头名称
+    nonce_header: "X-Higress-Nonce"    # 指定 nonce 请求头名称
     nonce_ttl: 900                # nonce 有效期设置为 900 秒
     nonce_min_length: 8           # nonce 最小长度
     nonce_max_length: 128         # nonce 最大长度
@@ -55,11 +55,11 @@ spec:
     reject_code: 429              # 拒绝请求时返回的状态码
     reject_msg: "Duplicate nonce" # 拒绝请求时返回的错误信息
     redis:
-      serviceName: "redis.higress" # Redis 服务名称
+      serviceName: "redis.dns" # Redis 服务名称
       servicePort: 6379           # Redis 服务端口
       timeout: 1000               # Redis 操作超时时间
       keyPrefix: "replay-protection" # Redis 键前缀
-url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/replay-protection:v1.0.0
+  url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
 ```
 
 ## 使用说明
@@ -68,7 +68,7 @@ url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/replay-protection:v1.0.0
 
 | 请求头名称       | 是否必须         | 说明                                       |
 |-----------------|----------------|------------------------------------------|
-| `X-Mse-Nonce`  | 根据 `force_nonce` 配置决定 | 请求中携带的随机生成的 nonce 值，需符合 Base64 格式。 |
+| `X-Higress-Nonce`  | 根据 `force_nonce` 配置决定 | 请求中携带的随机生成的 nonce 值，需符合 Base64 格式。 |
 
 > **注意**：可以通过 `nonce_header` 配置自定义请求头名称，默认值为 `X-Mse-Nonce`。
 
@@ -80,7 +80,7 @@ nonce=$(openssl rand -base64 32)
 
 # Send request
 curl -X POST 'https://api.example.com/path' \
-  -H "X-Mse-Nonce: $nonce" \
+  -H "X-Higress-Nonce: $nonce" \
   -d '{"key": "value"}'
 ```
 

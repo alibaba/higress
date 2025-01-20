@@ -23,7 +23,7 @@ The Nonce (Number used ONCE) replay protection plugin prevents request replay at
 |-----------|------|----------|---------|-------------|
 | force_nonce | bool | No | true | Whether to enforce nonce requirement |
 | nonce_ttl | int | No | 900 | Nonce validity period (seconds) |
-| nonce_header          | string | No       | X-Mse-Nonce   | Request header name for the nonce              |
+| nonce_header          | string | No       | X-Higress-Nonce   | Request header name for the nonce              |
 | nonce_ttl             | int    | No       | 900           | Nonce validity period (seconds)                 |
 | nonce_min_length | int | No | 8 | Minimum nonce length |
 | nonce_max_length | int | No | 128 | Maximum nonce length |
@@ -54,11 +54,11 @@ spec:
     reject_code: 429
     reject_msg: "Duplicate nonce" 
     redis:
-      serviceName: "redis.higress"
+      serviceName: "redis.dns"
       servicePort: 6379
       timeout: 1000
       keyPrefix: "replay-protection"
-url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/replay-protection:v1.0.0
+  url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
 ```
 
 ## Usage
@@ -67,7 +67,7 @@ url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/replay-protection:v1.0.0
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `X-Mse-Nonce` | Depends on force_nonce | Random generated nonce value in base64 format |
+| `X-Higress-Nonce` | Depends on force_nonce | Random generated nonce value in base64 format |
 
 >Note: The default nonce header is X-Mse-Nonce. You can customize it using the nonce_header configuration.
 
@@ -79,7 +79,7 @@ nonce=$(openssl rand -base64 32)
 
 # Send request
 curl -X POST 'https://api.example.com/path' \
-  -H "x-apigw-nonce: $nonce" \
+  -H "x-Higress-nonce: $nonce" \
   -d '{"key": "value"}'
 ```
 
