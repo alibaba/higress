@@ -17,7 +17,6 @@ package main
 import (
 	"net/http"
 	"net/url"
-	"strings"
 
 	"ext-auth/config"
 	"ext-auth/util"
@@ -51,12 +50,11 @@ const (
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log wrapper.Log) types.Action {
-	// Skip authentication if the request path starts with any prefix in SkippedPathPrefixes
-	for _, prefix := range config.SkippedPathPrefixes {
-		if strings.HasPrefix(ctx.Path(), prefix) {
-			ctx.DontReadRequestBody()
-			return types.ActionContinue
-		}
+	path, _ := wrapper.GetRequestPathWithoutQuery()
+	// If the request's domain and path match the MatchRules, skip authentication
+	if config.MatchRules.IsAllowedByMode(ctx.Host(), path) {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
 	}
 
 	if wrapper.HasRequestBody() {

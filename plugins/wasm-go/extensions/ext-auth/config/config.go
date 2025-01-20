@@ -12,20 +12,19 @@ import (
 )
 
 const (
-	DefaultStatusOnError uint32 = http.StatusForbidden
+	DefaultStatusOnError = http.StatusForbidden
 
-	DefaultHttpServiceTimeout uint32 = 1000
+	DefaultHttpServiceTimeout = 1000
 
-	DefaultMaxRequestBodyBytes uint32 = 10 * 1024 * 1024
+	DefaultMaxRequestBodyBytes = 10 * 1024 * 1024
 
-	EndpointModeEnvoy = "envoy"
-
+	EndpointModeEnvoy       = "envoy"
 	EndpointModeForwardAuth = "forward_auth"
 )
 
 type ExtAuthConfig struct {
 	HttpService               HttpService
-	SkippedPathPrefixes       []string
+	MatchRules                expr.MatchRules
 	FailureModeAllow          bool
 	FailureModeAllowHeaderAdd bool
 	StatusOnError             uint32
@@ -46,11 +45,6 @@ type HttpService struct {
 }
 
 type AuthorizationRequest struct {
-	// AllowedHeaders In addition to the user’s supplied matchers,
-	// Authorization are automatically included to the list.
-	// When the endpoint_mode is set to forward_auth,
-	// the original request's path is set in the X-Original-Uri header,
-	// and the original request's HTTP method is set in the X-Original-Method header.
 	AllowedHeaders      expr.Matcher
 	HeadersToAdd        map[string]string
 	WithRequestBody     bool
@@ -67,12 +61,13 @@ func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 	if !httpServiceConfig.Exists() {
 		return errors.New("missing http_service in config")
 	}
-	err := parseHttpServiceConfig(httpServiceConfig, config, log)
-	if err != nil {
+	if err := parseHttpServiceConfig(httpServiceConfig, config, log); err != nil {
 		return err
 	}
 
-	config.SkippedPathPrefixes = convertToStringList(json.Get("skipped_path_prefixes").Array())
+	if err := parseMatchRules(json, config, log); err != nil {
+		return err
+	}
 
 	failureModeAllow := json.Get("failure_mode_allow")
 	if failureModeAllow.Exists() {
@@ -246,12 +241,48 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 	return nil
 }
 
-func convertToStringList(results []gjson.Result) []string {
-	interfaces := make([]string, len(results))
-	for i, result := range results {
-		interfaces[i] = result.String()
+func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+	matchListConfig := json.Get("match_list")
+	if !matchListConfig.Exists() {
+		config.MatchRules = expr.MatchRulesDefaults()
+		return nil
 	}
-	return interfaces
+
+	matchType := json.Get("match_type")
+	if !matchType.Exists() {
+		return errors.New("missing match_type in config")
+	}
+	if matchType.Str != expr.ModeWhitelist && matchType.Str != expr.ModeBlacklist {
+		return errors.New("invalid match_type in config, must be 'whitelist' or 'blacklist'")
+	}
+
+	ruleList := make([]expr.Rule, 0)
+	var err error
+
+	matchListConfig.ForEach(func(key, value gjson.Result) bool {
+		pathMatcher, err := expr.BuildStringMatcher(
+			value.Get("match_rule_type").Str,
+			value.Get("match_rule_path").Str, false)
+		if err != nil {
+			log.Errorf("Failed to build string matcher for rule %v: %v", value, err)
+			return false // 终止遍历
+		}
+		ruleList = append(ruleList, expr.Rule{
+			Domain: value.Get("match_rule_domain").Str,
+			Path:   pathMatcher,
+		})
+		return true // 继续遍历
+	})
+
+	if err != nil {
+		return err
+	}
+
+	config.MatchRules = expr.MatchRules{
+		Mode:     matchType.Str,
+		RuleList: ruleList,
+	}
+	return nil
 }
 
 func convertToStringMap(result gjson.Result) map[string]string {
