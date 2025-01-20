@@ -24,7 +24,7 @@ const (
 type moonshotProviderInitializer struct {
 }
 
-func (m *moonshotProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.moonshotFileId != "" && config.context != nil {
 		return errors.New("moonshotFileId and context cannot be configured at the same time")
 	}
