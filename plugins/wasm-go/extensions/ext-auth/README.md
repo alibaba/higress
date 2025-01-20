@@ -16,15 +16,16 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 
 ## 配置字段
 
-| 名称                            | 数据类型            | 必填 | 默认值  | 描述                                                         |
-|---------------------------------|---------------------|------|---------|--------------------------------------------------------------|
-| `http_service`                  | object              | 是   | -       | 外部授权服务配置                                             |
-| `skipped_path_prefixes`         | array of strings    | 否   | -       | 用于排除特定路径跳过鉴权                                     |
-| `failure_mode_allow`            | bool                | 否   | false   | 当设置为 true 时，即使与授权服务的通信失败，或者授权服务返回了 HTTP 5xx 错误，仍会接受客户端请求 |
-| `failure_mode_allow_header_add` | bool                | 否   | false   | 当 `failure_mode_allow` 和 `failure_mode_allow_header_add` 都设置为 true 时，若与授权服务的通信失败，或授权服务返回了 HTTP 5xx 错误，那么请求头中将会添加 `x-envoy-auth-failure-mode-allowed: true` |
-| `status_on_error`               | int                 | 否   | 403     | 当授权服务无法访问或状态码为 5xx 时，设置返回给客户端的 HTTP 状态码。默认状态码是 `403` |
+| 名称                            | 数据类型           | 必填 | 默认值 | 描述                                                         |
+| ------------------------------- | ------------------ | ---- | ------ | ------------------------------------------------------------ |
+| `http_service`                  | object             | 是   | -      | 外部授权服务配置                                             |
+| `match_type`                    | string             | 否   |        | 可选 `whitelist` 或 `blacklist`                              |
+| `match_list`                    | array of MatchRule | 否   |        | 一个包含 (`match_rule_domain`, `match_rule_path`, `match_rule_type`) 的列表 |
+| `failure_mode_allow`            | bool               | 否   | false  | 当设置为 true 时，即使与授权服务的通信失败，或者授权服务返回了 HTTP 5xx 错误，仍会接受客户端请求 |
+| `failure_mode_allow_header_add` | bool               | 否   | false  | 当 `failure_mode_allow` 和 `failure_mode_allow_header_add` 都设置为 true 时，若与授权服务的通信失败，或授权服务返回了 HTTP 5xx 错误，那么请求头中将会添加 `x-envoy-auth-failure-mode-allowed: true` |
+| `status_on_error`               | int                | 否   | 403    | 当授权服务无法访问或状态码为 5xx 时，设置返回给客户端的 HTTP 状态码。默认状态码是 `403` |
 
-`http_service`中每一项的配置字段说明
+`http_service` 中每一项的配置字段说明
 
 | 名称                     | 数据类型 | 必填 | 默认值 | 描述                                  |
 |--------------------------|----------|------|--------|---------------------------------------|
@@ -34,7 +35,7 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | `authorization_request`  | object   | 否   | -      | 发送鉴权请求配置                      |
 | `authorization_response` | object   | 否   | -      | 处理鉴权响应配置                      |
 
-`endpoint`中每一项的配置字段说明
+`endpoint` 中每一项的配置字段说明
 
 | 名称             | 数据类型 | 必填                                   | 默认值 | 描述                                                         |
 |------------------|----------|----------------------------------------|--------|--------------------------------------------------------------|
@@ -45,7 +46,7 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | `request_method` | string   | 否                                     | GET    | `endpoint_mode` 为 `forward_auth` 时，客户端向授权服务发送请求的 HTTP Method |
 | `path`           | string   | `endpoint_mode` 为 `forward_auth` 时必填 | -      | `endpoint_mode` 为 `forward_auth` 时，客户端向授权服务发送请求的请求路径 |
 
-`authorization_request`中每一项的配置字段说明
+`authorization_request` 中每一项的配置字段说明
 
 | 名称                     | 数据类型               | 必填 | 默认值 | 描述                                                         |
 |--------------------------|------------------------|------|--------|--------------------------------------------------------------|
@@ -54,14 +55,14 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | `with_request_body`      | bool                   | 否   | false  | 缓冲客户端请求体，并将其发送至鉴权请求中（HTTP Method为GET、OPTIONS、HEAD请求时不生效） |
 | `max_request_body_bytes` | int                    | 否   | 10MB   | 设置在内存中保存客户端请求体的最大尺寸。当客户端请求体达到在此字段中设置的数值时，将会返回HTTP 413状态码，并且不会启动授权过程。注意，这个设置会优先于 `failure_mode_allow` 的配置 |
 
-`authorization_response`中每一项的配置字段说明
+`authorization_response` 中每一项的配置字段说明
 
 | 名称                       | 数据类型               | 必填 | 默认值 | 描述                                                         |
 |----------------------------|------------------------|------|--------|--------------------------------------------------------------|
 | `allowed_upstream_headers` | array of StringMatcher | 否   | -      | 匹配项的鉴权请求的响应头将添加到原始的客户端请求头中。请注意，同名的请求头将被覆盖 |
 | `allowed_client_headers`   | array of StringMatcher | 否   | -      | 如果不设置，在请求被拒绝时，所有的鉴权请求的响应头将添加到客户端的响应头中。当设置后，在请求被拒绝时，匹配项的鉴权请求的响应头将添加到客户端的响应头中 |
 
-`StringMatcher`类型每一项的配置字段说明，在使用`array of StringMatcher`时会按照数组中定义的StringMatcher顺序依次进行配置
+`StringMatcher` 类型每一项的配置字段说明，在使用 `array of StringMatcher` 时会按照数组中定义的 StringMatcher 顺序依次进行配置
 
 | 名称       | 数据类型 | 必填                                                         | 默认值 | 描述     |
 |------------|----------|-------------------------------------------------------------|--------|----------|
@@ -71,11 +72,19 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | `contains` | string   | 否，`exact` , `prefix` , `suffix`, `contains`, `regex` 中选填一项 | -      | 是否包含 |
 | `regex`    | string   | 否，`exact` , `prefix` , `suffix`, `contains`, `regex` 中选填一项 | -      | 正则匹配 |
 
+MatchRule 类型每一项的配置字段说明，在使用 `array of MatchRule` 时会按照数组中定义的 MatchRule 顺序依次进行配置
+
+| 名称                | 数据类型 | 必填 | 默认值 | 描述                                                         |
+| ------------------- | -------- | ---- | ------ | ------------------------------------------------------------ |
+| `match_rule_domain` | string   | 否   | -      | 匹配规则域名，支持通配符模式，例如 `*.bar.com`               |
+| `match_rule_path`   | string   | 否   | -      | 匹配请求路径的规则                                           |
+| `match_rule_type`   | string   | 否   | -      | 匹配请求路径的规则类型，可选 `exact` , `prefix` , `suffix`, `contains`, `regex` |
+
 ### 两种 `endpoint_mode` 的区别
 
-`endpoint_mode` 为 `envoy` 时，鉴权请求会使用原始请求的HTTP Method，和配置的 `path_prefix` 作为请求路径前缀拼接上原始的请求路径
+`endpoint_mode` 为 `envoy` 时，鉴权请求会使用原始请求的 HTTP Method，和配置的 `path_prefix` 作为请求路径前缀拼接上原始的请求路径
 
-`endpoint_mode` 为 `forward_auth` 时，鉴权请求会使用配置的 `request_method` 作为HTTP Method，和配置的 `path` 作为请求路径，并且 higress 会自动生成并发送以下 header 至鉴权服务：
+`endpoint_mode` 为 `forward_auth` 时，鉴权请求会使用配置的 `request_method` 作为 HTTP Method，和配置的 `path` 作为请求路径，并且 Higress 会自动生成并发送以下 header 至鉴权服务：
 
 | Header               | 说明                                                   |
 | -------------------- | ------------------------------------------------------ |
@@ -83,6 +92,34 @@ description: Ext 认证插件实现了调用外部授权服务进行认证鉴权
 | `x-forwarded-method` | 原始请求的方法，比如 get/post/delete/patch             |
 | `x-forwarded-host`   | 原始请求的host                                         |
 | `x-forwarded-uri`    | 原始请求的path，包含路径参数，比如 `/v1/app?test=true` |
+
+### 黑白名单模式
+
+支持黑白名单模式配置，默认为白名单模式，白名单为空，即所有请求都需要经过验证，匹配域名支持泛域名例如 `*.bar.com` ，匹配规则支持 `exact` , `prefix` , `suffix`, `contains`, `regex`
+
+**白名单模式**
+
+```yaml
+match_type: 'whitelist'
+match_list:
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/foo'
+      match_rule_type: 'prefix'
+```
+
+泛域名 `*.bar.com` 下前缀匹配 `/foo` 的请求无需验证
+
+**黑名单模式**
+
+```yaml
+match_type: 'blacklist'
+match_list:
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/headers'
+      match_rule_type: 'prefix'
+```
+
+只有泛域名 `*.bar.com` 下前缀匹配 `/header` 的请求需要验证
 
 ## 配置示例
 

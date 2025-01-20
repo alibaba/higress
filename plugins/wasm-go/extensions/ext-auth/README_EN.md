@@ -16,73 +16,111 @@ Plugin Execution Priority: `360`
 
 ## Configuration Fields
 
-| Name                            | Data Type         | Required | Default Value | Description                                                         |
-| ------------------------------- | ---------------- | ---- | ------ | ------------------------------------------------------------ |
-| `http_service`                  | object           | Yes   | -      | Configuration of the external authorization service                                             |
-| `skipped_path_prefixes`         | array of strings | No   | -      | Used to exclude specific paths from authorization                                     |
-| `failure_mode_allow`            | bool             | No   | false  | When set to true, the client request will be accepted even if the communication with the authorization service fails or the authorization service returns an HTTP 5xx error |
-| `failure_mode_allow_header_add` | bool             | No   | false  | When both `failure_mode_allow` and `failure_mode_allow_header_add` are set to true, if the communication with the authorization service fails or the authorization service returns an HTTP 5xx error, the request header will add `x-envoy-auth-failure-mode-allowed: true` |
-| `status_on_error`               | int              | No   | 403    | When the authorization service is inaccessible or the status code is 5xx, set the HTTP status code returned to the client. The default status code is `403` |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `http_service` | object | Yes | - | Configuration for the external authorization service |
+| `match_type` | string | No |  | Can be `whitelist` or `blacklist` |
+| `match_list` | array of MatchRule | No |  | A list containing (`match_rule_domain`, `match_rule_path`, `match_rule_type`) |
+| `failure_mode_allow` | bool | No | false | When set to true, client requests will be accepted even if the communication with the authorization service fails or the authorization service returns an HTTP 5xx error |
+| `failure_mode_allow_header_add` | bool | No | false | When both `failure_mode_allow` and `failure_mode_allow_header_add` are set to true, if the communication with the authorization service fails or the authorization service returns an HTTP 5xx error, the `x-envoy-auth-failure-mode-allowed: true` header will be added to the request header |
+| `status_on_error` | int | No | 403 | Sets the HTTP status code returned to the client when the authorization service is inaccessible or has a 5xx status code. The default status code is `403` |
 
-Configuration field description for each item in `http_service`
+Configuration fields for each item in `http_service`
 
-| Name                     | Data Type | Required | Default Value | Description                                  |
-| ------------------------ | -------- | ---- | ------ | ------------------------------------- |
-| `endpoint_mode`          | string   | No   | envoy  | Optional `envoy` or `forward_auth`        |
-| `endpoint`               | object   | Yes   | -      | HTTP service information for sending authorization requests          |
-| `timeout`                | int      | No   | 1000   | Connection timeout for the `ext-auth` service, in milliseconds |
-| `authorization_request`  | object   | No   | -      | Configuration for sending authorization requests                      |
-| `authorization_response` | object   | No   | -      | Configuration for processing authorization responses                      |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `endpoint_mode` | string | No | envoy | Can be `envoy` or `forward_auth` |
+| `endpoint` | object | Yes | - | Information about the HTTP service to which the authentication request is sent |
+| `timeout` | int | No | 1000 | The connection timeout for the `ext-auth` service in milliseconds |
+| `authorization_request` | object | No | - | Configuration for sending the authentication request |
+| `authorization_response` | object | No | - | Configuration for handling the authentication response |
 
-Configuration field description for each item in `endpoint`
+Configuration fields for each item in `endpoint`
 
-| Name             | Data Type | Required                                     | Default Value | Description                                                         |
-| ---------------- | -------- | ---------------------------------------- | ------ | ------------------------------------------------------------ |
-| `service_name`   | string   | Yes                                       | -      | Enter the authorization service name, the full FQDN name with the service type, such as `ext-auth.dns`, `ext-auth.my-ns.svc.cluster.local` |
-| `service_port`   | int      | No                                       | 80     | Enter the service port of the authorization service                                       |
-| `service_host`   | string   | No                                       | -      | The Host header set when requesting the authorization service. If not filled, it is consistent with the FQDN         |
-| `path_prefix`    | string   | Required when `endpoint_mode` is `envoy`        | -      | When `endpoint_mode` is `envoy`, the request path prefix for the client to send requests to the authorization service |
-| `request_method` | string   | No                                       | GET    | When `endpoint_mode` is `forward_auth`, the HTTP Method for the client to send requests to the authorization service |
-| `path`           | string   | Required when `endpoint_mode` is `forward_auth` | -      | When `endpoint_mode` is `forward_auth`, the request path for the client to send requests to the authorization service |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `service_name` | string | Yes | - | Enter the name of the authorization service, the full FQDN name with service type, e.g., `ext-auth.dns`, `ext-auth.my-ns.svc.cluster.local` |
+| `service_port` | int | No | 80 | Enter the service port of the authorization service |
+| `service_host` | string | No | - | The Host header set when requesting the authorization service. If not filled, it will be the same as the FQDN |
+| `path_prefix` | string | Required when `endpoint_mode` is `envoy` | - | When `endpoint_mode` is `envoy`, the request path prefix for the client to send a request to the authorization service |
+| `request_method` | string | No | GET | When `endpoint_mode` is `forward_auth`, the HTTP Method for the client to send a request to the authorization service |
+| `path` | string | Required when `endpoint_mode` is `forward_auth` | - | When `endpoint_mode` is `forward_auth`, the request path for the client to send a request to the authorization service |
 
-Configuration field description for each item in `authorization_request`
+Configuration fields for each item in `authorization_request`
 
-| Name                     | Data Type               | Required | Default Value | Description                                                         |
-| ------------------------ | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_headers`        | array of StringMatcher | No   | -      | After setting, the client request headers of the matching items will be added to the request headers in the authorization service request. In addition to the user - defined header matching rules, the `Authorization` HTTP header will be automatically included in the authorization service request (when `endpoint_mode` is `forward_auth`, the `X - Forwarded - *` request headers will be added) |
-| `headers_to_add`         | map[string]string      | No   | -      | Set the list of request headers to be included in the authorization service request. Note that client request headers with the same name will be overwritten |
-| `with_request_body`      | bool                   | No   | false  | Buffer the client request body and send it to the authorization request (not effective for HTTP Method GET, OPTIONS, HEAD requests) |
-| `max_request_body_bytes` | int                    | No   | 10MB   | Set the maximum size of the client request body to be saved in memory. When the client request body reaches the value set in this field, an HTTP 413 status code will be returned, and the authorization process will not be started. Note that this setting takes precedence over the `failure_mode_allow` configuration |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `allowed_headers` | array of StringMatcher | No | - | After setting, the client request headers that match the items will be added to the request headers in the authorization service request. In addition to the user-defined header matching rules, the `Authorization` HTTP header will be automatically included in the authorization service request (when `endpoint_mode` is `forward_auth`, the `X-Forwarded-*` request headers will be added) |
+| `headers_to_add` | map[string]string | No | - | Sets the list of request headers to be included in the authorization service request. Please note that the client request headers with the same name will be overwritten |
+| `with_request_body` | bool | No | false | Buffer the client request body and send it to the authentication request (not effective for HTTP Method GET, OPTIONS, HEAD requests) |
+| `max_request_body_bytes` | int | No | 10MB | Sets the maximum size of the client request body to be saved in memory. When the client request body reaches the value set in this field, an HTTP 413 status code will be returned and the authorization process will not be started. Note that this setting takes precedence over the `failure_mode_allow` configuration |
 
-Configuration field description for each item in `authorization_response`
+Configuration fields for each item in `authorization_response`
 
-| Name                       | Data Type               | Required | Default Value | Description                                                         |
-| -------------------------- | ---------------------- | ---- | ------ | ------------------------------------------------------------ |
-| `allowed_upstream_headers` | array of StringMatcher | No   | -      | The response headers of the authorization request of the matching items will be added to the original client request headers. Note that request headers with the same name will be overwritten |
-| `allowed_client_headers`   | array of StringMatcher | No   | -      | If not set, when the request is rejected, all the response headers of the authorization request will be added to the client response headers. When set, when the request is rejected, the response headers of the authorization request of the matching items will be added to the client response headers |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `allowed_upstream_headers` | array of StringMatcher | No | - | The response headers of the authentication request that match the items will be added to the original client request headers. Please note that the request headers with the same name will be overwritten |
+| `allowed_client_headers` | array of StringMatcher | No | - | If not set, when the request is rejected, all the response headers of the authentication request will be added to the client's response headers. When set, when the request is rejected, the response headers of the authentication request that match the items will be added to the client's response headers |
 
-Configuration field description for each item of the `StringMatcher` type. When using `array of StringMatcher`, the configuration will be carried out in the order of the `StringMatcher` defined in the array
+Configuration fields for each item of `StringMatcher` type. When using `array of StringMatcher`, the StringMatchers defined in the array will be configured in order.
 
-| Name       | Data Type | Required                                                         | Default Value | Description     |
-| ---------- | -------- | ------------------------------------------------------------ | ------ | -------- |
-| `exact`    | string   | No, choose one of `exact`, `prefix`, `suffix`, `contains`, `regex` | -      | Exact match |
-| `prefix`   | string   | No, choose one of `exact`, `prefix`, `suffix`, `contains`, `regex` | -      | Prefix match |
-| `suffix`   | string   | No, choose one of `exact`, `prefix`, `suffix`, `contains`, `regex` | -      | Suffix match |
-| `contains` | string   | No, choose one of `exact`, `prefix`, `suffix`, `contains`, `regex` | -      | Contains |
-| `regex`    | string   | No, choose one of `exact`, `prefix`, `suffix`, `contains`, `regex` | -      | Regex match |
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `exact` | string | No, one of `exact`, `prefix`, `suffix`, `contains`, `regex` must be selected | - | Exact match |
+| `prefix` | string | No, one of `exact`, `prefix`, `suffix`, `contains`, `regex` must be selected | - | Prefix match |
+| `suffix` | string | No, one of `exact`, `prefix`, `suffix`, `contains`, `regex` must be selected | - | Suffix match |
+| `contains` | string | No, one of `exact`, `prefix`, `suffix`, `contains`, `regex` must be selected | - | Contains |
+| `regex` | string | No, one of `exact`, `prefix`, `suffix`, `contains`, `regex` must be selected | - | Regular expression match |
 
-### Differences between the Two `endpoint_mode`
+Configuration fields for each item of `MatchRule` type. When using `array of MatchRule`, the MatchRules defined in the array will be configured in order.
 
-When `endpoint_mode` is `envoy`, the authorization request will use the HTTP Method of the original request and the configured `path_prefix` as the request path prefix, and concatenate it with the original request path.
+| Name | Data Type | Required | Default Value | Description |
+| --- | --- | --- | --- | --- |
+| `match_rule_domain` | string | No | - | The domain of the matching rule, supports wildcard patterns, e.g., `*.bar.com` |
+| `match_rule_path` | string | No | - | The rule for matching the request path |
+| `match_rule_type` | string | No | - | The type of the rule for matching the request path, can be `exact`, `prefix`, `suffix`, `contains`, `regex` |
 
-When `endpoint_mode` is `forward_auth`, the authorization request will use the configured `request_method` as the HTTP Method and the configured `path` as the request path. And higress will automatically generate and send the following headers to the authorization service:
+### Differences between the two `endpoint_mode`
 
-| Header               | Description                                                   |
-| -------------------- | ------------------------------------------------------ |
-| `x-forwarded-proto`  | The scheme of the original request, such as http/https                      |
-| `x-forwarded-method` | The method of the original request, such as get/post/delete/patch             |
-| `x-forwarded-host`   | The host of the original request                                         |
-| `x-forwarded-uri`    | The path of the original request, including path parameters, such as `/v1/app?test=true` |
+When `endpoint_mode` is `envoy`, the authentication request will use the original request's HTTP Method and the configured `path_prefix` as the request path prefix, concatenated with the original request path.
+
+When `endpoint_mode` is `forward_auth`, the authentication request will use the configured `request_method` as the HTTP Method and the configured `path` as the request path. Higress will automatically generate and send the following headers to the authorization service:
+
+| Header | Description |
+| --- | --- |
+| `x-forwarded-proto` | The scheme of the original request, such as http/https |
+| `x-forwarded-method` | The method of the original request, such as get/post/delete/patch |
+| `x-forwarded-host` | The host of the original request |
+| `x-forwarded-uri` | The path of the original request, including path parameters, e.g., `/v1/app?test=true` |
+
+### Blacklist and Whitelist Modes
+
+Supports blacklist and whitelist mode configuration. The default is the whitelist mode. If the whitelist is empty, all requests need to be verified. The matching domain supports wildcard domains such as `*.bar.com`, and the matching rule supports `exact`, `prefix`, `suffix`, `contains`, `regex`.
+
+**Whitelist Mode**
+
+```yaml
+match_type: 'whitelist'
+match_list:
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/foo'
+      match_rule_type: 'prefix'
+```
+
+Requests with a prefix match of `/foo` under the wildcard domain `*.bar.com` do not need to be verified.
+
+**Blacklist Mode**
+
+```yaml
+match_type: 'blacklist'
+match_list:
+    - match_rule_domain: '*.bar.com'
+      match_rule_path: '/headers'
+      match_rule_type: 'prefix'
+```
+
+Only requests with a prefix match of `/header` under the wildcard domain `*.bar.com` need to be verified.
+
 
 ## Configuration Examples
 
