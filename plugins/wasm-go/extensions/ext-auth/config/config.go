@@ -264,18 +264,17 @@ func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) 
 			value.Get("match_rule_type").Str,
 			value.Get("match_rule_path").Str, false)
 		if err != nil {
-			log.Errorf("Failed to build string matcher for rule %v: %v", value, err)
-			return false // 终止遍历
+			return false // stop iterating
 		}
 		ruleList = append(ruleList, expr.Rule{
 			Domain: value.Get("match_rule_domain").Str,
 			Path:   pathMatcher,
 		})
-		return true // 继续遍历
+		return true // keep iterating
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to build string matcher for rule %v: %w", matchListConfig, err)
 	}
 
 	config.MatchRules = expr.MatchRules{
