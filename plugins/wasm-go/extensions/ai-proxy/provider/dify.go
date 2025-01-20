@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"net/http"
 	"strings"
@@ -13,13 +14,19 @@ import (
 )
 
 const (
-	difyDomain             = "api.dify.ai"
-	difyChatCompletionPath = "/v1/chat-messages"
+	difyDomain         = "api.dify.ai"
+	difyChatPath       = "/v1/chat-messages"
+	difyCompletionPath = "/v1/completion-messages"
+	difyWorkflowPath   = "/v1/workflows/run"
+	BotTypeChat        = "Chat"
+	BotTypeCompletion  = "Completion"
+	BotTypeWorkflow    = "Workflow"
+	BotTypeAgent       = "Agent"
 )
 
 type difyProviderInitializer struct{}
 
-func (d *difyProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (d *difyProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
@@ -51,8 +58,20 @@ func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestHostHeader(headers, difyDomain)
-	util.OverwriteRequestPathHeader(headers, difyChatCompletionPath)
+	if d.config.difyApiUrl != "" {
+		log.Debugf("use local host: %s", d.config.difyApiUrl)
+		util.OverwriteRequestHostHeader(headers, d.config.difyApiUrl)
+	} else {
+		util.OverwriteRequestHostHeader(headers, difyDomain)
+	}
+	switch d.config.botType {
+	case BotTypeChat, BotTypeAgent:
+		util.OverwriteRequestPathHeader(headers, difyChatPath)
+	case BotTypeCompletion:
+		util.OverwriteRequestPathHeader(headers, difyCompletionPath)
+	case BotTypeWorkflow:
+		util.OverwriteRequestPathHeader(headers, difyWorkflowPath)
+	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+d.config.GetApiTokenInUse(ctx))
 }
 
@@ -71,6 +90,7 @@ func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiN
 	}
 
 	difyRequest := d.difyChatGenRequest(request)
+
 	return json.Marshal(difyRequest)
 }
 
@@ -84,13 +104,35 @@ func (d *difyProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 }
 
 func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *DifyChatResponse) *chatCompletionResponse {
-	choice := chatCompletionChoice{
-		Index:        0,
-		Message:      &chatMessage{Role: roleAssistant, Content: response.Answer},
-		FinishReason: finishReasonStop,
+	var choice chatCompletionChoice
+	var id string
+	switch d.config.botType {
+	case BotTypeChat, BotTypeAgent:
+		choice = chatCompletionChoice{
+			Index:        0,
+			Message:      &chatMessage{Role: roleAssistant, Content: response.Answer},
+			FinishReason: finishReasonStop,
+		}
+		//response header中增加conversationId字段
+		_ = proxywasm.ReplaceHttpResponseHeader("ConversationId", response.ConversationId)
+		id = response.ConversationId
+	case BotTypeCompletion:
+		choice = chatCompletionChoice{
+			Index:        0,
+			Message:      &chatMessage{Role: roleAssistant, Content: response.Answer},
+			FinishReason: finishReasonStop,
+		}
+		id = response.MessageId
+	case BotTypeWorkflow:
+		choice = chatCompletionChoice{
+			Index:        0,
+			Message:      &chatMessage{Role: roleAssistant, Content: response.Data.Outputs[d.config.outputVariable]},
+			FinishReason: finishReasonStop,
+		}
+		id = response.Data.WorkflowId
 	}
 	return &chatCompletionResponse{
-		Id:                response.ConversationId,
+		Id:                id,
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
@@ -136,15 +178,34 @@ func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 }
 
 func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, response *DifyChunkChatResponse) *chatCompletionResponse {
-	choice := chatCompletionChoice{
-		Index: 0,
-		Delta: &chatMessage{Role: roleAssistant, Content: response.Answer},
+	var choice chatCompletionChoice
+	var id string
+	switch d.config.botType {
+	case BotTypeChat, BotTypeAgent:
+		choice = chatCompletionChoice{
+			Index: 0,
+			Delta: &chatMessage{Role: roleAssistant, Content: response.Answer},
+		}
+		id = response.ConversationId
+		_ = proxywasm.ReplaceHttpResponseHeader("ConversationId", response.ConversationId)
+	case BotTypeCompletion:
+		choice = chatCompletionChoice{
+			Index: 0,
+			Delta: &chatMessage{Role: roleAssistant, Content: response.Answer},
+		}
+		id = response.MessageId
+	case BotTypeWorkflow:
+		choice = chatCompletionChoice{
+			Index: 0,
+			Delta: &chatMessage{Role: roleAssistant, Content: response.Data.Outputs[d.config.outputVariable]},
+		}
+		id = response.Data.WorkflowId
 	}
-	if response.Event == "message_end" {
+	if response.Event == "message_end" || response.Event == "workflow_finished" {
 		choice.FinishReason = finishReasonStop
 	}
 	return &chatCompletionResponse{
-		Id:                response.ConversationId,
+		Id:                id,
 		Created:           time.Now().UnixMilli() / 1000,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
@@ -176,12 +237,35 @@ func (d *difyProvider) difyChatGenRequest(request *chatCompletionRequest) *DifyC
 	if user == "" {
 		user = "api-user"
 	}
-	return &DifyChatRequest{
-		Inputs:           make(map[string]interface{}),
-		Query:            content,
-		ResponseMode:     mode,
-		User:             user,
-		AutoGenerateName: false,
+	switch d.config.botType {
+	case BotTypeChat, BotTypeAgent:
+		conversationId, _ := proxywasm.GetHttpRequestHeader("ConversationId")
+		return &DifyChatRequest{
+			Inputs:           make(map[string]interface{}),
+			Query:            content,
+			ResponseMode:     mode,
+			User:             user,
+			AutoGenerateName: false,
+			ConversationId:   conversationId,
+		}
+	case BotTypeCompletion:
+		return &DifyChatRequest{
+			Inputs: map[string]interface{}{
+				"query": content,
+			},
+			ResponseMode: mode,
+			User:         user,
+		}
+	case BotTypeWorkflow:
+		return &DifyChatRequest{
+			Inputs: map[string]interface{}{
+				d.config.inputVariable: content,
+			},
+			ResponseMode: mode,
+			User:         user,
+		}
+	default:
+		return &DifyChatRequest{}
 	}
 }
 
@@ -191,6 +275,7 @@ type DifyChatRequest struct {
 	ResponseMode     string                 `json:"response_mode"`
 	User             string                 `json:"user"`
 	AutoGenerateName bool                   `json:"auto_generate_name"`
+	ConversationId   string                 `json:"conversation_id"`
 }
 
 type DifyMetaData struct {
@@ -198,20 +283,24 @@ type DifyMetaData struct {
 }
 
 type DifyData struct {
-	WorkflowId string `json:"workflow_id"`
-	NodeId     string `json:"node_id"`
+	WorkflowId string                 `json:"workflow_id"`
+	Id         string                 `json:"id"`
+	Outputs    map[string]interface{} `json:"outputs"`
 }
 
 type DifyChatResponse struct {
 	ConversationId string       `json:"conversation_id"`
+	MessageId      string       `json:"message_id"`
 	Answer         string       `json:"answer"`
 	CreateAt       int64        `json:"create_at"`
+	Data           DifyData     `json:"data"`
 	MetaData       DifyMetaData `json:"metadata"`
 }
 
 type DifyChunkChatResponse struct {
 	Event          string       `json:"event"`
 	ConversationId string       `json:"conversation_id"`
+	MessageId      string       `json:"message_id"`
 	Answer         string       `json:"answer"`
 	Data           DifyData     `json:"data"`
 	MetaData       DifyMetaData `json:"metadata"`

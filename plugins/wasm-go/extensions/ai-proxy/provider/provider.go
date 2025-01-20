@@ -242,6 +242,14 @@ type ProviderConfig struct {
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
+	// @Title zh-CN dify私有化部署的url
+	difyApiUrl string `required:"false" yaml:"difyApiUrl" json:"difyApiUrl"`
+	// @Title zh-CN dify的应用类型，Chat/Completion/Agent/Workflow
+	botType string `required:"false" yaml:"botType" json:"botType"`
+	// @Title zh-CN dify中应用类型为workflow时需要设置输入变量，当botType为workflow时一起使用
+	inputVariable string `required:"false" yaml:"inputVariable" json:"inputVariable"`
+	// @Title zh-CN dify中应用类型为workflow时需要设置输出变量，当botType为workflow时一起使用
+	outputVariable string `required:"false" yaml:"outputVariable" json:"outputVariable"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -349,6 +357,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if retryOnFailureJson.Exists() {
 		c.retryOnFailure.FromJson(retryOnFailureJson)
 	}
+	c.difyApiUrl = json.Get("difyApiUrl").String()
+	c.botType = json.Get("botType").String()
+	c.inputVariable = json.Get("inputVariable").String()
+	c.outputVariable = json.Get("outputVariable").String()
 }
 
 func (c *ProviderConfig) Validate() error {
