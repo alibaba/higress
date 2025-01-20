@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -46,6 +47,15 @@ func GetRequestPath() string {
 		return ""
 	}
 	return path
+}
+
+func GetRequestPathWithoutQuery() (string, error) {
+	rawPath := GetRequestPath()
+	path, err := url.Parse(rawPath)
+	if err != nil {
+		return "", err
+	}
+	return path.Path, nil
 }
 
 func GetRequestMethod() string {
