@@ -1,6 +1,6 @@
 module github.com/alibaba/higress/plugins/wasm-go/extensions/replay-protection
 
-go 1.23
+go 1.19
 
 replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
