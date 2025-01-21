@@ -157,15 +157,7 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 #### 文心一言（Baidu）
 
-文心一言所对应的 `type` 为 `baidu`。它特有的配置字段如下：
-
-| 名称                 | 数据类型            | 填写要求 | 默认值 | 描述                                                        |
-|--------------------|-----------------|------|-----|-----------------------------------------------------------|
-| `baiduAccessKeyAndSecret`      | array of string | 必填   | -   | Baidu 的 Access Key 和 Secret Key，中间用 `:` 分隔，用于申请 apiToken。 |
-| `baiduApiTokenServiceName`      | string          | 必填   | -   | 请求刷新百度 apiToken 服务名称。                                     |
-| `baiduApiTokenServiceHost`      | string          | 非必填  | -   | 请求刷新百度 apiToken 服务域名，默认是 iam.bj.baidubce.com。             |
-| `baiduApiTokenServicePort`      | int64           | 非必填  | -   | 请求刷新百度 apiToken 服务端口，默认是 443。                             |
-
+文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
 
 #### 360智脑
 
