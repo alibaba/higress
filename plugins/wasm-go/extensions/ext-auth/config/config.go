@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"errors"
@@ -12,80 +12,78 @@ import (
 )
 
 const (
-	DefaultStatusOnError uint32 = http.StatusForbidden
+	DefaultStatusOnError = http.StatusForbidden
 
-	DefaultHttpServiceTimeout uint32 = 1000
+	DefaultHttpServiceTimeout = 1000
 
-	DefaultMaxRequestBodyBytes uint32 = 10 * 1024 * 1024
+	DefaultMaxRequestBodyBytes = 10 * 1024 * 1024
 
-	EndpointModeEnvoy = "envoy"
-
+	EndpointModeEnvoy       = "envoy"
 	EndpointModeForwardAuth = "forward_auth"
 )
 
 type ExtAuthConfig struct {
-	httpService               HttpService
-	failureModeAllow          bool
-	failureModeAllowHeaderAdd bool
-	statusOnError             uint32
+	HttpService               HttpService
+	MatchRules                expr.MatchRules
+	FailureModeAllow          bool
+	FailureModeAllowHeaderAdd bool
+	StatusOnError             uint32
 }
 
 type HttpService struct {
-	endpointMode string
-	client       wrapper.HttpClient
-	// pathPrefix is only used when endpoint_mode is envoy
-	pathPrefix string
-	// requestMethod is only used when endpoint_mode is forward_auth
-	requestMethod string
-	// path is only used when endpoint_mode is forward_auth
-	path                  string
-	timeout               uint32
-	authorizationRequest  AuthorizationRequest
-	authorizationResponse AuthorizationResponse
+	EndpointMode string
+	Client       wrapper.HttpClient
+	// PathPrefix is only used when endpoint_mode is envoy
+	PathPrefix string
+	// RequestMethod is only used when endpoint_mode is forward_auth
+	RequestMethod string
+	// Path is only used when endpoint_mode is forward_auth
+	Path                  string
+	Timeout               uint32
+	AuthorizationRequest  AuthorizationRequest
+	AuthorizationResponse AuthorizationResponse
 }
 
 type AuthorizationRequest struct {
-	// allowedHeaders In addition to the user’s supplied matchers,
-	// Authorization are automatically included to the list.
-	// When the endpoint_mode is set to forward_auth,
-	// the original request's path is set in the X-Original-Uri header,
-	// and the original request's HTTP method is set in the X-Original-Method header.
-	allowedHeaders      expr.Matcher
-	headersToAdd        map[string]string
-	withRequestBody     bool
-	maxRequestBodyBytes uint32
+	AllowedHeaders      expr.Matcher
+	HeadersToAdd        map[string]string
+	WithRequestBody     bool
+	MaxRequestBodyBytes uint32
 }
 
 type AuthorizationResponse struct {
-	allowedUpstreamHeaders expr.Matcher
-	allowedClientHeaders   expr.Matcher
+	AllowedUpstreamHeaders expr.Matcher
+	AllowedClientHeaders   expr.Matcher
 }
 
-func parseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
 	httpServiceConfig := json.Get("http_service")
 	if !httpServiceConfig.Exists() {
 		return errors.New("missing http_service in config")
 	}
-	err := parseHttpServiceConfig(httpServiceConfig, config, log)
-	if err != nil {
+	if err := parseHttpServiceConfig(httpServiceConfig, config, log); err != nil {
+		return err
+	}
+
+	if err := parseMatchRules(json, config, log); err != nil {
 		return err
 	}
 
 	failureModeAllow := json.Get("failure_mode_allow")
 	if failureModeAllow.Exists() {
-		config.failureModeAllow = failureModeAllow.Bool()
+		config.FailureModeAllow = failureModeAllow.Bool()
 	}
 
 	failureModeAllowHeaderAdd := json.Get("failure_mode_allow_header_add")
 	if failureModeAllowHeaderAdd.Exists() {
-		config.failureModeAllowHeaderAdd = failureModeAllowHeaderAdd.Bool()
+		config.FailureModeAllowHeaderAdd = failureModeAllowHeaderAdd.Bool()
 	}
 
 	statusOnError := uint32(json.Get("status_on_error").Uint())
 	if statusOnError == 0 {
 		statusOnError = DefaultStatusOnError
 	}
-	config.statusOnError = statusOnError
+	config.StatusOnError = statusOnError
 
 	return nil
 }
@@ -101,7 +99,7 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log wrappe
 	if timeout == 0 {
 		timeout = DefaultHttpServiceTimeout
 	}
-	httpService.timeout = timeout
+	httpService.Timeout = timeout
 
 	if err := parseAuthorizationRequestConfig(json, &httpService); err != nil {
 		return err
@@ -111,7 +109,7 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log wrappe
 		return err
 	}
 
-	config.httpService = httpService
+	config.HttpService = httpService
 
 	return nil
 }
@@ -123,7 +121,7 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 	} else if endpointMode != EndpointModeEnvoy && endpointMode != EndpointModeForwardAuth {
 		return errors.New(fmt.Sprintf("endpoint_mode %s is not supported", endpointMode))
 	}
-	httpService.endpointMode = endpointMode
+	httpService.EndpointMode = endpointMode
 
 	endpointConfig := json.Get("endpoint")
 	if !endpointConfig.Exists() {
@@ -140,7 +138,7 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 	}
 	serviceHost := endpointConfig.Get("service_host").String()
 
-	httpService.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+	httpService.Client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
 		Host: serviceHost,
@@ -152,7 +150,7 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 		if !pathPrefixConfig.Exists() {
 			return errors.New("when endpoint_mode is envoy, endpoint path_prefix must not be empty")
 		}
-		httpService.pathPrefix = pathPrefixConfig.String()
+		httpService.PathPrefix = pathPrefixConfig.String()
 
 		if endpointConfig.Get("request_method").Exists() || endpointConfig.Get("path").Exists() {
 			log.Warn("when endpoint_mode is envoy, endpoint request_method and path will be ignored")
@@ -160,16 +158,16 @@ func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrappe
 	case EndpointModeForwardAuth:
 		requestMethodConfig := endpointConfig.Get("request_method")
 		if !requestMethodConfig.Exists() {
-			httpService.requestMethod = http.MethodGet
+			httpService.RequestMethod = http.MethodGet
 		} else {
-			httpService.requestMethod = strings.ToUpper(requestMethodConfig.String())
+			httpService.RequestMethod = strings.ToUpper(requestMethodConfig.String())
 		}
 
 		pathConfig := endpointConfig.Get("path")
 		if !pathConfig.Exists() {
 			return errors.New("when endpoint_mode is forward_auth, endpoint path must not be empty")
 		}
-		httpService.path = pathConfig.String()
+		httpService.Path = pathConfig.String()
 
 		if endpointConfig.Get("path_prefix").Exists() {
 			log.Warn("when endpoint_mode is forward_auth, endpoint path_prefix will be ignored")
@@ -189,35 +187,28 @@ func parseAuthorizationRequestConfig(json gjson.Result, httpService *HttpService
 			if err != nil {
 				return err
 			}
-			authorizationRequest.allowedHeaders = result
+			authorizationRequest.AllowedHeaders = result
 		}
 
-		headersToAdd := map[string]string{}
-		headersToAddConfig := authorizationRequestConfig.Get("headers_to_add")
-		if headersToAddConfig.Exists() {
-			for key, value := range headersToAddConfig.Map() {
-				headersToAdd[key] = value.Str
-			}
-		}
-		authorizationRequest.headersToAdd = headersToAdd
+		authorizationRequest.HeadersToAdd = convertToStringMap(authorizationRequestConfig.Get("headers_to_add"))
 
 		withRequestBody := authorizationRequestConfig.Get("with_request_body")
 		if withRequestBody.Exists() {
 			// withRequestBody is true and the request method is GET, OPTIONS or HEAD
 			if withRequestBody.Bool() &&
-				(httpService.requestMethod == http.MethodGet || httpService.requestMethod == http.MethodOptions || httpService.requestMethod == http.MethodHead) {
-				return errors.New(fmt.Sprintf("requestMethod %s does not support with_request_body set to true", httpService.requestMethod))
+				(httpService.RequestMethod == http.MethodGet || httpService.RequestMethod == http.MethodOptions || httpService.RequestMethod == http.MethodHead) {
+				return errors.New(fmt.Sprintf("requestMethod %s does not support with_request_body set to true", httpService.RequestMethod))
 			}
-			authorizationRequest.withRequestBody = withRequestBody.Bool()
+			authorizationRequest.WithRequestBody = withRequestBody.Bool()
 		}
 
 		maxRequestBodyBytes := uint32(authorizationRequestConfig.Get("max_request_body_bytes").Uint())
 		if maxRequestBodyBytes == 0 {
 			maxRequestBodyBytes = DefaultMaxRequestBodyBytes
 		}
-		authorizationRequest.maxRequestBodyBytes = maxRequestBodyBytes
+		authorizationRequest.MaxRequestBodyBytes = maxRequestBodyBytes
 
-		httpService.authorizationRequest = authorizationRequest
+		httpService.AuthorizationRequest = authorizationRequest
 	}
 	return nil
 }
@@ -233,7 +224,7 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 			if err != nil {
 				return err
 			}
-			authorizationResponse.allowedUpstreamHeaders = result
+			authorizationResponse.AllowedUpstreamHeaders = result
 		}
 
 		allowedClientHeaders := authorizationResponseConfig.Get("allowed_client_headers")
@@ -242,10 +233,62 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 			if err != nil {
 				return err
 			}
-			authorizationResponse.allowedClientHeaders = result
+			authorizationResponse.AllowedClientHeaders = result
 		}
 
-		httpService.authorizationResponse = authorizationResponse
+		httpService.AuthorizationResponse = authorizationResponse
 	}
 	return nil
+}
+
+func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+	matchListConfig := json.Get("match_list")
+	if !matchListConfig.Exists() {
+		config.MatchRules = expr.MatchRulesDefaults()
+		return nil
+	}
+
+	matchType := json.Get("match_type")
+	if !matchType.Exists() {
+		return errors.New("missing match_type in config")
+	}
+	if matchType.Str != expr.ModeWhitelist && matchType.Str != expr.ModeBlacklist {
+		return errors.New("invalid match_type in config, must be 'whitelist' or 'blacklist'")
+	}
+
+	ruleList := make([]expr.Rule, 0)
+	var err error
+
+	matchListConfig.ForEach(func(key, value gjson.Result) bool {
+		pathMatcher, err := expr.BuildStringMatcher(
+			value.Get("match_rule_type").Str,
+			value.Get("match_rule_path").Str, false)
+		if err != nil {
+			return false // stop iterating
+		}
+		ruleList = append(ruleList, expr.Rule{
+			Domain: value.Get("match_rule_domain").Str,
+			Path:   pathMatcher,
+		})
+		return true // keep iterating
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to build string matcher for rule %v: %w", matchListConfig, err)
+	}
+
+	config.MatchRules = expr.MatchRules{
+		Mode:     matchType.Str,
+		RuleList: ruleList,
+	}
+	return nil
+}
+
+func convertToStringMap(result gjson.Result) map[string]string {
+	m := make(map[string]string)
+	result.ForEach(func(key, value gjson.Result) bool {
+		m[key.String()] = value.String()
+		return true // keep iterating
+	})
+	return m
 }
