@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"net/http"
@@ -8,11 +8,11 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
-func sendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header, body []byte) error {
-	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, reconvertHeaders(headers), body, -1)
+func SendResponse(statusCode uint32, statusCodeDetailData string, headers http.Header, body []byte) error {
+	return proxywasm.SendHttpResponseWithDetail(statusCode, statusCodeDetailData, ReconvertHeaders(headers), body, -1)
 }
 
-func reconvertHeaders(headers http.Header) [][2]string {
+func ReconvertHeaders(headers http.Header) [][2]string {
 	var ret [][2]string
 	if headers == nil {
 		return ret
@@ -28,7 +28,7 @@ func reconvertHeaders(headers http.Header) [][2]string {
 	return ret
 }
 
-func extractFromHeader(headers [][2]string, headerKey string) string {
+func ExtractFromHeader(headers [][2]string, headerKey string) string {
 	for _, header := range headers {
 		key := header[0]
 		if strings.ToLower(key) == headerKey {
