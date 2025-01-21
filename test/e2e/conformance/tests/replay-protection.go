@@ -126,7 +126,34 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 					ExpectedResponseNoRequest: false,
 				},
 			},
-
+			{
+				Meta: http.AssertionMeta{
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "foo.com",
+						Path:             "/get",
+						UnfollowRedirect: true,
+						Headers: map[string]string{
+							"X-Higress-Nonce": replayNonce,
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Path: "/get",
+							Host: "foo.com",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					ExpectedResponseNoRequest: false,
+				},
+			},
 			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
