@@ -24,8 +24,15 @@ func (m *stepfunProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *stepfunProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// stepfun的chat接口path和OpenAI的chat接口一样
+		string(ApiNameChatCompletion): stepfunChatCompletionPath,
+	}
+}
+
 func (m *stepfunProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &stepfunProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -57,7 +64,7 @@ func (m *stepfunProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *stepfunProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, stepfunChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, stepfunDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

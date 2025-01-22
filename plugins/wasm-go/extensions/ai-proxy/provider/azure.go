@@ -15,6 +15,15 @@ import (
 type azureProviderInitializer struct {
 }
 
+func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// azure 此配置无实质作用，只是为了保持和其他provider的一致性
+		// TODO: azure的模式和openai是一致的，只是需要处理前缀，可以在TransformRequestHeaders中处理，以支持通用能力
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *azureProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.azureServiceUrl == "" {
 		return errors.New("missing azureServiceUrl in provider config")
@@ -35,7 +44,7 @@ func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 	} else {
 		serviceUrl = u
 	}
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &azureProvider{
 		config:       config,
 		serviceUrl:   serviceUrl,

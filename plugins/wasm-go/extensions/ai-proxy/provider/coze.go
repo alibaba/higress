@@ -21,8 +21,14 @@ func (m *cozeProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
+func (m *cozeProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// 此配置暂时无实质作用，只是为了保持和其他provider的一致性
+	}
+}
+
 func (m *cozeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &cozeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

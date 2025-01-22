@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	cohereDomain             = "api.cohere.com"
+	cohereDomain = "api.cohere.com"
+	// TODO: 现在cohere有v2, 也有embeddings, 考虑更多支持: https://docs.cohere.com/v2/reference/rerank
 	cohereChatCompletionPath = "/v1/chat"
+	cohereRerankPath         = "/v1/rerank"
 )
 
 type cohereProviderInitializer struct{}
@@ -25,8 +27,15 @@ func (m *cohereProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *cohereProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): cohereChatCompletionPath,
+		string(ApiNameCohereV1Rerank): cohereRerankPath,
+	}
+}
+
 func (m *cohereProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &cohereProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

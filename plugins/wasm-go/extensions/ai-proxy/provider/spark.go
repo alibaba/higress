@@ -55,8 +55,14 @@ func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (i *sparkProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): sparkChatCompletionPath,
+	}
+}
+
 func (i *sparkProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(i.DefaultCapabilities())
 	return &sparkProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -169,7 +175,7 @@ func (p *sparkProvider) appendResponse(responseBuilder *strings.Builder, respons
 }
 
 func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, sparkChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), p.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, sparkHost)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+p.config.GetApiTokenInUse(ctx))
 }

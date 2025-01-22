@@ -64,8 +64,14 @@ func (d *deeplProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (d *deeplProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): deeplChatCompletionPath,
+	}
+}
+
 func (d *deeplProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(d.DefaultCapabilities())
 	return &deeplProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

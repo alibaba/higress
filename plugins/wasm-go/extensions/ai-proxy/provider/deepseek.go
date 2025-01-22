@@ -12,7 +12,8 @@ import (
 // deepseekProvider is the provider for deepseek Ai service.
 
 const (
-	deepseekDomain             = "api.deepseek.com"
+	deepseekDomain = "api.deepseek.com"
+	// TODO: 根据文档 docs: https://api-docs.deepseek.com/api/create-chat-completion, path应该是 /chat/completions, 待验证
 	deepseekChatCompletionPath = "/v1/chat/completions"
 )
 
@@ -26,8 +27,14 @@ func (m *deepseekProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	return nil
 }
 
+func (m *deepseekProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): deepseekChatCompletionPath,
+	}
+}
+
 func (m *deepseekProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &deepseekProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -59,7 +66,7 @@ func (m *deepseekProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *deepseekProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, deepseekChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, deepseekDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

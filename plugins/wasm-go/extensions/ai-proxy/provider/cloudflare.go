@@ -25,9 +25,14 @@ func (c *cloudflareProviderInitializer) ValidateConfig(config *ProviderConfig) e
 	}
 	return nil
 }
+func (c *cloudflareProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): cloudflareChatCompletionPath,
+	}
+}
 
 func (c *cloudflareProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(c.DefaultCapabilities())
 	return &cloudflareProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

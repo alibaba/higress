@@ -85,8 +85,16 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): claudeChatCompletionPath,
+		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
+		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
+	}
+}
+
 func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(c.DefaultCapabilities())
 	return &claudeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -111,7 +119,7 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, claudeChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), c.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
 	headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))

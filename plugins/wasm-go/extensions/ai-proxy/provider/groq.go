@@ -25,8 +25,14 @@ func (g *groqProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
+func (g *groqProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): groqChatCompletionPath,
+	}
+}
+
 func (g *groqProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(g.DefaultCapabilities())
 	return &groqProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -58,7 +64,7 @@ func (g *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 }
 
 func (g *groqProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, groqChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), g.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, groqDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

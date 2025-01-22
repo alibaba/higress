@@ -35,8 +35,16 @@ func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (g *geminiProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// path在gemini中没有实际意义，只是为了保持和其他provider的一致性
+		string(ApiNameChatCompletion): "_",
+		string(ApiNameEmbeddings):     "_",
+	}
+}
+
 func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
+	config.setDefaultCapabilities(g.DefaultCapabilities())
 	return &geminiProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

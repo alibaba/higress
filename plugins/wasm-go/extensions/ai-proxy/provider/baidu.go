@@ -14,6 +14,7 @@ import (
 const (
 	baiduDomain             = "qianfan.baidubce.com"
 	baiduChatCompletionPath = "/v2/chat/completions"
+	baiduEmbeddings         = "/v2/embeddings"
 )
 
 type baiduProviderInitializer struct{}
@@ -25,8 +26,15 @@ func (g *baiduProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (g *baiduProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): baiduChatCompletionPath,
+		string(ApiNameEmbeddings):     baiduEmbeddings,
+	}
+}
+
 func (g *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(g.DefaultCapabilities())
 	return &baiduProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -58,7 +66,7 @@ func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 }
 
 func (g *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, baiduChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), g.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, baiduDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

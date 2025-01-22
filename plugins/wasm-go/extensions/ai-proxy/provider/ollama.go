@@ -12,10 +12,6 @@ import (
 
 // ollamaProvider is the provider for Ollama service.
 
-const (
-	ollamaChatCompletionPath = "/v1/chat/completions"
-)
-
 type ollamaProviderInitializer struct {
 }
 
@@ -29,10 +25,17 @@ func (m *ollamaProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *ollamaProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// ollama的chat接口path和OpenAI的chat接口一样
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+	}
+}
+
 func (m *ollamaProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	serverPortStr := fmt.Sprintf("%d", config.ollamaServerPort)
 	serviceDomain := config.ollamaServerHost + ":" + serverPortStr
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &ollamaProvider{
 		config:        config,
 		serviceDomain: serviceDomain,
@@ -66,7 +69,7 @@ func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (m *ollamaProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, ollamaChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, m.serviceDomain)
 	headers.Del("Content-Length")
 }

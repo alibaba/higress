@@ -41,7 +41,7 @@ type minimaxProviderInitializer struct {
 func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	// If using the chat completion Pro API, a group ID must be set.
 	if minimaxApiTypePro == config.minimaxApiType && config.minimaxGroupId == "" {
-		return errors.New(fmt.Sprintf("missing minimaxGroupId in provider config when minimaxApiType is %s", minimaxApiTypePro))
+		return fmt.Errorf("missing minimaxGroupId in provider config when minimaxApiType is %s", minimaxApiTypePro)
 	}
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
@@ -49,8 +49,15 @@ func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *minimaxProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// minimax 替换path的时候，要根据modelmapping替换，这儿的配置无实质作用，只是为了保持和其他provider的一致性
+		string(ApiNameChatCompletion): minimaxChatCompletionV2Path,
+	}
+}
+
 func (m *minimaxProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &minimaxProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -267,18 +274,6 @@ type minimaxUsage struct {
 	TotalTokens      int64 `json:"total_tokens"`
 	PromptTokens     int64 `json:"prompt_tokens"`
 	CompletionTokens int64 `json:"completion_tokens"`
-}
-
-func (m *minimaxProvider) parseModel(body []byte) (string, error) {
-	var tempMap map[string]interface{}
-	if err := json.Unmarshal(body, &tempMap); err != nil {
-		return "", err
-	}
-	model, ok := tempMap["model"].(string)
-	if !ok {
-		return "", errors.New("missing model in chat completion request")
-	}
-	return model, nil
 }
 
 func (m *minimaxProvider) setBotSettings(request *minimaxChatCompletionProRequest, botSettingContent string) {

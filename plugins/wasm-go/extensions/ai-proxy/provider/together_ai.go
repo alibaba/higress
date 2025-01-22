@@ -24,8 +24,14 @@ func (m *togetherAIProviderInitializer) ValidateConfig(config *ProviderConfig) e
 	return nil
 }
 
+func (m *togetherAIProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): togetherAICompletionPath,
+	}
+}
+
 func (m *togetherAIProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &togetherAIProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -57,7 +63,7 @@ func (m *togetherAIProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiN
 }
 
 func (m *togetherAIProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, togetherAICompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, togetherAIDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

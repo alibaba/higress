@@ -12,8 +12,7 @@ import (
 // baichuanProvider is the provider for baichuan Ai service.
 
 const (
-	baichuanDomain             = "api.baichuan-ai.com"
-	baichuanChatCompletionPath = "/v1/chat/completions"
+	baichuanDomain = "api.baichuan-ai.com"
 )
 
 type baichuanProviderInitializer struct {
@@ -26,8 +25,16 @@ func (m *baichuanProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	return nil
 }
 
+func (m *baichuanProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// 百川AI的chat和embeddings接口和OpenAI的chat和embeddings接口一样
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *baichuanProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &baichuanProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -59,7 +66,7 @@ func (m *baichuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *baichuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, baichuanChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, baichuanDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

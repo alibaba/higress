@@ -52,8 +52,15 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
+func (m *qwenProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): qwenChatCompletionPath,
+		string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+	}
+}
+
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -76,10 +83,8 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	if m.config.IsOriginal() {
 	} else if m.config.qwenEnableCompatible {
 		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
-	} else if apiName == ApiNameChatCompletion {
-		util.OverwriteRequestPathHeader(headers, qwenChatCompletionPath)
-	} else if apiName == ApiNameEmbeddings {
-		util.OverwriteRequestPathHeader(headers, qwenTextEmbeddingPath)
+	} else if apiName == ApiNameChatCompletion || apiName == ApiNameEmbeddings {
+		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 }
 

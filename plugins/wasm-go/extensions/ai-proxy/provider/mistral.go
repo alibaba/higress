@@ -22,8 +22,17 @@ func (m *mistralProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *mistralProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// mistral的chat接口和OpenAI的chat接口一样
+		// docs: https://docs.mistral.ai/api/
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *mistralProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(ApiNameChatCompletion)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &mistralProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

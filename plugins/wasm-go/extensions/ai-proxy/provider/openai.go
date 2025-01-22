@@ -26,6 +26,13 @@ func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): defaultOpenaiChatCompletionPath,
+		string(ApiNameEmbeddings):     defaultOpenaiEmbeddingsPath,
+	}
+}
+
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	if config.openaiCustomUrl == "" {
 		return &openaiProvider{
@@ -38,7 +45,7 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	if len(pairs) != 2 {
 		return nil, fmt.Errorf("invalid openaiCustomUrl:%s", config.openaiCustomUrl)
 	}
-	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &openaiProvider{
 		config:       config,
 		customDomain: pairs[0],
@@ -65,13 +72,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	if m.customPath == "" {
-		switch apiName {
-		case ApiNameChatCompletion:
-			util.OverwriteRequestPathHeader(headers, defaultOpenaiChatCompletionPath)
-		case ApiNameEmbeddings:
-			ctx.DontReadRequestBody()
-			util.OverwriteRequestPathHeader(headers, defaultOpenaiEmbeddingsPath)
-		}
+		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	} else {
 		util.OverwriteRequestPathHeader(headers, m.customPath)
 	}
