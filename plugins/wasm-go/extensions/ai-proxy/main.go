@@ -95,10 +95,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 	ctx.DisableReroute()
 
-	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if needHandleStreamingBody {
-		proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	}
+	// Always remove the Accept-Encoding header to prevent the LLM from sending compressed responses,
+	// allowing plugins to inspect or modify the response correctly
+	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Set the apiToken for the current request.
@@ -200,8 +199,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	util.ReplaceResponseHeaders(headers)
 
 	checkStream(ctx, log)
+	_, needHandleBody := activeProvider.(provider.TransformResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if !needHandleStreamingBody {
+	if !needHandleBody && !needHandleStreamingBody {
+		ctx.DontReadResponseBody()
+	} else if !needHandleStreamingBody {
 		ctx.BufferResponseBody()
 	}
 
