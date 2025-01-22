@@ -22,6 +22,7 @@ func (m *cozeProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 }
 
 func (m *cozeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &cozeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),

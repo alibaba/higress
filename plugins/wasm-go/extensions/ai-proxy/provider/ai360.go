@@ -30,6 +30,7 @@ func (m *ai360ProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 }
 
 func (m *ai360ProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
 	return &ai360Provider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -41,7 +42,7 @@ func (m *ai360Provider) GetProviderType() string {
 }
 
 func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)

@@ -35,6 +35,7 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 }
 
 func (m *moonshotProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &moonshotProvider{
 		config: config,
 		client: wrapper.NewClusterClient(wrapper.RouteCluster{
@@ -57,7 +58,7 @@ func (m *moonshotProvider) GetProviderType() string {
 }
 
 func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -74,7 +75,7 @@ func (m *moonshotProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiN
 // moonshot 有自己获取 context 的配置（moonshotFileId），因此无法复用 handleRequestBody 方法
 // moonshot 的 body 没有修改，无须实现TransformRequestBody，使用默认的 defaultTransformRequestBody 方法
 func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 

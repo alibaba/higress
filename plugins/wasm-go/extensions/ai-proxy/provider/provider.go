@@ -18,8 +18,18 @@ type ApiName string
 type Pointcut string
 
 const (
-	ApiNameChatCompletion ApiName = "chatCompletion"
-	ApiNameEmbeddings     ApiName = "embeddings"
+
+	// ApiName 格式 {vendor}/{version}/{apitype}
+	// 表示遵循 厂商/版本/接口类型 的格式
+	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
+	ApiNameChatCompletion     ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings         ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration    ApiName = "openai/v1/imagegeneration"
+	ApiNameAudioSpeech        ApiName = "openai/v1/audiospeech"
+	ApiNameAudioTranscription ApiName = "openai/v1/audiotranscription"
+
+	// TODO: 以下是一些非标准的API名称，需要进一步确认
+	// ApiNameCohereRerank ApiName = "cohere/v1/rerank"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -250,6 +260,9 @@ type ProviderConfig struct {
 	inputVariable string `required:"false" yaml:"inputVariable" json:"inputVariable"`
 	// @Title zh-CN dify中应用类型为workflow时需要设置输出变量，当botType为workflow时一起使用
 	outputVariable string `required:"false" yaml:"outputVariable" json:"outputVariable"`
+	// @Title zh-CN 支持的能力
+	// @Description zh-CN 开放的ai能力，例如： "openai/v1/chatcompletions" "openai/v1/embeddings" "openai/v1/imagegeneration" "openai/v1/audiospeech" "openai/v1/audiotranscription"
+	capabilities []string
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -361,6 +374,19 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.botType = json.Get("botType").String()
 	c.inputVariable = json.Get("inputVariable").String()
 	c.outputVariable = json.Get("outputVariable").String()
+
+	c.capabilities = make([]string, 0)
+	for _, ability := range json.Get("abilities").Array() {
+		// 过滤掉不受支持的能力
+		switch ability.String() {
+		case string(ApiNameChatCompletion),
+			string(ApiNameEmbeddings),
+			string(ApiNameImageGeneration),
+			string(ApiNameAudioSpeech),
+			string(ApiNameAudioTranscription):
+			c.capabilities = append(c.capabilities, ability.String())
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -525,6 +551,21 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
+	for _, ability := range c.capabilities {
+		if ability == string(apiName) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ProviderConfig) setDefaultCapabilities(capabilities ...ApiName) {
+	for _, ability := range capabilities {
+		c.capabilities = append(c.capabilities, string(ability))
+	}
 }
 
 func (c *ProviderConfig) handleRequestBody(

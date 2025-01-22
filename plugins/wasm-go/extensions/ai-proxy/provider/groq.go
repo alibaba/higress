@@ -26,6 +26,7 @@ func (g *groqProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 }
 
 func (g *groqProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &groqProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -42,7 +43,7 @@ func (g *groqProvider) GetProviderType() string {
 }
 
 func (g *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !g.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
@@ -50,7 +51,7 @@ func (g *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (g *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)

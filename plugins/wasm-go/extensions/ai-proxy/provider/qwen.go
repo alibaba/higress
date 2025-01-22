@@ -53,6 +53,7 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 }
 
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -95,7 +96,7 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 
@@ -140,7 +141,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 		return types.ActionContinue, nil
 	}
 
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
@@ -277,6 +278,9 @@ func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 	}
 	if apiName == ApiNameEmbeddings {
 		return m.onEmbeddingsResponseBody(ctx, body, log)
+	}
+	if m.config.isSupportedAPI(apiName) {
+		return body, nil
 	}
 	return nil, errUnsupportedApiName
 }

@@ -38,6 +38,7 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	if len(pairs) != 2 {
 		return nil, fmt.Errorf("invalid openaiCustomUrl:%s", config.openaiCustomUrl)
 	}
+	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
 	return &openaiProvider{
 		config:       config,
 		customDomain: pairs[0],

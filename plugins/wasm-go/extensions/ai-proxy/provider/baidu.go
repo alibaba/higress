@@ -26,6 +26,7 @@ func (g *baiduProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 }
 
 func (g *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &baiduProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -42,7 +43,7 @@ func (g *baiduProvider) GetProviderType() string {
 }
 
 func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !g.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
@@ -50,7 +51,7 @@ func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)

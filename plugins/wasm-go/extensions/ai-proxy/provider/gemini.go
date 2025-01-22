@@ -36,6 +36,7 @@ func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 }
 
 func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion, ApiNameEmbeddings)
 	return &geminiProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -52,7 +53,7 @@ func (g *geminiProvider) GetProviderType() string {
 }
 
 func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !g.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
@@ -66,7 +67,7 @@ func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)

@@ -86,6 +86,7 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 }
 
 func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &claudeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -102,7 +103,7 @@ func (c *claudeProvider) GetProviderType() string {
 }
 
 func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
@@ -123,7 +124,7 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)

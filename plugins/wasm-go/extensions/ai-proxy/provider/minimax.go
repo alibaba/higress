@@ -50,6 +50,7 @@ func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 }
 
 func (m *minimaxProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &minimaxProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -66,7 +67,7 @@ func (m *minimaxProvider) GetProviderType() string {
 }
 
 func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -81,7 +82,7 @@ func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 }
 
 func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	if minimaxApiTypePro == m.config.minimaxApiType {

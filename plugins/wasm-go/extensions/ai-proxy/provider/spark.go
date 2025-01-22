@@ -56,6 +56,7 @@ func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 }
 
 func (i *sparkProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &sparkProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -67,7 +68,7 @@ func (p *sparkProvider) GetProviderType() string {
 }
 
 func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !p.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
@@ -75,7 +76,7 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !p.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)

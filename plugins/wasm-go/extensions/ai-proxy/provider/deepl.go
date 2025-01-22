@@ -65,6 +65,7 @@ func (d *deeplProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 }
 
 func (d *deeplProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &deeplProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -76,7 +77,7 @@ func (d *deeplProvider) GetProviderType() string {
 }
 
 func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !d.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
@@ -89,7 +90,7 @@ func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 }
 
 func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !d.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)

@@ -27,6 +27,7 @@ func (c *cloudflareProviderInitializer) ValidateConfig(config *ProviderConfig) e
 }
 
 func (c *cloudflareProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &cloudflareProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -43,7 +44,7 @@ func (c *cloudflareProvider) GetProviderType() string {
 }
 
 func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
@@ -51,7 +52,7 @@ func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 }
 
 func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)

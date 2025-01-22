@@ -274,5 +274,14 @@ func getOpenAiApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/embeddings") {
 		return provider.ApiNameEmbeddings
 	}
+	if strings.HasSuffix(path, "/v1/audio/transcriptions") {
+		return provider.ApiNameAudioTranscription
+	}
+	if strings.HasSuffix(path, "/v1/audio/speech") {
+		return provider.ApiNameAudioSpeech
+	}
+	if strings.HasSuffix(path, "/v1/images/generations") {
+		return provider.ApiNameImageGeneration
+	}
 	return ""
 }

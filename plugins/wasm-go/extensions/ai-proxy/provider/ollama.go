@@ -32,6 +32,7 @@ func (m *ollamaProviderInitializer) ValidateConfig(config *ProviderConfig) error
 func (m *ollamaProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	serverPortStr := fmt.Sprintf("%d", config.ollamaServerPort)
 	serviceDomain := config.ollamaServerHost + ":" + serverPortStr
+	config.setDefaultCapabilities(ApiNameChatCompletion)
 	return &ollamaProvider{
 		config:        config,
 		serviceDomain: serviceDomain,
@@ -50,7 +51,7 @@ func (m *ollamaProvider) GetProviderType() string {
 }
 
 func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -58,7 +59,7 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
