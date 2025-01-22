@@ -43,6 +43,7 @@ const (
 	// docs: https://cloud.tencent.com/document/product/1729/111007
 	hunyuanOpenAiDomain      = "api.hunyuan.cloud.tencent.com"
 	hunyuanOpenAiRequestPath = "/v1/chat/completions"
+	hunyuanOpenAiEmbeddings  = "/v1/embeddings"
 )
 
 type hunyuanProviderInitializer struct {
@@ -104,6 +105,7 @@ func (m *hunyuanProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 func (m *hunyuanProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): hunyuanOpenAiRequestPath,
+		string(ApiNameEmbeddings):     hunyuanOpenAiEmbeddings,
 	}
 }
 
@@ -435,6 +437,9 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 }
 
 func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() {
+		return body, nil
+	}
 	log.Debugf("#debug nash5# onRespBody's resp is: %s", string(body))
 	hunyuanResponse := &hunyuanTextGenResponseNonStreaming{}
 	if err := json.Unmarshal(body, hunyuanResponse); err != nil {
