@@ -571,7 +571,7 @@ func (c *ProviderConfig) handleRequestBody(
 	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log,
 ) (types.Action, error) {
 	// use original protocol
-	if c.protocol == protocolOriginal {
+	if c.IsOriginal() {
 		return types.ActionContinue, nil
 	}
 
