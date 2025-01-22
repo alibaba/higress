@@ -50,7 +50,7 @@ const (
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log wrapper.Log) types.Action {
-	path, _ := wrapper.GetRequestPathWithoutQuery()
+	path := wrapper.GetRequestPathWithoutQuery()
 	// If the request's domain and path match the MatchRules, skip authentication
 	if config.MatchRules.IsAllowedByMode(ctx.Host(), path) {
 		ctx.DontReadRequestBody()
@@ -77,7 +77,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config config.ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
 	if config.HttpService.AuthorizationRequest.WithRequestBody {
-		return checkExtAuth(ctx, config, body, log, types.ActionPause)
+		return checkExtAuth(ctx, config, body, log, types.DataStopIterationAndBuffer)
 	}
 	return types.ActionContinue
 }
@@ -86,6 +86,8 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	httpServiceConfig := cfg.HttpService
 
 	extAuthReqHeaders := buildExtAuthRequestHeaders(ctx, cfg)
+
+	// Set the requestMethod and requestPath based on the endpoint_mode
 	requestMethod := httpServiceConfig.RequestMethod
 	requestPath := httpServiceConfig.Path
 	if httpServiceConfig.EndpointMode == config.EndpointModeEnvoy {
@@ -96,7 +98,6 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	// Call ext auth server
 	err := httpServiceConfig.Client.Call(requestMethod, requestPath, util.ReconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
 				log.Errorf("failed to call ext auth server, status: %d", statusCode)
 				callExtAuthServerErrorHandler(cfg, statusCode, responseHeaders, responseBody)
@@ -110,6 +111,7 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 					}
 				}
 			}
+			proxywasm.ResumeHttpRequest()
 
 		}, httpServiceConfig.Timeout)
 
@@ -122,6 +124,7 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	return pauseAction
 }
 
+// buildExtAuthRequestHeaders builds the request headers to be sent to the ext auth server.
 func buildExtAuthRequestHeaders(ctx wrapper.HttpContext, cfg config.ExtAuthConfig) http.Header {
 	extAuthReqHeaders := http.Header{}
 
@@ -166,6 +169,7 @@ func callExtAuthServerErrorHandler(config config.ExtAuthConfig, statusCode int, 
 		if config.FailureModeAllowHeaderAdd {
 			_ = proxywasm.ReplaceHttpRequestHeader(HeaderFailureModeAllow, "true")
 		}
+		proxywasm.ResumeHttpRequest()
 		return
 	}
 
