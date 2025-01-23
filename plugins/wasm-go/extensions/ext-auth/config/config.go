@@ -65,7 +65,7 @@ func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 		return err
 	}
 
-	if err := parseMatchRules(json, config, log); err != nil {
+	if err := parseMatchRules(json, config); err != nil {
 		return err
 	}
 
@@ -241,7 +241,7 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 	return nil
 }
 
-func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+func parseMatchRules(json gjson.Result, config *ExtAuthConfig) error {
 	matchListConfig := json.Get("match_list")
 	if !matchListConfig.Exists() {
 		config.MatchRules = expr.MatchRulesDefaults()
