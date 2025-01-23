@@ -105,7 +105,7 @@ func (m *qwenProvider) GetProviderType() string {
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return m.config.handleUnsupportedAPI()
 	}
 
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -150,7 +150,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 	}
 
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, m.config.handleUnsupportedAPI()
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }
@@ -290,7 +290,7 @@ func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 	if m.config.isSupportedAPI(apiName) {
 		return body, nil
 	}
-	return nil, errUnsupportedApiName
+	return nil, m.config.handleUnsupportedAPI()
 }
 
 func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {

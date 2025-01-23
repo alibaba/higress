@@ -51,7 +51,7 @@ func (m *doubaoProvider) GetProviderType() string {
 
 func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return m.config.handleUnsupportedAPI()
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
@@ -59,7 +59,7 @@ func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (m *doubaoProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, m.config.handleUnsupportedAPI()
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }

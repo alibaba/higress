@@ -75,7 +75,7 @@ func (p *sparkProvider) GetProviderType() string {
 
 func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !p.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return p.config.handleUnsupportedAPI()
 	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
 	return nil
@@ -83,7 +83,7 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !p.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, p.config.handleUnsupportedAPI()
 	}
 	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)
 }

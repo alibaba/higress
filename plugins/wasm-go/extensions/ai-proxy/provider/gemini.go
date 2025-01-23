@@ -58,7 +58,7 @@ func (g *geminiProvider) GetProviderType() string {
 
 func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !g.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return g.config.handleUnsupportedAPI()
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
@@ -72,7 +72,7 @@ func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !g.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, g.config.handleUnsupportedAPI()
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }

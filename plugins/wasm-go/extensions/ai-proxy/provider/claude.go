@@ -112,7 +112,7 @@ func (c *claudeProvider) GetProviderType() string {
 
 func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !c.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return c.config.handleUnsupportedAPI()
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
@@ -133,7 +133,7 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !c.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, c.config.handleUnsupportedAPI()
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
 }

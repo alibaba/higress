@@ -84,7 +84,7 @@ func (d *deeplProvider) GetProviderType() string {
 
 func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !d.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return d.config.handleUnsupportedAPI()
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
 	return nil
@@ -97,7 +97,7 @@ func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 
 func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !d.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, d.config.handleUnsupportedAPI()
 	}
 	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)
 }

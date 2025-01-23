@@ -265,6 +265,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
+	// @Title zh-CN 是否开启透传
+	// @Description zh-CN 如果是插件不支持的API，是否透传请求, 默认为false
+	passthrsough bool
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -448,6 +451,13 @@ func (c *ProviderConfig) IsOriginal() bool {
 
 func (c *ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
 	return ReplaceByCustomSettings(body, c.customSettings)
+}
+
+func (c *ProviderConfig) handleUnsupportedAPI() error {
+	if c.passthrsough {
+		return nil
+	}
+	return errUnsupportedApiName
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {

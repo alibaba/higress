@@ -64,7 +64,7 @@ func (m *azureProvider) GetProviderType() string {
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return m.config.handleUnsupportedAPI()
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
@@ -72,7 +72,7 @@ func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, m.config.handleUnsupportedAPI()
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }

@@ -65,7 +65,7 @@ func (m *moonshotProvider) GetProviderType() string {
 
 func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
+		return m.config.handleUnsupportedAPI()
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
@@ -82,7 +82,7 @@ func (m *moonshotProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiN
 // moonshot 的 body 没有修改，无须实现TransformRequestBody，使用默认的 defaultTransformRequestBody 方法
 func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, m.config.handleUnsupportedAPI()
 	}
 	// 非chat类型的请求，不做处理
 	if apiName != ApiNameChatCompletion {
