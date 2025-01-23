@@ -11,7 +11,7 @@ helm repo add higress.io https://higress.io/helm-charts
 helm repo update
 ```
 
-## Install
+## Install222
 
 To install the chart with the release name `higress`:
 
