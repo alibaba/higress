@@ -49,13 +49,17 @@ func GetRequestPath() string {
 	return path
 }
 
-func GetRequestPathWithoutQuery() (string, error) {
+func GetRequestPathWithoutQuery() string {
 	rawPath := GetRequestPath()
+	if rawPath == "" {
+		return ""
+	}
 	path, err := url.Parse(rawPath)
 	if err != nil {
-		return "", err
+		proxywasm.LogErrorf("failed to parse request path '%s': %v", rawPath, err)
+		return ""
 	}
-	return path.Path, nil
+	return path.Path
 }
 
 func GetRequestMethod() string {
