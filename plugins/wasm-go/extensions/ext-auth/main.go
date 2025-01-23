@@ -20,6 +20,7 @@ import (
 
 	"ext-auth/config"
 	"ext-auth/util"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -57,18 +58,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, 
 		return types.ActionContinue
 	}
 
-	if wrapper.HasRequestBody() {
-		ctx.SetRequestBodyBufferLimit(config.HttpService.AuthorizationRequest.MaxRequestBodyBytes)
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
 
-		// If withRequestBody is true AND the HTTP request contains a request body,
-		// it will be handled in the onHttpRequestBody phase.
-		if config.HttpService.AuthorizationRequest.WithRequestBody {
-			// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-			ctx.DisableReroute()
-			// The request has a body and requires delaying the header transmission until a cache miss occurs,
-			// at which point the header should be sent.
-			return types.HeaderStopIteration
-		}
+	// If withRequestBody is true AND the HTTP request contains a request body,
+	// it will be handled in the onHttpRequestBody phase.
+	if wrapper.HasRequestBody() && config.HttpService.AuthorizationRequest.WithRequestBody {
+		ctx.SetRequestBodyBufferLimit(config.HttpService.AuthorizationRequest.MaxRequestBodyBytes)
+		// The request has a body and requires delaying the header transmission until a cache miss occurs,
+		// at which point the header should be sent.
+		return types.HeaderStopIteration
 	}
 
 	ctx.DontReadRequestBody()
