@@ -384,7 +384,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		case string(ApiNameChatCompletion),
 			string(ApiNameEmbeddings),
 			string(ApiNameImageGeneration),
-			string(ApiNameAudioSpeech):
+			string(ApiNameAudioSpeech),
+			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
 		}
 	}

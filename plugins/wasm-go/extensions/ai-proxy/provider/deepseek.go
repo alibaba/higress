@@ -13,7 +13,8 @@ import (
 
 const (
 	deepseekDomain = "api.deepseek.com"
-	// TODO: 根据文档 docs: https://api-docs.deepseek.com/api/create-chat-completion, path应该是 /chat/completions, 待验证
+	// TODO: docs: https://api-docs.deepseek.com/api/create-chat-completion
+	// accourding to the docs, the path should be /chat/completions, need to be verified
 	deepseekChatCompletionPath = "/v1/chat/completions"
 )
 

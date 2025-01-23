@@ -17,8 +17,7 @@ type azureProviderInitializer struct {
 
 func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		// azure 此配置无实质作用，只是为了保持和其他provider的一致性
-		// TODO: azure的模式和openai是一致的，只是需要处理前缀，可以在TransformRequestHeaders中处理，以支持通用能力
+		// TODO: azure's pattern is the same as openai, just need to handle the prefix, can be done in TransformRequestHeaders to support general capabilities
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 	}

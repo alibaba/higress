@@ -280,5 +280,9 @@ func getOpenAiApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/images/generations") {
 		return provider.ApiNameImageGeneration
 	}
+	// rerank
+	if strings.HasSuffix(path, "/v1/rerank") {
+		return provider.ApiNameCohereV1Rerank
+	}
 	return ""
 }

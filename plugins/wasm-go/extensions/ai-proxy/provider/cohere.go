@@ -13,7 +13,7 @@ import (
 
 const (
 	cohereDomain = "api.cohere.com"
-	// TODO: 现在cohere有v2, 也有embeddings, 考虑更多支持: https://docs.cohere.com/v2/reference/rerank
+	// TODO: support more capabilities, upgrade to v2, docs: https://docs.cohere.com/v2/reference/chat
 	cohereChatCompletionPath = "/v1/chat"
 	cohereRerankPath         = "/v1/rerank"
 )
@@ -100,7 +100,7 @@ func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohe
 }
 
 func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, cohereChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, cohereDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

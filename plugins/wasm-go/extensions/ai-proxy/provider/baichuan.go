@@ -27,7 +27,6 @@ func (m *baichuanProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *baichuanProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		// 百川AI的chat和embeddings接口和OpenAI的chat和embeddings接口一样
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 	}

@@ -24,8 +24,7 @@ func (m *mistralProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 
 func (m *mistralProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		// mistral的chat接口和OpenAI的chat接口一样
-		// docs: https://docs.mistral.ai/api/
+		// The chat interface of mistral is the same as that of OpenAI. docs: https://docs.mistral.ai/api/
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 	}
