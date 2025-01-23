@@ -16,6 +16,7 @@ package main
 
 import (
 	"net/http"
+	"path"
 
 	"ext-auth/config"
 	"ext-auth/util"
@@ -90,7 +91,7 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	requestPath := httpServiceConfig.Path
 	if httpServiceConfig.EndpointMode == config.EndpointModeEnvoy {
 		requestMethod = ctx.Method()
-		requestPath = httpServiceConfig.PathPrefix + ctx.Path()
+		requestPath = path.Join(httpServiceConfig.PathPrefix, ctx.Path())
 	}
 
 	// Call ext auth server
