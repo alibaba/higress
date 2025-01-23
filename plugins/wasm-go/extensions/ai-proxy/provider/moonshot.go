@@ -84,6 +84,10 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+	// 非chat类型的请求，不做处理
+	if apiName != ApiNameChatCompletion {
+		return types.ActionContinue, nil
+	}
 
 	request := &chatCompletionRequest{}
 	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {

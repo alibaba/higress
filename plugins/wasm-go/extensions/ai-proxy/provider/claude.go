@@ -139,6 +139,9 @@ func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return c.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
 	request := &chatCompletionRequest{}
 	if err := c.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err
@@ -148,6 +151,9 @@ func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 }
 
 func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	claudeResponse := &claudeTextGenResponse{}
 	if err := json.Unmarshal(body, claudeResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal claude response: %v", err)

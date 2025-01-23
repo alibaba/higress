@@ -89,10 +89,13 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
-	if apiName == ApiNameChatCompletion {
+	switch apiName {
+	case ApiNameChatCompletion:
 		return m.onChatCompletionRequestBody(ctx, body, headers, log)
-	} else {
+	case ApiNameEmbeddings:
 		return m.onEmbeddingsRequestBody(ctx, body, log)
+	default:
+		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
 	}
 }
 

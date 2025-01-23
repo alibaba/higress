@@ -107,6 +107,9 @@ func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (m *cohereProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
 	request := &chatCompletionRequest{}
 	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err

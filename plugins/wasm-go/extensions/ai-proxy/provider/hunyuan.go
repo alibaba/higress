@@ -294,7 +294,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 // hunyuan 的 TransformRequestBodyHeaders 方法只在 failover 健康检查的时候会调用
 func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
 	if m.useOpenAICompatibleAPI() {
-		return body, nil
+		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
 	}
 	request := &chatCompletionRequest{}
 	err := m.config.parseRequestAndMapModel(ctx, request, body, log)
