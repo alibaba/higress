@@ -137,7 +137,7 @@ func (m *hunyuanProvider) useOpenAICompatibleAPI() bool {
 
 func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return m.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
@@ -161,7 +161,7 @@ func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 // hunyuan 的 OnRequestBody 逻辑中包含了对 headers 签名的逻辑，并且插入 context 以后还要重新计算签名，因此无法复用 handleRequestBody 方法
 func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, m.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	if m.useOpenAICompatibleAPI() {
 		return types.ActionContinue, nil
@@ -321,7 +321,7 @@ func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, a
 }
 
 func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
-	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() {
+	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() || name != ApiNameChatCompletion {
 		return chunk, nil
 	}
 
@@ -438,6 +438,9 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 
 func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
 	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() {
+		return body, nil
+	}
+	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}
 	log.Debugf("#debug nash5# onRespBody's resp is: %s", string(body))

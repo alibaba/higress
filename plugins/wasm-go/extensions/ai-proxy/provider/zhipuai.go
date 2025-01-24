@@ -51,7 +51,7 @@ func (m *zhipuAiProvider) GetProviderType() string {
 
 func (m *zhipuAiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return m.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
@@ -59,7 +59,7 @@ func (m *zhipuAiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 
 func (m *zhipuAiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, m.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }

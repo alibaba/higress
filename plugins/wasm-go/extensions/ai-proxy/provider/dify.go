@@ -52,7 +52,7 @@ func (d *difyProvider) GetProviderType() string {
 
 func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if apiName != ApiNameChatCompletion {
-		return d.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
 	return nil
@@ -78,7 +78,7 @@ func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 
 func (d *difyProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, d.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)
 }
@@ -99,6 +99,9 @@ func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiN
 }
 
 func (d *difyProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	difyResponse := &DifyChatResponse{}
 	if err := json.Unmarshal(body, difyResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal dify response: %v", err)
@@ -149,6 +152,9 @@ func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *Di
 func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 	// sample event response:
 	// data: {"event": "agent_thought", "id": "8dcf3648-fbad-407a-85dd-73a6f43aeb9f", "task_id": "9cf1ddd7-f94b-459b-b942-b77b26c59e9b", "message_id": "1fb10045-55fd-4040-99e6-d048d07cbad3", "position": 1, "thought": "", "observation": "", "tool": "", "tool_input": "", "created_at": 1705639511, "message_files": [], "conversation_id": "c216c595-2d89-438c-b33c-aae5ddddd142"}

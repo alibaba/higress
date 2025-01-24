@@ -50,7 +50,7 @@ func (g *groqProvider) GetProviderType() string {
 
 func (g *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !g.config.isSupportedAPI(apiName) {
-		return g.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	return nil
@@ -58,7 +58,7 @@ func (g *groqProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 
 func (g *groqProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !g.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, g.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }

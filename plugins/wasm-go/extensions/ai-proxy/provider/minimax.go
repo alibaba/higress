@@ -75,7 +75,7 @@ func (m *minimaxProvider) GetProviderType() string {
 
 func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return m.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
@@ -90,7 +90,7 @@ func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 
 func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, m.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	if minimaxApiTypePro == m.config.minimaxApiType {
 		// Use chat completion Pro API.
@@ -167,6 +167,9 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
 	// Sample event response:
 	// data: {"created":1689747645,"model":"abab6.5s-chat","reply":"","choices":[{"messages":[{"sender_type":"BOT","sender_name":"MM智能助理","text":"am from China."}]}],"output_sensitive":false}
 
@@ -200,6 +203,9 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 
 // TransformResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
 func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	minimaxResp := &minimaxChatCompletionProResp{}
 	if err := json.Unmarshal(body, minimaxResp); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal minimax response: %v", err)

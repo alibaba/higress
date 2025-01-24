@@ -49,7 +49,7 @@ func (m *togetherAIProvider) GetProviderType() string {
 
 func (m *togetherAIProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !m.config.isSupportedAPI(apiName) {
-		return m.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
@@ -57,7 +57,7 @@ func (m *togetherAIProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName A
 
 func (m *togetherAIProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, m.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }

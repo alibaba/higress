@@ -75,7 +75,7 @@ func (p *sparkProvider) GetProviderType() string {
 
 func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !p.config.isSupportedAPI(apiName) {
-		return p.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
 	return nil
@@ -83,12 +83,15 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !p.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, p.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)
 }
 
 func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	sparkResponse := &sparkResponse{}
 	if err := json.Unmarshal(body, sparkResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal spark response: %v", err)
@@ -103,6 +106,9 @@ func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName A
 func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 	responseBuilder := &strings.Builder{}
 	lines := strings.Split(string(chunk), "\n")

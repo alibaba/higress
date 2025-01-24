@@ -58,7 +58,7 @@ func (g *geminiProvider) GetProviderType() string {
 
 func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !g.config.isSupportedAPI(apiName) {
-		return g.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
@@ -72,7 +72,7 @@ func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !g.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, g.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }
@@ -114,6 +114,9 @@ func (g *geminiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 	log.Infof("chunk body:%s", string(chunk))
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 	// sample end event response:
 	// data: {"candidates": [{"content": {"parts": [{"text": "我是 Gemini，一个大型多模态模型，由 Google 训练。我的职责是尽我所能帮助您，并尽力提供全面且信息丰富的答复。"}],"role": "model"},"finishReason": "STOP","index": 0,"safetyRatings": [{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_HATE_SPEECH","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_HARASSMENT","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_DANGEROUS_CONTENT","probability": "NEGLIGIBLE"}]}],"usageMetadata": {"promptTokenCount": 2,"candidatesTokenCount": 35,"totalTokenCount": 37}}

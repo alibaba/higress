@@ -112,7 +112,7 @@ func (c *claudeProvider) GetProviderType() string {
 
 func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
 	if !c.config.isSupportedAPI(apiName) {
-		return c.config.handleUnsupportedAPI()
+		return errUnsupportedApiName
 	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
@@ -133,7 +133,7 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !c.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, c.config.handleUnsupportedAPI()
+		return types.ActionContinue, errUnsupportedApiName
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
 }
@@ -168,6 +168,10 @@ func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	// only process the response from chat completion, skip other responses
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 
 	responseBuilder := &strings.Builder{}

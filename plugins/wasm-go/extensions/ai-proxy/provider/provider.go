@@ -267,7 +267,7 @@ type ProviderConfig struct {
 	capabilities map[string]string
 	// @Title zh-CN 是否开启透传
 	// @Description zh-CN 如果是插件不支持的API，是否透传请求, 默认为false
-	passthrsough bool
+	passthrough bool
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -453,11 +453,8 @@ func (c *ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {
 	return ReplaceByCustomSettings(body, c.customSettings)
 }
 
-func (c *ProviderConfig) handleUnsupportedAPI() error {
-	if c.passthrsough {
-		return nil
-	}
-	return errUnsupportedApiName
+func (c *ProviderConfig) PassthroughUnsupportedAPI() bool {
+	return c.passthrough
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {
