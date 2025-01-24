@@ -50,12 +50,13 @@ jobs:
         env:
           API_URL: ${{ secrets.HIGRESS_OPENAI_API_URL }}
           API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
+          API_MODEL: ${{ secrets.HIGRESS_OPENAI_API_MODEL }}
         run: |
           cd ./helm/higress
           FILE_CONTENT=$(cat README.md)
 
           PAYLOAD=$(jq -n \
-            --arg model "deepseek-chat" \
+            --arg model "$API_MODEL" \
             --arg content "$FILE_CONTENT" \
             '{
               model: $model,
