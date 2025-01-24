@@ -37,6 +37,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					TestCaseName:    "minimax case 1: proxy completion V2 API, non-streaming request",
 					TargetBackend:   "llm-mock-service",
 					TargetNamespace: "higress-conformance-app-backend",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -59,6 +60,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					TestCaseName:    "minimax case 2: proxy completion Pro API, non-streaming request",
 					TargetBackend:   "llm-mock-service",
 					TargetNamespace: "higress-conformance-app-backend",
+					CompareTarget:   http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
