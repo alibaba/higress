@@ -136,6 +136,7 @@ func New(s Options) *ConformanceTestSuite {
 			"base/nacos.yaml",
 			"base/dubbo.yaml",
 			"base/opa.yaml",
+			"base/llm-mock.yaml",
 		}
 	}
 
