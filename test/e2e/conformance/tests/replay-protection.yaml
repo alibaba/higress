@@ -81,7 +81,7 @@ spec:
       namespace: higress-system
   rules:
     - matches:
-         - headers:  
+        - headers:  
           - name: host
             exact: foo.com
         - path:
