@@ -48,8 +48,8 @@ jobs:
 
       - name: Translate README.md to Chinese
         env:
-          API_URL: https://api.deepseek.com/chat/completions
-          API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          API_URL: ${{ secrets.HIGRESS_OPENAI_API_URL }}
+          API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
         run: |
           cd ./helm/higress
           FILE_CONTENT=$(cat README.md)
