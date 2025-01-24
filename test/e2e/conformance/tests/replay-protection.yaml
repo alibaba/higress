@@ -69,24 +69,21 @@ spec:
       keyPrefix: "replay-protection"
   url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
 ---
-# Configure HTTPRoute
 apiVersion: networking.k8s.io/v1
-kind: HTTPRoute
+kind: Ingress
 metadata:
   name: replay-protection
   namespace: higress-conformance-infra
+  annotations:
 spec:
-  parentRefs:
-    - name: higress-gateway
-      namespace: higress-system
   rules:
-    - matches:
-        - headers:  
-          - name: host
-            exact: foo.com
-        - path:
-            type: PathPrefix
-            value: /get
-      backendRefs:
-        - name: infra-backend-v1
-          port: 8080
+    - host: foo.com
+      http:
+        paths:
+          - path: /get
+            pathType: Prefix
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
