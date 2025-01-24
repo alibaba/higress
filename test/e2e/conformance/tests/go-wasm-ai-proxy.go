@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Alibaba Group Holding Ltd.
+// Copyright (c) 2025 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ func init() {
 
 var WasmPluginsAiProxy = suite.ConformanceTest{
 	ShortName:   "WasmPluginAiProxy",
-	Description: "The Ingress in the higress-conformance-app-backend namespace test the ai-proxy WASM plugin.",
+	Description: "The Ingress in the higress-conformance-ai-backend namespace test the ai-proxy WASM plugin.",
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Manifests:   []string{"tests/go-wasm-ai-proxy.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
@@ -43,7 +43,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}]}`),
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
 					},
 				},
 				Response: http.AssertionResponse{
@@ -65,7 +65,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}]}`),
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
 					},
 				},
 				Response: http.AssertionResponse{
