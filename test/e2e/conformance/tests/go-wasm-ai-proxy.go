@@ -34,10 +34,8 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "minimax case 1: proxy completion V2 API, non-streaming request",
-					TargetBackend:   "llm-mock-service",
-					TargetNamespace: "higress-conformance-app-backend",
-					CompareTarget:   http.CompareTargetResponse,
+					TestCaseName:  "minimax case 1: proxy completion V2 API, non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -50,17 +48,16 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Body:       []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "minimax case 2: proxy completion Pro API, non-streaming request",
-					TargetBackend:   "llm-mock-service",
-					TargetNamespace: "higress-conformance-app-backend",
-					CompareTarget:   http.CompareTargetResponse,
+					TestCaseName:  "minimax case 2: proxy completion Pro API, non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -73,8 +70,9 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Body:       []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},

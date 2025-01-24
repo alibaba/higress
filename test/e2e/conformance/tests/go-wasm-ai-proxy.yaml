@@ -15,7 +15,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: wasmplugin-ai-proxy-minimax-v2-api
-  namespace: higress-conformance-app-backend
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
@@ -34,7 +34,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: wasmplugin-ai-proxy-minimax-pro-api
-  namespace: higress-conformance-app-backend
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
@@ -69,7 +69,7 @@ spec:
             '*': abab6.5t-chat
           type: minimax
       ingress:
-        - higress-conformance-app-backend/wasmplugin-ai-proxy-minimax-v2-api
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-v2-api
     - config:
         provider:
           apiTokens:
@@ -82,5 +82,5 @@ spec:
           minimaxApiType: pro
           minimaxGroupId: 1
       ingress:
-        - higress-conformance-app-backend/wasmplugin-ai-proxy-minimax-pro-api
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-pro-api
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0

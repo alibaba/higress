@@ -13,10 +13,17 @@
 # limitations under the License.
 
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: higress-conformance-ai-backend
+  labels:
+    higress-conformance: infra
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: llm-mock
-  namespace: higress-conformance-app-backend
+  namespace: higress-conformance-ai-backend
   labels:
     name: llm-mock
 spec:
@@ -30,7 +37,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: llm-mock-service
-  namespace: higress-conformance-app-backend
+  namespace: higress-conformance-ai-backend
 spec:
   selector:
     name: llm-mock

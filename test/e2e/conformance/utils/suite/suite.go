@@ -174,6 +174,7 @@ func (suite *ConformanceTestSuite) Setup(t *testing.T) {
 		"higress-conformance-infra",
 		"higress-conformance-app-backend",
 		"higress-conformance-web-backend",
+		"higress-conformance-ai-backend",
 	}
 	kubernetes.NamespacesMustBeAccepted(t, suite.Client, suite.TimeoutConfig, namespaces)
 
