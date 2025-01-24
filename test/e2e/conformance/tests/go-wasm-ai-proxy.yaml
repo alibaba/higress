@@ -14,9 +14,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
   name: wasmplugin-ai-proxy-openai
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-app-backend
 spec:
   ingressClassName: higress
   rules:
@@ -27,29 +26,28 @@ spec:
             path: "/"
             backend:
               service:
-                name: infra-backend-v1
+                name: llm-mock-service
                 port:
-                  number: 8080
+                  number: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-  name: wasmplugin-ai-proxy-qwen
-  namespace: higress-conformance-infra
+  name: wasmplugin-ai-proxy-minimax
+  namespace: higress-conformance-app-backend
 spec:
   ingressClassName: higress
   rules:
-    - host: "qwen.ai.com"
+    - host: "api.minimax.chat"
       http:
         paths:
           - pathType: Prefix
             path: "/"
             backend:
               service:
-                name: infra-backend-v1
+                name: llm-mock-service
                 port:
-                  number: 8080
+                  number: 3000
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -57,31 +55,24 @@ metadata:
   name: ai-proxy
   namespace: higress-system
 spec:
-  priority: 200
+  defaultConfigDisable: true
+  phase: UNSPECIFIED_PHASE
+  priority: 100
   matchRules:
     - config:
         provider:
           type: "openai"
-          customSettings:
-            - name: "max_tokens"
-              value: 123
-              overwrite: false
-            - name: "temperature"
-              value: 0.66
-              overwrite: true
       ingress:
-        - higress-conformance-infra/wasmplugin-ai-proxy-openai
+        - higress-conformance-app-backend/wasmplugin-ai-proxy-openai
     - config:
         provider:
-          type: "qwen"
-          apiTokens: "fake-token"
-          customSettings:
-            - name: "max_tokens"
-              value: 123
-              overwrite: false
-            - name: "temperature"
-              value: 0.66
-              overwrite: true
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': abab6.5s-chat
+            'gpt-4': abab6.5g-chat
+            '*': abab6.5t-chat
+          type: minimax
       ingress:
-        - higress-conformance-infra/wasmplugin-ai-proxy-qwen
+        - higress-conformance-app-backend/wasmplugin-ai-proxy-minimax
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0

@@ -27,84 +27,33 @@ func init() {
 
 var WasmPluginsAiProxy = suite.ConformanceTest{
 	ShortName:   "WasmPluginAiProxy",
-	Description: "The Ingress in the higress-conformance-infra namespace test the ai-proxy WASM plugin.",
+	Description: "The Ingress in the higress-conformance-app-backend namespace test the ai-proxy WASM plugin.",
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Manifests:   []string{"tests/go-wasm-ai-proxy.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: openai",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:    "case 1: minimax",
+					TargetBackend:   "llm-mock-service",
+					TargetNamespace: "higress-conformance-app-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "openai.ai.com",
-						Path:             "/v1/chat/completions",
-						Method:"POST",
-						ContentType:      http.ContentTypeApplicationJson,
-						Body: []byte(`{
-							"model": "gpt-3",
-                            "messages": [{"role":"user","content":"hi"}]}`),
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host:        "api.openai.com",
-							Path:        "/v1/chat/completions",
-							Method:      "POST",
-							ContentType: http.ContentTypeApplicationJson,
-							Body: []byte(`{
-								"model": "gpt-3",
-                                "messages": [{"role":"user","content":"hi"}],
-                                "max_tokens": 123,
-								"temperature": 0.66}`),
-						},
+						Host:        "openai.ai.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
+						Body:       []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 2: qwen",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "qwen.ai.com",
-						Path:             "/v1/chat/completions",
-						Method:"POST",
-						ContentType:      http.ContentTypeApplicationJson,
-						Body: []byte(`{
-							"model": "qwen-long",
-							"input": {"messages": [{"role":"user","content":"hi"}]},
-							"parameters": {"max_tokens": 321, "temperature": 0.7}}`),
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Host:        "dashscope.aliyuncs.com",
-							Path:        "/api/v1/services/aigc/text-generation/generation",
-							Method:      "POST",
-							ContentType: http.ContentTypeApplicationJson,
-							Body: []byte(`{
-							"model": "qwen-long",
-							"input": {"messages": [{"role":"user","content":"hi"}]},
-							"parameters": {"max_tokens": 321, "temperature": 0.66}}`),
-						},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 500,
-					},
-				},
-			},
-			
 		}
 		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
