@@ -24,7 +24,7 @@ import (
 // The llm-mock service response has a fixed id of `chatcmpl-llm-mock`.
 // The created field is fixed to 10.
 // The response content is echoed back as the request content.
-// The usage field is fixed to {"prompt_tokens":9,"completion_tokens":1,"total_tokens":10} (specific values may vary based on the corresponding response fields).
+// The usage field is fixed to `{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}` (specific values may vary based on the corresponding response fields).
 
 func init() {
 	Register(WasmPluginsAiProxy)
@@ -37,6 +37,66 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 	Manifests:   []string{"tests/go-wasm-ai-proxy.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "doubao case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "ark.cn-beijing.volces.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "doubao case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "ark.cn-beijing.volces.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
+
+`),
+					},
+				},
+			},
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:  "minimax case 1: proxy completion V2 API, non-streaming request",
@@ -152,6 +212,66 @@ data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistan
 data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"？"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
 data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "qwen case 1: compatible mode, non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "dashscope.aliyuncs.com-compatible-mode",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "qwen case 2: compatible mode, streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "dashscope.aliyuncs.com-compatible-mode",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
 
 `),
 					},

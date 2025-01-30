@@ -14,6 +14,25 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  name: wasmplugin-ai-proxy-doubao
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "ark.cn-beijing.volces.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   name: wasmplugin-ai-proxy-minimax-v2-api
   namespace: higress-conformance-ai-backend
 spec:
@@ -49,6 +68,25 @@ spec:
                 port:
                   number: 3000
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-qwen-compatible-mode
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "dashscope.aliyuncs.com-compatible-mode"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -59,6 +97,15 @@ spec:
   phase: UNSPECIFIED_PHASE
   priority: 100
   matchRules:
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            '*': fake_doubao_endpoint
+          type: doubao
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-doubao
     - config:
         provider:
           apiTokens:
@@ -83,4 +130,17 @@ spec:
           minimaxGroupId: 1
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-pro-api
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': qwen-turbo
+            'gpt-35-turbo': qwen-plus
+            'gpt-4-*': qwen-max
+            '*': qwen-turbo
+          type: qwen
+          qwenEnableCompatible: true
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen-compatible-mode
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
