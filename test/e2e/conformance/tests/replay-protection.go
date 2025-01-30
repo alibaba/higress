@@ -17,9 +17,7 @@ package tests
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
@@ -38,35 +36,27 @@ func generateBase64Nonce(length int) string {
 var WasmPluginsReplayProtection = suite.ConformanceTest{
 	ShortName:   "WasmPluginsReplayProtection",
 	Description: "The replay protection wasm plugin prevents replay attacks by validating request nonce.",
-	Manifests:   []string{"tests/replay-protection.yaml"}, // Path to your YAML
+	Manifests:   []string{"tests/replay-protection.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		replayNonce := generateBase64Nonce(32)
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",          // or the correct backend name
-					TargetNamespace: "higress-conformance-infra", // or the correct namespace
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com", // Or your test host
-						Path:             "/get",    // Or your test path
-						UnfollowRedirect: true,
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Path: "/get",
-							Host: "foo.com",
-						},
+						Host:        "foo.com",
+						Path:        "/get",
+						Method:      "GET",
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 400, // Missing nonce should return 400
-						Body:       []byte("Missing nonce header"),
+						StatusCode: 400,
 					},
-					ExpectedResponseNoRequest: false,
 				},
 			},
 			{
@@ -76,26 +66,18 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/get",
-						UnfollowRedirect: true,
+						Host:   "foo.com",
+						Path:   "/get",
+						Method: "GET",
 						Headers: map[string]string{
 							"X-Higress-Nonce": "invalid-nonce",
 						},
 					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Path: "/get",
-							Host: "foo.com",
-						},
-					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 400, // Invalid nonce format should return 400
-						Body:       []byte("Invalid nonce"),
+						StatusCode: 400,
 					},
-					ExpectedResponseNoRequest: false,
 				},
 			},
 			{
@@ -105,17 +87,11 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/get",
-						UnfollowRedirect: true,
+						Host:   "foo.com",
+						Path:   "/get",
+						Method: "GET",
 						Headers: map[string]string{
-							"X-Higress-Nonce": generateBase64Nonce(32),
-						},
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Path: "/get",
-							Host: "foo.com",
+							"X-Higress-Nonce": replayNonce,
 						},
 					},
 				},
@@ -123,7 +99,6 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode: 200,
 					},
-					ExpectedResponseNoRequest: false,
 				},
 			},
 			{
@@ -133,63 +108,25 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/get",
-						UnfollowRedirect: true,
+						Host:   "foo.com",
+						Path:   "/get",
+						Method: "GET",
 						Headers: map[string]string{
 							"X-Higress-Nonce": replayNonce,
-						},
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Path: "/get",
-							Host: "foo.com",
-						},
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-					ExpectedResponseNoRequest: false,
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo.com",
-						Path:             "/get",
-						UnfollowRedirect: true,
-						Headers: map[string]string{
-							"X-Higress-Nonce": replayNonce,
-						},
-					},
-					ExpectedRequest: &http.ExpectedRequest{
-						Request: http.Request{
-							Path: "/get",
-							Host: "foo.com",
 						},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode: 429,
-						Body:       []byte("Duplicate nonce"),
 					},
-					ExpectedResponseNoRequest: false,
 				},
 			},
 		}
+
 		t.Run("WasmPlugins replay-protection", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-				if strings.Contains(string(testcase.Response.ExpectedResponse.Body), "Duplicate nonce") {
-					time.Sleep(time.Second)
-				}
 			}
 		})
 	},

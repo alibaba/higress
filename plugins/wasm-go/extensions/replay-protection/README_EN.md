@@ -69,7 +69,7 @@ spec:
 |--------|----------|-------------|
 | `X-Higress-Nonce` | Depends on force_nonce | Random generated nonce value in base64 format |
 
->Note: The default nonce header is X-Mse-Nonce. You can customize it using the nonce_header configuration.
+>Note: The default nonce header is X-Higress-Nonce. You can customize it using the nonce_header configuration.
 
 ### Usage Example
 

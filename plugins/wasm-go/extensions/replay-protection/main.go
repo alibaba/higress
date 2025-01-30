@@ -44,7 +44,7 @@ func parseConfig(json gjson.Result, config *ReplayProtectionConfig, log wrapper.
 
 	config.NonceHeader = json.Get("nonce_header").String()
 	if config.NonceHeader == "" {
-		config.NonceHeader = "X-Mse-Nonce"
+		config.NonceHeader = "X-Higress-Nonce"
 	}
 
 	config.ValidateBase64 = json.Get("validate_base64").Bool()
