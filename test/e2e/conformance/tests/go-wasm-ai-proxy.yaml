@@ -203,4 +203,4 @@ spec:
           type: qwen
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen
-  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
