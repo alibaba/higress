@@ -14,6 +14,25 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  name: wasmplugin-ai-proxy-baidu
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "qianfan.baidubce.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   name: wasmplugin-ai-proxy-doubao
   namespace: higress-conformance-ai-backend
 spec:
@@ -116,6 +135,16 @@ spec:
   phase: UNSPECIFIED_PHASE
   priority: 100
   matchRules:
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': ernie-3.5-8k
+            '*': ernie-3.5-8k
+          type: baidu
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-baidu
     - config:
         provider:
           apiTokens:
