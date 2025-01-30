@@ -87,6 +87,25 @@ spec:
                 port:
                   number: 3000
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-qwen
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "dashscope.aliyuncs.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -143,4 +162,16 @@ spec:
           qwenEnableCompatible: true
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen-compatible-mode
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': qwen-turbo
+            'gpt-35-turbo': qwen-plus
+            'gpt-4-*': qwen-max
+            '*': qwen-turbo
+          type: qwen
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen
+  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm

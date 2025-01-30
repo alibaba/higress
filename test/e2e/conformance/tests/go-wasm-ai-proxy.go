@@ -277,6 +277,29 @@ data: [DONE]
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "qwen case 3: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "dashscope.aliyuncs.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:           200,
+						ContentType:          http.ContentTypeApplicationJson,
+						JsonBodyIgnoreFields: []string{"created"},
+						Body:                 []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":1738218357,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
