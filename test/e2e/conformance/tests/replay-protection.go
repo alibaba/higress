@@ -49,7 +49,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:        "foo.com",
-						Path:        "/get",
+						Path:        "/",
 						Method:      "GET",
 					},
 				},
@@ -67,7 +67,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:   "foo.com",
-						Path:   "/get",
+						Path:   "/",
 						Method: "GET",
 						Headers: map[string]string{
 							"X-Higress-Nonce": "invalid-nonce",
@@ -88,7 +88,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:   "foo.com",
-						Path:   "/get",
+						Path:   "/",
 						Method: "GET",
 						Headers: map[string]string{
 							"X-Higress-Nonce": replayNonce,
@@ -109,7 +109,7 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:   "foo.com",
-						Path:   "/get",
+						Path:   "/",
 						Method: "GET",
 						Headers: map[string]string{
 							"X-Higress-Nonce": replayNonce,

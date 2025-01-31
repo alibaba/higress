@@ -76,12 +76,13 @@ metadata:
   namespace: higress-conformance-infra
   annotations:
 spec:
+  ingressClassName: higress
   rules:
-    - host: foo.com
+    - host: "foo.com"
       http:
         paths:
-          - path: /get
-            pathType: Prefix
+          - pathType: Prefix
+            path: "/"
             backend:
               service:
                 name: infra-backend-v1
