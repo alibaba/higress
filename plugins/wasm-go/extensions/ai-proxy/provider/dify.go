@@ -204,12 +204,12 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 	}
 	if response.Event == "message_end" || response.Event == "workflow_finished" {
 		choice.FinishReason = finishReasonStop
-	}
-	if response.Event == "message_end" {
-		responseUsage = usage{
-			PromptTokens:     response.MetaData.Usage.PromptTokens,
-			CompletionTokens: response.MetaData.Usage.CompletionTokens,
-			TotalTokens:      response.MetaData.Usage.TotalTokens,
+		if response.Event == "message_end" {
+			responseUsage = usage{
+				PromptTokens:     response.MetaData.Usage.PromptTokens,
+				CompletionTokens: response.MetaData.Usage.CompletionTokens,
+				TotalTokens:      response.MetaData.Usage.TotalTokens,
+			}
 		}
 	}
 	return &chatCompletionResponse{
