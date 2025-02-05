@@ -133,8 +133,8 @@ jobs:
           command="
           set -e
           cd /workspace/plugins/wasm-rust/extensions/${PLUGIN_NAME}
-          cargo build --target wasm32-wasi --release
-          cp target/wasm32-wasi/release/*.wasm plugin.wasm
+          cargo build --target wasm32-wasip1 --release
+          cp target/wasm32-wasip1/release/*.wasm plugin.wasm
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           oras push ${target_image} ${push_command}
