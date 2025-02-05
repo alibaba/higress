@@ -190,6 +190,7 @@ func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, response *DifyChunkChatResponse) *chatCompletionResponse {
 	var choice chatCompletionChoice
 	var id string
+	var responseUsage usage
 	switch d.config.botType {
 	case BotTypeChat, BotTypeAgent:
 		choice = chatCompletionChoice{
@@ -213,6 +214,13 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 	}
 	if response.Event == "message_end" || response.Event == "workflow_finished" {
 		choice.FinishReason = finishReasonStop
+		if response.Event == "message_end" {
+			responseUsage = usage{
+				PromptTokens:     response.MetaData.Usage.PromptTokens,
+				CompletionTokens: response.MetaData.Usage.CompletionTokens,
+				TotalTokens:      response.MetaData.Usage.TotalTokens,
+			}
+		}
 	}
 	return &chatCompletionResponse{
 		Id:                id,
@@ -221,6 +229,7 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 		Choices:           []chatCompletionChoice{choice},
+		Usage:             responseUsage,
 	}
 }
 
