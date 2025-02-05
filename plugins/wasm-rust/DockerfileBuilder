@@ -8,7 +8,7 @@ FROM $BASE_IMAGE
 
 LABEL rust_version=$RUST_VERSION oras_version=$ORAS_VERSION
 
-RUN rustup target add wasm32-wasi
+RUN rustup target add wasm32-wasi wasm32-wasip1
 
 RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
     rust_version=${RUST_VERSION:-1.82}; \
