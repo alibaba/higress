@@ -39,6 +39,126 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
+					TestCaseName:  "ai360 case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.360.cn",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"360gpt-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "ai360 case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.360.cn",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "baichuan case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.baichuan-ai.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "baichuan case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.baichuan-ai.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
 					TestCaseName:  "baidu case 1: non-streaming request",
 					CompareTarget: http.CompareTargetResponse,
 				},
@@ -150,6 +270,126 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}
 data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
 
 data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "github case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "models.inference.ai.azure.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "github case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "models.inference.ai.azure.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+
+data: [DONE]
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "groq case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.groq.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"llama3-8b-8192","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "groq case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.groq.com",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
 
 data: [DONE]
 

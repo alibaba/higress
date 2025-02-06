@@ -14,6 +14,44 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  name: wasmplugin-ai-proxy-ai360
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.360.cn"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-baichuan
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.baichuan-ai.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   name: wasmplugin-ai-proxy-baidu
   namespace: higress-conformance-ai-backend
 spec:
@@ -39,6 +77,44 @@ spec:
   ingressClassName: higress
   rules:
     - host: "ark.cn-beijing.volces.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-github
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "models.inference.ai.azure.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-groq
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.groq.com"
       http:
         paths:
           - pathType: Prefix
@@ -140,6 +216,26 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
+            'gpt-3': 360gpt-turbo
+            '*': 360gpt-pro
+          type: ai360
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-ai360
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': baichuan2-13b-chat-v1
+            '*': baichuan-7b-v1
+          type: baichuan
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-baichuan
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
             'gpt-3': ernie-3.5-8k
             '*': ernie-3.5-8k
           type: baidu
@@ -154,6 +250,26 @@ spec:
           type: doubao
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-doubao
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': cohere-command-r-08-2024
+            '*': Phi-3.5-MoE-instruct
+          type: github
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-github
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': llama3-8b-8192
+            '*': llama-3.1-8b-instant
+          type: groq
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-groq
     - config:
         provider:
           apiTokens:
