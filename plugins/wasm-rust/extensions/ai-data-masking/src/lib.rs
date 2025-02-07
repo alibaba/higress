@@ -547,8 +547,11 @@ impl HttpContext for AiDataMasking {
         let new_body = if end_of_stream {
             self.msg_window.finish(self.is_openai)
         } else {
-            self.msg_window
-                .pop(self.char_window_size, self.byte_window_size, self.is_openai)
+            self.msg_window.pop(
+                self.char_window_size * 2,
+                self.byte_window_size * 2,
+                self.is_openai,
+            )
         };
         self.replace_http_response_body(&new_body);
         DataAction::Continue
