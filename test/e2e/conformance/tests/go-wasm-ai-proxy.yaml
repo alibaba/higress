@@ -394,8 +394,8 @@ spec:
             'gpt-3': Yi-Medium
             '*': Yi-Large
           type: yi
-        ingress:
-          - higress-conformance-ai-backend/wasmplugin-ai-proxy-yi
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-yi
     - config:
         provider:
           apiTokens:
@@ -404,6 +404,6 @@ spec:
             'gpt-3': glm-4-plus
             '*': glm-4-long
           type: zhipuai
-        ingress:
-          - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
