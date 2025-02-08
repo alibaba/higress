@@ -29,7 +29,7 @@ func main() {
 func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
 	// 解析json 为GrayConfig
 	config.JsonToGrayConfig(json, grayConfig)
-	log.Debugf("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
+	log.Infof("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
 	return nil
 }
 
@@ -46,6 +46,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	ctx.SetContext(config.EnabledGray, enabledGray)
 
 	if !enabledGray {
+		log.Infof("gray not enabled")
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -104,7 +105,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 
 	rewrite := grayConfig.Rewrite
 	if rewrite.Host != "" {
-		proxywasm.ReplaceHttpRequestHeader("HOST", rewrite.Host)
+		err := proxywasm.ReplaceHttpRequestHeader(":authority", rewrite.Host)
+		if err != nil {
+			log.Errorf("host rewrite failed: %v", err)
+		}
 	}
 
 	if hasRewrite {
@@ -119,6 +123,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 			proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
 		}
 	}
+	log.Infof("request path:%s, has rewrited:%v, rewrite config:%+v", requestPath, hasRewrite, rewrite)
 	return types.ActionContinue
 }
 
