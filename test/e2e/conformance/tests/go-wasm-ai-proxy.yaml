@@ -406,4 +406,4 @@ spec:
           type: zhipuai
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
+  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
