@@ -81,7 +81,7 @@ else
                             fi
                             echo "EXTRA_TAGS=${EXTRA_TAGS:-}"
                             # Build plugin
-                            PLUGIN_NAME=${name} make build
+                            PLUGIN_NAME=${name} EXTRA_TAGS=${EXTRA_TAGS:-} make build
                             # Clean up EXTRA_TAGS environment variable
                             unset EXTRA_TAGS
                         else
