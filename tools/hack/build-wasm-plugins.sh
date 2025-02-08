@@ -71,7 +71,8 @@ else
                         version=$(cat "$version_file")
                         if [[ "$version" =~ -alpha$ ]]; then
                             echo "🚀 Build Go WasmPlugin: $name (version $version)"
-
+                            # Initialize EXTRA_TAGS to avoid unbound variable error
+                            EXTRA_TAGS=""
                             # Load .buildrc file
                             if [ -f ./.buildrc ]; then
                                 echo 'Found .buildrc file, sourcing it...'
@@ -80,10 +81,8 @@ else
                                 echo '.buildrc file not found'
                             fi
                             echo "EXTRA_TAGS=${EXTRA_TAGS}"
-
                             # Build plugin
                             PLUGIN_NAME=${name} make build
-
                             # Clean up EXTRA_TAGS environment variable
                             unset EXTRA_TAGS
                         else
