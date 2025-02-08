@@ -223,6 +223,44 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  name: wasmplugin-ai-proxy-stepfun
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.stepfun.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-together-ai
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.together.xyz"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   name: wasmplugin-ai-proxy-yi
   namespace: higress-conformance-ai-backend
 spec:
@@ -386,6 +424,26 @@ spec:
           type: qwen
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': step-1-8k
+            '*': step-1-32k
+          type: stepfun
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-stepfun
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': meta-llama/Meta-Llama-3-8B-Instruct-Turbo
+            '*': meta-llama/Llama-3-8b-chat-hf
+          type: together-ai
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-together-ai
     - config:
         provider:
           apiTokens:
