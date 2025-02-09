@@ -75,7 +75,7 @@ metadata:
 spec:
   defaultConfig:
     force_nonce: true
-    nonce_ttl: 10
+    nonce_ttl: 86400
     nonce_header: "X-Higress-Nonce"
     nonce_min_length: 8
     nonce_max_length: 128
@@ -83,7 +83,7 @@ spec:
     reject_code: 429
     reject_msg: "Duplicate nonce"
     redis:
-      serviceName: "redis.higress-conformance-infra"
+      serviceName: "redis.higress-conformance-infra.svc.cluster.local"
       servicePort: 6379
       timeout: 1000
       keyPrefix: "replay-protection"
