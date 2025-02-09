@@ -317,11 +317,11 @@ func (c *RedisClusterClient[C]) SetNX(key string, value interface{}, expiration 
 	args = append(args, "set")
 	args = append(args, key)
 	args = append(args, value)
+	args = append(args, "NX") 
 	if expiration > 0 {
-		args = append(args, "ex")
+		args = append(args, "EX") 
 		args = append(args, expiration)
 	}
-	args = append(args, "nx")
 	return RedisCall(c.cluster, respString(args), callback)
 }
 

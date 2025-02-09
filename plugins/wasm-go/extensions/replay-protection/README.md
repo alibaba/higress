@@ -39,27 +39,19 @@ Nonce (Number used ONCE) 防重放插件通过验证请求中的一次性随机�
 以下是一个防重放攻击插件的完整配置示例：
 
 ```yaml
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: replay-protection
-  namespace: higress-system
-spec:
-  defaultConfig:
-    force_nonce: true
-    nonce_header: "X-Higress-Nonce"    # 指定 nonce 请求头名称
-    nonce_ttl: 900                # nonce 有效期设置为 900 秒
-    nonce_min_length: 8           # nonce 最小长度
-    nonce_max_length: 128         # nonce 最大长度
-    validate_base64: true         # 是否开启base64格式校验
-    reject_code: 429              # 拒绝请求时返回的状态码
-    reject_msg: "Duplicate nonce" # 拒绝请求时返回的错误信息
-    redis:
-      serviceName: "redis.dns" # Redis 服务名称
-      servicePort: 6379           # Redis 服务端口
-      timeout: 1000               # Redis 操作超时时间
-      keyPrefix: "replay-protection" # Redis 键前缀
-  url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
+force_nonce: true
+nonce_header: "X-Higress-Nonce"    # 指定 nonce 请求头名称
+nonce_ttl: 900                # nonce 有效期设置为 900 秒
+nonce_min_length: 8           # nonce 最小长度
+nonce_max_length: 128         # nonce 最大长度
+validate_base64: true         # 是否开启base64格式校验
+reject_code: 429              # 拒绝请求时返回的状态码
+reject_msg: "Duplicate nonce" # 拒绝请求时返回的错误信息
+redis:
+  serviceName: "redis.dns" # Redis 服务名称
+  servicePort: 6379           # Redis 服务端口
+  timeout: 1000               # Redis 操作超时时间
+  keyPrefix: "replay-protection" # Redis 键前缀
 ```
 
 ## 使用说明

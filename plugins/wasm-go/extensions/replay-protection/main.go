@@ -153,12 +153,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig
 			log.Errorf("Redis error: %v", response.Error())
 			proxywasm.SendHttpResponse(500, nil, []byte("Internal Server Error"), -1)
 			return
-		} else if response.Integer() == 1 {
-			// SETNX successful, pass the request
-			proxywasm.ResumeHttpRequest()
-			return
-		} else {
-			// Nonce already exists, reject the request
+		} else if len(response.String()) == 0 {
 			log.Warnf("Duplicate nonce detected: %s", nonce)
 			proxywasm.SendHttpResponse(
 				config.RejectCode,
@@ -166,6 +161,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ReplayProtectionConfig
 				[]byte(fmt.Sprintf("%s: %s", config.RejectMsg, nonce)),
 				-1,
 			)
+		} else { 
+			proxywasm.ResumeHttpRequest()
 		}
 	})
 

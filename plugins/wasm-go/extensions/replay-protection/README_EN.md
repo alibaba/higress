@@ -38,27 +38,20 @@ The Nonce (Number used ONCE) replay protection plugin prevents request replay at
 ## Configuration Example
 
 ```yaml
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: replay-protection
-  namespace: higress-system
-spec:
-  defaultConfig:
-    force_nonce: true
-    nonce_ttl: 900
-    nonce_header:""
-    nonce_min_length: 8
-    nonce_max_length: 128
-    validate_base64: true
-    reject_code: 429
-    reject_msg: "Duplicate nonce" 
-    redis:
-      serviceName: "redis.dns"
-      servicePort: 6379
-      timeout: 1000
-      keyPrefix: "replay-protection"
-  url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
+
+force_nonce: true
+nonce_ttl: 900
+nonce_header:""
+nonce_min_length: 8
+nonce_max_length: 128
+validate_base64: true
+reject_code: 429
+reject_msg: "Duplicate nonce" 
+redis:
+  serviceName: "redis.dns"
+  servicePort: 6379
+  timeout: 1000
+  keyPrefix: "replay-protection"
 ```
 
 ## Usage
