@@ -71,7 +71,19 @@ else
                         version=$(cat "$version_file")
                         if [[ "$version" =~ -alpha$ ]]; then
                             echo "🚀 Build Go WasmPlugin: $name (version $version)"
-                            PLUGIN_NAME=${name} make build
+                            # Load .buildrc file
+                            buildrc_file="$EXTENSIONS_DIR$file/.buildrc"
+                            if [ -f "$buildrc_file" ]; then
+                                echo "Found .buildrc file, sourcing it..."
+                                . "$buildrc_file"
+                            else
+                                echo ".buildrc file not found"
+                            fi
+                            echo "EXTRA_TAGS=${EXTRA_TAGS:-}"
+                            # Build plugin
+                            PLUGIN_NAME=${name} EXTRA_TAGS=${EXTRA_TAGS:-} make build
+                            # Clean up EXTRA_TAGS environment variable
+                            unset EXTRA_TAGS
                         else
                             echo "Plugin version $version not ends with '-alpha', skipping compilation for $name."
                         fi
