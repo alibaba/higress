@@ -15,6 +15,14 @@ import (
 type azureProviderInitializer struct {
 }
 
+func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// TODO: azure's pattern is the same as openai, just need to handle the prefix, can be done in TransformRequestHeaders to support general capabilities
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *azureProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.azureServiceUrl == "" {
 		return errors.New("missing azureServiceUrl in provider config")
@@ -35,6 +43,7 @@ func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 	} else {
 		serviceUrl = u
 	}
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &azureProvider{
 		config:       config,
 		serviceUrl:   serviceUrl,
@@ -54,7 +63,7 @@ func (m *azureProvider) GetProviderType() string {
 }
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -62,7 +71,7 @@ func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)

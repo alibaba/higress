@@ -19,21 +19,21 @@ const (
 )
 
 type chatCompletionRequest struct {
-	Model            string         `json:"model"`
-	Messages         []chatMessage  `json:"messages"`
-	MaxTokens        int            `json:"max_tokens,omitempty"`
-	FrequencyPenalty float64        `json:"frequency_penalty,omitempty"`
-	N                int            `json:"n,omitempty"`
-	PresencePenalty  float64        `json:"presence_penalty,omitempty"`
-	Seed             int            `json:"seed,omitempty"`
-	Stream           bool           `json:"stream,omitempty"`
-	StreamOptions    *streamOptions `json:"stream_options,omitempty"`
-	Temperature      float64        `json:"temperature,omitempty"`
-	TopP             float64        `json:"top_p,omitempty"`
-	Tools            []tool         `json:"tools,omitempty"`
-	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
-	User             string         `json:"user,omitempty"`
-	Stop             []string       `json:"stop,omitempty"`
+	Model            string                 `json:"model"`
+	Messages         []chatMessage          `json:"messages"`
+	MaxTokens        int                    `json:"max_tokens,omitempty"`
+	FrequencyPenalty float64                `json:"frequency_penalty,omitempty"`
+	N                int                    `json:"n,omitempty"`
+	PresencePenalty  float64                `json:"presence_penalty,omitempty"`
+	Seed             int                    `json:"seed,omitempty"`
+	Stream           bool                   `json:"stream,omitempty"`
+	StreamOptions    *streamOptions         `json:"stream_options,omitempty"`
+	Temperature      float64                `json:"temperature,omitempty"`
+	TopP             float64                `json:"top_p,omitempty"`
+	Tools            []tool                 `json:"tools,omitempty"`
+	ToolChoice       *toolChoice            `json:"tool_choice,omitempty"`
+	User             string                 `json:"user,omitempty"`
+	Stop             []string               `json:"stop,omitempty"`
 	ResponseFormat   map[string]interface{} `json:"response_format,omitempty"`
 }
 
@@ -228,6 +228,21 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+// https://platform.openai.com/docs/guides/images
+type imageGenerationRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	N      int    `json:"n,omitempty"`
+	Size   string `json:"size,omitempty"`
+}
+
+// https://platform.openai.com/docs/guides/speech-to-text
+type audioSpeechRequest struct {
+	Model string `json:"model"`
+	Input string `json:"input"`
+	Voice string `json:"voice"`
 }
 
 type embeddingsRequest struct {

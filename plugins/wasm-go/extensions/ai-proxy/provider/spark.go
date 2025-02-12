@@ -55,7 +55,14 @@ func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (i *sparkProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): sparkChatCompletionPath,
+	}
+}
+
 func (i *sparkProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(i.DefaultCapabilities())
 	return &sparkProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -67,7 +74,7 @@ func (p *sparkProvider) GetProviderType() string {
 }
 
 func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !p.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
@@ -75,13 +82,16 @@ func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !p.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)
 }
 
 func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	sparkResponse := &sparkResponse{}
 	if err := json.Unmarshal(body, sparkResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal spark response: %v", err)
@@ -96,6 +106,9 @@ func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName A
 func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 	responseBuilder := &strings.Builder{}
 	lines := strings.Split(string(chunk), "\n")
@@ -168,7 +181,7 @@ func (p *sparkProvider) appendResponse(responseBuilder *strings.Builder, respons
 }
 
 func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, sparkChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), p.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, sparkHost)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+p.config.GetApiTokenInUse(ctx))
 }

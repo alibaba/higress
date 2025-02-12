@@ -32,7 +32,15 @@ func (m *githubProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *githubProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): githubCompletionPath,
+		string(ApiNameEmbeddings):     githubEmbeddingPath,
+	}
+}
+
 func (m *githubProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &githubProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -44,7 +52,7 @@ func (m *githubProvider) GetProviderType() string {
 }
 
 func (m *githubProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -53,7 +61,7 @@ func (m *githubProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *githubProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
@@ -61,12 +69,7 @@ func (m *githubProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 
 func (m *githubProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteRequestHostHeader(headers, githubDomain)
-	if apiName == ApiNameChatCompletion {
-		util.OverwriteRequestPathHeader(headers, githubCompletionPath)
-	}
-	if apiName == ApiNameEmbeddings {
-		util.OverwriteRequestPathHeader(headers, githubEmbeddingPath)
-	}
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestAuthorizationHeader(headers, m.config.GetApiTokenInUse(ctx))
 }
 

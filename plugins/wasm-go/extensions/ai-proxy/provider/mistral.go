@@ -22,7 +22,16 @@ func (m *mistralProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *mistralProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// The chat interface of mistral is the same as that of OpenAI. docs: https://docs.mistral.ai/api/
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *mistralProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &mistralProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -39,7 +48,7 @@ func (m *mistralProvider) GetProviderType() string {
 }
 
 func (m *mistralProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -47,7 +56,7 @@ func (m *mistralProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 }
 
 func (m *mistralProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
