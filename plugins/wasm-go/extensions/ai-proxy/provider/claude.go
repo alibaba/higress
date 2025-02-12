@@ -111,9 +111,6 @@ func (c *claudeProvider) GetProviderType() string {
 }
 
 func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !c.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
 }

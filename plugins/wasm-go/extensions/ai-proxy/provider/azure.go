@@ -63,9 +63,6 @@ func (m *azureProvider) GetProviderType() string {
 }
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }
@@ -78,21 +75,23 @@ func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 }
 
 func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	u, e := url.Parse(ctx.Path())
-	if e == nil {
-		customApiVersion := u.Query().Get("api-version")
-		if customApiVersion == "" {
-			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+	if apiName != "" {
+		u, e := url.Parse(ctx.Path())
+		if e == nil {
+			customApiVersion := u.Query().Get("api-version")
+			if customApiVersion == "" {
+				util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+			} else {
+				q := m.serviceUrl.Query()
+				q.Set("api-version", customApiVersion)
+				newUrl := *m.serviceUrl
+				newUrl.RawQuery = q.Encode()
+				util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
+			}
 		} else {
-			q := m.serviceUrl.Query()
-			q.Set("api-version", customApiVersion)
-			newUrl := *m.serviceUrl
-			newUrl.RawQuery = q.Encode()
-			util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
+			log.Errorf("failed to parse request path: %v", e)
+			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 		}
-	} else {
-		log.Errorf("failed to parse request path: %v", e)
-		util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 	}
 	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
 	headers.Set("api-key", m.config.GetApiTokenInUse(ctx))
