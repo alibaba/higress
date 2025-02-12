@@ -64,7 +64,14 @@ func (d *deeplProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (d *deeplProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): deeplChatCompletionPath,
+	}
+}
+
 func (d *deeplProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(d.DefaultCapabilities())
 	return &deeplProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -76,7 +83,7 @@ func (d *deeplProvider) GetProviderType() string {
 }
 
 func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !d.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
@@ -89,7 +96,7 @@ func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 }
 
 func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !d.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)
@@ -112,6 +119,9 @@ func (d *deeplProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, api
 }
 
 func (d *deeplProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	deeplResponse := &deeplResponse{}
 	if err := json.Unmarshal(body, deeplResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal deepl response: %v", err)

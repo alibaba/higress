@@ -12,7 +12,9 @@ import (
 // deepseekProvider is the provider for deepseek Ai service.
 
 const (
-	deepseekDomain             = "api.deepseek.com"
+	deepseekDomain = "api.deepseek.com"
+	// TODO: docs: https://api-docs.deepseek.com/api/create-chat-completion
+	// accourding to the docs, the path should be /chat/completions, need to be verified
 	deepseekChatCompletionPath = "/v1/chat/completions"
 )
 
@@ -26,7 +28,14 @@ func (m *deepseekProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	return nil
 }
 
+func (m *deepseekProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): deepseekChatCompletionPath,
+	}
+}
+
 func (m *deepseekProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &deepseekProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -43,7 +52,7 @@ func (m *deepseekProvider) GetProviderType() string {
 }
 
 func (m *deepseekProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -51,14 +60,14 @@ func (m *deepseekProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 }
 
 func (m *deepseekProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }
 
 func (m *deepseekProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, deepseekChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, deepseekDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

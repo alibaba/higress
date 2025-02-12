@@ -22,6 +22,13 @@ type ai360Provider struct {
 	contextCache *contextCache
 }
 
+func (m *ai360ProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *ai360ProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
@@ -30,6 +37,7 @@ func (m *ai360ProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 }
 
 func (m *ai360ProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &ai360Provider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -41,7 +49,7 @@ func (m *ai360Provider) GetProviderType() string {
 }
 
 func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -50,7 +58,7 @@ func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNam
 }
 
 func (m *ai360Provider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
@@ -58,5 +66,6 @@ func (m *ai360Provider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, 
 
 func (m *ai360Provider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
 	util.OverwriteRequestHostHeader(headers, ai360Domain)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestAuthorizationHeader(headers, m.config.GetApiTokenInUse(ctx))
 }
