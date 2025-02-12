@@ -29,7 +29,7 @@ metadata:
 spec:
   containers:
     - name: llm-mock
-      image: registry.cn-hangzhou.aliyuncs.com/hxt/llm-mock:latest
+      image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
       ports:
         - containerPort: 3000
 ---
