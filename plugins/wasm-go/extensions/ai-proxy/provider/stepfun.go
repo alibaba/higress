@@ -24,7 +24,15 @@ func (m *stepfunProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *stepfunProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// stepfun的chat接口path和OpenAI的chat接口一样
+		string(ApiNameChatCompletion): stepfunChatCompletionPath,
+	}
+}
+
 func (m *stepfunProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &stepfunProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -41,7 +49,7 @@ func (m *stepfunProvider) GetProviderType() string {
 }
 
 func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -49,14 +57,14 @@ func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 }
 
 func (m *stepfunProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }
 
 func (m *stepfunProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, stepfunChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, stepfunDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

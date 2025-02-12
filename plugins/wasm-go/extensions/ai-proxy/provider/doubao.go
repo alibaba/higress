@@ -13,6 +13,7 @@ import (
 const (
 	doubaoDomain             = "ark.cn-beijing.volces.com"
 	doubaoChatCompletionPath = "/api/v3/chat/completions"
+	doubaoEmbeddingsPath     = "/api/v3/embeddings"
 )
 
 type doubaoProviderInitializer struct{}
@@ -24,7 +25,15 @@ func (m *doubaoProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *doubaoProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): doubaoChatCompletionPath,
+		string(ApiNameEmbeddings):     doubaoEmbeddingsPath,
+	}
+}
+
 func (m *doubaoProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &doubaoProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -41,7 +50,7 @@ func (m *doubaoProvider) GetProviderType() string {
 }
 
 func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return errUnsupportedApiName
 	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
@@ -49,14 +58,14 @@ func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *doubaoProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }
 
 func (m *doubaoProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, doubaoChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, doubaoDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
@@ -65,6 +74,9 @@ func (m *doubaoProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 func (m *doubaoProvider) GetApiName(path string) ApiName {
 	if strings.Contains(path, doubaoChatCompletionPath) {
 		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, doubaoEmbeddingsPath) {
+		return ApiNameEmbeddings
 	}
 	return ""
 }

@@ -21,7 +21,12 @@ func (m *cozeProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
+func (m *cozeProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{}
+}
+
 func (m *cozeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &cozeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
