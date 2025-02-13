@@ -74,9 +74,6 @@ func (p *sparkProvider) GetProviderType() string {
 }
 
 func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !p.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	p.config.handleRequestHeaders(p, ctx, apiName, log)
 	return nil
 }
