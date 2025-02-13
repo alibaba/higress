@@ -104,11 +104,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 		key = strings.Join(userMessages, "\n")
 	} else if c.CacheKeyStrategy == config.CACHE_KEY_STRATEGY_DISABLED {
 		log.Info("[onHttpRequestBody] cache key strategy is disabled")
-		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	} else {
 		log.Warnf("[onHttpRequestBody] unknown cache key strategy: %s", c.CacheKeyStrategy)
-		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -147,11 +147,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log w
 		ctx.SetResponseBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	}
 
-	if ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
-
 	return types.ActionContinue
 }
 
@@ -159,7 +154,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []
 	log.Debugf("[onHttpResponseBody] is last chunk: %v", isLastChunk)
 	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
 
-	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil {
+	if ctx.GetContext(TOOL_CALLS_CONTEXT_KEY) != nil || ctx.GetContext(ERROR_PARTIAL_MESSAGE_KEY) != nil {
 		return chunk
 	}
 
