@@ -49,9 +49,6 @@ func (m *ai360Provider) GetProviderType() string {
 }
 
 func (m *ai360Provider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return nil

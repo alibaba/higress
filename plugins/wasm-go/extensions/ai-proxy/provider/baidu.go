@@ -51,9 +51,6 @@ func (g *baiduProvider) GetProviderType() string {
 }
 
 func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !g.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	return nil
 }

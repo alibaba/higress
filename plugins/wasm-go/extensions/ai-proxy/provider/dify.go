@@ -51,9 +51,6 @@ func (d *difyProvider) GetProviderType() string {
 }
 
 func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
 	return nil
 }

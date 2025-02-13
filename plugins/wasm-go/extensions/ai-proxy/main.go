@@ -87,8 +87,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	if apiName == "" {
-		log.Warnf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		return types.ActionContinue
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+		log.Warnf("[onHttpRequestHeader] unsupported path: %s, will not process http path and body", path.Path)
 	}
 
 	ctx.SetContext(provider.CtxKeyApiName, apiName)
@@ -105,11 +106,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err != nil {
-			if providerConfig.PassthroughUnsupportedAPI() {
-				log.Warnf("[onHttpRequestHeader] passthrough unsupported API: %v", err)
-				ctx.DontReadRequestBody()
-				return types.ActionContinue
-			}
 			util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
 			return types.ActionContinue
 		}
@@ -155,10 +151,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
 		if err == nil {
 			return action
-		}
-		if pluginConfig.GetProviderConfig().PassthroughUnsupportedAPI() {
-			log.Warnf("[onHttpRequestBody] passthrough unsupported API: %v", err)
-			return types.ActionContinue
 		}
 		util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}

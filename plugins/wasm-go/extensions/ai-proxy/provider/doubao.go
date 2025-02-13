@@ -50,9 +50,6 @@ func (m *doubaoProvider) GetProviderType() string {
 }
 
 func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }
