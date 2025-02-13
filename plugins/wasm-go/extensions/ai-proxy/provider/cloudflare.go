@@ -49,9 +49,6 @@ func (c *cloudflareProvider) GetProviderType() string {
 }
 
 func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !c.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
 }

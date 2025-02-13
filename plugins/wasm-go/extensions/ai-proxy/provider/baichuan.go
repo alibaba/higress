@@ -50,9 +50,6 @@ func (m *baichuanProvider) GetProviderType() string {
 }
 
 func (m *baichuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !m.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }

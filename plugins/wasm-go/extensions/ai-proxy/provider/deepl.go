@@ -83,15 +83,16 @@ func (d *deeplProvider) GetProviderType() string {
 }
 
 func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if !d.config.isSupportedAPI(apiName) {
-		return errUnsupportedApiName
-	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
 	return nil
 }
 
 func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, deeplChatCompletionPath)
+	if apiName != "" {
+		util.OverwriteRequestPathHeader(headers, deeplChatCompletionPath)
+	}
+	// TODO: Support default host through configuration
+	util.OverwriteRequestHostHeader(headers, deeplHostFree)
 	util.OverwriteRequestAuthorizationHeader(headers, "DeepL-Auth-Key "+d.config.GetApiTokenInUse(ctx))
 }
 
