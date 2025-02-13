@@ -152,10 +152,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if err == nil {
 			return action
 		}
-		if pluginConfig.GetProviderConfig().PassthroughUnsupportedAPI() {
-			log.Warnf("[onHttpRequestBody] passthrough unsupported API: %v", err)
-			return types.ActionContinue
-		}
 		util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
 	return types.ActionContinue
