@@ -270,6 +270,9 @@ func checkStream(ctx wrapper.HttpContext, log wrapper.Log) {
 
 func getApiName(path string) provider.ApiName {
 	// openai style
+	if strings.HasSuffix(path, "/v1/completions") {
+		return provider.ApiNameCompletion
+	}
 	if strings.HasSuffix(path, "/v1/chat/completions") {
 		return provider.ApiNameChatCompletion
 	}
