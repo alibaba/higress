@@ -76,6 +76,7 @@ const (
 	ContentTypeFormUrlencoded         = "application/x-www-form-urlencoded"
 	ContentTypeMultipartForm          = "multipart/form-data"
 	ContentTypeTextPlain              = "text/plain"
+	ContentTypeTextEventStream        = "text/event-stream"
 )
 
 const (
@@ -140,11 +141,12 @@ type ExpectedRequest struct {
 
 // Response defines expected properties of a response from a backend.
 type Response struct {
-	StatusCode    int
-	Headers       map[string]string
-	Body          []byte
-	ContentType   string
-	AbsentHeaders []string
+	StatusCode           int
+	Headers              map[string]string
+	Body                 []byte
+	JsonBodyIgnoreFields []string
+	ContentType          string
+	AbsentHeaders        []string
 }
 
 // requiredConsecutiveSuccesses is the number of requests that must succeed in a row
@@ -601,6 +603,7 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 
 			switch cTyp {
 			case ContentTypeTextPlain:
+			case ContentTypeTextEventStream:
 				if !bytes.Equal(expected.Response.ExpectedResponse.Body, cRes.Body) {
 					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
 				}
@@ -616,7 +619,7 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 					return fmt.Errorf("failed to unmarshall CapturedResponse body %s, %s", string(cRes.Body), err.Error())
 				}
 
-				if !reflect.DeepEqual(eResBody, cResBody) {
+				if err := CompareJSONWithIgnoreFields(eResBody, cResBody, expected.Response.ExpectedResponse.JsonBodyIgnoreFields); err != nil {
 					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
 				}
 			case ContentTypeFormUrlencoded:
@@ -663,6 +666,47 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 	}
 	return nil
 }
+
+// CompareJSONWithIgnoreFields compares two JSON objects, ignoring specified fields
+func CompareJSONWithIgnoreFields(eResBody, cResBody map[string]interface{}, ignoreFields []string) error {
+	for key, eVal := range eResBody {
+		if contains(ignoreFields, key) {
+			continue
+		}
+
+		cVal, exists := cResBody[key]
+		if !exists {
+			return fmt.Errorf("field %s exists in expected response but not in captured response", key)
+		}
+
+		if !reflect.DeepEqual(eVal, cVal) {
+			return fmt.Errorf("field %s mismatch: expected %v, got %v", key, eVal, cVal)
+		}
+	}
+
+	// Check if captured response has extra fields (excluding ignored fields)
+	for key := range cResBody {
+		if contains(ignoreFields, key) {
+			continue
+		}
+
+		if _, exists := eResBody[key]; !exists {
+			return fmt.Errorf("field %s exists in captured response but not in expected response", key)
+		}
+	}
+
+	return nil
+}
+
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
 func ParseFormUrlencodedBody(body []byte) (map[string][]string, error) {
 	ret := make(map[string][]string)
 	kvs, err := url.ParseQuery(string(body))

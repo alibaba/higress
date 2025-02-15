@@ -16,10 +16,11 @@ package main
 
 import (
 	"net/http"
-	"net/url"
+	"path"
 
 	"ext-auth/config"
 	"ext-auth/util"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -50,25 +51,23 @@ const (
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log wrapper.Log) types.Action {
-	path, _ := wrapper.GetRequestPathWithoutQuery()
+	path := wrapper.GetRequestPathWithoutQuery()
 	// If the request's domain and path match the MatchRules, skip authentication
 	if config.MatchRules.IsAllowedByMode(ctx.Host(), path) {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
-	if wrapper.HasRequestBody() {
-		ctx.SetRequestBodyBufferLimit(config.HttpService.AuthorizationRequest.MaxRequestBodyBytes)
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
 
-		// If withRequestBody is true AND the HTTP request contains a request body,
-		// it will be handled in the onHttpRequestBody phase.
-		if config.HttpService.AuthorizationRequest.WithRequestBody {
-			// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-			ctx.DisableReroute()
-			// The request has a body and requires delaying the header transmission until a cache miss occurs,
-			// at which point the header should be sent.
-			return types.HeaderStopIteration
-		}
+	// If withRequestBody is true AND the HTTP request contains a request body,
+	// it will be handled in the onHttpRequestBody phase.
+	if wrapper.HasRequestBody() && config.HttpService.AuthorizationRequest.WithRequestBody {
+		ctx.SetRequestBodyBufferLimit(config.HttpService.AuthorizationRequest.MaxRequestBodyBytes)
+		// The request has a body and requires delaying the header transmission until a cache miss occurs,
+		// at which point the header should be sent.
+		return types.HeaderStopIteration
 	}
 
 	ctx.DontReadRequestBody()
@@ -77,7 +76,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config config.ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
 	if config.HttpService.AuthorizationRequest.WithRequestBody {
-		return checkExtAuth(ctx, config, body, log, types.ActionPause)
+		return checkExtAuth(ctx, config, body, log, types.DataStopIterationAndBuffer)
 	}
 	return types.ActionContinue
 }
@@ -86,17 +85,18 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	httpServiceConfig := cfg.HttpService
 
 	extAuthReqHeaders := buildExtAuthRequestHeaders(ctx, cfg)
+
+	// Set the requestMethod and requestPath based on the endpoint_mode
 	requestMethod := httpServiceConfig.RequestMethod
 	requestPath := httpServiceConfig.Path
 	if httpServiceConfig.EndpointMode == config.EndpointModeEnvoy {
 		requestMethod = ctx.Method()
-		requestPath, _ = url.JoinPath(httpServiceConfig.PathPrefix, ctx.Path())
+		requestPath = path.Join(httpServiceConfig.PathPrefix, ctx.Path())
 	}
 
 	// Call ext auth server
 	err := httpServiceConfig.Client.Call(requestMethod, requestPath, util.ReconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
 				log.Errorf("failed to call ext auth server, status: %d", statusCode)
 				callExtAuthServerErrorHandler(cfg, statusCode, responseHeaders, responseBody)
@@ -110,6 +110,7 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 					}
 				}
 			}
+			proxywasm.ResumeHttpRequest()
 
 		}, httpServiceConfig.Timeout)
 
@@ -122,6 +123,7 @@ func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte
 	return pauseAction
 }
 
+// buildExtAuthRequestHeaders builds the request headers to be sent to the ext auth server.
 func buildExtAuthRequestHeaders(ctx wrapper.HttpContext, cfg config.ExtAuthConfig) http.Header {
 	extAuthReqHeaders := http.Header{}
 
@@ -166,6 +168,7 @@ func callExtAuthServerErrorHandler(config config.ExtAuthConfig, statusCode int, 
 		if config.FailureModeAllowHeaderAdd {
 			_ = proxywasm.ReplaceHttpRequestHeader(HeaderFailureModeAllow, "true")
 		}
+		proxywasm.ResumeHttpRequest()
 		return
 	}
 

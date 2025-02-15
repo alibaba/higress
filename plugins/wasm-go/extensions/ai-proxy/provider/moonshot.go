@@ -34,7 +34,14 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	return nil
 }
 
+func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): moonshotChatCompletionPath,
+	}
+}
+
 func (m *moonshotProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &moonshotProvider{
 		config: config,
 		client: wrapper.NewClusterClient(wrapper.RouteCluster{
@@ -57,15 +64,12 @@ func (m *moonshotProvider) GetProviderType() string {
 }
 
 func (m *moonshotProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }
 
 func (m *moonshotProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, moonshotChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, moonshotDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
@@ -74,8 +78,12 @@ func (m *moonshotProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiN
 // moonshot 有自己获取 context 的配置（moonshotFileId），因此无法复用 handleRequestBody 方法
 // moonshot 的 body 没有修改，无须实现TransformRequestBody，使用默认的 defaultTransformRequestBody 方法
 func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
+	}
+	// 非chat类型的请求，不做处理
+	if apiName != ApiNameChatCompletion {
+		return types.ActionContinue, nil
 	}
 
 	request := &chatCompletionRequest{}
@@ -154,6 +162,9 @@ func (m *moonshotProvider) sendRequest(method, path, body, apiKey string, callba
 }
 
 func (m *moonshotProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
 	receivedBody := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		receivedBody = append(bufferedStreamingBody, chunk...)

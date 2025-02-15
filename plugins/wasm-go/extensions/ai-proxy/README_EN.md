@@ -106,6 +106,7 @@ For Qwen (Tongyi Qwen), the corresponding `type` is `qwen`. Its unique configura
 |--------------------|-----------------|----------------------|---------------|------------------------------------------------------------------------------------------------------------------------|
 | `qwenEnableSearch`  | boolean          | Optional             | -             | Whether to enable the built-in Internet search function provided by Qwen.                                             |
 | `qwenFileIds`       | array of string   | Optional             | -             | The file IDs uploaded via the Dashscope file interface, whose content will be used as context for AI conversations. Cannot be configured with the `context` field. |
+| `qwenEnableCompatible` | boolean          | Optional | false         | Enable Qwen compatibility mode. When Qwen compatibility mode is enabled, the compatible mode interface of Qwen will be called, and the request/response will not be modified. |
 
 #### Baichuan AI
 

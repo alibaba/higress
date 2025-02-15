@@ -42,6 +42,7 @@ description: AI 代理插件配置参考
 | `customSettings` | array of customSetting | 非必填   | -      | 为AI请求指定覆盖或者填充参数                                                                                                                                           |
 | `failover`       | object | 非必填   | -      | 配置 apiToken 的 failover 策略，当 apiToken 不可用时，将其移出 apiToken 列表，待健康检测通过后重新添加回 apiToken 列表                                                                      |
 | `retryOnFailure` | object | 非必填   | -      | 当请求失败时立即进行重试                                                                                                                                              |  
+| `capabilities`       | map of string | 非必填   | -      |  部分provider的部分ai能力原生兼容openai/v1格式，不需要重写，可以直接转发，通过此配置项指定来开启转发, key表示的是采用的厂商协议能力，values表示的真实的厂商该能力的api path, 厂商协议能力当前支持: openai/v1/chatcompletions, openai/v1/embeddings, openai/v1/imagegeneration, openai/v1/audiospeech, cohere/v1/rerank |
 
 `context`的配置字段说明如下：
 
@@ -130,10 +131,11 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 
 通义千问所对应的 `type` 为 `qwen`。它特有的配置字段如下：
 
-| 名称                 | 数据类型            | 填写要求 | 默认值 | 描述                                                               |
-|--------------------|-----------------|------|-----|------------------------------------------------------------------|
-| `qwenEnableSearch` | boolean         | 非必填  | -   | 是否启用通义千问内置的互联网搜索功能。                          |
-| `qwenFileIds`      | array of string | 非必填  | -   | 通过文件接口上传至Dashscope的文件 ID，其内容将被用做 AI 对话的上下文。不可与 `context` 字段同时配置。 |
+| 名称                   | 数据类型        | 填写要求 | 默认值 | 描述                                                         |
+| ---------------------- | --------------- | -------- | ------ | ------------------------------------------------------------ |
+| `qwenEnableSearch`     | boolean         | 非必填   | -      | 是否启用通义千问内置的互联网搜索功能。                       |
+| `qwenFileIds`          | array of string | 非必填   | -      | 通过文件接口上传至Dashscope的文件 ID，其内容将被用做 AI 对话的上下文。不可与 `context` 字段同时配置。 |
+| `qwenEnableCompatible` | boolean         | 非必填   | false  | 开启通义千问兼容模式。启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。 |
 
 #### 百川智能 (Baichuan AI)
 
