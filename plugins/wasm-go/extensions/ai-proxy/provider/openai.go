@@ -9,6 +9,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -62,13 +63,15 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	}
 	customPath := "/" + pairs[1]
 	isDirectCustomPath := isDirectPath(customPath)
+	capabilities := m.DefaultCapabilities()
 	if !isDirectCustomPath {
-		capabilities := m.DefaultCapabilities()
 		for key, mapPath := range capabilities {
 			capabilities[key] = path.Join(customPath, mapPath)
 		}
-		config.setDefaultCapabilities(capabilities)
 	}
+	config.setDefaultCapabilities(capabilities)
+	proxywasm.LogDebugf("ai-proxy: openai provider customDomain:%s, customPath:%s, isDirectCustomPath:%v, capabilities:%v",
+		pairs[0], customPath, isDirectCustomPath, capabilities)
 	return &openaiProvider{
 		config:             config,
 		customDomain:       pairs[0],

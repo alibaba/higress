@@ -38,7 +38,7 @@ type chatCompletionRequest struct {
 	ResponseFormat      map[string]interface{} `json:"response_format,omitempty"`
 	Seed                int                    `json:"seed,omitempty"`
 	ServiceTier         string                 `json:"service_tier,omitempty"`
-	Stop                any                    `json:"stop,omitempty"`
+	Stop                []string               `json:"stop,omitempty"`
 	Stream              bool                   `json:"stream,omitempty"`
 	StreamOptions       *streamOptions         `json:"stream_options,omitempty"`
 	Temperature         float64                `json:"temperature,omitempty"`
