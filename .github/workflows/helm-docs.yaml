@@ -107,12 +107,3 @@ jobs:
             echo "Files are identical. No update needed."
             echo "updated=false" >> $GITHUB_ENV
           fi
-
-      - name: Commit translated README.zh.md
-        if: env.updated == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./helm/higress/README.zh.md
-          git commit -m "Update translated README.zh.md"
-          git push
