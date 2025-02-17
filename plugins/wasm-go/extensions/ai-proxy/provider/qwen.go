@@ -648,10 +648,11 @@ type qwenUsage struct {
 }
 
 type qwenMessage struct {
-	Name      string     `json:"name,omitempty"`
-	Role      string     `json:"role"`
-	Content   any        `json:"content"`
-	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Name             string     `json:"name,omitempty"`
+	Role             string     `json:"role"`
+	Content          any        `json:"content"`
+	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	ToolCalls        []toolCall `json:"tool_calls,omitempty"`
 }
 
 type qwenVlMessageContent struct {

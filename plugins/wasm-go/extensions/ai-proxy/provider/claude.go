@@ -17,6 +17,7 @@ import (
 const (
 	claudeDomain             = "api.anthropic.com"
 	claudeChatCompletionPath = "/v1/messages"
+	claudeCompletionPath     = "/v1/complete"
 	defaultVersion           = "2023-06-01"
 	defaultMaxTokens         = 4096
 )
@@ -88,6 +89,7 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): claudeChatCompletionPath,
+		string(ApiNameCompletion):     claudeCompletionPath,
 		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
 		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
 	}
