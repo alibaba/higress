@@ -233,21 +233,9 @@ spec:
           '*': "qwen-turbo"
     ingress:
     - qwen
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 100
----
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ai-statistics
-  namespace: higress-system
-spec:
-  defaultConfig:
-    enable: true
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-statistics:v1.0.0
-  phase: UNSPECIFIED_PHASE
-  priority: 200
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -269,7 +257,7 @@ spec:
       # service_name: redis.default.svc.cluster.local
       service_name: redis.dns
       service_port: 6379
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 600
 ```
@@ -346,10 +334,19 @@ spec:
         pathType: Prefix
 ```
 
+Forward the traffic of higress-gateway to the local, making it convenient for testing.
+
+```bash
+kubectl port-forward svc/higress-gateway -n higress-system 18000:80
+```
+
 The rate limiting effect is triggered as follows:
 
 ```bash
-curl "http://qwen-test.com:18000/v1/chat/completions?apikey=123456" -H "Content-Type: application/json"  -d '{
+curl "http://localhost:18000/v1/chat/completions?apikey=123456" \
+-H "Host: qwen-test.com" \
+-H "Content-Type: application/json" \
+-d '{
   "model": "gpt-3",
   "messages": [
     {
