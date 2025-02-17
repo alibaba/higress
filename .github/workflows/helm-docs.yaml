@@ -73,6 +73,8 @@ jobs:
             -H "Authorization: Bearer $API_KEY" \
             -d "$PAYLOAD")
 
+          echo "response: $RESPONSE"
+
           TRANSLATED_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
 
           if [ -z "$TRANSLATED_CONTENT" ]; then
