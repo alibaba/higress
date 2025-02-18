@@ -68,6 +68,7 @@ struct AiDataMasking {
     config: Option<Rc<AiDataMaskingConfig>>,
     mask_map: HashMap<String, Option<String>>,
     is_openai: bool,
+    is_openai_stream: Option<bool>,
     stream: bool,
     log: Log,
     msg_window: MsgWindow,
@@ -361,6 +362,7 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
             mask_map: HashMap::new(),
             config: None,
             is_openai: false,
+            is_openai_stream: None,
             stream: false,
             msg_window: MsgWindow::new(),
             log: Log::new(PLUGIN_NAME.to_string()),
@@ -509,6 +511,7 @@ impl HttpContext for AiDataMasking {
         _end_of_stream: bool,
     ) -> HeaderAction {
         if has_request_body() {
+            self.set_http_request_header("Content-Length", None);
             HeaderAction::StopIteration
         } else {
             HeaderAction::Continue
@@ -528,8 +531,11 @@ impl HttpContext for AiDataMasking {
         }
         if body_size > 0 {
             if let Some(body) = self.get_http_response_body(0, body_size) {
-                self.msg_window.push(&body, self.is_openai);
-                if let Ok(mut msg) = String::from_utf8(self.msg_window.message.to_vec()) {
+                if self.is_openai && self.is_openai_stream.is_none() {
+                    self.is_openai_stream = Some(body.starts_with(b"data:"));
+                }
+                self.msg_window.push(&body, self.is_openai_stream.unwrap());
+                if let Ok(mut msg) = String::from_utf8(self.msg_window.message.clone()) {
                     if self.check_message(&msg) {
                         return self.deny(true);
                     }
@@ -545,12 +551,12 @@ impl HttpContext for AiDataMasking {
             }
         }
         let new_body = if end_of_stream {
-            self.msg_window.finish(self.is_openai)
+            self.msg_window.finish(self.is_openai_stream.unwrap())
         } else {
             self.msg_window.pop(
                 self.char_window_size * 2,
                 self.byte_window_size * 2,
-                self.is_openai,
+                self.is_openai_stream.unwrap(),
             )
         };
         self.replace_http_response_body(&new_body);
