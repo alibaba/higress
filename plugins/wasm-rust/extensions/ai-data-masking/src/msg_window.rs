@@ -101,6 +101,7 @@ impl MsgWindow {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -307,7 +308,11 @@ data: [DONE]
         for line in data.split("\n\n") {
             msg_win.push(line.as_bytes(), true);
             msg_win.push(b"\n\n", true);
-            buffer.extend(msg_win.pop(30, 90, true));
+            if let Ok(mut msg) = String::from_utf8(msg_win.message.clone()) {
+                msg = msg.replace("Higress", "***higress***");
+                msg_win.message = msg.as_bytes().to_vec();
+            }
+            buffer.extend(msg_win.pop(7, 7, true));
         }
         buffer.extend(msg_win.finish(true));
         let mut message = String::new();
@@ -328,6 +333,6 @@ data: [DONE]
                 }
             }
         }
-        assert_eq!(message, "Higress 是一个基于 Istio 的高性能服务网格数据平面项目，旨在提供高吞吐量、低延迟和可扩展的服务通信管理。它为企业级应用提供了丰富的流量治理功能，如负载均衡、熔断、限流等，并支持多协议代理（包括 HTTP/1.1, HTTP/2, gRPC）。Higress 的设计目标是优化 Istio 在大规模集群中的性能表现，满足高并发场景下的需求。");
+        assert_eq!(message, "***higress*** 是一个基于 Istio 的高性能服务网格数据平面项目，旨在提供高吞吐量、低延迟和可扩展的服务通信管理。它为企业级应用提供了丰富的流量治理功能，如负载均衡、熔断、限流等，并支持多协议代理（包括 HTTP/1.1, HTTP/2, gRPC）。***higress*** 的设计目标是优化 Istio 在大规模集群中的性能表现，满足高并发场景下的需求。");
     }
 }
