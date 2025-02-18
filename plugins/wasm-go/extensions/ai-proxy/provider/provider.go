@@ -22,11 +22,13 @@ const (
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
+	ApiNameCompletion      ApiName = "openai/v1/completions"
 	ApiNameChatCompletion  ApiName = "openai/v1/chatcompletions"
 	ApiNameEmbeddings      ApiName = "openai/v1/embeddings"
 	ApiNameImageGeneration ApiName = "openai/v1/imagegeneration"
 	ApiNameAudioSpeech     ApiName = "openai/v1/audiospeech"
 
+	PathOpenAICompletions     = "/v1/completions"
 	PathOpenAIChatCompletions = "/v1/chat/completions"
 	PathOpenAIEmbeddings      = "/v1/embeddings"
 

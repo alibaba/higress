@@ -19,22 +19,55 @@ const (
 )
 
 type chatCompletionRequest struct {
-	Model            string                 `json:"model"`
-	Messages         []chatMessage          `json:"messages"`
-	MaxTokens        int                    `json:"max_tokens,omitempty"`
-	FrequencyPenalty float64                `json:"frequency_penalty,omitempty"`
-	N                int                    `json:"n,omitempty"`
-	PresencePenalty  float64                `json:"presence_penalty,omitempty"`
-	Seed             int                    `json:"seed,omitempty"`
-	Stream           bool                   `json:"stream,omitempty"`
-	StreamOptions    *streamOptions         `json:"stream_options,omitempty"`
-	Temperature      float64                `json:"temperature,omitempty"`
-	TopP             float64                `json:"top_p,omitempty"`
-	Tools            []tool                 `json:"tools,omitempty"`
-	ToolChoice       *toolChoice            `json:"tool_choice,omitempty"`
-	User             string                 `json:"user,omitempty"`
-	Stop             []string               `json:"stop,omitempty"`
-	ResponseFormat   map[string]interface{} `json:"response_format,omitempty"`
+	Messages            []chatMessage          `json:"messages"`
+	Model               string                 `json:"model"`
+	Store               bool                   `json:"store,omitempty"`
+	ReasoningEffort     string                 `json:"reasoning_effort,omitempty"`
+	Metadata            map[string]string      `json:"metadata,omitempty"`
+	FrequencyPenalty    float64                `json:"frequency_penalty,omitempty"`
+	LogitBias           map[string]int         `json:"logit_bias,omitempty"`
+	Logprobs            bool                   `json:"logprobs,omitempty"`
+	TopLogprobs         int                    `json:"top_logprobs,omitempty"`
+	MaxTokens           int                    `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int                    `json:"max_completion_tokens,omitempty"`
+	N                   int                    `json:"n,omitempty"`
+	Modalities          []string               `json:"modalities,omitempty"`
+	Prediction          map[string]interface{} `json:"prediction,omitempty"`
+	Audio               map[string]interface{} `json:"audio,omitempty"`
+	PresencePenalty     float64                `json:"presence_penalty,omitempty"`
+	ResponseFormat      map[string]interface{} `json:"response_format,omitempty"`
+	Seed                int                    `json:"seed,omitempty"`
+	ServiceTier         string                 `json:"service_tier,omitempty"`
+	Stop                []string               `json:"stop,omitempty"`
+	Stream              bool                   `json:"stream,omitempty"`
+	StreamOptions       *streamOptions         `json:"stream_options,omitempty"`
+	Temperature         float64                `json:"temperature,omitempty"`
+	TopP                float64                `json:"top_p,omitempty"`
+	Tools               []tool                 `json:"tools,omitempty"`
+	ToolChoice          *toolChoice            `json:"tool_choice,omitempty"`
+	ParallelToolCalls   bool                   `json:"parallel_tool_calls,omitempty"`
+	User                string                 `json:"user,omitempty"`
+}
+
+type CompletionRequest struct {
+	Model            string         `json:"model"`
+	Prompt           string         `json:"prompt"`
+	BestOf           int            `json:"best_of,omitempty"`
+	Echo             bool           `json:"echo,omitempty"`
+	FrequencyPenalty float64        `json:"frequency_penalty,omitempty"`
+	LogitBias        map[string]int `json:"logit_bias,omitempty"`
+	Logprobs         int            `json:"logprobs,omitempty"`
+	MaxTokens        int            `json:"max_tokens,omitempty"`
+	N                int            `json:"n,omitempty"`
+	PresencePenalty  float64        `json:"presence_penalty,omitempty"`
+	Seed             int            `json:"seed,omitempty"`
+	Stop             []string       `json:"stop,omitempty"`
+	Stream           bool           `json:"stream,omitempty"`
+	StreamOptions    *streamOptions `json:"stream_options,omitempty"`
+	Suffix           string         `json:"suffix,omitempty"`
+	Temperature      float64        `json:"temperature,omitempty"`
+	TopP             float64        `json:"top_p,omitempty"`
+	User             string         `json:"user,omitempty"`
 }
 
 type streamOptions struct {
@@ -62,16 +95,18 @@ type chatCompletionResponse struct {
 	Choices           []chatCompletionChoice `json:"choices"`
 	Created           int64                  `json:"created,omitempty"`
 	Model             string                 `json:"model,omitempty"`
+	ServiceTier       string                 `json:"service_tier,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
 	Usage             usage                  `json:"usage,omitempty"`
 }
 
 type chatCompletionChoice struct {
-	Index        int          `json:"index"`
-	Message      *chatMessage `json:"message,omitempty"`
-	Delta        *chatMessage `json:"delta,omitempty"`
-	FinishReason string       `json:"finish_reason,omitempty"`
+	Index        int                    `json:"index"`
+	Message      *chatMessage           `json:"message,omitempty"`
+	Delta        *chatMessage           `json:"delta,omitempty"`
+	FinishReason string                 `json:"finish_reason,omitempty"`
+	Logprobs     map[string]interface{} `json:"logprobs,omitempty"`
 }
 
 type usage struct {
@@ -81,10 +116,14 @@ type usage struct {
 }
 
 type chatMessage struct {
-	Name      string     `json:"name,omitempty"`
-	Role      string     `json:"role,omitempty"`
-	Content   any        `json:"content,omitempty"`
-	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Id               string                 `json:"id,omitempty"`
+	Audio            map[string]interface{} `json:"audio,omitempty"`
+	Name             string                 `json:"name,omitempty"`
+	Role             string                 `json:"role,omitempty"`
+	Content          any                    `json:"content,omitempty"`
+	ReasoningContent string                 `json:"reasoning_content,omitempty"`
+	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
+	Refusal          string                 `json:"refusal,omitempty"`
 }
 
 type messageContent struct {
