@@ -66,7 +66,7 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	capabilities := m.DefaultCapabilities()
 	if !isDirectCustomPath {
 		for key, mapPath := range capabilities {
-			capabilities[key] = path.Join(customPath, mapPath)
+			capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
 		}
 	}
 	config.setDefaultCapabilities(capabilities)
