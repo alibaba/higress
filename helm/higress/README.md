@@ -162,7 +162,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableH3 | bool | `false` |  |
 | global.enableIPv6 | bool | `false` |  |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
-| global.enableLDSCache | bool | `true` |  |
+| global.enableLDSCache | bool | `false` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enablePushAllMCPClusters | bool | `true` |  |
 | global.enableSRDS | bool | `true` |  |
