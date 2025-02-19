@@ -4,11 +4,15 @@ on:
   pull_request:
     branches:
       - "*"
-
+    paths:
+      - 'helm/**'
+  workflow_dispatch: ~      
   push:
+    branches: [ main ]
+    paths:
+      - 'helm/**'    
 
 jobs:
-
   helm:
     name: Helm Docs
     runs-on: ubuntu-latest
@@ -33,3 +37,78 @@ jobs:
           fi
           git diff --exit-code
           rm -f ./helm-docs
+
+  translate-readme:
+    needs: helm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Translate README.md to Chinese
+        env:
+          API_URL: ${{ secrets.HIGRESS_OPENAI_API_URL }}
+          API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
+          API_MODEL: ${{ secrets.HIGRESS_OPENAI_API_MODEL }}
+        run: |
+          cd ./helm/higress
+          FILE_CONTENT=$(cat README.md)
+
+          PAYLOAD=$(jq -n \
+            --arg model "$API_MODEL" \
+            --arg content "$FILE_CONTENT" \
+            '{
+              model: $model,
+              messages: [
+                {"role": "system", "content": "You are a translation assistant that translates English Markdown text to Chinese."},
+                {"role": "user", "content": $content}
+              ],
+              temperature: 1.1,
+              stream: false
+            }')
+
+          RESPONSE=$(curl -s -X POST "$API_URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $API_KEY" \
+            -d "$PAYLOAD")
+
+          echo "response: $RESPONSE"
+
+          TRANSLATED_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+
+          if [ -z "$TRANSLATED_CONTENT" ]; then
+            echo "Translation failed! Response: $RESPONSE"
+            exit 1
+          fi
+
+          echo "$TRANSLATED_CONTENT" > README.zh.new.md
+          echo "Translation completed and saved to README.zh.new.md."
+
+      - name: Compare README.zh.md
+        id: compare
+        run: |
+          cd ./helm/higress
+          NEW_README_ZH="README.zh.new.md"
+          EXISTING_README_ZH="README.zh.md"
+
+          if [ ! -f "$EXISTING_README_ZH" ]; then
+            echo "Add README.zh.md."
+            mv "$NEW_README_ZH" "$EXISTING_README_ZH"
+            echo "updated=true" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          if ! diff -q "$NEW_README_ZH" "$EXISTING_README_ZH"; then
+            echo "Files are different. Updating README.zh.md."
+            mv "$NEW_README_ZH" "$EXISTING_README_ZH"
+            echo "updated=true" >> $GITHUB_ENV
+          else
+            echo "Files are identical. No update needed."
+            echo "updated=false" >> $GITHUB_ENV
+          fi

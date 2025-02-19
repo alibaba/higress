@@ -14,6 +14,7 @@ import (
 const (
 	baiduDomain             = "qianfan.baidubce.com"
 	baiduChatCompletionPath = "/v2/chat/completions"
+	baiduEmbeddings         = "/v2/embeddings"
 )
 
 type baiduProviderInitializer struct{}
@@ -25,7 +26,15 @@ func (g *baiduProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 	return nil
 }
 
+func (g *baiduProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): baiduChatCompletionPath,
+		string(ApiNameEmbeddings):     baiduEmbeddings,
+	}
+}
+
 func (g *baiduProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(g.DefaultCapabilities())
 	return &baiduProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -42,22 +51,19 @@ func (g *baiduProvider) GetProviderType() string {
 }
 
 func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	g.config.handleRequestHeaders(g, ctx, apiName, log)
 	return nil
 }
 
 func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
 }
 
 func (g *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, baiduChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), g.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, baiduDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")

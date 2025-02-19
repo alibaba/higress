@@ -17,6 +17,7 @@ import (
 const (
 	claudeDomain             = "api.anthropic.com"
 	claudeChatCompletionPath = "/v1/messages"
+	claudeCompletionPath     = "/v1/complete"
 	defaultVersion           = "2023-06-01"
 	defaultMaxTokens         = 4096
 )
@@ -85,7 +86,17 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): claudeChatCompletionPath,
+		string(ApiNameCompletion):     claudeCompletionPath,
+		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
+		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
+	}
+}
+
 func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(c.DefaultCapabilities())
 	return &claudeProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -102,15 +113,12 @@ func (c *claudeProvider) GetProviderType() string {
 }
 
 func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
 }
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, claudeChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), c.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
 	headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))
@@ -123,13 +131,16 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
 }
 
 func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return c.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
 	request := &chatCompletionRequest{}
 	if err := c.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err
@@ -139,6 +150,9 @@ func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 }
 
 func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	claudeResponse := &claudeTextGenResponse{}
 	if err := json.Unmarshal(body, claudeResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal claude response: %v", err)
@@ -153,6 +167,10 @@ func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
+	}
+	// only process the response from chat completion, skip other responses
+	if name != ApiNameChatCompletion {
+		return chunk, nil
 	}
 
 	responseBuilder := &strings.Builder{}

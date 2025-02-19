@@ -15,6 +15,14 @@ import (
 type azureProviderInitializer struct {
 }
 
+func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// TODO: azure's pattern is the same as openai, just need to handle the prefix, can be done in TransformRequestHeaders to support general capabilities
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+	}
+}
+
 func (m *azureProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.azureServiceUrl == "" {
 		return errors.New("missing azureServiceUrl in provider config")
@@ -35,6 +43,7 @@ func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 	} else {
 		serviceUrl = u
 	}
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &azureProvider{
 		config:       config,
 		serviceUrl:   serviceUrl,
@@ -54,36 +63,35 @@ func (m *azureProvider) GetProviderType() string {
 }
 
 func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }
 
 func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }
 
 func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	u, e := url.Parse(ctx.Path())
-	if e == nil {
-		customApiVersion := u.Query().Get("api-version")
-		if customApiVersion == "" {
-			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+	if apiName != "" {
+		u, e := url.Parse(ctx.Path())
+		if e == nil {
+			customApiVersion := u.Query().Get("api-version")
+			if customApiVersion == "" {
+				util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+			} else {
+				q := m.serviceUrl.Query()
+				q.Set("api-version", customApiVersion)
+				newUrl := *m.serviceUrl
+				newUrl.RawQuery = q.Encode()
+				util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
+			}
 		} else {
-			q := m.serviceUrl.Query()
-			q.Set("api-version", customApiVersion)
-			newUrl := *m.serviceUrl
-			newUrl.RawQuery = q.Encode()
-			util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
+			log.Errorf("failed to parse request path: %v", e)
+			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 		}
-	} else {
-		log.Errorf("failed to parse request path: %v", e)
-		util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
 	}
 	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
 	headers.Set("api-key", m.config.GetApiTokenInUse(ctx))
