@@ -3,7 +3,7 @@ global:
   enableH3: false
   enableIPv6: false
   enableProxyProtocol: false
-  enableLDSCache: true
+  enableLDSCache: false
   enablePushAllMCPClusters: true
   liteMetrics: false
   xdsMaxRecvMsgSize: "104857600"
