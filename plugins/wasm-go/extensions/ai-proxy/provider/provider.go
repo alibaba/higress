@@ -85,6 +85,10 @@ const (
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
 
+	reasoningBehaviorNormal = "normal"
+	reasoningBehaviorIgnore = "ignore"
+	reasoningBehaviorConcat = "concat"
+
 	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
@@ -190,6 +194,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 失败请求重试
 	// @Description zh-CN 对失败的请求立即进行重试
 	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
+	// @Title zh-CN 推理内容处理方式
+	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：normal（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 normal。仅支持通义千问服务。
+	reasoningContentMode string `required:"false" yaml:"reasoningContentMode" json:"reasoningContentMode"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
 	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
@@ -356,6 +363,20 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			if setting.Validate() {
 				c.customSettings = append(c.customSettings, setting)
 			}
+		}
+	}
+
+	c.reasoningContentMode = json.Get("reasoningContentMode").String()
+	if c.reasoningContentMode == "" {
+		c.reasoningContentMode = reasoningBehaviorNormal
+	} else {
+		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
+		switch c.reasoningContentMode {
+		case reasoningBehaviorNormal, reasoningBehaviorIgnore, reasoningBehaviorConcat:
+			break
+		default:
+			c.reasoningContentMode = reasoningBehaviorNormal
+			break
 		}
 	}
 
