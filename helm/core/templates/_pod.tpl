@@ -15,6 +15,9 @@ template:
       {{- with .Values.gateway.revision }}
       istio.io/rev: {{ . }}
       {{- end }}
+      {{- with .Values.gateway.podLabels }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
       {{- include "gateway.selectorLabels" . | nindent 6 }}
   spec:
     {{- with .Values.gateway.imagePullSecrets }}
