@@ -148,7 +148,7 @@ func (m *chatMessage) handleReasoningContent(reasoningContentMode string) {
 		m.Content = fmt.Sprintf("%v\n%v", m.ReasoningContent, m.Content)
 		m.ReasoningContent = ""
 		break
-	case reasoningBehaviorNormal:
+	case reasoningBehaviorPassThrough:
 	default:
 		break
 	}
