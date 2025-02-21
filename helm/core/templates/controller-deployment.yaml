@@ -19,6 +19,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
+        {{- with .Values.controller.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- include "controller.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.controller.imagePullSecrets }}
