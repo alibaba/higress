@@ -20,10 +20,6 @@ const (
 type ollamaProviderInitializer struct {
 }
 
-//var ollamaConfig OllamaProviderConfig
-
-//type ollamaProviderConfig struct {}
-
 func (c *ollamaProviderInitializer) InitConfig(json gjson.Result) {}
 
 func (c *ollamaProviderInitializer) ValidateConfig() error {
@@ -61,10 +57,10 @@ func (t *ollamaProvider) GetProviderType() string {
 }
 
 type ollamaResponse struct {
-	Model             string      `json:"model"`
-	Embeddings        [][]float64 `json:"embeddings"`
-	TotalDuration    int64     `json:"total_duration"`
-	LoadDuration     int64     `json:"load_duration"`
+	Model           string      `json:"model"`
+	Embeddings      [][]float64 `json:"embeddings"`
+	TotalDuration   int64       `json:"total_duration"`
+	LoadDuration    int64       `json:"load_duration"`
 	PromptEvalCount int64       `json:"prompt_eval_count"`
 }
 
@@ -106,7 +102,6 @@ func (t *ollamaProvider) parseTextEmbedding(responseBody []byte) (*ollamaRespons
 	return &resp, nil
 }
 
-
 func (t *ollamaProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
@@ -133,7 +128,6 @@ func (t *ollamaProvider) GetEmbedding(
 				callback(nil, err)
 				return
 			}
-
 
 			resp, err = t.parseTextEmbedding(responseBody)
 			if err != nil {
