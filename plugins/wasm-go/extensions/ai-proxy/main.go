@@ -40,9 +40,11 @@ func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
+		log.Errorf("global rule config is invalid: %v", err)
 		return err
 	}
 	if err := pluginConfig.Complete(log); err != nil {
+		log.Errorf("failed to apply global rule config: %v", err)
 		return err
 	}
 
@@ -56,9 +58,11 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
+		log.Errorf("overriden rule config is invalid: %v", err)
 		return err
 	}
 	if err := pluginConfig.Complete(log); err != nil {
+		log.Errorf("failed to apply overriden rule config: %v", err)
 		return err
 	}
 

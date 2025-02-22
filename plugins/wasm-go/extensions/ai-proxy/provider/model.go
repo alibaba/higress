@@ -1,6 +1,9 @@
 package provider
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	streamEventIdItemKey        = "id:"
@@ -110,9 +113,16 @@ type chatCompletionChoice struct {
 }
 
 type usage struct {
-	PromptTokens     int `json:"prompt_tokens,omitempty"`
-	CompletionTokens int `json:"completion_tokens,omitempty"`
-	TotalTokens      int `json:"total_tokens,omitempty"`
+	PromptTokens            int                      `json:"prompt_tokens,omitempty"`
+	CompletionTokens        int                      `json:"completion_tokens,omitempty"`
+	TotalTokens             int                      `json:"total_tokens,omitempty"`
+	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+}
+
+type completionTokensDetails struct {
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
 
 type chatMessage struct {
@@ -124,6 +134,24 @@ type chatMessage struct {
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
 	Refusal          string                 `json:"refusal,omitempty"`
+}
+
+func (m *chatMessage) handleReasoningContent(reasoningContentMode string) {
+	if m.ReasoningContent == "" {
+		return
+	}
+	switch reasoningContentMode {
+	case reasoningBehaviorIgnore:
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorConcat:
+		m.Content = fmt.Sprintf("%v\n%v", m.ReasoningContent, m.Content)
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorPassThrough:
+	default:
+		break
+	}
 }
 
 type messageContent struct {
@@ -138,6 +166,9 @@ type imageUrl struct {
 }
 
 func (m *chatMessage) IsEmpty() bool {
+	if m.ReasoningContent != "" {
+		return false
+	}
 	if m.IsStringContent() && m.Content != "" {
 		return false
 	}
