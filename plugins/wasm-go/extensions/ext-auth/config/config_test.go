@@ -218,6 +218,7 @@ func TestParseConfig(t *testing.T) {
 					RuleList: []expr.Rule{
 						{
 							Domain: "*.bar.com",
+							Method: []string{},
 							Path: func() expr.Matcher {
 								pathMatcher, err := expr.BuildStringMatcher(expr.MatchPatternPrefix, "/headers", false)
 								if err != nil {
@@ -248,6 +249,7 @@ func TestParseConfig(t *testing.T) {
 				"match_list": [
 					{
 						"match_rule_domain": "*.foo.com",
+						"match_rule_method": ["GET"],
 						"match_rule_path": "/api",
 						"match_rule_type": "exact"
 					}
@@ -269,6 +271,7 @@ func TestParseConfig(t *testing.T) {
 					RuleList: []expr.Rule{
 						{
 							Domain: "*.foo.com",
+							Method: []string{"GET"},
 							Path: func() expr.Matcher {
 								pathMatcher, err := expr.BuildStringMatcher(expr.MatchPatternExact, "/api", false)
 								if err != nil {
@@ -342,12 +345,13 @@ func TestParseConfig(t *testing.T) {
 				"match_list": [
 					{
 						"match_rule_domain": "*.bar.com",
+						"match_rule_method": ["POST","PUT","DELETE"],
 						"match_rule_path": "/headers",
 						"match_rule_type": "invalid_type"
 					}
 				]
 			}`,
-			expectedErr: `failed to build string matcher for rule with domain "*.bar.com", path "/headers", type "invalid_type": unknown string matcher type`,
+			expectedErr: `failed to build string matcher for rule with domain "*.bar.com", method ["POST" "PUT" "DELETE"], path "/headers", type "invalid_type": unknown string matcher type`,
 		},
 	}
 

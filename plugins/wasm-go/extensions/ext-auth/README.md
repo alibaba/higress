@@ -77,6 +77,7 @@ MatchRule 类型每一项的配置字段说明，在使用 `array of MatchRule` 
 | 名称                | 数据类型 | 必填 | 默认值 | 描述                                                         |
 | ------------------- | -------- | ---- | ------ | ------------------------------------------------------------ |
 | `match_rule_domain` | string   | 否   | -      | 匹配规则域名，支持通配符模式，例如 `*.bar.com`               |
+| `match_rule_method` | []string | 否   | -      | 匹配请求方法                                                 |
 | `match_rule_path`   | string   | 否   | -      | 匹配请求路径的规则                                           |
 | `match_rule_type`   | string   | 否   | -      | 匹配请求路径的规则类型，可选 `exact` , `prefix` , `suffix`, `contains`, `regex` |
 
@@ -100,26 +101,41 @@ MatchRule 类型每一项的配置字段说明，在使用 `array of MatchRule` 
 **白名单模式**
 
 ```yaml
+# 白名单模式配置，符合白名单规则的请求无需验证
 match_type: 'whitelist'
 match_list:
-    - match_rule_domain: '*.bar.com'
-      match_rule_path: '/foo'
+    # 所有以 api.example.com 为域名，且路径前缀为 /public 的请求无需验证
+    - match_rule_domain: 'api.example.com'
+      match_rule_path: '/public'
       match_rule_type: 'prefix'
+    # 针对图片资源服务器 images.example.com，所有 GET 请求无需验证
+    - match_rule_domain: 'images.example.com'
+      match_rule_method: ["GET"]
+      match_rule_type: 'all'
+    # 所有域名下，路径精确匹配 /health-check 的 HEAD 请求无需验证
+    - match_rule_method: ["HEAD"]
+      match_rule_path: '/health-check'
+      match_rule_type: 'exact'
 ```
-
-泛域名 `*.bar.com` 下前缀匹配 `/foo` 的请求无需验证
 
 **黑名单模式**
 
 ```yaml
+# 黑名单模式配置，符合黑名单规则的请求需要验证
 match_type: 'blacklist'
 match_list:
-    - match_rule_domain: '*.bar.com'
-      match_rule_path: '/headers'
+    # 所有以 admin.example.com 为域名，且路径前缀为 /sensitive 的请求需要验证
+    - match_rule_domain: 'admin.example.com'
+      match_rule_path: '/sensitive'
       match_rule_type: 'prefix'
+    # 所有域名下，路径精确匹配 /user 的 DELETE 请求需要验证
+    - match_rule_method: ["DELETE"]
+      match_rule_path: '/user'
+      match_rule_type: 'exact'
+    # 所有以 legacy.example.com 为域名的 POST 请求需要验证
+    - match_rule_domain: 'legacy.example.com'
+      match_rule_method: ["POST"]
 ```
-
-只有泛域名 `*.bar.com` 下前缀匹配 `/header` 的请求需要验证
 
 ## 配置示例
 
@@ -185,13 +201,13 @@ content-length: 0
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
@@ -287,13 +303,13 @@ content-length: 0
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: forward_auth
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local

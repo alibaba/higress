@@ -3,6 +3,7 @@ package expr
 import (
 	"strings"
 
+	"ext-auth/util"
 	regexp "github.com/wasilibs/go-re2"
 )
 
@@ -18,6 +19,7 @@ type MatchRules struct {
 
 type Rule struct {
 	Domain string
+	Method []string
 	Path   Matcher
 }
 
@@ -28,19 +30,19 @@ func MatchRulesDefaults() MatchRules {
 	}
 }
 
-// IsAllowedByMode checks if the given domain and path are allowed based on the configuration mode.
-func (config *MatchRules) IsAllowedByMode(domain, path string) bool {
+// IsAllowedByMode checks if the given domain, method and path are allowed based on the configuration mode.
+func (config *MatchRules) IsAllowedByMode(domain, method, path string) bool {
 	switch config.Mode {
 	case ModeWhitelist:
 		for _, rule := range config.RuleList {
-			if rule.matchDomainAndPath(domain, path) {
+			if rule.matchesAllConditions(domain, method, path) {
 				return true
 			}
 		}
 		return false
 	case ModeBlacklist:
 		for _, rule := range config.RuleList {
-			if rule.matchDomainAndPath(domain, path) {
+			if rule.matchesAllConditions(domain, method, path) {
 				return false
 			}
 		}
@@ -48,6 +50,17 @@ func (config *MatchRules) IsAllowedByMode(domain, path string) bool {
 	default:
 		return false
 	}
+}
+
+// matchesAllConditions checks if the given domain, method and path match all conditions of the rule.
+func (rule *Rule) matchesAllConditions(domain, method, path string) bool {
+	// Check domain and path matching
+	domainPathMatch := rule.matchDomainAndPath(domain, path)
+
+	// Check HTTP method matching: if no methods are specified, any method is allowed
+	methodMatch := len(rule.Method) == 0 || util.ContainsString(rule.Method, method)
+
+	return domainPathMatch && methodMatch
 }
 
 // matchDomainAndPath checks if the given domain and path match the rule.
