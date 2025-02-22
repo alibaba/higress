@@ -288,6 +288,50 @@ func TestParseConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "Valid Match Rules with Whitelist - Only Method",
+			json: `{
+				"http_service": {
+					"endpoint_mode": "envoy",
+					"endpoint": {
+						"service_name": "example.com",
+						"service_port": 80,
+						"path_prefix": "/auth"
+					}
+				},
+				"match_type": "whitelist",
+				"match_list": [
+					{
+						"match_rule_method": ["GET"]
+					}
+				]
+			}`,
+			expected: ExtAuthConfig{
+				HttpService: HttpService{
+					EndpointMode: "envoy",
+					Client: wrapper.NewClusterClient(wrapper.FQDNCluster{
+						FQDN: "example.com",
+						Port: 80,
+						Host: "",
+					}),
+					PathPrefix: "/auth",
+					Timeout:    1000,
+				},
+				MatchRules: expr.MatchRules{
+					Mode: "whitelist",
+					RuleList: []expr.Rule{
+						{
+							Domain: "",
+							Method: []string{"GET"},
+							Path:   nil,
+						},
+					},
+				},
+				FailureModeAllow:          false,
+				FailureModeAllowHeaderAdd: false,
+				StatusOnError:             403,
+			},
+		},
+		{
 			name: "Missing Match Type",
 			json: `{
 				"http_service": {
@@ -351,7 +395,7 @@ func TestParseConfig(t *testing.T) {
 					}
 				]
 			}`,
-			expectedErr: `failed to build string matcher for rule with domain "*.bar.com", method ["POST" "PUT" "DELETE"], path "/headers", type "invalid_type": unknown string matcher type`,
+			expectedErr: `failed to build string matcher for rule with domain "*.bar.com", method [POST PUT DELETE], path "/headers", type "invalid_type": unknown string matcher type`,
 		},
 	}
 

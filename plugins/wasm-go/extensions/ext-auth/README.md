@@ -104,18 +104,17 @@ MatchRule 类型每一项的配置字段说明，在使用 `array of MatchRule` 
 # 白名单模式配置，符合白名单规则的请求无需验证
 match_type: 'whitelist'
 match_list:
-    # 所有以 api.example.com 为域名，且路径前缀为 /public 的请求无需验证
-    - match_rule_domain: 'api.example.com'
-      match_rule_path: '/public'
-      match_rule_type: 'prefix'
-    # 针对图片资源服务器 images.example.com，所有 GET 请求无需验证
-    - match_rule_domain: 'images.example.com'
-      match_rule_method: ["GET"]
-      match_rule_type: 'all'
-    # 所有域名下，路径精确匹配 /health-check 的 HEAD 请求无需验证
-    - match_rule_method: ["HEAD"]
-      match_rule_path: '/health-check'
-      match_rule_type: 'exact'
+  # 所有以 api.example.com 为域名，且路径前缀为 /public 的请求无需验证
+  - match_rule_domain: 'api.example.com'
+    match_rule_path: '/public'
+    match_rule_type: 'prefix'
+  # 针对图片资源服务器 images.example.com，所有 GET 请求无需验证
+  - match_rule_domain: 'images.example.com'
+    match_rule_method: ["GET"]
+  # 所有域名下，路径精确匹配 /health-check 的 HEAD 请求无需验证
+  - match_rule_method: ["HEAD"]
+    match_rule_path: '/health-check'
+    match_rule_type: 'exact'
 ```
 
 **黑名单模式**
@@ -124,17 +123,17 @@ match_list:
 # 黑名单模式配置，符合黑名单规则的请求需要验证
 match_type: 'blacklist'
 match_list:
-    # 所有以 admin.example.com 为域名，且路径前缀为 /sensitive 的请求需要验证
-    - match_rule_domain: 'admin.example.com'
-      match_rule_path: '/sensitive'
-      match_rule_type: 'prefix'
-    # 所有域名下，路径精确匹配 /user 的 DELETE 请求需要验证
-    - match_rule_method: ["DELETE"]
-      match_rule_path: '/user'
-      match_rule_type: 'exact'
-    # 所有以 legacy.example.com 为域名的 POST 请求需要验证
-    - match_rule_domain: 'legacy.example.com'
-      match_rule_method: ["POST"]
+  # 所有以 admin.example.com 为域名，且路径前缀为 /sensitive 的请求需要验证
+  - match_rule_domain: 'admin.example.com'
+    match_rule_path: '/sensitive'
+    match_rule_type: 'prefix'
+  # 所有域名下，路径精确匹配 /user 的 DELETE 请求需要验证
+  - match_rule_method: ["DELETE"]
+    match_rule_path: '/user'
+    match_rule_type: 'exact'
+  # 所有以 legacy.example.com 为域名的 POST 请求需要验证
+  - match_rule_domain: 'legacy.example.com'
+    match_rule_method: ["POST"]
 ```
 
 ## 配置示例
@@ -201,13 +200,13 @@ content-length: 0
 http_service:
   authorization_request:
     allowed_headers:
-      - exact: x-auth-version
+    - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-      - exact: x-user-id
-      - exact: x-auth-version
+    - exact: x-user-id
+    - exact: x-auth-version
   endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local

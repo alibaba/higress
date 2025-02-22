@@ -104,18 +104,17 @@ Supports blacklist and whitelist mode configuration. The default is the whitelis
 # Configuration for the whitelist mode. Requests that match the whitelist rules do not need verification.
 match_type: 'whitelist'
 match_list:
-    # Requests with the domain name api.example.com and a path prefixed with /public do not need verification.
-    - match_rule_domain: 'api.example.com'
-      match_rule_path: '/public'
-      match_rule_type: 'prefix'
-    # For the image resource server images.example.com, all GET requests do not need verification.
-    - match_rule_domain: 'images.example.com'
-      match_rule_method: ["GET"]
-      match_rule_type: 'all'
-    # For all domains, HEAD requests with an exact path match of /health-check do not need verification.
-    - match_rule_method: ["HEAD"]
-      match_rule_path: '/health-check'
-      match_rule_type: 'exact'
+  # Requests with the domain name api.example.com and a path prefixed with /public do not need verification.
+  - match_rule_domain: 'api.example.com'
+    match_rule_path: '/public'
+    match_rule_type: 'prefix'
+  # For the image resource server images.example.com, all GET requests do not need verification.
+  - match_rule_domain: 'images.example.com'
+    match_rule_method: ["GET"]
+  # For all domains, HEAD requests with an exact path match of /health-check do not need verification.
+  - match_rule_method: ["HEAD"]
+    match_rule_path: '/health-check'
+    match_rule_type: 'exact'
 ```
 
 **Blacklist Mode**
@@ -124,17 +123,17 @@ match_list:
 # Configuration for the blacklist mode. Requests that match the blacklist rules need verification.
 match_type: 'blacklist'
 match_list:
-    # Requests with the domain name admin.example.com and a path prefixed with /sensitive need verification.
-    - match_rule_domain: 'admin.example.com'
-      match_rule_path: '/sensitive'
-      match_rule_type: 'prefix'
-    # For all domains, DELETE requests with an exact path match of /user need verification.
-    - match_rule_method: ["DELETE"]
-      match_rule_path: '/user'
-      match_rule_type: 'exact'
-    # For the domain legacy.example.com, all POST requests need verification.
-    - match_rule_domain: 'legacy.example.com'
-      match_rule_method: ["POST"]
+  # Requests with the domain name admin.example.com and a path prefixed with /sensitive need verification.
+  - match_rule_domain: 'admin.example.com'
+    match_rule_path: '/sensitive'
+    match_rule_type: 'prefix'
+  # For all domains, DELETE requests with an exact path match of /user need verification.
+  - match_rule_method: ["DELETE"]
+    match_rule_path: '/user'
+    match_rule_type: 'exact'
+  # For the domain legacy.example.com, all POST requests need verification.
+  - match_rule_domain: 'legacy.example.com'
+    match_rule_method: ["POST"]
 ```
 
 
