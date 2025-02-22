@@ -58,7 +58,6 @@ func (result searchResult) valid() bool {
 
 type searchContext struct {
 	query    string
-	needNews bool
 	language string
 }
 
@@ -77,6 +76,7 @@ type searchEngine interface {
 }
 
 type GoogleSearch struct {
+	optionArgs         map[string]string
 	apiKey             string
 	cx                 string
 	count              int
@@ -114,6 +114,13 @@ func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
 	if engine.timeoutMillisecond == 0 {
 		engine.timeoutMillisecond = 5000
 	}
+	engine.optionArgs = map[string]string{}
+	for key, value := range config.Get("optionArgs").Map() {
+		valStr := value.String()
+		if valStr != "" {
+			engine.optionArgs[key] = value.String()
+		}
+	}
 	return engine, nil
 }
 
@@ -122,10 +129,18 @@ func (engine GoogleSearch) Client() wrapper.HttpClient {
 }
 
 func (engine GoogleSearch) CallArgs(ctx searchContext) callArgs {
+	queryUrl := fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&lr=lang_%s&key=%s",
+		engine.cx, url.QueryEscape(ctx.query), engine.count, ctx.language, engine.apiKey)
+	var extraArgs []string
+	for key, value := range engine.optionArgs {
+		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
+	}
+	if len(extraArgs) > 0 {
+		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
+	}
 	return callArgs{
 		method: http.MethodGet,
-		url: fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&lr=lang_%s&key=%s",
-			engine.cx, url.QueryEscape(ctx.query), engine.count, ctx.language, engine.apiKey),
+		url:    queryUrl,
 		headers: [][2]string{
 			{"Accept", "application/json"},
 		},
@@ -137,10 +152,15 @@ func (engine GoogleSearch) ParseResult(ctx searchContext, response []byte) []sea
 	jsonObj := gjson.ParseBytes(response)
 	var results []searchResult
 	for _, item := range jsonObj.Get("items").Array() {
+		content := item.Get("snippet").String()
+		metaDescription := item.Get("pagemap.metatags.0.og:description").String()
+		if metaDescription != "" {
+			content = fmt.Sprintf("%s\n...\n%s", content, metaDescription)
+		}
 		result := searchResult{
 			title:   item.Get("title").String(),
 			link:    item.Get("link").String(),
-			content: item.Get("snippet").String(),
+			content: content,
 		}
 		if result.valid() {
 			results = append(results, result)
@@ -150,9 +170,9 @@ func (engine GoogleSearch) ParseResult(ctx searchContext, response []byte) []sea
 }
 
 type BeingSearch struct {
+	optionArgs         map[string]string
 	apiKey             string
 	count              int
-	newsFirst          bool
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
 }
@@ -183,7 +203,13 @@ func NewBeingSearch(config *gjson.Result) (*BeingSearch, error) {
 	if engine.timeoutMillisecond == 0 {
 		engine.timeoutMillisecond = 5000
 	}
-	engine.newsFirst = config.Get("newsFirst").Bool()
+	engine.optionArgs = map[string]string{}
+	for key, value := range config.Get("optionArgs").Map() {
+		valStr := value.String()
+		if valStr != "" {
+			engine.optionArgs[key] = value.String()
+		}
+	}
 	return engine, nil
 }
 
@@ -192,17 +218,18 @@ func (engine BeingSearch) Client() wrapper.HttpClient {
 }
 
 func (engine BeingSearch) CallArgs(ctx searchContext) callArgs {
-	filter := "webpage"
-	var appendArgs []string
-	if ctx.needNews || engine.newsFirst {
-		filter += ",news"
-		appendArgs = append(appendArgs, fmt.Sprintf("answerCount=%d&promote=news", engine.count))
+	queryUrl := fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&count=%d&mkt=%s",
+		url.QueryEscape(ctx.query), engine.count, ctx.language)
+	var extraArgs []string
+	for key, value := range engine.optionArgs {
+		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
 	}
-	mkt := ctx.language
+	if len(extraArgs) > 0 {
+		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
+	}
 	return callArgs{
-		method: http.MethodGet,
-		url: fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&responseFilter=%s&count=%d&mkt=%s&%s",
-			url.QueryEscape(ctx.query), filter, engine.count, mkt, strings.Join(appendArgs, "&")),
+		method:             http.MethodGet,
+		url:                queryUrl,
 		headers:            [][2]string{{"Ocp-Apim-Subscription-Key", engine.apiKey}},
 		timeoutMillisecond: engine.timeoutMillisecond,
 	}
@@ -210,19 +237,6 @@ func (engine BeingSearch) CallArgs(ctx searchContext) callArgs {
 func (engine BeingSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
 	jsonObj := gjson.ParseBytes(response)
 	var results []searchResult
-	if ctx.needNews || engine.newsFirst {
-		news := jsonObj.Get("news.value")
-		for _, article := range news.Array() {
-			result := searchResult{
-				title:   article.Get("name").String(),
-				link:    article.Get("url").String(),
-				content: article.Get("description").String(),
-			}
-			if result.valid() {
-				results = append(results, result)
-			}
-		}
-	}
 	webPages := jsonObj.Get("webPages.value")
 	for _, page := range webPages.Array() {
 		result := searchResult{
@@ -243,6 +257,17 @@ func (engine BeingSearch) ParseResult(ctx searchContext, response []byte) []sear
 			if innerResult.valid() {
 				results = append(results, innerResult)
 			}
+		}
+	}
+	news := jsonObj.Get("news.value")
+	for _, article := range news.Array() {
+		result := searchResult{
+			title:   article.Get("name").String(),
+			link:    article.Get("url").String(),
+			content: article.Get("description").String(),
+		}
+		if result.valid() {
+			results = append(results, result)
 		}
 	}
 	return results
