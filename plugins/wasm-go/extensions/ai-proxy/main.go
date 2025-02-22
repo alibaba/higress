@@ -40,9 +40,11 @@ func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
+		log.Errorf("global rule config is invalid: %v", err)
 		return err
 	}
 	if err := pluginConfig.Complete(log); err != nil {
+		log.Errorf("failed to apply global rule config: %v", err)
 		return err
 	}
 
@@ -56,9 +58,11 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
+		log.Errorf("overriden rule config is invalid: %v", err)
 		return err
 	}
 	if err := pluginConfig.Complete(log); err != nil {
+		log.Errorf("failed to apply overriden rule config: %v", err)
 		return err
 	}
 
@@ -78,7 +82,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	rawPath := ctx.Path()
 	path, _ := url.Parse(rawPath)
-	apiName := getOpenAiApiName(path.Path)
+	apiName := getApiName(path.Path)
 	providerConfig := pluginConfig.GetProviderConfig()
 	if providerConfig.IsOriginal() {
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
@@ -87,37 +91,37 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	if apiName == "" {
-		log.Warnf("[onHttpRequestHeader] unsupported path: %s", path.Path)
-		return types.ActionContinue
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+		log.Warnf("[onHttpRequestHeader] unsupported path: %s, will not process http path and body", path.Path)
 	}
 
 	ctx.SetContext(provider.CtxKeyApiName, apiName)
 	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
 	ctx.DisableReroute()
 
-	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if needHandleStreamingBody {
-		proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	}
+	// Always remove the Accept-Encoding header to prevent the LLM from sending compressed responses,
+	// allowing plugins to inspect or modify the response correctly
+	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Set the apiToken for the current request.
 		providerConfig.SetApiTokenInUse(ctx, log)
 
-		hasRequestBody := wrapper.HasRequestBody()
 		err := handler.OnRequestHeaders(ctx, apiName, log)
-		if err == nil {
-			if hasRequestBody {
-				proxywasm.RemoveHttpRequestHeader("Content-Length")
-				ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
-				// Delay the header processing to allow changing in OnRequestBody
-				return types.HeaderStopIteration
-			}
-			ctx.DontReadRequestBody()
+		if err != nil {
+			util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
 			return types.ActionContinue
 		}
 
-		util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
+		hasRequestBody := wrapper.HasRequestBody()
+		if hasRequestBody {
+			proxywasm.RemoveHttpRequestHeader("Content-Length")
+			ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
+			// Delay the header processing to allow changing in OnRequestBody
+			return types.HeaderStopIteration
+		}
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
@@ -200,8 +204,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	util.ReplaceResponseHeaders(headers)
 
 	checkStream(ctx, log)
+	_, needHandleBody := activeProvider.(provider.TransformResponseBodyHandler)
 	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
-	if !needHandleStreamingBody {
+	if !needHandleBody && !needHandleStreamingBody {
+		ctx.DontReadResponseBody()
+	} else if !needHandleStreamingBody {
 		ctx.BufferResponseBody()
 	}
 
@@ -265,12 +272,26 @@ func checkStream(ctx wrapper.HttpContext, log wrapper.Log) {
 	}
 }
 
-func getOpenAiApiName(path string) provider.ApiName {
+func getApiName(path string) provider.ApiName {
+	// openai style
+	if strings.HasSuffix(path, "/v1/completions") {
+		return provider.ApiNameCompletion
+	}
 	if strings.HasSuffix(path, "/v1/chat/completions") {
 		return provider.ApiNameChatCompletion
 	}
 	if strings.HasSuffix(path, "/v1/embeddings") {
 		return provider.ApiNameEmbeddings
+	}
+	if strings.HasSuffix(path, "/v1/audio/speech") {
+		return provider.ApiNameAudioSpeech
+	}
+	if strings.HasSuffix(path, "/v1/images/generations") {
+		return provider.ApiNameImageGeneration
+	}
+	// cohere style
+	if strings.HasSuffix(path, "/v1/rerank") {
+		return provider.ApiNameCohereV1Rerank
 	}
 	return ""
 }

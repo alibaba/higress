@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	cohereDomain             = "api.cohere.com"
+	cohereDomain = "api.cohere.com"
+	// TODO: support more capabilities, upgrade to v2, docs: https://docs.cohere.com/v2/reference/chat
 	cohereChatCompletionPath = "/v1/chat"
+	cohereRerankPath         = "/v1/rerank"
 )
 
 type cohereProviderInitializer struct{}
@@ -25,7 +27,15 @@ func (m *cohereProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	return nil
 }
 
+func (m *cohereProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): cohereChatCompletionPath,
+		string(ApiNameCohereV1Rerank): cohereRerankPath,
+	}
+}
+
 func (m *cohereProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &cohereProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -56,15 +66,12 @@ func (m *cohereProvider) GetProviderType() string {
 }
 
 func (m *cohereProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	return nil
 }
 
 func (m *cohereProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
@@ -90,13 +97,16 @@ func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohe
 }
 
 func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	util.OverwriteRequestPathHeader(headers, cohereChatCompletionPath)
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, cohereDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
 }
 
 func (m *cohereProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
 	request := &chatCompletionRequest{}
 	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
 		return nil, err

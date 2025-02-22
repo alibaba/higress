@@ -57,6 +57,17 @@ func OverwriteRequestPathHeader(headers http.Header, path string) {
 	headers.Set(":path", path)
 }
 
+func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string, mapping map[string]string) {
+	mappedPath, exist := mapping[apiName]
+	if !exist {
+		return
+	}
+	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
+		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+	}
+	headers.Set(":path", mappedPath)
+}
+
 func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {
 	if exist := headers.Get("X-HI-ORIGINAL-AUTH"); exist == "" {
 		if originAuth := headers.Get("Authorization"); originAuth != "" {

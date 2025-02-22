@@ -65,7 +65,7 @@ func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 		return err
 	}
 
-	if err := parseMatchRules(json, config, log); err != nil {
+	if err := parseMatchRules(json, config); err != nil {
 		return err
 	}
 
@@ -241,7 +241,7 @@ func parseAuthorizationResponseConfig(json gjson.Result, httpService *HttpServic
 	return nil
 }
 
-func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+func parseMatchRules(json gjson.Result, config *ExtAuthConfig) error {
 	matchListConfig := json.Get("match_list")
 	if !matchListConfig.Exists() {
 		config.MatchRules = expr.MatchRulesDefaults()
@@ -260,10 +260,15 @@ func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) 
 	var err error
 
 	matchListConfig.ForEach(func(key, value gjson.Result) bool {
-		pathMatcher, err := expr.BuildStringMatcher(
+		pathMatcher, buildErr := expr.BuildStringMatcher(
 			value.Get("match_rule_type").Str,
 			value.Get("match_rule_path").Str, false)
-		if err != nil {
+		if buildErr != nil {
+			err = fmt.Errorf("failed to build string matcher for rule with domain %q, path %q, type %q: %w",
+				value.Get("match_rule_domain").Str,
+				value.Get("match_rule_path").Str,
+				value.Get("match_rule_type").Str,
+				buildErr)
 			return false // stop iterating
 		}
 		ruleList = append(ruleList, expr.Rule{
@@ -274,7 +279,7 @@ func parseMatchRules(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) 
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to build string matcher for rule %v: %w", matchListConfig, err)
+		return err
 	}
 
 	config.MatchRules = expr.MatchRules{

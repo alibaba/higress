@@ -52,7 +52,15 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
+func (m *qwenProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): qwenChatCompletionPath,
+		string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+	}
+}
+
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -75,18 +83,19 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	if m.config.IsOriginal() {
 	} else if m.config.qwenEnableCompatible {
 		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
-	} else if apiName == ApiNameChatCompletion {
-		util.OverwriteRequestPathHeader(headers, qwenChatCompletionPath)
-	} else if apiName == ApiNameEmbeddings {
-		util.OverwriteRequestPathHeader(headers, qwenTextEmbeddingPath)
+	} else if apiName == ApiNameChatCompletion || apiName == ApiNameEmbeddings {
+		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
-	if apiName == ApiNameChatCompletion {
+	switch apiName {
+	case ApiNameChatCompletion:
 		return m.onChatCompletionRequestBody(ctx, body, headers, log)
-	} else {
+	case ApiNameEmbeddings:
 		return m.onEmbeddingsRequestBody(ctx, body, log)
+	default:
+		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
 	}
 }
 
@@ -95,10 +104,6 @@ func (m *qwenProvider) GetProviderType() string {
 }
 
 func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
-		return errUnsupportedApiName
-	}
-
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 
 	if m.config.protocol == protocolOriginal {
@@ -140,7 +145,7 @@ func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 		return types.ActionContinue, nil
 	}
 
-	if apiName != ApiNameChatCompletion && apiName != ApiNameEmbeddings {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
@@ -278,6 +283,9 @@ func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 	if apiName == ApiNameEmbeddings {
 		return m.onEmbeddingsResponseBody(ctx, body, log)
 	}
+	if m.config.isSupportedAPI(apiName) {
+		return body, nil
+	}
 	return nil, errUnsupportedApiName
 }
 
@@ -349,7 +357,7 @@ func (m *qwenProvider) buildQwenTextGenerationRequest(ctx wrapper.HttpContext, o
 func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse) *chatCompletionResponse {
 	choices := make([]chatCompletionChoice, 0, len(qwenResponse.Output.Choices))
 	for _, qwenChoice := range qwenResponse.Output.Choices {
-		message := qwenMessageToChatMessage(qwenChoice.Message)
+		message := qwenMessageToChatMessage(qwenChoice.Message, m.config.reasoningContentMode)
 		choices = append(choices, chatCompletionChoice{
 			Message:      &message,
 			FinishReason: qwenChoice.FinishReason,
@@ -387,7 +395,8 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	finished := qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null"
 	message := qwenChoice.Message
 
-	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content}
+	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content, ReasoningContent: message.ReasoningContent}
+	deltaContentMessage.handleReasoningContent(m.config.reasoningContentMode)
 	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if !incrementalStreaming {
 		for _, tc := range message.ToolCalls {
@@ -421,6 +430,11 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 						}
 					}
 				}
+			}
+			if message.ReasoningContent == "" {
+				message.ReasoningContent = pushedMessage.ReasoningContent
+			} else {
+				deltaContentMessage.ReasoningContent = util.StripPrefix(deltaContentMessage.ReasoningContent, pushedMessage.ReasoningContent)
 			}
 			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
 				for i, tc := range deltaToolCallsMessage.ToolCalls {
@@ -640,10 +654,11 @@ type qwenUsage struct {
 }
 
 type qwenMessage struct {
-	Name      string     `json:"name,omitempty"`
-	Role      string     `json:"role"`
-	Content   any        `json:"content"`
-	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Name             string     `json:"name,omitempty"`
+	Role             string     `json:"role"`
+	Content          any        `json:"content"`
+	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	ToolCalls        []toolCall `json:"tool_calls,omitempty"`
 }
 
 type qwenVlMessageContent struct {
@@ -681,13 +696,16 @@ type qwenTextEmbeddings struct {
 	Embedding []float64 `json:"embedding"`
 }
 
-func qwenMessageToChatMessage(qwenMessage qwenMessage) chatMessage {
-	return chatMessage{
-		Name:      qwenMessage.Name,
-		Role:      qwenMessage.Role,
-		Content:   qwenMessage.Content,
-		ToolCalls: qwenMessage.ToolCalls,
+func qwenMessageToChatMessage(qwenMessage qwenMessage, reasoningContentMode string) chatMessage {
+	msg := chatMessage{
+		Name:             qwenMessage.Name,
+		Role:             qwenMessage.Role,
+		Content:          qwenMessage.Content,
+		ReasoningContent: qwenMessage.ReasoningContent,
+		ToolCalls:        qwenMessage.ToolCalls,
 	}
+	msg.handleReasoningContent(reasoningContentMode)
+	return msg
 }
 
 func (m *qwenMessage) IsStringContent() bool {

@@ -25,8 +25,14 @@ func (c *cloudflareProviderInitializer) ValidateConfig(config *ProviderConfig) e
 	}
 	return nil
 }
+func (c *cloudflareProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): cloudflareChatCompletionPath,
+	}
+}
 
 func (c *cloudflareProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(c.DefaultCapabilities())
 	return &cloudflareProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -43,15 +49,12 @@ func (c *cloudflareProvider) GetProviderType() string {
 }
 
 func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	c.config.handleRequestHeaders(c, ctx, apiName, log)
 	return nil
 }
 
 func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)

@@ -12,6 +12,7 @@ const (
 	PROVIDER_TYPE_TEXTIN    = "textin"
 	PROVIDER_TYPE_COHERE    = "cohere"
 	PROVIDER_TYPE_OPENAI    = "openai"
+	PROVIDER_TYPE_OLLAMA    = "ollama"
 )
 
 type providerInitializer interface {
@@ -26,6 +27,7 @@ var (
 		PROVIDER_TYPE_TEXTIN:    &textInProviderInitializer{},
 		PROVIDER_TYPE_COHERE:    &cohereProviderInitializer{},
 		PROVIDER_TYPE_OPENAI:    &openAIProviderInitializer{},
+		PROVIDER_TYPE_OLLAMA:    &ollamaProviderInitializer{},
 	}
 )
 

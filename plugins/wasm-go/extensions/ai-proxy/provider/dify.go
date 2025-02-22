@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"net/http"
-	"strings"
-	"time"
 )
 
 const (
@@ -50,9 +51,6 @@ func (d *difyProvider) GetProviderType() string {
 }
 
 func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	d.config.handleRequestHeaders(d, ctx, apiName, log)
 	return nil
 }
@@ -83,6 +81,9 @@ func (d *difyProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, b
 }
 
 func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return d.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	}
 	request := &chatCompletionRequest{}
 	err := d.config.parseRequestAndMapModel(ctx, request, body, log)
 	if err != nil {
@@ -95,6 +96,9 @@ func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiN
 }
 
 func (d *difyProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	difyResponse := &DifyChatResponse{}
 	if err := json.Unmarshal(body, difyResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal dify response: %v", err)
@@ -146,6 +150,9 @@ func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
 	// sample event response:
 	// data: {"event": "agent_thought", "id": "8dcf3648-fbad-407a-85dd-73a6f43aeb9f", "task_id": "9cf1ddd7-f94b-459b-b942-b77b26c59e9b", "message_id": "1fb10045-55fd-4040-99e6-d048d07cbad3", "position": 1, "thought": "", "observation": "", "tool": "", "tool_input": "", "created_at": 1705639511, "message_files": [], "conversation_id": "c216c595-2d89-438c-b33c-aae5ddddd142"}
 
@@ -180,6 +187,7 @@ func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, response *DifyChunkChatResponse) *chatCompletionResponse {
 	var choice chatCompletionChoice
 	var id string
+	var responseUsage usage
 	switch d.config.botType {
 	case BotTypeChat, BotTypeAgent:
 		choice = chatCompletionChoice{
@@ -203,6 +211,13 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 	}
 	if response.Event == "message_end" || response.Event == "workflow_finished" {
 		choice.FinishReason = finishReasonStop
+		if response.Event == "message_end" {
+			responseUsage = usage{
+				PromptTokens:     response.MetaData.Usage.PromptTokens,
+				CompletionTokens: response.MetaData.Usage.CompletionTokens,
+				TotalTokens:      response.MetaData.Usage.TotalTokens,
+			}
+		}
 	}
 	return &chatCompletionResponse{
 		Id:                id,
@@ -211,6 +226,7 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
 		Choices:           []chatCompletionChoice{choice},
+		Usage:             responseUsage,
 	}
 }
 

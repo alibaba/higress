@@ -41,7 +41,7 @@ type minimaxProviderInitializer struct {
 func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	// If using the chat completion Pro API, a group ID must be set.
 	if minimaxApiTypePro == config.minimaxApiType && config.minimaxGroupId == "" {
-		return errors.New(fmt.Sprintf("missing minimaxGroupId in provider config when minimaxApiType is %s", minimaxApiTypePro))
+		return fmt.Errorf("missing minimaxGroupId in provider config when minimaxApiType is %s", minimaxApiTypePro)
 	}
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
@@ -49,7 +49,15 @@ func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 	return nil
 }
 
+func (m *minimaxProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// minimax 替换path的时候，要根据modelmapping替换，这儿的配置无实质作用，只是为了保持和其他provider的一致性
+		string(ApiNameChatCompletion): minimaxChatCompletionV2Path,
+	}
+}
+
 func (m *minimaxProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &minimaxProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -66,9 +74,6 @@ func (m *minimaxProvider) GetProviderType() string {
 }
 
 func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	if apiName != ApiNameChatCompletion {
-		return errUnsupportedApiName
-	}
 	m.config.handleRequestHeaders(m, ctx, apiName, log)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return nil
@@ -81,7 +86,7 @@ func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 }
 
 func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	if minimaxApiTypePro == m.config.minimaxApiType {
@@ -159,6 +164,9 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
 	// Sample event response:
 	// data: {"created":1689747645,"model":"abab6.5s-chat","reply":"","choices":[{"messages":[{"sender_type":"BOT","sender_name":"MM智能助理","text":"am from China."}]}],"output_sensitive":false}
 
@@ -192,6 +200,9 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 
 // TransformResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
 func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
 	minimaxResp := &minimaxChatCompletionProResp{}
 	if err := json.Unmarshal(body, minimaxResp); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal minimax response: %v", err)
@@ -266,18 +277,6 @@ type minimaxUsage struct {
 	TotalTokens      int64 `json:"total_tokens"`
 	PromptTokens     int64 `json:"prompt_tokens"`
 	CompletionTokens int64 `json:"completion_tokens"`
-}
-
-func (m *minimaxProvider) parseModel(body []byte) (string, error) {
-	var tempMap map[string]interface{}
-	if err := json.Unmarshal(body, &tempMap); err != nil {
-		return "", err
-	}
-	model, ok := tempMap["model"].(string)
-	if !ok {
-		return "", errors.New("missing model in chat completion request")
-	}
-	return model, nil
 }
 
 func (m *minimaxProvider) setBotSettings(request *minimaxChatCompletionProRequest, botSettingContent string) {
