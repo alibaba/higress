@@ -355,7 +355,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
-	query := gjson.GetBytes(body, `messages.@reverse.#(role=="user")#.content|0`).String()
+	var queryIndex int
+	var query string
+	messages := gjson.GetBytes(body, "messages").Array()
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Get("role").String() == "user" {
+			queryIndex = i
+			query = messages[i].Get("content").String()
+			break
+		}
+	}
 	if query == "" {
 		log.Errorf("not found user query in body:%s", body)
 		return types.ActionContinue
@@ -403,7 +412,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 						prompt = strings.Replace(prompt, "{question}", query, 1)
 						prompt = strings.Replace(prompt, "{cur_date}", curDate, 1)
 						// Update request body with processed prompt
-						modifiedBody, err := sjson.SetBytes(body, `messages.@reverse.#(role=="user")#.content|0`, prompt)
+						modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
 						if err != nil {
 							log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
 						} else {
