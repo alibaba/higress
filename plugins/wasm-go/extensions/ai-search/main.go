@@ -399,9 +399,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 						}
 						// Format search results for prompt template
 						var formattedResults []string
+						var formattedReferences []string
 						for j, result := range mergedResults {
 							formattedResults = append(formattedResults, fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]",
 								j+1, result.content, j+1))
+							formattedReferences = append(formattedReferences, fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.content))
 						}
 						// Prepare template variables
 						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
@@ -418,6 +420,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 						} else {
 							log.Debugf("modifeid body:%s", modifiedBody)
 							proxywasm.ReplaceHttpRequestBody(modifiedBody)
+							if config.needReference {
+								ctx.SetContext("References", strings.Join(formattedReferences, "\n"))
+							}
 						}
 						proxywasm.ResumeHttpRequest()
 					}
