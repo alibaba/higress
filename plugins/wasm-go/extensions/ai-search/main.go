@@ -367,6 +367,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 		engine := config.engine[i]
 		searchCtx := searchContext{query: query, language: config.defaultLanguage}
 		args := engine.CallArgs(searchCtx)
+		index := i
 		err := engine.Client().Call(args.method, args.url, args.headers, args.body,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer func() {
@@ -380,18 +381,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 								maxResults = len(results)
 							}
 						}
-						for i := 0; i < maxResults; i++ {
+						for j := 0; j < maxResults; j++ {
 							for _, results := range searchResultGroups {
-								if i < len(results) {
-									mergedResults = append(mergedResults, results[i])
+								if j < len(results) {
+									mergedResults = append(mergedResults, results[j])
 								}
 							}
 						}
 						// Format search results for prompt template
 						var formattedResults []string
-						for i, result := range mergedResults {
+						for j, result := range mergedResults {
 							formattedResults = append(formattedResults, fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]",
-								i+1, result.content, i+1))
+								j+1, result.content, j+1))
 						}
 						// Prepare template variables
 						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
@@ -414,7 +415,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 					log.Errorf("search call failed, status: %d, engine: %#v", statusCode, engine)
 					return
 				}
-				searchResultGroups[i] = engine.ParseResult(searchCtx, responseBody)
+				searchResultGroups[index] = engine.ParseResult(searchCtx, responseBody)
 			}, args.timeoutMillisecond)
 		if err != nil {
 			log.Errorf("serach call failed, engine: %#v", engine)
