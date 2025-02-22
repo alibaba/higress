@@ -54,26 +54,19 @@ func (config *MatchRules) IsAllowedByMode(domain, method, path string) bool {
 
 // matchesAllConditions checks if the given domain, method and path match all conditions of the rule.
 func (rule *Rule) matchesAllConditions(domain, method, path string) bool {
+	// If all conditions are empty, return false
+	if rule.Domain == "" && rule.Path == nil && len(rule.Method) == 0 {
+		return false
+	}
+
 	// Check domain and path matching
-	domainPathMatch := rule.matchDomainAndPath(domain, path)
+	domainMatch := rule.Domain == "" || matchDomain(domain, rule.Domain)
+	pathMatch := rule.Path == nil || rule.Path.Match(path)
 
 	// Check HTTP method matching: if no methods are specified, any method is allowed
 	methodMatch := len(rule.Method) == 0 || util.ContainsString(rule.Method, method)
 
-	return domainPathMatch && methodMatch
-}
-
-// matchDomainAndPath checks if the given domain and path match the rule.
-// If rule.Domain is empty, it only checks rule.Path.
-// If rule.Path is empty, it only checks rule.Domain.
-// If both are empty, it returns false.
-func (rule *Rule) matchDomainAndPath(domain, path string) bool {
-	if rule.Domain == "" && rule.Path == nil {
-		return false
-	}
-	domainMatch := rule.Domain == "" || matchDomain(domain, rule.Domain)
-	pathMatch := rule.Path == nil || rule.Path.Match(path)
-	return domainMatch && pathMatch
+	return domainMatch && pathMatch && methodMatch
 }
 
 // matchDomain checks if the given domain matches the pattern.

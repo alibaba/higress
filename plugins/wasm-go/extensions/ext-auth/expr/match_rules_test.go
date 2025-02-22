@@ -121,11 +121,11 @@ func TestIsAllowedByMode(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Both Domain and Path are empty",
+			name: "All fields (Domain, Method, Path) are empty",
 			config: MatchRules{
 				Mode: ModeWhitelist,
 				RuleList: []Rule{
-					{Domain: "", Path: nil},
+					{Domain: "", Method: []string{}, Path: nil},
 				},
 			},
 			domain:   "example.com",
@@ -183,6 +183,38 @@ func TestIsAllowedByMode(t *testing.T) {
 			method:   "GET",
 			path:     "/foo",
 			expected: false,
+		},
+		{
+			name: "Whitelist mode, only method matches",
+			config: MatchRules{
+				Mode: ModeWhitelist,
+				RuleList: []Rule{
+					{
+						Method: []string{"GET"},
+						Path:   nil,
+					},
+				},
+			},
+			domain:   "example.com",
+			method:   "GET",
+			path:     "/foo",
+			expected: true,
+		},
+		{
+			name: "Whitelist mode, only domain matches",
+			config: MatchRules{
+				Mode: ModeWhitelist,
+				RuleList: []Rule{
+					{
+						Domain: "example.com",
+						Path:   nil,
+					},
+				},
+			},
+			domain:   "example.com",
+			method:   "GET",
+			path:     "/foo",
+			expected: true,
 		},
 		{
 			name: "Blacklist mode, generic domain matches",
