@@ -201,13 +201,13 @@ Configuration of the `ext-auth` plugin:
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
@@ -301,13 +301,13 @@ Configuration of the `ext-auth` plugin:
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: forward_auth
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
