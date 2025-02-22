@@ -19,20 +19,20 @@ Nonce (Number used ONCE) 防重放插件通过验证请求中的一次性随机�
 
 ## 配置说明
 
-| 配置项               | 类型   | 必填 | 默认值          | 说明                              |
-|-------------------|--------|------|-----------------|---------------------------------|
-| `force_nonce`     | bool   | 否   | `true`          | 是否强制要求请求携带 nonce 值。       |
-| `nonce_header`    | string | 否   | `X-Higress-Nonce`   | 指定携带 nonce 值的请求头名称。       |
-| `nonce_ttl`       | int    | 否   | `900`           | nonce 的有效期（单位：秒）。         |
-| `nonce_min_length`| int    | 否   | `8`             | nonce 值的最小长度。               |
-| `nonce_max_length`| int    | 否   | `128`           | nonce 值的最大长度。               |
-| `reject_code`     | int    | 否   | `429`           | 拒绝请求时返回的状态码。             |
-| `reject_msg`      | string | 否   | `"Duplicate nonce"` | 拒绝请求时返回的错误信息。           |
-| `validate_base64` | bool    | 否   | `false`  | 是否校验 nonce 的 base64 编码格式 |
-| `redis.serviceName` | string | 是   | 无               | Redis 服务名称，用于存储 nonce 值。   |
-| `redis.servicePort` | int    | 否   | `6379`          | Redis 服务端口。                  |
-| `redis.timeout`   | int    | 否   | `1000`          | Redis 操作超时时间（单位：毫秒）。     |
-| `redis.keyPrefix` | string | 否   | `"replay-protection"` | Redis 键前缀，用于区分不同的 nonce 键。|
+| 配置项                  | 类型   | 必填 | 默认值          | 说明                              |
+|----------------------|--------|------|-----------------|---------------------------------|
+| `force_nonce`        | bool   | 否   | `true`          | 是否强制要求请求携带 nonce 值。       |
+| `nonce_header`       | string | 否   | `X-Higress-Nonce`   | 指定携带 nonce 值的请求头名称。       |
+| `nonce_ttl`          | int    | 否   | `900`           | nonce 的有效期（单位：秒）。         |
+| `nonce_min_length`   | int    | 否   | `8`             | nonce 值的最小长度。               |
+| `nonce_max_length`   | int    | 否   | `128`           | nonce 值的最大长度。               |
+| `reject_code`        | int    | 否   | `429`           | 拒绝请求时返回的状态码。             |
+| `reject_msg`         | string | 否   | `"Duplicate nonce"` | 拒绝请求时返回的错误信息。           |
+| `validate_base64`    | bool    | 否   | `false`  | 是否校验 nonce 的 base64 编码格式 |
+| `redis.service_name` | string | 是   | 无               | Redis 服务名称，用于存储 nonce 值。   |
+| `redis.service_port` | int    | 否   | `6379`          | Redis 服务端口。                  |
+| `redis.timeout`      | int    | 否   | `1000`          | Redis 操作超时时间（单位：毫秒）。     |
+| `redis.keyPrefix`    | string | 否   | `"replay-protection"` | Redis 键前缀，用于区分不同的 nonce 键。|
 
 ## 配置示例
 

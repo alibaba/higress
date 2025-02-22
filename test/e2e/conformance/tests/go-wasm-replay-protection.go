@@ -36,7 +36,7 @@ func generateBase64Nonce(length int) string {
 var WasmPluginsReplayProtection = suite.ConformanceTest{
 	ShortName:   "WasmPluginsReplayProtection",
 	Description: "The replay protection wasm plugin prevents replay attacks by validating request nonce.",
-	Manifests:   []string{"tests/replay-protection.yaml"},
+	Manifests:   []string{"tests/go-wasm-replay-protection.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		replayNonce := generateBase64Nonce(32)
@@ -56,7 +56,9 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 400,
+						StatusCode:  400,
+						ContentType: http.ContentTypeTextPlain,
+						Body:        []byte(`Missing Required Header`),
 					},
 				},
 			},
@@ -72,13 +74,15 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 						Path:   "/",
 						Method: "GET",
 						Headers: map[string]string{
-							"X-Higress-Nonce": "invalid-nonce",
+							"X-Higress-Nonce": "invalid nonce",
 						},
 					},
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 400,
+						StatusCode:  400,
+						ContentType: http.ContentTypeTextPlain,
+						Body:        []byte(`Invalid Nonce`),
 					},
 				},
 			},
@@ -122,7 +126,9 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-						StatusCode: 429,
+						StatusCode:  429,
+						ContentType: http.ContentTypeTextPlain,
+						Body:        []byte(`Replay Attack Detected`),
 					},
 				},
 			},

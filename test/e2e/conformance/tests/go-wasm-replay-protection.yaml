@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Alibaba Group Holding Ltd.
+# Copyright (c) 2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ kind: Ingress
 metadata:
   name: replay-protection
   namespace: higress-conformance-infra
-  annotations:
 spec:
   ingressClassName: higress
   rules:
@@ -81,7 +80,6 @@ spec:
     nonce_max_length: 128
     validate_base64: true
     reject_code: 429
-    reject_msg: "Duplicate nonce"
     redis:
       serviceName: "redis.higress-conformance-infra.svc.cluster.local"
       servicePort: 6379

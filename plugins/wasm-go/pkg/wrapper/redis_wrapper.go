@@ -44,7 +44,7 @@ type RedisClient interface {
 	Get(key string, callback RedisResponseCallback) error
 	Set(key string, value interface{}, callback RedisResponseCallback) error
 	SetEx(key string, value interface{}, ttl int, callback RedisResponseCallback) error
-	SetNX(key string, value interface{}, expiration int, callback func(response resp.Value)) error
+	SetNX(key string, value interface{}, ttl int, callback RedisResponseCallback) error
 	MGet(keys []string, callback RedisResponseCallback) error
 	MSet(kvMap map[string]interface{}, callback RedisResponseCallback) error
 	Incr(key string, callback RedisResponseCallback) error
@@ -309,7 +309,7 @@ func (c *RedisClusterClient[C]) SetEx(key string, value interface{}, ttl int, ca
 	return RedisCall(c.cluster, respString(args), callback)
 }
 
-func (c *RedisClusterClient[C]) SetNX(key string, value interface{}, expiration int, callback func(response resp.Value)) error {
+func (c *RedisClusterClient[C]) SetNX(key string, value interface{}, ttl int, callback RedisResponseCallback) error {
 	if err := c.checkReadyFunc(); err != nil {
 		return err
 	}
@@ -317,10 +317,10 @@ func (c *RedisClusterClient[C]) SetNX(key string, value interface{}, expiration 
 	args = append(args, "set")
 	args = append(args, key)
 	args = append(args, value)
-	args = append(args, "NX") 
-	if expiration > 0 {
-		args = append(args, "EX") 
-		args = append(args, expiration)
+	args = append(args, "nx")
+	if ttl > 0 {
+		args = append(args, "ex")
+		args = append(args, ttl)
 	}
 	return RedisCall(c.cluster, respString(args), callback)
 }
