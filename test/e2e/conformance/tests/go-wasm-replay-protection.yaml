@@ -81,8 +81,8 @@ spec:
     validate_base64: true
     reject_code: 429
     redis:
-      serviceName: "redis.higress-conformance-infra.svc.cluster.local"
-      servicePort: 6379
+      service_name: "redis.higress-conformance-infra.svc.cluster.local"
+      service_port: 6379
       timeout: 1000
-      keyPrefix: "replay-protection"
+      key_prefix: "replay-protection"
   url: file:///opt/plugins/wasm-go/extensions/replay-protection/plugin.wasm
