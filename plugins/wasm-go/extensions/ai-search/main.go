@@ -403,7 +403,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 						for j, result := range mergedResults {
 							formattedResults = append(formattedResults, fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]",
 								j+1, result.content, j+1))
-							formattedReferences = append(formattedReferences, fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.content))
+							formattedReferences = append(formattedReferences, fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
 						}
 						// Prepare template variables
 						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
