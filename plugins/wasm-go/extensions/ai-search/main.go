@@ -397,16 +397,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 						// Prepare template variables
 						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
 						searchResults := strings.Join(formattedResults, "\n")
+						log.Debugf("searchResults: %s", searchResults)
 						// Fill prompt template
 						prompt := strings.Replace(config.promptTemplate, "{search_results}", searchResults, 1)
 						prompt = strings.Replace(prompt, "{question}", query, 1)
 						prompt = strings.Replace(prompt, "{cur_date}", curDate, 1)
 						// Update request body with processed prompt
-						body, err := sjson.SetBytes(body, `messages.@reverse.#(role=="user")#.content|0`, prompt)
+						modifiedBody, err := sjson.SetBytes(body, `messages.@reverse.#(role=="user")#.content|0`, prompt)
 						if err != nil {
 							log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
 						} else {
-							proxywasm.ReplaceHttpRequestBody(body)
+							log.Debugf("modifeid body:%s", modifiedBody)
+							proxywasm.ReplaceHttpRequestBody(modifiedBody)
 						}
 						proxywasm.ResumeHttpRequest()
 					}
