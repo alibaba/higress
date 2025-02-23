@@ -59,7 +59,7 @@ func (result searchResult) valid() bool {
 }
 
 type searchContext struct {
-	query    string
+	querys   []string
 	language string
 }
 
@@ -114,6 +114,9 @@ func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
 	if engine.count == 0 {
 		engine.count = 10
 	}
+	if engine.count > 10 || engine.start+engine.count > 100 {
+		return nil, errors.New("count must be less than 10, and start + count must be less than or equal to 100.")
+	}
 	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
 	if engine.timeoutMillisecond == 0 {
 		engine.timeoutMillisecond = 5000
@@ -134,7 +137,7 @@ func (engine GoogleSearch) Client() wrapper.HttpClient {
 
 func (engine GoogleSearch) CallArgs(ctx searchContext) callArgs {
 	queryUrl := fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&lr=lang_%s&key=%s&start=%d",
-		engine.cx, url.QueryEscape(ctx.query), engine.count, ctx.language, engine.apiKey, engine.start)
+		engine.cx, url.QueryEscape(strings.Join(ctx.querys, " ")), engine.count, ctx.language, engine.apiKey, engine.start+1)
 	var extraArgs []string
 	for key, value := range engine.optionArgs {
 		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
@@ -221,7 +224,11 @@ func (engine ArxivSearch) Client() wrapper.HttpClient {
 }
 
 func (engine ArxivSearch) CallArgs(ctx searchContext) callArgs {
-	searchQuery := fmt.Sprintf("all:%s", url.QueryEscape(ctx.query))
+	var searchQueryItems []string
+	for _, q := range ctx.querys {
+		searchQueryItems = append(searchQueryItems, fmt.Sprintf("all:%s", url.QueryEscape(q)))
+	}
+	searchQuery := strings.Join(searchQueryItems, "+AND+")
 	if engine.arxivCategory != "" {
 		searchQuery = fmt.Sprintf("%s+AND+cat:%s", searchQuery, engine.arxivCategory)
 	}
@@ -330,7 +337,7 @@ func (engine BeingSearch) Client() wrapper.HttpClient {
 
 func (engine BeingSearch) CallArgs(ctx searchContext) callArgs {
 	queryUrl := fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&count=%d&mkt=%s&offset=%d",
-		url.QueryEscape(ctx.query), engine.count, ctx.language, engine.start)
+		url.QueryEscape(strings.Join(ctx.querys, " ")), engine.count, ctx.language, engine.start)
 	var extraArgs []string
 	for key, value := range engine.optionArgs {
 		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
@@ -390,6 +397,103 @@ type Config struct {
 	referenceFormat string
 	defaultLanguage string
 	needReference   bool
+}
+
+type ElasticsearchSearch struct {
+	client             wrapper.HttpClient
+	index              string
+	contentField       string
+	linkField          string
+	titleField         string
+	start              int
+	count              int
+	timeoutMillisecond uint32
+}
+
+func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) {
+	engine := &ElasticsearchSearch{}
+	serviceName := config.Get("serviceName").String()
+	if serviceName == "" {
+		return nil, errors.New("serviceName not found")
+	}
+	servicePort := config.Get("servicePort").Int()
+	if servicePort == 0 {
+		return nil, errors.New("servicePort not found")
+	}
+	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: servicePort,
+	})
+	engine.index = config.Get("index").String()
+	if engine.index == "" {
+		return nil, errors.New("index not found")
+	}
+	engine.contentField = config.Get("contentField").String()
+	if engine.contentField == "" {
+		return nil, errors.New("contentField not found")
+	}
+	engine.linkField = config.Get("linkField").String()
+	if engine.linkField == "" {
+		return nil, errors.New("linkField not found")
+	}
+	engine.titleField = config.Get("titleField").String()
+	if engine.titleField == "" {
+		return nil, errors.New("titleField not found")
+	}
+	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
+	if engine.timeoutMillisecond == 0 {
+		engine.timeoutMillisecond = 5000
+	}
+	engine.start = int(config.Get("start").Uint())
+	engine.count = int(config.Get("count").Uint())
+	if engine.count == 0 {
+		engine.count = 10
+	}
+	return engine, nil
+}
+
+func (engine ElasticsearchSearch) Client() wrapper.HttpClient {
+	return engine.client
+}
+
+func (engine ElasticsearchSearch) CallArgs(ctx searchContext) callArgs {
+	searchBody := fmt.Sprintf(`{
+		"query": {
+			"match": {
+				"%s": {
+					"query": "%s",
+					"operator": "AND"
+				}
+			}
+		}
+	}`, engine.contentField, strings.Join(ctx.querys, " "))
+
+	return callArgs{
+		method: http.MethodPost,
+		url:    fmt.Sprintf("/%s/_search?from=%d&size=%d", engine.index, engine.start, engine.count),
+		headers: [][2]string{
+			{"Content-Type", "application/json"},
+		},
+		body:               []byte(searchBody),
+		timeoutMillisecond: engine.timeoutMillisecond,
+	}
+}
+
+func (engine ElasticsearchSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
+	jsonObj := gjson.ParseBytes(response)
+	var results []searchResult
+	for _, hit := range jsonObj.Get("hits.hits").Array() {
+		source := hit.Get("_source")
+		result := searchResult{
+			title:   source.Get(engine.titleField).String(),
+			link:    source.Get(engine.linkField).String(),
+			content: source.Get(engine.contentField).String(),
+		}
+		if result.valid() {
+			results = append(results, result)
+		}
+	}
+	return results
 }
 
 func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
@@ -469,6 +573,12 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 				return fmt.Errorf("arxiv search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
+		case "elasticsearch":
+			searchEngine, err := NewElasticsearchSearch(&engine)
+			if err != nil {
+				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
+			}
+			config.engine = append(config.engine, searchEngine)
 		default:
 			return fmt.Errorf("unkown search engine:%s", engine.Get("type").String())
 		}
@@ -516,7 +626,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	var searching int
 	for i := 0; i < len(config.engine); i++ {
 		engine := config.engine[i]
-		searchCtx := searchContext{query: query, language: config.defaultLanguage}
+		searchCtx := searchContext{querys: []string{query}, language: config.defaultLanguage}
 		args := engine.CallArgs(searchCtx)
 		index := i
 		err := engine.Client().Call(args.method, args.url, args.headers, args.body,
