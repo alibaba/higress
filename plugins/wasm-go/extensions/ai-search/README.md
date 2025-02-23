@@ -20,7 +20,7 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 |------|----------|----------|--------|------|
 | needReference | bool | 选填 | false | 是否在回答中添加引用来源 |
 | referenceFormat | string | 选填 | `"**References:**\n%s"` | 引用内容格式，必须包含%s占位符 |
-| defaultLang | string | 选填 | "zh-CN" | 默认搜索语言代码（如zh-CN/en-US） |
+| defaultLang | string | 选填 | - | 默认搜索语言代码（如zh-CN/en-US） |
 | promptTemplate | string | 选填 | 内置模板 | 提示模板，必须包含`{search_results}`和`{question}`占位符 |
 | searchFrom | array of object | 必填 | - | 参考下面搜索引擎配置，至少配置一个引擎 |
 

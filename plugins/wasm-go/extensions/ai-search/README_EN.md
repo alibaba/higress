@@ -20,7 +20,7 @@ Plugin execution priority: `440`
 |------|-----------|-------------|---------------|-------------|
 | needReference | bool | Optional | false | Whether to add reference sources in the response |
 | referenceFormat | string | Optional | `"**References:**\n%s"` | Reference content format, must include %s placeholder |
-| defaultLang | string | Optional | "zh-CN" | Default search language code (e.g. zh-CN/en-US) |
+| defaultLang | string | Optional | - | Default search language code (e.g. zh-CN/en-US) |
 | promptTemplate | string | Optional | Built-in template | Prompt template, must include `{search_results}` and `{question}` placeholders |
 | searchFrom | array of object | Required | - | Refer to search engine configuration below, at least one engine must be configured |
 
