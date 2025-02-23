@@ -43,9 +43,8 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "Missing nonce header",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "Missing nonce header",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -64,9 +63,8 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "Invalid nonce not base64 encoded",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "Invalid nonce not base64 encoded",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -88,9 +86,8 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "First request with unique nonce returns 200",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "First request with unique nonce returns 200",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -110,9 +107,8 @@ var WasmPluginsReplayProtection = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "Second request with repeated nonce returns 429",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TestCaseName:  "Second request with repeated nonce returns 429",
+					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
