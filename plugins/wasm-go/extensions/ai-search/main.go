@@ -223,7 +223,7 @@ none
     4.3.2. 根据问题所属领域，将问题拆分成多组关键词的组合，同时组合中的关键词个数尽量不要超过3个
 5. Action: 按照下面**回复内容示例**进行回复，注意:
      - 可以向多个查询目标分别查询多次，多个查询用换行分隔，总查询次数控制在5次以内
-     - 查询搜索引擎时，需要以"search:"开头
+     - 查询搜索引擎时，需要以"internet:"开头
      - 查询私有知识库时，需要以"private:"开头
      - 查询Arxiv论文时，需要以Arxiv的Category值开头，例如"cs.AI:"
      - 查询Arxiv论文时，优先用英文表述关键词进行搜索
@@ -234,8 +234,8 @@ none
 ### 回复内容示例：
 
 #### 用不同语言查询多次搜索引擎
-search: 黄金价格走势
-search: The trend of gold prices
+internet: 黄金价格走势
+internet: The trend of gold prices
 
 #### 向Arxiv的多个类目查询多次
 cs.AI: attention mechanism
@@ -247,10 +247,224 @@ private: 电子钱包,密码
 private: 张三,身份证号
 
 #### 向多个查询目标查询多次
-search: 中国未来房价趋势
-search: 最新中国经济政策
+internet: 中国未来房价趋势
+internet: 最新中国经济政策
 econ.TH: policy, real estate
 private: 财务状况
+
+# 用户发送的消息为：
+{question}
+`
+	arxivSearchPrompts string = `
+# 目标
+你需要分析**用户发送的消息**，是否需要查询搜索引擎(Google/Bing)/论文资料库(Arxiv)，并按照如下情况回复相应内容:
+
+## 情况一：不需要查询搜索引擎/论文资料
+### 情况举例：
+1. **用户发送的消息**不是在提问或寻求帮助
+2. **用户发送的消息**是要求翻译文字
+
+### 执行指示
+根据上面的**情况举例**，如果符合，则按照下面**回复内容**进行回复
+
+### 回复内容：
+none
+
+## 情况二：需要查询搜索引擎/论文资料
+### 情况举例：
+1. 答复**用户发送的消息**，需依赖互联网上最新的资料
+2. 答复**用户发送的消息**，需依赖论文等专业资料
+3. 通过查询资料，可以更好地答复**用户发送的消息**
+
+### 执行指示
+根据上面的**情况举例**，以及其他需要查询资料的情况，如果符合，按照以下步骤进行处理:
+1. What: 分析要答复**用户发送的消息**，需要了解什么知识和资料
+2. Where: 判断了解这个知识和资料要向Google等搜索引擎提问，还是向Arxiv论文资料库进行查询，或者需要同时查询多个地方
+3. How: 分析对于要查询的知识和资料，应该提出什么样的问题
+4. Adjust: 明确要向什么地方查询什么问题后，按下面方式对问题进行调整
+  4.1. 向搜索引擎提问：用一句话概括问题，并且针对搜索引擎做问题优化
+  4.2. 向Arxiv论文资料库提问：
+    4.2.1. 明确问题所属领域，然后确定Arxiv的Category值，Category可选的枚举如下:
+      - cs.AI: Artificial Intelligence
+      - cs.AR: Hardware Architecture
+      - cs.CC: Computational Complexity
+      - cs.CE: Computational Engineering, Finance, and Science
+      - cs.CG: Computational Geometry
+      - cs.CL: Computation and Language
+      - cs.CR: Cryptography and Security
+      - cs.CV: Computer Vision and Pattern Recognition
+      - cs.CY: Computers and Society
+      - cs.DB: Databases则按照下面**回复内容**进行回复
+      - cs.DC: Distributed, Parallel, and Cluster Computing
+      - cs.DL: Digital Libraries
+      - cs.DM: Discrete Mathematics
+      - cs.DS: Data Structures and Algorithms
+      - cs.ET: Emerging Technologies
+      - cs.FL: Formal Languages and Automata Theory
+      - cs.GL: General Literature
+      - cs.GR: Graphics
+      - cs.GT: Computer Science and Game Theory
+      - cs.HC: Human-Computer Interaction
+      - cs.IR: Information Retrieval
+      - cs.IT: Information Theory
+      - cs.LG: Machine Learning
+      - cs.LO: Logic in Computer Science
+      - cs.MA: Multiagent Systems
+      - cs.MM: Multimedia
+      - cs.MS: Mathematical Software
+      - cs.NA: Numerical Analysis
+      - cs.NE: Neural and Evolutionary Computing
+      - cs.NI: Networking and Internet Architecture
+      - cs.OH: Other Computer Science
+      - cs.OS: Operating Systems
+      - cs.PF: Performance
+      - cs.PL: Programming Languages
+      - cs.RO: Robotics
+      - cs.SC: Symbolic Computation
+      - cs.SD: Sound
+      - cs.SE: Software Engineering
+      - cs.SI: Social and Information Networks
+      - cs.SY: Systems and Control
+      - econ.EM: Econometrics
+      - econ.GN: General Economics
+      - econ.TH: Theoretical Economics
+      - eess.AS: Audio and Speech Processing
+      - eess.IV: Image and Video Processing
+      - eess.SP: Signal Processing
+      - eess.SY: Systems and Control
+      - math.AC: Commutative Algebra
+      - math.AG: Algebraic Geometry
+      - math.AP: Analysis of PDEs
+      - math.AT: Algebraic Topology
+      - math.CA: Classical Analysis and ODEs
+      - math.CO: Combinatorics
+      - math.CT: Category Theory
+      - math.CV: Complex Variables
+      - math.DG: Differential Geometry
+      - math.DS: Dynamical Systems
+      - math.FA: Functional Analysis
+      - math.GM: General Mathematics
+      - math.GN: General Topology
+      - math.GR: Group Theory
+      - math.GT: Geometric Topology
+      - math.HO: History and Overview
+      - math.IT: Information Theory
+      - math.KT: K-Theory and Homology
+      - math.LO: Logic
+      - math.MG: Metric Geometry
+      - math.MP: Mathematical Physics
+      - math.NA: Numerical Analysis
+      - math.NT: Number Theory
+      - math.OA: Operator Algebras
+      - math.OC: Optimization and Control
+      - math.PR: Probability
+      - math.QA: Quantum Algebra
+      - math.RA: Rings and Algebras
+      - math.RT: Representation Theory
+      - math.SG: Symplectic Geometry
+      - math.SP: Spectral Theory
+      - math.ST: Statistics Theory
+      - astro-ph.CO: Cosmology and Nongalactic Astrophysics
+      - astro-ph.EP: Earth and Planetary Astrophysics
+      - astro-ph.GA: Astrophysics of Galaxies
+      - astro-ph.HE: High Energy Astrophysical Phenomena
+      - astro-ph.IM: Instrumentation and Methods for Astrophysics
+      - astro-ph.SR: Solar and Stellar Astrophysics
+      - cond-mat.dis-nn: Disordered Systems and Neural Networks
+      - cond-mat.mes-hall: Mesoscale and Nanoscale Physics
+      - cond-mat.mtrl-sci: Materials Science
+      - cond-mat.other: Other Condensed Matter
+      - cond-mat.quant-gas: Quantum Gases
+      - cond-mat.soft: Soft Condensed Matter
+      - cond-mat.stat-mech: Statistical Mechanics
+      - cond-mat.str-el: Strongly Correlated Electrons
+      - cond-mat.supr-con: Superconductivity
+      - gr-qc: General Relativity and Quantum Cosmology
+      - hep-ex: High Energy Physics - Experiment
+      - hep-lat: High Energy Physics - Lattice
+      - hep-ph: High Energy Physics - Phenomenology
+      - hep-th: High Energy Physics - Theory
+      - math-ph: Mathematical Physics
+      - nlin.AO: Adaptation and Self-Organizing Systems
+      - nlin.CD: Chaotic Dynamics
+      - nlin.CG: Cellular Automata and Lattice Gases
+      - nlin.PS: Pattern Formation and Solitons
+      - nlin.SI: Exactly Solvable and Integrable Systems
+      - nucl-ex: Nuclear Experiment
+      - nucl-th: Nuclear Theory
+      - physics.acc-ph: Accelerator Physics
+      - physics.ao-ph: Atmospheric and Oceanic Physics
+      - physics.app-ph: Applied Physics
+      - physics.atm-clus: Atomic and Molecular Clusters
+      - physics.atom-ph: Atomic Physics
+      - physics.bio-ph: Biological Physics
+      - physics.chem-ph: Chemical Physics
+      - physics.class-ph: Classical Physics
+      - physics.comp-ph: Computational Physics
+      - physics.data-an: Data Analysis, Statistics and Probability
+      - physics.ed-ph: Physics Education
+      - physics.flu-dyn: Fluid Dynamics
+      - physics.gen-ph: General Physics
+      - physics.geo-ph: Geophysics
+      - physics.hist-ph: History and Philosophy of Physics
+      - physics.ins-det: Instrumentation and Detectors
+      - physics.med-ph: Medical Physics
+      - physics.optics: Optics
+      - physics.plasm-ph: Plasma Physics
+      - physics.pop-ph: Popular Physics
+      - physics.soc-ph: Physics and Society
+      - physics.space-ph: Space Physics
+      - quant-ph: Quantum Physics
+      - q-bio.BM: Biomolecules
+      - q-bio.CB: Cell Behavior
+      - q-bio.GN: Genomics
+      - q-bio.MN: Molecular Networks
+      - q-bio.NC: Neurons and Cognition
+      - q-bio.OT: Other Quantitative Biology
+      - q-bio.PE: Populations and Evolution
+      - q-bio.QM: Quantitative Methods
+      - q-bio.SC: Subcellular Processes
+      - q-bio.TO: Tissues and Organs
+      - q-fin.CP: Computational Finance
+      - q-fin.EC: Economics
+      - q-fin.GN: General Finance
+      - q-fin.MF: Mathematical Finance
+      - q-fin.PM: Portfolio Management
+      - q-fin.PR: Pricing of Securities
+      - q-fin.RM: Risk Management
+      - q-fin.ST: Statistical Finance
+      - q-fin.TR: Trading and Market Microstructure
+      - stat.AP: Applications
+      - stat.CO: Computation
+      - stat.ME: Methodology
+      - stat.ML: Machine Learning
+      - stat.OT: Other Statistics
+      - stat.TH: Statistics Theory
+    4.2.2. 根据问题所属领域，将问题拆分成多组关键词的组合，同时组合中的关键词个数尽量不要超过3个
+5. Action: 按照下面**回复内容示例**进行回复，注意:
+     - 可以向多个查询目标分别查询多次，多个查询用换行分隔，总查询次数控制在5次以内
+     - 查询搜索引擎时，需要以"internet:"开头
+     - 查询Arxiv论文时，需要以Arxiv的Category值开头，例如"cs.AI:"
+     - 查询Arxiv论文时，优先用英文表述关键词进行搜索
+     - 当用多个关键词查询时，关键词之间用","分隔
+     - 尽量满足**用户发送的消息**中的搜索要求，例如用户要求用英文搜索，则需用英文表述问题和关键词
+     - 用户如果没有要求搜索语言，则用和**用户发送的消息**一致的语言表述问题和关键词
+
+### 回复内容示例：
+
+#### 用不同语言查询多次搜索引擎
+internet: 黄金价格走势
+internet: The trend of gold prices
+
+#### 向Arxiv的多个类目查询多次
+cs.AI: attention mechanism
+cs.AI: neuron
+q-bio.NC: brain,attention mechanism
+
+#### 向多个查询目标查询多次
+internet: 中国未来房价趋势
+internet: 最新中国经济政策
+econ.TH: policy, real estate
 
 # 用户发送的消息为：
 {question}
@@ -283,15 +497,15 @@ none
 3. Adjust: 明确查询什么问题后，用一句话概括问题，并且针对搜索引擎做问题优化
 4. Action: 按照下面**回复内容示例**进行回复，注意:
      - 可以查询多次，多个查询用换行分隔，总查询次数控制在5次以内
-     - 需要以"search:"开头
+     - 需要以"internet:"开头
      - 尽量满足**用户发送的消息**中的搜索要求，例如用户要求用英文搜索，则需用英文表述问题和关键词
      - 用户如果没有要求搜索语言，则用和**用户发送的消息**一致的语言表述问题和关键词
 
 ### 回复内容示例：
 
 #### 用不同语言查询多次搜索引擎
-search: 黄金价格走势
-search: The trend of gold prices
+internet: 黄金价格走势
+internet: The trend of gold prices
 
 # 用户发送的消息为：
 {question}
@@ -327,7 +541,7 @@ none
   4.2. 向私有知识库提问：将问题拆分成多组关键词的组合，同时组合中的关键词个数尽量不要超过3个
 5. Action: 按照下面**回复内容示例**进行回复，注意:
      - 可以向多个查询目标分别查询多次，多个查询用换行分隔，总查询次数控制在5次以内
-     - 查询搜索引擎时，需要以"search:"开头
+     - 查询搜索引擎时，需要以"internet:"开头
      - 查询私有知识库时，需要以"private:"开头
      - 当用多个关键词查询时，关键词之间用","分隔
      - 尽量满足**用户发送的消息**中的搜索要求，例如用户要求用英文搜索，则需用英文表述问题和关键词
@@ -336,16 +550,16 @@ none
 ### 回复内容示例：
 
 #### 用不同语言查询多次搜索引擎
-search: 黄金价格走势
-search: The trend of gold prices
+internet: 黄金价格走势
+internet: The trend of gold prices
 
 #### 向私有知识库查询多次
 private: 电子钱包,密码
 private: 张三,身份证号
 
 #### 向多个查询目标查询多次
-search: 中国未来房价趋势
-search: 最新中国经济政策
+internet: 中国未来房价趋势
+internet: 最新中国经济政策
 private: 财务状况
 
 # 用户发送的消息为：
@@ -376,6 +590,7 @@ func (result searchResult) valid() bool {
 }
 
 type searchContext struct {
+	engineType    string
 	querys        []string
 	language      string
 	arxivCategory string
@@ -390,6 +605,7 @@ type callArgs struct {
 }
 
 type searchEngine interface {
+	NeedExectue(ctx searchContext) bool
 	Client() wrapper.HttpClient
 	CallArgs(ctx searchContext) callArgs
 	ParseResult(ctx searchContext, response []byte) []searchResult
@@ -447,6 +663,10 @@ func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
 		}
 	}
 	return engine, nil
+}
+
+func (engine GoogleSearch) NeedExectue(ctx searchContext) bool {
+	return ctx.engineType == "internet"
 }
 
 func (engine GoogleSearch) Client() wrapper.HttpClient {
@@ -540,6 +760,10 @@ func NewArxivSearch(config *gjson.Result) (*ArxivSearch, error) {
 	return engine, nil
 }
 
+func (engine ArxivSearch) NeedExectue(ctx searchContext) bool {
+	return ctx.engineType == "arxiv"
+}
+
 func (engine ArxivSearch) Client() wrapper.HttpClient {
 	return engine.client
 }
@@ -550,7 +774,11 @@ func (engine ArxivSearch) CallArgs(ctx searchContext) callArgs {
 		searchQueryItems = append(searchQueryItems, fmt.Sprintf("all:%s", url.QueryEscape(q)))
 	}
 	searchQuery := strings.Join(searchQueryItems, "+AND+")
-	if engine.arxivCategory != "" {
+	category := ctx.arxivCategory
+	if category == "" {
+		category = engine.arxivCategory
+	}
+	if category != "" {
 		searchQuery = fmt.Sprintf("%s+AND+cat:%s", searchQuery, engine.arxivCategory)
 	}
 	queryUrl := fmt.Sprintf("https://export.arxiv.org/api/query?search_query=%s&max_results=%d&start=%d",
@@ -562,6 +790,7 @@ func (engine ArxivSearch) CallArgs(ctx searchContext) callArgs {
 	if len(extraArgs) > 0 {
 		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
 	}
+	proxywasm.LogDebugf("ai-search arxiv category:%s, querys:%v, url:%s", category, ctx.querys, queryUrl)
 	return callArgs{
 		method:             http.MethodGet,
 		url:                queryUrl,
@@ -588,12 +817,13 @@ func (engine ArxivSearch) ParseResult(ctx searchContext, response []byte) []sear
 			}
 		}
 		summary := entry.SelectElement("summary").InnerText()
+		publishTime := entry.SelectElement("published").InnerText()
 		authors := entry.SelectElements("author")
 		var authorNames []string
 		for _, author := range authors {
 			authorNames = append(authorNames, author.SelectElement("name").InnerText())
 		}
-		content := fmt.Sprintf("%s\nAuthors: %s", summary, strings.Join(authorNames, ", "))
+		content := fmt.Sprintf("%s\nAuthors: %s\nPublication time: %s", summary, strings.Join(authorNames, ", "), publishTime)
 		result := searchResult{
 			title:   title,
 			link:    link,
@@ -650,6 +880,10 @@ func NewBeingSearch(config *gjson.Result) (*BeingSearch, error) {
 		}
 	}
 	return engine, nil
+}
+
+func (engine BeingSearch) NeedExectue(ctx searchContext) bool {
+	return ctx.engineType == "internet"
 }
 
 func (engine BeingSearch) Client() wrapper.HttpClient {
@@ -725,13 +959,12 @@ type SearchRewrite struct {
 }
 
 type Config struct {
-	engine             []searchEngine
-	promptTemplate     string
-	searchPolicyPrompt string
-	referenceFormat    string
-	defaultLanguage    string
-	needReference      bool
-	searchRewrite      *SearchRewrite
+	engine          []searchEngine
+	promptTemplate  string
+	referenceFormat string
+	defaultLanguage string
+	needReference   bool
+	searchRewrite   *SearchRewrite
 }
 
 type ElasticsearchSearch struct {
@@ -785,6 +1018,10 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 		engine.count = 10
 	}
 	return engine, nil
+}
+
+func (engine ElasticsearchSearch) NeedExectue(ctx searchContext) bool {
+	return ctx.engineType == "private"
 }
 
 func (engine ElasticsearchSearch) Client() wrapper.HttpClient {
@@ -954,11 +1191,20 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			llmTimeout = 10000
 		}
 		searchRewrite.timeoutMillisecond = uint32(llmTimeout)
+		// The consideration here is that internet searches are generally available, but arxiv and private sources may not be.
 		if arxivExists {
-			searchRewrite.prompt = fullSearchPrompts
+			if privateExists {
+				// private + internet + arxiv
+				searchRewrite.prompt = fullSearchPrompts
+			} else {
+				// internet + arxiv
+				searchRewrite.prompt = arxivSearchPrompts
+			}
 		} else if privateExists {
+			// private + internet
 			searchRewrite.prompt = privateSearchPrompts
-		} else {
+		} else if internetExists {
+			// only internet
 			searchRewrite.prompt = internetSearchPrompts
 		}
 		config.searchRewrite = searchRewrite
@@ -1002,89 +1248,193 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 		return types.ActionContinue
 	}
 	searchRewrite := config.searchRewrite
-	var searchRewriting bool
 	if searchRewrite != nil {
+		startTime := time.Now()
 		rewritePrompt := strings.Replace(searchRewrite.prompt, "{question}", query, 1)
-		err := searchRewrite.client.Post(searchRewrite.url, [][2]string{{"Content-Type", "application/json"}},
-			[]byte(fmt.Sprintf(`'{"stream":false,"max_tokens":100,"model":"%s","messages":[{"role":"user","content":"%s"}]}`,
-				searchRewrite.modelName, rewritePrompt)),
+		rewriteBody, _ := sjson.SetBytes([]byte(fmt.Sprintf(
+			`{"stream":false,"max_tokens":100,"model":"%s","messages":[{"role":"user","content":""}]}`,
+			searchRewrite.modelName)), "messages.0.content", rewritePrompt)
+		err := searchRewrite.client.Post(searchRewrite.url,
+			[][2]string{
+				{"Content-Type", "application/json"},
+				{"Authorization", fmt.Sprintf("Bearer %s", searchRewrite.apiKey)},
+			}, rewriteBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-				//TODO: 补全函数实现，在拿到大模型回复后，根据回复生成多组searchContext，同时根据回复的要求，调用相应的engine进行执行，需要复用下面不做searchRewrite时的engine执行逻辑，抽取到一个统一的函数里
+				if statusCode != http.StatusOK {
+					log.Errorf("search rewrite failed, status: %d", statusCode)
+					// After a rewrite failure, no further search is performed, thus quickly identifying the failure.
+					proxywasm.ResumeHttpRequest()
+					return
+				}
+
+				content := gjson.GetBytes(responseBody, "choices.0.message.content").String()
+				log.Infof("LLM rewritten query response: %s (took %v), original search query:%s",
+					strings.ReplaceAll(content, "\n", `\n`), time.Since(startTime), query)
+				if strings.Contains(content, "none") {
+					log.Debugf("no search required")
+					proxywasm.ResumeHttpRequest()
+					return
+				}
+
+				// Parse search queries from LLM response
+				var searchContexts []searchContext
+				for _, line := range strings.Split(content, "\n") {
+					line = strings.TrimSpace(line)
+					if line == "" {
+						continue
+					}
+
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) != 2 {
+						continue
+					}
+
+					engineType := strings.TrimSpace(parts[0])
+					queryStr := strings.TrimSpace(parts[1])
+
+					var ctx searchContext
+					ctx.language = config.defaultLanguage
+
+					switch {
+					case engineType == "internet":
+						ctx.engineType = engineType
+						ctx.querys = []string{queryStr}
+					case engineType == "private":
+						ctx.engineType = engineType
+						ctx.querys = strings.Split(queryStr, ",")
+						for i := range ctx.querys {
+							ctx.querys[i] = strings.TrimSpace(ctx.querys[i])
+						}
+					default:
+						// Arxiv category
+						ctx.engineType = "arxiv"
+						ctx.arxivCategory = engineType
+						ctx.querys = strings.Split(queryStr, ",")
+						for i := range ctx.querys {
+							ctx.querys[i] = strings.TrimSpace(ctx.querys[i])
+						}
+					}
+
+					if len(ctx.querys) > 0 {
+						searchContexts = append(searchContexts, ctx)
+						if ctx.arxivCategory != "" {
+							// Conduct inquiries in all areas to increase recall.
+							backupCtx := ctx
+							backupCtx.arxivCategory = ""
+							searchContexts = append(searchContexts, backupCtx)
+						}
+					}
+				}
+
+				if len(searchContexts) == 0 {
+					log.Errorf("no valid search contexts found")
+					proxywasm.ResumeHttpRequest()
+					return
+				}
+				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts, log) {
+					proxywasm.ResumeHttpRequest()
+				}
 			}, searchRewrite.timeoutMillisecond)
 		if err != nil {
-			log.Errorf("search rewrite failed:%s, search query will not be rewrited", err)
-		} else {
-			searchRewriting = true
+			log.Errorf("search rewrite call llm service failed:%s", err)
+			// After a rewrite failure, no further search is performed, thus quickly identifying the failure.
+			return types.ActionContinue
 		}
-	}
-	if searchRewriting {
 		return types.ActionPause
 	}
+
+	// Execute search without rewrite
+	return executeSearch(ctx, config, queryIndex, body, []searchContext{{
+		querys:   []string{query},
+		language: config.defaultLanguage,
+	}}, log)
+}
+
+func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []searchContext, log wrapper.Log) types.Action {
 	var searchResultGroups [][]searchResult = make([][]searchResult, len(config.engine))
 	var finished int
 	var searching int
 	for i := 0; i < len(config.engine); i++ {
 		engine := config.engine[i]
-		searchCtx := searchContext{querys: []string{query}, language: config.defaultLanguage}
-		args := engine.CallArgs(searchCtx)
-		index := i
-		err := engine.Client().Call(args.method, args.url, args.headers, args.body,
-			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-				defer func() {
-					finished++
-					if finished == searching {
-						// Merge search results from all engines
-						var mergedResults []searchResult
-						for _, results := range searchResultGroups {
-							mergedResults = append(mergedResults, results...)
-						}
-						// Format search results for prompt template
-						var formattedResults []string
-						var formattedReferences []string
-						for j, result := range mergedResults {
-							if config.needReference {
-								formattedResults = append(formattedResults,
-									fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]", +1, result.content, j+1))
-								formattedReferences = append(formattedReferences,
-									fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
-							} else {
-								formattedResults = append(formattedResults,
-									fmt.Sprintf("[webpage begin]\n%s\n[webpage end]", result.content))
-							}
-						}
-						// Prepare template variables
-						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
-						searchResults := strings.Join(formattedResults, "\n")
-						log.Debugf("searchResults: %s", searchResults)
-						// Fill prompt template
-						prompt := strings.Replace(config.promptTemplate, "{search_results}", searchResults, 1)
-						prompt = strings.Replace(prompt, "{question}", query, 1)
-						prompt = strings.Replace(prompt, "{cur_date}", curDate, 1)
-						// Update request body with processed prompt
-						modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
-						if err != nil {
-							log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
-						} else {
-							log.Debugf("modifeid body:%s", modifiedBody)
-							proxywasm.ReplaceHttpRequestBody(modifiedBody)
-							if config.needReference {
-								ctx.SetContext("References", strings.Join(formattedReferences, "\n"))
-							}
-						}
-						proxywasm.ResumeHttpRequest()
-					}
-				}()
-				if statusCode != http.StatusOK {
-					log.Errorf("search call failed, status: %d, engine: %#v", statusCode, engine)
-					return
-				}
-				searchResultGroups[index] = engine.ParseResult(searchCtx, responseBody)
-			}, args.timeoutMillisecond)
-		if err != nil {
-			log.Errorf("serach call failed, engine: %#v", engine)
+
+		// Check if engine needs to execute for any of the search contexts
+		var needsExecute bool
+		for _, searchCtx := range searchContexts {
+			if engine.NeedExectue(searchCtx) {
+				needsExecute = true
+				break
+			}
+		}
+		if !needsExecute {
 			continue
 		}
-		searching++
+
+		// Process all search contexts for this engine
+		for _, searchCtx := range searchContexts {
+			if !engine.NeedExectue(searchCtx) {
+				continue
+			}
+			args := engine.CallArgs(searchCtx)
+			index := i
+			err := engine.Client().Call(args.method, args.url, args.headers, args.body,
+				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+					defer func() {
+						finished++
+						if finished == searching {
+							// Merge search results from all engines
+							var mergedResults []searchResult
+							for _, results := range searchResultGroups {
+								mergedResults = append(mergedResults, results...)
+							}
+							// Format search results for prompt template
+							var formattedResults []string
+							var formattedReferences []string
+							for j, result := range mergedResults {
+								if config.needReference {
+									formattedResults = append(formattedResults,
+										fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]", j+1, result.content, j+1))
+									formattedReferences = append(formattedReferences,
+										fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
+								} else {
+									formattedResults = append(formattedResults,
+										fmt.Sprintf("[webpage begin]\n%s\n[webpage end]", result.content))
+								}
+							}
+							// Prepare template variables
+							curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
+							searchResults := strings.Join(formattedResults, "\n")
+							log.Debugf("searchResults: %s", searchResults)
+							// Fill prompt template
+							prompt := strings.Replace(config.promptTemplate, "{search_results}", searchResults, 1)
+							prompt = strings.Replace(prompt, "{question}", searchContexts[0].querys[0], 1)
+							prompt = strings.Replace(prompt, "{cur_date}", curDate, 1)
+							// Update request body with processed prompt
+							modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
+							if err != nil {
+								log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
+							} else {
+								log.Debugf("modifeid body:%s", modifiedBody)
+								proxywasm.ReplaceHttpRequestBody(modifiedBody)
+								if config.needReference {
+									ctx.SetContext("References", strings.Join(formattedReferences, "\n"))
+								}
+							}
+							proxywasm.ResumeHttpRequest()
+						}
+					}()
+					if statusCode != http.StatusOK {
+						log.Errorf("search call failed, status: %d, engine: %#v", statusCode, engine)
+						return
+					}
+					// Append results to existing slice for this engine
+					searchResultGroups[index] = append(searchResultGroups[index], engine.ParseResult(searchCtx, responseBody)...)
+				}, args.timeoutMillisecond)
+			if err != nil {
+				log.Errorf("search call failed, engine: %#v", engine)
+				continue
+			}
+			searching++
+		}
 	}
 	if searching > 0 {
 		return types.ActionPause

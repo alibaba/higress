@@ -186,7 +186,7 @@ none
     4.3.2. 根据问题所属领域，将问题拆分成多组关键词的组合，同时组合中的关键词个数尽量不要超过3个
 5. Action: 按照下面**回复内容示例**进行回复，注意:
      - 可以向多个查询目标分别查询多次，多个查询用换行分隔，总查询次数控制在5次以内
-     - 查询搜索引擎时，需要以"search:"开头
+     - 查询搜索引擎时，需要以"internet:"开头
      - 查询私有知识库时，需要以"private:"开头
      - 查询Arxiv论文时，需要以Arxiv的Category值开头，例如"cs.AI:"
      - 查询Arxiv论文时，优先用英文表述关键词进行搜索
@@ -197,8 +197,8 @@ none
 ### 回复内容示例：
 
 #### 用不同语言查询多次搜索引擎
-search: 黄金价格走势
-search: The trend of gold prices
+internet: 黄金价格走势
+internet: The trend of gold prices
 
 #### 向Arxiv的多个类目查询多次
 cs.AI: attention mechanism
@@ -210,8 +210,8 @@ private: 电子钱包,密码
 private: 张三,身份证号
 
 #### 向多个查询目标查询多次
-search: 中国未来房价趋势
-search: 最新中国经济政策
+internet: 中国未来房价趋势
+internet: 最新中国经济政策
 econ.TH: policy, real estate
 private: 财务状况
 
