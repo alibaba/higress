@@ -27,9 +27,10 @@ Plugin execution priority: `440`
 
 | Name | Data Type | Required | Default Value | Description |
 |------|-----------|----------|---------------|-------------|
-| type | string | Required | - | Engine type (google/bing) |
+| type | string | Required | - | Engine type (google/bing/arxiv) |
 | apiKey | string | Required | - | Search engine API key |
 | cx | string | Required for Google | - | Google Custom Search Engine ID, used to specify search scope |
+| arxivCategory | string | Optional for Arxiv | - | Paper [category](https://arxiv.org/category_taxonomy) to search (e.g. cs.AI, cs.CL) |
 | serviceName | string | Required | - | Backend service name |
 | servicePort | number | Required | - | Backend service port |
 | count | number | Optional | 10 | Number of results per search |
@@ -46,11 +47,21 @@ searchFrom:
 - type: google
   apiKey: "your-google-api-key"
   cx: "search-engine-id"
-  serviceName: "google-search-service"
+  serviceName: "google-svc.dns"
   servicePort: 443
   count: 5
   optionArgs:
     fileType: "pdf"
+
+### Arxiv Search Configuration
+
+```yaml
+searchFrom:
+- type: arxiv
+  serviceName: "arxiv-svc.dns"
+  servicePort: 443
+  arxivCategory: "cs.AI"
+  count: 10
 ```
 
 ### Multiple Search Engines Configuration
@@ -67,16 +78,16 @@ searchFrom:
 - type: google
   apiKey: "google-key"
   cx: "github-search-id"  # Search engine ID specifically for GitHub content
-  serviceName: "google-svc"
+  serviceName: "google-svc.dns"
   servicePort: 443
 - type: google
   apiKey: "google-key"
   cx: "news-search-id"    # Search engine ID specifically for Google News content
-  serviceName: "google-svc"
+  serviceName: "google-svc.dns"
   servicePort: 443
 - type: bing
   apiKey: "bing-key"
-  serviceName: "bing-svc"
+  serviceName: "bing-svc.dns"
   servicePort: 80
   optionArgs:
     answerCount: "5"
@@ -90,14 +101,13 @@ referenceFormat: "### Data Sources\n%s"
 searchFrom: 
 - type: bing
   apiKey: "your-bing-key"
-  serviceName: "search-service"
+  serviceName: "search-service.dns"
   servicePort: 8080
 ```
 
 ## Notes
 
-1. Must contain `{search_results}` and `{question}` placeholders
-2. Optionally use `{cur_date}` to insert current date (format: January 2, 2006)
-3. Default template includes search result processing guidelines and response specifications
-4. Recommended template length is under 2000 characters
-5. Multiple search engines query in parallel, total timeout = maximum timeoutMillisecond value among all engine configurations + processing time
+1. Prompt template must contain `{search_results}` and `{question}` placeholders，optionally use `{cur_date}` to insert current date (format: January 2, 2006)
+2. Default prompt template includes search result processing guidelines and response specifications
+3. Multiple search engines query in parallel, total timeout = maximum timeoutMillisecond value among all engine configurations + processing time
+4. Arxiv search doesn't require an API key, but you can specify a paper category (arxivCategory) to narrow the search scope

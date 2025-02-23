@@ -28,9 +28,10 @@ description: higress 支持通过集成搜索引擎（Google/Bing等）的实时
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|----------|----------|--------|------|
-| type | string | 必填 | - | 引擎类型（google/being） |
+| type | string | 必填 | - | 引擎类型（google/bing/arxiv） |
 | apiKey | string | 必填 | - | 搜索引擎API密钥 |
 | cx | string | Google引擎必填 | - | Google自定义搜索引擎ID，用于指定搜索范围 |
+| arxivCategory | string | Arxiv引擎选填 | - | 搜索的论文[类别](https://arxiv.org/category_taxonomy)（如cs.AI, cs.CL等） |
 | serviceName | string | 必填 | - | 后端服务名称 |
 | servicePort | number | 必填 | - | 后端服务端口 |
 | count | number | 选填 | 10 | 单次搜索返回结果数量 |
@@ -47,11 +48,21 @@ searchFrom:
 - type: google
   apiKey: "your-google-api-key"
   cx: "search-engine-id"
-  serviceName: "google-search-service"
+  serviceName: "google-svc.dns"
   servicePort: 443
   count: 5
   optionArgs:
     fileType: "pdf"
+
+### Arxiv搜索配置
+
+```yaml
+searchFrom:
+- type: arxiv
+  serviceName: "arxiv-svc.dns" 
+  servicePort: 443
+  arxivCategory: "cs.AI"
+  count: 10
 ```
 
 ### 多搜索引擎配置
@@ -68,17 +79,17 @@ searchFrom:
 - type: google
   apiKey: "google-key"
   cx: "github-search-id"  # 专门搜索GitHub内容的搜索引擎ID
-  serviceName: "google-svc"
+  serviceName: "google-svc.dns"
   servicePort: 443
 - type: google
   apiKey: "google-key"
   cx: "news-search-id"    # 专门搜索Google News内容的搜索引擎ID 
-  serviceName: "google-svc"
+  serviceName: "google-svc.dns"
   servicePort: 443
 - type: being
   apiKey: "bing-key"
-  serviceName: "bing-svc"
-  servicePort: 80
+  serviceName: "bing-svc.dns"
+  servicePort: 443
   optionArgs:
     answerCount: "5"
 ```
@@ -91,16 +102,13 @@ referenceFormat: "### 数据来源\n%s"
 searchFrom: 
 - type: being
   apiKey: "your-bing-key"
-  serviceName: "search-service"
+  serviceName: "search-service.dns"
   servicePort: 8080
 ```
 
 ## 注意事项
 
-1. 必须包含`{search_results}`和`{question}`占位符
-2. 可选使用`{cur_date}`插入当前日期（格式：2006年1月2日）
-3. 默认模板包含搜索结果处理指引和回答规范
-4. 模板长度建议控制在2000字符以内
-5. 多个搜索引擎是并行查询，总超时时间 = 所有搜索引擎配置中最大timeoutMillisecond值 + 处理时间
-
-
+1. 提示词模版必须包含`{search_results}`和`{question}`占位符，可选使用`{cur_date}`插入当前日期（格式：2006年1月2日）
+2. 默认模板包含搜索结果处理指引和回答规范，如无特殊需要可以直接用默认模板，否则请根据实际情况修改
+3. 多个搜索引擎是并行查询，总超时时间 = 所有搜索引擎配置中最大timeoutMillisecond值 + 处理时间
+4. Arxiv搜索不需要API密钥，但可以指定论文类别（arxivCategory）来缩小搜索范围

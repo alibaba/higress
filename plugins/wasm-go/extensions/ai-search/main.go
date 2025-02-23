@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antchfx/xmlquery"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -79,6 +81,7 @@ type GoogleSearch struct {
 	optionArgs         map[string]string
 	apiKey             string
 	cx                 string
+	start              int
 	count              int
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
@@ -106,6 +109,7 @@ func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
 		FQDN: serviceName,
 		Port: servicePort,
 	})
+	engine.start = int(config.Get("start").Uint())
 	engine.count = int(config.Get("count").Uint())
 	if engine.count == 0 {
 		engine.count = 10
@@ -129,8 +133,8 @@ func (engine GoogleSearch) Client() wrapper.HttpClient {
 }
 
 func (engine GoogleSearch) CallArgs(ctx searchContext) callArgs {
-	queryUrl := fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&lr=lang_%s&key=%s",
-		engine.cx, url.QueryEscape(ctx.query), engine.count, ctx.language, engine.apiKey)
+	queryUrl := fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&lr=lang_%s&key=%s&start=%d",
+		engine.cx, url.QueryEscape(ctx.query), engine.count, ctx.language, engine.apiKey, engine.start)
 	var extraArgs []string
 	for key, value := range engine.optionArgs {
 		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
@@ -169,9 +173,115 @@ func (engine GoogleSearch) ParseResult(ctx searchContext, response []byte) []sea
 	return results
 }
 
+type ArxivSearch struct {
+	optionArgs         map[string]string
+	start              int
+	count              int
+	timeoutMillisecond uint32
+	client             wrapper.HttpClient
+	arxivCategory      string
+}
+
+func NewArxivSearch(config *gjson.Result) (*ArxivSearch, error) {
+	engine := &ArxivSearch{}
+	serviceName := config.Get("serviceName").String()
+	if serviceName == "" {
+		return nil, errors.New("serviceName not found")
+	}
+	servicePort := config.Get("servicePort").Int()
+	if servicePort == 0 {
+		return nil, errors.New("servicePort not found")
+	}
+	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: servicePort,
+	})
+	engine.start = int(config.Get("start").Uint())
+	engine.count = int(config.Get("count").Uint())
+	if engine.count == 0 {
+		engine.count = 10
+	}
+	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
+	if engine.timeoutMillisecond == 0 {
+		engine.timeoutMillisecond = 5000
+	}
+	engine.optionArgs = map[string]string{}
+	for key, value := range config.Get("optionArgs").Map() {
+		valStr := value.String()
+		if valStr != "" {
+			engine.optionArgs[key] = value.String()
+		}
+	}
+	engine.arxivCategory = config.Get("arxivCategory").String()
+	return engine, nil
+}
+
+func (engine ArxivSearch) Client() wrapper.HttpClient {
+	return engine.client
+}
+
+func (engine ArxivSearch) CallArgs(ctx searchContext) callArgs {
+	searchQuery := fmt.Sprintf("all:%s", url.QueryEscape(ctx.query))
+	if engine.arxivCategory != "" {
+		searchQuery = fmt.Sprintf("%s+AND+cat:%s", searchQuery, engine.arxivCategory)
+	}
+	queryUrl := fmt.Sprintf("https://export.arxiv.org/api/query?search_query=%s&max_results=%d&start=%d",
+		searchQuery, engine.count, engine.start)
+	var extraArgs []string
+	for key, value := range engine.optionArgs {
+		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
+	}
+	if len(extraArgs) > 0 {
+		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
+	}
+	return callArgs{
+		method:             http.MethodGet,
+		url:                queryUrl,
+		headers:            [][2]string{{"Accept", "application/atom+xml"}},
+		timeoutMillisecond: engine.timeoutMillisecond,
+	}
+}
+
+func (engine ArxivSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
+	var results []searchResult
+	doc, err := xmlquery.Parse(bytes.NewReader(response))
+	if err != nil {
+		return results
+	}
+
+	entries := xmlquery.Find(doc, "//entry")
+	for _, entry := range entries {
+		title := entry.SelectElement("title").InnerText()
+		link := ""
+		for _, l := range entry.SelectElements("link") {
+			if l.SelectAttr("rel") == "alternate" && l.SelectAttr("type") == "text/html" {
+				link = l.SelectAttr("href")
+				break
+			}
+		}
+		summary := entry.SelectElement("summary").InnerText()
+		authors := entry.SelectElements("author")
+		var authorNames []string
+		for _, author := range authors {
+			authorNames = append(authorNames, author.SelectElement("name").InnerText())
+		}
+		content := fmt.Sprintf("%s\nAuthors: %s", summary, strings.Join(authorNames, ", "))
+		result := searchResult{
+			title:   title,
+			link:    link,
+			content: content,
+		}
+		if result.valid() {
+			results = append(results, result)
+		}
+	}
+	return results
+}
+
 type BeingSearch struct {
 	optionArgs         map[string]string
 	apiKey             string
+	start              int
 	count              int
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
@@ -195,6 +305,7 @@ func NewBeingSearch(config *gjson.Result) (*BeingSearch, error) {
 		FQDN: serviceName,
 		Port: servicePort,
 	})
+	engine.start = int(config.Get("start").Uint())
 	engine.count = int(config.Get("count").Uint())
 	if engine.count == 0 {
 		engine.count = 10
@@ -218,8 +329,8 @@ func (engine BeingSearch) Client() wrapper.HttpClient {
 }
 
 func (engine BeingSearch) CallArgs(ctx searchContext) callArgs {
-	queryUrl := fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&count=%d&mkt=%s",
-		url.QueryEscape(ctx.query), engine.count, ctx.language)
+	queryUrl := fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&count=%d&mkt=%s&offset=%d",
+		url.QueryEscape(ctx.query), engine.count, ctx.language, engine.start)
 	var extraArgs []string
 	for key, value := range engine.optionArgs {
 		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
@@ -301,7 +412,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		if config.needReference {
 			config.promptTemplate = `# 以下内容是基于用户发送的消息的搜索结果:
 {search_results}
-在我给你的搜索结果中，每个结果都是[webpage X begin]...[webpage X end]格式的，X代表每篇文章的搜索排序和数字索引。请在适当的情况下在句子末尾引用上下文。请按照引用编号[X]的格式在答案中对应部分引用上下文。如果一句话源自多个上下文，请列出所有相关的引用编号，例如[3][5]，切记不要将引用集中在最后返回引用编号，而是在答案对应部分列出。
+在我给你的搜索结果中，每个结果都是[webpage X begin]...[webpage X end]格式的，X代表每篇文章的数字索引。请在适当的情况下在句子末尾引用上下文。请按照引用编号[X]的格式在答案中对应部分引用上下文。如果一句话源自多个上下文，请列出所有相关的引用编号，例如[3][5]，切记不要将引用集中在最后返回引用编号，而是在答案对应部分列出。
 在回答时，请注意以下几点：
 - 今天是北京时间：{cur_date}。
 - 并非搜索结果的所有内容都与用户的问题密切相关，你需要结合问题，对搜索结果进行甄别、筛选。
@@ -318,16 +429,16 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		} else {
 			config.promptTemplate = `# 以下内容是基于用户发送的消息的搜索结果:
 {search_results}
-在我给你的搜索结果中，每个结果都是[webpage X begin]...[webpage X end]格式的，X代表每篇文章的搜索排序。
+在我给你的搜索结果中，每个结果都是[webpage begin]...[webpage end]格式的。
 在回答时，请注意以下几点：
 - 今天是北京时间：{cur_date}。
 - 并非搜索结果的所有内容都与用户的问题密切相关，你需要结合问题，对搜索结果进行甄别、筛选。
-- 对于列举类的问题（如列举所有航班信息），尽量将答案控制在10个要点以内，并告诉用户可以查看搜索来源、获得完整信息。优先提供信息完整、最相关的列举项；如非必要，不要主动告诉用户搜索结果未提供的内容。
+- 对于列举类的问题（如列举所有航班信息），尽量将答案控制在10个要点以内。如非必要，不要主动告诉用户搜索结果未提供的内容。
 - 对于创作类的问题（如写论文），你需要解读并概括用户的题目要求，选择合适的格式，充分利用搜索结果并抽取重要信息，生成符合用户要求、极具思想深度、富有创造力与专业性的答案。你的创作篇幅需要尽可能延长，对于每一个要点的论述要推测用户的意图，给出尽可能多角度的回答要点，且务必信息量大、论述详尽。
 - 如果回答很长，请尽量结构化、分段落总结。如果需要分点作答，尽量控制在5个点以内，并合并相关的内容。
 - 对于客观类的问答，如果问题的答案非常简短，可以适当补充一到两句相关信息，以丰富内容。
 - 你需要根据用户要求和回答内容选择合适、美观的回答格式，确保可读性强。
-- 你的回答应该综合多个相关网页来回答，不能重复引用一个网页。
+- 你的回答应该综合多个相关网页来回答，但回答中不要给出网页的引用来源。
 - 除非用户要求，否则你回答的语言需要和用户提问的语言保持一致。
 
 # 用户消息为：
@@ -350,6 +461,12 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			searchEngine, err := NewGoogleSearch(&engine)
 			if err != nil {
 				return fmt.Errorf("google search engine init failed:%s", err)
+			}
+			config.engine = append(config.engine, searchEngine)
+		case "arxiv":
+			searchEngine, err := NewArxivSearch(&engine)
+			if err != nil {
+				return fmt.Errorf("arxiv search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 		default:
@@ -407,28 +524,24 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 				defer func() {
 					finished++
 					if finished == searching {
-						// Merge and sort search results from all engines
+						// Merge search results from all engines
 						var mergedResults []searchResult
-						maxResults := 0
 						for _, results := range searchResultGroups {
-							if len(results) > maxResults {
-								maxResults = len(results)
-							}
-						}
-						for j := 0; j < maxResults; j++ {
-							for _, results := range searchResultGroups {
-								if j < len(results) {
-									mergedResults = append(mergedResults, results[j])
-								}
-							}
+							mergedResults = append(mergedResults, results...)
 						}
 						// Format search results for prompt template
 						var formattedResults []string
 						var formattedReferences []string
 						for j, result := range mergedResults {
-							formattedResults = append(formattedResults, fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]",
-								j+1, result.content, j+1))
-							formattedReferences = append(formattedReferences, fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
+							if config.needReference {
+								formattedResults = append(formattedResults,
+									fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]", +1, result.content, j+1))
+								formattedReferences = append(formattedReferences,
+									fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
+							} else {
+								formattedResults = append(formattedResults,
+									fmt.Sprintf("[webpage begin]\n%s\n[webpage end]", result.content))
+							}
 						}
 						// Prepare template variables
 						curDate := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006年1月2日")
