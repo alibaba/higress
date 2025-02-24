@@ -15,23 +15,44 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
-	"github.com/antchfx/xmlquery"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
 )
+
+type SearchRewrite struct {
+	client             wrapper.HttpClient
+	url                string
+	apiKey             string
+	modelName          string
+	timeoutMillisecond uint32
+	prompt             string
+}
+
+type Config struct {
+	engine          []engine.SearchEngine
+	promptTemplate  string
+	referenceFormat string
+	defaultLanguage string
+	needReference   bool
+	searchRewrite   *SearchRewrite
+}
 
 const (
 	DEFAULT_MAX_BODY_BYTES uint32 = 100 * 1024 * 1024
@@ -59,495 +80,6 @@ func main() {
 		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
-}
-
-type searchResult struct {
-	title   string
-	link    string
-	content string
-}
-
-func (result searchResult) valid() bool {
-	return result.title != "" && result.link != "" && result.content != ""
-}
-
-type searchContext struct {
-	engineType    string
-	querys        []string
-	language      string
-	arxivCategory string
-}
-
-type callArgs struct {
-	method             string
-	url                string
-	headers            [][2]string
-	body               []byte
-	timeoutMillisecond uint32
-}
-
-type searchEngine interface {
-	NeedExectue(ctx searchContext) bool
-	Client() wrapper.HttpClient
-	CallArgs(ctx searchContext) callArgs
-	ParseResult(ctx searchContext, response []byte) []searchResult
-}
-
-type GoogleSearch struct {
-	optionArgs         map[string]string
-	apiKey             string
-	cx                 string
-	start              int
-	count              int
-	timeoutMillisecond uint32
-	client             wrapper.HttpClient
-}
-
-func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
-	engine := &GoogleSearch{}
-	engine.apiKey = config.Get("apiKey").String()
-	if engine.apiKey == "" {
-		return nil, errors.New("apiKey not found")
-	}
-	engine.cx = config.Get("cx").String()
-	if engine.cx == "" {
-		return nil, errors.New("cx not found")
-	}
-	serviceName := config.Get("serviceName").String()
-	if serviceName == "" {
-		return nil, errors.New("serviceName not found")
-	}
-	servicePort := config.Get("servicePort").Int()
-	if servicePort == 0 {
-		return nil, errors.New("servicePort not found")
-	}
-	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
-		FQDN: serviceName,
-		Port: servicePort,
-	})
-	engine.start = int(config.Get("start").Uint())
-	engine.count = int(config.Get("count").Uint())
-	if engine.count == 0 {
-		engine.count = 10
-	}
-	if engine.count > 10 || engine.start+engine.count > 100 {
-		return nil, errors.New("count must be less than 10, and start + count must be less than or equal to 100.")
-	}
-	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
-	if engine.timeoutMillisecond == 0 {
-		engine.timeoutMillisecond = 5000
-	}
-	engine.optionArgs = map[string]string{}
-	for key, value := range config.Get("optionArgs").Map() {
-		valStr := value.String()
-		if valStr != "" {
-			engine.optionArgs[key] = value.String()
-		}
-	}
-	return engine, nil
-}
-
-func (engine GoogleSearch) NeedExectue(ctx searchContext) bool {
-	return ctx.engineType == "internet"
-}
-
-func (engine GoogleSearch) Client() wrapper.HttpClient {
-	return engine.client
-}
-
-func (engine GoogleSearch) CallArgs(ctx searchContext) callArgs {
-	queryUrl := fmt.Sprintf("https://customsearch.googleapis.com/customsearch/v1?cx=%s&q=%s&num=%d&key=%s&start=%d",
-		engine.cx, url.QueryEscape(strings.Join(ctx.querys, " ")), engine.count, engine.apiKey, engine.start+1)
-	var extraArgs []string
-	for key, value := range engine.optionArgs {
-		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
-	}
-	if ctx.language != "" {
-		extraArgs = append(extraArgs, fmt.Sprintf("lr=lang_%s", ctx.language))
-	}
-	if len(extraArgs) > 0 {
-		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
-	}
-	return callArgs{
-		method: http.MethodGet,
-		url:    queryUrl,
-		headers: [][2]string{
-			{"Accept", "application/json"},
-		},
-		timeoutMillisecond: engine.timeoutMillisecond,
-	}
-}
-
-func (engine GoogleSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
-	jsonObj := gjson.ParseBytes(response)
-	var results []searchResult
-	for _, item := range jsonObj.Get("items").Array() {
-		content := item.Get("snippet").String()
-		metaDescription := item.Get("pagemap.metatags.0.og:description").String()
-		if metaDescription != "" {
-			content = fmt.Sprintf("%s\n...\n%s", content, metaDescription)
-		}
-		result := searchResult{
-			title:   item.Get("title").String(),
-			link:    item.Get("link").String(),
-			content: content,
-		}
-		if result.valid() {
-			results = append(results, result)
-		}
-	}
-	return results
-}
-
-type ArxivSearch struct {
-	optionArgs         map[string]string
-	start              int
-	count              int
-	timeoutMillisecond uint32
-	client             wrapper.HttpClient
-	arxivCategory      string
-}
-
-func NewArxivSearch(config *gjson.Result) (*ArxivSearch, error) {
-	engine := &ArxivSearch{}
-	serviceName := config.Get("serviceName").String()
-	if serviceName == "" {
-		return nil, errors.New("serviceName not found")
-	}
-	servicePort := config.Get("servicePort").Int()
-	if servicePort == 0 {
-		return nil, errors.New("servicePort not found")
-	}
-	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
-		FQDN: serviceName,
-		Port: servicePort,
-	})
-	engine.start = int(config.Get("start").Uint())
-	engine.count = int(config.Get("count").Uint())
-	if engine.count == 0 {
-		engine.count = 10
-	}
-	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
-	if engine.timeoutMillisecond == 0 {
-		engine.timeoutMillisecond = 5000
-	}
-	engine.optionArgs = map[string]string{}
-	for key, value := range config.Get("optionArgs").Map() {
-		valStr := value.String()
-		if valStr != "" {
-			engine.optionArgs[key] = value.String()
-		}
-	}
-	engine.arxivCategory = config.Get("arxivCategory").String()
-	return engine, nil
-}
-
-func (engine ArxivSearch) NeedExectue(ctx searchContext) bool {
-	return ctx.engineType == "arxiv"
-}
-
-func (engine ArxivSearch) Client() wrapper.HttpClient {
-	return engine.client
-}
-
-func (engine ArxivSearch) CallArgs(ctx searchContext) callArgs {
-	var searchQueryItems []string
-	for _, q := range ctx.querys {
-		searchQueryItems = append(searchQueryItems, fmt.Sprintf("all:%s", url.QueryEscape(q)))
-	}
-	searchQuery := strings.Join(searchQueryItems, "+AND+")
-	category := ctx.arxivCategory
-	if category == "" {
-		category = engine.arxivCategory
-	}
-	if category != "" {
-		searchQuery = fmt.Sprintf("%s+AND+cat:%s", searchQuery, category)
-	}
-	queryUrl := fmt.Sprintf("https://export.arxiv.org/api/query?search_query=%s&max_results=%d&start=%d",
-		searchQuery, engine.count, engine.start)
-	var extraArgs []string
-	for key, value := range engine.optionArgs {
-		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
-	}
-	if len(extraArgs) > 0 {
-		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
-	}
-	proxywasm.LogDebugf("ai-search arxiv category:%s, querys:%v, url:%s", category, ctx.querys, queryUrl)
-	return callArgs{
-		method:             http.MethodGet,
-		url:                queryUrl,
-		headers:            [][2]string{{"Accept", "application/atom+xml"}},
-		timeoutMillisecond: engine.timeoutMillisecond,
-	}
-}
-
-func (engine ArxivSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
-	var results []searchResult
-	doc, err := xmlquery.Parse(bytes.NewReader(response))
-	if err != nil {
-		return results
-	}
-
-	entries := xmlquery.Find(doc, "//entry")
-	for _, entry := range entries {
-		title := entry.SelectElement("title").InnerText()
-		link := ""
-		for _, l := range entry.SelectElements("link") {
-			if l.SelectAttr("rel") == "alternate" && l.SelectAttr("type") == "text/html" {
-				link = l.SelectAttr("href")
-				break
-			}
-		}
-		summary := entry.SelectElement("summary").InnerText()
-		publishTime := entry.SelectElement("published").InnerText()
-		authors := entry.SelectElements("author")
-		var authorNames []string
-		for _, author := range authors {
-			authorNames = append(authorNames, author.SelectElement("name").InnerText())
-		}
-		content := fmt.Sprintf("%s\nAuthors: %s\nPublication time: %s", summary, strings.Join(authorNames, ", "), publishTime)
-		result := searchResult{
-			title:   title,
-			link:    link,
-			content: content,
-		}
-		if result.valid() {
-			results = append(results, result)
-		}
-	}
-	return results
-}
-
-type BeingSearch struct {
-	optionArgs         map[string]string
-	apiKey             string
-	start              int
-	count              int
-	timeoutMillisecond uint32
-	client             wrapper.HttpClient
-}
-
-func NewBeingSearch(config *gjson.Result) (*BeingSearch, error) {
-	engine := &BeingSearch{}
-	engine.apiKey = config.Get("apiKey").String()
-	if engine.apiKey == "" {
-		return nil, errors.New("apiKey not found")
-	}
-	serviceName := config.Get("serviceName").String()
-	if serviceName == "" {
-		return nil, errors.New("serviceName not found")
-	}
-	servicePort := config.Get("servicePort").Int()
-	if servicePort == 0 {
-		return nil, errors.New("servicePort not found")
-	}
-	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
-		FQDN: serviceName,
-		Port: servicePort,
-	})
-	engine.start = int(config.Get("start").Uint())
-	engine.count = int(config.Get("count").Uint())
-	if engine.count == 0 {
-		engine.count = 10
-	}
-	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
-	if engine.timeoutMillisecond == 0 {
-		engine.timeoutMillisecond = 5000
-	}
-	engine.optionArgs = map[string]string{}
-	for key, value := range config.Get("optionArgs").Map() {
-		valStr := value.String()
-		if valStr != "" {
-			engine.optionArgs[key] = value.String()
-		}
-	}
-	return engine, nil
-}
-
-func (engine BeingSearch) NeedExectue(ctx searchContext) bool {
-	return ctx.engineType == "internet"
-}
-
-func (engine BeingSearch) Client() wrapper.HttpClient {
-	return engine.client
-}
-
-func (engine BeingSearch) CallArgs(ctx searchContext) callArgs {
-	queryUrl := fmt.Sprintf("https://api.bing.microsoft.com/v7.0/search?q=%s&count=%d&offset=%d",
-		url.QueryEscape(strings.Join(ctx.querys, " ")), engine.count, engine.start)
-	var extraArgs []string
-	for key, value := range engine.optionArgs {
-		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
-	}
-	if ctx.language != "" {
-		extraArgs = append(extraArgs, fmt.Sprintf("mkt=%s", ctx.language))
-	}
-	if len(extraArgs) > 0 {
-		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
-	}
-	return callArgs{
-		method:             http.MethodGet,
-		url:                queryUrl,
-		headers:            [][2]string{{"Ocp-Apim-Subscription-Key", engine.apiKey}},
-		timeoutMillisecond: engine.timeoutMillisecond,
-	}
-}
-func (engine BeingSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
-	jsonObj := gjson.ParseBytes(response)
-	var results []searchResult
-	webPages := jsonObj.Get("webPages.value")
-	for _, page := range webPages.Array() {
-		result := searchResult{
-			title:   page.Get("name").String(),
-			link:    page.Get("url").String(),
-			content: page.Get("snippet").String(),
-		}
-		if result.valid() {
-			results = append(results, result)
-		}
-		deepLinks := page.Get("deepLinks")
-		for _, inner := range deepLinks.Array() {
-			innerResult := searchResult{
-				title:   inner.Get("name").String(),
-				link:    inner.Get("url").String(),
-				content: inner.Get("snippet").String(),
-			}
-			if innerResult.valid() {
-				results = append(results, innerResult)
-			}
-		}
-	}
-	news := jsonObj.Get("news.value")
-	for _, article := range news.Array() {
-		result := searchResult{
-			title:   article.Get("name").String(),
-			link:    article.Get("url").String(),
-			content: article.Get("description").String(),
-		}
-		if result.valid() {
-			results = append(results, result)
-		}
-	}
-	return results
-}
-
-type SearchRewrite struct {
-	client             wrapper.HttpClient
-	url                string
-	apiKey             string
-	modelName          string
-	timeoutMillisecond uint32
-	prompt             string
-}
-
-type Config struct {
-	engine          []searchEngine
-	promptTemplate  string
-	referenceFormat string
-	defaultLanguage string
-	needReference   bool
-	searchRewrite   *SearchRewrite
-}
-
-type ElasticsearchSearch struct {
-	client             wrapper.HttpClient
-	index              string
-	contentField       string
-	linkField          string
-	titleField         string
-	start              int
-	count              int
-	timeoutMillisecond uint32
-}
-
-func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) {
-	engine := &ElasticsearchSearch{}
-	serviceName := config.Get("serviceName").String()
-	if serviceName == "" {
-		return nil, errors.New("serviceName not found")
-	}
-	servicePort := config.Get("servicePort").Int()
-	if servicePort == 0 {
-		return nil, errors.New("servicePort not found")
-	}
-	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
-		FQDN: serviceName,
-		Port: servicePort,
-	})
-	engine.index = config.Get("index").String()
-	if engine.index == "" {
-		return nil, errors.New("index not found")
-	}
-	engine.contentField = config.Get("contentField").String()
-	if engine.contentField == "" {
-		return nil, errors.New("contentField not found")
-	}
-	engine.linkField = config.Get("linkField").String()
-	if engine.linkField == "" {
-		return nil, errors.New("linkField not found")
-	}
-	engine.titleField = config.Get("titleField").String()
-	if engine.titleField == "" {
-		return nil, errors.New("titleField not found")
-	}
-	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
-	if engine.timeoutMillisecond == 0 {
-		engine.timeoutMillisecond = 5000
-	}
-	engine.start = int(config.Get("start").Uint())
-	engine.count = int(config.Get("count").Uint())
-	if engine.count == 0 {
-		engine.count = 10
-	}
-	return engine, nil
-}
-
-func (engine ElasticsearchSearch) NeedExectue(ctx searchContext) bool {
-	return ctx.engineType == "private"
-}
-
-func (engine ElasticsearchSearch) Client() wrapper.HttpClient {
-	return engine.client
-}
-
-func (engine ElasticsearchSearch) CallArgs(ctx searchContext) callArgs {
-	searchBody := fmt.Sprintf(`{
-		"query": {
-			"match": {
-				"%s": {
-					"query": "%s",
-					"operator": "AND"
-				}
-			}
-		}
-	}`, engine.contentField, strings.Join(ctx.querys, " "))
-
-	return callArgs{
-		method: http.MethodPost,
-		url:    fmt.Sprintf("/%s/_search?from=%d&size=%d", engine.index, engine.start, engine.count),
-		headers: [][2]string{
-			{"Content-Type", "application/json"},
-		},
-		body:               []byte(searchBody),
-		timeoutMillisecond: engine.timeoutMillisecond,
-	}
-}
-
-func (engine ElasticsearchSearch) ParseResult(ctx searchContext, response []byte) []searchResult {
-	jsonObj := gjson.ParseBytes(response)
-	var results []searchResult
-	for _, hit := range jsonObj.Get("hits.hits").Array() {
-		source := hit.Get("_source")
-		result := searchResult{
-			title:   source.Get(engine.titleField).String(),
-			link:    source.Get(engine.linkField).String(),
-			content: source.Get(engine.contentField).String(),
-		}
-		if result.valid() {
-			results = append(results, result)
-		}
-	}
-	return results
 }
 
 func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
@@ -604,38 +136,38 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		return fmt.Errorf("invalid promptTemplate, must contains {search_results} and {question}:%s", config.promptTemplate)
 	}
 	var internetExists, privateExists, arxivExists bool
-	for _, engine := range json.Get("searchFrom").Array() {
-		switch engine.Get("type").String() {
+	for _, e := range json.Get("searchFrom").Array() {
+		switch e.Get("type").String() {
 		case "being":
-			searchEngine, err := NewBeingSearch(&engine)
+			searchEngine, err := bing.NewBingSearch(&e)
 			if err != nil {
 				return fmt.Errorf("being search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
 		case "google":
-			searchEngine, err := NewGoogleSearch(&engine)
+			searchEngine, err := google.NewGoogleSearch(&e)
 			if err != nil {
 				return fmt.Errorf("google search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
 		case "arxiv":
-			searchEngine, err := NewArxivSearch(&engine)
+			searchEngine, err := arxiv.NewArxivSearch(&e)
 			if err != nil {
 				return fmt.Errorf("arxiv search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			arxivExists = true
 		case "elasticsearch":
-			searchEngine, err := NewElasticsearchSearch(&engine)
+			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e)
 			if err != nil {
 				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			privateExists = true
 		default:
-			return fmt.Errorf("unkown search engine:%s", engine.Get("type").String())
+			return fmt.Errorf("unkown search engine:%s", e.Get("type").String())
 		}
 	}
 	searchRewriteJson := json.Get("searchRewrite")
@@ -759,7 +291,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 				}
 
 				// Parse search queries from LLM response
-				var searchContexts []searchContext
+				var searchContexts []engine.SearchContext
 				for _, line := range strings.Split(content, "\n") {
 					line = strings.TrimSpace(line)
 					if line == "" {
@@ -774,35 +306,35 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 					engineType := strings.TrimSpace(parts[0])
 					queryStr := strings.TrimSpace(parts[1])
 
-					var ctx searchContext
-					ctx.language = config.defaultLanguage
+					var ctx engine.SearchContext
+					ctx.Language = config.defaultLanguage
 
 					switch {
 					case engineType == "internet":
-						ctx.engineType = engineType
-						ctx.querys = []string{queryStr}
+						ctx.EngineType = engineType
+						ctx.Querys = []string{queryStr}
 					case engineType == "private":
-						ctx.engineType = engineType
-						ctx.querys = strings.Split(queryStr, ",")
-						for i := range ctx.querys {
-							ctx.querys[i] = strings.TrimSpace(ctx.querys[i])
+						ctx.EngineType = engineType
+						ctx.Querys = strings.Split(queryStr, ",")
+						for i := range ctx.Querys {
+							ctx.Querys[i] = strings.TrimSpace(ctx.Querys[i])
 						}
 					default:
 						// Arxiv category
-						ctx.engineType = "arxiv"
-						ctx.arxivCategory = engineType
-						ctx.querys = strings.Split(queryStr, ",")
-						for i := range ctx.querys {
-							ctx.querys[i] = strings.TrimSpace(ctx.querys[i])
+						ctx.EngineType = "arxiv"
+						ctx.ArxivCategory = engineType
+						ctx.Querys = strings.Split(queryStr, ",")
+						for i := range ctx.Querys {
+							ctx.Querys[i] = strings.TrimSpace(ctx.Querys[i])
 						}
 					}
 
-					if len(ctx.querys) > 0 {
+					if len(ctx.Querys) > 0 {
 						searchContexts = append(searchContexts, ctx)
-						if ctx.arxivCategory != "" {
+						if ctx.ArxivCategory != "" {
 							// Conduct i/nquiries in all areas to increase recall.
 							backupCtx := ctx
-							backupCtx.arxivCategory = ""
+							backupCtx.ArxivCategory = ""
 							searchContexts = append(searchContexts, backupCtx)
 						}
 					}
@@ -826,23 +358,23 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	}
 
 	// Execute search without rewrite
-	return executeSearch(ctx, config, queryIndex, body, []searchContext{{
-		querys:   []string{query},
-		language: config.defaultLanguage,
+	return executeSearch(ctx, config, queryIndex, body, []engine.SearchContext{{
+		Querys:   []string{query},
+		Language: config.defaultLanguage,
 	}}, log)
 }
 
-func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []searchContext, log wrapper.Log) types.Action {
-	var searchResultGroups [][]searchResult = make([][]searchResult, len(config.engine))
+func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext, log wrapper.Log) types.Action {
+	searchResultGroups := make([][]engine.SearchResult, len(config.engine))
 	var finished int
 	var searching int
 	for i := 0; i < len(config.engine); i++ {
-		engine := config.engine[i]
+		configEngine := config.engine[i]
 
 		// Check if engine needs to execute for any of the search contexts
 		var needsExecute bool
 		for _, searchCtx := range searchContexts {
-			if engine.NeedExectue(searchCtx) {
+			if configEngine.NeedExectue(searchCtx) {
 				needsExecute = true
 				break
 			}
@@ -853,23 +385,23 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 
 		// Process all search contexts for this engine
 		for _, searchCtx := range searchContexts {
-			if !engine.NeedExectue(searchCtx) {
+			if !configEngine.NeedExectue(searchCtx) {
 				continue
 			}
-			args := engine.CallArgs(searchCtx)
+			args := configEngine.CallArgs(searchCtx)
 			index := i
-			err := engine.Client().Call(args.method, args.url, args.headers, args.body,
+			err := configEngine.Client().Call(args.Method, args.Url, args.Headers, args.Body,
 				func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 					defer func() {
 						finished++
 						if finished == searching {
 							// Merge search results from all engines with deduplication
-							var mergedResults []searchResult
+							var mergedResults []engine.SearchResult
 							seenLinks := make(map[string]bool)
 							for _, results := range searchResultGroups {
 								for _, result := range results {
-									if !seenLinks[result.link] {
-										seenLinks[result.link] = true
+									if !seenLinks[result.Link] {
+										seenLinks[result.Link] = true
 										mergedResults = append(mergedResults, result)
 									}
 								}
@@ -880,12 +412,12 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 							for j, result := range mergedResults {
 								if config.needReference {
 									formattedResults = append(formattedResults,
-										fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]", j+1, result.content, j+1))
+										fmt.Sprintf("[webpage %d begin]\n%s\n[webpage %d end]", j+1, result.Content, j+1))
 									formattedReferences = append(formattedReferences,
-										fmt.Sprintf("[%d] [%s](%s)", j+1, result.title, result.link))
+										fmt.Sprintf("[%d] [%s](%s)", j+1, result.Title, result.Link))
 								} else {
 									formattedResults = append(formattedResults,
-										fmt.Sprintf("[webpage begin]\n%s\n[webpage end]", result.content))
+										fmt.Sprintf("[webpage begin]\n%s\n[webpage end]", result.Content))
 								}
 							}
 							// Prepare template variables
@@ -894,7 +426,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 							log.Debugf("searchResults: %s", searchResults)
 							// Fill prompt template
 							prompt := strings.Replace(config.promptTemplate, "{search_results}", searchResults, 1)
-							prompt = strings.Replace(prompt, "{question}", searchContexts[0].querys[0], 1)
+							prompt = strings.Replace(prompt, "{question}", searchContexts[0].Querys[0], 1)
 							prompt = strings.Replace(prompt, "{cur_date}", curDate, 1)
 							// Update request body with processed prompt
 							modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
@@ -911,14 +443,14 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 						}
 					}()
 					if statusCode != http.StatusOK {
-						log.Errorf("search call failed, status: %d, engine: %#v", statusCode, engine)
+						log.Errorf("search call failed, status: %d, engine: %#v", statusCode, configEngine)
 						return
 					}
 					// Append results to existing slice for this engine
-					searchResultGroups[index] = append(searchResultGroups[index], engine.ParseResult(searchCtx, responseBody)...)
-				}, args.timeoutMillisecond)
+					searchResultGroups[index] = append(searchResultGroups[index], configEngine.ParseResult(searchCtx, responseBody)...)
+				}, args.TimeoutMillisecond)
 			if err != nil {
-				log.Errorf("search call failed, engine: %#v", engine)
+				log.Errorf("search call failed, engine: %#v", configEngine)
 				continue
 			}
 			searching++
