@@ -1,4 +1,3 @@
-## 简介
 ---
 title: AI 搜索增强
 keywords: [higress,ai search]
