@@ -138,10 +138,10 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 	var internetExists, privateExists, arxivExists bool
 	for _, e := range json.Get("searchFrom").Array() {
 		switch e.Get("type").String() {
-		case "being":
+		case "bing":
 			searchEngine, err := bing.NewBingSearch(&e)
 			if err != nil {
-				return fmt.Errorf("being search engine init failed:%s", err)
+				return fmt.Errorf("bing search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
