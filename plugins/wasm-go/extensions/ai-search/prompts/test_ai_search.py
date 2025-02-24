@@ -7,11 +7,12 @@ def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='AI Search Test Script')
     parser.add_argument('--question', required=True, help='The question to analyze')
+    parser.add_argument('--prompt', required=True, help='The prompt file to analyze')    
     args = parser.parse_args()
 
     # 读取并解析prompts.md模板
     # 这里假设prompts.md已经复制到当前目录
-    with open('prompts.md', 'r', encoding='utf-8') as f:
+    with open(args.prompt, 'r', encoding='utf-8') as f:
         prompt_template = f.read()
     
     # 替换模板中的{question}变量
@@ -23,7 +24,7 @@ def main():
     }
     data = {
         "model": "deepseek-v3",
-        "max_tokens": 300,
+        "max_tokens": 100,
         "messages": [
             {
                 "role": "user",

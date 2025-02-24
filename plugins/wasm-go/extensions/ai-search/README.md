@@ -43,7 +43,7 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | llmApiKey | string | 必填 | - | LLM服务API密钥 |
 | llmUrl | string | 必填 | - | LLM服务API地址 |
 | llmModelName | string | 必填 | - | LLM模型名称 |
-| timeoutMillisecond | number | 选填 | 10000 | API调用超时时间（毫秒） |
+| timeoutMillisecond | number | 选填 | 30000 | API调用超时时间（毫秒） |
 
 ## 搜索引擎通用配置
 
