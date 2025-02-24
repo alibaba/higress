@@ -86,16 +86,16 @@ type controller struct {
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kube.Client, options common.Options,
 	secretController secret.SecretController) common.KIngressController {
-	//var namespace string = "default"
-	ingressInformer := client.KIngressInformer().Networking().V1alpha1().Ingresses()
+	ingressInformer := client.KIngressInformer().Networking().V1alpha1().Ingresses().Informer()
+	ingressLister := client.KIngressInformer().Networking().V1alpha1().Ingresses().Lister()
 	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{}, gvr.Service)
 	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
 	c := &controller{
 		options:          options,
 		ingresses:        make(map[string]*ingress.Ingress),
-		ingressInformer:  ingressInformer.Informer(),
-		ingressLister:    ingressInformer.Lister(),
+		ingressInformer:  ingressInformer,
+		ingressLister:    ingressLister,
 		serviceInformer:  serviceInformer,
 		serviceLister:    serviceLister,
 		secretController: secretController,

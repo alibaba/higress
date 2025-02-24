@@ -15,15 +15,14 @@
 package secret
 
 import (
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
-	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config/schema/gvr"
 	schemakubeclient "istio.io/istio/pkg/config/schema/kubeclient"
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
 	ktypes "istio.io/istio/pkg/kube/kubetypes"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -31,17 +30,17 @@ import (
 
 type SecretController controller.Controller[listersv1.SecretLister]
 
-func NewController(client kubeclient.Client, clusterId cluster.ID) SecretController {
+func NewController(client kubeclient.Client, options common.Options) SecretController {
 	opts := ktypes.InformerOptions{
-		Namespace: metav1.NamespaceAll,
-		Cluster:   clusterId,
+		Namespace: options.WatchNamespace,
+		Cluster:   options.ClusterId,
 		FieldSelector: fields.AndSelectors(
 			fields.OneTermNotEqualSelector("type", "helm.sh/release.v1"),
 			fields.OneTermNotEqualSelector("type", string(v1.SecretTypeServiceAccountToken)),
 		).String(),
 	}
 	informer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Secret)
-	return controller.NewCommonController("secret", listersv1.NewSecretLister(informer.Informer.GetIndexer()), informer.Informer, GetSecret, clusterId)
+	return controller.NewCommonController("secret", listersv1.NewSecretLister(informer.Informer.GetIndexer()), informer.Informer, GetSecret, options.ClusterId)
 }
 
 func GetSecret(lister listersv1.SecretLister, namespacedName types.NamespacedName) (controllers.Object, error) {
