@@ -209,7 +209,7 @@ func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, e
 			log.Errorf("unable to marshal response: %v", err)
 			return nil, fmt.Errorf("unable to marshal response: %v", err)
 		}
-		modifiedEvent := *&event
+		modifiedEvent := event
 		modifiedEvent.Data = string(responseBody)
 		outputEvents = append(outputEvents, modifiedEvent)
 	}

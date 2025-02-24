@@ -579,7 +579,7 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	return ""
 }
 
-func ExtractStreamingEvents(ctx wrapper.HttpContext, apiName ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]StreamEvent, bool) {
+func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []StreamEvent {
 	body := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		body = append(bufferedStreamingBody, chunk...)
@@ -651,7 +651,7 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, apiName ApiName, chunk []by
 		currentKey = ""
 	}
 
-	return events, true
+	return events
 }
 
 func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {

@@ -240,35 +240,35 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	}
 	if handler, ok := activeProvider.(provider.StreamingEventHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
-		if events, ok := provider.ExtractStreamingEvents(ctx, apiName, chunk, isLastChunk, log); !ok {
-			log.Debug("[onStreamingResponseBody] failed to extract streaming events")
+		events := provider.ExtractStreamingEvents(ctx, chunk, log)
+		log.Debugf("[onStreamingResponseBody] %d events received", len(events))
+		if len(events) == 0 {
+			// No events are extracted, return the original chunk
 			return chunk
-		} else {
-			log.Debugf("[onStreamingResponseBody] %d events received", len(events))
-			var responseBuilder strings.Builder
-			for _, event := range events {
-				log.Debugf("processing event: %v", event)
+		}
+		var responseBuilder strings.Builder
+		for _, event := range events {
+			log.Debugf("processing event: %v", event)
 
-				if event.IsEndData() {
-					responseBuilder.WriteString(event.ToHttpString())
-					continue
-				}
+			if event.IsEndData() {
+				responseBuilder.WriteString(event.ToHttpString())
+				continue
+			}
 
-				outputEvents, err := handler.OnStreamingEvent(ctx, apiName, event, log)
-				if err != nil {
-					log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
-					return chunk
-				}
-				if outputEvents == nil || len(outputEvents) == 0 {
-					responseBuilder.WriteString(event.ToHttpString())
-				} else {
-					for _, outputEvent := range outputEvents {
-						responseBuilder.WriteString(outputEvent.ToHttpString())
-					}
+			outputEvents, err := handler.OnStreamingEvent(ctx, apiName, event, log)
+			if err != nil {
+				log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
+				return chunk
+			}
+			if outputEvents == nil || len(outputEvents) == 0 {
+				responseBuilder.WriteString(event.ToHttpString())
+			} else {
+				for _, outputEvent := range outputEvents {
+					responseBuilder.WriteString(outputEvent.ToHttpString())
 				}
 			}
-			return []byte(responseBuilder.String())
 		}
+		return []byte(responseBuilder.String())
 	}
 	return chunk
 }
