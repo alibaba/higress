@@ -1,4 +1,3 @@
-## Introduction
 ---
 title: AI Search Enhancement
 keywords: [higress, ai search]
