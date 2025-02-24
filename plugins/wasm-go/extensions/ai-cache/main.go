@@ -23,7 +23,7 @@ const (
 	SKIP_CACHE_HEADER           = "x-higress-skip-ai-cache"
 	ERROR_PARTIAL_MESSAGE_KEY   = "errorPartialMessage"
 
-	DEFAULT_MAX_BODY_BYTES uint32 = 10 * 1024 * 1024
+	DEFAULT_MAX_BODY_BYTES uint32 = 100 * 1024 * 1024
 )
 
 func main() {
