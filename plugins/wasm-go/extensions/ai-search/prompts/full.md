@@ -37,7 +37,7 @@ none
       - cs.CR: Cryptography and Security
       - cs.CV: Computer Vision and Pattern Recognition
       - cs.CY: Computers and Society
-      - cs.DB: Databases则按照下面**回复内容**进行回复
+      - cs.DB: Databases
       - cs.DC: Distributed, Parallel, and Cluster Computing
       - cs.DL: Digital Libraries
       - cs.DM: Discrete Mathematics
