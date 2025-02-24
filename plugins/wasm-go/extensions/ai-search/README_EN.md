@@ -23,6 +23,27 @@ Plugin execution priority: `440`
 | defaultLang | string | Optional | - | Default search language code (e.g. zh-CN/en-US) |
 | promptTemplate | string | Optional | Built-in template | Prompt template, must include `{search_results}` and `{question}` placeholders |
 | searchFrom | array of object | Required | - | Refer to search engine configuration below, at least one engine must be configured |
+| searchRewrite | object | Optional | - | Search rewrite configuration, used to optimize search queries using an LLM service |
+
+## Search Rewrite Description
+
+The search rewrite feature uses an LLM service to analyze and optimize the user's original query, which can:
+1. Convert natural language queries into keyword combinations better suited for search engines
+2. For Arxiv paper searches, automatically identify relevant paper categories and add category constraints
+3. For private knowledge base searches, break down long queries into multiple precise keyword combinations
+
+It is strongly recommended to enable this feature when using Arxiv or Elasticsearch engines. For Arxiv searches, it can accurately identify paper domains and optimize English keywords; for private knowledge base searches, it can provide more precise keyword matching, significantly improving search effectiveness.
+
+## Search Rewrite Configuration
+
+| Name | Data Type | Requirement | Default Value | Description |
+|------|-----------|-------------|---------------|-------------|
+| llmServiceName | string | Required | - | LLM service name |
+| llmServicePort | number | Required | - | LLM service port |
+| llmApiKey | string | Required | - | LLM service API key |
+| llmUrl | string | Required | - | LLM service API URL |
+| llmModelName | string | Required | - | LLM model name |
+| timeoutMillisecond | number | Optional | 10000 | API call timeout (milliseconds) |
 
 ## Search Engine Common Configuration
 
@@ -176,6 +197,24 @@ searchFrom:
   apiKey: "your-bing-key"
   serviceName: "search-service.dns"
   servicePort: 8080
+```
+
+### Search Rewrite Configuration
+
+```yaml
+searchFrom:
+- type: google
+  apiKey: "your-google-api-key"
+  cx: "search-engine-id"
+  serviceName: "google-svc.dns"
+  servicePort: 443
+searchRewrite:
+  llmServiceName: "llm-svc.dns"
+  llmServicePort: 443
+  llmApiKey: "your-llm-api-key"
+  llmUrl: "https://api.example.com/v1/chat/completions"
+  llmModelName: "gpt-3.5-turbo"
+  timeoutMillisecond: 15000
 ```
 
 ## Notes

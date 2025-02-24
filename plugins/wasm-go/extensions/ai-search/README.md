@@ -23,6 +23,27 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | defaultLang | string | 选填 | - | 默认搜索语言代码（如zh-CN/en-US） |
 | promptTemplate | string | 选填 | 内置模板 | 提示模板，必须包含`{search_results}`和`{question}`占位符 |
 | searchFrom | array of object | 必填 | - | 参考下面搜索引擎配置，至少配置一个引擎 |
+| searchRewrite | object | 选填 | - | 搜索重写配置，用于使用LLM服务优化搜索查询 |
+
+## 搜索重写说明
+
+搜索重写功能使用LLM服务对用户的原始查询进行分析和优化，可以：
+1. 将用户的自然语言查询转换为更适合搜索引擎的关键词组合
+2. 对于Arxiv论文搜索，自动识别相关的论文类别并添加类别限定
+3. 对于私有知识库搜索，将长查询拆分成多个精准的关键词组合
+
+强烈建议在使用Arxiv或Elasticsearch引擎时启用此功能。对于Arxiv搜索，它能准确识别论文所属领域并优化英文关键词；对于私有知识库搜索，它能提供更精准的关键词匹配，显著提升搜索效果。
+
+## 搜索重写配置
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|------|----------|----------|--------|------|
+| llmServiceName | string | 必填 | - | LLM服务名称 |
+| llmServicePort | number | 必填 | - | LLM服务端口 |
+| llmApiKey | string | 必填 | - | LLM服务API密钥 |
+| llmUrl | string | 必填 | - | LLM服务API地址 |
+| llmModelName | string | 必填 | - | LLM模型名称 |
+| timeoutMillisecond | number | 选填 | 10000 | API调用超时时间（毫秒） |
 
 ## 搜索引擎通用配置
 
@@ -175,6 +196,24 @@ searchFrom:
   apiKey: "your-bing-key"
   serviceName: "search-service.dns"
   servicePort: 8080
+```
+
+### 搜索重写配置
+
+```yaml
+searchFrom:
+- type: google
+  apiKey: "your-google-api-key"
+  cx: "search-engine-id"
+  serviceName: "google-svc.dns"
+  servicePort: 443
+searchRewrite:
+  llmServiceName: "llm-svc.dns"
+  llmServicePort: 443
+  llmApiKey: "your-llm-api-key"
+  llmUrl: "https://api.example.com/v1/chat/completions"
+  llmModelName: "gpt-3.5-turbo"
+  timeoutMillisecond: 15000
 ```
 
 ## 注意事项
