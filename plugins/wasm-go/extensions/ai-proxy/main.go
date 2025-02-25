@@ -102,7 +102,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	// Always remove the Accept-Encoding header to prevent the LLM from sending compressed responses,
 	// allowing plugins to inspect or modify the response correctly
-	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Set the apiToken for the current request.
@@ -110,13 +110,13 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err != nil {
-			util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
+			_ = util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
 			return types.ActionContinue
 		}
 
 		hasRequestBody := wrapper.HasRequestBody()
 		if hasRequestBody {
-			proxywasm.RemoveHttpRequestHeader("Content-Length")
+			_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 			ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 			// Delay the header processing to allow changing in OnRequestBody
 			return types.HeaderStopIteration
@@ -143,7 +143,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 
 		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
 		if settingErr != nil {
-			util.ErrorHandler(
+			_ = util.ErrorHandler(
 				"ai-proxy.proc_req_body_failed",
 				fmt.Errorf("failed to replace request body by custom settings: %v", settingErr),
 			)
@@ -156,7 +156,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if err == nil {
 			return action
 		}
-		util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
+		_ = util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
 	return types.ActionContinue
 }
@@ -205,7 +205,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 
 	checkStream(ctx, log)
 	_, needHandleBody := activeProvider.(provider.TransformResponseBodyHandler)
-	_, needHandleStreamingBody := activeProvider.(provider.StreamingResponseBodyHandler)
+	var needHandleStreamingBody bool
+	_, needHandleStreamingBody = activeProvider.(provider.StreamingResponseBodyHandler)
+	if !needHandleStreamingBody {
+		_, needHandleStreamingBody = activeProvider.(provider.StreamingEventHandler)
+	}
 	if !needHandleBody && !needHandleStreamingBody {
 		ctx.DontReadResponseBody()
 	} else if !needHandleStreamingBody {
@@ -224,7 +228,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	}
 
 	log.Debugf("[onStreamingResponseBody] provider=%s", activeProvider.GetProviderType())
-	log.Debugf("isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
+	log.Debugf("[onStreamingResponseBody] isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
 
 	if handler, ok := activeProvider.(provider.StreamingResponseBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
@@ -233,6 +237,38 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 			return modifiedChunk
 		}
 		return chunk
+	}
+	if handler, ok := activeProvider.(provider.StreamingEventHandler); ok {
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+		events := provider.ExtractStreamingEvents(ctx, chunk, log)
+		log.Debugf("[onStreamingResponseBody] %d events received", len(events))
+		if len(events) == 0 {
+			// No events are extracted, return the original chunk
+			return chunk
+		}
+		var responseBuilder strings.Builder
+		for _, event := range events {
+			log.Debugf("processing event: %v", event)
+
+			if event.IsEndData() {
+				responseBuilder.WriteString(event.ToHttpString())
+				continue
+			}
+
+			outputEvents, err := handler.OnStreamingEvent(ctx, apiName, event, log)
+			if err != nil {
+				log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
+				return chunk
+			}
+			if outputEvents == nil || len(outputEvents) == 0 {
+				responseBuilder.WriteString(event.ToHttpString())
+			} else {
+				for _, outputEvent := range outputEvents {
+					responseBuilder.WriteString(outputEvent.ToHttpString())
+				}
+			}
+		}
+		return []byte(responseBuilder.String())
 	}
 	return chunk
 }
@@ -251,11 +287,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		body, err := handler.TransformResponseBody(ctx, apiName, body, log)
 		if err != nil {
-			util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
+			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
 		if err = provider.ReplaceResponseBody(body, log); err != nil {
-			util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
+			_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 		}
 	}
 	return types.ActionContinue
