@@ -34,6 +34,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/quark"
 )
 
 type SearchRewrite struct {
@@ -166,6 +167,13 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			}
 			config.engine = append(config.engine, searchEngine)
 			privateExists = true
+		case "quark":
+			searchEngine, err := quark.NewQuarkSearch(&e)
+			if err != nil {
+				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
+			}
+			config.engine = append(config.engine, searchEngine)
+			internetExists = true
 		default:
 			return fmt.Errorf("unkown search engine:%s", e.Get("type").String())
 		}
@@ -374,7 +382,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 		// Check if engine needs to execute for any of the search contexts
 		var needsExecute bool
 		for _, searchCtx := range searchContexts {
-			if configEngine.NeedExectue(searchCtx) {
+			if searchCtx.EngineType == "" || configEngine.NeedExectue(searchCtx) {
 				needsExecute = true
 				break
 			}
@@ -385,7 +393,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 
 		// Process all search contexts for this engine
 		for _, searchCtx := range searchContexts {
-			if !configEngine.NeedExectue(searchCtx) {
+			if searchCtx.EngineType != "" && !configEngine.NeedExectue(searchCtx) {
 				continue
 			}
 			args := configEngine.CallArgs(searchCtx)
@@ -541,7 +549,8 @@ func setReferencesToFirstMessage(ctx wrapper.HttpContext, chunk []byte, referenc
 	if len(messages) > 1 {
 		firstMessage := messages[0]
 		log.Debugf("first message: %s", firstMessage)
-		firstMessage = strings.TrimPrefix(firstMessage, "data: ")
+		firstMessage = strings.TrimPrefix(firstMessage, "data:")
+		firstMessage = strings.TrimPrefix(firstMessage, " ")
 		firstMessage = strings.TrimSuffix(firstMessage, "\n")
 		deltaContent := gjson.Get(firstMessage, "choices.0.delta.content")
 		modifiedMessage, err := sjson.Set(firstMessage, "choices.0.delta.content", fmt.Sprintf("%s\n\n%s", references, deltaContent))
