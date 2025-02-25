@@ -119,7 +119,7 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 }
 
 func (g QuarkSearch) NeedExectue(ctx engine.SearchContext) bool {
-	return ctx.EngineType == "internet"
+	return ctx.EngineType == "" || ctx.EngineType == "internet"
 }
 
 func (g QuarkSearch) Client() wrapper.HttpClient {

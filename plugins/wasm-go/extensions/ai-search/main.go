@@ -382,7 +382,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 		// Check if engine needs to execute for any of the search contexts
 		var needsExecute bool
 		for _, searchCtx := range searchContexts {
-			if searchCtx.EngineType == "" || configEngine.NeedExectue(searchCtx) {
+			if configEngine.NeedExectue(searchCtx) {
 				needsExecute = true
 				break
 			}
@@ -393,7 +393,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 
 		// Process all search contexts for this engine
 		for _, searchCtx := range searchContexts {
-			if searchCtx.EngineType != "" && !configEngine.NeedExectue(searchCtx) {
+			if !configEngine.NeedExectue(searchCtx) {
 				continue
 			}
 			args := configEngine.CallArgs(searchCtx)
