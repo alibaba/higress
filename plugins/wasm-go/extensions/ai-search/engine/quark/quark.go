@@ -101,7 +101,7 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	}
 	engine.endpoint = config.Get("endpoint").String()
 	if engine.endpoint == "" {
-		return nil, errors.New("endpoint not found")
+		engine.endpoint = "iqs.cn-zhangjiakou.aliyuncs.com"
 	}
 	engine.count = uint32(config.Get("count").Int())
 	if engine.count == 0 {
