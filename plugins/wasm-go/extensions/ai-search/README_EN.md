@@ -122,9 +122,8 @@ searchFrom:
   servicePort: 443
   apiKey: "aliyun accessKey"
   count: 10
-  optionArgs:
-    secretKey: "aliyun secretKey"
-    endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
+  secretKey: "aliyun secretKey"
+  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### Multiple Search Engines Configuration

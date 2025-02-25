@@ -87,7 +87,7 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if engine.apiKey == "" {
 		return nil, errors.New("apiKey not found")
 	}
-	engine.secretKey = config.Get("optionArgs.secretKey").String()
+	engine.secretKey = config.Get("secretKey").String()
 	if engine.secretKey == "" {
 		return nil, errors.New("secretKey not found")
 	}
@@ -99,7 +99,7 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if servicePort == 0 {
 		return nil, errors.New("servicePort not found")
 	}
-	engine.endpoint = config.Get("optionArgs.endpoint").String()
+	engine.endpoint = config.Get("endpoint").String()
 	if engine.endpoint == "" {
 		return nil, errors.New("endpoint not found")
 	}

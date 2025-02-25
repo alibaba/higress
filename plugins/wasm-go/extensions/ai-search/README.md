@@ -123,9 +123,8 @@ searchFrom:
   servicePort: 443
   apiKey: "aliyun accessKey"
   count: 10 # 搜索网页数，最多10条
-  optionArgs:
-    secretKey: "aliyun secretKey"
-    endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
+  secretKey: "aliyun secretKey"
+  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### 多搜索引擎配置
