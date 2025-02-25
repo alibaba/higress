@@ -82,8 +82,8 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 | Name | Data Type | Requirement | Default Value | Description |
 |------|----------|----------|--------|------|
-| apiSecret | string | Required | - | Aliyun SecretKey |
-| endpoint | string | Required | - | Endpoint for accessing quark |
+| secretKey | string | Required | - | Aliyun SecretKey |
+| endpoint | string | Optional | iqs.cn-zhangjiakou.aliyuncs.com | Endpoint for accessing quark |
 
 ## Configuration Examples
 
@@ -123,8 +123,8 @@ searchFrom:
   apiKey: "aliyun accessKey"
   count: 10
   optionArgs:
-    apiSecret: "aliyun secretKey"
-    endpoint: "quark endpoint" # such as iqs.cn-zhangjiakou.aliyuncs.com
+    secretKey: "aliyun secretKey"
+    endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### Multiple Search Engines Configuration

@@ -21,7 +21,7 @@ import (
 
 type QuarkSearch struct {
 	apiKey             string
-	apiSecret          string
+	secretKey          string
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
 	count              uint32
@@ -87,9 +87,9 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if engine.apiKey == "" {
 		return nil, errors.New("apiKey not found")
 	}
-	engine.apiSecret = config.Get("optionArgs.apiSecret").String()
-	if engine.apiSecret == "" {
-		return nil, errors.New("apiSecret not found")
+	engine.secretKey = config.Get("optionArgs.secretKey").String()
+	if engine.secretKey == "" {
+		return nil, errors.New("secretKey not found")
 	}
 	serviceName := config.Get("serviceName").String()
 	if serviceName == "" {
@@ -153,7 +153,7 @@ func (g QuarkSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
 	stringToSign := SignatureAlgorithm + "\n" + getHasedString(canonicalRequest)
 
 	authHeaderFmt := "%s Credential=%s,SignedHeaders=%s,Signature=%s"
-	authHeader := fmt.Sprintf(authHeaderFmt, SignatureAlgorithm, g.apiKey, SignedHeaders, getSignature(stringToSign, g.apiSecret))
+	authHeader := fmt.Sprintf(authHeaderFmt, SignatureAlgorithm, g.apiKey, SignedHeaders, getSignature(stringToSign, g.secretKey))
 
 	reqParams := url.Values{}
 	for k, v := range queryParams {

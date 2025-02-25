@@ -82,8 +82,8 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|----------|----------|--------|------|
-| apiSecret | string | 必填 | - | Aliyun SecretKey |
-| endpoint | string | 必填 | - | 请求搜索引擎服务时的host |
+| secretKey | string | 必填 | - | Aliyun SecretKey |
+| endpoint | string | 选填 | iqs.cn-zhangjiakou.aliyuncs.com | 请求搜索引擎服务时的接入点 |
 
 ## 配置示例
 
@@ -124,8 +124,8 @@ searchFrom:
   apiKey: "aliyun accessKey"
   count: 10 # 搜索网页数，最多10条
   optionArgs:
-    apiSecret: "aliyun secretKey"
-    endpoint: "quark endpoint" # 例如 iqs.cn-zhangjiakou.aliyuncs.com
+    secretKey: "aliyun secretKey"
+    endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### 多搜索引擎配置
