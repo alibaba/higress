@@ -20,7 +20,7 @@ import (
 const (
 	pluginName = "ai-proxy"
 
-	defaultMaxBodyBytes uint32 = 10 * 1024 * 1024
+	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
 func main() {
