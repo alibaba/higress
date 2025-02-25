@@ -38,7 +38,7 @@ func (rp *redisProvider) GetProviderType() string {
 }
 
 func (rp *redisProvider) Init(username string, password string, timeout uint32) error {
-	return rp.client.Init(rp.config.username, rp.config.password, int64(rp.config.timeout))
+	return rp.client.Init(rp.config.username, rp.config.password, int64(rp.config.timeout), wrapper.WithDataBase(rp.config.database))
 }
 
 func (rp *redisProvider) Get(key string, cb wrapper.RedisResponseCallback) error {

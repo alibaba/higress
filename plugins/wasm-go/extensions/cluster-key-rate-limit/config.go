@@ -110,7 +110,8 @@ func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig
 		FQDN: serviceName,
 		Port: int64(servicePort),
 	})
-	return config.redisClient.Init(username, password, int64(timeout))
+	database := int(redisConfig.Get("database").Int())
+	return config.redisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
 }
 
 func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
