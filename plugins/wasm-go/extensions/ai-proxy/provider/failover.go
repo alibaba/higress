@@ -557,15 +557,19 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, log wrapper.Log) types.Action {
+func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, status string, log wrapper.Log) types.Action {
 	if c.isFailoverEnabled() {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
-	if c.isRetryOnFailureEnabled() && ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
+	if c.isRetryOnFailureEnabled() && c.matchRetryStatus(status) && isNotStreamingResponse(ctx) {
 		c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
 		return types.HeaderStopAllIterationAndWatermark
 	}
 	return types.ActionContinue
+}
+
+func isNotStreamingResponse(ctx wrapper.HttpContext) bool {
+	return ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool)
 }
 
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
