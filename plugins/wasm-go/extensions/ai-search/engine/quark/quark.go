@@ -25,7 +25,7 @@ type QuarkSearch struct {
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
 	count              uint32
-	host               string
+	endpoint           string
 }
 
 const (
@@ -87,7 +87,7 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if engine.apiKey == "" {
 		return nil, errors.New("apiKey not found")
 	}
-	engine.apiSecret = config.Get("apiSecret").String()
+	engine.apiSecret = config.Get("optionArgs.apiSecret").String()
 	if engine.apiSecret == "" {
 		return nil, errors.New("apiSecret not found")
 	}
@@ -99,9 +99,9 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if servicePort == 0 {
 		return nil, errors.New("servicePort not found")
 	}
-	engine.host = config.Get("host").String()
-	if engine.host == "" {
-		return nil, errors.New("host not found")
+	engine.endpoint = config.Get("optionArgs.endpoint").String()
+	if engine.endpoint == "" {
+		return nil, errors.New("endpoint not found")
 	}
 	engine.count = uint32(config.Get("count").Int())
 	if engine.count == 0 {
@@ -141,7 +141,7 @@ func (g QuarkSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
 	timeStamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	randomID, _ := generateHexID(32)
 	params := map[string]string{
-		"host":                  g.host,
+		"host":                  g.endpoint,
 		"x-acs-action":          Action,
 		"x-acs-content-sha256":  ContentSha256,
 		"x-acs-date":            timeStamp,
@@ -159,7 +159,7 @@ func (g QuarkSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
 	for k, v := range queryParams {
 		reqParams.Add(k, v)
 	}
-	requestURL := fmt.Sprintf("https://%s%s?%s", g.host, Path, reqParams.Encode())
+	requestURL := fmt.Sprintf("https://%s%s?%s", g.endpoint, Path, reqParams.Encode())
 
 	return engine.CallArgs{
 		Method: http.MethodGet,
