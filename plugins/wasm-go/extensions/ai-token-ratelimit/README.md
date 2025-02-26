@@ -51,14 +51,14 @@ description: AI Token限流插件配置参考
 
 `redis`中每一项的配置字段说明
 
-| 配置项       | 类型   | 必填 | 默认值                                                     | 说明                        |
-| ------------ | ------ | ---- | ---------------------------------------------------------- | --------------------------- |
-| service_name | string | 必填 | -                                                          | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local     |
-| service_port | int    | 否   | 服务类型为固定地址（static service）默认值为80，其他为6379 | 输入redis服务的服务端口     |
-| username     | string | 否   | -                                                          | redis用户名                 |
-| password     | string | 否   | -                                                          | redis密码                   |
-| timeout      | int    | 否   | 1000                                                       | redis连接超时时间，单位毫秒 |
-
+| 配置项       | 类型   | 必填 | 默认值                                                     | 说明                                                                                         |
+| ------------ | ------ | ---- | ---------------------------------------------------------- | ---------------------------                                                                  |
+| service_name | string | 必填 | -                                                          | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
+| service_port | int    | 否   | 服务类型为固定地址（static service）默认值为80，其他为6379 | 输入redis服务的服务端口                                                                      |
+| username     | string | 否   | -                                                          | redis用户名                                                                                  |
+| password     | string | 否   | -                                                          | redis密码                                                                                    |
+| timeout      | int    | 否   | 1000                                                       | redis连接超时时间，单位毫秒                                                                  |
+| database     | int    | 否   | 0                                                          | 使用的数据库id，例如配置为1，对应`SELECT 1`                                       |
 
 
 ## 配置示例
@@ -258,21 +258,9 @@ spec:
           '*': "qwen-turbo"
     ingress:
     - qwen
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 100
----
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ai-statistics
-  namespace: higress-system
-spec:
-  defaultConfig:
-    enable: true
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-statistics:v1.0.0
-  phase: UNSPECIFIED_PHASE
-  priority: 200
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -294,7 +282,7 @@ spec:
       # service_name: redis.default.svc.cluster.local
       service_name: redis.dns
       service_port: 6379
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 600
 ```
@@ -370,10 +358,19 @@ spec:
         pathType: Prefix
 ```
 
+转发 higress-gateway 的流量到本地，方便进行测试。
+
+```bash
+kubectl port-forward svc/higress-gateway -n higress-system 18000:80
+```
+
 触发限流效果如下：
 
 ```bash
-curl "http://qwen-test.com:18000/v1/chat/completions?apikey=123456" -H "Content-Type: application/json"  -d '{
+curl "http://localhost:18000/v1/chat/completions?apikey=123456" \
+-H "Host: qwen-test.com" \
+-H "Content-Type: application/json"  \
+-d '{
   "model": "gpt-3",
   "messages": [
     {

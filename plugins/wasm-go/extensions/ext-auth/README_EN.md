@@ -77,6 +77,7 @@ Configuration fields for each item of `MatchRule` type. When using `array of Mat
 | Name | Data Type | Required | Default Value | Description |
 | --- | --- | --- | --- | --- |
 | `match_rule_domain` | string | No | - | The domain of the matching rule, supports wildcard patterns, e.g., `*.bar.com` |
+| `match_rule_method` | []string | No | - | Matching rule for the request method |
 | `match_rule_path` | string | No | - | The rule for matching the request path |
 | `match_rule_type` | string | No | - | The type of the rule for matching the request path, can be `exact`, `prefix`, `suffix`, `contains`, `regex` |
 
@@ -100,26 +101,40 @@ Supports blacklist and whitelist mode configuration. The default is the whitelis
 **Whitelist Mode**
 
 ```yaml
+# Configuration for the whitelist mode. Requests that match the whitelist rules do not need verification.
 match_type: 'whitelist'
 match_list:
-    - match_rule_domain: '*.bar.com'
-      match_rule_path: '/foo'
-      match_rule_type: 'prefix'
+  # Requests with the domain name api.example.com and a path prefixed with /public do not need verification.
+  - match_rule_domain: 'api.example.com'
+    match_rule_path: '/public'
+    match_rule_type: 'prefix'
+  # For the image resource server images.example.com, all GET requests do not need verification.
+  - match_rule_domain: 'images.example.com'
+    match_rule_method: ["GET"]
+  # For all domains, HEAD requests with an exact path match of /health-check do not need verification.
+  - match_rule_method: ["HEAD"]
+    match_rule_path: '/health-check'
+    match_rule_type: 'exact'
 ```
-
-Requests with a prefix match of `/foo` under the wildcard domain `*.bar.com` do not need to be verified.
 
 **Blacklist Mode**
 
 ```yaml
+# Configuration for the blacklist mode. Requests that match the blacklist rules need verification.
 match_type: 'blacklist'
 match_list:
-    - match_rule_domain: '*.bar.com'
-      match_rule_path: '/headers'
-      match_rule_type: 'prefix'
+  # Requests with the domain name admin.example.com and a path prefixed with /sensitive need verification.
+  - match_rule_domain: 'admin.example.com'
+    match_rule_path: '/sensitive'
+    match_rule_type: 'prefix'
+  # For all domains, DELETE requests with an exact path match of /user need verification.
+  - match_rule_method: ["DELETE"]
+    match_rule_path: '/user'
+    match_rule_type: 'exact'
+  # For the domain legacy.example.com, all POST requests need verification.
+  - match_rule_domain: 'legacy.example.com'
+    match_rule_method: ["POST"]
 ```
-
-Only requests with a prefix match of `/header` under the wildcard domain `*.bar.com` need to be verified.
 
 
 ## Configuration Examples
@@ -186,13 +201,13 @@ Configuration of the `ext-auth` plugin:
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: envoy
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local
@@ -286,13 +301,13 @@ Configuration of the `ext-auth` plugin:
 http_service:
   authorization_request:
     allowed_headers:
-    - exact: x-auth-version
+      - exact: x-auth-version
     headers_to_add:
       x-envoy-header: true
   authorization_response:
     allowed_upstream_headers:
-    - exact: x-user-id
-    - exact: x-auth-version
+      - exact: x-user-id
+      - exact: x-auth-version
   endpoint_mode: forward_auth
   endpoint:
     service_name: ext-auth.backend.svc.cluster.local

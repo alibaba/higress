@@ -32,6 +32,8 @@ type failover struct {
 	healthCheckModel string `required:"false" yaml:"healthCheckModel" json:"healthCheckModel"`
 	// @Title zh-CN 本次请求使用的 apiToken
 	ctxApiTokenInUse string
+	// @Title zh-CN 记录本次请求时所有可用的 apiToken
+	ctxAvailableApiTokensInRequest string
 	// @Title zh-CN 记录 apiToken 请求失败的次数，key 为 apiToken，value 为失败次数
 	ctxApiTokenRequestFailureCount string
 	// @Title zh-CN 记录 apiToken 健康检测成功的次数，key 为 apiToken，value 为成功次数
@@ -527,6 +529,22 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	}
 }
 
+func (c *ProviderConfig) GetAvailableApiToken(ctx wrapper.HttpContext) []string {
+	apiTokens, _ := ctx.GetContext(c.failover.ctxAvailableApiTokensInRequest).([]string)
+	return apiTokens
+}
+
+// SetAvailableApiTokens set available apiTokens of current request in the context, will be used in the retryOnFailure
+func (c *ProviderConfig) SetAvailableApiTokens(ctx wrapper.HttpContext, log wrapper.Log) {
+	var apiTokens []string
+	if c.isFailoverEnabled() {
+		apiTokens, _, _ = getApiTokens(c.failover.ctxApiTokens)
+	} else {
+		apiTokens = c.apiTokens
+	}
+	ctx.SetContext(c.failover.ctxAvailableApiTokensInRequest, apiTokens)
+}
+
 func (c *ProviderConfig) isFailoverEnabled() bool {
 	return c.failover.enabled
 }
@@ -539,12 +557,12 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) types.Action {
+func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, log wrapper.Log) types.Action {
 	if c.isFailoverEnabled() {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
 	if c.isRetryOnFailureEnabled() && ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
-		c.retryFailedRequest(activeProvider, ctx, log)
+		c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
 		return types.HeaderStopAllIterationAndWatermark
 	}
 	return types.ActionContinue
