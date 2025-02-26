@@ -68,7 +68,7 @@ func NewGoogleSearch(config *gjson.Result) (*GoogleSearch, error) {
 }
 
 func (g GoogleSearch) NeedExectue(ctx engine.SearchContext) bool {
-	return ctx.EngineType == "internet"
+	return ctx.EngineType == "" || ctx.EngineType == "internet"
 }
 
 func (g GoogleSearch) Client() wrapper.HttpClient {

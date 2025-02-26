@@ -48,10 +48,10 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|----------|----------|--------|------|
-| type | string | 必填 | - | 引擎类型（google/bing/arxiv/elasticsearch） |
-| apiKey | string | 必填 | - | 搜索引擎API密钥 |
+| type | string | 必填 | - | 引擎类型（google/bing/arxiv/elasticsearch/quark） |
 | serviceName | string | 必填 | - | 后端服务名称 |
 | servicePort | number | 必填 | - | 后端服务端口 |
+| apiKey | string | 必填 | - | 搜索引擎API密钥/Aliyun AccessKey |
 | count | number | 选填 | 10 | 单次搜索返回结果数量 |
 | start | number | 选填 | 0 | 搜索结果偏移量（从第start+1条结果开始返回） |
 | timeoutMillisecond | number | 选填 | 5000 | API调用超时时间（毫秒） |
@@ -78,6 +78,12 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | linkField | string | 必填 | - | 结果链接字段名称 |
 | titleField | string | 必填 | - | 结果标题字段名称 |
 
+## Quark 特定配置
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|------|----------|----------|--------|------|
+| secretKey | string | 必填 | - | Aliyun SecretKey |
+| endpoint | string | 选填 | iqs.cn-zhangjiakou.aliyuncs.com | 请求搜索引擎服务时的接入点 |
 
 ## 配置示例
 
@@ -94,6 +100,7 @@ searchFrom:
   count: 5
   optionArgs:
     fileType: "pdf"
+```
 
 ### Arxiv搜索配置
 
@@ -104,6 +111,20 @@ searchFrom:
   servicePort: 443
   arxivCategory: "cs.AI"
   count: 10
+```
+
+
+### 夸克搜索配置
+
+```yaml
+searchFrom:
+- type: quark
+  serviceName: "quark-svc.dns" 
+  servicePort: 443
+  apiKey: "aliyun accessKey"
+  count: 10 # 搜索网页数，最多10条
+  secretKey: "aliyun secretKey"
+  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### 多搜索引擎配置
