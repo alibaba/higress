@@ -292,6 +292,10 @@ func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
 }
 
+func (c *ProviderConfig) IsOpenAIProtocol() bool {
+	return c.protocol == protocolOpenAI
+}
+
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.id = json.Get("id").String()
 	c.typ = json.Get("type").String()
