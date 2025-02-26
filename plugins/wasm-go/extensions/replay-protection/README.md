@@ -42,8 +42,8 @@ description: 防重放攻击插件配置参考
 | -------------- | -------- | ---- |---------------------| --------------------------------------- |
 | `service_name` | string   | 是   | -                   | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
 | `service_port` | int      | 否   | 6379                | redis 服务端口|
-| username     | string | 否   | -                   | redis 用户名|
-| password     | string | 否   | -                   | redis 密码|
+| `username`     | string | 否   | -                   | redis 用户名|
+| `password`     | string | 否   | -                   | redis 密码|
 | `timeout`      | int      | 否   | 1000                | redis 连接超时时间，单位毫秒 |
 | database     | int    | 否   | 0                   | 使用的数据库id，例如配置为1，对应`SELECT 1`|
 | `key_prefix`   | string   | 否   | `replay-protection` | redis 键前缀，用于区分不同的 nonce 键 |
