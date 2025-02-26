@@ -15,6 +15,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -149,7 +150,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 			)
 			return types.ActionContinue
 		}
-
+		// Default setting include_usage.
+		if gjson.GetBytes(body, "stream").Bool() {
+			var err error
+			newBody, err = sjson.SetBytes(newBody, "stream_options.include_usage", true)
+			if err != nil {
+				log.Errorf("set include_usage failed, err:%s", err)
+			}
+		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
 		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body, log)
