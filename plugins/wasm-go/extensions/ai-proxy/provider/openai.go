@@ -127,21 +127,14 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return nil, err
-	}
 	if m.config.responseJsonSchema != nil {
+		request := &chatCompletionRequest{}
+		if err := decodeChatCompletionRequest(body, request); err != nil {
+			return nil, err
+		}
 		log.Debugf("[ai-proxy] set response format to %s", m.config.responseJsonSchema)
 		request.ResponseFormat = m.config.responseJsonSchema
+		body, _ = json.Marshal(request)
 	}
-	if request.Stream {
-		// For stream requests, we need to include usage in the response.
-		if request.StreamOptions == nil {
-			request.StreamOptions = &streamOptions{IncludeUsage: true}
-		} else if !request.StreamOptions.IncludeUsage {
-			request.StreamOptions.IncludeUsage = true
-		}
-	}
-	return json.Marshal(request)
+	return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
 }
