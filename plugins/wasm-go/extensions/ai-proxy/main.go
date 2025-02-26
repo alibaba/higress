@@ -108,6 +108,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	if handler, ok := activeProvider.(provider.RequestHeadersHandler); ok {
 		// Set the apiToken for the current request.
 		providerConfig.SetApiTokenInUse(ctx, log)
+		// Set available apiTokens of current request in the context, will be used in the retryOnFailure
+		providerConfig.SetAvailableApiTokens(ctx, log)
 
 		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err != nil {
@@ -179,6 +181,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 
 	providerConfig := pluginConfig.GetProviderConfig()
 	apiTokenInUse := providerConfig.GetApiTokenInUse(ctx)
+	apiTokens := providerConfig.GetAvailableApiToken(ctx)
 
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil || status != "200" {
@@ -186,7 +189,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 			log.Errorf("unable to load :status header from response: %v", err)
 		}
 		ctx.DontReadResponseBody()
-		return providerConfig.OnRequestFailed(activeProvider, ctx, apiTokenInUse, log)
+		return providerConfig.OnRequestFailed(activeProvider, ctx, apiTokenInUse, apiTokens, log)
 	}
 
 	// Reset ctxApiTokenRequestFailureCount if the request is successful,
