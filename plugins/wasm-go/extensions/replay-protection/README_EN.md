@@ -4,41 +4,49 @@ keywords: [higress, replay-protection]
 description: Configuration reference for the replay attack prevention plugin
 ---
 
-## Function Description
+## Functional Description
 
-The replay prevention plugin prevents request replay attacks by verifying the one-time random number (nonce) in the request. Each request needs to carry a unique nonce value, and the server will record and verify the uniqueness of this value to prevent the request from being maliciously replayed.
+The replay prevention plugin prevents request replay attacks by verifying the one-time random number in the request. Each request needs to carry a unique nonce value. The server will record and verify the uniqueness of this value, thus preventing requests from being maliciously replayed.
 
-It specifically includes the following functions:
+Specifically, it includes the following functions:
 
-- **Mandatory or optional nonce verification**: It can be determined according to the configuration whether to force the request to carry a nonce value.
-- **Redis-based nonce uniqueness verification**: Store and verify the nonce value through Redis to ensure its uniqueness.
-- **Configurable nonce validity period**: Supports setting the validity period of the nonce, which will automatically expire after the expiration.
-- **Nonce format and length verification**: Supports verifying the format (Base64) and length of the nonce value.
-- **Custom error response**: Supports configuring the status code and error message when the request is rejected.
-- **Customizable nonce request header**: You can customize the name of the request header that carries the nonce.
+- **Mandatory or Optional Nonce Verification**: It can be configured to determine whether requests are required to carry a nonce value.
+- **Nonce Uniqueness Verification Based on Redis**: The nonce value is stored and verified in Redis to ensure its uniqueness.
+- **Configurable Nonce Validity Period**: It supports setting the validity period of the nonce, which will automatically expire after the period.
+- **Nonce Format and Length Verification**: It supports verifying the format (Base64) and length of the nonce value.
+- **Custom Error Response**: It supports configuring the status code and error message when a request is rejected.
+- **Customizable Nonce Request Header**: The name of the request header carrying the nonce can be customized.
+
+## Runtime Attributes
+
+Plugin execution stage: `Authentication Stage`
+Plugin execution priority: `800`
 
 ## Configuration Fields
 
-| Name               | Data Type | Required | Default Value                   | Description                              |
-| ------------------ | --------- | -------- | ----------------------------- | ---------------------------------------- |
-| `force_nonce`      | bool      | No       | true                          | Whether to force the request to carry a nonce value. |
-| `nonce_header`     | string    | No       | `X-Higress-Nonce`             | Specify the name of the request header that carries the nonce value. |
-| `nonce_ttl`        | int       | No       | 900                           | The validity period of the nonce (unit: seconds). |
-| `nonce_min_length` | int       | No       | 8                             | The minimum length of the nonce value. |
-| `nonce_max_length` | int       | No       | 128                           | The maximum length of the nonce value. |
-| `reject_code`      | int       | No       | 429                           | The status code returned when the request is rejected. |
-| `reject_msg`       | string    | No       | `Replay Attack Detected`      | The error message returned when the request is rejected. |
-| `validate_base64`  | bool      | No       | false                         | Whether to verify the base64 encoding format of the nonce. |
-| `redis`            | Object    | Yes      | -                             | Redis-related configuration. |
+| Name                | Data Type | Required | Default Value          | Description                              |
+|----------------------|--------|------|-----------------|---------------------------------|
+| `force_nonce`        | bool   | No   | true      | Whether requests are required to carry a nonce value.       |
+| `nonce_header`       | string | No   | `X-Higress-Nonce`   | Specifies the name of the request header carrying the nonce value.       |
+| `nonce_ttl`          | int    | No   | 900        | The validity period of the nonce, in seconds.    |
+| `nonce_min_length`   | int    | No   | 8            | The minimum length of the nonce value.               |
+| `nonce_max_length`   | int    | No   | 128        | The maximum length of the nonce value.               |
+| `reject_code`        | int    | No   | 429        | The status code returned when a request is rejected.             |
+| `reject_msg`         | string | No   | `Replay Attack Detected` | The error message returned when a request is rejected.           |
+| `validate_base64`    | bool    | No   | false | Whether to verify the Base64 encoding format of the nonce. |
+| `redis` | Object | Yes   | -              | Redis-related configuration |
 
-Configuration field description for each item in `redis`
+Description of each configuration field in `redis`
 
-| Name           | Data Type | Required | Default Value              | Description                                    |
-| -------------- | --------- | -------- | -------------------------- | ---------------------------------------------- |
-| `service_name` | string    | Yes      | -                          | The name of the Redis service, used to store nonce values. |
-| `service_port` | int       | No       | 6379                       | The port of the Redis service. |
-| `timeout`      | int       | No       | 1000                       | The timeout for Redis operations (unit: milliseconds). |
-| `key_prefix`   | string    | No       | `replay-protection`        | The key prefix in Redis, used to distinguish different nonce keys. |
+| Name           | Data Type | Required | Default Value                 | Description|
+| -------------- | -------- | ---- |---------------------| --------------------------------------- |
+| `service_name` | string   | Yes   | -                   | The name of the Redis service, the complete FQDN name with the service type, such as my-redis.dns, redis.my-ns.svc.cluster.local. |
+| `service_port` | int      | No   | 6379                | The port of the Redis service. |
+| `username`     | string   | No   | -                   | The username of Redis. |
+| `password`     | string   | No   | -                   | The password of Redis. |
+| `timeout`      | int      | No   | 1000                | The connection timeout time of Redis, in milliseconds. |
+| `database`     | int      | No   | 0                   | The ID of the database to be used. For example, if it is configured as 1, it corresponds to `SELECT 1`. |
+| `key_prefix`   | string   | No   | `replay-protection` | The key prefix of Redis, used to distinguish different nonce keys. |
 
 ## Configuration Example
 
@@ -46,29 +54,29 @@ The following is a complete configuration example of the replay attack preventio
 
 ```yaml
 force_nonce: true
-nonce_header: "X-Higress-Nonce"    # Specify the name of the nonce request header
+nonce_header: "X-Higress-Nonce"    # Specifies the name of the nonce request header
 nonce_ttl: 900                    # The validity period of the nonce, set to 900 seconds
 nonce_min_length: 8               # The minimum length of the nonce
 nonce_max_length: 128             # The maximum length of the nonce
-validate_base64: true             # Whether to enable base64 format verification
-reject_code: 429                  # The HTTP status code returned when the request is rejected
-reject_msg: "Replay Attack Detected"  # The content of the error message returned when the request is rejected
+validate_base64: true             # Whether to enable Base64 format verification
+reject_code: 429                  # The HTTP status code returned when a request is rejected
+reject_msg: "Replay Attack Detected"  # The error message content returned when a request is rejected
 redis:
   service_name: redis.static       # The name of the Redis service
   service_port: 80                # The port used by the Redis service
-  timeout: 1000                   # The timeout for Redis operations (unit: milliseconds)
-  key_prefix: "replay-protection" # The prefix of the keys in Redis
+  timeout: 1000                   # The timeout time of Redis operations (unit: milliseconds)
+  key_prefix: "replay-protection" # The key prefix in Redis
 ```
 
 ## Usage Instructions
 
 ### Request Header Requirements
 
-| Request Header Name        | Required or Not                    | Description                                                  |
-| -------------------------- | --------------------------------- | ------------------------------------------------------------ |
-| `X-Higress-Nonce`          | Determined according to the `force_nonce` configuration | The randomly generated nonce value carried in the request, which needs to conform to the Base64 format. |
+| Request Header Name       | Required         | Description                                       |
+|-----------------|----------------|------------------------------------------|
+| `X-Higress-Nonce`  | Determined by the `force_nonce` configuration | The randomly generated nonce value carried in the request, which needs to conform to the Base64 format. |
 
-> **Note**: You can customize the name of the request header through the `nonce_header` configuration, and the default value is `X-Higress-Nonce`.
+> **Note**: The name of the request header can be customized through the `nonce_header` configuration. The default value is `X-Higress-Nonce`.
 
 ### Usage Example
 
@@ -86,16 +94,16 @@ curl -X POST 'https://api.example.com/path' \
 
 ```json
 {
-    "code": 429,
-    "message": "Replay Attack Detected"
+  "code": 429,
+  "message": "Replay Attack Detected"
 }
 ```
 
-## Error Response Example
+## Error Response Examples
 
-| Error Scenario                   | Status Code | Error Message                  |
-| ------------------------------ | ----------- | ------------------------------ |
-| Missing the nonce request header | 400         | `Missing Required Header`      |
-| The nonce length does not meet the requirements | 400         | `Invalid Nonce`                |
-| The nonce format does not conform to Base64 | 400         | `Invalid Nonce`                |
-| The nonce has been used (replay attack) | 429         | `Replay Attack Detected`       | 
+| Error Scenario                 | Status Code | Error Message               |
+|------------------------|-------|--------------------|
+| Missing nonce request header         | 400 | `Missing Required Header` |
+| Nonce length does not meet the requirements      | 400 | `Invalid Nonce` |
+| Nonce format does not conform to Base64 | 400 | `Invalid Nonce` |
+| Nonce has been used (replay attack) | 429 | `Replay Attack Detected` |

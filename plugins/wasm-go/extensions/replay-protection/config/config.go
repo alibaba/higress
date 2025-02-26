@@ -53,18 +53,19 @@ func ParseConfig(json gjson.Result, config *ReplayProtectionConfig, log wrapper.
 		timeout = 1000
 	}
 
-	keyPrefix := redisConfig.Get("key_prefix").String()
-	if keyPrefix == "" {
-		keyPrefix = "replay-protection"
-	}
-
 	// Initialize Redis client
 	config.Redis.Client = wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
 	})
-	if err := config.Redis.Client.Init(username, password, timeout); err != nil {
+	database := int(redisConfig.Get("database").Int())
+	if err := config.Redis.Client.Init(username, password, timeout, wrapper.WithDataBase(database)); err != nil {
 		return err
+	}
+
+	keyPrefix := redisConfig.Get("key_prefix").String()
+	if keyPrefix == "" {
+		keyPrefix = "replay-protection"
 	}
 	config.Redis.KeyPrefix = keyPrefix
 

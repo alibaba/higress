@@ -17,28 +17,36 @@ description: 防重放攻击插件配置参考
 - **自定义错误响应**：支持配置拒绝请求时的状态码和错误信息。
 - **可自定义 nonce 请求头**：可以自定义携带 nonce 的请求头名称。
 
+## 运行属性
+
+插件执行阶段：`认证阶段`
+插件执行优先级：`800`
+
 ## 配置字段
 
 | 名称                | 数据类型 | 必填 | 默认值          | 描述                              |
 |----------------------|--------|------|-----------------|---------------------------------|
-| `force_nonce`        | bool   | 否   | true      | 是否强制要求请求携带 nonce 值。       |
-| `nonce_header`       | string | 否   | `X-Higress-Nonce`   | 指定携带 nonce 值的请求头名称。       |
-| `nonce_ttl`          | int    | 否   | 900        | nonce 的有效期（单位：秒）。         |
-| `nonce_min_length`   | int    | 否   | 8            | nonce 值的最小长度。               |
-| `nonce_max_length`   | int    | 否   | 128        | nonce 值的最大长度。               |
-| `reject_code`        | int    | 否   | 429        | 拒绝请求时返回的状态码。             |
-| `reject_msg`         | string | 否   | `Replay Attack Detected` | 拒绝请求时返回的错误信息。           |
+| `force_nonce`        | bool   | 否   | true      | 是否强制要求请求携带 nonce 值       |
+| `nonce_header`       | string | 否   | `X-Higress-Nonce`   | 指定携带 nonce 值的请求头名称       |
+| `nonce_ttl`          | int    | 否   | 900        | nonce 的有效期，单位秒    |
+| `nonce_min_length`   | int    | 否   | 8            | nonce 值的最小长度               |
+| `nonce_max_length`   | int    | 否   | 128        | nonce 值的最大长度               |
+| `reject_code`        | int    | 否   | 429        | 拒绝请求时返回的状态码             |
+| `reject_msg`         | string | 否   | `Replay Attack Detected` | 拒绝请求时返回的错误信息           |
 | `validate_base64`    | bool    | 否   | false | 是否校验 nonce 的 base64 编码格式 |
-| `redis` | Object | 是   | -              | Redis 相关配置。 |
+| `redis` | Object | 是   | -              | redis 相关配置 |
 
 `redis` 中每一项的配置字段说明
 
-| 名称           | 数据类型 | 必填 | 默认值              | 描述                                    |
-| -------------- | -------- | ---- | ------------------- | --------------------------------------- |
-| `service_name` | string   | 是   | -                   | Redis 服务名称，用于存储 nonce 值。     |
-| `service_port` | int      | 否   | 6379                | Redis 服务端口。                        |
-| `timeout`      | int      | 否   | 1000                | Redis 操作超时时间（单位：毫秒）。      |
-| `key_prefix`   | string   | 否   | `replay-protection` | Redis 键前缀，用于区分不同的 nonce 键。 |
+| 名称           | 数据类型 | 必填 | 默认值                 | 描述|
+| -------------- | -------- | ---- |---------------------| --------------------------------------- |
+| `service_name` | string   | 是   | -                   | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
+| `service_port` | int      | 否   | 6379                | redis 服务端口|
+| username     | string | 否   | -                   | redis 用户名|
+| password     | string | 否   | -                   | redis 密码|
+| `timeout`      | int      | 否   | 1000                | redis 连接超时时间，单位毫秒 |
+| database     | int    | 否   | 0                   | 使用的数据库id，例如配置为1，对应`SELECT 1`|
+| `key_prefix`   | string   | 否   | `replay-protection` | redis 键前缀，用于区分不同的 nonce 键 |
 
 ## 配置示例
 
@@ -86,11 +94,10 @@ curl -X POST 'https://api.example.com/path' \
 
 ```json
 {
-    "code": 429,
-    "message": "Replay Attack Detected"
+  "code": 429,
+  "message": "Replay Attack Detected"
 }
 ```
-
 
 ## 错误响应示例
 
