@@ -48,8 +48,8 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 | Name | Data Type | Requirement | Default Value | Description |
 |------|-----------|-------------|---------------|-------------|
-| type | string | Required | - | Engine type (google/bing/arxiv/elasticsearch) |
-| apiKey | string | Required | - | Search engine API key |
+| type | string | Required | - | Engine type (google/bing/arxiv/elasticsearch/quark) |
+| apiKey | string | Required | - | Search engine API key/Aliyun AccessKey |
 | serviceName | string | Required | - | Backend service name |
 | servicePort | number | Required | - | Backend service port |
 | count | number | Optional | 10 | Number of results returned per search |
@@ -78,6 +78,12 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | linkField | string | Required | - | Result link field name |
 | titleField | string | Required | - | Result title field name |
 
+## Quark Specific Configuration
+
+| Name | Data Type | Requirement | Default Value | Description |
+|------|----------|----------|--------|------|
+| secretKey | string | Required | - | Aliyun SecretKey |
+| endpoint | string | Optional | iqs.cn-zhangjiakou.aliyuncs.com | Endpoint for accessing quark |
 
 ## Configuration Examples
 
@@ -105,6 +111,19 @@ searchFrom:
   servicePort: 443
   arxivCategory: "cs.AI"
   count: 10
+```
+
+### 夸克搜索配置
+
+```yaml
+searchFrom:
+- type: quark
+  serviceName: "quark-svc.dns" 
+  servicePort: 443
+  apiKey: "aliyun accessKey"
+  count: 10
+  secretKey: "aliyun secretKey"
+  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### Multiple Search Engines Configuration

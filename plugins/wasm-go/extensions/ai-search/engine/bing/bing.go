@@ -60,7 +60,7 @@ func NewBingSearch(config *gjson.Result) (*BingSearch, error) {
 }
 
 func (b BingSearch) NeedExectue(ctx engine.SearchContext) bool {
-	return ctx.EngineType == "internet"
+	return ctx.EngineType == "" || ctx.EngineType == "internet"
 }
 
 func (b BingSearch) Client() wrapper.HttpClient {
