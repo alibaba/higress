@@ -76,6 +76,9 @@ type RedisInfo struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求 redis 的超时时间，单位为毫秒。默认值是1000，即1秒
 	Timeout int `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN Database
+	// @Description zh-CN redis database
+	Database int `required:"false" yaml:"database" json:"database"`
 }
 
 type KVExtractor struct {
@@ -138,6 +141,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	if c.RedisInfo.Timeout == 0 {
 		c.RedisInfo.Timeout = 1000
 	}
+	c.RedisInfo.Database = int(json.Get("redis.database").Int())
 	c.QuestionFrom.RequestBody = "messages.@reverse.0.content"
 	c.AnswerValueFrom.ResponseBody = "choices.0.message.content"
 	c.AnswerStreamValueFrom.ResponseBody = "choices.0.delta.content"
@@ -159,7 +163,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 		FQDN: c.RedisInfo.ServiceName,
 		Port: int64(c.RedisInfo.ServicePort),
 	})
-	return c.redisClient.Init(c.RedisInfo.Username, c.RedisInfo.Password, int64(c.RedisInfo.Timeout))
+	return c.redisClient.Init(c.RedisInfo.Username, c.RedisInfo.Password, int64(c.RedisInfo.Timeout), wrapper.WithDataBase(c.RedisInfo.Database))
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {

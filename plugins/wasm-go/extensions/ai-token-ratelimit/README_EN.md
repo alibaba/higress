@@ -43,13 +43,14 @@ Field descriptions for each item in `limit_keys`
 | token_per_day          | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per day        |
 
 Field descriptions for each item in `redis`
-| Configuration Item      | Type              | Required | Default Value                                                     | Description                                     |
-| ----------------------- | ----------------- | -------- | --------------------------------------------------------------- | ----------------------------------------------- |
-| service_name            | string            | Required | -                                                               | Full FQDN name of the redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
-| service_port            | int               | No       | Default value for static addresses (static service) is 80; otherwise, it is 6379 | Input the service port of the redis service     |
-| username                | string            | No       | -                                                               | Redis username                                  |
-| password                | string            | No       | -                                                               | Redis password                                  |
-| timeout                 | int               | No       | 1000                                                            | Redis connection timeout in milliseconds       |
+| Configuration Item      | Type              | Required | Default Value                                                                    | Description                                                                                                    |
+| ----------------------- | ----------------- | -------- | ---------------------------------------------------------------                  | -----------------------------------------------                                                                |
+| service_name            | string            | Required | -                                                                                | Full FQDN name of the redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
+| service_port            | int               | No       | Default value for static addresses (static service) is 80; otherwise, it is 6379 | Input the service port of the redis service                                                                    |
+| username                | string            | No       | -                                                                                | Redis username                                                                                                 |
+| password                | string            | No       | -                                                                                | Redis password                                                                                                 |
+| timeout                 | int               | No       | 1000                                                                             | Redis connection timeout in milliseconds                                                                       |
+| database                | int               | No       | 0                                                                                | The database ID used, for example, configured as 1, corresponds to `SELECT 1`.                                 |
 
 ## Configuration Examples
 ### Identify request parameter apikey for differentiated rate limiting
