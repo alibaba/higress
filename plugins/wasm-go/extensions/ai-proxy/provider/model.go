@@ -278,14 +278,18 @@ func (m *functionCall) IsEmpty() bool {
 	return m.Name == "" && m.Arguments == ""
 }
 
-type streamEvent struct {
+type StreamEvent struct {
 	Id         string `json:"id"`
 	Event      string `json:"event"`
 	Data       string `json:"data"`
 	HttpStatus string `json:"http_status"`
 }
 
-func (e *streamEvent) setValue(key, value string) {
+func (e *StreamEvent) IsEndData() bool {
+	return e.Data == streamEndDataValue
+}
+
+func (e *StreamEvent) SetValue(key, value string) {
 	switch key {
 	case streamEventIdItemKey:
 		e.Id = value
@@ -298,6 +302,10 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+func (e *StreamEvent) ToHttpString() string {
+	return fmt.Sprintf("%s %s\n\n", streamDataItemKey, e.Data)
 }
 
 // https://platform.openai.com/docs/guides/images

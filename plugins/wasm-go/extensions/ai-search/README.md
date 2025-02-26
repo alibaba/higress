@@ -127,7 +127,7 @@ searchFrom:
   cx: "news-search-id"    # 专门搜索Google News内容的搜索引擎ID 
   serviceName: "google-svc.dns"
   servicePort: 443
-- type: being
+- type: bing
   apiKey: "bing-key"
   serviceName: "bing-svc.dns"
   servicePort: 443
@@ -190,8 +190,8 @@ searchFrom:
 ```yaml
 needReference: true
 referenceFormat: "### 数据来源\n%s"
-searchFrom: 
-- type: being
+searchFrom:
+- type: bing
   apiKey: "your-bing-key"
   serviceName: "search-service.dns"
   servicePort: 8080
