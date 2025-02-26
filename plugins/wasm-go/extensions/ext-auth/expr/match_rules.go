@@ -3,6 +3,7 @@ package expr
 import (
 	"strings"
 
+	"ext-auth/util"
 	regexp "github.com/wasilibs/go-re2"
 )
 
@@ -18,6 +19,7 @@ type MatchRules struct {
 
 type Rule struct {
 	Domain string
+	Method []string
 	Path   Matcher
 }
 
@@ -28,19 +30,19 @@ func MatchRulesDefaults() MatchRules {
 	}
 }
 
-// IsAllowedByMode checks if the given domain and path are allowed based on the configuration mode.
-func (config *MatchRules) IsAllowedByMode(domain, path string) bool {
+// IsAllowedByMode checks if the given domain, method and path are allowed based on the configuration mode.
+func (config *MatchRules) IsAllowedByMode(domain, method, path string) bool {
 	switch config.Mode {
 	case ModeWhitelist:
 		for _, rule := range config.RuleList {
-			if rule.matchDomainAndPath(domain, path) {
+			if rule.matchesAllConditions(domain, method, path) {
 				return true
 			}
 		}
 		return false
 	case ModeBlacklist:
 		for _, rule := range config.RuleList {
-			if rule.matchDomainAndPath(domain, path) {
+			if rule.matchesAllConditions(domain, method, path) {
 				return false
 			}
 		}
@@ -50,17 +52,21 @@ func (config *MatchRules) IsAllowedByMode(domain, path string) bool {
 	}
 }
 
-// matchDomainAndPath checks if the given domain and path match the rule.
-// If rule.Domain is empty, it only checks rule.Path.
-// If rule.Path is empty, it only checks rule.Domain.
-// If both are empty, it returns false.
-func (rule *Rule) matchDomainAndPath(domain, path string) bool {
-	if rule.Domain == "" && rule.Path == nil {
+// matchesAllConditions checks if the given domain, method and path match all conditions of the rule.
+func (rule *Rule) matchesAllConditions(domain, method, path string) bool {
+	// If all conditions are empty, return false
+	if rule.Domain == "" && rule.Path == nil && len(rule.Method) == 0 {
 		return false
 	}
+
+	// Check domain and path matching
 	domainMatch := rule.Domain == "" || matchDomain(domain, rule.Domain)
 	pathMatch := rule.Path == nil || rule.Path.Match(path)
-	return domainMatch && pathMatch
+
+	// Check HTTP method matching: if no methods are specified, any method is allowed
+	methodMatch := len(rule.Method) == 0 || util.ContainsString(rule.Method, method)
+
+	return domainMatch && pathMatch && methodMatch
 }
 
 // matchDomain checks if the given domain matches the pattern.
