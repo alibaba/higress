@@ -141,22 +141,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
-
-		newBody, settingErr := pluginConfig.GetProviderConfig().ReplaceByCustomSettings(body)
+		providerConfig := pluginConfig.GetProviderConfig()
+		newBody, settingErr := providerConfig.ReplaceByCustomSettings(body)
 		if settingErr != nil {
-			_ = util.ErrorHandler(
-				"ai-proxy.proc_req_body_failed",
-				fmt.Errorf("failed to replace request body by custom settings: %v", settingErr),
-			)
-			return types.ActionContinue
+			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		// Default setting include_usage.
-		if gjson.GetBytes(body, "stream").Bool() {
-			var err error
-			newBody, err = sjson.SetBytes(newBody, "stream_options.include_usage", true)
-			if err != nil {
-				log.Errorf("set include_usage failed, err:%s", err)
-			}
+		if providerConfig.IsOpenAIProtocol() {
+			newBody = normalizeOpenAiRequestBody(newBody, log)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
 		body = newBody
@@ -303,6 +294,18 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		}
 	}
 	return types.ActionContinue
+}
+
+func normalizeOpenAiRequestBody(body []byte, log wrapper.Log) []byte {
+	var err error
+	// Default setting include_usage.
+	if gjson.GetBytes(body, "stream").Bool() {
+		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
+		if err != nil {
+			log.Errorf("set include_usage failed, err:%s", err)
+		}
+	}
+	return body
 }
 
 func checkStream(ctx wrapper.HttpContext, log wrapper.Log) {
