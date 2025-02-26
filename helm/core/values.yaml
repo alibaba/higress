@@ -488,6 +488,7 @@ gateway:
     externalTrafficPolicy: ""
 
   rollingMaxSurge: 100%
+  # -- If global.local is true, the default value is 100%, otherwise it is 25%
   rollingMaxUnavailable: 25%
 
   resources:
