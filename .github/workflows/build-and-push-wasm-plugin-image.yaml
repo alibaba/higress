@@ -137,6 +137,7 @@ jobs:
             echo 'Found .prebuild file, sourcing it...'
             . ./.prebuild
           fi
+          rustup target add wasm32-wasip1
           cargo build --target wasm32-wasip1 --release
           cp target/wasm32-wasip1/release/*.wasm plugin.wasm
           tar czvf plugin.tar.gz plugin.wasm
