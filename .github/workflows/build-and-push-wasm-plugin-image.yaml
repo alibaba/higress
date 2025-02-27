@@ -133,6 +133,10 @@ jobs:
           command="
           set -e
           cd /workspace/plugins/wasm-rust/extensions/${PLUGIN_NAME}
+          if [ -f ./.prebuild ]; then
+            echo 'Found .prebuild file, sourcing it...'
+            . ./.prebuild
+          fi
           cargo build --target wasm32-wasip1 --release
           cp target/wasm32-wasip1/release/*.wasm plugin.wasm
           tar czvf plugin.tar.gz plugin.wasm
