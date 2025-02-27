@@ -10,12 +10,13 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'helm/**'    
+      - 'helm/**'
 
 jobs:
   helm:
     name: Helm Docs
     runs-on: ubuntu-latest
+    if: ${{ ! always() }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
