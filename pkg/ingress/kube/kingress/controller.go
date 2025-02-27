@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
@@ -43,7 +44,9 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
-	networkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
+	"knative.dev/networking/pkg/client/clientset/versioned"
+	informernetworkingv1alpha1 "knative.dev/networking/pkg/client/informers/externalversions/networking/v1alpha1"
+	listernetworkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/pkg/ingress/kube/common"
@@ -76,7 +79,7 @@ type controller struct {
 	ingresses map[string]*ingress.Ingress
 
 	ingressInformer  cache.SharedInformer
-	ingressLister    networkingv1alpha1.IngressLister
+	ingressLister    listernetworkingv1alpha1.IngressLister
 	serviceInformer  informerfactory.StartableInformer
 	serviceLister    listerv1.ServiceLister
 	secretController secret.SecretController
@@ -86,9 +89,16 @@ type controller struct {
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kube.Client, options common.Options,
 	secretController secret.SecretController) common.KIngressController {
-	ingressInformer := client.KIngressInformer().Networking().V1alpha1().Ingresses().Informer()
-	ingressLister := client.KIngressInformer().Networking().V1alpha1().Ingresses().Lister()
-	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{}, gvr.Service)
+	var ingressInformer cache.SharedIndexInformer
+	if options.WatchNamespace == "" {
+		ingressInformer = client.KIngressInformer().Networking().V1alpha1().Ingresses().Informer()
+	} else {
+		ingressInformer = client.KIngressInformer().InformerFor(&ingress.Ingress{}, func(c versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+			return informernetworkingv1alpha1.NewIngressInformer(c, options.WatchNamespace, resyncPeriod, nil)
+		})
+	}
+	ingressLister := listernetworkingv1alpha1.NewIngressLister(ingressInformer.GetIndexer())
+	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{Namespace: options.WatchNamespace}, gvr.Service)
 	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
 	c := &controller{
