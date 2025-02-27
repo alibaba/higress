@@ -331,7 +331,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	if err != nil {
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
 		if pluginID != "" {
-			ctx.vm.log.Warnf("plugin %s start failed", pluginID)
+			ctx.vm.log.Warnf("plugin %s-%s start failed", ctx.vm.pluginName, pluginID)
 		}
 		return types.OnPluginStartStatusFailed
 	}
@@ -340,13 +340,13 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
 			ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
 			if pluginID != "" {
-				ctx.vm.log.Warnf("plugin %s start failed", pluginID)
+				ctx.vm.log.Warnf("plugin %s-%s start failed", ctx.vm.pluginName, pluginID)
 			}
 			return types.OnPluginStartStatusFailed
 		}
 	}
 	if pluginID != "" {
-		ctx.vm.log.Warnf("plugin %s start successfully", pluginID)
+		ctx.vm.log.Warnf("plugin %s-%s start successfully", ctx.vm.pluginName, pluginID)
 	}
 	return types.OnPluginStartStatusOK
 }
