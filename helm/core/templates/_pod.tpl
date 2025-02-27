@@ -42,15 +42,9 @@ template:
           - router
           - --domain
           - $(POD_NAMESPACE).svc.cluster.local
-{{- if .Values.global.proxy.logLevel }}
-          - --proxyLogLevel={{ .Values.global.proxy.logLevel }}
-{{- end}}
-{{- if .Values.global.proxy.componentLogLevel }}
-          - --proxyComponentLogLevel={{ .Values.global.proxy.componentLogLevel }}
-{{- end}}
-{{- if .Values.global.logging.level }}
-          - --log_output_level={{ .Values.global.logging.level }}
-{{- end}}
+          - --proxyLogLevel={{- default "warning" .Values.global.proxy.logLevel }}
+          - --proxyComponentLogLevel={{- default "misc:error" .Values.global.proxy.componentLogLevel }}
+          - --log_output_level={{- default "default:info" .Values.global.logging.level }}
           - --serviceCluster=higress-gateway
         securityContext:
         {{- if .Values.gateway.containerSecurityContext }}
