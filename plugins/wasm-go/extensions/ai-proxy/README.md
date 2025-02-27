@@ -81,14 +81,15 @@ custom-setting会遵循如下表格，根据`name`和协议来替换对应的字
 
 `failover` 的配置字段说明如下：
 
-| 名称               | 数据类型   | 填写要求            | 默认值   | 描述                          |
-|------------------|--------|-----------------|-------|-----------------------------|
-| enabled | bool   | 非必填             | false | 是否启用 apiToken 的 failover 机制 |
-| failureThreshold | int    | 非必填             | 3     | 触发 failover 连续请求失败的阈值（次数）   |
-| successThreshold | int    | 非必填             | 1     | 健康检测的成功阈值（次数）               |
-| healthCheckInterval | int    | 非必填             | 5000  | 健康检测的间隔时间，单位毫秒              |
-| healthCheckTimeout | int    | 非必填             | 5000  | 健康检测的超时时间，单位毫秒              |
-| healthCheckModel | string | 启用 failover 时必填 |      | 健康检测使用的模型                   |
+| 名称               | 数据类型   | 填写要求            | 默认值   | 描述                                |
+|------------------|--------|-----------------|-------|-----------------------------------|
+| enabled | bool   | 非必填             | false | 是否启用 apiToken 的 failover 机制       |
+| failureThreshold | int    | 非必填             | 3     | 触发 failover 连续请求失败的阈值（次数）         |
+| successThreshold | int    | 非必填             | 1     | 健康检测的成功阈值（次数）                     |
+| healthCheckInterval | int    | 非必填             | 5000  | 健康检测的间隔时间，单位毫秒                    |
+| healthCheckTimeout | int    | 非必填             | 5000  | 健康检测的超时时间，单位毫秒                    |
+| healthCheckModel | string | 启用 failover 时必填 |      | 健康检测使用的模型                         |
+| failoverOnStatus | array of string | 非必填    | ["4.*", "5.*"]     | 需要进行 failover 的原始请求的状态码，支持正则表达式匹配 |
 
 `retryOnFailure` 的配置字段说明如下：
 

@@ -1,14 +1,12 @@
 package provider
 
 import (
-	"math/rand"
-	"net/http"
-	"regexp"
-
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/gjson"
+	"math/rand"
+	"net/http"
 )
 
 const (
@@ -48,16 +46,6 @@ func (r *retryOnFailure) FromJson(json gjson.Result) {
 
 func (c *ProviderConfig) isRetryOnFailureEnabled() bool {
 	return c.retryOnFailure.enabled
-}
-
-func (c *ProviderConfig) matchRetryStatus(status string) bool {
-	for _, pattern := range c.retryOnFailure.retryOnStatus {
-		matched, _ := regexp.MatchString(pattern, status)
-		if matched {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *ProviderConfig) retryFailedRequest(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, log wrapper.Log) {
