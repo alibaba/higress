@@ -32,6 +32,7 @@ const (
 	CustomLogKey       = "custom_log"
 	AILogKey           = "ai_log"
 	TraceSpanTagPrefix = "trace_span_tag."
+	PluginIDKey        = "_plugin_id_"
 )
 
 type HttpContext interface {
@@ -314,7 +315,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		}
 		jsonData = gjson.ParseBytes(data)
 	}
-
+	pluginID := jsonData.Get(PluginIDKey).String()
 	var parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error
 	if ctx.vm.parseRuleConfig != nil {
 		parseOverrideConfig = func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
@@ -329,14 +330,23 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	)
 	if err != nil {
 		ctx.vm.log.Warnf("parse rule config failed: %v", err)
+		if pluginID != "" {
+			ctx.vm.log.Warnf("plugin %s start failed", pluginID)
+		}
 		return types.OnPluginStartStatusFailed
 	}
 	if globalOnTickFuncs != nil {
 		ctx.onTickFuncs = globalOnTickFuncs
 		if err := proxywasm.SetTickPeriodMilliSeconds(100); err != nil {
 			ctx.vm.log.Error("SetTickPeriodMilliSeconds failed, onTick functions will not take effect.")
+			if pluginID != "" {
+				ctx.vm.log.Warnf("plugin %s start failed", pluginID)
+			}
 			return types.OnPluginStartStatusFailed
 		}
+	}
+	if pluginID != "" {
+		ctx.vm.log.Warnf("plugin %s start successfully", pluginID)
 	}
 	return types.OnPluginStartStatusOK
 }
