@@ -16,7 +16,6 @@ jobs:
   helm:
     name: Helm Docs
     runs-on: ubuntu-latest
-    if: ${{ ! always() }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +39,7 @@ jobs:
           rm -f ./helm-docs
 
   translate-readme:
+    if: ${{ ! always() }}
     needs: helm
     runs-on: ubuntu-latest
 
