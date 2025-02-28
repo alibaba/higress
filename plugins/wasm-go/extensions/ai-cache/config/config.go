@@ -28,9 +28,9 @@ type PluginConfig struct {
 	embeddingProvider embedding.Provider
 	vectorProvider    vector.Provider
 
-	embeddingProviderConfig embedding.ProviderConfig
-	vectorProviderConfig    vector.ProviderConfig
-	cacheProviderConfig     cache.ProviderConfig
+	embeddingProviderConfig *embedding.ProviderConfig
+	vectorProviderConfig    *vector.ProviderConfig
+	cacheProviderConfig     *cache.ProviderConfig
 
 	CacheKeyFrom         string
 	CacheValueFrom       string
@@ -47,7 +47,9 @@ type PluginConfig struct {
 }
 
 func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
-
+	c.embeddingProviderConfig = &embedding.ProviderConfig{}
+	c.vectorProviderConfig = &vector.ProviderConfig{}
+	c.cacheProviderConfig = &cache.ProviderConfig{}
 	c.vectorProviderConfig.FromJson(json.Get("vector"))
 	c.embeddingProviderConfig.FromJson(json.Get("embedding"))
 	c.cacheProviderConfig.FromJson(json.Get("cache"))
@@ -142,7 +144,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	var err error
 	if c.embeddingProviderConfig.GetProviderType() != "" {
 		log.Debugf("embedding provider is set to %s", c.embeddingProviderConfig.GetProviderType())
-		c.embeddingProvider, err = embedding.CreateProvider(c.embeddingProviderConfig)
+		c.embeddingProvider, err = embedding.CreateProvider(*c.embeddingProviderConfig)
 		if err != nil {
 			return err
 		}
@@ -152,7 +154,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	}
 	if c.cacheProviderConfig.GetProviderType() != "" {
 		log.Debugf("cache provider is set to %s", c.cacheProviderConfig.GetProviderType())
-		c.cacheProvider, err = cache.CreateProvider(c.cacheProviderConfig)
+		c.cacheProvider, err = cache.CreateProvider(*c.cacheProviderConfig)
 		if err != nil {
 			return err
 		}
@@ -162,7 +164,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	}
 	if c.vectorProviderConfig.GetProviderType() != "" {
 		log.Debugf("vector provider is set to %s", c.vectorProviderConfig.GetProviderType())
-		c.vectorProvider, err = vector.CreateProvider(c.vectorProviderConfig)
+		c.vectorProvider, err = vector.CreateProvider(*c.vectorProviderConfig)
 		if err != nil {
 			return err
 		}
@@ -182,7 +184,7 @@ func (c *PluginConfig) GetVectorProvider() vector.Provider {
 }
 
 func (c *PluginConfig) GetVectorProviderConfig() vector.ProviderConfig {
-	return c.vectorProviderConfig
+	return *c.vectorProviderConfig
 }
 
 func (c *PluginConfig) GetCacheProvider() cache.Provider {

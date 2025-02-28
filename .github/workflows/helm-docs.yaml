@@ -10,7 +10,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'helm/**'    
+      - 'helm/**'
 
 jobs:
   helm:
@@ -39,6 +39,7 @@ jobs:
           rm -f ./helm-docs
 
   translate-readme:
+    if: ${{ ! always() }}
     needs: helm
     runs-on: ubuntu-latest
 

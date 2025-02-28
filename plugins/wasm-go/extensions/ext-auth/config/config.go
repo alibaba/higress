@@ -260,19 +260,28 @@ func parseMatchRules(json gjson.Result, config *ExtAuthConfig) error {
 	var err error
 
 	matchListConfig.ForEach(func(key, value gjson.Result) bool {
-		pathMatcher, buildErr := expr.BuildStringMatcher(
-			value.Get("match_rule_type").Str,
-			value.Get("match_rule_path").Str, false)
-		if buildErr != nil {
-			err = fmt.Errorf("failed to build string matcher for rule with domain %q, path %q, type %q: %w",
-				value.Get("match_rule_domain").Str,
-				value.Get("match_rule_path").Str,
-				value.Get("match_rule_type").Str,
-				buildErr)
-			return false // stop iterating
+		domain := value.Get("match_rule_domain").Str
+		methodArray := value.Get("match_rule_method").Array()
+		matchRuleType := value.Get("match_rule_type").Str
+		matchRulePath := value.Get("match_rule_path").Str
+
+		var pathMatcher expr.Matcher
+		var buildErr error
+
+		if matchRuleType == "" && matchRulePath == "" {
+			pathMatcher = nil
+		} else {
+			pathMatcher, buildErr = expr.BuildStringMatcher(matchRuleType, matchRulePath, false)
+			if buildErr != nil {
+				err = fmt.Errorf("failed to build string matcher for rule with domain %q, method %v, path %q, type %q: %w",
+					domain, methodArray, matchRulePath, matchRuleType, buildErr)
+				return false // stop iterating
+			}
 		}
+
 		ruleList = append(ruleList, expr.Rule{
-			Domain: value.Get("match_rule_domain").Str,
+			Domain: domain,
+			Method: convertToStringList(methodArray),
 			Path:   pathMatcher,
 		})
 		return true // keep iterating
@@ -296,4 +305,12 @@ func convertToStringMap(result gjson.Result) map[string]string {
 		return true // keep iterating
 	})
 	return m
+}
+
+func convertToStringList(results []gjson.Result) []string {
+	interfaces := make([]string, len(results))
+	for i, result := range results {
+		interfaces[i] = result.String()
+	}
+	return interfaces
 }

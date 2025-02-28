@@ -130,7 +130,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.resources.requests.memory | string | `"2048Mi"` |  |
 | gateway.revision | string | `""` | revision declares which revision this gateway is a part of |
 | gateway.rollingMaxSurge | string | `"100%"` |  |
-| gateway.rollingMaxUnavailable | string | `"25%"` |  |
+| gateway.rollingMaxUnavailable | string | `"25%"` | If global.local is true, the default value is 100%, otherwise it is 25% |
 | gateway.securityContext | string | `nil` | Define the security context for the pod. If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443. On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl. |
 | gateway.service.annotations | object | `{}` |  |
 | gateway.service.externalTrafficPolicy | string | `""` |  |

@@ -1,6 +1,9 @@
 package provider
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	streamEventIdItemKey        = "id:"
@@ -110,9 +113,16 @@ type chatCompletionChoice struct {
 }
 
 type usage struct {
-	PromptTokens     int `json:"prompt_tokens,omitempty"`
-	CompletionTokens int `json:"completion_tokens,omitempty"`
-	TotalTokens      int `json:"total_tokens,omitempty"`
+	PromptTokens            int                      `json:"prompt_tokens,omitempty"`
+	CompletionTokens        int                      `json:"completion_tokens,omitempty"`
+	TotalTokens             int                      `json:"total_tokens,omitempty"`
+	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+}
+
+type completionTokensDetails struct {
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
 
 type chatMessage struct {
@@ -124,6 +134,24 @@ type chatMessage struct {
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
 	Refusal          string                 `json:"refusal,omitempty"`
+}
+
+func (m *chatMessage) handleReasoningContent(reasoningContentMode string) {
+	if m.ReasoningContent == "" {
+		return
+	}
+	switch reasoningContentMode {
+	case reasoningBehaviorIgnore:
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorConcat:
+		m.Content = fmt.Sprintf("%v\n%v", m.ReasoningContent, m.Content)
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorPassThrough:
+	default:
+		break
+	}
 }
 
 type messageContent struct {
@@ -138,6 +166,9 @@ type imageUrl struct {
 }
 
 func (m *chatMessage) IsEmpty() bool {
+	if m.ReasoningContent != "" {
+		return false
+	}
 	if m.IsStringContent() && m.Content != "" {
 		return false
 	}
@@ -247,14 +278,18 @@ func (m *functionCall) IsEmpty() bool {
 	return m.Name == "" && m.Arguments == ""
 }
 
-type streamEvent struct {
+type StreamEvent struct {
 	Id         string `json:"id"`
 	Event      string `json:"event"`
 	Data       string `json:"data"`
 	HttpStatus string `json:"http_status"`
 }
 
-func (e *streamEvent) setValue(key, value string) {
+func (e *StreamEvent) IsEndData() bool {
+	return e.Data == streamEndDataValue
+}
+
+func (e *StreamEvent) SetValue(key, value string) {
 	switch key {
 	case streamEventIdItemKey:
 		e.Id = value
@@ -267,6 +302,10 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+func (e *StreamEvent) ToHttpString() string {
+	return fmt.Sprintf("%s %s\n\n", streamDataItemKey, e.Data)
 }
 
 // https://platform.openai.com/docs/guides/images

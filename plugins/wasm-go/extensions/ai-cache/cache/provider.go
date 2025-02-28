@@ -52,6 +52,9 @@ type ProviderConfig struct {
 	// @Title 缓存 Key 前缀
 	// @Description 缓存 Key 的前缀，默认值为 "higressAiCache:"
 	cacheKeyPrefix string
+	// @Title redis database
+	// @Description 指定 redis 的 database，默认使用0
+	database int
 }
 
 func (c *ProviderConfig) GetProviderType() string {
@@ -79,6 +82,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if !json.Get("password").Exists() {
 		c.password = ""
 	}
+	c.database = int(json.Get("database").Int())
 	c.timeout = uint32(json.Get("timeout").Int())
 	if !json.Get("timeout").Exists() {
 		c.timeout = 10000

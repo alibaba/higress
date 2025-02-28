@@ -2,7 +2,6 @@ package provider
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"path"
 	"strings"
@@ -58,10 +57,10 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	}
 	customUrl := strings.TrimPrefix(strings.TrimPrefix(config.openaiCustomUrl, "http://"), "https://")
 	pairs := strings.SplitN(customUrl, "/", 2)
-	if len(pairs) != 2 {
-		return nil, fmt.Errorf("invalid openaiCustomUrl:%s", config.openaiCustomUrl)
+	customPath := "/"
+	if len(pairs) == 2 {
+		customPath += pairs[1]
 	}
-	customPath := "/" + pairs[1]
 	isDirectCustomPath := isDirectPath(customPath)
 	capabilities := m.DefaultCapabilities()
 	if !isDirectCustomPath {
@@ -128,21 +127,14 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return nil, err
-	}
 	if m.config.responseJsonSchema != nil {
+		request := &chatCompletionRequest{}
+		if err := decodeChatCompletionRequest(body, request); err != nil {
+			return nil, err
+		}
 		log.Debugf("[ai-proxy] set response format to %s", m.config.responseJsonSchema)
 		request.ResponseFormat = m.config.responseJsonSchema
+		body, _ = json.Marshal(request)
 	}
-	if request.Stream {
-		// For stream requests, we need to include usage in the response.
-		if request.StreamOptions == nil {
-			request.StreamOptions = &streamOptions{IncludeUsage: true}
-		} else if !request.StreamOptions.IncludeUsage {
-			request.StreamOptions.IncludeUsage = true
-		}
-	}
-	return json.Marshal(request)
+	return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
 }
