@@ -78,13 +78,6 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | linkField | string | Required | - | Result link field name |
 | titleField | string | Required | - | Result title field name |
 
-## Quark Specific Configuration
-
-| Name | Data Type | Requirement | Default Value | Description |
-|------|----------|----------|--------|------|
-| secretKey | string | Required | - | Aliyun SecretKey |
-| endpoint | string | Optional | iqs.cn-zhangjiakou.aliyuncs.com | Endpoint for accessing quark |
-
 ## Configuration Examples
 
 ### Basic Configuration (Single Search Engine)
@@ -113,7 +106,7 @@ searchFrom:
   count: 10
 ```
 
-### 夸克搜索配置
+### Quark Search Configuration
 
 ```yaml
 searchFrom:
@@ -121,9 +114,6 @@ searchFrom:
   serviceName: "quark-svc.dns" 
   servicePort: 443
   apiKey: "aliyun accessKey"
-  count: 10
-  secretKey: "aliyun secretKey"
-  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
 ```
 
 ### Multiple Search Engines Configuration
