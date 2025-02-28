@@ -78,13 +78,6 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | linkField | string | 必填 | - | 结果链接字段名称 |
 | titleField | string | 必填 | - | 结果标题字段名称 |
 
-## Quark 特定配置
-
-| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
-|------|----------|----------|--------|------|
-| secretKey | string | 必填 | - | Aliyun SecretKey |
-| endpoint | string | 选填 | iqs.cn-zhangjiakou.aliyuncs.com | 请求搜索引擎服务时的接入点 |
-
 ## 配置示例
 
 ### 基础配置（单搜索引擎）
@@ -121,10 +114,7 @@ searchFrom:
 - type: quark
   serviceName: "quark-svc.dns" 
   servicePort: 443
-  apiKey: "aliyun accessKey"
-  count: 10 # 搜索网页数，最多10条
-  secretKey: "aliyun secretKey"
-  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
+  apiKey: "quark api key"
 ```
 
 ### 多搜索引擎配置
