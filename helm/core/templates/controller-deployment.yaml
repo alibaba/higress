@@ -136,6 +136,10 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          {{- if .Values.global.watchNamespace }}
+          - name: ISTIO_WATCH_NAMESPACE
+            value: "{{ .Values.global.watchNamespace }}"
+          {{- end }}
           - name: ENABLE_PUSH_ALL_MCP_CLUSTERS
             value: "{{ .Values.global.enablePushAllMCPClusters }}"
           - name: PILOT_ENABLE_LDS_CACHE

@@ -16,6 +16,7 @@ package secret
 
 import (
 	"context"
+	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"reflect"
 	"sync"
 	"testing"
@@ -43,7 +44,7 @@ var period = time.Second
 
 func TestController(t *testing.T) {
 	client := kubeclient.NewFakeClient()
-	ctrl := NewController(client, "fake-cluster")
+	ctrl := NewController(client, common.Options{ClusterId: "fake-cluster"})
 
 	stop := make(chan struct{})
 	t.Cleanup(func() {

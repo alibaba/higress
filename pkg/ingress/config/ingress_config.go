@@ -153,7 +153,8 @@ type IngressConfig struct {
 	httpsConfigMgr *cert.ConfigMgr
 }
 
-func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressConfig {
+func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressConfig {
+	clusterId := options.ClusterId
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
@@ -170,17 +171,17 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
-	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
+	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
 	config.mcpbridgeController = mcpbridgeController
 	config.mcpbridgeLister = mcpbridgeController.Lister()
 
-	wasmPluginController := wasmplugin.NewController(localKubeClient, clusterId)
+	wasmPluginController := wasmplugin.NewController(localKubeClient, options)
 	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
 	config.wasmPluginController = wasmPluginController
 	config.wasmPluginLister = wasmPluginController.Lister()
 
-	http2rpcController := http2rpc.NewController(localKubeClient, clusterId)
+	http2rpcController := http2rpc.NewController(localKubeClient, options)
 	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
 	config.http2rpcController = http2rpcController
 	config.http2rpcLister = http2rpcController.Lister()
@@ -225,7 +226,7 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f ist
 }
 
 func (m *IngressConfig) AddLocalCluster(options common.Options) {
-	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
+	secretController := secret.NewController(m.localKubeClient, options)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
 	var ingressController common.IngressController
