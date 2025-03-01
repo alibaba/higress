@@ -599,11 +599,11 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 				log.Errorf("update messsage failed:%s", err)
 			}
 			ctx.SetContext("ReferenceAppended", true)
-			modifiedMessage = fmt.Sprintf("data: %s", modifiedMessage)
-			return modifiedMessage
+			return fmt.Sprintf("data: %s", modifiedMessage)
 		}
 	}
 	// Content has <think> prefix
+	// Check for complete </think> tag
 	thinkEnd := strings.Index(bufferContent, "</think>")
 	if thinkEnd != -1 {
 		modifiedContent := bufferContent[:thinkEnd+8] +
@@ -613,9 +613,24 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 			log.Errorf("update messsage failed:%s", err)
 		}
 		ctx.SetContext("ReferenceAppended", true)
-		modifiedMessage = fmt.Sprintf("data: %s", modifiedMessage)
-		return modifiedMessage
+		return fmt.Sprintf("data: %s", modifiedMessage)
 	}
+
+	// Check for partial </think> tag at end of buffer
+	// Look for any partial match that could be completed in next message
+	for i := 1; i < len("</think>"); i++ {
+		if strings.HasSuffix(bufferContent, "</think>"[:i]) {
+			// Store only the partial match for the next message
+			ctx.SetContext(BUFFER_CONTENT_CONTEXT_KEY, bufferContent[len(bufferContent)-i:])
+			// Return the content before the partial match
+			modifiedMessage, err := sjson.Set(bodyJson, "choices.0.delta.content", bufferContent[:len(bufferContent)-i])
+			if err != nil {
+				log.Errorf("update messsage failed:%s", err)
+			}
+			return fmt.Sprintf("data: %s", modifiedMessage)
+		}
+	}
+
 	ctx.SetContext(BUFFER_CONTENT_CONTEXT_KEY, "")
 	return sseMessage
 }
