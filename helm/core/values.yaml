@@ -462,6 +462,9 @@ gateway:
     prometheus.io/path: "/stats/prometheus"
     sidecar.istio.io/inject: "false"
 
+  # -- Labels to apply to the pod
+  podLabels: {}
+
   # -- Define the security context for the pod.
   # If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443.
   # On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl.
@@ -544,12 +547,12 @@ controller:
   labels: {}
 
   probe:
-    {
-      httpGet: { path: /ready, port: 8888 },
-      initialDelaySeconds: 1,
-      periodSeconds: 3,
-      timeoutSeconds: 5,
-    }
+    httpGet:
+      path: /ready
+      port: 8888
+    initialDelaySeconds: 1
+    periodSeconds: 3
+    timeoutSeconds: 5
 
   imagePullSecrets: []
 
@@ -567,21 +570,26 @@ controller:
 
   podAnnotations: {}
 
+  # -- Labels to apply to the pod
+  podLabels: {}
+
   podSecurityContext:
     {}
     # fsGroup: 2000
 
   ports:
-    [
-      { "name": "http", "protocol": "TCP", "port": 8888, "targetPort": 8888 },
-      {
-        "name": "http-solver",
-        "protocol": "TCP",
-        "port": 8889,
-        "targetPort": 8889,
-      },
-      { "name": "grpc", "protocol": "TCP", "port": 15051, "targetPort": 15051 },
-    ]
+    - name: http
+      protocol: TCP
+      port: 8888
+      targetPort: 8888
+    - name: http-solver
+      protocol: TCP
+      port: 8889
+      targetPort: 8889
+    - name: grpc
+      protocol: TCP
+      port: 15051
+      targetPort: 15051
 
   service:
     type: ClusterIP
