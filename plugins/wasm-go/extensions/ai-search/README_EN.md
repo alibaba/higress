@@ -78,6 +78,12 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | linkField | string | Required | - | Result link field name |
 | titleField | string | Required | - | Result title field name |
 
+## Quark Specific Configuration
+
+| Name | Data Type | Requirement | Default Value | Description |
+|------|-----------|-------------|---------------|-------------|
+| contentMode | string | Optional | "summary" | Content mode: "summary" uses snippet, "full" uses full text (markdownText first, then mainText if empty) |
+
 ## Configuration Examples
 
 ### Basic Configuration (Single Search Engine)
@@ -113,7 +119,8 @@ searchFrom:
 - type: quark
   serviceName: "quark-svc.dns" 
   servicePort: 443
-  apiKey: "aliyun accessKey"
+  apiKey: "quark api key"
+  contentMode: "full"  # Optional values: "summary"(default) or "full"
 ```
 
 ### Multiple Search Engines Configuration
