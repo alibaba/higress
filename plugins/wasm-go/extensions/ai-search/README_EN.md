@@ -71,12 +71,15 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 ## Elasticsearch Specific Configuration
 
-| Name | Data Type | Requirement | Default Value | Description |
-|------|-----------|-------------|---------------|-------------|
-| index | string | Required | - | Elasticsearch index name to search |
-| contentField | string | Required | - | Content field name to query |
-| linkField | string | Required | - | Result link field name |
-| titleField | string | Required | - | Result title field name |
+| Name | Data Type | Requirement | Default Value | Description                        |
+|------|-----------|-------------|---------------|------------------------------------|
+| index | string | Required    | - | Elasticsearch index name to search |
+| contentField | string | Required    | - | Content field name to query        |
+| semanticTextField | string | Required    | - | Embedding field name to query      |
+| linkField | string | Required    | - | Result link field name             |
+| titleField | string | Required    | - | Result title field name            |
+| username | string | Optional          | - | Elasticsearch username             |
+| password | string | Optional    | - | Elasticsearch password             |
 
 ## Configuration Examples
 
