@@ -44,6 +44,8 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | llmModelName | string | 必填 | - | LLM模型名称 |
 | timeoutMillisecond | number | 选填 | 30000 | API调用超时时间（毫秒） |
 
+注意：Elasticsearch 必须配置重写配置，以便 LLM 能够判断是否需要查询私有知识库。
+
 ## 搜索引擎通用配置
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
@@ -71,12 +73,16 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 
 ## Elasticsearch 特定配置
 
-| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
-|------|----------|----------|--------|------|
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                    |
+|------|----------|----------|--------|-----------------------|
 | index | string | 必填 | - | 要搜索的Elasticsearch索引名称 |
-| contentField | string | 必填 | - | 要查询的内容字段名称 |
-| linkField | string | 必填 | - | 结果链接字段名称 |
-| titleField | string | 必填 | - | 结果标题字段名称 |
+| contentField | string | 必填 | - | 要查询的内容字段名称            |
+| semanticTextField | string | 必填 | - | 要查询的 embedding 字段名称   | 
+| linkField | string | 必填 | - | 结果链接字段名称              |
+| titleField | string | 必填 | - | 结果标题字段名称              |
+| username | string | 选填 | - | Elasticsearch 用户名          |
+| password | string | 选填 | - | Elasticsearch 密码          |
+
 
 ## 配置示例
 
@@ -192,8 +198,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### 自定义引用格式

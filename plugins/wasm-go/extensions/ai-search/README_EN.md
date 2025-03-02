@@ -44,6 +44,8 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | llmModelName | string | Required | - | LLM model name |
 | timeoutMillisecond | number | Optional | 30000 | API call timeout (milliseconds) |
 
+Note: Elasticsearch must be configured with rewrite configuration to allow the LLM to determine whether to query the private knowledge base.
+
 ## Search Engine Common Configuration
 
 | Name | Data Type | Requirement | Default Value | Description |
@@ -71,12 +73,15 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 ## Elasticsearch Specific Configuration
 
-| Name | Data Type | Requirement | Default Value | Description |
-|------|-----------|-------------|---------------|-------------|
-| index | string | Required | - | Elasticsearch index name to search |
-| contentField | string | Required | - | Content field name to query |
-| linkField | string | Required | - | Result link field name |
-| titleField | string | Required | - | Result title field name |
+| Name | Data Type | Requirement | Default Value | Description                        |
+|------|-----------|-------------|---------------|------------------------------------|
+| index | string | Required    | - | Elasticsearch index name to search |
+| contentField | string | Required    | - | Content field name to query        |
+| semanticTextField | string | Required    | - | Embedding field name to query      |
+| linkField | string | Required    | - | Result link field name             |
+| titleField | string | Required    | - | Result title field name            |
+| username | string | Optional          | - | Elasticsearch username             |
+| password | string | Optional    | - | Elasticsearch password             |
 
 ## Configuration Examples
 
@@ -191,8 +196,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### Custom Reference Format

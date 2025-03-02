@@ -170,7 +170,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		case "quark":
 			searchEngine, err := quark.NewQuarkSearch(&e)
 			if err != nil {
-				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
+				return fmt.Errorf("quark search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
