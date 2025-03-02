@@ -338,10 +338,14 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 	finished := qwenChoice.FinishReason != "" && qwenChoice.FinishReason != "null"
 	message := qwenChoice.Message
 
+	reasoningContentMode := m.config.reasoningContentMode
+
+	log.Warnf("incrementalStreaming: %v", incrementalStreaming)
 	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content, ReasoningContent: message.ReasoningContent}
-	deltaContentMessage.handleReasoningContent(m.config.reasoningContentMode)
 	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
-	if !incrementalStreaming {
+	if incrementalStreaming {
+		deltaContentMessage.handleStreamingReasoningContent(ctx, reasoningContentMode)
+	} else {
 		for _, tc := range message.ToolCalls {
 			if tc.Function.Arguments == "" && !finished {
 				// We don't push any tool call until its arguments are available.
@@ -379,6 +383,8 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 			} else {
 				deltaContentMessage.ReasoningContent = util.StripPrefix(deltaContentMessage.ReasoningContent, pushedMessage.ReasoningContent)
 			}
+			deltaContentMessage.handleStreamingReasoningContent(ctx, reasoningContentMode)
+
 			if len(deltaToolCallsMessage.ToolCalls) > 0 && pushedMessage.ToolCalls != nil {
 				for i, tc := range deltaToolCallsMessage.ToolCalls {
 					if i >= len(pushedMessage.ToolCalls) {
@@ -614,7 +620,7 @@ func qwenMessageToChatMessage(qwenMessage qwenMessage, reasoningContentMode stri
 		ReasoningContent: qwenMessage.ReasoningContent,
 		ToolCalls:        qwenMessage.ToolCalls,
 	}
-	msg.handleReasoningContent(reasoningContentMode)
+	msg.handleNonStreamingReasoningContent(reasoningContentMode)
 	return msg
 }
 

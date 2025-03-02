@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"errors"
 	"math/rand"
 	"net/http"
@@ -73,14 +74,16 @@ const (
 	finishReasonStop   = "stop"
 	finishReasonLength = "length"
 
-	ctxKeyIncrementalStreaming = "incrementalStreaming"
-	ctxKeyApiKey               = "apiKey"
-	CtxKeyApiName              = "apiName"
-	ctxKeyIsStreaming          = "isStreaming"
-	ctxKeyStreamingBody        = "streamingBody"
-	ctxKeyOriginalRequestModel = "originalRequestModel"
-	ctxKeyFinalRequestModel    = "finalRequestModel"
-	ctxKeyPushedMessage        = "pushedMessage"
+	ctxKeyIncrementalStreaming   = "incrementalStreaming"
+	ctxKeyApiKey                 = "apiKey"
+	CtxKeyApiName                = "apiName"
+	ctxKeyIsStreaming            = "isStreaming"
+	ctxKeyStreamingBody          = "streamingBody"
+	ctxKeyOriginalRequestModel   = "originalRequestModel"
+	ctxKeyFinalRequestModel      = "finalRequestModel"
+	ctxKeyPushedMessage          = "pushedMessage"
+	ctxKeyContentPushed          = "contentPushed"
+	ctxKeyReasoningContentPushed = "reasoningContentPushed"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -588,6 +591,8 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte, log wrapper.L
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		body = append(bufferedStreamingBody, chunk...)
 	}
+	body = bytes.ReplaceAll(body, []byte("\r\n"), []byte("\n"))
+	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\n"))
 
 	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
 
