@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -514,6 +515,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log
 	return types.ActionContinue
 }
 
+func unifySSEChunk(data []byte) []byte {
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
+	return data
+}
+
 const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	BUFFER_CONTENT_CONTEXT_KEY  = "bufferContent"
@@ -528,6 +535,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	if references == "" {
 		return chunk
 	}
+	chunk = unifySSEChunk(chunk)
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
 	log.Debugf("[handleStreamChunk] buffer content: %v", ctx.GetContext(BUFFER_CONTENT_CONTEXT_KEY))
