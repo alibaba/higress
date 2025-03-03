@@ -19,7 +19,6 @@ import (
 
 	"istio.io/istio/pilot/pkg/model"
 	istiomodel "istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -45,13 +44,13 @@ type IngressTranslation struct {
 	higressDomainCache model.IngressDomainCollection
 }
 
-func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressTranslation {
-	if clusterId == "Kubernetes" {
-		clusterId = ""
+func NewIngressTranslation(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressTranslation {
+	if options.ClusterId == "Kubernetes" {
+		options.ClusterId = ""
 	}
 	Config := &IngressTranslation{
-		ingressConfig:  ingressconfig.NewIngressConfig(localKubeClient, xdsUpdater, namespace, clusterId),
-		kingressConfig: ingressconfig.NewKIngressConfig(localKubeClient, xdsUpdater, namespace, clusterId),
+		ingressConfig:  ingressconfig.NewIngressConfig(localKubeClient, xdsUpdater, namespace, options),
+		kingressConfig: ingressconfig.NewKIngressConfig(localKubeClient, xdsUpdater, namespace, options),
 	}
 	return Config
 }
