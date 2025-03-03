@@ -24,6 +24,7 @@ type QuarkSearch struct {
 	client             wrapper.HttpClient
 	count              uint32
 	optionArgs         map[string]string
+	contentMode        string // "summary" or "full"
 }
 
 const (
@@ -112,6 +113,13 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 			engine.optionArgs[key] = value.String()
 		}
 	}
+	engine.contentMode = config.Get("contentMode").String()
+	if engine.contentMode == "" {
+		engine.contentMode = "summary"
+	}
+	if engine.contentMode != "full" && engine.contentMode != "summary" {
+		return nil, fmt.Errorf("contentMode is not valid:%s", engine.contentMode)
+	}
 	return engine, nil
 }
 
@@ -148,10 +156,19 @@ func (g QuarkSearch) ParseResult(ctx engine.SearchContext, response []byte) []en
 	jsonObj := gjson.ParseBytes(response)
 	var results []engine.SearchResult
 	for index, item := range jsonObj.Get("pageItems").Array() {
+		var content string
+		if g.contentMode == "full" {
+			content = item.Get("markdownText").String()
+			if content == "" {
+				content = item.Get("mainText").String()
+			}
+		} else if g.contentMode == "summary" {
+			content = item.Get("snippet").String()
+		}
 		result := engine.SearchResult{
 			Title:   item.Get("title").String(),
 			Link:    item.Get("link").String(),
-			Content: item.Get("mainText").String(),
+			Content: content,
 		}
 		if result.Valid() && index < int(g.count) {
 			results = append(results, result)
