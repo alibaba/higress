@@ -81,6 +81,8 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | username | string | Optional          | - | Elasticsearch username             |
 | password | string | Optional    | - | Elasticsearch password             |
 
+The [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) query used in hybrid search requires Elasticsearch version 8.8 or higher.
+
 ## Configuration Examples
 
 ### Basic Configuration (Single Search Engine)

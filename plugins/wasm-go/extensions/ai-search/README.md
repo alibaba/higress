@@ -81,6 +81,7 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | username | string | 选填 | - | Elasticsearch 用户名          |
 | password | string | 选填 | - | Elasticsearch 密码          |
 
+混合搜索中使用的 [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) 查询要求 Elasticsearch 的版本在 8.8 及以上。
 
 ## 配置示例
 
