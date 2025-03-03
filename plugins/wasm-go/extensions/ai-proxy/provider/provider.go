@@ -85,6 +85,10 @@ const (
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
 
+	reasoningBehaviorPassThrough = "passthrough"
+	reasoningBehaviorIgnore      = "ignore"
+	reasoningBehaviorConcat      = "concat"
+
 	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
@@ -145,6 +149,10 @@ type StreamingResponseBodyHandler interface {
 	OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error)
 }
 
+type StreamingEventHandler interface {
+	OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, event StreamEvent, log wrapper.Log) ([]StreamEvent, error)
+}
+
 type ApiNameHandler interface {
 	GetApiName(path string) ApiName
 }
@@ -182,7 +190,7 @@ type ProviderConfig struct {
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
 	apiTokens []string `required:"false" yaml:"apiToken" json:"apiTokens"`
 	// @Title zh-CN 请求超时
-	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
+	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟。此项配置目前仅用于获取上下文信息，并不影响实际转发大模型请求。
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
 	// @Title zh-CN apiToken 故障切换
 	// @Description zh-CN 当 apiToken 不可用时移出 apiTokens 列表，对移除的 apiToken 进行健康检查，当重新可用后加回 apiTokens 列表
@@ -190,6 +198,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 失败请求重试
 	// @Description zh-CN 对失败的请求立即进行重试
 	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
+	// @Title zh-CN 推理内容处理方式
+	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 normal。仅支持通义千问服务。
+	reasoningContentMode string `required:"false" yaml:"reasoningContentMode" json:"reasoningContentMode"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
 	openaiCustomUrl string `required:"false" yaml:"openaiCustomUrl" json:"openaiCustomUrl"`
@@ -281,6 +292,10 @@ func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
 }
 
+func (c *ProviderConfig) IsOpenAIProtocol() bool {
+	return c.protocol == protocolOpenAI
+}
+
 func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.id = json.Get("id").String()
 	c.typ = json.Get("type").String()
@@ -356,6 +371,20 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			if setting.Validate() {
 				c.customSettings = append(c.customSettings, setting)
 			}
+		}
+	}
+
+	c.reasoningContentMode = json.Get("reasoningContentMode").String()
+	if c.reasoningContentMode == "" {
+		c.reasoningContentMode = reasoningBehaviorPassThrough
+	} else {
+		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
+		switch c.reasoningContentMode {
+		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat:
+			break
+		default:
+			c.reasoningContentMode = reasoningBehaviorPassThrough
+			break
 		}
 	}
 
@@ -552,6 +581,81 @@ func doGetMappedModel(model string, modelMapping map[string]string, log wrapper.
 	}
 
 	return ""
+}
+
+func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte, log wrapper.Log) []StreamEvent {
+	body := chunk
+	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
+		body = append(bufferedStreamingBody, chunk...)
+	}
+
+	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
+
+	defer func() {
+		if eventStartIndex >= 0 && eventStartIndex < len(body) {
+			// Just in case the received chunk is not a complete event.
+			ctx.SetContext(ctxKeyStreamingBody, body[eventStartIndex:])
+		} else {
+			ctx.SetContext(ctxKeyStreamingBody, nil)
+		}
+	}()
+
+	// Sample Qwen event response:
+	//
+	// event:result
+	// :HTTP_STATUS/200
+	// data:{"output":{"choices":[{"message":{"content":"你好！","role":"assistant"},"finish_reason":"null"}]},"usage":{"total_tokens":116,"input_tokens":114,"output_tokens":2},"request_id":"71689cfc-1f42-9949-86e8-9563b7f832b1"}
+	//
+	// event:error
+	// :HTTP_STATUS/400
+	// data:{"code":"InvalidParameter","message":"Preprocessor error","request_id":"0cbe6006-faec-9854-bf8b-c906d75c3bd8"}
+	//
+
+	var events []StreamEvent
+
+	currentKey := ""
+	currentEvent := &StreamEvent{}
+	i, length := 0, len(body)
+	for i = 0; i < length; i++ {
+		ch := body[i]
+		if ch != '\n' {
+			if lineStartIndex == -1 {
+				if eventStartIndex == -1 {
+					eventStartIndex = i
+				}
+				lineStartIndex = i
+				valueStartIndex = -1
+			}
+			if valueStartIndex == -1 {
+				if ch == ':' {
+					valueStartIndex = i + 1
+					currentKey = string(body[lineStartIndex:valueStartIndex])
+				}
+			} else if valueStartIndex == i && ch == ' ' {
+				// Skip leading spaces in data.
+				valueStartIndex = i + 1
+			}
+			continue
+		}
+
+		if lineStartIndex != -1 {
+			value := string(body[valueStartIndex:i])
+			currentEvent.SetValue(currentKey, value)
+		} else {
+			// Extra new line. The current event is complete.
+			events = append(events, *currentEvent)
+			// Reset event parsing state.
+			eventStartIndex = -1
+			currentEvent = &StreamEvent{}
+		}
+
+		// Reset line parsing state.
+		lineStartIndex = -1
+		valueStartIndex = -1
+		currentKey = ""
+	}
+
+	return events
 }
 
 func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {

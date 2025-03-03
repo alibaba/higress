@@ -15,17 +15,19 @@ Plugin Execution Phase: `Default Phase`
 Plugin Execution Priority: `650`
 
 ## Configuration Fields
-| Name                | Data Type  | Required   | Default Value                   | Description                                                               |
-|-------------------|---------|----------|-----------------------|---------------------------------------------------------------------------|
-| identityHeader    | string  | optional | "Authorization"       | The request header for identity resolution, can be Authorization, X-Mse-Consumer, etc.                               |
-| fillHistoryCnt    | integer | optional | 3                     | Default number of historical dialogues to be filled.                                                                |
-| cacheKeyPrefix    | string  | optional | "higress-ai-history:" | Prefix for Redis cache key.                                                             |
-| cacheTTL          | integer | optional | 0                     | Cache expiration time in seconds, default value is 0, meaning it never expires.                                                  |
-| redis.serviceName | string  | required | -                     | Redis service name, full FQDN name with service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
-| redis.servicePort | integer | optional | 6379                  | Redis service port.                                                                |
-| redis.timeout     | integer | optional | 1000                  | Timeout for requests to Redis, in milliseconds.                                                      |
-| redis.username    | string  | optional | -                     | Username for logging into Redis.                                                             |
-| redis.password    | string  | optional | -                     | Password for logging into Redis.                                                              |
+| Name              | Data Type | Required | Default Value         | Description                                                                                             |
+|-------------------|-----------|----------|-----------------------|---------------------------------------------------------------------------------------------------------|
+| identityHeader    | string    | optional | "Authorization"       | The request header for identity resolution, can be Authorization, X-Mse-Consumer, etc.                  |
+| fillHistoryCnt    | integer   | optional | 3                     | Default number of historical dialogues to be filled.                                                    |
+| cacheKeyPrefix    | string    | optional | "higress-ai-history:" | Prefix for Redis cache key.                                                                             |
+| cacheTTL          | integer   | optional | 0                     | Cache expiration time in seconds, default value is 0, meaning it never expires.                         |
+| redis.serviceName | string    | required | -                     | Redis service name, full FQDN name with service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
+| redis.servicePort | integer   | optional | 6379                  | Redis service port.                                                                                     |
+| redis.timeout     | integer   | optional | 1000                  | Timeout for requests to Redis, in milliseconds.                                                         |
+| redis.username    | string    | optional | -                     | Username for logging into Redis.                                                                        |
+| redis.password    | string    | optional | -                     | Password for logging into Redis.                                                                        |
+| redis.database    | int       | optional | 0                     | The database ID used, for example, configured as 1, corresponds to `SELECT 1`.                          |
+
 
 ## Usage Example
 ### Configuration Information

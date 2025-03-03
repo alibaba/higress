@@ -69,6 +69,7 @@ type RedisInfo struct {
 	Username    string `required:"false" yaml:"username" json:"username"`
 	Password    string `required:"false" yaml:"password" json:"password"`
 	Timeout     int    `required:"false" yaml:"timeout" json:"timeout"`
+	Database    int    `required:"false" yaml:"database" json:"database"`
 }
 
 func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error {
@@ -110,17 +111,19 @@ func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error 
 	if timeout == 0 {
 		timeout = 1000
 	}
+	database := int(redisConfig.Get("database").Int())
 	config.redisInfo.ServiceName = serviceName
 	config.redisInfo.ServicePort = servicePort
 	config.redisInfo.Username = username
 	config.redisInfo.Password = password
 	config.redisInfo.Timeout = timeout
+	config.redisInfo.Database = database
 	config.redisClient = wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: int64(servicePort),
 	})
 
-	return config.redisClient.Init(username, password, int64(timeout))
+	return config.redisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
 }
 
 func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log wrapper.Log) types.Action {
