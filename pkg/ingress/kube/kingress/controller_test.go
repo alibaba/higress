@@ -154,7 +154,7 @@ func TestKIngressControllerConventions(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.KIngressController){
