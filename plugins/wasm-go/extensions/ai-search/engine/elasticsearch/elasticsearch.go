@@ -79,7 +79,7 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 }
 
 func (e ElasticsearchSearch) NeedExectue(ctx engine.SearchContext) bool {
-	return ctx.EngineType == "private"
+	return ctx.EngineType == "private" || ctx.EngineType == ""
 }
 
 func (e ElasticsearchSearch) Client() wrapper.HttpClient {

@@ -44,8 +44,6 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | llmModelName | string | Required | - | LLM model name |
 | timeoutMillisecond | number | Optional | 30000 | API call timeout (milliseconds) |
 
-Note: Elasticsearch must be configured with rewrite configuration to allow the LLM to determine whether to query the private knowledge base.
-
 ## Search Engine Common Configuration
 
 | Name | Data Type | Requirement | Default Value | Description |
