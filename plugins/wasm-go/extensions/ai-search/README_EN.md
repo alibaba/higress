@@ -39,7 +39,7 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 |------|-----------|-------------|---------------|-------------|
 | llmServiceName | string | Required | - | LLM service name |
 | llmServicePort | number | Required | - | LLM service port |
-| llmApiKey | string | Required | - | LLM service API key |
+| llmApiKey | string | Optional | - | LLM service API key |
 | llmUrl | string | Required | - | LLM service API URL |
 | llmModelName | string | Required | - | LLM model name |
 | timeoutMillisecond | number | Optional | 30000 | API call timeout (milliseconds) |
