@@ -78,6 +78,12 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | linkField | string | 必填 | - | 结果链接字段名称 |
 | titleField | string | 必填 | - | 结果标题字段名称 |
 
+## Quark 特定配置
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+|------|----------|----------|--------|------|
+| contentMode | string | 选填 | "summary" | 内容模式："summary"使用摘要(snippet)，"full"使用正文(优先markdownText，为空则用mainText) |
+
 ## 配置示例
 
 ### 基础配置（单搜索引擎）
@@ -115,6 +121,7 @@ searchFrom:
   serviceName: "quark-svc.dns" 
   servicePort: 443
   apiKey: "quark api key"
+  contentMode: "full"  # 可选值："summary"(默认)或"full"
 ```
 
 ### 多搜索引擎配置
