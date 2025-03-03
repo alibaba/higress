@@ -196,9 +196,6 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			Port: llmServicePort,
 		})
 		llmApiKey := searchRewriteJson.Get("llmApiKey").String()
-		if llmApiKey == "" {
-			return errors.New("llmApiKey not found")
-		}
 		searchRewrite.apiKey = llmApiKey
 		llmUrl := searchRewriteJson.Get("llmUrl").String()
 		if llmUrl == "" {
