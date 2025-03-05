@@ -9,6 +9,8 @@
 使用以下命令可以快速构建 wasm-go 插件:
 
 ```bash
+# NOTE: 如果你想在构建插件的时候设置额外的构建参数 EXTRA_TAGS
+# 请更新 extensions/${PLUGIN_NAME} 插件目录对应的 .buildrc 文件
 $ PLUGIN_NAME=request-block make build
 ```
 
