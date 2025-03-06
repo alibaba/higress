@@ -344,7 +344,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 			return types.OnPluginStartStatusFailed
 		}
 	}
-	ctx.vm.log.Error("plugin start successfully")
+	ctx.vm.log.Info("plugin start successfully")
 	return types.OnPluginStartStatusOK
 }
 
