@@ -82,7 +82,7 @@ type LimitConfigItem struct {
 	timeWindow int64               // 时间窗口大小
 }
 
-func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
 	redisConfig := json.Get("redis")
 	if !redisConfig.Exists() {
 		return errors.New("missing redis in config")
@@ -111,7 +111,13 @@ func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig
 		Port: int64(servicePort),
 	})
 	database := int(redisConfig.Get("database").Int())
-	return config.redisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
+	err := config.redisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
+	if config.redisClient.Ready() {
+		log.Info("redis init successfully")
+	} else {
+		log.Info("redis init failed, will try later")
+	}
+	return err
 }
 
 func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLimitConfig) error {

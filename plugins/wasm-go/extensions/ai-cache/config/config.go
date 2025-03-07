@@ -154,7 +154,7 @@ func (c *PluginConfig) Complete(log wrapper.Log) error {
 	}
 	if c.cacheProviderConfig.GetProviderType() != "" {
 		log.Debugf("cache provider is set to %s", c.cacheProviderConfig.GetProviderType())
-		c.cacheProvider, err = cache.CreateProvider(*c.cacheProviderConfig)
+		c.cacheProvider, err = cache.CreateProvider(*c.cacheProviderConfig, log)
 		if err != nil {
 			return err
 		}
