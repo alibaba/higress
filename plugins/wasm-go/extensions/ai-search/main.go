@@ -273,7 +273,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 		startTime := time.Now()
 		rewritePrompt := strings.Replace(searchRewrite.prompt, "{question}", query, 1)
 		rewriteBody, _ := sjson.SetBytes([]byte(fmt.Sprintf(
-			`{"stream":false,"max_tokens":100,"model":"%s","messages":[{"role":"user","content":""}]}`,
+			`{"stream":false,"max_tokens":4096,"model":"%s","messages":[{"role":"user","content":""}]}`,
 			searchRewrite.modelName)), "messages.0.content", rewritePrompt)
 		err := searchRewrite.client.Post(searchRewrite.url,
 			[][2]string{
@@ -443,7 +443,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 								log.Debugf("modifeid body:%s", modifiedBody)
 								proxywasm.ReplaceHttpRequestBody(modifiedBody)
 								if config.needReference {
-									ctx.SetContext("References", strings.Join(formattedReferences, "\n"))
+									ctx.SetContext("References", strings.Join(formattedReferences, "\n\n"))
 								}
 							}
 							proxywasm.ResumeHttpRequest()
