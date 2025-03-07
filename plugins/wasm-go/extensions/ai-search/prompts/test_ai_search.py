@@ -24,7 +24,7 @@ def main():
     }
     data = {
         "model": "deepseek-v3",
-        "max_tokens": 100,
+        "max_tokens": 4096,
         "messages": [
             {
                 "role": "user",
