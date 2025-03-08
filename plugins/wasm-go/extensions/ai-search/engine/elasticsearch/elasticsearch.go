@@ -1,6 +1,7 @@
 package elasticsearch
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,11 +17,14 @@ type ElasticsearchSearch struct {
 	client             wrapper.HttpClient
 	index              string
 	contentField       string
+	semanticTextField  string
 	linkField          string
 	titleField         string
 	start              int
 	count              int
 	timeoutMillisecond uint32
+	username           string
+	password           string
 }
 
 func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) {
@@ -41,9 +45,14 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 	if engine.index == "" {
 		return nil, errors.New("index not found")
 	}
+
 	engine.contentField = config.Get("contentField").String()
 	if engine.contentField == "" {
 		return nil, errors.New("contentField not found")
+	}
+	engine.semanticTextField = config.Get("semanticTextField").String()
+	if engine.semanticTextField == "" {
+		return nil, errors.New("semanticTextField not found")
 	}
 	engine.linkField = config.Get("linkField").String()
 	if engine.linkField == "" {
@@ -62,36 +71,66 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 	if engine.count == 0 {
 		engine.count = 10
 	}
+
+	engine.username = config.Get("username").String()
+	engine.password = config.Get("password").String()
+
 	return engine, nil
 }
 
 func (e ElasticsearchSearch) NeedExectue(ctx engine.SearchContext) bool {
-	return ctx.EngineType == "private"
+	return ctx.EngineType == "private" || ctx.EngineType == ""
 }
 
 func (e ElasticsearchSearch) Client() wrapper.HttpClient {
 	return e.client
 }
 
-func (e ElasticsearchSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
-	searchBody := fmt.Sprintf(`{
-		"query": {
-			"match": {
-				"%s": {
-					"query": "%s",
-					"operator": "AND"
-				}
+func (e ElasticsearchSearch) generateAuthorizationHeader() string {
+	return fmt.Sprintf(`Basic %s`, base64.StdEncoding.EncodeToString([]byte(e.username+":"+e.password)))
+}
+
+func (e ElasticsearchSearch) generateQueryBody(ctx engine.SearchContext) string {
+	queryText := strings.Join(ctx.Querys, " ")
+	return fmt.Sprintf(`{
+		"retriever": {
+			"rrf": {
+				"retrievers": [
+					{
+						"standard": { 
+							"query": {
+								"match": {
+									"%s": "%s" 
+								}
+							}
+						}
+					},
+					{
+						"standard": { 
+							"query": {
+								"semantic": {
+									"field": "%s", 
+									"query": "%s"
+								}
+							}
+						}
+					}
+				]
 			}
 		}
-	}`, e.contentField, strings.Join(ctx.Querys, " "))
+	}`, e.contentField, queryText, e.semanticTextField, queryText)
+}
 
+func (e ElasticsearchSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
+	queryBody := e.generateQueryBody(ctx)
 	return engine.CallArgs{
 		Method: http.MethodPost,
 		Url:    fmt.Sprintf("/%s/_search?from=%d&size=%d", e.index, e.start, e.count),
 		Headers: [][2]string{
 			{"Content-Type", "application/json"},
+			{"Authorization", e.generateAuthorizationHeader()},
 		},
-		Body:               []byte(searchBody),
+		Body:               []byte(queryBody),
 		TimeoutMillisecond: e.timeoutMillisecond,
 	}
 }
