@@ -44,8 +44,8 @@ static RegisterContextFactory register_ModelRouter(
 namespace {
 
 constexpr std::string_view SetDecoderBufferLimitKey =
-    "SetRequestBodyBufferLimit";
-constexpr std::string_view DefaultMaxBodyBytes = "10485760";
+    "set_decoder_buffer_limit";
+constexpr std::string_view DefaultMaxBodyBytes = "104857600";
 
 }  // namespace
 
@@ -137,6 +137,11 @@ FilterHeadersStatus PluginRootContext::onHeader(
   }
   bool enable = false;
   for (const auto& enable_suffix : rule.enable_on_path_suffix_) {
+    // Support wildcard "*" to enable for all paths
+    if (enable_suffix == "*") {
+      enable = true;
+      break;
+    }
     if (absl::EndsWith({path.c_str(), uri_end}, enable_suffix)) {
       enable = true;
       break;
@@ -153,6 +158,7 @@ FilterHeadersStatus PluginRootContext::onHeader(
   }
   removeRequestHeader(Wasm::Common::Http::Header::ContentLength);
   setFilterState(SetDecoderBufferLimitKey, DefaultMaxBodyBytes);
+  LOG_INFO(absl::StrCat("SetRequestBodyBufferLimit: ", DefaultMaxBodyBytes));
   return FilterHeadersStatus::StopIteration;
 }
 
