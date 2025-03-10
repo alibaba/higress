@@ -80,7 +80,7 @@ type LimitRedisContext struct {
 }
 
 func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
-	err := initRedisClusterClient(json, config)
+	err := initRedisClusterClient(json, config, log)
 	if err != nil {
 		return err
 	}
