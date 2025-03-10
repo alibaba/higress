@@ -115,7 +115,7 @@ func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig
 	if config.redisClient.Ready() {
 		log.Info("redis init successfully")
 	} else {
-		log.Info("redis init failed, will try later")
+		log.Error("redis init failed, will try later")
 	}
 	return err
 }

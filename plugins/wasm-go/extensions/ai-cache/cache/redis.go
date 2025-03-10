@@ -44,7 +44,7 @@ func (rp *redisProvider) Init(username string, password string, timeout uint32) 
 	if rp.client.Ready() {
 		rp.log.Info("redis init successfully")
 	} else {
-		rp.log.Info("redis init failed, will try later")
+		rp.log.Error("redis init failed, will try later")
 	}
 	return err
 }
