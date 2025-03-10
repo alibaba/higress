@@ -64,12 +64,13 @@ const (
 
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
-	Key         string `json:"key"`
-	ValueSource string `json:"value_source"`
-	Value       string `json:"value"`
-	Rule        string `json:"rule,omitempty"`
-	ApplyToLog  bool   `json:"apply_to_log,omitempty"`
-	ApplyToSpan bool   `json:"apply_to_span,omitempty"`
+	Key          string `json:"key"`
+	ValueSource  string `json:"value_source"`
+	Value        string `json:"value"`
+	DefaultValue string `json:"default_value,omitempty"`
+	Rule         string `json:"rule,omitempty"`
+	ApplyToLog   bool   `json:"apply_to_log,omitempty"`
+	ApplyToSpan  bool   `json:"apply_to_span,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -294,10 +295,14 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 			continue
 		}
 		modelObj := gjson.GetBytes(chunk, "model")
+		if modelObj.Exists() {
+			model = modelObj.String()
+		} else {
+			model = "unknown"
+		}
 		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
 		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
-		if modelObj.Exists() && inputTokenObj.Exists() && outputTokenObj.Exists() {
-			model = modelObj.String()
+		if inputTokenObj.Exists() && outputTokenObj.Exists() {
 			inputTokenUsage = inputTokenObj.Int()
 			outputTokenUsage = outputTokenObj.Int()
 			ok = true
@@ -328,6 +333,9 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			case ResponseBody:
 				value = gjson.GetBytes(body, attribute.Value).Value()
 			default:
+			}
+			if value == nil || value == "" {
+				value = attribute.DefaultValue
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
