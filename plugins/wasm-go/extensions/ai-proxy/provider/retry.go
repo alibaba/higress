@@ -22,6 +22,8 @@ type retryOnFailure struct {
 	maxRetries int64 `required:"false" yaml:"maxRetries" json:"maxRetries"`
 	// @Title zh-CN 重试超时时间
 	retryTimeout int64 `required:"false" yaml:"retryTimeout" json:"retryTimeout"`
+	// @Title zh-CN 需要进行重试的原始请求的状态码，支持正则表达式匹配
+	retryOnStatus []string `required:"false" yaml:"retryOnStatus" json:"retryOnStatus"`
 }
 
 func (r *retryOnFailure) FromJson(json gjson.Result) {
@@ -33,6 +35,13 @@ func (r *retryOnFailure) FromJson(json gjson.Result) {
 	r.retryTimeout = json.Get("retryTimeout").Int()
 	if r.retryTimeout == 0 {
 		r.retryTimeout = 30 * 1000
+	}
+	for _, status := range json.Get("retryOnStatus").Array() {
+		r.retryOnStatus = append(r.retryOnStatus, status.String())
+	}
+	// If retryOnStatus is empty, default to retry on 4xx and 5xx
+	if len(r.retryOnStatus) == 0 {
+		r.retryOnStatus = []string{"4.*", "5.*"}
 	}
 }
 
