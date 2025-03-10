@@ -72,12 +72,17 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 
 ## Elasticsearch 特定配置
 
-| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
-|------|----------|----------|--------|------|
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                    |
+|------|----------|----------|--------|-----------------------|
 | index | string | 必填 | - | 要搜索的Elasticsearch索引名称 |
-| contentField | string | 必填 | - | 要查询的内容字段名称 |
-| linkField | string | 必填 | - | 结果链接字段名称 |
-| titleField | string | 必填 | - | 结果标题字段名称 |
+| contentField | string | 必填 | - | 要查询的内容字段名称            |
+| semanticTextField | string | 必填 | - | 要查询的 embedding 字段名称   | 
+| linkField | string | 必填 | - | 结果链接字段名称              |
+| titleField | string | 必填 | - | 结果标题字段名称              |
+| username | string | 选填 | - | Elasticsearch 用户名          |
+| password | string | 选填 | - | Elasticsearch 密码          |
+
+混合搜索中使用的 [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) 查询要求 Elasticsearch 的版本在 8.8 及以上。
 
 ## Quark 特定配置
 
@@ -200,8 +205,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### 自定义引用格式
