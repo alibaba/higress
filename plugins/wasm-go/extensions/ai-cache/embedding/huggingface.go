@@ -24,9 +24,6 @@ type HuggingFaceProviderInitializer struct {
 var HuggingFaceConfig HuggingFaceProviderConfig
 
 type HuggingFaceProviderConfig struct {
-	//// @Title zh-CN 文本特征提取服务 model_id
-	//// @Description zh-CN 仅适用于 HuggingFace。参考 https://huggingface.co/blog/getting-started-with-embeddings
-	//modelId string
 	// @Title zh-CN 文本特征提取服务 API Key
 	// @Description zh-CN 文本特征提取服务 API Key。在HuggingFace定义为 hf_token
 	apiKey string
