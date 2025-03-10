@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
@@ -21,11 +20,11 @@ import (
 
 type QuarkSearch struct {
 	apiKey             string
-	secretKey          string
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
 	count              uint32
-	endpoint           string
+	optionArgs         map[string]string
+	contentMode        string // "summary" or "full"
 }
 
 const (
@@ -87,10 +86,6 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if engine.apiKey == "" {
 		return nil, errors.New("apiKey not found")
 	}
-	engine.secretKey = config.Get("secretKey").String()
-	if engine.secretKey == "" {
-		return nil, errors.New("secretKey not found")
-	}
 	serviceName := config.Get("serviceName").String()
 	if serviceName == "" {
 		return nil, errors.New("serviceName not found")
@@ -98,10 +93,6 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	servicePort := config.Get("servicePort").Int()
 	if servicePort == 0 {
 		return nil, errors.New("servicePort not found")
-	}
-	engine.endpoint = config.Get("endpoint").String()
-	if engine.endpoint == "" {
-		engine.endpoint = "iqs.cn-zhangjiakou.aliyuncs.com"
 	}
 	engine.count = uint32(config.Get("count").Int())
 	if engine.count == 0 {
@@ -115,6 +106,20 @@ func NewQuarkSearch(config *gjson.Result) (*QuarkSearch, error) {
 	if engine.timeoutMillisecond == 0 {
 		engine.timeoutMillisecond = 5000
 	}
+	engine.optionArgs = map[string]string{}
+	for key, value := range config.Get("optionArgs").Map() {
+		valStr := value.String()
+		if valStr != "" {
+			engine.optionArgs[key] = value.String()
+		}
+	}
+	engine.contentMode = config.Get("contentMode").String()
+	if engine.contentMode == "" {
+		engine.contentMode = "summary"
+	}
+	if engine.contentMode != "full" && engine.contentMode != "summary" {
+		return nil, fmt.Errorf("contentMode is not valid:%s", engine.contentMode)
+	}
 	return engine, nil
 }
 
@@ -127,52 +132,22 @@ func (g QuarkSearch) Client() wrapper.HttpClient {
 }
 
 func (g QuarkSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
-	query := strings.Join(ctx.Querys, " ")
-	canonicalURI := Path
-	queryParams := map[string]string{
-		"query":     query,
-		"timeRange": "NoLimit",
+	queryUrl := fmt.Sprintf("https://cloud-iqs.aliyuncs.com/search/genericSearch?query=%s",
+		url.QueryEscape(strings.Join(ctx.Querys, " ")))
+	var extraArgs []string
+	for key, value := range g.optionArgs {
+		extraArgs = append(extraArgs, fmt.Sprintf("%s=%s", key, url.QueryEscape(value)))
 	}
-	queryParamsStr := []string{}
-	for k, v := range queryParams {
-		queryParamsStr = append(queryParamsStr, k+"="+urlEncoding(v))
+	if len(extraArgs) > 0 {
+		queryUrl = fmt.Sprintf("%s&%s", queryUrl, strings.Join(extraArgs, "&"))
 	}
-	canonicalQueryString := strings.Join(queryParamsStr, "&")
-	timeStamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	randomID, _ := generateHexID(32)
-	params := map[string]string{
-		"host":                  g.endpoint,
-		"x-acs-action":          Action,
-		"x-acs-content-sha256":  ContentSha256,
-		"x-acs-date":            timeStamp,
-		"x-acs-signature-nonce": randomID,
-		"x-acs-version":         Version,
-	}
-	canonicalHeaders := getCanonicalHeaders(params)
-	canonicalRequest := http.MethodGet + "\n" + canonicalURI + "\n" + canonicalQueryString + "\n" + canonicalHeaders + "\n" + SignedHeaders + "\n" + ContentSha256
-	stringToSign := SignatureAlgorithm + "\n" + getHasedString(canonicalRequest)
-
-	authHeaderFmt := "%s Credential=%s,SignedHeaders=%s,Signature=%s"
-	authHeader := fmt.Sprintf(authHeaderFmt, SignatureAlgorithm, g.apiKey, SignedHeaders, getSignature(stringToSign, g.secretKey))
-
-	reqParams := url.Values{}
-	for k, v := range queryParams {
-		reqParams.Add(k, v)
-	}
-	requestURL := fmt.Sprintf("https://%s%s?%s", g.endpoint, Path, reqParams.Encode())
-
 	return engine.CallArgs{
 		Method: http.MethodGet,
-		Url:    requestURL,
+		Url:    queryUrl,
 		Headers: [][2]string{
-			{"x-acs-date", timeStamp},
-			{"x-acs-signature-nonce", randomID},
-			{"x-acs-content-sha256", ContentSha256},
-			{"x-acs-version", Version},
-			{"x-acs-action", Action},
-			{"Authorization", authHeader},
+			{"Accept", "application/json"},
+			{"X-API-Key", g.apiKey},
 		},
-		Body:               nil,
 		TimeoutMillisecond: g.timeoutMillisecond,
 	}
 }
@@ -181,10 +156,19 @@ func (g QuarkSearch) ParseResult(ctx engine.SearchContext, response []byte) []en
 	jsonObj := gjson.ParseBytes(response)
 	var results []engine.SearchResult
 	for index, item := range jsonObj.Get("pageItems").Array() {
+		var content string
+		if g.contentMode == "full" {
+			content = item.Get("markdownText").String()
+			if content == "" {
+				content = item.Get("mainText").String()
+			}
+		} else if g.contentMode == "summary" {
+			content = item.Get("snippet").String()
+		}
 		result := engine.SearchResult{
 			Title:   item.Get("title").String(),
 			Link:    item.Get("link").String(),
-			Content: item.Get("mainText").String(),
+			Content: content,
 		}
 		if result.Valid() && index < int(g.count) {
 			results = append(results, result)

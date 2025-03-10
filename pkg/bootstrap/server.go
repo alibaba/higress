@@ -235,7 +235,7 @@ func (s *Server) initConfigController() error {
 		options.ClusterId = ""
 	}
 
-	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options.ClusterId)
+	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options)
 	ingressConfig.AddLocalCluster(options)
 
 	s.configStores = append(s.configStores, ingressConfig)

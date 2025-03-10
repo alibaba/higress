@@ -1,14 +1,14 @@
-# 功能说明
+## 功能说明
 `model-router`插件实现了基于LLM协议中的model参数路由的功能
 
-# 配置字段
+## 配置字段
 
 | 名称                 | 数据类型        | 填写要求                | 默认值                   | 描述                                                  |
 | -----------          | --------------- | ----------------------- | ------                   | -------------------------------------------           |
 | `modelKey`           | string          | 选填                    | model                    | 请求body中model参数的位置                             |
 | `addProviderHeader`  | string          | 选填                    | -                        | 从model参数中解析出的provider名字放到哪个请求header中 |
 | `modelToHeader`      | string          | 选填                    | -                        | 直接将model参数放到哪个请求header中                   |
-| `enableOnPathSuffix` | array of string | 选填                    | ["/v1/chat/completions"] | 只对这些特定路径后缀的请求生效                        |
+| `enableOnPathSuffix` | array of string | 选填                    | ["/v1/chat/completions"] | 只对这些特定路径后缀的请求生效，可以配置为 "*" 以匹配所有路径 |
 
 ## 运行属性
 

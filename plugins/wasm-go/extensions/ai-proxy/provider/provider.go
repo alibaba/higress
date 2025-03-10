@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"errors"
 	"math/rand"
 	"net/http"
@@ -73,14 +74,16 @@ const (
 	finishReasonStop   = "stop"
 	finishReasonLength = "length"
 
-	ctxKeyIncrementalStreaming = "incrementalStreaming"
-	ctxKeyApiKey               = "apiKey"
-	CtxKeyApiName              = "apiName"
-	ctxKeyIsStreaming          = "isStreaming"
-	ctxKeyStreamingBody        = "streamingBody"
-	ctxKeyOriginalRequestModel = "originalRequestModel"
-	ctxKeyFinalRequestModel    = "finalRequestModel"
-	ctxKeyPushedMessage        = "pushedMessage"
+	ctxKeyIncrementalStreaming   = "incrementalStreaming"
+	ctxKeyApiKey                 = "apiKey"
+	CtxKeyApiName                = "apiName"
+	ctxKeyIsStreaming            = "isStreaming"
+	ctxKeyStreamingBody          = "streamingBody"
+	ctxKeyOriginalRequestModel   = "originalRequestModel"
+	ctxKeyFinalRequestModel      = "finalRequestModel"
+	ctxKeyPushedMessage          = "pushedMessage"
+	ctxKeyContentPushed          = "contentPushed"
+	ctxKeyReasoningContentPushed = "reasoningContentPushed"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -190,7 +193,7 @@ type ProviderConfig struct {
 	// @Description zh-CN 在请求AI服务时用于认证的API Token列表。不同的AI服务提供商可能有不同的名称。部分供应商只支持配置一个API Token（如Azure OpenAI）。
 	apiTokens []string `required:"false" yaml:"apiToken" json:"apiTokens"`
 	// @Title zh-CN 请求超时
-	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟
+	// @Description zh-CN 请求AI服务的超时时间，单位为毫秒。默认值为120000，即2分钟。此项配置目前仅用于获取上下文信息，并不影响实际转发大模型请求。
 	timeout uint32 `required:"false" yaml:"timeout" json:"timeout"`
 	// @Title zh-CN apiToken 故障切换
 	// @Description zh-CN 当 apiToken 不可用时移出 apiTokens 列表，对移除的 apiToken 进行健康检查，当重新可用后加回 apiTokens 列表
@@ -588,6 +591,8 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte, log wrapper.L
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
 		body = append(bufferedStreamingBody, chunk...)
 	}
+	body = bytes.ReplaceAll(body, []byte("\r\n"), []byte("\n"))
+	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\n"))
 
 	eventStartIndex, lineStartIndex, valueStartIndex := -1, -1, -1
 

@@ -75,10 +75,11 @@ type KIngressConfig struct {
 	clusterId cluster.ID
 }
 
-func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *KIngressConfig {
+func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *KIngressConfig {
 	if localKubeClient.KIngressInformer() == nil {
 		return nil
 	}
+	clusterId := options.ClusterId
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
@@ -114,7 +115,7 @@ func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f is
 }
 
 func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngressController {
-	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
+	secretController := secret.NewController(m.localKubeClient, options)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
 	var ingressController common.KIngressController

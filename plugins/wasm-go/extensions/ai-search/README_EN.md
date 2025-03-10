@@ -39,7 +39,7 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 |------|-----------|-------------|---------------|-------------|
 | llmServiceName | string | Required | - | LLM service name |
 | llmServicePort | number | Required | - | LLM service port |
-| llmApiKey | string | Required | - | LLM service API key |
+| llmApiKey | string | Optional | - | LLM service API key |
 | llmUrl | string | Required | - | LLM service API URL |
 | llmModelName | string | Required | - | LLM model name |
 | timeoutMillisecond | number | Optional | 30000 | API call timeout (milliseconds) |
@@ -81,9 +81,8 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 ## Quark Specific Configuration
 
 | Name | Data Type | Requirement | Default Value | Description |
-|------|----------|----------|--------|------|
-| secretKey | string | Required | - | Aliyun SecretKey |
-| endpoint | string | Optional | iqs.cn-zhangjiakou.aliyuncs.com | Endpoint for accessing quark |
+|------|-----------|-------------|---------------|-------------|
+| contentMode | string | Optional | "summary" | Content mode: "summary" uses snippet, "full" uses full text (markdownText first, then mainText if empty) |
 
 ## Configuration Examples
 
@@ -113,17 +112,15 @@ searchFrom:
   count: 10
 ```
 
-### 夸克搜索配置
+### Quark Search Configuration
 
 ```yaml
 searchFrom:
 - type: quark
   serviceName: "quark-svc.dns" 
   servicePort: 443
-  apiKey: "aliyun accessKey"
-  count: 10
-  secretKey: "aliyun secretKey"
-  endpoint: "iqs.cn-zhangjiakou.aliyuncs.com"
+  apiKey: "quark api key"
+  contentMode: "full"  # Optional values: "summary"(default) or "full"
 ```
 
 ### Multiple Search Engines Configuration
