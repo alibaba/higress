@@ -334,7 +334,7 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 				value = gjson.GetBytes(body, attribute.Value).Value()
 			default:
 			}
-			if value == nil || value == "" {
+			if (value == nil || value == "") && attribute.DefaultValue != "" {
 				value = attribute.DefaultValue
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
