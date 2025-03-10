@@ -24,24 +24,20 @@ type HuggingFaceProviderInitializer struct {
 var HuggingFaceConfig HuggingFaceProviderConfig
 
 type HuggingFaceProviderConfig struct {
-	// @Title zh-CN 文本特征提取服务 model_id
-	// @Description zh-CN 仅适用于 HuggingFace。参考 https://huggingface.co/blog/getting-started-with-embeddings
-	modelId string
-	// @Title zh-CN 文本特征提取服务 hf_tokens
-	// @Description zh-CN 仅适用于 HuggingFace。参考 https://huggingface.co/blog/getting-started-with-embeddings
-	hfTokens string
+	//// @Title zh-CN 文本特征提取服务 model_id
+	//// @Description zh-CN 仅适用于 HuggingFace。参考 https://huggingface.co/blog/getting-started-with-embeddings
+	//modelId string
+	// @Title zh-CN 文本特征提取服务 API Key
+	// @Description zh-CN 文本特征提取服务 API Key。在HuggingFace定义为 hf_token
+	apiKey string
 }
 
 func (c *HuggingFaceProviderInitializer) InitConfig(json gjson.Result) {
-	HuggingFaceConfig.modelId = json.Get("modelId").String()
-	HuggingFaceConfig.hfTokens = json.Get("hfTokens").String()
+	HuggingFaceConfig.apiKey = json.Get("apiKey").String()
 }
 
 func (c *HuggingFaceProviderInitializer) ValidateConfig() error {
-	if HuggingFaceConfig.modelId == "" {
-		return errors.New("[HuggingFace] modelId is required")
-	}
-	if HuggingFaceConfig.hfTokens == "" {
+	if HuggingFaceConfig.apiKey == "" {
 		return errors.New("[HuggingFace] hfTokens is required")
 	}
 	return nil
@@ -53,6 +49,10 @@ func (t *HuggingFaceProviderInitializer) CreateProvider(c ProviderConfig) (Provi
 	}
 	if c.serviceHost == "" {
 		c.serviceHost = HUGGINGFACE_DOMAIN
+	}
+
+	if c.model == "" {
+		c.model = HUGGINGFACE_DEFAULT_MODEL_NAME
 	}
 
 	return &HuggingFaceProvider{
@@ -102,7 +102,7 @@ func (t *HuggingFaceProvider) constructParameters(text string, log wrapper.Log) 
 		return "", nil, nil, err
 	}
 
-	modelId := HuggingFaceConfig.modelId
+	modelId := t.config.model
 	if modelId == "" {
 		modelId = HUGGINGFACE_DEFAULT_MODEL_NAME
 	}
@@ -111,7 +111,7 @@ func (t *HuggingFaceProvider) constructParameters(text string, log wrapper.Log) 
 	endpoint := strings.Replace(HUGGINGFACE_ENDPOINT, "{modelId}", modelId, 1)
 
 	headers := [][2]string{
-		{"Authorization", "Bearer " + HuggingFaceConfig.hfTokens},
+		{"Authorization", "Bearer " + HuggingFaceConfig.apiKey},
 		{"Content-Type", "application/json"},
 	}
 
