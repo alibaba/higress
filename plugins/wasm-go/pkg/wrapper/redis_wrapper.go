@@ -30,6 +30,8 @@ type RedisResponseCallback func(response resp.Value)
 
 type RedisClient interface {
 	Init(username, password string, timeout int64, opts ...optionFunc) error
+	// return whether redis client is ready
+	Ready() bool
 	// with this function, you can call redis as if you are using redis-cli
 	Command(cmds []interface{}, callback RedisResponseCallback) error
 	Eval(script string, numkeys int, keys, args []interface{}, callback RedisResponseCallback) error
@@ -181,6 +183,10 @@ func respString(args []interface{}) []byte {
 	}
 	wr.WriteArray(arr)
 	return buf.Bytes()
+}
+
+func (c *RedisClusterClient[C]) Ready() bool {
+	return c.ready
 }
 
 func (c *RedisClusterClient[C]) Init(username, password string, timeout int64, opts ...optionFunc) error {
