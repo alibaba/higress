@@ -15,7 +15,7 @@ const (
 
 type providerInitializer interface {
 	ValidateConfig(ProviderConfig) error
-	CreateProvider(ProviderConfig) (Provider, error)
+	CreateProvider(ProviderConfig, wrapper.Log) (Provider, error)
 }
 
 var (
@@ -128,12 +128,12 @@ func (c *ProviderConfig) Validate() error {
 	return nil
 }
 
-func CreateProvider(pc ProviderConfig) (Provider, error) {
+func CreateProvider(pc ProviderConfig, log wrapper.Log) (Provider, error) {
 	initializer, has := providerInitializers[pc.typ]
 	if !has {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
-	return initializer.CreateProvider(pc)
+	return initializer.CreateProvider(pc, log)
 }
 
 type Provider interface {
