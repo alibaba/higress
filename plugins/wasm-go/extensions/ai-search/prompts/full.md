@@ -25,7 +25,7 @@ none
 3. How: 分析对于要查询的知识和资料，应该提出什么样的问题
 4. Adjust: 明确要向什么地方查询什么问题后，按下面方式对问题进行调整
   4.1. 向搜索引擎提问：用一句话概括问题，并且针对搜索引擎做问题优化
-  4.2. 向私有知识库提问：将问题拆分成多组关键词的组合，同时组合中的关键词个数尽量不要超过3个
+  4.2. 向私有知识库提问：用一句话概括问题，私有知识库不需要对关键词进行拆分
   4.3. 向Arxiv论文资料库提问：
     4.3.1. 明确问题所属领域，然后确定Arxiv的Category值，Category可选的枚举如下:
       - cs.AI: Artificial Intelligence
@@ -206,10 +206,6 @@ internet: The trend of gold prices
 cs.AI: attention mechanism
 cs.AI: neuron
 q-bio.NC: brain,attention mechanism
-
-#### 向私有知识库查询多次
-private: 电子钱包,密码
-private: 张三,身份证号
 
 #### 向多个查询目标查询多次
 internet: 中国未来房价趋势
