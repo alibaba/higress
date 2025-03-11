@@ -151,6 +151,8 @@ type IngressConfig struct {
 	clusterId cluster.ID
 
 	httpsConfigMgr *cert.ConfigMgr
+
+	templateProcessor *TemplateProcessor
 }
 
 func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressConfig {
@@ -171,6 +173,24 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
+
+	// Initialize template processor with secret getter function
+	config.templateProcessor = NewTemplateProcessor(func(namespace, name string) (*v1.Secret, error) {
+		var secret *v1.Secret
+		var err error
+
+		config.mutex.RLock()
+		defer config.mutex.RUnlock()
+
+		for _, controller := range config.remoteIngressControllers {
+			secret, err = controller.SecretLister().Secrets(namespace).Get(name)
+			if err == nil {
+				return secret, nil
+			}
+		}
+		return nil, fmt.Errorf("secret %s not found", name)
+	}, namespace)
+
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
 	config.mcpbridgeController = mcpbridgeController
@@ -254,10 +274,24 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 	var configs = make([]config.Config, 0)
 
 	if configsFromIngress := m.listFromIngressControllers(typ, namespace); configsFromIngress != nil {
+		// Process templates for ingress configs
+		for i := range configsFromIngress {
+			if err := m.templateProcessor.ProcessConfig(&configsFromIngress[i]); err != nil {
+				IngressLog.Errorf("Failed to process template for config %s/%s: %v",
+					configsFromIngress[i].Namespace, configsFromIngress[i].Name, err)
+			}
+		}
 		configs = append(configs, configsFromIngress...)
 	}
 
 	if configsFromGateway := m.listFromGatewayControllers(typ, namespace); configsFromGateway != nil {
+		// Process templates for gateway configs
+		for i := range configsFromGateway {
+			if err := m.templateProcessor.ProcessConfig(&configsFromGateway[i]); err != nil {
+				IngressLog.Errorf("Failed to process template for config %s/%s: %v",
+					configsFromGateway[i].Namespace, configsFromGateway[i].Name, err)
+			}
+		}
 		configs = append(configs, configsFromGateway...)
 	}
 
