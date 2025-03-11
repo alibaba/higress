@@ -31,6 +31,7 @@ Attribute Configuration instructions:
 | `key`         | string | required  | -   | attrribute key           |
 | `value_source` | string | required  | -   | attrribute value source, optional values ​​are `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
 | `value`      | string | required  | -   | how to get attrribute value |
+| `default_value`      | string | optional  | -   | default value for attribute |
 | `rule`      | string | optional  | -   | Rule to extract attribute from streaming response, optional values ​​are `first`, `replace`, `append`|
 | `apply_to_log`      | bool | optional  | false  | Whether to record the extracted information in the log |
 | `apply_to_span`      | bool | optional  | false  | Whether to record the extracted information in the link tracking span |
