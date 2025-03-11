@@ -72,12 +72,17 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 ## Elasticsearch Specific Configuration
 
-| Name | Data Type | Requirement | Default Value | Description |
-|------|-----------|-------------|---------------|-------------|
-| index | string | Required | - | Elasticsearch index name to search |
-| contentField | string | Required | - | Content field name to query |
-| linkField | string | Required | - | Result link field name |
-| titleField | string | Required | - | Result title field name |
+| Name | Data Type | Requirement | Default Value | Description                        |
+|------|-----------|-------------|---------------|------------------------------------|
+| index | string | Required    | - | Elasticsearch index name to search |
+| contentField | string | Required    | - | Content field name to query        |
+| semanticTextField | string | Required    | - | Embedding field name to query      |
+| linkField | string | Required    | - | Result link field name             |
+| titleField | string | Required    | - | Result title field name            |
+| username | string | Optional          | - | Elasticsearch username             |
+| password | string | Optional    | - | Elasticsearch password             |
+
+The [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) query used in hybrid search requires Elasticsearch version 8.8 or higher.
 
 ## Quark Specific Configuration
 
@@ -199,8 +204,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### Custom Reference Format
