@@ -30,6 +30,8 @@ type failover struct {
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
 	healthCheckModel string `required:"false" yaml:"healthCheckModel" json:"healthCheckModel"`
+	// @Title zh-CN 需要进行 failover 的原始请求的状态码，支持正则表达式匹配
+	failoverOnStatus []string `required:"false" yaml:"failoverOnStatus" json:"failoverOnStatus"`
 	// @Title zh-CN 本次请求使用的 apiToken
 	ctxApiTokenInUse string
 	// @Title zh-CN 记录本次请求时所有可用的 apiToken
@@ -92,6 +94,14 @@ func (f *failover) FromJson(json gjson.Result) {
 		f.healthCheckTimeout = 5000
 	}
 	f.healthCheckModel = json.Get("healthCheckModel").String()
+
+	for _, status := range json.Get("failoverOnStatus").Array() {
+		f.failoverOnStatus = append(f.failoverOnStatus, status.String())
+	}
+	// If failoverOnStatus is empty, default to retry on 4xx and 5xx
+	if len(f.failoverOnStatus) == 0 {
+		f.failoverOnStatus = []string{"4.*", "5.*"}
+	}
 }
 
 func (f *failover) Validate() error {
@@ -558,15 +568,19 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, log wrapper.Log) types.Action {
-	if c.isFailoverEnabled() {
+func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, status string, log wrapper.Log) types.Action {
+	if c.isFailoverEnabled() && util.MatchStatus(status, c.failover.failoverOnStatus) {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
-	if c.isRetryOnFailureEnabled() && ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
+	if c.isRetryOnFailureEnabled() && util.MatchStatus(status, c.retryOnFailure.retryOnStatus) && isNotStreamingResponse(ctx) {
 		c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
 		return types.HeaderStopAllIterationAndWatermark
 	}
 	return types.ActionContinue
+}
+
+func isNotStreamingResponse(ctx wrapper.HttpContext) bool {
+	return ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool)
 }
 
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
