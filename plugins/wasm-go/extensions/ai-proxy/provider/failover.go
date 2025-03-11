@@ -104,13 +104,14 @@ func (f *failover) Validate() error {
 func (c *ProviderConfig) initVariable() {
 	// Set provider name as prefix to differentiate shared data
 	provider := c.GetType()
-	c.failover.ctxApiTokenInUse = provider + "-apiTokenInUse"
-	c.failover.ctxApiTokenRequestFailureCount = provider + "-apiTokenRequestFailureCount"
-	c.failover.ctxApiTokenRequestSuccessCount = provider + "-apiTokenRequestSuccessCount"
-	c.failover.ctxApiTokens = provider + "-apiTokens"
-	c.failover.ctxUnavailableApiTokens = provider + "-unavailableApiTokens"
-	c.failover.ctxHealthCheckEndpoint = provider + "-requestHostAndPath"
-	c.failover.ctxVmLease = provider + "-vmLease"
+	id := c.GetId()
+	c.failover.ctxApiTokenInUse = provider + "-" + id + "-apiTokenInUse"
+	c.failover.ctxApiTokenRequestFailureCount = provider + "-" + id + "-apiTokenRequestFailureCount"
+	c.failover.ctxApiTokenRequestSuccessCount = provider + "-" + id + "-apiTokenRequestSuccessCount"
+	c.failover.ctxApiTokens = provider + "-" + id + "-apiTokens"
+	c.failover.ctxUnavailableApiTokens = provider + "-" + id + "-unavailableApiTokens"
+	c.failover.ctxHealthCheckEndpoint = provider + "-" + id + "-requestHostAndPath"
+	c.failover.ctxVmLease = provider + "-" + id + "-vmLease"
 }
 
 func parseConfig(json gjson.Result, config *any, log wrapper.Log) error {

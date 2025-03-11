@@ -27,9 +27,10 @@ Plugin execution priority: `440`
 ## Search Rewrite Description
 
 The search rewrite feature uses an LLM service to analyze and optimize the user's original query, which can:
-1. Convert natural language queries into keyword combinations better suited for search engines
-2. For Arxiv paper searches, automatically identify relevant paper categories and add category constraints
-3. For private knowledge base searches, break down long queries into multiple precise keyword combinations
+1. Determine whether the user's question requires a search engine query. If it does not, the search-related logic will not be executed
+2. Convert natural language queries into keyword combinations better suited for search engines
+3. For Arxiv paper searches, automatically identify relevant paper categories and add category constraints
+4. For private knowledge base searches, break down long queries into multiple precise keyword combinations
 
 It is strongly recommended to enable this feature when using Arxiv or Elasticsearch engines. For Arxiv searches, it can accurately identify paper domains and optimize English keywords; for private knowledge base searches, it can provide more precise keyword matching, significantly improving search effectiveness.
 
@@ -71,12 +72,17 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 
 ## Elasticsearch Specific Configuration
 
-| Name | Data Type | Requirement | Default Value | Description |
-|------|-----------|-------------|---------------|-------------|
-| index | string | Required | - | Elasticsearch index name to search |
-| contentField | string | Required | - | Content field name to query |
-| linkField | string | Required | - | Result link field name |
-| titleField | string | Required | - | Result title field name |
+| Name | Data Type | Requirement | Default Value | Description                        |
+|------|-----------|-------------|---------------|------------------------------------|
+| index | string | Required    | - | Elasticsearch index name to search |
+| contentField | string | Required    | - | Content field name to query        |
+| semanticTextField | string | Required    | - | Embedding field name to query      |
+| linkField | string | Required    | - | Result link field name             |
+| titleField | string | Required    | - | Result title field name            |
+| username | string | Optional          | - | Elasticsearch username             |
+| password | string | Optional    | - | Elasticsearch password             |
+
+The [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) query used in hybrid search requires Elasticsearch version 8.8 or higher.
 
 ## Quark Specific Configuration
 
@@ -198,8 +204,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### Custom Reference Format

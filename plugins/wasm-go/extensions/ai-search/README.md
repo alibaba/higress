@@ -27,9 +27,10 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 ## 搜索重写说明
 
 搜索重写功能使用LLM服务对用户的原始查询进行分析和优化，可以：
-1. 将用户的自然语言查询转换为更适合搜索引擎的关键词组合
-2. 对于Arxiv论文搜索，自动识别相关的论文类别并添加类别限定
-3. 对于私有知识库搜索，将长查询拆分成多个精准的关键词组合
+1. 识别用户问题是否需要查询搜索引擎，如果不需要，不会执行搜索增强相关逻辑
+2. 将用户的自然语言查询转换为更适合搜索引擎的关键词组合
+3. 对于Arxiv论文搜索，自动识别相关的论文类别并添加类别限定
+4. 对于私有知识库搜索，将长查询拆分成多个精准的关键词组合
 
 强烈建议在使用Arxiv或Elasticsearch引擎时启用此功能。对于Arxiv搜索，它能准确识别论文所属领域并优化英文关键词；对于私有知识库搜索，它能提供更精准的关键词匹配，显著提升搜索效果。
 
@@ -71,12 +72,17 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 
 ## Elasticsearch 特定配置
 
-| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
-|------|----------|----------|--------|------|
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                    |
+|------|----------|----------|--------|-----------------------|
 | index | string | 必填 | - | 要搜索的Elasticsearch索引名称 |
-| contentField | string | 必填 | - | 要查询的内容字段名称 |
-| linkField | string | 必填 | - | 结果链接字段名称 |
-| titleField | string | 必填 | - | 结果标题字段名称 |
+| contentField | string | 必填 | - | 要查询的内容字段名称            |
+| semanticTextField | string | 必填 | - | 要查询的 embedding 字段名称   | 
+| linkField | string | 必填 | - | 结果链接字段名称              |
+| titleField | string | 必填 | - | 结果标题字段名称              |
+| username | string | 选填 | - | Elasticsearch 用户名          |
+| password | string | 选填 | - | Elasticsearch 密码          |
+
+混合搜索中使用的 [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) 查询要求 Elasticsearch 的版本在 8.8 及以上。
 
 ## Quark 特定配置
 
@@ -199,8 +205,11 @@ searchFrom:
   servicePort: 80
   index: "knowledge_base"
   contentField: "content"
+  semanticTextField: "semantic_text"
   linkField: "url" 
   titleField: "title"
+  # username: "elastic"
+  # password: "password"
 ```
 
 ### 自定义引用格式

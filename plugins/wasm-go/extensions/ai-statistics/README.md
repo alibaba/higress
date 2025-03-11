@@ -31,6 +31,7 @@ Attribute 配置说明:
 | `key`         | string | 必填  | -   | attrribute 名称           |
 | `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
 | `value`      | string | 必填  | -   | attrribute 取值 key value/path |
+| `default_value`      | string | 非必填  | -   | attrribute 默认值 |
 | `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
 | `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
