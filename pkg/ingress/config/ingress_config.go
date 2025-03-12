@@ -151,6 +151,8 @@ type IngressConfig struct {
 	clusterId cluster.ID
 
 	httpsConfigMgr *cert.ConfigMgr
+
+	commonOpions common.Options
 }
 
 func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressConfig {
@@ -170,6 +172,7 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		namespace:                namespace,
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
+		commonOpions:             options,
 	}
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -855,7 +858,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	result := &extensions.WasmPlugin{
 		Selector: &istiotype.WorkloadSelector{
 			MatchLabels: map[string]string{
-				"higress": m.namespace + "-higress-gateway",
+				m.commonOpions.GatewaySelectorKey: m.commonOpions.GatewaySelectorValue,
 			},
 		},
 		Url:             obj.Url,
