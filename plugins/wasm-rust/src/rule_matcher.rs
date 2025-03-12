@@ -75,6 +75,16 @@ impl<PluginConfig> RuleMatcher<PluginConfig>
 where
     PluginConfig: Default + DeserializeOwned,
 {
+    pub fn override_config(
+        &mut self,
+        override_func: fn(config: &PluginConfig, global: &PluginConfig) -> PluginConfig,
+    ) {
+        if let Some(global) = &self.global_config {
+            for rule_config in &mut self.rule_config {
+                rule_config.config = Rc::new(override_func(rule_config.config.borrow(), global));
+            }
+        }
+    }
     pub fn parse_rule_config(&mut self, config: &Value) -> Result<(), WasmRustError> {
         let empty_object = Map::new();
         let empty_vec = Vec::new();
@@ -637,35 +647,51 @@ mod tests {
         }
     }
 
-    // #[derive(Default, Deserialize, PartialEq, Eq)]
-    // struct CompleteConfig{
-    //     // global config
-    //     #[serde(default)]
-    //     consumers: Vec<String>,
-    //     // rule config
-    //     #[serde(default)]
-    //     allow: Vec<String>
-    // }
+    #[derive(Default, Clone, Deserialize, PartialEq, Eq)]
+    struct CompleteConfig {
+        // global config
+        #[serde(default)]
+        consumers: Vec<String>,
+        // rule config
+        #[serde(default)]
+        allow: Vec<String>,
+    }
+    impl CompleteConfig {
+        fn new(consumers: Vec<&str>, allow: Vec<&str>) -> Self {
+            CompleteConfig {
+                consumers: consumers.iter().map(|s| s.to_string()).collect(),
+                allow: allow.iter().map(|s| s.to_string()).collect(),
+            }
+        }
+    }
+    fn override_config(config: &CompleteConfig, global: &CompleteConfig) -> CompleteConfig {
+        let mut new_config = global.clone();
+        new_config.allow.extend(config.allow.clone());
+        new_config
+    }
 
-    // #[test]
-    // fn test_parse_override_config(){
+    #[test]
+    fn test_parse_override_config() {
+        let cases = vec![
+            ParseTestCase::new("override rule config", r#"{"consumers":["c1","c2","c3"],"_rules_":[{"_match_route_":["r1","r2"],"allow":["c1","c3"]}]}"#, "")
+                .global_config(CompleteConfig::new(vec!["c1", "c2", "c3"], vec![]))
+                .rule_config(RuleConfigBuilder::new(Category::Route, Rc::new(CompleteConfig::new(vec!["c1", "c2", "c3"], vec!["c1", "c3"]))).add_route("r1").add_route("r2").config())
+        ];
+        for case in &cases {
+            println!("test {} start", case.name);
 
-    //     let cases = vec![
-    //         ParseTestCase::new("invalid config", r#"{"consumers":["c1","c2","c3"],"allow":["c1"]}"#, "parse config failed, no valid rules; global config parse error:consumers and allow should not be configured at the same level"),
-    //         ParseTestCase::new("invalid config", r#"{"_rules_":[{"_match_route_":["r1","r2"],"consumers":["c1","c2"],"allow":["c1"]}]}"#, "consumers and allow should not be configured at the same level"),
-    //     ];
-    //     for case in &cases {
-    //         println!("test {} start", case.name);
+            let mut rule = RuleMatcher::default();
 
-    //         let mut rule:RuleMatcher<CompleteConfig> = RuleMatcher::default();
-
-    //         let res = rule.parse_rule_config(&serde_json::from_str(&case.config).unwrap());
-    //         if let Err(e) = res {
-    //             assert_eq!(case.err_msg, e.to_string());
-    //         }else {
-    //             assert!(case.err_msg.is_empty())
-    //         }
-    //         assert!(case.is_eq(&rule));
-    //     }
-    // }
+            let res = rule.parse_rule_config(&serde_json::from_str(&case.config).unwrap());
+            if res.is_ok() {
+                rule.override_config(override_config);
+            }
+            if let Err(e) = res {
+                assert_eq!(case.err_msg, e.to_string());
+            } else {
+                assert!(case.err_msg.is_empty())
+            }
+            assert!(case.is_eq(&rule));
+        }
+    }
 }
