@@ -18,7 +18,7 @@ const (
 	defaultOpenaiDomain             = "api.openai.com"
 	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
 	defaultOpenaiCompletionPath     = "/v1/completions"
-	defaultOpenaiEmbeddingsPath     = "/v1/chat/embeddings"
+	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
 	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
 	defaultOpenaiImageGeneration    = "/v1/images/generations"
 )
@@ -42,7 +42,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 
 func isDirectPath(path string) bool {
 	return strings.HasSuffix(path, "/completions") ||
-		strings.HasSuffix(path, "/chat/embeddings") ||
+		strings.HasSuffix(path, "/embeddings") ||
 		strings.HasSuffix(path, "/audio/speech") ||
 		strings.HasSuffix(path, "/images/generations")
 }
