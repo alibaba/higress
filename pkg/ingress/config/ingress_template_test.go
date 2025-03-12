@@ -23,47 +23,30 @@ import (
 	extensions "istio.io/api/extensions/v1alpha1"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestTemplateProcessor_ProcessConfig(t *testing.T) {
-	// Create test secrets
-	secrets := map[string]*v1.Secret{
-		"default/test-secret": {
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-secret",
-				Namespace: "default",
-			},
-			Data: map[string][]byte{
-				"api_key":                 []byte("test-api-key"),
-				"plugin_conf.timeout":     []byte("5000"),
-				"plugin_conf.max_retries": []byte("3"),
-			},
-		},
-		"higress-system/auth-secret": {
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "auth-secret",
-				Namespace: "higress-system",
-			},
-			Data: map[string][]byte{
-				"auth_config.type":        []byte("basic"),
-				"auth_config.credentials": []byte("base64-encoded"),
-			},
-		},
+	// Create test values map
+	values := map[string]string{
+		"secret.default/test-secret.api_key":                        "test-api-key",
+		"secret.default/test-secret.plugin_conf.timeout":            "5000",
+		"secret.default/test-secret.plugin_conf.max_retries":        "3",
+		"secret.higress-system/auth-secret.auth_config.type":        "basic",
+		"secret.higress-system/auth-secret.auth_config.credentials": "base64-encoded",
 	}
 
-	// Mock secret getter function
-	getSecret := func(namespace, name string) (*v1.Secret, error) {
-		key := fmt.Sprintf("%s/%s", namespace, name)
-		if secret, exists := secrets[key]; exists {
-			return secret, nil
+	// Mock value getter function
+	getValue := func(valueType, namespace, name, key string) (string, error) {
+		fullKey := fmt.Sprintf("%s.%s/%s.%s", valueType, namespace, name, key)
+		fmt.Printf("Getting value for %s", fullKey)
+		if value, exists := values[fullKey]; exists {
+			return value, nil
 		}
-		return nil, fmt.Errorf("secret %s not found", key)
+		return "", fmt.Errorf("value not found for %s", fullKey)
 	}
 
 	// Create template processor
-	processor := NewTemplateProcessor(getSecret, "higress-system")
+	processor := NewTemplateProcessor(getValue, "higress-system")
 
 	tests := []struct {
 		name        string

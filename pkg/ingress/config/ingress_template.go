@@ -20,21 +20,21 @@ import (
 	"regexp"
 	"strings"
 
+	. "github.com/alibaba/higress/pkg/ingress/log"
 	"istio.io/istio/pkg/config"
-	v1 "k8s.io/api/core/v1"
 )
 
 // TemplateProcessor handles template substitution in configs
 type TemplateProcessor struct {
-	// getSecret is a function that retrieves secrets by name and namespace
-	getSecret func(namespace, name string) (*v1.Secret, error)
+	// getValue is a function that retrieves values by type, namespace, name and key
+	getValue  func(valueType, namespace, name, key string) (string, error)
 	namespace string
 }
 
-// NewTemplateProcessor creates a new TemplateProcessor with the given secret getter function
-func NewTemplateProcessor(getSecret func(namespace, name string) (*v1.Secret, error), namespace string) *TemplateProcessor {
+// NewTemplateProcessor creates a new TemplateProcessor with the given value getter function
+func NewTemplateProcessor(getValue func(valueType, namespace, name, key string) (string, error), namespace string) *TemplateProcessor {
 	return &TemplateProcessor{
-		getSecret: getSecret,
+		getValue:  getValue,
 		namespace: namespace,
 	}
 }
@@ -48,45 +48,37 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 	}
 
 	configStr := string(jsonBytes)
-
-	// Find all secret references in format:
-	// ${secret/name.key.field} or ${secret.namespace/name.key.field}
-	secretRegex := regexp.MustCompile(`\$\{secret(?:\.([^/]+))?/([^.}]+)\.([^}]+)\}`)
-	matches := secretRegex.FindAllStringSubmatch(configStr, -1)
-
-	// If there are no secret references, return immediately
+	// Find all value references in format:
+	// ${type/name.key} or ${type.namespace/name.key}
+	valueRegex := regexp.MustCompile(`\$\{([^./}]+)(?:\.([^/]+))?/([^.}]+)\.([^}]+)\}`)
+	matches := valueRegex.FindAllStringSubmatch(configStr, -1)
+	// If there are no value references, return immediately
 	if len(matches) == 0 {
 		return nil
 	}
-
+	IngressLog.Infof("start to handle name:%s found %d variabes", cfg.Meta.Name, len(matches))
 	for _, match := range matches {
-		var secretNamespace, secretName, secretKey string
-		if match[1] != "" {
-			// Format: ${secret.namespace/name.field}
-			secretNamespace = match[1]
+		valueType := match[1]
+		var namespace, name, key string
+		if match[2] != "" {
+			// Format: ${type.namespace/name.key}
+			namespace = match[2]
 		} else {
-			// Format: ${secret/name.field} - use higress-system namespace
-			secretNamespace = p.namespace
+			// Format: ${type/name.key} - use default namespace
+			namespace = p.namespace
 		}
-		secretName = match[2]
-		secretKey = match[3]
+		name = match[3]
+		key = match[4]
 
-		// Get secret using the provided getter function
-		secret, err := p.getSecret(secretNamespace, secretName)
+		// Get value using the provided getter function
+		value, err := p.getValue(valueType, namespace, name, key)
 		if err != nil {
-			return fmt.Errorf("failed to get secret %s/%s: %v", secretNamespace, secretName, err)
+			return fmt.Errorf("failed to get %s value for %s/%s.%s: %v", valueType, namespace, name, key, err)
 		}
 
-		// Get value from secret
-		data, exists := secret.Data[secretKey]
-		if !exists {
-			return fmt.Errorf("key %s not found in secret %s/%s", secretKey, secretNamespace, secretName)
-		}
-		secretValue := string(data)
 		// Replace placeholder with actual value
-		configStr = strings.Replace(configStr, match[0], secretValue, 1)
+		configStr = strings.Replace(configStr, match[0], value, 1)
 	}
-
 	// Unmarshal back to config spec
 	if err := json.Unmarshal([]byte(configStr), &cfg.Spec); err != nil {
 		return fmt.Errorf("failed to unmarshal substituted config: %v", err)

@@ -155,6 +155,27 @@ type IngressConfig struct {
 	templateProcessor *TemplateProcessor
 }
 
+// getSecretValue implements the getValue function for secret references
+func (m *IngressConfig) getSecretValue(valueType, namespace, name, key string) (string, error) {
+	if valueType != "secret" {
+		return "", fmt.Errorf("unsupported value type: %s", valueType)
+	}
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	for _, controller := range m.remoteIngressControllers {
+		secret, err := controller.SecretLister().Secrets(namespace).Get(name)
+		if err == nil {
+			if value, exists := secret.Data[key]; exists {
+				return string(value), nil
+			}
+			return "", fmt.Errorf("key %s not found in secret %s/%s", key, namespace, name)
+		}
+	}
+	return "", fmt.Errorf("secret %s/%s not found", namespace, name)
+}
+
 func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressConfig {
 	clusterId := options.ClusterId
 	if clusterId == "Kubernetes" {
@@ -174,22 +195,8 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 
-	// Initialize template processor with secret getter function
-	config.templateProcessor = NewTemplateProcessor(func(namespace, name string) (*v1.Secret, error) {
-		var secret *v1.Secret
-		var err error
-
-		config.mutex.RLock()
-		defer config.mutex.RUnlock()
-
-		for _, controller := range config.remoteIngressControllers {
-			secret, err = controller.SecretLister().Secrets(namespace).Get(name)
-			if err == nil {
-				return secret, nil
-			}
-		}
-		return nil, fmt.Errorf("secret %s not found", name)
-	}, namespace)
+	// Initialize template processor with value getter function
+	config.templateProcessor = NewTemplateProcessor(config.getSecretValue, namespace)
 
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
