@@ -12,52 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: echo-server
-  namespace: higress-conformance-infra
-spec:
-  selector:
-    app: echo-server
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 3000
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: echo-server
-  namespace: higress-conformance-infra
-  labels:
-    app: echo-server
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: echo-server
-  template:
-    metadata:
-      labels:
-        app: echo-server
-    spec:
-      containers:
-        - name: echo-server
-          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
-          env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          resources:
-            requests:
-              cpu: 10m
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -73,7 +27,7 @@ spec:
             path: "/"
             backend:
               service:
-                name: echo-server
+                name: infra-backend-v1
                 port:
                   number: 8080
 ---
