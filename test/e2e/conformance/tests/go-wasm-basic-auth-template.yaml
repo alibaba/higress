@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -19,8 +20,7 @@ metadata:
   namespace: higress-conformance-infra
 type: Opaque
 stringData:
-  auth.credential1: "credential1"
-  auth.credential2: "credential2"
+  auth.credential1: "admin:123456"
 
 ---
 apiVersion: v1
@@ -30,13 +30,14 @@ metadata:
   namespace: higress-system
 type: Opaque
 stringData:
-  auth.credential3: "credential3"
+  auth.credential2: "guest:abc"
 
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ingress-foo
+  annotations:
+  name: wasmplugin-basic-auth
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -45,7 +46,7 @@ spec:
       http:
         paths:
           - pathType: Prefix
-            path: "/"
+            path: "/foo"
             backend:
               service:
                 name: infra-backend-v1
@@ -55,22 +56,22 @@ spec:
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: wasm-template-keyauth
+  name: basic-auth
   namespace: higress-system
 spec:
   defaultConfig:
     consumers:
-      - credential: "Bearer credential1"
+      - credential: ${secret.higress-conformance-infra/auth-secret.auth.credential1}
         name: consumer1
-      - credential: "Bearer ${secret.higress-conformance-infra/auth-secret.auth.credential2}"
+      - credential: ${secret.auth-secret.auth.credential2}
         name: consumer2
-      - credential: "Bearer ${secret.auth-secret.auth.credential3}"
-        name: consumer3
-    global_auth: true
-    keys:
-      - authorization
-    in_header: true
+    global_auth: false
   defaultConfigDisable: false
-  priority: 300
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/key-auth:1.0.0
-  imagePullPolicy: Always
+  matchRules:
+    - config:
+        allow:
+          - consumer1
+      configDisable: false
+      ingress:
+        - higress-conformance-infra/wasmplugin-basic-auth
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-basic-auth:1.0.0
