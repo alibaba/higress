@@ -35,7 +35,7 @@ var HTTPRouteWasmpluginTemplate = suite.ConformanceTest{
 			{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
+						Path: "/",
 						Host: "foo.com",
 					},
 				},
@@ -48,7 +48,7 @@ var HTTPRouteWasmpluginTemplate = suite.ConformanceTest{
 			{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
+						Path: "/",
 						Host: "foo.com",
 						Headers: map[string]string{
 							"authorization": "Bearer credential1",
@@ -65,7 +65,7 @@ var HTTPRouteWasmpluginTemplate = suite.ConformanceTest{
 			{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
+						Path: "/",
 						Host: "foo.com",
 						Headers: map[string]string{
 							"authorization": "Bearer credential2",
@@ -82,7 +82,7 @@ var HTTPRouteWasmpluginTemplate = suite.ConformanceTest{
 			{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Path: "/foo",
+						Path: "/",
 						Host: "foo.com",
 						Headers: map[string]string{
 							"authorization": "Bearer credential3",
