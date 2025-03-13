@@ -12,6 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secret
+  namespace: higress-conformance-infra
+type: Opaque
+stringData:
+  auth.credential1: "credential1"
+  auth.credential2: "credential2"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secret
+  namespace: higress-system
+type: Opaque
+stringData:
+  auth.credential3: "credential3"
+
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -43,7 +64,7 @@ spec:
         name: consumer1
       - credential: "Bearer ${secret.higress-conformance-infra/auth-secret.auth.credential2}"
         name: consumer2
-      - credential: "Bearer ${secret/auth-secret.auth.credential3}"
+      - credential: "Bearer ${secret.auth-secret.auth.credential3}"
         name: consumer3
     global_auth: true
     keys:
@@ -53,24 +74,3 @@ spec:
   priority: 300
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/key-auth:1.0.0
   imagePullPolicy: Always
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: auth-secret
-  namespace: higress-conformance-infra
-type: Opaque
-stringData:
-  auth.credential1: "credential1"
-  auth.credential2: "credential2"
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: auth-secret
-  namespace: higress-system
-type: Opaque
-stringData:
-  auth.credential3: "credential3"

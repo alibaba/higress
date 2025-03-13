@@ -98,8 +98,8 @@ func TestTemplateProcessor_ProcessConfig(t *testing.T) {
 				PluginName: "test-plugin",
 				PluginConfig: makeStructValue(t, map[string]interface{}{
 					"auth": map[string]interface{}{
-						"type":        "${secret/auth-secret.auth_config.type}",
-						"credentials": "${secret/auth-secret.auth_config.credentials}",
+						"type":        "${secret.auth-secret.auth_config.type}",
+						"credentials": "${secret.auth-secret.auth_config.credentials}",
 					},
 				}),
 			},

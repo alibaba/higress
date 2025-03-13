@@ -49,14 +49,14 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 
 	configStr := string(jsonBytes)
 	// Find all value references in format:
-	// ${type/name.key} or ${type.namespace/name.key}
-	valueRegex := regexp.MustCompile(`\$\{([^./}]+)(?:\.([^/]+))?/([^.}]+)\.([^}]+)\}`)
+	// ${type.name.key} or ${type.namespace/name.key}
+	valueRegex := regexp.MustCompile(`\$\{([^.}]+)\.(?:([^/]+)/)?([^.}]+)\.([^}]+)\}`)
 	matches := valueRegex.FindAllStringSubmatch(configStr, -1)
 	// If there are no value references, return immediately
 	if len(matches) == 0 {
 		return nil
 	}
-	IngressLog.Infof("start to handle name:%s found %d variabes", cfg.Meta.Name, len(matches))
+	IngressLog.Infof("start to apply name:%s with %d variables", cfg.Meta.Name, len(matches))
 	for _, match := range matches {
 		valueType := match[1]
 		var namespace, name, key string
@@ -64,7 +64,7 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 			// Format: ${type.namespace/name.key}
 			namespace = match[2]
 		} else {
-			// Format: ${type/name.key} - use default namespace
+			// Format: ${type.name.key} - use default namespace
 			namespace = p.namespace
 		}
 		name = match[3]
