@@ -55,6 +55,7 @@ type Config struct {
 	defaultLanguage string
 	needReference   bool
 	searchRewrite   *SearchRewrite
+	defaultEnable   bool
 }
 
 const (
@@ -86,6 +87,10 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+	config.defaultEnable = true // Default to true if not specified
+	if json.Get("defaultEnable").Exists() {
+		config.defaultEnable = json.Get("defaultEnable").Bool()
+	}
 	config.needReference = json.Get("needReference").Bool()
 	if config.needReference {
 		config.referenceFormat = json.Get("referenceFormat").String()
@@ -254,6 +259,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+	// Check if plugin should be enabled based on config and request
+	if !config.defaultEnable {
+		// When defaultEnable is false, we need to check if web_search_options exists in the request
+		webSearchOptions := gjson.GetBytes(body, "web_search_options")
+		if !webSearchOptions.Exists() {
+			log.Debugf("Plugin disabled by config and no web_search_options in request")
+			return types.ActionContinue
+		}
+		log.Debugf("Plugin enabled by web_search_options in request")
+	}
+
 	var queryIndex int
 	var query string
 	messages := gjson.GetBytes(body, "messages").Array()
