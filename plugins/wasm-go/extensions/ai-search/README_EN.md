@@ -17,6 +17,7 @@ Plugin execution priority: `440`
 
 | Name | Data Type | Requirement | Default Value | Description |
 |------|-----------|-------------|---------------|-------------|
+| defaultEnable | bool | Optional | true | Whether the plugin functionality is enabled by default. When set to false, the plugin will only be activated when the request contains a web_search_options field |
 | needReference | bool | Optional | false | Whether to add reference sources in the response |
 | referenceFormat | string | Optional | `"**References:**\n%s"` | Reference content format, must include %s placeholder |
 | defaultLang | string | Optional | - | Default search language code (e.g. zh-CN/en-US) |
@@ -240,6 +241,22 @@ searchRewrite:
   llmModelName: "gpt-3.5-turbo"
   timeoutMillisecond: 15000
 ```
+
+### On-Demand Plugin Activation Configuration
+
+Configure the plugin to only be enabled when the request contains a `web_search_options` field:
+
+```yaml
+defaultEnable: false
+searchFrom:
+- type: google
+  apiKey: "your-google-api-key"
+  cx: "search-engine-id"
+  serviceName: "google-svc.dns"
+  servicePort: 443
+```
+
+This configuration is suitable for models that support web search options, such as OpenAI's gpt-4o-search-preview model. When the request contains a `web_search_options` field, even if it's an empty object (`"web_search_options": {}`), the plugin will be activated.
 
 ## Notes
 
