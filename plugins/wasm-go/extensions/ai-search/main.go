@@ -572,10 +572,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	} else {
 		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
 	}
-	if len(newMessages) == 1 {
-		return []byte(fmt.Sprintf("%s\n\n", newMessages[0]))
-	} else if len(newMessages) > 1 {
-		return []byte(strings.Join(newMessages, "\n\n"))
+	if len(newMessages) > 0 {
+		return []byte(fmt.Sprintf("%s\n\n", strings.Join(newMessages, "\n\n")))
 	} else {
 		return []byte("")
 	}
