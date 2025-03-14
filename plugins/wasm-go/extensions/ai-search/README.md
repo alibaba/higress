@@ -11,12 +11,13 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 ## 运行属性
 
 插件执行阶段：`默认阶段`
-插件执行优先级：`440`
+插件执行优先级：`460`
 
 ## 配置字段
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|----------|----------|--------|------|
+| defaultEnable | bool | 选填 | true | 插件功能默认是否开启。设置为false时，仅当请求中包含web_search_options字段时才启用插件功能 |
 | needReference | bool | 选填 | false | 是否在回答中添加引用来源 |
 | referenceFormat | string | 选填 | `"**References:**\n%s"` | 引用内容格式，必须包含%s占位符 |
 | defaultLang | string | 选填 | - | 默认搜索语言代码（如zh-CN/en-US） |
@@ -241,6 +242,22 @@ searchRewrite:
   llmModelName: "gpt-3.5-turbo"
   timeoutMillisecond: 15000
 ```
+
+### 按需启用插件配置
+
+配置插件仅在请求中包含`web_search_options`字段时才启用：
+
+```yaml
+defaultEnable: false
+searchFrom:
+- type: google
+  apiKey: "your-google-api-key"
+  cx: "search-engine-id"
+  serviceName: "google-svc.dns"
+  servicePort: 443
+```
+
+这种配置适用于支持web_search选项的模型，例如OpenAI的gpt-4o-search-preview模型。当请求中包含`web_search_options`字段时，即使是空对象（`"web_search_options": {}`），插件也会被激活。
 
 ## 注意事项
 
