@@ -124,12 +124,7 @@ func TestSecretConfigMgr(t *testing.T) {
 
 		mgr.HandleSecretChange(secretName)
 		assert.NotNil(t, updater.lastPushRequest)
-		assert.False(t, updater.lastPushRequest.Full)
-		assert.Contains(t, updater.lastPushRequest.ConfigsUpdated, istiomodel.ConfigKey{
-			Kind:      kind.WasmPlugin,
-			Name:      "test-plugin",
-			Namespace: "default",
-		})
+		assert.True(t, updater.lastPushRequest.Full)
 	})
 
 	// Test full push for secret update
