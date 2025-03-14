@@ -66,7 +66,6 @@ func NewSecretConfigMgr(xdsUpdater istiomodel.XDSUpdater) *SecretConfigMgr {
 
 // AddConfig adds a config and its secret dependencies
 func (m *SecretConfigMgr) AddConfig(secretKey string, cfg *config.Config) error {
-	IngressLog.Infof("SecretConfigMgr Adding config %s/%s for secret key:%s", cfg.Namespace, cfg.Name, secretKey)
 	configKey, _ := toConfigKey(cfg)
 
 	m.mutex.Lock()
@@ -83,13 +82,11 @@ func (m *SecretConfigMgr) AddConfig(secretKey string, cfg *config.Config) error 
 
 	// Add to watched secrets
 	m.watchedSecrets.Insert(secretKey)
-	IngressLog.Infof("watchedSecrets %v", m.watchedSecrets)
 	return nil
 }
 
 // DeleteConfig removes a config from all secret dependencies
 func (m *SecretConfigMgr) DeleteConfig(cfg *config.Config) error {
-	IngressLog.Infof("SecretConfigMgr Deleting config %s/%s", cfg.Namespace, cfg.Name)
 	configKey, _ := toConfigKey(cfg)
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -113,14 +110,11 @@ func (m *SecretConfigMgr) DeleteConfig(cfg *config.Config) error {
 
 	//  Remove the secrets from the secretToConfigs map
 	for _, secretKey := range removeKeys {
-		IngressLog.Infof("Removing secret %s from secretToConfigs", secretKey)
 		delete(m.secretToConfigs, secretKey)
 		m.watchedSecrets.Delete(secretKey)
 	}
 	// Remove the config from the config set
 	m.configSet.Delete(configId)
-	IngressLog.Infof("watchedSecrets %v", m.watchedSecrets)
-
 	return nil
 }
 
@@ -145,46 +139,19 @@ func (m *SecretConfigMgr) IsSecretWatched(secretKey string) bool {
 // HandleSecretChange handles secret changes and updates affected configs
 func (m *SecretConfigMgr) HandleSecretChange(name util.ClusterNamespacedName) {
 	secretKey := fmt.Sprintf("%s/%s", name.Namespace, name.Name)
-	IngressLog.Infof("SecretConfigMgr Handling Secret %s changed", secretKey)
 	// Check if this secret is being watched
 	if !m.IsSecretWatched(secretKey) {
-		IngressLog.Infof("Secret %s is not being watched", secretKey)
 		return
 	}
 
 	// Get affected configs
 	configKeys := m.GetConfigsForSecret(secretKey)
 	if len(configKeys) == 0 {
-		IngressLog.Infof("No configs depend on secret %s", secretKey)
 		return
 	}
-
-	// Create ConfigsUpdated set for push request
-	configsUpdated := sets.New[istiomodel.ConfigKey]()
-
-	shouldFullPush := false
-	// Update each affected config
-	for _, configKey := range configKeys {
-		// Create a new config for update
-		if configKey.Kind == kind.Secret && configKey.Name == name.Name && configKey.Namespace == name.Namespace {
-			// Secret itself is being updated, need full push
-			shouldFullPush = true
-			break
-		}
-		configsUpdated.Insert(configKey)
-	}
-	// Push the updates if any configs were successfully processed
-	if shouldFullPush && m.xdsUpdater != nil {
-		IngressLog.Infof("Full push triggered for secret %s", secretKey)
-		m.xdsUpdater.ConfigUpdate(&istiomodel.PushRequest{
-			Full: true,
-		})
-	} else if configsUpdated.Len() > 0 && m.xdsUpdater != nil {
-		IngressLog.Infof("Secret %s changed, updating %d dependent configs", secretKey, len(configKeys))
-		m.xdsUpdater.ConfigUpdate(&istiomodel.PushRequest{
-			Full:           false,
-			ConfigsUpdated: configsUpdated,
-		})
-	}
-	return
+	IngressLog.Infof("SecretConfigMgr Secret %s changed, updating %d dependent configs and push", secretKey, len(configKeys))
+	m.xdsUpdater.ConfigUpdate(&istiomodel.PushRequest{
+		Full:   true,
+		Reason: istiomodel.NewReasonStats(istiomodel.SecretTrigger),
+	})
 }

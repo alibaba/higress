@@ -15,6 +15,7 @@
 package tests
 
 import (
+	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"testing"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
@@ -124,8 +125,66 @@ var WasmPluginsBasicAuthTemplate = suite.ConformanceTest{
 				},
 			},
 		}
+
+		testcases2 := []http.Assertion{
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 5: Invalid username and/or password",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"Authorization": "Basic YWRtaW46MTIzNDU2"}, // base64("admin:123456")
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo.com",
+							Path:    "/foo",
+							Headers: map[string]string{"X-Mse-Consumer": "consumer1"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 401,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 6: Successful authentication",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo.com",
+						Path:    "/foo",
+						Headers: map[string]string{"Authorization": "Basic YWRtaW46cXdlcg=="}, // base64("admin:qwer")
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+					AdditionalResponseHeaders: map[string]string{
+						"WWW-Authenticate": "Basic realm=MSE Gateway",
+					},
+				},
+			},
+		}
 		t.Run("WasmPlugins basic-auth", func(t *testing.T) {
 			for _, testcase := range testcases {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+			}
+			err := kubernetes.ApplySecret(t, suite.Client, "higress-conformance-infra", "auth-secret", "auth.credential1", "admin:qwer")
+			if err != nil {
+				t.Fatalf("can't apply secret %s in namespace %s for data key %s", "auth-secret", "higress-conformance-infra", "auth.credential1")
+			}
+			for _, testcase := range testcases2 {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
 			}
 		})

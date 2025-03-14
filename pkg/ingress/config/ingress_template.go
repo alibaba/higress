@@ -44,7 +44,6 @@ func NewTemplateProcessor(getValue func(valueType, namespace, name, key string) 
 
 // ProcessConfig processes a config and substitutes any template variables
 func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
-	IngressLog.Infof("start to process config %s/%s", cfg.Namespace, cfg.Name)
 	// Convert spec to JSON string to process substitutions
 	jsonBytes, err := json.Marshal(cfg.Spec)
 	if err != nil {
@@ -52,7 +51,6 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 	}
 
 	configStr := string(jsonBytes)
-	IngressLog.Infof("Before config json:%s", configStr)
 	// Find all value references in format:
 	// ${type.name.key} or ${type.namespace/name.key}
 	valueRegex := regexp.MustCompile(`\$\{([^.}]+)\.(?:([^/]+)/)?([^.}]+)\.([^}]+)\}`)
@@ -67,7 +65,8 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 		return nil
 	}
 
-	IngressLog.Infof("start to apply name:%s with %d variables", cfg.Meta.Name, len(matches))
+	foundSecretSource := false
+	IngressLog.Infof("start to apply config %s/%s with %d variables", cfg.Namespace, cfg.Name, len(matches))
 	for _, match := range matches {
 		valueType := match[1]
 		var namespace, name, key string
@@ -89,6 +88,7 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 
 		// Add secret dependency if this is a secret reference
 		if valueType == "secret" && p.secretConfigMgr != nil {
+			foundSecretSource = true
 			secretKey := fmt.Sprintf("%s/%s", namespace, name)
 			if err := p.secretConfigMgr.AddConfig(secretKey, cfg); err != nil {
 				IngressLog.Errorf("failed to add secret dependency: %v", err)
@@ -98,19 +98,22 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 		configStr = strings.Replace(configStr, match[0], value, 1)
 	}
 
-	IngressLog.Infof("After config json:%s", configStr)
-
 	// Create a new instance of the same type as cfg.Spec
 	newSpec := proto.Clone(cfg.Spec.(proto.Message))
-
-	// Unmarshal into the new instance
 	if err := json.Unmarshal([]byte(configStr), newSpec); err != nil {
 		return fmt.Errorf("failed to unmarshal substituted config: %v", err)
 	}
-
-	// Update cfg.Spec with the new instance
 	cfg.Spec = newSpec
-	IngressLog.Infof("end to process config %s/%s, cfg:%v", cfg.Namespace, cfg.Name, cfg)
 
+	// Delete secret dependency if no secret reference is found
+	if !foundSecretSource {
+		if p.secretConfigMgr != nil {
+			if err := p.secretConfigMgr.DeleteConfig(cfg); err != nil {
+				IngressLog.Errorf("failed to delete secret dependency: %v", err)
+			}
+		}
+	}
+
+	IngressLog.Infof("end to process config %s/%s", cfg.Namespace, cfg.Name)
 	return nil
 }
