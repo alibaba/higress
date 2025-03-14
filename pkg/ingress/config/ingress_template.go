@@ -21,26 +21,30 @@ import (
 	"strings"
 
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"google.golang.org/protobuf/proto"
 	"istio.io/istio/pkg/config"
 )
 
 // TemplateProcessor handles template substitution in configs
 type TemplateProcessor struct {
 	// getValue is a function that retrieves values by type, namespace, name and key
-	getValue  func(valueType, namespace, name, key string) (string, error)
-	namespace string
+	getValue        func(valueType, namespace, name, key string) (string, error)
+	namespace       string
+	secretConfigMgr *SecretConfigMgr
 }
 
 // NewTemplateProcessor creates a new TemplateProcessor with the given value getter function
-func NewTemplateProcessor(getValue func(valueType, namespace, name, key string) (string, error), namespace string) *TemplateProcessor {
+func NewTemplateProcessor(getValue func(valueType, namespace, name, key string) (string, error), namespace string, secretConfigMgr *SecretConfigMgr) *TemplateProcessor {
 	return &TemplateProcessor{
-		getValue:  getValue,
-		namespace: namespace,
+		getValue:        getValue,
+		namespace:       namespace,
+		secretConfigMgr: secretConfigMgr,
 	}
 }
 
 // ProcessConfig processes a config and substitutes any template variables
 func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
+	IngressLog.Infof("start to process config %s/%s", cfg.Namespace, cfg.Name)
 	// Convert spec to JSON string to process substitutions
 	jsonBytes, err := json.Marshal(cfg.Spec)
 	if err != nil {
@@ -48,14 +52,21 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 	}
 
 	configStr := string(jsonBytes)
+	IngressLog.Infof("Before config json:%s", configStr)
 	// Find all value references in format:
 	// ${type.name.key} or ${type.namespace/name.key}
 	valueRegex := regexp.MustCompile(`\$\{([^.}]+)\.(?:([^/]+)/)?([^.}]+)\.([^}]+)\}`)
 	matches := valueRegex.FindAllStringSubmatch(configStr, -1)
 	// If there are no value references, return immediately
 	if len(matches) == 0 {
+		if p.secretConfigMgr != nil {
+			if err := p.secretConfigMgr.DeleteConfig(cfg); err != nil {
+				IngressLog.Errorf("failed to delete secret dependency: %v", err)
+			}
+		}
 		return nil
 	}
+
 	IngressLog.Infof("start to apply name:%s with %d variables", cfg.Meta.Name, len(matches))
 	for _, match := range matches {
 		valueType := match[1]
@@ -76,12 +87,30 @@ func (p *TemplateProcessor) ProcessConfig(cfg *config.Config) error {
 			return fmt.Errorf("failed to get %s value for %s/%s.%s: %v", valueType, namespace, name, key, err)
 		}
 
+		// Add secret dependency if this is a secret reference
+		if valueType == "secret" && p.secretConfigMgr != nil {
+			secretKey := fmt.Sprintf("%s/%s", namespace, name)
+			if err := p.secretConfigMgr.AddConfig(secretKey, cfg); err != nil {
+				IngressLog.Errorf("failed to add secret dependency: %v", err)
+			}
+		}
 		// Replace placeholder with actual value
 		configStr = strings.Replace(configStr, match[0], value, 1)
 	}
-	// Unmarshal back to config spec
-	if err := json.Unmarshal([]byte(configStr), &cfg.Spec); err != nil {
+
+	IngressLog.Infof("After config json:%s", configStr)
+
+	// Create a new instance of the same type as cfg.Spec
+	newSpec := proto.Clone(cfg.Spec.(proto.Message))
+
+	// Unmarshal into the new instance
+	if err := json.Unmarshal([]byte(configStr), newSpec); err != nil {
 		return fmt.Errorf("failed to unmarshal substituted config: %v", err)
 	}
+
+	// Update cfg.Spec with the new instance
+	cfg.Spec = newSpec
+	IngressLog.Infof("end to process config %s/%s, cfg:%v", cfg.Namespace, cfg.Name, cfg)
+
 	return nil
 }

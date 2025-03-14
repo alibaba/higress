@@ -152,7 +152,11 @@ type IngressConfig struct {
 
 	httpsConfigMgr *cert.ConfigMgr
 
+	// templateProcessor processes template variables in config
 	templateProcessor *TemplateProcessor
+
+	// secretConfigMgr manages secret dependencies
+	secretConfigMgr *SecretConfigMgr
 }
 
 // getSecretValue implements the getValue function for secret references
@@ -195,8 +199,11 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
 
+	// Initialize secret config manager
+	config.secretConfigMgr = NewSecretConfigMgr(xdsUpdater)
+
 	// Initialize template processor with value getter function
-	config.templateProcessor = NewTemplateProcessor(config.getSecretValue, namespace)
+	config.templateProcessor = NewTemplateProcessor(config.getSecretValue, namespace, config.secretConfigMgr)
 
 	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
@@ -255,6 +262,7 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f ist
 func (m *IngressConfig) AddLocalCluster(options common.Options) {
 	secretController := secret.NewController(m.localKubeClient, options)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
+	secretController.AddEventHandler(m.secretConfigMgr.HandleSecretChange)
 
 	var ingressController common.IngressController
 	v1 := common.V1Available(m.localKubeClient)
@@ -1028,7 +1036,6 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		return nil, nil
 	}
 	return result, nil
-
 }
 
 func isBoolValueTrue(b *wrappers.BoolValue) bool {

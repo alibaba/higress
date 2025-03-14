@@ -46,7 +46,7 @@ func TestTemplateProcessor_ProcessConfig(t *testing.T) {
 	}
 
 	// Create template processor
-	processor := NewTemplateProcessor(getValue, "higress-system")
+	processor := NewTemplateProcessor(getValue, "higress-system", nil)
 
 	tests := []struct {
 		name        string
