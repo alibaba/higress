@@ -44,6 +44,7 @@ type HttpContext interface {
 	GetContext(key string) interface{}
 	GetBoolContext(key string, defaultValue bool) bool
 	GetStringContext(key, defaultValue string) string
+	GetByteSliceContext(key string, defaultValue []byte) []byte
 	GetUserAttribute(key string) interface{}
 	SetUserAttribute(key string, value interface{})
 	SetUserAttributeMap(kvmap map[string]interface{})
@@ -478,6 +479,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue 
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetStringContext(key, defaultValue string) string {
 	if s, ok := ctx.userContext[key].(string); ok {
+		return s
+	}
+	return defaultValue
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetByteSliceContext(key string, defaultValue []byte) []byte {
+	if s, ok := ctx.userContext[key].([]byte); ok {
 		return s
 	}
 	return defaultValue
