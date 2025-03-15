@@ -698,11 +698,6 @@ func (c *ProviderConfig) handleRequestBody(
 		return types.ActionContinue, err
 	}
 
-	// If retryOnFailure is enabled, save the transformed body to the context in case of retry
-	if c.isRetryOnFailureEnabled() {
-		ctx.SetContext(ctxRequestBody, body)
-	}
-
 	if apiName == ApiNameChatCompletion {
 		if c.context == nil {
 			return types.ActionContinue, replaceRequestBody(body, log)

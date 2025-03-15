@@ -67,8 +67,9 @@ const (
 	removeApiTokenOperation            = "removeApiToken"
 	addApiTokenRequestCountOperation   = "addApiTokenRequestCount"
 	resetApiTokenRequestCountOperation = "resetApiTokenRequestCount"
-	ctxRequestHost                     = "requestHost"
-	ctxRequestPath                     = "requestPath"
+	CtxRequestHost                     = "requestHost"
+	CtxRequestPath                     = "requestPath"
+	CtxRequestBody                     = "requestBody"
 )
 
 var (
@@ -158,7 +159,6 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 						log.Debugf("Perform health check for unavailable apiTokens: %s", strings.Join(unavailableTokens, ", "))
 						healthCheckEndpoint, headers, body := c.generateRequestHeadersAndBody(log)
 						healthCheckClient = wrapper.NewClusterClient(wrapper.TargetCluster{
-							Host:    healthCheckEndpoint.Host,
 							Cluster: healthCheckEndpoint.Cluster,
 						})
 
@@ -171,7 +171,7 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 						}
 
 						// The apiToken for ChatCompletion and Embeddings can be the same, so we only need to health check ChatCompletion
-						err = healthCheckClient.Post(healthCheckEndpoint.Path, modifiedHeaders, modifiedBody, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+						err = healthCheckClient.Post(generateUrl(modifiedHeaders), util.HeaderToSlice(modifiedHeaders), modifiedBody, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 							if statusCode == 200 {
 								c.handleAvailableApiToken(apiToken, log)
 							}
@@ -187,19 +187,21 @@ func (c *ProviderConfig) SetApiTokensFailover(log wrapper.Log, activeProvider Pr
 	return nil
 }
 
-func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext, activeProvider Provider, headers [][2]string, body []byte, log wrapper.Log) ([][2]string, []byte, error) {
-	originalHeaders := util.SliceToHeader(headers)
+func generateUrl(header http.Header) string {
+	return fmt.Sprintf("https://%s%s", header.Get(":authority"), header.Get(":path"))
+}
+
+func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext, activeProvider Provider, headers [][2]string, body []byte, log wrapper.Log) (http.Header, []byte, error) {
+	modifiedHeaders := util.SliceToHeader(headers)
 	if handler, ok := activeProvider.(TransformRequestHeadersHandler); ok {
-		handler.TransformRequestHeaders(ctx, ApiNameChatCompletion, originalHeaders, log)
+		handler.TransformRequestHeaders(ctx, ApiNameChatCompletion, modifiedHeaders, log)
 	}
 
 	var err error
 	if handler, ok := activeProvider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, ApiNameChatCompletion, body, log)
 	} else if handler, ok := activeProvider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalRequestHeaders()
-		body, err = handler.TransformRequestBodyHeaders(ctx, ApiNameChatCompletion, body, originalHeaders, log)
-		util.ReplaceRequestHeaders(headers)
+		body, err = handler.TransformRequestBodyHeaders(ctx, ApiNameChatCompletion, body, modifiedHeaders, log)
 	} else {
 		body, err = c.defaultTransformRequestBody(ctx, ApiNameChatCompletion, body, log)
 	}
@@ -207,7 +209,6 @@ func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext,
 		return nil, nil, fmt.Errorf("failed to transform request body: %v", err)
 	}
 
-	modifiedHeaders := util.HeaderToSlice(originalHeaders)
 	return modifiedHeaders, body, nil
 }
 
@@ -232,6 +233,8 @@ func (c *ProviderConfig) generateRequestHeadersAndBody(log wrapper.Log) (HealthC
 
 	headers := [][2]string{
 		{"content-type", "application/json"},
+		{":authority", healthCheckEndpoint.Host},
+		{":path", healthCheckEndpoint.Path},
 	}
 	body := []byte(fmt.Sprintf(`{
                       "model": "%s",
@@ -311,7 +314,7 @@ func (c *ProviderConfig) handleAvailableApiToken(apiToken string, log wrapper.Lo
 
 	successCount := successApiTokenRequestCount[apiToken] + 1
 	if successCount >= c.failover.successThreshold {
-		log.Infof("apiToken %s is available now, add it back to the apiTokens list", apiToken)
+		log.Infof("healthcheck after failover: apiToken %s is available now, add it back to the apiTokens list", apiToken)
 		removeApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
 		addApiToken(c.failover.ctxApiTokens, apiToken, log)
 		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestSuccessCount, apiToken, log)
@@ -342,7 +345,7 @@ func (c *ProviderConfig) handleUnavailableApiToken(ctx wrapper.HttpContext, apiT
 
 	failureCount := failureApiTokenRequestCount[apiToken] + 1
 	if failureCount >= c.failover.failureThreshold {
-		log.Infof("apiToken %s is unavailable now, remove it from apiTokens list", apiToken)
+		log.Infof("failover: apiToken %s is unavailable now, remove it from apiTokens list", apiToken)
 		removeApiToken(c.failover.ctxApiTokens, apiToken, log)
 		addApiToken(c.failover.ctxUnavailableApiTokens, apiToken, log)
 		resetApiTokenRequestCount(c.failover.ctxApiTokenRequestFailureCount, apiToken, log)
@@ -532,7 +535,8 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	count := len(apiTokens)
 	switch count {
 	case 0:
-		return ""
+		log.Warn("all tokens are unavailable, will use random one of the unavailable tokens")
+		return unavailableApiTokens[rand.Intn(len(unavailableApiTokens))]
 	case 1:
 		return apiTokens[0]
 	default:
@@ -570,10 +574,16 @@ func (c *ProviderConfig) resetSharedData() {
 
 func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, status string, log wrapper.Log) types.Action {
 	if c.isFailoverEnabled() && util.MatchStatus(status, c.failover.failoverOnStatus) {
+		log.Warnf("apiToken:%s need failover, error status:%s", apiTokenInUse, status)
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
-	if c.isRetryOnFailureEnabled() && util.MatchStatus(status, c.retryOnFailure.retryOnStatus) && isNotStreamingResponse(ctx) {
-		c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
+	if c.IsRetryOnFailureEnabled() && util.MatchStatus(status, c.retryOnFailure.retryOnStatus) {
+		log.Warnf("need retry, notice that retry response will be bufferd, error status:%s", status)
+		err := c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
+		if err != nil {
+			log.Errorf("retryFailedRequest failed, err:%v", err)
+			return types.ActionContinue
+		}
 		return types.HeaderStopAllIterationAndWatermark
 	}
 	return types.ActionContinue
@@ -606,13 +616,11 @@ func (c *ProviderConfig) setHealthCheckEndpoint(ctx wrapper.HttpContext, log wra
 		log.Errorf("Failed to get cluster_name: %v", err)
 	}
 
-	host := wrapper.GetRequestHost()
-	if host == "" {
-		host = ctx.GetContext(ctxRequestHost).(string)
-	}
-	path := wrapper.GetRequestPath()
-	if path == "" {
-		path = ctx.GetContext(ctxRequestPath).(string)
+	host := ctx.GetStringContext(CtxRequestHost, "")
+	path := ctx.GetStringContext(CtxRequestPath, "")
+	if host == "" || path == "" {
+		log.Errorf("get host or path failed, host:%s, path:%s", host, path)
+		return
 	}
 
 	healthCheckEndpoint := HealthCheckEndpoint{

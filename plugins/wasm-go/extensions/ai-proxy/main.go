@@ -37,7 +37,7 @@ func main() {
 }
 
 func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	//log.Debugf("loading global config: %s", json.String())
+	log.Debugf("loading global config: %s", json.String())
 
 	pluginConfig.FromJson(json)
 	if err := pluginConfig.Validate(); err != nil {
@@ -53,7 +53,7 @@ func parseGlobalConfig(json gjson.Result, pluginConfig *config.PluginConfig, log
 }
 
 func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, pluginConfig *config.PluginConfig, log wrapper.Log) error {
-	//log.Debugf("loading override rule config: %s", json.String())
+	log.Debugf("loading override rule config: %s", json.String())
 
 	*pluginConfig = global
 
@@ -111,6 +111,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		// Set available apiTokens of current request in the context, will be used in the retryOnFailure
 		providerConfig.SetAvailableApiTokens(ctx, log)
 
+		// save the original request host and path in case they are needed for apiToken health check and retry
+		ctx.SetContext(provider.CtxRequestHost, wrapper.GetRequestHost())
+		ctx.SetContext(provider.CtxRequestPath, wrapper.GetRequestPath())
+
 		err := handler.OnRequestHeaders(ctx, apiName, log)
 		if err != nil {
 			_ = util.ErrorHandler("ai-proxy.proc_req_headers_failed", fmt.Errorf("failed to process request headers: %v", err))
@@ -138,12 +142,15 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		log.Debugf("[onHttpRequestBody] no active provider, skip processing")
 		return types.ActionContinue
 	}
-
 	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
 
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		providerConfig := pluginConfig.GetProviderConfig()
+		// If retryOnFailure is enabled, save the transformed body to the context in case of retry
+		if providerConfig.IsRetryOnFailureEnabled() {
+			ctx.SetContext(provider.CtxRequestBody, body)
+		}
 		newBody, settingErr := providerConfig.ReplaceByCustomSettings(body)
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
