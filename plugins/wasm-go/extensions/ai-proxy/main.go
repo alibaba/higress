@@ -324,11 +324,11 @@ func checkStream(ctx wrapper.HttpContext, log wrapper.Log) {
 
 func getApiName(path string) provider.ApiName {
 	// openai style
-	if strings.HasSuffix(path, "/v1/completions") {
-		return provider.ApiNameCompletion
-	}
 	if strings.HasSuffix(path, "/v1/chat/completions") {
 		return provider.ApiNameChatCompletion
+	}
+	if strings.HasSuffix(path, "/v1/completions") {
+		return provider.ApiNameCompletion
 	}
 	if strings.HasSuffix(path, "/v1/embeddings") {
 		return provider.ApiNameEmbeddings
@@ -338,6 +338,12 @@ func getApiName(path string) provider.ApiName {
 	}
 	if strings.HasSuffix(path, "/v1/images/generations") {
 		return provider.ApiNameImageGeneration
+	}
+	if strings.HasSuffix(path, "/v1/batches") {
+		return provider.ApiNameBatches
+	}
+	if strings.HasSuffix(path, "/v1/files") {
+		return provider.ApiNameFiles
 	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {
