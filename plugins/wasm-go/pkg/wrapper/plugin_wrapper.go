@@ -258,7 +258,13 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 
 func NewCommonVmCtx[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	logger := &DefaultLog{pluginName, "nil"}
-	opts := append([]CtxOption[PluginConfig]{WithLogger[PluginConfig](logger)}, options...)
+	opts := []CtxOption[PluginConfig]{WithLogger[PluginConfig](logger)}
+	for _, opt := range options {
+		if opt == nil {
+			continue
+		}
+		opts = append(opts, opt)
+	}
 	return NewCommonVmCtxWithOptions(pluginName, opts...)
 }
 
