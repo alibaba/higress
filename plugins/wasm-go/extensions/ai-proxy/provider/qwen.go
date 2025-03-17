@@ -12,7 +12,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -89,6 +88,19 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+	if m.config.qwenEnableCompatible {
+		if gjson.GetBytes(body, "model").Exists() {
+			rawModel := gjson.GetBytes(body, "model").String()
+			mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
+			newBody, err := sjson.SetBytes(body, "model", mappedModel)
+			if err != nil {
+				log.Errorf("Replace model error: %v", err)
+				return newBody, err
+			}
+			return newBody, nil
+		}
+		return body, nil
+	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return m.onChatCompletionRequestBody(ctx, body, headers, log)
@@ -115,36 +127,6 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if m.config.qwenEnableCompatible {
-		if gjson.GetBytes(body, "model").Exists() {
-			rawModel := gjson.GetBytes(body, "model").String()
-			mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
-			newBody, err := sjson.SetBytes(body, "model", mappedModel)
-			if err != nil {
-				log.Errorf("Replace model error: %v", err)
-				return types.ActionContinue, err
-			}
-
-			// TODO: Temporary fix to clamp top_p value to the range [qwenTopPMin, qwenTopPMax].
-			if topPValue := gjson.GetBytes(body, "top_p"); topPValue.Exists() {
-				rawTopP := topPValue.Float()
-				scaledTopP := math.Max(qwenTopPMin, math.Min(rawTopP, qwenTopPMax))
-				newBody, err = sjson.SetBytes(newBody, "top_p", scaledTopP)
-				if err != nil {
-					log.Errorf("Failed to replace top_p: %v", err)
-					return types.ActionContinue, err
-				}
-			}
-
-			err = proxywasm.ReplaceHttpRequestBody(newBody)
-			if err != nil {
-				log.Errorf("Replace request body error: %v", err)
-				return types.ActionContinue, err
-			}
-		}
-		return types.ActionContinue, nil
-	}
-
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
