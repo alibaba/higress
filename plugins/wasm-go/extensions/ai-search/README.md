@@ -271,7 +271,7 @@ searchFrom:
   servicePort: 443
 ```
 
-这种配置适用于支持web_search选项的模型，例如OpenAI的gpt-4o-search-preview模型。当请求中包含`web_search_options`字段时，即使是空对象（`"web_search_options": {}`），插件也会被激活。
+这种配置可以兼容OpenAI的搜索模型协议。当请求中包含`web_search_options`字段时，即使是空对象（`"web_search_options": {}`），插件也会被激活。
 
 ### 搜索上下文大小配置
 
