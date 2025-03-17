@@ -92,7 +92,7 @@ type controller struct {
 
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kubeclient.Client, options common.Options, secretController secret.SecretController) common.IngressController {
-	opts := ktypes.InformerOptions{}
+	opts := ktypes.InformerOptions{Namespace: options.WatchNamespace}
 	ingressInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Ingress)
 	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
 	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Service)

@@ -7,6 +7,8 @@ This SDK is used to develop the WASM Plugins for Higress in Go.
 The wasm-go plugin can be built quickly with the following command:
 
 ```bash
+# NOTE: if you want to set EXTRA_TAGS for the wasm plugin
+# please set them in the .buildrc file under extensions/${PLUGIN_NAME} directory
 $ PLUGIN_NAME=request-block make build
 ```
 

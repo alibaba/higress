@@ -54,7 +54,7 @@ func TestIngressControllerApplies(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: ""}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.IngressController){
@@ -253,7 +253,7 @@ func TestIngressControllerConventions(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.IngressController){
@@ -1142,7 +1142,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 
 	opts := ktypes.InformerOptions{}
 	ingressInformer := util.GetInformerFiltered(fakeClient, opts, gvrIngressV1Beta1, &ingress.Ingress{},

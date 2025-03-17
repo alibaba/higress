@@ -30,8 +30,12 @@ type failover struct {
 	healthCheckTimeout int64 `required:"false" yaml:"healthCheckTimeout" json:"healthCheckTimeout"`
 	// @Title zh-CN 健康检测使用的模型
 	healthCheckModel string `required:"false" yaml:"healthCheckModel" json:"healthCheckModel"`
+	// @Title zh-CN 需要进行 failover 的原始请求的状态码，支持正则表达式匹配
+	failoverOnStatus []string `required:"false" yaml:"failoverOnStatus" json:"failoverOnStatus"`
 	// @Title zh-CN 本次请求使用的 apiToken
 	ctxApiTokenInUse string
+	// @Title zh-CN 记录本次请求时所有可用的 apiToken
+	ctxAvailableApiTokensInRequest string
 	// @Title zh-CN 记录 apiToken 请求失败的次数，key 为 apiToken，value 为失败次数
 	ctxApiTokenRequestFailureCount string
 	// @Title zh-CN 记录 apiToken 健康检测成功的次数，key 为 apiToken，value 为成功次数
@@ -90,6 +94,14 @@ func (f *failover) FromJson(json gjson.Result) {
 		f.healthCheckTimeout = 5000
 	}
 	f.healthCheckModel = json.Get("healthCheckModel").String()
+
+	for _, status := range json.Get("failoverOnStatus").Array() {
+		f.failoverOnStatus = append(f.failoverOnStatus, status.String())
+	}
+	// If failoverOnStatus is empty, default to retry on 4xx and 5xx
+	if len(f.failoverOnStatus) == 0 {
+		f.failoverOnStatus = []string{"4.*", "5.*"}
+	}
 }
 
 func (f *failover) Validate() error {
@@ -102,13 +114,14 @@ func (f *failover) Validate() error {
 func (c *ProviderConfig) initVariable() {
 	// Set provider name as prefix to differentiate shared data
 	provider := c.GetType()
-	c.failover.ctxApiTokenInUse = provider + "-apiTokenInUse"
-	c.failover.ctxApiTokenRequestFailureCount = provider + "-apiTokenRequestFailureCount"
-	c.failover.ctxApiTokenRequestSuccessCount = provider + "-apiTokenRequestSuccessCount"
-	c.failover.ctxApiTokens = provider + "-apiTokens"
-	c.failover.ctxUnavailableApiTokens = provider + "-unavailableApiTokens"
-	c.failover.ctxHealthCheckEndpoint = provider + "-requestHostAndPath"
-	c.failover.ctxVmLease = provider + "-vmLease"
+	id := c.GetId()
+	c.failover.ctxApiTokenInUse = provider + "-" + id + "-apiTokenInUse"
+	c.failover.ctxApiTokenRequestFailureCount = provider + "-" + id + "-apiTokenRequestFailureCount"
+	c.failover.ctxApiTokenRequestSuccessCount = provider + "-" + id + "-apiTokenRequestSuccessCount"
+	c.failover.ctxApiTokens = provider + "-" + id + "-apiTokens"
+	c.failover.ctxUnavailableApiTokens = provider + "-" + id + "-unavailableApiTokens"
+	c.failover.ctxHealthCheckEndpoint = provider + "-" + id + "-requestHostAndPath"
+	c.failover.ctxVmLease = provider + "-" + id + "-vmLease"
 }
 
 func parseConfig(json gjson.Result, config *any, log wrapper.Log) error {
@@ -527,6 +540,22 @@ func (c *ProviderConfig) GetGlobalRandomToken(log wrapper.Log) string {
 	}
 }
 
+func (c *ProviderConfig) GetAvailableApiToken(ctx wrapper.HttpContext) []string {
+	apiTokens, _ := ctx.GetContext(c.failover.ctxAvailableApiTokensInRequest).([]string)
+	return apiTokens
+}
+
+// SetAvailableApiTokens set available apiTokens of current request in the context, will be used in the retryOnFailure
+func (c *ProviderConfig) SetAvailableApiTokens(ctx wrapper.HttpContext, log wrapper.Log) {
+	var apiTokens []string
+	if c.isFailoverEnabled() {
+		apiTokens, _, _ = getApiTokens(c.failover.ctxApiTokens)
+	} else {
+		apiTokens = c.apiTokens
+	}
+	ctx.SetContext(c.failover.ctxAvailableApiTokensInRequest, apiTokens)
+}
+
 func (c *ProviderConfig) isFailoverEnabled() bool {
 	return c.failover.enabled
 }
@@ -539,15 +568,19 @@ func (c *ProviderConfig) resetSharedData() {
 	_ = proxywasm.SetSharedData(c.failover.ctxApiTokenRequestFailureCount, nil, 0)
 }
 
-func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, log wrapper.Log) types.Action {
-	if c.isFailoverEnabled() {
+func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.HttpContext, apiTokenInUse string, apiTokens []string, status string, log wrapper.Log) types.Action {
+	if c.isFailoverEnabled() && util.MatchStatus(status, c.failover.failoverOnStatus) {
 		c.handleUnavailableApiToken(ctx, apiTokenInUse, log)
 	}
-	if c.isRetryOnFailureEnabled() && ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool) {
-		c.retryFailedRequest(activeProvider, ctx, log)
+	if c.isRetryOnFailureEnabled() && util.MatchStatus(status, c.retryOnFailure.retryOnStatus) && isNotStreamingResponse(ctx) {
+		c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens, log)
 		return types.HeaderStopAllIterationAndWatermark
 	}
 	return types.ActionContinue
+}
+
+func isNotStreamingResponse(ctx wrapper.HttpContext) bool {
+	return ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool)
 }
 
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {

@@ -18,13 +18,14 @@ Plugin execution priority: `750`
 | `admin_path`        | string           | Optional                                   |   /quota      | Prefix for the path to manage quota requests      |
 | `redis`             | object           | Yes                                        |               | Redis related configuration                        |
 Explanation of each configuration field in `redis`
-| Configuration Item  | Type             | Required | Default Value                                            | Explanation                                   |
-|---------------------|------------------|----------|---------------------------------------------------------|-----------------------------------------------|
-| service_name        | string           | Required | -                                                       | Redis service name, full FQDN name with service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
-| service_port        | int              | No       | Default value for static service is 80; others are 6379 | Service port for the redis service            |
-| username            | string           | No       | -                                                       | Redis username                                |
-| password            | string           | No       | -                                                       | Redis password                                |
-| timeout             | int              | No       | 1000                                                    | Redis connection timeout in milliseconds      |
+| Configuration Item | Type   | Required | Default Value                                           | Explanation                                                                                             |
+|--------------------|--------|----------|---------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| service_name       | string | Required | -                                                       | Redis service name, full FQDN name with service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
+| service_port       | int    | No       | Default value for static service is 80; others are 6379 | Service port for the redis service                                                                      |
+| username           | string | No       | -                                                       | Redis username                                                                                          |
+| password           | string | No       | -                                                       | Redis password                                                                                          |
+| timeout            | int    | No       | 1000                                                    | Redis connection timeout in milliseconds                                                                |
+| database           | int    | No       | 0                                                       | The database ID used, for example, configured as 1, corresponds to `SELECT 1`.                          |
 
 ## Configuration Example
 ### Identify request parameter apikey and apply rate limiting accordingly

@@ -127,7 +127,14 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 	}
 	ingressV1Beta1Controller := controllerv1beta1.NewController(fake, fake, v1Beta1Options, nil)
 	ingressV1Controller := controllerv1.NewController(fake, fake, v1Options, nil)
-	m := NewIngressConfig(fake, nil, "wakanda", "gw-123-istio")
+	options := common.Options{
+		Enable:           true,
+		ClusterId:        "gw-123-istio",
+		RawClusterId:     "gw-123-istio__",
+		GatewayHttpPort:  80,
+		GatewayHttpsPort: 443,
+	}
+	m := NewIngressConfig(fake, nil, "wakanda", options)
 	m.remoteIngressControllers = map[cluster.ID]common.IngressController{
 		"ingress-v1beta1": ingressV1Beta1Controller,
 		"ingress-v1":      ingressV1Controller,

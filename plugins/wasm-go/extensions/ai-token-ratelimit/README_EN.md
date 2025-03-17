@@ -43,13 +43,14 @@ Field descriptions for each item in `limit_keys`
 | token_per_day          | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per day        |
 
 Field descriptions for each item in `redis`
-| Configuration Item      | Type              | Required | Default Value                                                     | Description                                     |
-| ----------------------- | ----------------- | -------- | --------------------------------------------------------------- | ----------------------------------------------- |
-| service_name            | string            | Required | -                                                               | Full FQDN name of the redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
-| service_port            | int               | No       | Default value for static addresses (static service) is 80; otherwise, it is 6379 | Input the service port of the redis service     |
-| username                | string            | No       | -                                                               | Redis username                                  |
-| password                | string            | No       | -                                                               | Redis password                                  |
-| timeout                 | int               | No       | 1000                                                            | Redis connection timeout in milliseconds       |
+| Configuration Item      | Type              | Required | Default Value                                                                    | Description                                                                                                    |
+| ----------------------- | ----------------- | -------- | ---------------------------------------------------------------                  | -----------------------------------------------                                                                |
+| service_name            | string            | Required | -                                                                                | Full FQDN name of the redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local |
+| service_port            | int               | No       | Default value for static addresses (static service) is 80; otherwise, it is 6379 | Input the service port of the redis service                                                                    |
+| username                | string            | No       | -                                                                                | Redis username                                                                                                 |
+| password                | string            | No       | -                                                                                | Redis password                                                                                                 |
+| timeout                 | int               | No       | 1000                                                                             | Redis connection timeout in milliseconds                                                                       |
+| database                | int               | No       | 0                                                                                | The database ID used, for example, configured as 1, corresponds to `SELECT 1`.                                 |
 
 ## Configuration Examples
 ### Identify request parameter apikey for differentiated rate limiting
@@ -233,21 +234,9 @@ spec:
           '*': "qwen-turbo"
     ingress:
     - qwen
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 100
----
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ai-statistics
-  namespace: higress-system
-spec:
-  defaultConfig:
-    enable: true
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-statistics:v1.0.0
-  phase: UNSPECIFIED_PHASE
-  priority: 200
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -269,7 +258,7 @@ spec:
       # service_name: redis.default.svc.cluster.local
       service_name: redis.dns
       service_port: 6379
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:v1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:1.0.0
   phase: UNSPECIFIED_PHASE
   priority: 600
 ```
@@ -346,10 +335,19 @@ spec:
         pathType: Prefix
 ```
 
+Forward the traffic of higress-gateway to the local, making it convenient for testing.
+
+```bash
+kubectl port-forward svc/higress-gateway -n higress-system 18000:80
+```
+
 The rate limiting effect is triggered as follows:
 
 ```bash
-curl "http://qwen-test.com:18000/v1/chat/completions?apikey=123456" -H "Content-Type: application/json"  -d '{
+curl "http://localhost:18000/v1/chat/completions?apikey=123456" \
+-H "Host: qwen-test.com" \
+-H "Content-Type: application/json" \
+-d '{
   "model": "gpt-3",
   "messages": [
     {

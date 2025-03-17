@@ -144,7 +144,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.0/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.1/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -162,13 +162,13 @@ buildx-prepare:
 build-gateway: prebuild buildx-prepare
 	USE_REAL_USER=1 TARGET_ARCH=amd64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
 	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
-	DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker.buildx
+	DOCKER_TARGETS="docker.proxyv2" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
 build-gateway-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
 
 build-istio: prebuild buildx-prepare
-	DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker.buildx
+	DOCKER_TARGETS="docker.pilot" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
 build-istio-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker
