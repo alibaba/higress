@@ -44,6 +44,7 @@ type HttpContext interface {
 	GetContext(key string) interface{}
 	GetBoolContext(key string, defaultValue bool) bool
 	GetStringContext(key, defaultValue string) string
+	GetByteSliceContext(key string, defaultValue []byte) []byte
 	GetUserAttribute(key string) interface{}
 	SetUserAttribute(key string, value interface{})
 	SetUserAttributeMap(kvmap map[string]interface{})
@@ -257,7 +258,13 @@ func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) 
 
 func NewCommonVmCtx[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	logger := &DefaultLog{pluginName, "nil"}
-	opts := append([]CtxOption[PluginConfig]{WithLogger[PluginConfig](logger)}, options...)
+	opts := []CtxOption[PluginConfig]{WithLogger[PluginConfig](logger)}
+	for _, opt := range options {
+		if opt == nil {
+			continue
+		}
+		opts = append(opts, opt)
+	}
 	return NewCommonVmCtxWithOptions(pluginName, opts...)
 }
 
@@ -478,6 +485,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue 
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetStringContext(key, defaultValue string) string {
 	if s, ok := ctx.userContext[key].(string); ok {
+		return s
+	}
+	return defaultValue
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetByteSliceContext(key string, defaultValue []byte) []byte {
+	if s, ok := ctx.userContext[key].([]byte); ok {
 		return s
 	}
 	return defaultValue
