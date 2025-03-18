@@ -40,8 +40,8 @@ type XfyunProviderConfig struct {
 }
 
 func (c *XfyunProviderInitializer) InitConfig(json gjson.Result) {
-	XfyunConfig.xfyunAppID = json.Get("APPID").String()
-	XfyunConfig.xfyunApiSecret = json.Get("APISecret").String()
+	XfyunConfig.xfyunAppID = json.Get("appId").String()
+	XfyunConfig.xfyunApiSecret = json.Get("apiSecret").String()
 	XfyunConfig.apiKey = json.Get("apiKey").String()
 }
 
@@ -50,10 +50,10 @@ func (c *XfyunProviderInitializer) ValidateConfig() error {
 		return errors.New("[Xfyun] apiKey is required")
 	}
 	if XfyunConfig.xfyunAppID == "" {
-		return errors.New("[Xfyun] APPID is required")
+		return errors.New("[Xfyun] appId is required")
 	}
 	if XfyunConfig.xfyunApiSecret == "" {
-		return errors.New("[Xfyun] APISecret is required")
+		return errors.New("[Xfyun] apiSecret is required")
 	}
 	return nil
 }
@@ -139,26 +139,8 @@ type XfyunResPayload struct {
 	} `json:"feature"`
 }
 
-type Url struct {
-	Host   string
-	Path   string
-	Schema string
-}
-
-func ParseUrl(requestUrl string) (*Url, error) {
-	parsedUrl, err := url.Parse(requestUrl)
-	if err != nil {
-		return nil, err
-	}
-	return &Url{
-		Host:   parsedUrl.Host,
-		Path:   parsedUrl.Path,
-		Schema: parsedUrl.Scheme + "://",
-	}, nil
-}
-
 func constructAuth(requestURL, method, apiKey, apiSecret string) (string, error) {
-	u, err := ParseUrl(requestURL)
+	u, err := url.Parse(requestURL)
 	if err != nil {
 		return "", err
 	}
