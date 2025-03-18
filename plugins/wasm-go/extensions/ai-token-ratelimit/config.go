@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -59,6 +60,7 @@ type ClusterKeyRateLimitConfig struct {
 	rejectedCode         uint32          // 当请求超过阈值被拒绝时,返回的HTTP状态码
 	rejectedMsg          string          // 当请求超过阈值被拒绝时,返回的响应体
 	redisClient          wrapper.RedisClient
+	counterMetrics       map[string]proxywasm.MetricCounter // Metrics
 }
 
 type LimitRuleItem struct {

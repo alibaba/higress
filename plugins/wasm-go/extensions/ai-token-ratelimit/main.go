@@ -88,6 +88,8 @@ func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapp
 	if err != nil {
 		return err
 	}
+	// Metric settings
+	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
 	return nil
 }
 
@@ -304,9 +306,56 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 	return realIP, nil
 }
 
+func (config *ClusterKeyRateLimitConfig) incrementCounter(metricName string, inc uint64) {
+	if inc == 0 {
+		return
+	}
+	counter, ok := config.counterMetrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		config.counterMetrics[metricName] = counter
+	}
+	counter.Increment(inc)
+}
+
+func generateMetricName(route, cluster, model, consumer, metricName string) string {
+	return fmt.Sprintf("route.%s.upstream.%s.model.%s.consumer.%s.metric.%s", route, cluster, model, consumer, metricName)
+}
+
+func getRouteName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
+	}
+}
+
+func getClusterName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
+	}
+}
+
 func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
 	_ = proxywasm.SendHttpResponseWithDetail(
 		config.rejectedCode, "ai-token-ratelimit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+
+	route, err := getRouteName()
+	if err != nil {
+		route = "none"
+	}
+	cluster, err := getClusterName()
+	if err != nil {
+		cluster = "none"
+	}
+	consumer, err := proxywasm.GetHttpRequestHeader(ConsumerHeader)
+	if err != nil {
+		consumer = "none"
+	}
+	metricsName := generateMetricName(route, cluster, "none", consumer, "ai-token-ratelimit")
+	config.incrementCounter(metricsName, 1)
 }
