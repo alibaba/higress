@@ -25,11 +25,12 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 }
 
 // parseIP 解析IP
-func parseIP(source string, from_header bool) string {
+func parseIP(source string, fromHeader bool) string {
 
-	if from_header {
-		source = strings.Trim(strings.Split(source, ",")[0], " ")
+	if fromHeader {
+		source = strings.Split(source, ",")[0]
 	}
+	source = strings.Trim(source, " ")
 	if strings.Contains(source, ".") {
 		// parse ipv4
 		return strings.Split(source, ":")[0]

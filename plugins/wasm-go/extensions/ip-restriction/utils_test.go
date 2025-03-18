@@ -53,8 +53,8 @@ func Test_parseIPNets(t *testing.T) {
 
 func Test_parseIP(t *testing.T) {
 	type args struct {
-		source      string
-		from_header bool
+		source     string
+		fromHeader bool
 	}
 	tests := []struct {
 		name string
@@ -129,7 +129,7 @@ func Test_parseIP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := parseIP(tt.args.source, tt.args.from_header); got != tt.want {
+			if got := parseIP(tt.args.source, tt.args.fromHeader); got != tt.want {
 				t.Errorf("parseIP() = %v, want %v", got, tt.want)
 			}
 		})
