@@ -18,6 +18,7 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use crate::cluster_wrapper::Cluster;
+use crate::internal;
 use crate::log::Log;
 use crate::rule_matcher::SharedRuleMatcher;
 use http::{method::Method, Uri};
@@ -141,6 +142,32 @@ where
 
     fn replace_http_response_body(&mut self, body: &[u8]) {
         self.set_http_response_body(0, i32::MAX as usize, body)
+    }
+
+    fn not_read_request_body(&self) -> bool {
+        false
+    }
+
+    fn not_read_response_body(&self) -> bool {
+        false
+    }
+
+    fn set_request_body_buffer_limit(&self, limit: u32) {
+        self.log()
+            .infof(format_args!("SetRequestBodyBufferLimit:{}", limit));
+        internal::set_property(
+            vec!["set_decoder_buffer_limit"],
+            Some(limit.to_string().as_bytes()),
+        );
+    }
+
+    fn set_response_body_buffer_limit(&self, limit: u32) {
+        self.log()
+            .infof(format_args!("SetResponseBodyBufferLimit:{}", limit));
+        internal::set_property(
+            vec!["set_encoder_buffer_limit"],
+            Some(limit.to_string().as_bytes()),
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -368,6 +395,9 @@ where
         if self.config.is_none() {
             return DataAction::Continue;
         }
+        if self.http_content.borrow().not_read_request_body() {
+            return DataAction::Continue;
+        }
         if !self.http_content.borrow().cache_request_body() {
             return self
                 .http_content
@@ -436,6 +466,9 @@ where
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
         if self.config.is_none() {
+            return DataAction::Continue;
+        }
+        if self.http_content.borrow().not_read_response_body() {
             return DataAction::Continue;
         }
         if !self.http_content.borrow().cache_response_body() {
