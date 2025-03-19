@@ -29,6 +29,7 @@ func (m *ollamaProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		// ollama的chat接口path和OpenAI的chat接口一样
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 	}
 }
 
@@ -60,7 +61,7 @@ func (m *ollamaProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (m *ollamaProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
+		return types.ActionContinue, nil
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
 }

@@ -28,10 +28,14 @@ const (
 	ApiNameEmbeddings      ApiName = "openai/v1/embeddings"
 	ApiNameImageGeneration ApiName = "openai/v1/imagegeneration"
 	ApiNameAudioSpeech     ApiName = "openai/v1/audiospeech"
+	ApiNameFiles           ApiName = "openai/v1/files"
+	ApiNameBatches         ApiName = "openai/v1/batches"
 
 	PathOpenAICompletions     = "/v1/completions"
 	PathOpenAIChatCompletions = "/v1/chat/completions"
 	PathOpenAIEmbeddings      = "/v1/embeddings"
+	PathOpenAIFiles           = "/v1/files"
+	PathOpenAIBatches         = "/v1/batches"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
@@ -696,11 +700,6 @@ func (c *ProviderConfig) handleRequestBody(
 
 	if err != nil {
 		return types.ActionContinue, err
-	}
-
-	// If retryOnFailure is enabled, save the transformed body to the context in case of retry
-	if c.isRetryOnFailureEnabled() {
-		ctx.SetContext(ctxRequestBody, body)
 	}
 
 	if apiName == ApiNameChatCompletion {

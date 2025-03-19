@@ -107,11 +107,6 @@ func createContextCache(providerConfig *ProviderConfig) *contextCache {
 }
 
 func (c *contextCache) GetContextFromFile(ctx wrapper.HttpContext, provider Provider, body []byte, log wrapper.Log) error {
-	// get context will overwrite the original request host and path
-	// save the original request host and path in case they are needed for apiToken health check
-	ctx.SetContext(ctxRequestHost, wrapper.GetRequestHost())
-	ctx.SetContext(ctxRequestPath, wrapper.GetRequestPath())
-
 	if c.loaded {
 		log.Debugf("context file loaded from cache")
 		insertContext(provider, c.content, nil, body, log)
