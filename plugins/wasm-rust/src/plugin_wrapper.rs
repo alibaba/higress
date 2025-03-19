@@ -18,7 +18,6 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use crate::cluster_wrapper::Cluster;
-use crate::internal;
 use crate::log::Log;
 use crate::rule_matcher::SharedRuleMatcher;
 use http::{method::Method, Uri};
@@ -155,7 +154,7 @@ where
     fn set_request_body_buffer_limit(&self, limit: u32) {
         self.log()
             .infof(format_args!("SetRequestBodyBufferLimit:{}", limit));
-        internal::set_property(
+        self.set_property(
             vec!["set_decoder_buffer_limit"],
             Some(limit.to_string().as_bytes()),
         );
@@ -164,7 +163,7 @@ where
     fn set_response_body_buffer_limit(&self, limit: u32) {
         self.log()
             .infof(format_args!("SetResponseBodyBufferLimit:{}", limit));
-        internal::set_property(
+        self.set_property(
             vec!["set_encoder_buffer_limit"],
             Some(limit.to_string().as_bytes()),
         );
