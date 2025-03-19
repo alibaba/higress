@@ -9,7 +9,7 @@ description: AI IMAGE READER 插件配置参考
 
 通过对接阿里云OCR服务实现AI-IMAGE-READER，流程如图所示：
 
-![ai-image-reader (5)](C:\Users\zouzk\Downloads\ai-image-reader (5).png)
+<img src=".\ai-image-reader.png"> 
 
 ## 运行属性
 
@@ -29,7 +29,7 @@ description: AI IMAGE READER 插件配置参考
 
 ```yaml
 "apiKey": "YOUR_API_KEY",
-"serviceName": "dashscope",
+"serviceName": "dashscope.dns",
 "servicePort": "443"
 ```
 
@@ -37,7 +37,7 @@ description: AI IMAGE READER 插件配置参考
 
 URL传递图片：
 
-```json
+```
 messages=[{
     "role": "user",
     "content": [
@@ -54,7 +54,7 @@ messages=[{
 
 Base64编码传递图片：
 
-```json
+```
 messages=[
     {
         "role": "user",
