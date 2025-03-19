@@ -91,6 +91,11 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		}
 	}
 
+	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
+		ctx.DontReadRequestBody()
+		log.Debugf("[onHttpRequestHeader] unsupported content type: %s, will not process the request body", contentType)
+	}
+
 	if apiName == "" {
 		ctx.DontReadRequestBody()
 		ctx.DontReadResponseBody()
