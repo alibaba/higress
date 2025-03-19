@@ -7,7 +7,8 @@ def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='AI Search Test Script')
     parser.add_argument('--question', required=True, help='The question to analyze')
-    parser.add_argument('--prompt', required=True, help='The prompt file to analyze')    
+    parser.add_argument('--prompt', required=True, help='The prompt file to analyze')
+    parser.add_argument('--count', required=True, help='The max search count')
     args = parser.parse_args()
 
     # 读取并解析prompts.md模板
@@ -17,6 +18,7 @@ def main():
     
     # 替换模板中的{question}变量
     prompt = prompt_template.replace('{question}', args.question)
+    prompt = prompt_template.replace('{max_count}', args.count)
 
     # 准备请求数据
     headers = {
