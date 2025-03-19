@@ -78,16 +78,15 @@ const (
 	finishReasonStop   = "stop"
 	finishReasonLength = "length"
 
-	ctxKeyIncrementalStreaming   = "incrementalStreaming"
-	ctxKeyApiKey                 = "apiKey"
-	CtxKeyApiName                = "apiName"
-	ctxKeyIsStreaming            = "isStreaming"
-	ctxKeyStreamingBody          = "streamingBody"
-	ctxKeyOriginalRequestModel   = "originalRequestModel"
-	ctxKeyFinalRequestModel      = "finalRequestModel"
-	ctxKeyPushedMessage          = "pushedMessage"
-	ctxKeyContentPushed          = "contentPushed"
-	ctxKeyReasoningContentPushed = "reasoningContentPushed"
+	ctxKeyIncrementalStreaming = "incrementalStreaming"
+	ctxKeyApiKey               = "apiKey"
+	CtxKeyApiName              = "apiName"
+	ctxKeyIsStreaming          = "isStreaming"
+	ctxKeyStreamingBody        = "streamingBody"
+	ctxKeyOriginalRequestModel = "originalRequestModel"
+	ctxKeyFinalRequestModel    = "finalRequestModel"
+	ctxKeyPushedMessage        = "pushedMessage"
+	ctxKeyReasoningStatus      = "reasoningStatus"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -95,6 +94,11 @@ const (
 	reasoningBehaviorPassThrough = "passthrough"
 	reasoningBehaviorIgnore      = "ignore"
 	reasoningBehaviorConcat      = "concat"
+	reasoningBehaviorExtract     = "extract"
+
+	reasoningStatusNotStarted = 0
+	reasoningStatusStarted    = 1
+	reasoningStatusEnded      = 2
 
 	wildcard = "*"
 
@@ -206,7 +210,7 @@ type ProviderConfig struct {
 	// @Description zh-CN 对失败的请求立即进行重试
 	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
 	// @Title zh-CN 推理内容处理方式
-	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 normal。仅支持通义千问服务。
+	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）、extract（从常规输出内容中解析出推理内容并单独输出）。默认为 normal。仅支持通义千问服务。
 	reasoningContentMode string `required:"false" yaml:"reasoningContentMode" json:"reasoningContentMode"`
 	// @Title zh-CN 基于OpenAI协议的自定义后端URL
 	// @Description zh-CN 仅适用于支持 openai 协议的服务。
@@ -387,7 +391,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	} else {
 		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
 		switch c.reasoningContentMode {
-		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat:
+		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat, reasoningBehaviorExtract:
 			break
 		default:
 			c.reasoningContentMode = reasoningBehaviorPassThrough
@@ -506,10 +510,8 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 		streaming := req.Stream
 		if streaming {
 			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-			ctx.SetContext(ctxKeyIsStreaming, true)
-		} else {
-			ctx.SetContext(ctxKeyIsStreaming, false)
 		}
+		setStreamingResponse(ctx, streaming)
 
 		return c.setRequestModel(ctx, req, log)
 	case *embeddingsRequest:
@@ -724,21 +726,20 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	}
 }
 
-// defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
+// defaultTransformRequestBody 默认的请求体转换方法，只做模型映射和推理内容解析，用sjson执行修改，不用序列化和反序列化，提高性能
 func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+	transformedBody := body
 	switch apiName {
 	case ApiNameChatCompletion:
-		stream := gjson.GetBytes(body, "stream").Bool()
+		stream := gjson.GetBytes(transformedBody, "stream").Bool()
 		if stream {
 			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-			ctx.SetContext(ctxKeyIsStreaming, true)
-		} else {
-			ctx.SetContext(ctxKeyIsStreaming, false)
 		}
+		setStreamingResponse(ctx, stream)
 	}
-	model := gjson.GetBytes(body, "model").String()
+	model := gjson.GetBytes(transformedBody, "model").String()
 	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	return sjson.SetBytes(body, "model", getMappedModel(model, c.modelMapping, log))
+	return sjson.SetBytes(transformedBody, "model", getMappedModel(model, c.modelMapping, log))
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
@@ -747,4 +748,98 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 	} else {
 		headers.Del("Content-Length")
 	}
+}
+
+func (c *ProviderConfig) NeedTransformResponseBody(apiName ApiName) bool {
+	if c.protocol == protocolOriginal {
+		return false
+	}
+	if apiName != ApiNameChatCompletion {
+		return false
+	}
+	switch c.reasoningContentMode {
+	case reasoningBehaviorIgnore, reasoningBehaviorConcat, reasoningBehaviorExtract:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *ProviderConfig) NeedTransformStreamingResponseBody(ctx wrapper.HttpContext, apiName ApiName) bool {
+	return isStreamingResponse(ctx) && c.NeedTransformResponseBody(apiName)
+}
+
+func (c *ProviderConfig) DefaultTransformResponseBody(apiName ApiName, body []byte) (transformedBody []byte, err error) {
+	transformedBody = body
+	err = nil
+
+	if c.protocol == protocolOriginal {
+		return
+	}
+	if apiName != ApiNameChatCompletion {
+		return
+	}
+
+	content := gjson.GetBytes(transformedBody, "choices.0.message.content").String()
+	reasoningContent := gjson.GetBytes(transformedBody, "choices.0.message.reasoning_content").String()
+	updated, updatedContent, updatedReasoningContent := handleNonStreamingReasoningContent(c.reasoningContentMode, content, reasoningContent)
+	if !updated {
+		return
+	}
+	if transformedBody, err = smartSetJsonBytes(transformedBody, "choices.0.message.content", updatedContent); err != nil {
+		return
+	}
+	if transformedBody, err = smartSetJsonBytes(transformedBody, "choices.0.message.reasoning_content", updatedReasoningContent); err != nil {
+		return
+	}
+	return
+}
+
+func (c *ProviderConfig) DefaultTransformStreamingEvent(ctx wrapper.HttpContext, apiName ApiName, event StreamEvent) ([]StreamEvent, error) {
+	if c.protocol == protocolOriginal {
+		return nil, nil
+	}
+	if apiName != ApiNameChatCompletion {
+		return nil, nil
+	}
+
+	data := event.Data
+	content := gjson.Get(data, "choices.0.delta.content").String()
+	reasoningContent := gjson.Get(data, "choices.0.delta.reasoning_content").String()
+	updated, updatedContent, updatedReasoningContent := handleStreamingReasoningContent(ctx, c.reasoningContentMode, content, reasoningContent)
+	if !updated {
+		return nil, nil
+	}
+	var err error
+	if data, err = smartSetJson(data, "choices.0.delta.content", updatedContent); err != nil {
+		return nil, err
+	}
+	if data, err = smartSetJson(data, "choices.0.delta.reasoning_content", updatedReasoningContent); err != nil {
+		return nil, err
+	}
+	event.Data = data
+	return []StreamEvent{event}, nil
+}
+
+func isStreamingResponse(ctx wrapper.HttpContext) bool {
+	ret, ok := ctx.GetContext(ctxKeyIsStreaming).(bool)
+	return ok && ret
+}
+
+func setStreamingResponse(ctx wrapper.HttpContext, isStreaming bool) {
+	ctx.SetContext(ctxKeyIsStreaming, isStreaming)
+}
+
+func smartSetJson(json string, path string, value string) (string, error) {
+	if value == "" && !gjson.Get(json, path).Exists() {
+		return sjson.Delete(json, path)
+	}
+	return sjson.Set(json, path, value)
+}
+
+func smartSetJsonBytes(data []byte, path string, value string) ([]byte, error) {
+	if value == "" && !gjson.GetBytes(data, path).Exists() {
+		return sjson.DeleteBytes(data, path)
+	}
+	return sjson.SetBytes(data, path, value)
 }
