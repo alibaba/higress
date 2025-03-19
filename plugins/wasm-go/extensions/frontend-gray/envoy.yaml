@@ -72,30 +72,44 @@ static_resources:
                                   }
                                 ],
                                 "rewrite": {
-                                  "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
+                                  "host": "apig-oss-integration.oss-cn-hangzhou.aliyuncs.com",
                                   "indexRouting": {
-                                    "/app1": "/mfe/app1/{version}/index.html",
-                                    "/": "/mfe/app1/{version}/index.html"
+                                    "/": "/mfe/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/": "/mfe/app1/{version}",
-                                    "/app1": "/mfe/app1/{version}"
+                                    "/": "/mfe/{version}",
+                                    "/mfe": "/mfe/{version}"
                                   }
                                 },
-                                "skippedPathPrefixes": [
-                                  "/api/"
+                                "skippedPaths": [
+                                  "/api/**",
+                                  "/v2/**"
+                                ],
+                                "indexPaths": [
+                                  "/mfe/**/mf-manifest-main.json"
                                 ],
                                 "baseDeployment": {
-                                  "version": "dev"
+                                  "version": "v1",
+                                  "backendVersion":"base"
                                 },
                                 "grayDeployments": [
                                   {
                                     "name": "beta-user",
-                                    "version": "0.0.1",
-                                    "enabled": true
+                                    "version": "v2",
+                                    "enabled": true,
+                                    "backendVersion":"gray",
+                                    "versionPredicates": {
+                                      "/mfe": "v1"
+                                    }
                                   }
                                 ],
                                 "injection": {
+                                  "globalConfig": {
+                                    "key": "HIGRESS_CONSOLE_CONFIG",
+                                    "featureKey": "FEATURE_STATUS",
+                                    "value": "{CONSOLE_GLOBAL: {'gray':'2.0.15','main':'2.0.15'}}",
+                                    "enabled": true
+                                  },
                                   "head": [
                                     "<script>console.log('Header')</script>"
                                   ],
@@ -127,5 +141,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: frontend-gray-cn-shanghai.oss-cn-shanghai.aliyuncs.com
+                      address: apig-oss-integration.oss-cn-hangzhou.aliyuncs.com
                       port_value: 80

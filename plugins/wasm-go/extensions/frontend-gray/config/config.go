@@ -1,19 +1,18 @@
 package config
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/tidwall/gjson"
 )
 
 const (
-	XHigressTag     = "x-higress-tag"
-	XUniqueClientId = "x-unique-client"
-	XPreHigressTag  = "x-pre-higress-tag"
-	IsPageRequest   = "is-page-request"
-	IsNotFound      = "is-not-found"
-	EnabledGray     = "enabled-gray"
-	SecFetchMode    = "sec-fetch-mode"
+	XHigressTag    = "x-higress-tag"
+	XPreHigressTag = "x-pre-higress-tag"
+	IsHtmlRequest  = "is-html-request"
+	IsIndexRequest = "is-index-request"
+	EnabledGray    = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
@@ -30,20 +29,26 @@ type Deployment struct {
 	Enabled           bool
 	Version           string
 	BackendVersion    string
-	Weight            int
 	VersionPredicates map[string]string
 }
 
 type Rewrite struct {
-	Host     string
-	NotFound string
-	Index    map[string]string
-	File     map[string]string
+	Host  string
+	Index map[string]string
+	File  map[string]string
 }
 
 type Injection struct {
-	Head []string
-	Body *BodyInjection
+	GlobalConfig *GlobalConfig
+	Head         []string
+	Body         *BodyInjection
+}
+
+type GlobalConfig struct {
+	Key        string
+	FeatureKey string
+	Value      string
+	Enabled    bool
 }
 
 type BodyInjection struct {
@@ -53,7 +58,6 @@ type BodyInjection struct {
 
 type GrayConfig struct {
 	UserStickyMaxAge    string
-	TotalGrayWeight     int
 	GrayKey             string
 	LocalStorageGrayKey string
 	GraySubKey          string
@@ -64,9 +68,17 @@ type GrayConfig struct {
 	GrayDeployments     []*Deployment
 	BackendGrayTag      string
 	Injection           *Injection
-	SkippedPathPrefixes []string
-	IncludePathPrefixes []string
+	SkippedPaths        []string
 	SkippedByHeaders    map[string]string
+	IndexPaths          []string
+}
+
+func GetWithDefault(json gjson.Result, path, defaultValue string) string {
+	res := json.Get(path)
+	if res.Exists() {
+		return res.String()
+	}
+	return defaultValue
 }
 
 func convertToStringList(results []gjson.Result) []string {
@@ -75,6 +87,22 @@ func convertToStringList(results []gjson.Result) []string {
 		interfaces[i] = result.String() // 使用 String() 方法直接获取字符串
 	}
 	return interfaces
+}
+
+func compatibleConvertToStringList(results []gjson.Result, compatibleResults []gjson.Result) []string {
+	// 优先使用兼容模式的数据
+	if len(compatibleResults) == 0 {
+		interfaces := make([]string, len(results)) // 预分配切片容量
+		for i, result := range results {
+			interfaces[i] = result.String() // 使用 String() 方法直接获取字符串
+		}
+		return interfaces
+	}
+	compatibleInterfaces := make([]string, len(compatibleResults)) // 预分配切片容量
+	for i, result := range compatibleResults {
+		compatibleInterfaces[i] = filepath.Join(result.String(), "**")
+	}
+	return compatibleInterfaces
 }
 
 func convertToStringMap(result gjson.Result) map[string]string {
@@ -97,9 +125,9 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
 	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
 	grayConfig.Html = json.Get("html").String()
-	grayConfig.SkippedPathPrefixes = convertToStringList(json.Get("skippedPathPrefixes").Array())
+	grayConfig.SkippedPaths = compatibleConvertToStringList(json.Get("skippedPaths").Array(), json.Get("skippedPathPrefixes").Array())
+	grayConfig.IndexPaths = compatibleConvertToStringList(json.Get("indexPaths").Array(), json.Get("includePathPrefixes").Array())
 	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
-	grayConfig.IncludePathPrefixes = convertToStringList(json.Get("includePathPrefixes").Array())
 
 	if grayConfig.UserStickyMaxAge == "" {
 		// 默认值2天
@@ -122,10 +150,9 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		grayConfig.Rules = append(grayConfig.Rules, &grayRule)
 	}
 	grayConfig.Rewrite = &Rewrite{
-		Host:     json.Get("rewrite.host").String(),
-		NotFound: json.Get("rewrite.notFoundUri").String(),
-		Index:    convertToStringMap(json.Get("rewrite.indexRouting")),
-		File:     convertToStringMap(json.Get("rewrite.fileRouting")),
+		Host:  json.Get("rewrite.host").String(),
+		Index: convertToStringMap(json.Get("rewrite.indexRouting")),
+		File:  convertToStringMap(json.Get("rewrite.fileRouting")),
 	}
 
 	// 解析 deployment
@@ -134,6 +161,7 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 
 	grayConfig.BaseDeployment = &Deployment{
 		Name:              baseDeployment.Get("name").String(),
+		BackendVersion:    baseDeployment.Get("backendVersion").String(),
 		Version:           strings.Trim(baseDeployment.Get("version").String(), " "),
 		VersionPredicates: convertToStringMap(baseDeployment.Get("versionPredicates")),
 	}
@@ -141,16 +169,13 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		if !item.Get("enabled").Bool() {
 			continue
 		}
-		grayWeight := int(item.Get("weight").Int())
 		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &Deployment{
 			Name:              item.Get("name").String(),
 			Enabled:           item.Get("enabled").Bool(),
 			Version:           strings.Trim(item.Get("version").String(), " "),
 			BackendVersion:    item.Get("backendVersion").String(),
-			Weight:            grayWeight,
 			VersionPredicates: convertToStringMap(item.Get("versionPredicates")),
 		})
-		grayConfig.TotalGrayWeight += grayWeight
 	}
 
 	grayConfig.Injection = &Injection{
@@ -158,6 +183,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		Body: &BodyInjection{
 			First: convertToStringList(json.Get("injection.body.first").Array()),
 			Last:  convertToStringList(json.Get("injection.body.last").Array()),
+		},
+		GlobalConfig: &GlobalConfig{
+			FeatureKey: GetWithDefault(json, "injection.globalConfig.featureKey", "FEATURE_STATUS"),
+			Key:        GetWithDefault(json, "injection.globalConfig.key", "HIGRESS_CONSOLE_CONFIG"),
+			Value:      json.Get("injection.globalConfig.value").String(),
+			Enabled:    json.Get("injection.globalConfig.enabled").Bool(),
 		},
 	}
 }

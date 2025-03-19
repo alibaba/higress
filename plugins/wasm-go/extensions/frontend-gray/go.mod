@@ -6,6 +6,7 @@ replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.4.3-0.20240727022514-bccfbde62188
+	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3

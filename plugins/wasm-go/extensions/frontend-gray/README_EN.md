@@ -35,7 +35,6 @@ Plugin execution priority: `450`
 | Name             | Data Type         | Requirements  | Default Value | Description                           |
 |------------------|-------------------|---------------|---------------|---------------------------------------|
 | `host`           | string            | Optional      | -             | Host address, if OSS set to the VPC internal access address. |
-| `notFoundUri`    | string            | Optional      | -             | 404 page configuration.               |
 | `indexRouting`   | map of string to string | Optional  | -             | Defines the homepage rewrite routing rules. Each key represents the homepage routing path, and the value points to the redirect target file. For example, the key `/app1` corresponds to the value `/mfe/app1/{version}/index.html`. If the effective version is `0.0.1`, the access path is `/app1`, it redirects to `/mfe/app1/0.0.1/index.html`. |
 | `fileRouting`    | map of string to string | Optional  | -             | Defines resource file rewrite routing rules. Each key represents the resource access path, and the value points to the redirect target file. For example, the key `/app1/` corresponds to the value `/mfe/app1/{version}`. If the effective version is `0.0.1`, the access path is `/app1/js/a.js`, it redirects to `/mfe/app1/0.0.1/js/a.js`. |
 
@@ -134,7 +133,6 @@ rules:
   - level5
 rewrite:
   host: frontend-gray.oss-cn-shanghai-internal.aliyuncs.com
-  notFoundUri: /mfe/app1/dev/404.html
   indexRouting:
     /app1: '/mfe/app1/{version}/index.html'
     /: '/mfe/app1/{version}/index.html',
