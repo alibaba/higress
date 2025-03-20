@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 const (
@@ -143,61 +142,132 @@ type chatMessage struct {
 }
 
 func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {
-	if m.ReasoningContent == "" {
+	content, ok := m.Content.(string)
+	if !ok {
 		return
 	}
-	switch reasoningContentMode {
-	case reasoningBehaviorIgnore:
-		m.ReasoningContent = ""
-		break
-	case reasoningBehaviorConcat:
-		m.Content = fmt.Sprintf("%s%v%s\n%v", reasoningStartTag, m.ReasoningContent, reasoningEndTag, m.Content)
-		m.ReasoningContent = ""
-		break
-	case reasoningBehaviorPassThrough:
-	default:
-		break
+	updated, updatedContent, updatedReasoningContent := handleNonStreamingReasoningContent(reasoningContentMode, content, m.ReasoningContent)
+	if !updated {
+		return
 	}
+	m.Content = updatedContent
+	m.ReasoningContent = updatedReasoningContent
 }
 
 func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, reasoningContentMode string) {
+	content, ok := m.Content.(string)
+	if !ok {
+		return
+	}
+	updated, updatedContent, updatedReasoningContent := handleStreamingReasoningContent(ctx, reasoningContentMode, content, m.ReasoningContent)
+	if !updated {
+		return
+	}
+	m.Content = updatedContent
+	m.ReasoningContent = updatedReasoningContent
+}
+
+func handleNonStreamingReasoningContent(reasoningContentMode, content, reasoningContent string) (updated bool, updatedContent, updatedReasoningContent string) {
+	updated = false
+
 	switch reasoningContentMode {
 	case reasoningBehaviorIgnore:
-		m.ReasoningContent = ""
+		updatedContent = content
+		updatedReasoningContent = ""
+		updated = true
 		break
 	case reasoningBehaviorConcat:
-		contentPushed, _ := ctx.GetContext(ctxKeyContentPushed).(bool)
-		reasoningContentPushed, _ := ctx.GetContext(ctxKeyReasoningContentPushed).(bool)
-
-		if contentPushed {
-			if m.ReasoningContent != "" {
-				// This shouldn't happen, but if it does, we can add a log here.
-				proxywasm.LogWarnf("[ai-proxy] Content already pushed, but reasoning content is not empty: %v", m)
-			}
-			return
+		if reasoningContent == "" {
+			break
 		}
-
-		if m.ReasoningContent != "" && !reasoningContentPushed {
-			m.ReasoningContent = reasoningStartTag + m.ReasoningContent
-			reasoningContentPushed = true
+		updatedContent = fmt.Sprintf("%s%v%s\n%v", reasoningStartTag, reasoningContent, reasoningEndTag, content)
+		updatedReasoningContent = ""
+		updated = true
+		break
+	case reasoningBehaviorExtract:
+		reasoningStartTagIndex := strings.Index(content, reasoningStartTag)
+		if reasoningStartTagIndex == -1 {
+			break
 		}
-		if m.Content != "" {
-			if reasoningContentPushed && !contentPushed /* Keep the second part just to make it easy to understand*/ {
-				m.ReasoningContent += reasoningEndTag
-			}
-			contentPushed = true
+		reasoningEndTagIndex := strings.Index(content, reasoningEndTag)
+		if reasoningEndTagIndex == -1 || reasoningEndTagIndex <= reasoningStartTagIndex {
+			break
 		}
-
-		m.Content = fmt.Sprintf("%s\n%v", m.ReasoningContent, m.Content)
-		m.ReasoningContent = ""
-
-		ctx.SetContext(ctxKeyContentPushed, contentPushed)
-		ctx.SetContext(ctxKeyReasoningContentPushed, reasoningContentPushed)
+		updatedReasoningContent = strings.Trim(content[reasoningStartTagIndex+len(reasoningStartTag):reasoningEndTagIndex], " \n")
+		updatedContent = strings.Trim(content[:reasoningStartTagIndex]+content[reasoningEndTagIndex+len(reasoningEndTag):], " \n")
+		updated = true
 		break
 	case reasoningBehaviorPassThrough:
 	default:
 		break
 	}
+	return
+}
+
+func handleStreamingReasoningContent(ctx wrapper.HttpContext, reasoningContentMode, deltaContent, deltaReasoningContent string) (updated bool, updatedDeltaContent, updatedDeltaReasoningContent string) {
+	updated = false
+	updatedDeltaContent = deltaContent
+	updatedDeltaReasoningContent = deltaReasoningContent
+
+	switch reasoningContentMode {
+	case reasoningBehaviorIgnore:
+		updatedDeltaReasoningContent = ""
+		updated = true
+		break
+	case reasoningBehaviorConcat:
+		reasoningStatus, ok := ctx.GetContext(ctxKeyReasoningStatus).(int)
+		if !ok {
+			reasoningStatus = reasoningStatusNotStarted
+		}
+		if reasoningStatus == reasoningStatusNotStarted && deltaReasoningContent != "" {
+			updatedDeltaReasoningContent = reasoningStartTag + updatedDeltaReasoningContent
+			reasoningStatus = reasoningStatusStarted
+			ctx.SetContext(ctxKeyReasoningStatus, reasoningStatus)
+		}
+		if reasoningStatus == reasoningStatusStarted {
+			if deltaContent != "" {
+				updatedDeltaReasoningContent += reasoningEndTag + "\n"
+				reasoningStatus = reasoningStatusEnded
+				ctx.SetContext(ctxKeyReasoningStatus, reasoningStatus)
+			}
+		}
+		updatedDeltaContent = updatedDeltaReasoningContent + deltaContent
+		updatedDeltaReasoningContent = ""
+		updated = updatedDeltaContent != deltaContent || updatedDeltaReasoningContent != deltaReasoningContent
+		break
+	case reasoningBehaviorExtract:
+		reasoningStatus, ok := ctx.GetContext(ctxKeyReasoningStatus).(int)
+		if !ok {
+			reasoningStatus = reasoningStatusNotStarted
+		}
+		reasoningContentStartIndex := 0
+		if reasoningStatus == reasoningStatusNotStarted {
+			if reasoningContentStartIndex = strings.Index(updatedDeltaContent, reasoningStartTag); reasoningContentStartIndex != -1 {
+				// Remove the reasoning start tag from the delta content
+				updatedDeltaContent = updatedDeltaReasoningContent[0:reasoningContentStartIndex] + updatedDeltaContent[reasoningContentStartIndex+len(reasoningStartTag):]
+				updated = true
+				reasoningStatus = reasoningStatusStarted
+				ctx.SetContext(ctxKeyReasoningStatus, reasoningStatus)
+			}
+		}
+		if reasoningStatus == reasoningStatusStarted {
+			if reasoningContentEndIndex := strings.Index(updatedDeltaContent, reasoningEndTag); reasoningContentEndIndex == -1 {
+				updatedDeltaReasoningContent = updatedDeltaContent[reasoningContentStartIndex:]
+				updatedDeltaContent = updatedDeltaContent[0:reasoningContentStartIndex]
+			} else {
+				updatedDeltaReasoningContent = updatedDeltaContent[reasoningContentStartIndex:reasoningContentEndIndex]
+				updatedDeltaContent = updatedDeltaContent[0:reasoningContentStartIndex] + updatedDeltaContent[reasoningContentEndIndex+len(reasoningEndTag):]
+				reasoningStatus = reasoningStatusEnded
+				ctx.SetContext(ctxKeyReasoningStatus, reasoningStatus)
+			}
+			updated = true
+		}
+		break
+	case reasoningBehaviorPassThrough:
+	default:
+		break
+	}
+	return
 }
 
 type messageContent struct {

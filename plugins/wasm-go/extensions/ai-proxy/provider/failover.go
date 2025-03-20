@@ -589,10 +589,6 @@ func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.Ht
 	return types.ActionContinue
 }
 
-func isNotStreamingResponse(ctx wrapper.HttpContext) bool {
-	return ctx.GetContext(ctxKeyIsStreaming) != nil && !ctx.GetContext(ctxKeyIsStreaming).(bool)
-}
-
 func (c *ProviderConfig) GetApiTokenInUse(ctx wrapper.HttpContext) string {
 	token, _ := ctx.GetContext(c.failover.ctxApiTokenInUse).(string)
 	return token

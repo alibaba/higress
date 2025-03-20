@@ -322,7 +322,6 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 	reasoningContentMode := m.config.reasoningContentMode
 
-	log.Warnf("incrementalStreaming: %v", incrementalStreaming)
 	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content, ReasoningContent: message.ReasoningContent}
 	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if incrementalStreaming {
@@ -383,11 +382,12 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 		ctx.SetContext(ctxKeyPushedMessage, message)
 	}
 
-	if !deltaContentMessage.IsEmpty() {
-		response := *&baseMessage
-		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaContentMessage})
-		responses = append(responses, &response)
-	}
+	// Even the message is empty, we shall still return it.
+	// Otherwise, it may result an empty chunk returned to the proxywasm SDK,
+	// causing the original chunk to be sent to the client.
+	response := *&baseMessage
+	response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaContentMessage})
+	responses = append(responses, &response)
 	if !deltaToolCallsMessage.IsEmpty() {
 		response := *&baseMessage
 		response.Choices = append(response.Choices, chatCompletionChoice{Delta: deltaToolCallsMessage})
