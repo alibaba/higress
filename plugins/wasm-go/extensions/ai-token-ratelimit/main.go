@@ -65,6 +65,8 @@ const (
 	RateLimitLimitHeader     string = "X-TokenRateLimit-Limit"     // 限制的总请求数
 	RateLimitRemainingHeader string = "X-TokenRateLimit-Remaining" // 剩余还可以发送的请求数
 	RateLimitResetHeader     string = "X-TokenRateLimit-Reset"     // 限流重置时间（触发限流时返回）
+
+	TokenRateLimitCount = "token_ratelimit_count" // metric name
 )
 
 type LimitContext struct {
@@ -88,6 +90,8 @@ func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapp
 	if err != nil {
 		return err
 	}
+	// Metric settings
+	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
 	return nil
 }
 
@@ -304,9 +308,54 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 	return realIP, nil
 }
 
+func (config *ClusterKeyRateLimitConfig) incrementCounter(metricName string, inc uint64) {
+	if inc == 0 {
+		return
+	}
+	counter, ok := config.counterMetrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		config.counterMetrics[metricName] = counter
+	}
+	counter.Increment(inc)
+}
+
+func generateMetricName(route, cluster, model, consumer, metricName string) string {
+	return fmt.Sprintf("route.%s.upstream.%s.model.%s.consumer.%s.metric.%s", route, cluster, model, consumer, metricName)
+}
+
+func getRouteName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
+	}
+}
+
+func getClusterName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
+	}
+}
+
+func getConsumer() (string, error) {
+	if consumer, err := proxywasm.GetHttpRequestHeader(ConsumerHeader); err != nil {
+		return "none", err
+	} else {
+		return consumer, nil
+	}
+}
+
 func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
 	_ = proxywasm.SendHttpResponseWithDetail(
 		config.rejectedCode, "ai-token-ratelimit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+
+	route, _ := getRouteName()
+	cluster, _ := getClusterName()
+	consumer, _ := getConsumer()
+	config.incrementCounter(generateMetricName(route, cluster, "none", consumer, TokenRateLimitCount), 1)
 }
