@@ -143,14 +143,6 @@ where
         self.set_http_response_body(0, i32::MAX as usize, body)
     }
 
-    fn dont_read_request_body(&self) -> bool {
-        false
-    }
-
-    fn dont_read_response_body(&self) -> bool {
-        false
-    }
-
     fn set_request_body_buffer_limit(&self, limit: u32) {
         self.log()
             .infof(format_args!("SetRequestBodyBufferLimit:{}", limit));
@@ -394,9 +386,6 @@ where
         if self.config.is_none() {
             return DataAction::Continue;
         }
-        if self.http_content.borrow().dont_read_request_body() {
-            return DataAction::Continue;
-        }
         if !self.http_content.borrow().cache_request_body() {
             return self
                 .http_content
@@ -465,9 +454,6 @@ where
 
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
         if self.config.is_none() {
-            return DataAction::Continue;
-        }
-        if self.http_content.borrow().dont_read_response_body() {
             return DataAction::Continue;
         }
         if !self.http_content.borrow().cache_response_body() {
