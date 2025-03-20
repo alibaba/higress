@@ -125,7 +125,7 @@ impl HttpContextWrapper<SayHelloConfig> for SayHello {
         let binding = self.rule_matcher.borrow();
         let config = match binding.get_match_config() {
             None => {
-                self.not_read_request_body();
+                self.dont_read_request_body();
                 self.send_http_response(200, vec![], Some("Hello, World!".as_bytes()));
                 return HeaderAction::Continue;
             }
