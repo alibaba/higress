@@ -39,7 +39,7 @@ func main() {
 }
 
 const (
-	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s:%s:%s"
+	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s:%d:%d:%s:%s" // ruleName, limitType, timewindow, windowsize, key, val
 	RequestPhaseFixedWindowScript string = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
@@ -103,7 +103,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	}
 
 	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, ruleItem.key, val)
+	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, configItem.timeWindow, configItem.count, ruleItem.key, val)
 	keys := []interface{}{limitKey}
 	args := []interface{}{configItem.count, configItem.timeWindow}
 
