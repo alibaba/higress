@@ -22,12 +22,13 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDefaultDomain            = "dashscope.aliyuncs.com"
-	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
-	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
-	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
-	qwenBailianPath              = "/api/v1/apps"
-	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
+	qwenDefaultDomain               = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath          = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath           = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenChatCompatiblePath          = "/compatible-mode/v1/chat/completions"
+	qwenTextEmbeddingCompatiblePath = "/compatible-mode/v1/embeddings"
+	qwenBailianPath                 = "/api/v1/apps"
+	qwenMultimodalGenerationPath    = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -51,15 +52,22 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
-func (m *qwenProviderInitializer) DefaultCapabilities() map[string]string {
-	return map[string]string{
-		string(ApiNameChatCompletion): qwenChatCompletionPath,
-		string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool) map[string]string {
+	if qwenEnableCompatible {
+		return map[string]string{
+			string(ApiNameChatCompletion): qwenChatCompatiblePath,
+			string(ApiNameEmbeddings):     qwenTextEmbeddingCompatiblePath,
+		}
+	} else {
+		return map[string]string{
+			string(ApiNameChatCompletion): qwenChatCompletionPath,
+			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+		}
 	}
 }
 
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(m.DefaultCapabilities())
+	config.setDefaultCapabilities(m.DefaultCapabilities(config.qwenEnableCompatible))
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -79,10 +87,7 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
-	if m.config.IsOriginal() {
-	} else if m.config.qwenEnableCompatible {
-		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
-	} else if apiName == ApiNameChatCompletion || apiName == ApiNameEmbeddings {
+	if !m.config.IsOriginal() {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 }
@@ -667,9 +672,10 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenChatCompletionPath),
 		strings.Contains(path, qwenMultimodalGenerationPath),
 		strings.Contains(path, qwenBailianPath),
-		strings.Contains(path, qwenCompatiblePath):
+		strings.Contains(path, qwenChatCompatiblePath):
 		return ApiNameChatCompletion
-	case strings.Contains(path, qwenTextEmbeddingPath):
+	case strings.Contains(path, qwenTextEmbeddingPath),
+		strings.Contains(path, qwenTextEmbeddingCompatiblePath):
 		return ApiNameEmbeddings
 	default:
 		return ""
