@@ -70,6 +70,11 @@ description: 前端灰度插件配置参考
 | `backendVersion`  | string | 必填   | -   | 后端灰度版本，配合`key`为`${backendGrayTag}`，写入cookie中 |
 | `name` | string | 必填   | -   | 规则名称和`rules[].name`关联 |
 | `enabled`  | boolean   | 必填   | -   | 是否启动当前灰度规则                                      |
+| `weight`  | int   | 非必填   | -   | 按照比例灰度，比如50。 |
+>按照比例灰度注意下面几点:
+> 1. 如果同时配置了`按用户灰度`以及`按比例灰度`，按`比例灰度`优先生效
+> 2. 采用客户端设备标识符的哈希摘要机制实现流量比例控制，其唯一性判定逻辑遵循以下原则：当请求上下文携带有效灰度标识Cookie`（grayKey）`时，系统优先采用该值作为分流依据；若标识不存在，则自动生成全局唯一标识符（UUID）作为设备指纹，并通过SHA-256哈希算法生成对应灰度判定基准值。
+
 
 `injection`字段配置说明：
 
@@ -129,6 +134,23 @@ cookie中的用户唯一标识为 `userid`，当前灰度规则配置了`beta-us
 
 否则使用`version: base`版本
 
+### 按比例灰度
+```yml
+grayKey: userid
+rules:
+- name: inner-user
+  grayKeyValue:
+  - '00000001'
+  - '00000005'
+baseDeployment:
+  version: base
+grayDeployments:
+  - name: beta-user
+    version: gray
+    enabled: true
+    weight: 80
+```
+总的灰度规则为100%，其中灰度版本的权重为80%，基线版本为20%。
 ### 用户信息存在JSON中
 
 ```yml

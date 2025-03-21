@@ -39,14 +39,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-
 	cookies, _ := proxywasm.GetHttpRequestHeader("cookie")
 	isHtmlRequest := util.CheckIsHtmlRequest(requestPath)
 	ctx.SetContext(config.IsHtmlRequest, isHtmlRequest)
 	isIndexRequest := util.IsIndexRequest(requestPath, grayConfig.IndexPaths)
 	ctx.SetContext(config.IsIndexRequest, isIndexRequest)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
-	grayKeyValueByCookie := util.ExtractCookieValueByKey(cookies, grayConfig.GrayKey)
+	grayKeyValueByCookie := util.GetCookieValue(cookies, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
 	// 优先从cookie中获取，否则从header中获取
 	grayKeyValue := util.GetGrayKey(grayKeyValueByCookie, grayKeyValueByHeader, grayConfig.GraySubKey)
@@ -56,12 +55,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		ctx.DisableReroute()
 	}
 
+	if grayConfig.GrayWeight > 0 {
+		ctx.SetContext(config.HigressUniqueId, util.GetGrayWeightUniqueId(grayKeyValue))
+	}
+
 	// 删除Accept-Encoding，避免压缩， 如果是压缩的内容，后续插件就没法处理了
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	deployment := &config.Deployment{}
 
-	preVersion := util.ExtractCookieValueByKey(cookies, config.XPreHigressTag)
+	higressTagCookie := util.GetHigressTagCookie()
 	globalConfig := grayConfig.Injection.GlobalConfig
 	if globalConfig.Enabled {
 		conditionRule := util.GetConditionRules(grayConfig.Rules, grayKeyValue, cookies)
@@ -72,8 +75,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if isHtmlRequest {
 		// index首页请求每次都会进度灰度规则判断
 		deployment = util.FilterGrayRule(&grayConfig, grayKeyValue, cookies)
-		log.Infof("index html request: %v, backend: %v, xPreHigressVersion: %s", requestPath, deployment.BackendVersion, preVersion)
-		ctx.SetContext(config.XPreHigressTag, deployment.Version)
+		log.Infof("index html request: %v, backend: %v, xPreHigressVersion: %s", requestPath, deployment.BackendVersion, higressTagCookie.FrontendVersion)
+		ctx.SetContext(config.PreHigressVersion, deployment.Version)
 		ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	} else {
 		if util.IsSupportMultiVersion(grayConfig) {
@@ -84,7 +87,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 			if isIndexRequest {
 				deployment = grayDeployment
 			} else {
-				deployment = util.GetVersion(grayConfig, grayDeployment, preVersion)
+				deployment = util.GetVersion(grayConfig, grayDeployment, higressTagCookie.FrontendVersion)
 			}
 		}
 	}
@@ -165,11 +168,23 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
 
-	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
-	// 设置前端的版本
-	if isFeVersionOk && frontendVersion != "" {
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", config.XPreHigressTag, frontendVersion, grayConfig.UserStickyMaxAge))
+	higressTagCookie := new(config.HigressTagCookie)
+	// 前端版本
+	frontendVersion, isFrontendVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
+	if !isFrontendVersionOk {
+		frontendVersion = ""
 	}
+	higressTagCookie.FrontendVersion = frontendVersion
+	// 设置GrayWeight 唯一值
+	if grayConfig.GrayWeight > 0 {
+		uniqueId, isUniqueIdOk := ctx.GetContext(config.HigressUniqueId).(string)
+		if !isUniqueIdOk {
+			uniqueId = ""
+		}
+		higressTagCookie.UniqueId = uniqueId
+	}
+	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XHigressTag, higressTagCookie.FrontendVersion, higressTagCookie.UniqueId, grayConfig.UserStickyMaxAge))
+
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
 		backendVersion, isBackVersionOk := ctx.GetContext(grayConfig.BackendGrayTag).(string)
@@ -186,7 +201,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 		return types.ActionContinue
 	}
 	isHtmlRequest, isHtmlRequestOk := ctx.GetContext(config.IsHtmlRequest).(bool)
-	frontendVersion, isFeVersionOk := ctx.GetContext(config.XPreHigressTag).(string)
+	frontendVersion, isFeVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
 	// 只处理首页相关请求
 	if !isFeVersionOk || !isHtmlRequestOk || !isHtmlRequest {
 		return types.ActionContinue

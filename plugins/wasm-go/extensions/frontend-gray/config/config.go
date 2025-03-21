@@ -8,14 +8,20 @@ import (
 )
 
 const (
-	XHigressTag    = "x-higress-tag"
-	XPreHigressTag = "x-pre-higress-tag"
-	IsHtmlRequest  = "is-html-request"
-	IsIndexRequest = "is-index-request"
-	EnabledGray    = "enabled-gray"
+	XHigressTag       = "x-higress-tag"
+	PreHigressVersion = "pre-higress-version"
+	HigressUniqueId   = "higress-unique-id"
+	IsHtmlRequest     = "is-html-request"
+	IsIndexRequest    = "is-index-request"
+	EnabledGray       = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
+
+type HigressTagCookie struct {
+	FrontendVersion string
+	UniqueId        string
+}
 
 type GrayRule struct {
 	Name         string
@@ -29,6 +35,7 @@ type Deployment struct {
 	Enabled           bool
 	Version           string
 	BackendVersion    string
+	Weight            int
 	VersionPredicates map[string]string
 }
 
@@ -71,6 +78,7 @@ type GrayConfig struct {
 	SkippedPaths        []string
 	SkippedByHeaders    map[string]string
 	IndexPaths          []string
+	GrayWeight          int
 }
 
 func GetWithDefault(json gjson.Result, path, defaultValue string) string {
@@ -169,13 +177,19 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		if !item.Get("enabled").Bool() {
 			continue
 		}
+		weight := int(item.Get("weight").Int())
 		grayConfig.GrayDeployments = append(grayConfig.GrayDeployments, &Deployment{
 			Name:              item.Get("name").String(),
 			Enabled:           item.Get("enabled").Bool(),
 			Version:           strings.Trim(item.Get("version").String(), " "),
 			BackendVersion:    item.Get("backendVersion").String(),
+			Weight:            weight,
 			VersionPredicates: convertToStringMap(item.Get("versionPredicates")),
 		})
+		if weight > 0 {
+			grayConfig.GrayWeight = weight
+			break
+		}
 	}
 
 	grayConfig.Injection = &Injection{

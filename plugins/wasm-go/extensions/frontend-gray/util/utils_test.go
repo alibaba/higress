@@ -10,7 +10,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestExtractCookieValueByKey(t *testing.T) {
+func TestGetCookieValue(t *testing.T) {
 	var tests = []struct {
 		cookie, cookieKey, output string
 	}{
@@ -23,7 +23,7 @@ func TestExtractCookieValueByKey(t *testing.T) {
 	for _, test := range tests {
 		testName := test.cookie
 		t.Run(testName, func(t *testing.T) {
-			output := ExtractCookieValueByKey(test.cookie, test.cookieKey)
+			output := GetCookieValue(test.cookie, test.cookieKey)
 			assert.Equal(t, test.output, output)
 		})
 	}
@@ -141,7 +141,7 @@ func TestReplaceHtml(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			grayConfig := &config.GrayConfig{}
 			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
-			result := InjectContent(grayConfig.Html, grayConfig.Injection)
+			result := InjectContent(grayConfig.Html, grayConfig.Injection, "")
 			t.Logf("result-----: %v", result)
 		})
 	}

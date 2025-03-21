@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"hash/crc32"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -9,12 +10,33 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 
 	"github.com/tidwall/gjson"
 )
+
+func GetHigressTagCookie() *config.HigressTagCookie {
+	higressTagCookie := new(config.HigressTagCookie)
+	cookie, err := proxywasm.GetHttpRequestHeader("cookie")
+	if err != nil {
+		return higressTagCookie
+	}
+	higressTag := GetCookieValue(cookie, config.XHigressTag)
+	cookieValues := strings.Split(higressTag, ",")
+	for i := 0; i < len(cookieValues) && i < 2; i++ {
+		value := strings.TrimSpace(cookieValues[i])
+		switch i {
+		case 0:
+			higressTagCookie.FrontendVersion = value
+		case 1:
+			higressTagCookie.UniqueId = value
+		}
+	}
+	return higressTagCookie
+}
 
 func GetRequestPath() string {
 	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
@@ -93,8 +115,8 @@ func IsBackendGrayEnabled(grayConfig config.GrayConfig) bool {
 	return false
 }
 
-// ExtractCookieValueByKey 根据 cookie 和 key 获取 cookie 值
-func ExtractCookieValueByKey(cookie string, key string) string {
+// GetCookieValue 根据 cookie 和 key 获取 cookie 值
+func GetCookieValue(cookie string, key string) string {
 	if cookie == "" {
 		return ""
 	}
@@ -216,9 +238,6 @@ func PrefixFileRewrite(path, version string, matchRules map[string]string) strin
 }
 
 func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string) *config.Deployment {
-	// if isPageRequest {
-	// 	return deployment
-	// }
 	// cookie 中为空，返回当前版本
 	if xPreHigressVersion == "" {
 		return deployment
@@ -283,6 +302,80 @@ func IsSupportMultiVersion(grayConfig config.GrayConfig) bool {
 	return false
 }
 
+func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookieStr string) string {
+	ruleMaps := map[string]bool{}
+	for _, grayRule := range rules {
+		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
+			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayKeyValue, grayKeyValue)
+			continue
+		} else if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
+			grayTagValue := GetCookieValue(cookieStr, grayRule.GrayTagKey)
+			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayTagValue, grayTagValue)
+			continue
+		} else {
+			ruleMaps[grayRule.Name] = false
+		}
+	}
+	jsonBytes, err := json.Marshal(ruleMaps)
+	if err != nil {
+		return ""
+	}
+	return string(jsonBytes)
+}
+
+func GetGrayWeightUniqueId(grayKeyValue string) string {
+	if grayKeyValue != "" {
+		return grayKeyValue
+	}
+	higressTag := GetHigressTagCookie()
+	uniqueId := higressTag.UniqueId
+	if uniqueId == "" {
+		if grayKeyValue != "" {
+			// 优先使用 GrayKey 的值
+			uniqueId = grayKeyValue
+		} else {
+			uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
+		}
+	}
+	return uniqueId
+}
+
+// FilterGrayRule 过滤灰度规则
+func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieStr string) *config.Deployment {
+	if grayConfig.GrayWeight > 0 {
+		uniqueId := GetGrayWeightUniqueId(grayKeyValue)
+		// 计算哈希后取模
+		mod := crc32.ChecksumIEEE([]byte(uniqueId)) % 100
+		isGray := mod < uint32(grayConfig.GrayWeight)
+		if isGray {
+			for _, deployment := range grayConfig.GrayDeployments {
+				if deployment.Enabled && deployment.Weight > 0 {
+					return deployment
+				}
+			}
+		}
+		return grayConfig.BaseDeployment
+	}
+
+	for _, deployment := range grayConfig.GrayDeployments {
+		grayRule := GetRule(grayConfig.Rules, deployment.Name)
+		// 首先：先校验用户名单ID
+		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
+			if ContainsValue(grayRule.GrayKeyValue, grayKeyValue) {
+				return deployment
+			}
+		}
+		//	第二：校验Cookie中的 GrayTagKey
+		if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
+			grayTagValue := GetCookieValue(cookieStr, grayRule.GrayTagKey)
+			if ContainsValue(grayRule.GrayTagValue, grayTagValue) {
+				return deployment
+			}
+		}
+	}
+	return grayConfig.BaseDeployment
+}
+
 // FilterMultiVersionGrayRule 过滤多版本灰度规则
 func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieStr string, requestPath string) *config.Deployment {
 	// 首先根据灰度键值获取当前部署
@@ -305,48 +398,6 @@ func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue stri
 		}
 	}
 	return deployment
-}
-
-func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookieStr string) string {
-	ruleMaps := map[string]bool{}
-	for _, grayRule := range rules {
-		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
-			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayKeyValue, grayKeyValue)
-			continue
-		} else if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
-			grayTagValue := ExtractCookieValueByKey(cookieStr, grayRule.GrayTagKey)
-			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayTagValue, grayTagValue)
-			continue
-		} else {
-			ruleMaps[grayRule.Name] = false
-		}
-	}
-	jsonBytes, err := json.Marshal(ruleMaps)
-	if err != nil {
-		return ""
-	}
-	return string(jsonBytes)
-}
-
-// FilterGrayRule 过滤灰度规则
-func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieStr string) *config.Deployment {
-	for _, deployment := range grayConfig.GrayDeployments {
-		grayRule := GetRule(grayConfig.Rules, deployment.Name)
-		// 首先：先校验用户名单ID
-		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
-			if ContainsValue(grayRule.GrayKeyValue, grayKeyValue) {
-				return deployment
-			}
-		}
-		//	第二：校验Cookie中的 GrayTagKey
-		if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
-			grayTagValue := ExtractCookieValueByKey(cookieStr, grayRule.GrayTagKey)
-			if ContainsValue(grayRule.GrayTagValue, grayTagValue) {
-				return deployment
-			}
-		}
-	}
-	return grayConfig.BaseDeployment
 }
 
 // InjectContent 用于将内容注入到 HTML 文档的指定位置
