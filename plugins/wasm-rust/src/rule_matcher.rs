@@ -336,10 +336,10 @@ pub fn on_configure<RC: RootContext, PluginConfig: Default + DeserializeOwned>(
         Ok(value) => value,
     };
 
-    if let Err(err) = rule_matcher.parse_rule_config(&value){
+    if let Err(err) = rule_matcher.parse_rule_config(&value) {
         log.error(format!("parse_rule_config fail {}", err).as_str());
         false
-    }else{
+    } else {
         true
     }
 }
