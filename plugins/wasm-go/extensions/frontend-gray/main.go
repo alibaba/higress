@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/util"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -26,14 +27,14 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log log.Log) error {
 	// 解析json 为GrayConfig
 	config.JsonToGrayConfig(json, grayConfig)
 	log.Infof("Rewrite: %v, GrayDeployments: %v", json.Get("rewrite"), json.Get("grayDeployments"))
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log log.Log) types.Action {
 	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
 	requestPath = path.Clean(requestPath)
 	parsedURL, err := url.Parse(requestPath)
@@ -129,7 +130,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	return types.ActionContinue
 }
 
-func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log log.Log) types.Action {
 	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
 	if !enabledGray {
 		ctx.DontReadResponseBody()
@@ -213,7 +214,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log log.Log) types.Action {
 	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
 	if !enabledGray {
 		return types.ActionContinue

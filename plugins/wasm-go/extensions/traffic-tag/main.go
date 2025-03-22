@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -92,7 +93,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *TrafficTagConfig, log log.Log) error {
 
 	jsonStr := strings.TrimSpace(json.Raw)
 	if jsonStr == "{}" || jsonStr == "" {

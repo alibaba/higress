@@ -15,10 +15,10 @@
 package main
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 )
 
-func onWeightRequestHeaders(weightGroups []WeightGroup, randomNum uint64, log wrapper.Log) bool {
+func onWeightRequestHeaders(weightGroups []WeightGroup, randomNum uint64, log log.Log) bool {
 	randomValue := randomNum % TotalWeight
 	log.Debugf("random value for weighted headers : %d", randomValue)
 	// CDF
