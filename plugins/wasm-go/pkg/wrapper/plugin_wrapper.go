@@ -21,12 +21,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
 
 const (
@@ -117,7 +116,7 @@ var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 //
 // You should call this function in parseConfig phase, for example:
 //
-//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log log.Log) error {
 //	  wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
 //		 wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
 //		 return nil
