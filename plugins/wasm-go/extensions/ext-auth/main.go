@@ -21,6 +21,7 @@ import (
 	"ext-auth/config"
 	"ext-auth/util"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -50,7 +51,7 @@ const (
 	HeaderXForwardedHost   = "x-forwarded-host"
 )
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log log.Log) types.Action {
 	// If the request's domain and path match the MatchRules, skip authentication
 	if config.MatchRules.IsAllowedByMode(ctx.Host(), ctx.Method(), wrapper.GetRequestPathWithoutQuery()) {
 		ctx.DontReadRequestBody()
@@ -73,14 +74,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, 
 	return checkExtAuth(ctx, config, nil, log, types.HeaderStopAllIterationAndWatermark)
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config config.ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config config.ExtAuthConfig, body []byte, log log.Log) types.Action {
 	if config.HttpService.AuthorizationRequest.WithRequestBody {
 		return checkExtAuth(ctx, config, body, log, types.DataStopIterationAndBuffer)
 	}
 	return types.ActionContinue
 }
 
-func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte, log wrapper.Log, pauseAction types.Action) types.Action {
+func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte, log log.Log, pauseAction types.Action) types.Action {
 	httpServiceConfig := cfg.HttpService
 
 	extAuthReqHeaders := buildExtAuthRequestHeaders(ctx, cfg)

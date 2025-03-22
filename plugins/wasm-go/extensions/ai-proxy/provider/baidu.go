@@ -50,19 +50,19 @@ func (g *baiduProvider) GetProviderType() string {
 	return providerTypeBaidu
 }
 
-func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	g.config.handleRequestHeaders(g, ctx, apiName, log)
+func (g *baiduProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	g.config.handleRequestHeaders(g, ctx, apiName)
 	return nil
 }
 
-func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (g *baiduProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body, log)
+	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body)
 }
 
-func (g *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (g *baiduProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), g.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, baiduDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))

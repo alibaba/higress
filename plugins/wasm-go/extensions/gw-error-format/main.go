@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -23,7 +24,7 @@ type MyConfig struct {
 	set_header []gjson.Result
 }
 
-func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *MyConfig, log log.Log) error {
 	config.set_header = json.Get("set_header").Array()
 	config.rules = json.Get("rules").Array()
 	for _, item := range config.rules {

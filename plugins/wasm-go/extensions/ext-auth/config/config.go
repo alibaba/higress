@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"ext-auth/expr"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -56,7 +58,7 @@ type AuthorizationResponse struct {
 	AllowedClientHeaders   expr.Matcher
 }
 
-func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+func ParseConfig(json gjson.Result, config *ExtAuthConfig, log log.Log) error {
 	httpServiceConfig := json.Get("http_service")
 	if !httpServiceConfig.Exists() {
 		return errors.New("missing http_service in config")
@@ -88,7 +90,7 @@ func ParseConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) erro
 	return nil
 }
 
-func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log wrapper.Log) error {
+func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log log.Log) error {
 	var httpService HttpService
 
 	if err := parseEndpointConfig(json, &httpService, log); err != nil {
@@ -114,7 +116,7 @@ func parseHttpServiceConfig(json gjson.Result, config *ExtAuthConfig, log wrappe
 	return nil
 }
 
-func parseEndpointConfig(json gjson.Result, httpService *HttpService, log wrapper.Log) error {
+func parseEndpointConfig(json gjson.Result, httpService *HttpService, log log.Log) error {
 	endpointMode := json.Get("endpoint_mode").String()
 	if endpointMode == "" {
 		endpointMode = EndpointModeEnvoy

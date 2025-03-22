@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -69,7 +69,7 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 		}
 	}
 	config.setDefaultCapabilities(capabilities)
-	proxywasm.LogDebugf("ai-proxy: openai provider customDomain:%s, customPath:%s, isDirectCustomPath:%v, capabilities:%v",
+	log.Debugf("ai-proxy: openai provider customDomain:%s, customPath:%s, isDirectCustomPath:%v, capabilities:%v",
 		pairs[0], customPath, isDirectCustomPath, capabilities)
 	return &openaiProvider{
 		config:             config,
@@ -92,12 +92,12 @@ func (m *openaiProvider) GetProviderType() string {
 	return providerTypeOpenAI
 }
 
-func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 	return nil
 }
 
-func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if m.customPath != "" {
 		if m.isDirectCustomPath || apiName == "" {
 			util.OverwriteRequestPathHeader(headers, m.customPath)
@@ -118,15 +118,15 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	headers.Del("Content-Length")
 }
 
-func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
-	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
-func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if m.config.responseJsonSchema != nil {
 		request := &chatCompletionRequest{}
 		if err := decodeChatCompletionRequest(body, request); err != nil {
@@ -136,5 +136,5 @@ func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 		request.ResponseFormat = m.config.responseJsonSchema
 		body, _ = json.Marshal(request)
 	}
-	return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+	return m.config.defaultTransformRequestBody(ctx, apiName, body)
 }

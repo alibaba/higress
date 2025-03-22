@@ -26,6 +26,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema"
 	"github.com/tidwall/gjson"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
@@ -141,7 +142,7 @@ func parseUrl(url string) (string, string) {
 	return url[:index], url[index:]
 }
 
-func parseConfig(result gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(result gjson.Result, config *PluginConfig, log log.Log) error {
 	config.serviceName = result.Get("serviceName").String()
 	config.serviceUrl = result.Get("serviceUrl").String()
 	config.serviceDomain = result.Get("serviceDomain").String()
@@ -278,7 +279,7 @@ func (r *RequestContext) assembleReqBody(config PluginConfig) []byte {
 	return reqBody
 }
 
-func (r *RequestContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, respBody []byte) {
+func (r *RequestContext) SaveBodyToHistMsg(log log.Log, reqBody []byte, respBody []byte) {
 	r.RespBody = respBody
 	lastUserMessage := ""
 	lastSystemMessage := ""
@@ -318,7 +319,7 @@ func (r *RequestContext) SaveBodyToHistMsg(log wrapper.Log, reqBody []byte, resp
 	}
 }
 
-func (r *RequestContext) SaveStrToHistMsg(log wrapper.Log, errMsg string) {
+func (r *RequestContext) SaveStrToHistMsg(log log.Log, errMsg string) {
 	r.HistoryMessages = append(r.HistoryMessages, chatMessage{
 		Role:    "system",
 		Content: errMsg,
@@ -340,7 +341,7 @@ func (c *PluginConfig) ValidateBody(body []byte) error {
 	return nil
 }
 
-func (c *PluginConfig) ValidateJson(body []byte, log wrapper.Log) (string, error) {
+func (c *PluginConfig) ValidateJson(body []byte, log log.Log) (string, error) {
 	content := gjson.ParseBytes(body).Get(c.contentPath).String()
 	// first extract json from response body
 	if content == "" {
@@ -399,7 +400,7 @@ func (c *PluginConfig) ExtractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, body []byte) {
+func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log log.Log, body []byte) {
 	log.Infof("Final send: Code %d, Message %s, Body: %s", config.rejectStruct.RejectCode, config.rejectStruct.RejectMsg, string(body))
 	header := [][2]string{
 		{"Content-Type", "application/json"},
@@ -414,7 +415,7 @@ func sendResponse(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log,
 	}
 }
 
-func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log, retryCount int, requestContext *RequestContext) {
+func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log log.Log, retryCount int, requestContext *RequestContext) {
 	// if retry count exceeds max retry count, return the response
 	if retryCount >= config.maxRetry {
 		log.Debugf("retry count exceeds max retry count")
@@ -445,7 +446,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log wrapp
 		}, uint32(config.serviceTimeout))
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	if config.rejectStruct.RejectCode != HTTP_STATUS_OK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionPause
@@ -505,7 +506,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	// if the request is from this plugin, continue the request
 	fromThisPlugin, ok := ctx.GetContext(FROM_THIS_PLUGIN_KEY).(bool)
 	if ok && fromThisPlugin {
