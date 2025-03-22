@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -31,7 +32,7 @@ type MyConfig struct {
 	client      wrapper.HttpClient
 }
 
-func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *MyConfig, log log.Log) error {
 	chatgptUri := json.Get("chatgptUri").String()
 	var chatgptHost string
 	if chatgptUri == "" {
@@ -90,7 +91,7 @@ const bodyTemplate string = `
 }
 `
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log log.Log) types.Action {
 	pairs := strings.SplitN(ctx.Path(), "?", 2)
 
 	if len(pairs) < 2 {

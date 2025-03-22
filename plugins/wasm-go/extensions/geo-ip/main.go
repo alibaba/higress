@@ -8,6 +8,7 @@ import (
 
 	_ "embed"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -56,7 +57,7 @@ type GeoIpData struct {
 	Isp      string `json:"isp"`
 }
 
-func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
 	sourceType := json.Get("ip_source_type")
 	if sourceType.Exists() && sourceType.String() != "" {
 		switch sourceType.String() {
@@ -104,7 +105,7 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log wrapper.Log) error 
 	return nil
 }
 
-func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
+func ReadGeoIpDataToRdxtree(log log.Log) error {
 	GeoIpRdxTree = iptree.New()
 
 	//eg., cidr country province city isp
@@ -141,7 +142,7 @@ func ReadGeoIpDataToRdxtree(log wrapper.Log) error {
 }
 
 // search geodata using client ip in radixtree.
-func SearchGeoIpDataInRdxtree(ip string, log wrapper.Log) (*GeoIpData, error) {
+func SearchGeoIpDataInRdxtree(ip string, log log.Log) (*GeoIpData, error) {
 	val, found, err := GeoIpRdxTree.GetByString(ip)
 	if err != nil {
 		log.Errorf("search geo ip data in raditree failed. %v %s", err, ip)
@@ -196,7 +197,7 @@ func isInternalIp(ip string) (string, error) {
 	return "", nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.Log) types.Action {
 	var (
 		s   string
 		err error

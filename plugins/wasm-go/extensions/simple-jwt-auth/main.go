@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -31,14 +32,14 @@ type Res struct {
 	Msg  string `json:"msg"`  // 返回信息
 }
 
-func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *Config, log log.Log) error {
 	// 解析出配置，更新到config中
 	config.TokenSecretKey = json.Get("token_secret_key").String()
 	config.TokenHeaders = json.Get("token_headers").String()
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	var res Res
 	if config.TokenHeaders == "" || config.TokenSecretKey == "" {
 		res.Code = http.StatusBadRequest
