@@ -30,7 +30,7 @@ func main() {
 	wrapper.SetCtx(
 		"quark-mcp-server",
 		wrapper.ParseConfig(parseConfig),
-		wrapper.AddMCPTool[QuarkMCPServer]("web_search", WebSearch{}),
+		wrapper.AddMCPTool("web_search", WebSearch{}),
 	)
 }
 
