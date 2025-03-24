@@ -86,7 +86,7 @@ func (t WebSearch) Create(params []byte) wrapper.MCPTool[server.QuarkMCPServer] 
 
 // Call implements the core logic for handling an MCP tool call. This method is executed
 // when the tool is invoked through the MCP framework. It processes the configured parameters,
-// makes the actual API request to the Quark Search service, parses the response,
+// makes the actual API request to the service, parses the response,
 // and formats the results to be returned to the caller.
 func (t WebSearch) Call(ctx wrapper.HttpContext, config server.QuarkMCPServer) error {
 	err := server.ParseFromRequest(ctx, &config)
