@@ -15,12 +15,14 @@
 package wrapper
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/invopop/jsonschema"
 	"github.com/tidwall/gjson"
@@ -239,4 +241,17 @@ func ToInputSchema(v any) map[string]any {
 	var result map[string]any
 	json.Unmarshal(inputSchemaBytes, &result)
 	return result
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) ParseMCPServerConfig(config any) error {
+	serverConfigBase64, _ := proxywasm.GetHttpRequestHeader("x-higress-mcpserver-config")
+	if serverConfigBase64 == "" {
+		log.Info("mcp server config from request is empty")
+		return nil
+	}
+	serverConfig, err := base64.StdEncoding.DecodeString(serverConfigBase64)
+	if err != nil {
+		return fmt.Errorf("base64 decode mcp server config failed:%s, bytes:%s", err, serverConfigBase64)
+	}
+	return json.Unmarshal(serverConfig, config)
 }
