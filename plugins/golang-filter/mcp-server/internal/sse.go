@@ -147,10 +147,10 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
-	// if sessionID == "" {
-	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
-	// 	return
-	// }
+	if sessionID == "" {
+		s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
+		return
+	}
 
 	// Set the client context in the server before handling the message
 	ctx := s.server.WithContext(r.Context(), NotificationContext{
@@ -158,18 +158,10 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		SessionID: sessionID,
 	})
 
-	//TODO： sessions
+	//TODO： check session id
 	// _, ok := s.sessions.Load(sessionID)
 	// if !ok {
 	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Invalid session ID")
-	// 	return
-	// }
-
-	//TODO
-	// // Parse message as raw JSON
-	// var rawMessage json.RawMessage
-	// if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-	// 	s.writeJSONRPCError(w, nil, mcp.PARSE_ERROR, "Parse error")
 	// 	return
 	// }
 

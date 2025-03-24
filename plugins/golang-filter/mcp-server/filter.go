@@ -17,9 +17,10 @@ type filter struct {
 	path      string
 	config    *config
 
-	req     *http.Request
-	sse     bool
-	message bool
+	req        *http.Request
+	sse        bool
+	message    bool
+	bodyBuffer []byte
 }
 
 // Callbacks which are called in request path
@@ -75,17 +76,24 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
-		for _, server := range f.config.servers {
-			if f.path == server.GetMessageEndpoint() {
-				// Create a response recorder to capture the response
-				recorder := httptest.NewRecorder()
-				// Call the handleMessage method of SSEServer
-				server.HandleMessage(recorder, f.req, buffer.Bytes())
-				f.message = false
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
-				return api.LocalReply
+		f.bodyBuffer = append(f.bodyBuffer, buffer.Bytes()...)
+
+		if endStream {
+			for _, server := range f.config.servers {
+				if f.path == server.GetMessageEndpoint() {
+					// Create a response recorder to capture the response
+					recorder := httptest.NewRecorder()
+					// Call the handleMessage method of SSEServer with complete body
+					server.HandleMessage(recorder, f.req, f.bodyBuffer)
+					f.message = false
+					// clear buffer
+					f.bodyBuffer = nil
+					f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
+					return api.LocalReply
+				}
 			}
 		}
+		return api.StopAndBuffer
 	}
 	return api.Continue
 }
@@ -109,7 +117,7 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	for _, server := range f.config.servers {
 		if f.sse {
-			//TODO: buffer cleanup
+			buffer.Reset()
 			server.HandleSSE(f.callbacks)
 			f.sse = false
 			return api.Running
