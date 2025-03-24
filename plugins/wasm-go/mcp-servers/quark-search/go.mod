@@ -1,11 +1,11 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/mcp-servers/quark-search
+module quark-search
 
 go 1.24
 
 toolchain go1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250324113250-6066e41a2576
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250324133957-dab499f6ade6
 	github.com/tidwall/gjson v1.17.3
 )
 

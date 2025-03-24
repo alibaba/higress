@@ -12,21 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package server
 
 import (
-	"quark-search/server"
-	"quark-search/tools"
+	"encoding/json"
+	"errors"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-func main() {}
+type QuarkMCPServer struct {
+	ApiKey string `json:"apiKey"`
+}
 
-func init() {
-	wrapper.SetCtx(
-		"quark-mcp-server",
-		wrapper.ParseRawConfig(server.ParseFromConfig),
-		wrapper.AddMCPTool("web_search", tools.WebSearch{}),
-	)
+func (s QuarkMCPServer) ConfigHasError() error {
+	if s.ApiKey == "" {
+		return errors.New("missing api key")
+	}
+	return nil
+}
+
+func ParseFromConfig(configBytes []byte, server *QuarkMCPServer) error {
+	return json.Unmarshal(configBytes, server)
+}
+
+func ParseFromRequest(ctx wrapper.HttpContext, server *QuarkMCPServer) error {
+	return ctx.ParseMCPServerConfig(server)
 }
