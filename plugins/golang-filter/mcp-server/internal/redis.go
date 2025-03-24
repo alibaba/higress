@@ -149,19 +149,31 @@ func (r *RedisClient) Subscribe(channel string, callback func(message string)) e
 	}
 
 	go func() {
-		defer pubsub.Close()
+		defer func() {
+			pubsub.Close()
+			api.LogInfof("Closed subscription to channel %s", channel)
+		}()
+
+		ch := pubsub.Channel()
 		for {
 			select {
 			case <-r.stopChan:
 				api.LogInfof("Stopping subscription to channel %s", channel)
 				return
-			default:
-				msg, err := pubsub.ReceiveMessage(r.ctx)
-				if err != nil {
-					api.LogErrorf("Error receiving message: %v", err)
+			case msg, ok := <-ch:
+				if !ok {
+					api.LogInfof("Redis subscription channel closed for %s", channel)
 					return
 				}
-				callback(msg.Payload)
+
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							api.LogErrorf("Recovered from panic in callback: %v", r)
+						}
+					}()
+					callback(msg.Payload)
+				}()
 			}
 		}
 	}()
