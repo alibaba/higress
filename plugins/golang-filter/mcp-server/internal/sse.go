@@ -15,10 +15,22 @@ import (
 type SSEServer struct {
 	server          *MCPServer
 	baseURL         string
-	MessageEndpoint string
-	SSEEndpoint     string
+	messageEndpoint string
+	sseEndpoint     string
 	sessions        map[string]bool
 	redisClient     *RedisClient // Redis client for pub/sub
+}
+
+func (s *SSEServer) GetMessageEndpoint() string {
+	return s.messageEndpoint
+}
+
+func (s *SSEServer) GetSSEEndpoint() string {
+	return s.sseEndpoint
+}
+
+func (s *SSEServer) GetServerName() string {
+	return s.server.name
 }
 
 // Option defines a function type for configuring SSEServer
@@ -34,14 +46,14 @@ func WithBaseURL(baseURL string) Option {
 // WithMessageEndpoint sets the message endpoint path
 func WithMessageEndpoint(endpoint string) Option {
 	return func(s *SSEServer) {
-		s.MessageEndpoint = endpoint
+		s.messageEndpoint = endpoint
 	}
 }
 
 // WithSSEEndpoint sets the SSE endpoint path
 func WithSSEEndpoint(endpoint string) Option {
 	return func(s *SSEServer) {
-		s.SSEEndpoint = endpoint
+		s.sseEndpoint = endpoint
 	}
 }
 
@@ -55,8 +67,8 @@ func WithRedisClient(redisClient *RedisClient) Option {
 func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 	s := &SSEServer{
 		server:          server,
-		SSEEndpoint:     "/sse",
-		MessageEndpoint: "/message",
+		sseEndpoint:     "/sse",
+		messageEndpoint: "/message",
 		sessions:        make(map[string]bool),
 	}
 
@@ -84,7 +96,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 	messageEndpoint := fmt.Sprintf(
 		"%s%s?sessionId=%s",
 		s.baseURL,
-		s.MessageEndpoint,
+		s.messageEndpoint,
 		sessionID,
 	)
 
@@ -135,10 +147,10 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
-	// if sessionID == "" {
-	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
-	// 	return
-	// }
+	if sessionID == "" {
+		s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
+		return
+	}
 
 	// Set the client context in the server before handling the message
 	ctx := s.server.WithContext(r.Context(), NotificationContext{
@@ -146,18 +158,10 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		SessionID: sessionID,
 	})
 
-	//TODO： sessions
+	//TODO： check session id
 	// _, ok := s.sessions.Load(sessionID)
 	// if !ok {
 	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Invalid session ID")
-	// 	return
-	// }
-
-	//TODO
-	// // Parse message as raw JSON
-	// var rawMessage json.RawMessage
-	// if err := json.NewDecoder(r.Body).Decode(&rawMessage); err != nil {
-	// 	s.writeJSONRPCError(w, nil, mcp.PARSE_ERROR, "Parse error")
 	// 	return
 	// }
 
@@ -198,15 +202,3 @@ func (s *SSEServer) writeJSONRPCError(
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(response)
 }
-
-// // ServeHTTP implements the http.Handler interface.
-// func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-// 	switch r.URL.Path {
-// 	case s.sseEndpoint:
-// 		s.handleSSE(w, r)
-// 	case s.messageEndpoint:
-// 		s.handleMessage(w, r)
-// 	default:
-// 		http.NotFound(w, r)
-// 	}
-// }
