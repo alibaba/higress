@@ -75,6 +75,7 @@ type HttpContext interface {
 	OnMCPToolCallSuccess(content []map[string]any)
 	OnMCPToolCallError(err error)
 	SendMCPToolTextResult(result string)
+	GetPluginName() string
 }
 
 type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
@@ -842,3 +843,5 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, url string, headers []
 	}
 	return HttpCall(cluster, method, url, headers, body, callback, timeout)
 }
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetPluginName() string { return ctx.plugin.vm.pluginName }

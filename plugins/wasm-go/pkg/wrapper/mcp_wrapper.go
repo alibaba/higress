@@ -102,6 +102,27 @@ func (ctx *CommonHttpCtx[PluginConfig]) registerMCPTools(mcpTools MCPTools[Plugi
 	if !ctx.plugin.vm.handleJsonRpcMethod {
 		return
 	}
+	ctx.plugin.vm.jsonRpcMethodHandlers["ping"] = func(context HttpContext, config PluginConfig, id int64, params gjson.Result) error {
+		ctx.OnMCPResponseSuccess(map[string]any{})
+		return nil
+	}
+	ctx.plugin.vm.jsonRpcMethodHandlers["initialize"] = func(context HttpContext, config PluginConfig, id int64, params gjson.Result) error {
+		version := params.Get("protocolVersion").String()
+		if version == "" {
+			ctx.OnMCPResponseError(errors.New("Unsupported protocol version"), ErrInvalidParams)
+		}
+		ctx.OnMCPResponseSuccess(map[string]any{
+			"protocolVersion": version,
+			"capabilities": map[string]any{
+				"tools": map[string]any{},
+			},
+			"serverInfo": map[string]any{
+				"name":    context.GetPluginName(),
+				"version": "1.0.0",
+			},
+		})
+		return nil
+	}
 	ctx.plugin.vm.jsonRpcMethodHandlers["tools/list"] = func(context HttpContext, config PluginConfig, id int64, params gjson.Result) error {
 		var tools []map[string]any
 		for name, tool := range mcpTools {
