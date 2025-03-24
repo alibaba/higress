@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"gorm.io/driver/clickhouse"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +23,10 @@ func NewDBClient(dsn string, dbType string) (*DBClient, error) {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	} else if dbType == "clickhouse" {
 		db, err = gorm.Open(clickhouse.Open(dsn), &gorm.Config{})
+	} else if dbType == "mysql" {
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	} else if dbType == "sqlite" {
+		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	} else {
 		return nil, fmt.Errorf("unsupported database type")
 	}
