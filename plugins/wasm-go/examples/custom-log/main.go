@@ -19,6 +19,7 @@ import (
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
@@ -55,7 +56,7 @@ func writeTraceAttribute(ctx wrapper.HttpContext) {
 	ctx.WriteUserAttributeToTrace()
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomLogConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomLogConfig, log log.Log) types.Action {
 	if rand.Intn(10)%3 == 1 {
 		writeLog(ctx)
 	} else if rand.Intn(10)%3 == 2 {

@@ -21,11 +21,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
 
 const (
@@ -70,19 +70,31 @@ type HttpContext interface {
 	SetRequestBodyBufferLimit(byteSize uint32)
 	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
 	SetResponseBodyBufferLimit(byteSize uint32)
+	// Make a request to the target service of the current route using the specified URL and header.
+	RouteCall(method, url string, headers [][2]string, body []byte, callback ResponseCallback, timeoutMillisecond ...uint32) error
+	OnMCPToolCallSuccess(content []map[string]any)
+	OnMCPToolCallError(err error)
+	SendMCPToolTextResult(result string)
 }
 
-type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
-type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log Log) error
-type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
-type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
-type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log Log) []byte
-type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
+type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
+type oldParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log log.Log) error
+type oldOnHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log log.Log) types.Action
+type oldOnHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log log.Log) types.Action
+type oldOnHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte
+type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log log.Log)
+
+type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig) error
+type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig) error
+type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig) types.Action
+type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte) types.Action
+type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool) []byte
+type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig)
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
 	pluginName                  string
-	log                         Log
+	log                         log.Log
 	hasCustomConfig             bool
 	parseConfig                 ParseConfigFunc[PluginConfig]
 	parseRuleConfig             ParseRuleConfigFunc[PluginConfig]
@@ -93,6 +105,15 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseBody          onHttpBodyFunc[PluginConfig]
 	onHttpStreamingResponseBody onHttpStreamingBodyFunc[PluginConfig]
 	onHttpStreamDone            onHttpStreamDoneFunc[PluginConfig]
+	isJsonRpcSever              bool
+	handleJsonRpcMethod         bool
+	jsonRpcMethodHandlers       MethodHandlers[PluginConfig]
+	mcpTools                    MCPTools[PluginConfig]
+	onMcpToolRequest            mcpToolRequestFunc[PluginConfig]
+	onMcpToolResponse           mcpToolResponseFunc[PluginConfig]
+	onJsonRpcError              jsonRpcErrorFunc[PluginConfig]
+	jsonRpcRequestHandler       JsonRpcRequestHandler[PluginConfig]
+	jsonRpcResponseHandler      JsonRpcResponseHandler[PluginConfig]
 }
 
 type TickFuncEntry struct {
@@ -109,7 +130,7 @@ var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 //
 // You should call this function in parseConfig phase, for example:
 //
-//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
+//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log log.Log) error {
 //	  wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
 //		 wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
 //		 return nil
@@ -131,128 +152,244 @@ type CtxOption[PluginConfig any] interface {
 }
 
 type parseConfigOption[PluginConfig any] struct {
-	f ParseConfigFunc[PluginConfig]
+	f    ParseConfigFunc[PluginConfig]
+	oldF oldParseConfigFunc[PluginConfig]
 }
 
 func (o parseConfigOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.parseConfig = o.f
+	if o.f != nil {
+		ctx.parseConfig = o.f
+	} else {
+		ctx.parseConfig = func(json gjson.Result, config *PluginConfig) error { return o.oldF(json, config, ctx.log) }
+	}
 }
 
-func ParseConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return parseConfigOption[PluginConfig]{f}
+// Deprecated: Please use `ParseConfig` instead.
+func ParseConfigBy[PluginConfig any](f oldParseConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseConfigOption[PluginConfig]{oldF: f}
+}
+
+func ParseConfig[PluginConfig any](f ParseConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseConfigOption[PluginConfig]{f: f}
 }
 
 type parseOverrideConfigOption[PluginConfig any] struct {
-	parseConfigF     ParseConfigFunc[PluginConfig]
-	parseRuleConfigF ParseRuleConfigFunc[PluginConfig]
+	parseConfigF        ParseConfigFunc[PluginConfig]
+	parseRuleConfigF    ParseRuleConfigFunc[PluginConfig]
+	oldParseConfigF     oldParseConfigFunc[PluginConfig]
+	oldParseRuleConfigF oldParseRuleConfigFunc[PluginConfig]
 }
 
 func (o *parseOverrideConfigOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.parseConfig = o.parseConfigF
-	ctx.parseRuleConfig = o.parseRuleConfigF
+	if o.parseConfigF != nil && o.parseRuleConfigF != nil {
+		ctx.parseConfig = o.parseConfigF
+		ctx.parseRuleConfig = o.parseRuleConfigF
+	} else {
+		ctx.parseConfig = func(json gjson.Result, config *PluginConfig) error {
+			return o.oldParseConfigF(json, config, ctx.log)
+		}
+		ctx.parseRuleConfig = func(json gjson.Result, global PluginConfig, config *PluginConfig) error {
+			return o.oldParseRuleConfigF(json, global, config, ctx.log)
+		}
+	}
 }
 
-func ParseOverrideConfigBy[PluginConfig any](f ParseConfigFunc[PluginConfig], g ParseRuleConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &parseOverrideConfigOption[PluginConfig]{f, g}
+// Deprecated: Please use `ParseOverrideConfig` instead.
+func ParseOverrideConfigBy[PluginConfig any](f oldParseConfigFunc[PluginConfig], g oldParseRuleConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseOverrideConfigOption[PluginConfig]{
+		oldParseConfigF:     f,
+		oldParseRuleConfigF: g,
+	}
+}
+
+func ParseOverrideConfig[PluginConfig any](f ParseConfigFunc[PluginConfig], g ParseRuleConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseOverrideConfigOption[PluginConfig]{
+		parseConfigF:     f,
+		parseRuleConfigF: g,
+	}
 }
 
 type onProcessRequestHeadersOption[PluginConfig any] struct {
-	f onHttpHeadersFunc[PluginConfig]
+	f    onHttpHeadersFunc[PluginConfig]
+	oldF oldOnHttpHeadersFunc[PluginConfig]
 }
 
 func (o *onProcessRequestHeadersOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpRequestHeaders = o.f
+	if o.f != nil {
+		ctx.onHttpRequestHeaders = o.f
+	} else {
+		ctx.onHttpRequestHeaders = func(context HttpContext, config PluginConfig) types.Action {
+			return o.oldF(context, config, ctx.log)
+		}
+	}
 }
 
-func ProcessRequestHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessRequestHeadersOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessRequestHeaders` instead.
+func ProcessRequestHeadersBy[PluginConfig any](f oldOnHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestHeadersOption[PluginConfig]{oldF: f}
+}
+
+func ProcessRequestHeaders[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestHeadersOption[PluginConfig]{f: f}
 }
 
 type onProcessRequestBodyOption[PluginConfig any] struct {
-	f onHttpBodyFunc[PluginConfig]
+	f    onHttpBodyFunc[PluginConfig]
+	oldF oldOnHttpBodyFunc[PluginConfig]
 }
 
 func (o *onProcessRequestBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpRequestBody = o.f
+	if o.f != nil {
+		ctx.onHttpRequestBody = o.f
+	} else {
+		ctx.onHttpRequestBody = func(context HttpContext, config PluginConfig, body []byte) types.Action {
+			return o.oldF(context, config, body, ctx.log)
+		}
+	}
 }
 
-func ProcessRequestBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessRequestBodyOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessRequestBody` instead.
+func ProcessRequestBodyBy[PluginConfig any](f oldOnHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestBodyOption[PluginConfig]{oldF: f}
+}
+
+func ProcessRequestBody[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessRequestBodyOption[PluginConfig]{f: f}
 }
 
 type onProcessStreamingRequestBodyOption[PluginConfig any] struct {
-	f onHttpStreamingBodyFunc[PluginConfig]
+	f    onHttpStreamingBodyFunc[PluginConfig]
+	oldF oldOnHttpStreamingBodyFunc[PluginConfig]
 }
 
 func (o *onProcessStreamingRequestBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpStreamingRequestBody = o.f
+	if o.f != nil {
+		ctx.onHttpStreamingRequestBody = o.f
+	} else {
+		ctx.onHttpStreamingRequestBody = func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool) []byte {
+			return o.oldF(context, config, chunk, isLastChunk, ctx.log)
+		}
+	}
 }
 
-func ProcessStreamingRequestBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessStreamingRequestBodyOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessStreamingRequestBody` instead.
+func ProcessStreamingRequestBodyBy[PluginConfig any](f oldOnHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingRequestBodyOption[PluginConfig]{oldF: f}
+}
+
+func ProcessStreamingRequestBody[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingRequestBodyOption[PluginConfig]{f: f}
 }
 
 type onProcessResponseHeadersOption[PluginConfig any] struct {
-	f onHttpHeadersFunc[PluginConfig]
+	f    onHttpHeadersFunc[PluginConfig]
+	oldF oldOnHttpHeadersFunc[PluginConfig]
 }
 
 func (o *onProcessResponseHeadersOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpResponseHeaders = o.f
+	if o.f != nil {
+		ctx.onHttpResponseHeaders = o.f
+	} else {
+		ctx.onHttpResponseHeaders = func(context HttpContext, config PluginConfig) types.Action {
+			return o.oldF(context, config, ctx.log)
+		}
+	}
 }
 
-func ProcessResponseHeadersBy[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessResponseHeadersOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessResponseHeaders` instead.
+func ProcessResponseHeadersBy[PluginConfig any](f oldOnHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseHeadersOption[PluginConfig]{oldF: f}
+}
+
+func ProcessResponseHeaders[PluginConfig any](f onHttpHeadersFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseHeadersOption[PluginConfig]{f: f}
 }
 
 type onProcessResponseBodyOption[PluginConfig any] struct {
-	f onHttpBodyFunc[PluginConfig]
+	f    onHttpBodyFunc[PluginConfig]
+	oldF oldOnHttpBodyFunc[PluginConfig]
 }
 
 func (o *onProcessResponseBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpResponseBody = o.f
+	if o.f != nil {
+		ctx.onHttpResponseBody = o.f
+	} else {
+		ctx.onHttpResponseBody = func(context HttpContext, config PluginConfig, body []byte) types.Action {
+			return o.oldF(context, config, body, ctx.log)
+		}
+	}
 }
 
-func ProcessResponseBodyBy[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessResponseBodyOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessResponseBody` instead.
+func ProcessResponseBodyBy[PluginConfig any](f oldOnHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseBodyOption[PluginConfig]{oldF: f}
+}
+
+func ProcessResponseBody[PluginConfig any](f onHttpBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessResponseBodyOption[PluginConfig]{f: f}
 }
 
 type onProcessStreamingResponseBodyOption[PluginConfig any] struct {
-	f onHttpStreamingBodyFunc[PluginConfig]
+	f    onHttpStreamingBodyFunc[PluginConfig]
+	oldF oldOnHttpStreamingBodyFunc[PluginConfig]
 }
 
 func (o *onProcessStreamingResponseBodyOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpStreamingResponseBody = o.f
+	if o.f != nil {
+		ctx.onHttpStreamingResponseBody = o.f
+	} else {
+		ctx.onHttpStreamingResponseBody = func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool) []byte {
+			return o.oldF(context, config, chunk, isLastChunk, ctx.log)
+		}
+	}
 }
 
-func ProcessStreamingResponseBodyBy[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessStreamingResponseBodyOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessStreamingResponseBody` instead.
+func ProcessStreamingResponseBodyBy[PluginConfig any](f oldOnHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingResponseBodyOption[PluginConfig]{oldF: f}
+}
+
+func ProcessStreamingResponseBody[PluginConfig any](f onHttpStreamingBodyFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamingResponseBodyOption[PluginConfig]{f: f}
 }
 
 type onProcessStreamDoneOption[PluginConfig any] struct {
-	f onHttpStreamDoneFunc[PluginConfig]
+	f    onHttpStreamDoneFunc[PluginConfig]
+	oldF oldOnHttpStreamDoneFunc[PluginConfig]
 }
 
 func (o *onProcessStreamDoneOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	ctx.onHttpStreamDone = o.f
+	if o.f != nil {
+		ctx.onHttpStreamDone = o.f
+	} else {
+		ctx.onHttpStreamDone = func(context HttpContext, config PluginConfig) { o.oldF(context, config, ctx.log) }
+	}
+
 }
 
-func ProcessStreamDoneBy[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) CtxOption[PluginConfig] {
-	return &onProcessStreamDoneOption[PluginConfig]{f}
+// Deprecated: Please use `ProcessStreamDoneBy` instead.
+func ProcessStreamDoneBy[PluginConfig any](f oldOnHttpStreamDoneFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamDoneOption[PluginConfig]{oldF: f}
+}
+
+func ProcessStreamDone[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &onProcessStreamDoneOption[PluginConfig]{f: f}
 }
 
 type logOption[PluginConfig any] struct {
-	logger Log
+	logger log.Log
 }
 
 func (o *logOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
+	log.SetPluginLog(o.logger)
 	ctx.log = o.logger
 }
 
-func WithLogger[PluginConfig any](logger Log) CtxOption[PluginConfig] {
+func WithLogger[PluginConfig any](logger log.Log) CtxOption[PluginConfig] {
 	return &logOption[PluginConfig]{logger}
 }
 
-func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig, Log) error {
+func parseEmptyPluginConfig[PluginConfig any](gjson.Result, *PluginConfig) error {
 	return nil
 }
 
@@ -270,8 +407,10 @@ func NewCommonVmCtx[PluginConfig any](pluginName string, options ...CtxOption[Pl
 
 func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
-		pluginName:      pluginName,
-		hasCustomConfig: true,
+		pluginName:            pluginName,
+		hasCustomConfig:       true,
+		jsonRpcMethodHandlers: make(MethodHandlers[PluginConfig]),
+		mcpTools:              make(MCPTools[PluginConfig]),
 	}
 	for _, opt := range options {
 		opt.Apply(ctx)
@@ -280,7 +419,6 @@ func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...C
 		var config PluginConfig
 		if unsafe.Sizeof(config) != 0 {
 			msg := "the `parseConfig` is missing in NewCommonVmCtx's arguments"
-			ctx.log.Critical(msg)
 			panic(msg)
 		}
 		ctx.hasCustomConfig = false
@@ -324,17 +462,17 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	}
 	pluginID := jsonData.Get(PluginIDKey).String()
 	if pluginID != "" {
-		ctx.vm.log.resetID(pluginID)
+		ctx.vm.log.ResetID(pluginID)
 	}
 	var parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error
 	if ctx.vm.parseRuleConfig != nil {
 		parseOverrideConfig = func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
-			return ctx.vm.parseRuleConfig(js, global, cfg, ctx.vm.log)
+			return ctx.vm.parseRuleConfig(js, global, cfg)
 		}
 	}
 	err = ctx.ParseRuleConfig(jsonData,
 		func(js gjson.Result, cfg *PluginConfig) error {
-			return ctx.vm.parseConfig(js, cfg, ctx.vm.log)
+			return ctx.vm.parseConfig(js, cfg)
 		},
 		parseOverrideConfig,
 	)
@@ -372,10 +510,12 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 		userContext:   map[string]interface{}{},
 		userAttribute: map[string]interface{}{},
 	}
-	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil {
+	httpCtx.registerMCPTools(ctx.vm.mcpTools)
+	httpCtx.registerMCPToolProcessor()
+	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil || len(ctx.vm.jsonRpcMethodHandlers) > 0 || ctx.vm.jsonRpcRequestHandler != nil {
 		httpCtx.needRequestBody = true
 	}
-	if ctx.vm.onHttpResponseBody != nil || ctx.vm.onHttpStreamingResponseBody != nil {
+	if ctx.vm.onHttpResponseBody != nil || ctx.vm.onHttpStreamingResponseBody != nil || ctx.vm.jsonRpcResponseHandler != nil {
 		httpCtx.needResponseBody = true
 	}
 	if ctx.vm.onHttpStreamingRequestBody != nil {
@@ -384,7 +524,6 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 	if ctx.vm.onHttpStreamingResponseBody != nil {
 		httpCtx.streamingResponseBody = true
 	}
-
 	return httpCtx
 }
 
@@ -401,6 +540,18 @@ type CommonHttpCtx[PluginConfig any] struct {
 	contextID             uint32
 	userContext           map[string]interface{}
 	userAttribute         map[string]interface{}
+	pendingCall           int
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) HttpCallStart(uint32) {
+	ctx.pendingCall++
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) HttpCallEnd(uint32) {
+	if ctx.pendingCall == 0 {
+		return
+	}
+	ctx.pendingCall--
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {
@@ -474,6 +625,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToTrace() error {
 		}
 	}
 	return nil
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetIntContext(key string, defaultValue int) int {
+	if b, ok := ctx.userContext[key].(int); ok {
+		return b
+	}
+	return defaultValue
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) GetBoolContext(key string, defaultValue bool) bool {
@@ -563,10 +721,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 	if IsBinaryRequestBody() {
 		ctx.needRequestBody = false
 	}
+	if ctx.plugin.vm.isJsonRpcSever && HasRequestBody() {
+		return types.HeaderStopIteration
+	}
 	if ctx.plugin.vm.onHttpRequestHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpRequestHeaders(ctx, *config, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpRequestHeaders(ctx, *config)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStream bool) types.Action {
@@ -578,7 +739,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 	}
 	if ctx.plugin.vm.onHttpStreamingRequestBody != nil && ctx.streamingRequestBody {
 		chunk, _ := proxywasm.GetHttpRequestBody(0, bodySize)
-		modifiedChunk := ctx.plugin.vm.onHttpStreamingRequestBody(ctx, *ctx.config, chunk, endOfStream, ctx.plugin.vm.log)
+		modifiedChunk := ctx.plugin.vm.onHttpStreamingRequestBody(ctx, *ctx.config, chunk, endOfStream)
 		err := proxywasm.ReplaceHttpRequestBody(modifiedChunk)
 		if err != nil {
 			ctx.plugin.vm.log.Warnf("replace request body chunk failed: %v", err)
@@ -586,7 +747,9 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 		}
 		return types.ActionContinue
 	}
-	if ctx.plugin.vm.onHttpRequestBody != nil {
+	if ctx.plugin.vm.onHttpRequestBody != nil ||
+		len(ctx.plugin.vm.jsonRpcMethodHandlers) > 0 ||
+		ctx.plugin.vm.jsonRpcRequestHandler != nil {
 		ctx.requestBodySize += bodySize
 		if !endOfStream {
 			return types.ActionPause
@@ -596,7 +759,14 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 			ctx.plugin.vm.log.Warnf("get request body failed: %v", err)
 			return types.ActionContinue
 		}
-		return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
+		if ctx.plugin.vm.onHttpRequestBody != nil {
+			return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body)
+		}
+		if len(ctx.plugin.vm.jsonRpcMethodHandlers) > 0 {
+			return ctx.HandleJsonRpcMethod(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcMethodHandlers)
+		}
+		// ctx.plugin.vm.jsonRpcRequestHandler not nil
+		return ctx.HandleJsonRpcRequest(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcRequestHandler)
 	}
 	return types.ActionContinue
 }
@@ -612,7 +782,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, en
 	if ctx.plugin.vm.onHttpResponseHeaders == nil {
 		return types.ActionContinue
 	}
-	return ctx.plugin.vm.onHttpResponseHeaders(ctx, *ctx.config, ctx.plugin.vm.log)
+	return ctx.plugin.vm.onHttpResponseHeaders(ctx, *ctx.config)
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfStream bool) types.Action {
@@ -624,7 +794,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 	}
 	if ctx.plugin.vm.onHttpStreamingResponseBody != nil && ctx.streamingResponseBody {
 		chunk, _ := proxywasm.GetHttpResponseBody(0, bodySize)
-		modifiedChunk := ctx.plugin.vm.onHttpStreamingResponseBody(ctx, *ctx.config, chunk, endOfStream, ctx.plugin.vm.log)
+		modifiedChunk := ctx.plugin.vm.onHttpStreamingResponseBody(ctx, *ctx.config, chunk, endOfStream)
 		err := proxywasm.ReplaceHttpResponseBody(modifiedChunk)
 		if err != nil {
 			ctx.plugin.vm.log.Warnf("replace response body chunk failed: %v", err)
@@ -632,7 +802,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 		}
 		return types.ActionContinue
 	}
-	if ctx.plugin.vm.onHttpResponseBody != nil {
+	if ctx.plugin.vm.onHttpResponseBody != nil || ctx.plugin.vm.jsonRpcResponseHandler != nil {
 		ctx.responseBodySize += bodySize
 		if !endOfStream {
 			return types.ActionPause
@@ -642,7 +812,11 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 			ctx.plugin.vm.log.Warnf("get response body failed: %v", err)
 			return types.ActionContinue
 		}
-		return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body, ctx.plugin.vm.log)
+		if ctx.plugin.vm.onHttpResponseBody != nil {
+			return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body)
+		}
+		// ctx.plugin.vm.jsonRpcResponseHandler not nil
+		return ctx.HandleJsonRpcResponse(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcResponseHandler)
 	}
 	return types.ActionContinue
 }
@@ -654,5 +828,17 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() {
 	if ctx.plugin.vm.onHttpStreamDone == nil {
 		return
 	}
-	ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config, ctx.plugin.vm.log)
+	ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config)
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, url string, headers [][2]string, body []byte, callback ResponseCallback, timeoutMillisecond ...uint32) error {
+	// Since the HttpCall here is a substitute for route invocation, the default timeout is slightly longer, at 1 minute.
+	var timeout uint32 = 60000
+	if len(timeoutMillisecond) > 0 {
+		timeout = timeoutMillisecond[0]
+	}
+	cluster := RouteCluster{
+		BaseCluster: BaseCluster{notify: ctx},
+	}
+	return HttpCall(cluster, method, url, headers, body, callback, timeout)
 }

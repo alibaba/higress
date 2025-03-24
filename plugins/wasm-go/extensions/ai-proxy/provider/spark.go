@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -73,19 +74,19 @@ func (p *sparkProvider) GetProviderType() string {
 	return providerTypeSpark
 }
 
-func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	p.config.handleRequestHeaders(p, ctx, apiName, log)
+func (p *sparkProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	p.config.handleRequestHeaders(p, ctx, apiName)
 	return nil
 }
 
-func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (p *sparkProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !p.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body, log)
+	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body)
 }
 
-func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}
@@ -100,7 +101,7 @@ func (p *sparkProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName A
 	return json.Marshal(response)
 }
 
-func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+func (p *sparkProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
@@ -177,7 +178,7 @@ func (p *sparkProvider) appendResponse(responseBuilder *strings.Builder, respons
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }
 
-func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (p *sparkProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), p.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, sparkHost)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+p.config.GetApiTokenInUse(ctx))
