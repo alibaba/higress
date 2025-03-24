@@ -167,6 +167,9 @@ build-gateway: prebuild buildx-prepare
 build-gateway-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
 
+build-golang-filter:
+	./tools/hack/build-golang-filters.sh
+
 build-istio: prebuild buildx-prepare
 	DOCKER_TARGETS="docker.pilot" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
