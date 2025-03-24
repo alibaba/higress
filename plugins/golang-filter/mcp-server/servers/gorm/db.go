@@ -2,13 +2,12 @@ package gorm
 
 import (
 	"fmt"
-	"log"
-	"os"
 
 	"gorm.io/driver/clickhouse"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // DBClient is a struct to handle PostgreSQL connections and operations
@@ -18,24 +17,16 @@ type DBClient struct {
 
 // NewDBClient creates a new DBClient instance and establishes a connection to the PostgreSQL database
 func NewDBClient(dsn string, dbType string) (*DBClient, error) {
-	// Configure GORM logger
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             0,           // Slow SQL threshold
-			LogLevel:                  logger.Info, // Log level
-			IgnoreRecordNotFoundError: false,       // Ignore ErrRecordNotFound error for logger
-			Colorful:                  true,        // Disable color
-		},
-	)
 	var db *gorm.DB
 	var err error
 	if dbType == "postgres" {
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: newLogger,
-		})
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	} else if dbType == "clickhouse" {
 		db, err = gorm.Open(clickhouse.Open(dsn), &gorm.Config{})
+	} else if dbType == "mysql" {
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	} else if dbType == "sqlite" {
+		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	} else {
 		return nil, fmt.Errorf("unsupported database type")
 	}
