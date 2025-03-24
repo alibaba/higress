@@ -30,7 +30,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	f.path = parsedURL.Path
 	method, _ := header.Get(":method")
 	for _, server := range f.config.servers {
-		if f.path == server.SSEEndpoint {
+		if f.path == server.GetSSEEndpoint() {
 			if method != http.MethodGet {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 			} else {
@@ -38,9 +38,9 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				body := "SSE connection create"
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 			}
-			api.LogInfo("SSE connection started")
+			api.LogInfof("%s SSE connection started", server.GetServerName())
 			return api.LocalReply
-		} else if f.path == server.MessageEndpoint {
+		} else if f.path == server.GetMessageEndpoint() {
 			if method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 			}
@@ -50,7 +50,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				URL:    parsedURL,
 				Header: make(http.Header),
 			}
-			api.LogInfof("Message request: %v", parsedURL)
+			api.LogDebugf("Message request: %v", parsedURL)
 			// Copy headers from api.RequestHeaderMap to http.Header
 			header.Range(func(key, value string) bool {
 				f.req.Header.Add(key, value)
@@ -76,7 +76,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
 		for _, server := range f.config.servers {
-			if f.path == server.MessageEndpoint {
+			if f.path == server.GetMessageEndpoint() {
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer
@@ -104,9 +104,6 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 	return api.Continue
 }
 
-// TODO: 连接多种数据库
-// TODO: 多种存储类型
-// TODO: 数据库多个实例
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {

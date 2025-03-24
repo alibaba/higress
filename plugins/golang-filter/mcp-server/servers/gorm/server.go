@@ -13,11 +13,18 @@ func init() {
 }
 
 type DBConfig struct {
+	name   string
 	dbType string
 	dsn    string
 }
 
 func (c *DBConfig) ParseConfig(config map[string]any) error {
+	name, ok := config["name"].(string)
+	if !ok {
+		return errors.New("missing servername")
+	}
+	c.name = name
+
 	dsn, ok := config["dsn"].(string)
 	if !ok {
 		return errors.New("missing dsn")
@@ -34,7 +41,7 @@ func (c *DBConfig) ParseConfig(config map[string]any) error {
 
 func (c *DBConfig) NewServer() (*internal.MCPServer, error) {
 	mcpServer := internal.NewMCPServer(
-		"mcp-server-database",
+		c.name,
 		"1.0.0",
 	)
 

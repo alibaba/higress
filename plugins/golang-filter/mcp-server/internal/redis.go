@@ -153,12 +153,12 @@ func (r *RedisClient) Subscribe(channel string, callback func(message string)) e
 		for {
 			select {
 			case <-r.stopChan:
-				api.LogDebugf("Stopping subscription to channel %s", channel)
+				api.LogInfof("Stopping subscription to channel %s", channel)
 				return
 			default:
 				msg, err := pubsub.ReceiveMessage(r.ctx)
 				if err != nil {
-					api.LogDebugf("Error receiving message: %v", err)
+					api.LogErrorf("Error receiving message: %v", err)
 					return
 				}
 				callback(msg.Payload)
