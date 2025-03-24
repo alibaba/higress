@@ -76,7 +76,7 @@ type HttpContext interface {
 	OnMCPToolCallError(err error)
 	SendMCPToolTextResult(result string)
 	GetPluginName() string
-	ParseMcpServerConfig(config any) error
+	ParseMCPServerConfig(config any) error
 }
 
 type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
