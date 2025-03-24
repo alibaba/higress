@@ -1,14 +1,14 @@
-module github.com/envoyproxy/envoy/examples/golang-http/simple
+module github.com/alibaba/higress/plugins/golang-filter/mcp-server
 
 go 1.23
 
 require (
-	github.com/envoyproxy/envoy v1.33.1-0.20250224062430-6c11eac01993
-	google.golang.org/protobuf v1.36.5
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
+	github.com/envoyproxy/envoy v1.33.1-0.20250224062430-6c11eac01993
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.12.0
+	google.golang.org/protobuf v1.36.5
 	gorm.io/driver/clickhouse v0.6.1
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
