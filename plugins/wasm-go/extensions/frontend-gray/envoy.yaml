@@ -94,7 +94,7 @@ static_resources:
                                 },
                                 "grayDeployments": [
                                   {
-                                    "weight": 10,
+                                    "weight": 90,
                                     "name": "beta-user",
                                     "version": "v2",
                                     "enabled": true,

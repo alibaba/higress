@@ -18,26 +18,6 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func GetHigressTagCookie() *config.HigressTagCookie {
-	higressTagCookie := new(config.HigressTagCookie)
-	cookie, err := proxywasm.GetHttpRequestHeader("cookie")
-	if err != nil {
-		return higressTagCookie
-	}
-	higressTag := GetCookieValue(cookie, config.XHigressTag)
-	cookieValues := strings.Split(higressTag, ",")
-	for i := 0; i < len(cookieValues) && i < 2; i++ {
-		value := strings.TrimSpace(cookieValues[i])
-		switch i {
-		case 0:
-			higressTagCookie.FrontendVersion = value
-		case 1:
-			higressTagCookie.UniqueId = value
-		}
-	}
-	return higressTagCookie
-}
-
 func GetRequestPath() string {
 	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
 	requestPath = path.Clean(requestPath)
@@ -302,14 +282,14 @@ func IsSupportMultiVersion(grayConfig config.GrayConfig) bool {
 	return false
 }
 
-func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookieStr string) string {
+func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookie string) string {
 	ruleMaps := map[string]bool{}
 	for _, grayRule := range rules {
 		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
 			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayKeyValue, grayKeyValue)
 			continue
 		} else if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
-			grayTagValue := GetCookieValue(cookieStr, grayRule.GrayTagKey)
+			grayTagValue := GetCookieValue(cookie, grayRule.GrayTagKey)
 			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayTagValue, grayTagValue)
 			continue
 		} else {
@@ -323,27 +303,18 @@ func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookieStr 
 	return string(jsonBytes)
 }
 
-func GetGrayWeightUniqueId(grayKeyValue string) string {
-	if grayKeyValue != "" {
-		return grayKeyValue
-	}
-	higressTag := GetHigressTagCookie()
-	uniqueId := higressTag.UniqueId
+func GetGrayWeightUniqueId(cookie string) string {
+	uniqueId := GetCookieValue(cookie, config.XHigressUid)
 	if uniqueId == "" {
-		if grayKeyValue != "" {
-			// 优先使用 GrayKey 的值
-			uniqueId = grayKeyValue
-		} else {
-			uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
-		}
+		uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	return uniqueId
 }
 
 // FilterGrayRule 过滤灰度规则
-func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieStr string) *config.Deployment {
+func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookie string) *config.Deployment {
 	if grayConfig.GrayWeight > 0 {
-		uniqueId := GetGrayWeightUniqueId(grayKeyValue)
+		uniqueId := GetGrayWeightUniqueId(cookie)
 		// 计算哈希后取模
 		mod := crc32.ChecksumIEEE([]byte(uniqueId)) % 100
 		isGray := mod < uint32(grayConfig.GrayWeight)
@@ -367,7 +338,7 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieSt
 		}
 		//	第二：校验Cookie中的 GrayTagKey
 		if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
-			grayTagValue := GetCookieValue(cookieStr, grayRule.GrayTagKey)
+			grayTagValue := GetCookieValue(cookie, grayRule.GrayTagKey)
 			if ContainsValue(grayRule.GrayTagValue, grayTagValue) {
 				return deployment
 			}
@@ -377,9 +348,9 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieSt
 }
 
 // FilterMultiVersionGrayRule 过滤多版本灰度规则
-func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookieStr string, requestPath string) *config.Deployment {
+func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookie string, requestPath string) *config.Deployment {
 	// 首先根据灰度键值获取当前部署
-	currentDeployment := FilterGrayRule(grayConfig, grayKeyValue, cookieStr)
+	currentDeployment := FilterGrayRule(grayConfig, grayKeyValue, cookie)
 
 	// 创建一个新的部署对象，初始化版本为当前部署的版本
 	deployment := &config.Deployment{

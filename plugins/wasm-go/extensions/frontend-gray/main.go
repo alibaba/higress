@@ -39,13 +39,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	cookies, _ := proxywasm.GetHttpRequestHeader("cookie")
+	cookie, _ := proxywasm.GetHttpRequestHeader("cookie")
 	isHtmlRequest := util.CheckIsHtmlRequest(requestPath)
 	ctx.SetContext(config.IsHtmlRequest, isHtmlRequest)
 	isIndexRequest := util.IsIndexRequest(requestPath, grayConfig.IndexPaths)
 	ctx.SetContext(config.IsIndexRequest, isIndexRequest)
 	hasRewrite := len(grayConfig.Rewrite.File) > 0 || len(grayConfig.Rewrite.Index) > 0
-	grayKeyValueByCookie := util.GetCookieValue(cookies, grayConfig.GrayKey)
+	grayKeyValueByCookie := util.GetCookieValue(cookie, grayConfig.GrayKey)
 	grayKeyValueByHeader, _ := proxywasm.GetHttpRequestHeader(grayConfig.GrayKey)
 	// 优先从cookie中获取，否则从header中获取
 	grayKeyValue := util.GetGrayKey(grayKeyValueByCookie, grayKeyValueByHeader, grayConfig.GraySubKey)
@@ -54,9 +54,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 		// 禁止重新路由，要在更改Header之前操作，否则会失效
 		ctx.DisableReroute()
 	}
+	frontendVersion := util.GetCookieValue(cookie, config.XHigressTag)
 
 	if grayConfig.GrayWeight > 0 {
-		ctx.SetContext(config.HigressUniqueId, util.GetGrayWeightUniqueId(grayKeyValue))
+		ctx.SetContext(config.XHigressUid, util.GetGrayWeightUniqueId(cookie))
 	}
 
 	// 删除Accept-Encoding，避免压缩， 如果是压缩的内容，后续插件就没法处理了
@@ -64,30 +65,29 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	deployment := &config.Deployment{}
 
-	higressTagCookie := util.GetHigressTagCookie()
 	globalConfig := grayConfig.Injection.GlobalConfig
 	if globalConfig.Enabled {
-		conditionRule := util.GetConditionRules(grayConfig.Rules, grayKeyValue, cookies)
+		conditionRule := util.GetConditionRules(grayConfig.Rules, grayKeyValue, cookie)
 		trimmedValue := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(globalConfig.Value), "{"), "}")
 		ctx.SetContext(globalConfig.Key, fmt.Sprintf("<script>var %s = {\n%s:%s,\n %s \n}\n</script>", globalConfig.Key, globalConfig.FeatureKey, conditionRule, trimmedValue))
 	}
 
 	if isHtmlRequest {
 		// index首页请求每次都会进度灰度规则判断
-		deployment = util.FilterGrayRule(&grayConfig, grayKeyValue, cookies)
-		log.Infof("index html request: %v, backend: %v, xPreHigressVersion: %s", requestPath, deployment.BackendVersion, higressTagCookie.FrontendVersion)
+		deployment = util.FilterGrayRule(&grayConfig, grayKeyValue, cookie)
+		log.Infof("index html request: %v, backend: %v, xPreHigressVersion: %s", requestPath, deployment.BackendVersion, frontendVersion)
 		ctx.SetContext(config.PreHigressVersion, deployment.Version)
 		ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	} else {
 		if util.IsSupportMultiVersion(grayConfig) {
-			deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, cookies, requestPath)
+			deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, cookie, requestPath)
 			log.Infof("multi version %v", deployment)
 		} else {
-			grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue, cookies)
+			grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue, cookie)
 			if isIndexRequest {
 				deployment = grayDeployment
 			} else {
-				deployment = util.GetVersion(grayConfig, grayDeployment, higressTagCookie.FrontendVersion)
+				deployment = util.GetVersion(grayConfig, grayDeployment, frontendVersion)
 			}
 		}
 	}
@@ -168,23 +168,18 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
 
-	higressTagCookie := new(config.HigressTagCookie)
 	// 前端版本
 	frontendVersion, isFrontendVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
-	if !isFrontendVersionOk {
-		frontendVersion = ""
+	if isFrontendVersionOk {
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", config.XHigressTag, frontendVersion, grayConfig.UserStickyMaxAge))
 	}
-	higressTagCookie.FrontendVersion = frontendVersion
 	// 设置GrayWeight 唯一值
 	if grayConfig.GrayWeight > 0 {
-		uniqueId, isUniqueIdOk := ctx.GetContext(config.HigressUniqueId).(string)
-		if !isUniqueIdOk {
-			uniqueId = ""
+		uniqueId, isUniqueIdOk := ctx.GetContext(config.XHigressUid).(string)
+		if isUniqueIdOk {
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", config.XHigressUid, uniqueId, grayConfig.UserStickyMaxAge))
 		}
-		higressTagCookie.UniqueId = uniqueId
 	}
-	proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s,%s; Max-Age=%s; Path=/;", config.XHigressTag, higressTagCookie.FrontendVersion, higressTagCookie.UniqueId, grayConfig.UserStickyMaxAge))
-
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
 		backendVersion, isBackVersionOk := ctx.GetContext(grayConfig.BackendGrayTag).(string)

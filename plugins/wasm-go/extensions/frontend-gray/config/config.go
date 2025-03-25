@@ -9,19 +9,14 @@ import (
 
 const (
 	XHigressTag       = "x-higress-tag"
+	XHigressUid       = "x-higress-uid"
 	PreHigressVersion = "pre-higress-version"
-	HigressUniqueId   = "higress-unique-id"
 	IsHtmlRequest     = "is-html-request"
 	IsIndexRequest    = "is-index-request"
 	EnabledGray       = "enabled-gray"
 )
 
 type LogInfo func(format string, args ...interface{})
-
-type HigressTagCookie struct {
-	FrontendVersion string
-	UniqueId        string
-}
 
 type GrayRule struct {
 	Name         string
