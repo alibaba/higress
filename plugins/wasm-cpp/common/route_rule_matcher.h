@@ -473,7 +473,7 @@ class RouteRuleMatcher {
       auto has_allow = config.find("allow");
       if (has_allow != config.end()) {
         local_config_size -= 1;
-        LOG_DEBUG("has allow filed");
+        LOG_DEBUG("has allow field");
         if (!JsonArrayIterate(config, "allow", [&](const json& allow) -> bool {
               auto parse_result = JsonValueAs<std::string>(allow);
               if (parse_result.second !=

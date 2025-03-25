@@ -36,13 +36,26 @@ namespace model_mapper {
 
 #endif
 
-struct ModelMapperConfigRule {
-  std::string model_key_ = "model";
+struct ModelMappingRule {
   std::map<std::string, std::string> exact_model_mapping_;
   std::vector<std::pair<std::string, std::string>> prefix_model_mapping_;
   std::string default_model_mapping_;
+};
+
+struct ConditionalModelMappingRule : ModelMappingRule {
+  std::vector<std::string> consumers;
+
+  inline bool empty() { return consumers.empty(); }
+};
+
+struct ModelMapperConfigRule {
+  std::string model_key_ = "model";
+  ModelMappingRule default_rule_;
+  std::vector<ConditionalModelMappingRule> conditional_rules_;
   std::vector<std::string> enable_on_path_suffix_ = {"/v1/chat/completions"};
 };
+
+class PluginContext;
 
 // PluginRootContext is the root context for all streams processed by the
 // thread. It has the same lifetime as the worker thread and acts as target for
@@ -54,12 +67,15 @@ class PluginRootContext : public RootContext,
       : RootContext(id, root_id) {}
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
-  FilterHeadersStatus onHeader(const ModelMapperConfigRule&);
-  FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view);
+  FilterHeadersStatus onHeader(PluginContext& ctx, const ModelMapperConfigRule&);
+  FilterDataStatus onBody(PluginContext& ctx, const ModelMapperConfigRule&, std::string_view);
+  void doModelMapping(Wasm::Common::JsonObject& body_json, const std::string model_key, const ModelMappingRule& rule);
   bool configure(size_t);
 
  private:
   bool parsePluginConfig(const json&, ModelMapperConfigRule&) override;
+  bool parseModelMappingRule(const Wasm::Common::JsonObject& model_mapping, ModelMappingRule& rule);
+  const ModelMappingRule* findActiveRule(const ModelMapperConfigRule& rule);
 };
 
 // Per-stream context.
@@ -68,6 +84,7 @@ class PluginContext : public Context {
   explicit PluginContext(uint32_t id, RootContext* root) : Context(id, root) {}
   FilterHeadersStatus onRequestHeaders(uint32_t, bool) override;
   FilterDataStatus onRequestBody(size_t, bool) override;
+  const ModelMappingRule* active_rule_;
 
  private:
   inline PluginRootContext* rootContext() {
