@@ -95,10 +95,10 @@ func createContextCache(providerConfig *ProviderConfig) *contextCache {
 		return nil
 	}
 	fileUrlObj, _ := url.Parse(contextConfig.fileUrl)
-	cluster := plainCluster{
-		serviceName: contextConfig.serviceName,
-		servicePort: contextConfig.servicePort,
-		hostName:    fileUrlObj.Host,
+	cluster := wrapper.FQDNCluster{
+		FQDN: contextConfig.serviceName,
+		Port: contextConfig.servicePort,
+		Host: fileUrlObj.Host,
 	}
 	return &contextCache{
 		client:  wrapper.NewClusterClient(cluster),
