@@ -57,7 +57,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	frontendVersion := util.GetCookieValue(cookie, config.XHigressTag)
 
 	if grayConfig.GrayWeight > 0 {
-		ctx.SetContext(config.XHigressUid, util.GetGrayWeightUniqueId(cookie))
+		ctx.SetContext(grayConfig.UniqueGrayTag, util.GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag))
 	}
 
 	// 删除Accept-Encoding，避免压缩， 如果是压缩的内容，后续插件就没法处理了
@@ -175,9 +175,9 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	// 设置GrayWeight 唯一值
 	if grayConfig.GrayWeight > 0 {
-		uniqueId, isUniqueIdOk := ctx.GetContext(config.XHigressUid).(string)
+		uniqueId, isUniqueIdOk := ctx.GetContext(grayConfig.UniqueGrayTag).(string)
 		if isUniqueIdOk {
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", config.XHigressUid, uniqueId, grayConfig.UserStickyMaxAge))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.UserStickyMaxAge))
 		}
 	}
 	// 设置后端的版本

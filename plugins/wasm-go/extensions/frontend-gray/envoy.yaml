@@ -48,6 +48,7 @@ static_resources:
                             value: |
                               {
                                 "grayKey": "userId",
+                                "uniqueGrayTag": "x-higress-uid",
                                 "backendGrayTag": "x-mse-tag",
                                 "userStickyMaxAge": 172800,
                                 "rules": [

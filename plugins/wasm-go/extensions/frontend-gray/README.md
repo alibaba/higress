@@ -29,6 +29,7 @@ description: 前端灰度插件配置参考
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |
 | `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                |
 | `backendGrayTag`     | string       | 非必填  | `x-mse-tag`   | 后端灰度版本Tag，如果配置了，cookie中将携带值为`${backendGrayTag}:${grayDeployments[].backendVersion}` |
+| `uniqueGrayTag`     | string       | 非必填  | `x-higress-uid`   | 开启按照比例灰度时候，网关会生成一个唯一标识存在`cookie`中，一方面用于session黏贴，另一方面后端也可以使用这个值用于全链路的灰度串联 |
 | `injection`     | object    | 非必填  | -   | 往首页HTML中注入全局信息，比如`<script>window.global = {...}</script>` |
 
 
@@ -73,7 +74,7 @@ description: 前端灰度插件配置参考
 | `weight`  | int   | 非必填   | -   | 按照比例灰度，比如50。 |
 >按照比例灰度注意下面几点:
 > 1. 如果同时配置了`按用户灰度`以及`按比例灰度`，按`比例灰度`优先生效
-> 2. 采用客户端设备标识符的哈希摘要机制实现流量比例控制，其唯一性判定逻辑遵循以下原则：当请求上下文携带有效灰度标识Cookie`（grayKey）`时，系统优先采用该值作为分流依据；若标识不存在，则自动生成全局唯一标识符（UUID）作为设备指纹，并通过SHA-256哈希算法生成对应灰度判定基准值。
+> 2. 采用客户端设备标识符的哈希摘要机制实现流量比例控制，其唯一性判定逻辑遵循以下原则：自动生成全局唯一标识符（UUID）作为设备指纹，可以通过`uniqueGrayTag`配置`cookie`的key值，并通过SHA-256哈希算法生成对应灰度判定基准值。
 
 
 `injection`字段配置说明：

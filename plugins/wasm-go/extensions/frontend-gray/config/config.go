@@ -9,14 +9,11 @@ import (
 
 const (
 	XHigressTag       = "x-higress-tag"
-	XHigressUid       = "x-higress-uid"
 	PreHigressVersion = "pre-higress-version"
 	IsHtmlRequest     = "is-html-request"
 	IsIndexRequest    = "is-index-request"
 	EnabledGray       = "enabled-gray"
 )
-
-type LogInfo func(format string, args ...interface{})
 
 type GrayRule struct {
 	Name         string
@@ -69,6 +66,7 @@ type GrayConfig struct {
 	BaseDeployment      *Deployment
 	GrayDeployments     []*Deployment
 	BackendGrayTag      string
+	UniqueGrayTag       string
 	Injection           *Injection
 	SkippedPaths        []string
 	SkippedByHeaders    map[string]string
@@ -125,22 +123,13 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		grayConfig.GrayKey = grayConfig.LocalStorageGrayKey
 	}
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
-	grayConfig.BackendGrayTag = json.Get("backendGrayTag").String()
-	grayConfig.UserStickyMaxAge = json.Get("userStickyMaxAge").String()
+	grayConfig.BackendGrayTag = GetWithDefault(json, "backendGrayTag", "x-mse-tag")
+	grayConfig.UniqueGrayTag = GetWithDefault(json, "uniqueGrayTag", "x-higress-uid")
+	grayConfig.UserStickyMaxAge = GetWithDefault(json, "UserStickyMaxAge", "172800")
 	grayConfig.Html = json.Get("html").String()
 	grayConfig.SkippedPaths = compatibleConvertToStringList(json.Get("skippedPaths").Array(), json.Get("skippedPathPrefixes").Array())
 	grayConfig.IndexPaths = compatibleConvertToStringList(json.Get("indexPaths").Array(), json.Get("includePathPrefixes").Array())
 	grayConfig.SkippedByHeaders = convertToStringMap(json.Get("skippedByHeaders"))
-
-	if grayConfig.UserStickyMaxAge == "" {
-		// 默认值2天
-		grayConfig.UserStickyMaxAge = "172800"
-	}
-
-	if grayConfig.BackendGrayTag == "" {
-		grayConfig.BackendGrayTag = "x-mse-tag"
-	}
-
 	// 解析 Rules
 	rules := json.Get("rules").Array()
 	for _, rule := range rules {

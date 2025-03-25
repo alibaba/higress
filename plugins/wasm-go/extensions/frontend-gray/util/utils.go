@@ -303,8 +303,8 @@ func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookie str
 	return string(jsonBytes)
 }
 
-func GetGrayWeightUniqueId(cookie string) string {
-	uniqueId := GetCookieValue(cookie, config.XHigressUid)
+func GetGrayWeightUniqueId(cookie string, uniqueGrayTag string) string {
+	uniqueId := GetCookieValue(cookie, uniqueGrayTag)
 	if uniqueId == "" {
 		uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
@@ -314,7 +314,7 @@ func GetGrayWeightUniqueId(cookie string) string {
 // FilterGrayRule 过滤灰度规则
 func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookie string) *config.Deployment {
 	if grayConfig.GrayWeight > 0 {
-		uniqueId := GetGrayWeightUniqueId(cookie)
+		uniqueId := GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag)
 		// 计算哈希后取模
 		mod := crc32.ChecksumIEEE([]byte(uniqueId)) % 100
 		isGray := mod < uint32(grayConfig.GrayWeight)
