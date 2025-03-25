@@ -116,11 +116,8 @@ func (p *parser) Merge(parent interface{}, child interface{}) interface{} {
 	if childConfig.servers != nil {
 		newConfig.servers = append(newConfig.servers, childConfig.servers...)
 	}
-	if childConfig.ssePathSuffix != "" {
-		newConfig.ssePathSuffix = childConfig.ssePathSuffix
-	}
-	if childConfig.servers != nil {
-		newConfig.servers = append(newConfig.servers, childConfig.servers...)
+	if childConfig.defaultServer != nil {
+		newConfig.defaultServer = childConfig.defaultServer
 	}
 	return &newConfig
 }
