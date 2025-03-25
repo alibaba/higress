@@ -42,6 +42,7 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	path, _ := header.Get(":path")
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	parsedURL, _ := url.Parse(path)
+	api.LogInfof("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
 	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL}
 }
 
@@ -49,6 +50,7 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 // The endStream is true if the request doesn't have body
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	url := NewRequestURL(header)
+	f.path = url.parsedURL.Path
 
 	for _, server := range f.config.servers {
 		if f.path == server.GetSSEEndpoint() {
@@ -152,19 +154,22 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	// handle specific server
-	for _, server := range f.config.servers {
-		if f.serverName == server.GetServerName() {
+	if f.serverName != "" {
+		// handle specific server
+		for _, server := range f.config.servers {
+			if f.serverName == server.GetServerName() {
+				buffer.Reset()
+				server.HandleSSE(f.callbacks)
+				return api.Running
+			}
+		}
+		// handle default server
+		if f.serverName == f.config.defaultServer.GetServerName() {
 			buffer.Reset()
-			server.HandleSSE(f.callbacks)
+			f.config.defaultServer.HandleSSE(f.callbacks)
 			return api.Running
 		}
-	}
-	// handle default server
-	if f.serverName == f.config.defaultServer.GetServerName() {
-		buffer.Reset()
-		f.config.defaultServer.HandleSSE(f.callbacks)
-		return api.Running
+		return api.Continue
 	}
 	return api.Continue
 }
@@ -172,7 +177,12 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 // OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
 	if f.serverName != "" && f.config.stopChan != nil {
-		api.LogInfo("Stopping SSE connection")
-		close(f.config.stopChan)
+		select {
+		case <-f.config.stopChan:
+			return
+		default:
+			api.LogInfo("Stopping SSE connection")
+			close(f.config.stopChan)
+		}
 	}
 }

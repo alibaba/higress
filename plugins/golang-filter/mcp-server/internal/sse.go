@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/google/uuid"
@@ -17,7 +18,7 @@ type SSEServer struct {
 	baseURL         string
 	messageEndpoint string
 	sseEndpoint     string
-	sessions        map[string]bool
+	sessions        sync.Map
 	redisClient     *RedisClient // Redis client for pub/sub
 }
 
@@ -73,7 +74,6 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 		server:          server,
 		sseEndpoint:     "/sse",
 		messageEndpoint: "/message",
-		sessions:        make(map[string]bool),
 	}
 
 	// Apply all options
@@ -88,12 +88,8 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 	sessionID := uuid.New().String()
 
-	s.sessions[sessionID] = true
-
-	// sessionStore, _ := json.Marshal(s.sessions)
-	// TODO: sse:sessions?
-	// s.redisClient.Set("sse:sessions", string(sessionStore), 0)
-	defer delete(s.sessions, sessionID)
+	s.sessions.Store(sessionID, true)
+	defer s.sessions.Delete(sessionID)
 
 	channel := fmt.Sprintf("sse:%s", sessionID)
 

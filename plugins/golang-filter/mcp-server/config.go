@@ -96,7 +96,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
 			internal.WithRedisClient(redisClient),
 			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
-			internal.WithMessageEndpoint(serverPath)))
+			internal.WithMessageEndpoint(fmt.Sprintf("%s%s", serverPath, "/message"))))
 		api.LogInfo(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}
 	return conf, nil
