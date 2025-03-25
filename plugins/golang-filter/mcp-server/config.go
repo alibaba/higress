@@ -41,15 +41,12 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	conf.stopChan = make(chan struct{})
 
 	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
-	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("redis config is not set")
 		return nil, fmt.Errorf("redis config is not set")
 	}
 
 	redisConfig, err := common.ParseRedisConfig(redisConfigMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse redis config: %w", err)
 		return nil, fmt.Errorf("failed to parse redis config: %w", err)
 	}
 
