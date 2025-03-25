@@ -38,7 +38,6 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 	conf := &config{}
 	conf.stopChan = make(chan struct{})
-	conf.stopChan = make(chan struct{})
 
 	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
 	if !ok {
