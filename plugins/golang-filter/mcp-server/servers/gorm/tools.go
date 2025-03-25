@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/common"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // HandleQueryTool handles SQL query execution
-func HandleQueryTool(dbClient *DBClient) common.ToolHandlerFunc {
+func HandleQueryTool(dbClient *DBClient) internal.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
 		message, ok := arguments["sql"].(string)

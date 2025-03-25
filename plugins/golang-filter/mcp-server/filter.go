@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/common"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -79,10 +79,10 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	if method != http.MethodGet {
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 	} else {
-		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
-			common.WithSSEEndpoint(f.config.ssePathSuffix),
-			common.WithMessageEndpoint(strings.TrimSuffix(parsedURL.Path, f.config.ssePathSuffix)),
-			common.WithRedisClient(f.config.redisClient))
+		f.config.defaultServer = internal.NewSSEServer(internal.NewMCPServer(DefaultServerName, Version),
+			internal.WithSSEEndpoint(f.config.ssePathSuffix),
+			internal.WithMessageEndpoint(strings.TrimSuffix(parsedURL.Path, f.config.ssePathSuffix)),
+			internal.WithRedisClient(f.config.redisClient))
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")

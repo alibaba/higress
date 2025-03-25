@@ -6,7 +6,7 @@ import (
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/common"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyHttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
@@ -22,10 +22,10 @@ func init() {
 
 type config struct {
 	ssePathSuffix string
-	redisClient   *common.RedisClient
+	redisClient   *internal.RedisClient
 	stopChan      chan struct{}
-	servers       []*common.SSEServer
-	defaultServer *common.SSEServer
+	servers       []*internal.SSEServer
+	defaultServer *internal.SSEServer
 }
 
 type parser struct {
@@ -47,12 +47,12 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		return nil, fmt.Errorf("redis config is not set")
 	}
 
-	redisConfig, err := common.ParseRedisConfig(redisConfigMap)
+	redisConfig, err := internal.ParseRedisConfig(redisConfigMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse redis config: %w", err)
 	}
 
-	redisClient, err := common.NewRedisClient(redisConfig, conf.stopChan)
+	redisClient, err := internal.NewRedisClient(redisConfig, conf.stopChan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
 	}
@@ -83,7 +83,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		if !ok {
 			return nil, fmt.Errorf("server %s path is not set", serverType)
 		}
-		server := common.GlobalRegistry.GetServer(serverType)
+		server := internal.GlobalRegistry.GetServer(serverType)
 
 		if server == nil {
 			return nil, fmt.Errorf("server %s is not registered", serverType)
@@ -93,10 +93,10 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize DBServer: %w", err)
 		}
-		conf.servers = append(conf.servers, common.NewSSEServer(serverInstance,
-			common.WithRedisClient(redisClient),
-			common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
-			common.WithMessageEndpoint(serverPath)))
+		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
+			internal.WithRedisClient(redisClient),
+			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
+			internal.WithMessageEndpoint(serverPath)))
 		api.LogInfo(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}
 	return conf, nil

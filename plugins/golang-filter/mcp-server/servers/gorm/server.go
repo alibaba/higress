@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/common"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 func init() {
-	common.GlobalRegistry.RegisterServer("database", &DBConfig{})
+	internal.GlobalRegistry.RegisterServer("database", &DBConfig{})
 }
 
 type DBConfig struct {
@@ -39,8 +39,8 @@ func (c *DBConfig) ParseConfig(config map[string]any) error {
 	return nil
 }
 
-func (c *DBConfig) NewServer() (*common.MCPServer, error) {
-	mcpServer := common.NewMCPServer(
+func (c *DBConfig) NewServer() (*internal.MCPServer, error) {
+	mcpServer := internal.NewMCPServer(
 		c.name,
 		"1.0.0",
 	)
