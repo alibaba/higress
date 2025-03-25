@@ -492,6 +492,11 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 									}
 								}
 							}
+							if len(mergedResults) == 0 {
+								log.Warnf("no search result found, searchContexts:%#v", searchContexts)
+								proxywasm.ResumeHttpRequest()
+								return
+							}
 							// Format search results for prompt template
 							var formattedResults []string
 							var formattedReferences []string
