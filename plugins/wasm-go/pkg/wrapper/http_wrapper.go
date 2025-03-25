@@ -25,11 +25,6 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
-type HttpCallNotify interface {
-	HttpCallStart(uint32)
-	HttpCallEnd(uint32)
-}
-
 type ResponseCallback func(statusCode int, responseHeaders http.Header, responseBody []byte)
 
 type HttpClient interface {
@@ -113,9 +108,7 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 	}
 	headers = append(headers, [2]string{":method", method}, [2]string{":path", path}, [2]string{":authority", authority})
 	requestID := uuid.New().String()
-	httpCallNotify := cluster.HttpCallNotify()
-	var callID uint32
-	callID, err = proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
+	_, err = proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
 		respBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
 		if err != nil {
 			proxywasm.LogCriticalf("failed to get response body: %v", err)
@@ -142,12 +135,8 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 		proxywasm.LogDebugf("http call end, id: %s, code: %d, normal: %t, body: %s",
 			requestID, code, normalResponse, respBody)
 		callback(code, headers, respBody)
-		httpCallNotify.HttpCallEnd(callID)
 	})
-	if err == nil {
-		httpCallNotify.HttpCallStart(callID)
-		proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
-			requestID, cluster.ClusterName(), method, rawURL, headers, body, timeout)
-	}
+	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
+		requestID, cluster.ClusterName(), method, rawURL, headers, body, timeout)
 	return err
 }
