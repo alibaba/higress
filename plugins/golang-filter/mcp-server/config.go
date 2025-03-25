@@ -13,6 +13,8 @@ import (
 )
 
 const Name = "mcp-server"
+const Version = "1.0.0"
+const DefaultServerName = "default"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
@@ -23,6 +25,7 @@ type config struct {
 	redisClient   *common.RedisClient
 	stopChan      chan struct{}
 	servers       []*common.SSEServer
+	defaultServer *common.SSEServer
 }
 
 type parser struct {

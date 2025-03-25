@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -18,7 +20,7 @@ type filter struct {
 	config    *config
 
 	req        *http.Request
-	sse        bool
+	serverName string
 	message    bool
 	bodyBuffer []byte
 }
@@ -30,12 +32,13 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	parsedURL, _ := url.Parse(fullPath)
 	f.path = parsedURL.Path
 	method, _ := header.Get(":method")
+
 	for _, server := range f.config.servers {
 		if f.path == server.GetSSEEndpoint() {
 			if method != http.MethodGet {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 			} else {
-				f.sse = true
+				f.serverName = server.GetServerName()
 				body := "SSE connection create"
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 			}
@@ -65,11 +68,26 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			}
 		}
 	}
-	if endStream {
-		return api.Continue
-	} else {
-		return api.StopAndBuffer
+	if !strings.HasSuffix(parsedURL.Path, f.config.ssePathSuffix) {
+		if endStream {
+			return api.Continue
+		} else {
+			return api.StopAndBuffer
+		}
 	}
+
+	if method != http.MethodGet {
+		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
+	} else {
+		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
+			common.WithSSEEndpoint(f.config.ssePathSuffix),
+			common.WithMessageEndpoint(strings.TrimSuffix(parsedURL.Path, f.config.ssePathSuffix)),
+			common.WithRedisClient(f.config.redisClient))
+		f.serverName = f.config.defaultServer.GetServerName()
+		body := "SSE connection create"
+		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
+	}
+	return api.LocalReply
 }
 
 // DecodeData might be called multiple times during handling the request body.
@@ -101,7 +119,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 // Callbacks which are called in response path
 // The endStream is true if the response doesn't have body
 func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	if f.sse {
+	if f.serverName != "" {
 		header.Set("Content-Type", "text/event-stream")
 		header.Set("Cache-Control", "no-cache")
 		header.Set("Connection", "keep-alive")
@@ -115,20 +133,26 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	// handle specific server
 	for _, server := range f.config.servers {
-		if f.sse {
+		if f.serverName == server.GetServerName() {
 			buffer.Reset()
 			server.HandleSSE(f.callbacks)
-			f.sse = false
 			return api.Running
 		}
+	}
+	// handle default server
+	if f.serverName == f.config.defaultServer.GetServerName() {
+		buffer.Reset()
+		f.config.defaultServer.HandleSSE(f.callbacks)
+		return api.Running
 	}
 	return api.Continue
 }
 
-// OnDestroy 或 OnStreamComplete 中停止 goroutine
+// OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
-	if f.sse && f.config.stopChan != nil {
+	if f.serverName != "" && f.config.stopChan != nil {
 		api.LogInfo("Stopping SSE connection")
 		close(f.config.stopChan)
 	}
