@@ -29,25 +29,40 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 )
 
+// RedisConfig defines the configuration for Redis connection
 type RedisConfig struct {
-	Address  string `json:"address,omitempty"`
+	// The address of Redis server in the format of "host:port"
+	Address string `json:"address,omitempty"`
+	// The username for Redis authentication
 	Username string `json:"username,omitempty"`
+	// The password for Redis authentication
 	Password string `json:"password,omitempty"`
-	DB       int    `json:"db,omitempty"`
+	// The database index to use
+	DB int `json:"db,omitempty"`
 }
 
+// SSEServer defines the configuration for Server-Sent Events (SSE) server
 type SSEServer struct {
-	Name   string                 `json:"name,omitempty"`
-	Path   string                 `json:"path,omitempty"`
-	Type   string                 `json:"type,omitempty"`
+	// The name of the SSE server
+	Name string `json:"name,omitempty"`
+	// The path where the SSE server will be mounted, the full path is (PATH + SsePathSuffix)
+	Path string `json:"path,omitempty"`
+	// The type of the SSE server
+	Type string `json:"type,omitempty"`
+	// Additional Config parameters for the real MCP server implementation
 	Config map[string]interface{} `json:"config,omitempty"`
 }
 
+// McpServer defines the configuration for MCP (Model Context Protocol) server
 type McpServer struct {
-	Enable        bool         `json:"enable,omitempty"`
-	Redis         *RedisConfig `json:"redis,omitempty"`
-	SsePathSuffix string       `json:"sse_path_suffix,omitempty"`
-	Servers       []*SSEServer `json:"servers,omitempty"`
+	// Flag to control whether MCP server is enabled
+	Enable bool `json:"enable,omitempty"`
+	// Redis Config for MCP server
+	Redis *RedisConfig `json:"redis,omitempty"`
+	// The suffix to be appended to SSE paths, default is "/sse"
+	SsePathSuffix string `json:"sse_path_suffix,omitempty"`
+	// List of SSE servers Configs
+	Servers []*SSEServer `json:"servers,omitempty"`
 }
 
 func NewDefaultMcpServer() *McpServer {
