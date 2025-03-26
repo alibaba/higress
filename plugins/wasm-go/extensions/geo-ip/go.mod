@@ -2,11 +2,9 @@ module higress/plugins/wasm-go/extensions/geo-ip
 
 go 1.19
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.4.2
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20240711023527-ba358c48772f
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.3
 	github.com/zmap/go-iptree v0.0.0-20210731043055-d4e632617837

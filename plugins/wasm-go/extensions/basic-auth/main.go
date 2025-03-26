@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -107,7 +106,7 @@ var (
 	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Basic realm=MSE Gateway
 )
 
-func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log log.Log) error {
+func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log wrapper.Log) error {
 	// log.Debug("global config")
 	ruleSet = false
 	global.credential2Name = make(map[string]string)
