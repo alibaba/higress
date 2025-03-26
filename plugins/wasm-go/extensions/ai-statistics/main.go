@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -129,7 +128,7 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 	counter.Increment(inc)
 }
 
-func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log log.Log) error {
+func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
 	config.attributes = make([]Attribute, len(attributeConfigs))
@@ -153,7 +152,7 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log log.Lo
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
 	api, api_error := getAPIName()
@@ -177,7 +176,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body, log)
 
@@ -186,7 +185,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
@@ -198,7 +197,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, l
 	return types.ActionContinue
 }
 
-func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log log.Log) []byte {
+func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
 	// Buffer stream body for record log & span attributes
 	if config.shouldBufferStreamingBody {
 		var streamingBodyBuffer []byte
@@ -256,7 +255,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	return data
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log log.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
 	// Get requestStartTime from http context
 	requestStartTime, _ := ctx.GetContext(StatisticsRequestStartTime).(int64)
 
@@ -314,7 +313,7 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 }
 
 // fetches the tracing span value from the specified source.
-func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, source string, body []byte, log log.Log) {
+func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, source string, body []byte, log wrapper.Log) {
 	for _, attribute := range config.attributes {
 		var key string
 		var value interface{}
@@ -353,7 +352,7 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 	}
 }
 
-func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, log log.Log) interface{} {
+func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, log wrapper.Log) interface{} {
 	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
 	var value interface{}
 	if rule == RuleFirst {
@@ -388,7 +387,7 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, l
 }
 
 // Set the tracing span with value.
-func setSpanAttribute(key string, value interface{}, log log.Log) {
+func setSpanAttribute(key string, value interface{}, log wrapper.Log) {
 	if value != "" {
 		traceSpanTag := wrapper.TraceSpanTagPrefix + key
 		if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(fmt.Sprint(value))); e != nil {
@@ -399,7 +398,7 @@ func setSpanAttribute(key string, value interface{}, log log.Log) {
 	}
 }
 
-func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) {
+func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) {
 	// Generate usage metrics
 	var ok bool
 	var route, cluster, model string
