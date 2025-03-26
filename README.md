@@ -83,6 +83,19 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
   ![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
 
+- **MCP Server 托管**:
+
+  Higress 作为基于 Envoy 的 API 网关，支持通过插件方式托管 MCP Server。MCP（Model Context Protocol）本质是面向 AI 更友好的 API，使 AI Agent 能够更容易地调用各种工具和服务。Higress 可以统一处理工具调用的认证/鉴权/限流/观测等能力，简化 AI 应用的开发和部署。
+
+  ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
+
+  通过 Higress 托管 MCP Server，可以实现：
+  - 统一的认证和鉴权机制，确保 AI 工具调用的安全性
+  - 精细化的速率限制，防止滥用和资源耗尽
+  - 完整的审计日志，记录所有工具调用行为
+  - 丰富的可观测性，监控工具调用的性能和健康状况
+  - 简化的部署和管理，通过 Higress 插件机制快速添加新的 MCP Server
+
 - **Kubernetes Ingress 网关**:
 
   Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
