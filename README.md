@@ -33,8 +33,6 @@ Alibaba Cloud has built its cloud-native API gateway product based on Higress, p
 
 Higress's AI gateway capabilities support all [mainstream model providers](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider) both domestic and international, as well as self-built DeepSeek models based on vllm/ollama. Within Alibaba Cloud, it supports AI businesses such as Tongyi Qianwen APP, Bailian large model API, and machine learning PAI platform. It also serves leading AIGC enterprises (such as Zero One Infinite) and AI products (such as FastGPT).
 
-![](https://img.alicdn.com/imgextra/i2/O1CN011AbR8023V8R5N0HcA_!!6000000007260-2-tps-1080-606.png)
-
 ## Summary
 
 - [**Quick Start**](#quick-start)    
@@ -65,10 +63,6 @@ Port descriptions:
 **All Higress Docker images use their own dedicated repository, unaffected by Docker Hub access restrictions in certain regions**
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
-
-If you are deploying in the cloud, the enterprise version is recommended for production environments, and you can use the one-click deployment community version below for development and testing:
-
-[![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
 
 ## Use Cases
 
