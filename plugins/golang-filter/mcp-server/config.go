@@ -7,12 +7,14 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
-	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm" // 导入gorm包以执行其init函数
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyHttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
 
 const Name = "mcp-server"
+const Version = "1.0.0"
+const DefaultServerName = "default"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
@@ -23,6 +25,7 @@ type config struct {
 	redisClient   *internal.RedisClient
 	stopChan      chan struct{}
 	servers       []*internal.SSEServer
+	defaultServer *internal.SSEServer
 }
 
 type parser struct {
@@ -112,6 +115,9 @@ func (p *parser) Merge(parent interface{}, child interface{}) interface{} {
 	}
 	if childConfig.servers != nil {
 		newConfig.servers = append(newConfig.servers, childConfig.servers...)
+	}
+	if childConfig.defaultServer != nil {
+		newConfig.defaultServer = childConfig.defaultServer
 	}
 	return &newConfig
 }

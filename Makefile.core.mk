@@ -159,16 +159,17 @@ build-pilot-local: prebuild
 buildx-prepare:
 	docker buildx inspect multi-arch >/dev/null 2>&1 || docker buildx create --name multi-arch --platform linux/amd64,linux/arm64 --use
 
-build-gateway: prebuild buildx-prepare
+build-gateway: prebuild buildx-prepare build-golang-filter
 	USE_REAL_USER=1 TARGET_ARCH=amd64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
 	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
 	DOCKER_TARGETS="docker.proxyv2" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
-build-gateway-local: prebuild
+build-gateway-local: prebuild build-golang-filter
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
 
 build-golang-filter:
-	./tools/hack/build-golang-filters.sh
+	TARGET_ARCH=amd64 ./tools/hack/build-golang-filters.sh
+	TARGET_ARCH=arm64 ./tools/hack/build-golang-filters.sh
 
 build-istio: prebuild buildx-prepare
 	DOCKER_TARGETS="docker.pilot" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
@@ -234,6 +235,8 @@ clean-gateway: clean-istio
 	rm -rf external/proxy
 	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
+	rm -rf external/package/mcp-server_amd64.so
+	rm -rf external/package/mcp-server_arm64.so
 
 clean-env:
 	rm -rf out/
