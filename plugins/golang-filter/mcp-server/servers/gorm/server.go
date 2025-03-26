@@ -52,7 +52,7 @@ func (c *DBConfig) NewServer() (*internal.MCPServer, error) {
 
 	// Add query tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("query", "Run a read-only SQL query in clickhouse database with repository git data", GetQueryToolSchema()),
+		mcp.NewToolWithRawSchema("query", "Run a read-only SQL query in database", GetQueryToolSchema()),
 		HandleQueryTool(dbClient),
 	)
 
