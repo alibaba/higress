@@ -17,9 +17,11 @@ package wrapper
 import (
 	"fmt"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
+type Log log.Log
 type LogLevel uint32
 
 const (
