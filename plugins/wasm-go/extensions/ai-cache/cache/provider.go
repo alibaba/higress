@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -16,7 +15,7 @@ const (
 
 type providerInitializer interface {
 	ValidateConfig(ProviderConfig) error
-	CreateProvider(ProviderConfig, log.Log) (Provider, error)
+	CreateProvider(ProviderConfig, wrapper.Log) (Provider, error)
 }
 
 var (
@@ -129,7 +128,7 @@ func (c *ProviderConfig) Validate() error {
 	return nil
 }
 
-func CreateProvider(pc ProviderConfig, log log.Log) (Provider, error) {
+func CreateProvider(pc ProviderConfig, log wrapper.Log) (Provider, error) {
 	initializer, has := providerInitializers[pc.typ]
 	if !has {
 		return nil, errors.New("unknown provider type: " + pc.typ)

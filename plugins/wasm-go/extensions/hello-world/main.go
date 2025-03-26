@@ -17,10 +17,10 @@ package main
 import (
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 type HelloWorldConfig struct {
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config HelloWorldConfig, log wrapper.Log) types.Action {
 	err := proxywasm.AddHttpRequestHeader("hello", "world")
 	if err != nil {
 		log.Critical("failed to set request header")

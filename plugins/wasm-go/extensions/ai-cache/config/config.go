@@ -6,7 +6,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/cache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -46,7 +46,7 @@ type PluginConfig struct {
 	CacheKeyStrategy string
 }
 
-func (c *PluginConfig) FromJson(json gjson.Result, log log.Log) {
+func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
 	c.embeddingProviderConfig = &embedding.ProviderConfig{}
 	c.vectorProviderConfig = &vector.ProviderConfig{}
 	c.cacheProviderConfig = &cache.ProviderConfig{}
@@ -140,7 +140,7 @@ func (c *PluginConfig) Validate() error {
 	return nil
 }
 
-func (c *PluginConfig) Complete(log log.Log) error {
+func (c *PluginConfig) Complete(log wrapper.Log) error {
 	var err error
 	if c.embeddingProviderConfig.GetProviderType() != "" {
 		log.Debugf("embedding provider is set to %s", c.embeddingProviderConfig.GetProviderType())
@@ -191,7 +191,7 @@ func (c *PluginConfig) GetCacheProvider() cache.Provider {
 	return c.cacheProvider
 }
 
-func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log log.Log) {
+func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log) {
 	keyMap := map[string]string{
 		"cacheKeyFrom.requestBody":         "cacheKeyFrom",
 		"cacheValueFrom.requestBody":       "cacheValueFrom",
@@ -210,7 +210,7 @@ func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log log.Log) {
 	}
 }
 
-func setField(c *PluginConfig, fieldName string, value string, log log.Log) {
+func setField(c *PluginConfig, fieldName string, value string, log wrapper.Log) {
 	switch fieldName {
 	case "cacheKeyFrom":
 		c.CacheKeyFrom = value
