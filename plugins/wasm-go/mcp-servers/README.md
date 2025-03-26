@@ -1,5 +1,18 @@
 # MCP Server Implementation Guide
 
+## Background
+
+  Higress, as an Envoy-based API gateway, supports hosting MCP Servers through its plugin mechanism. MCP (Model Context Protocol) is essentially an AI-friendly API that enables AI Agents to more easily call various tools and services. Higress provides unified capabilities for authentication, authorization, rate limiting, and observability for tool calls, simplifying the development and deployment of AI applications.
+
+  ![](https://img.alicdn.com/imgextra/i1/O1CN01wv8H4g1mS4MUzC1QC_!!6000000004952-2-tps-1764-597.png)
+
+  By hosting MCP Servers with Higress, you can achieve:
+  - Unified authentication and authorization mechanisms, ensuring the security of AI tool calls
+  - Fine-grained rate limiting to prevent abuse and resource exhaustion
+  - Comprehensive audit logs recording all tool call behaviors
+  - Rich observability for monitoring the performance and health of tool calls
+  - Simplified deployment and management through Higress's plugin mechanism for quickly adding new MCP Servers
+
 This guide explains how to implement a Model Context Protocol (MCP) server using the Higress WASM Go SDK. MCP servers provide tools and resources that extend the capabilities of AI assistants.
 
 ## Overview
