@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/google/uuid"
@@ -135,7 +136,29 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 
 	// Send the initial endpoint event
 	initialEvent := fmt.Sprintf("event: endpoint\ndata: %s\r\n\r\n", messageEndpoint)
-	s.redisClient.Publish(channel, initialEvent)
+	err = s.redisClient.Publish(channel, initialEvent)
+	if err != nil {
+		api.LogErrorf("Failed to send initial event: %v", err)
+	}
+
+	// Start health check handler
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.redisClient.stopChan:
+				return
+			case <-ticker.C:
+				// Send health check message
+				healthCheckEvent := "event: health_check\ndata: ping\r\n\r\n"
+				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
+					api.LogErrorf("Failed to send health check: %v", err)
+				}
+			}
+		}
+	}()
 }
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses
