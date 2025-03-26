@@ -1,4 +1,3 @@
-// Package server provides MCP (Model Control Protocol) server implementations.
 package internal
 
 import (
