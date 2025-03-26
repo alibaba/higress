@@ -66,7 +66,7 @@ func NewRedisClient(config *RedisConfig, stopChan chan struct{}) (*RedisClient, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
-	api.LogInfof("Connected to Redis: %s", pong)
+	api.LogDebugf("Connected to Redis: %s", pong)
 
 	redisClient := &RedisClient{
 		client:   client,
@@ -127,7 +127,7 @@ func (r *RedisClient) reconnect() error {
 		return fmt.Errorf("failed to reconnect to Redis: %w", err)
 	}
 
-	api.LogInfof("Successfully reconnected to Redis")
+	api.LogDebugf("Successfully reconnected to Redis")
 	return nil
 }
 
@@ -151,18 +151,18 @@ func (r *RedisClient) Subscribe(channel string, callback func(message string)) e
 	go func() {
 		defer func() {
 			pubsub.Close()
-			api.LogInfof("Closed subscription to channel %s", channel)
+			api.LogDebugf("Closed subscription to channel %s", channel)
 		}()
 
 		ch := pubsub.Channel()
 		for {
 			select {
 			case <-r.stopChan:
-				api.LogInfof("Stopping subscription to channel %s", channel)
+				api.LogDebugf("Stopping subscription to channel %s", channel)
 				return
 			case msg, ok := <-ch:
 				if !ok {
-					api.LogInfof("Redis subscription channel closed for %s", channel)
+					api.LogDebugf("Redis subscription channel closed for %s", channel)
 					return
 				}
 
