@@ -126,7 +126,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 
 	err := s.redisClient.Subscribe(channel, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
-		api.LogInfof("SSE Send message: %s", message)
+		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
 	})
 	if err != nil {
