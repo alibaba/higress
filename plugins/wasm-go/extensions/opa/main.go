@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -43,7 +42,7 @@ type Metadata struct {
 	Input map[string]interface{} `json:"input"`
 }
 
-func parseConfig(json gjson.Result, config *OpaConfig, log log.Log) error {
+func parseConfig(json gjson.Result, config *OpaConfig, log wrapper.Log) error {
 	policy := json.Get("policy").String()
 	if strings.TrimSpace(policy) == "" {
 		return errors.New("policy not allow empty")
@@ -77,15 +76,15 @@ func parseConfig(json gjson.Result, config *OpaConfig, log log.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config OpaConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config OpaConfig, log wrapper.Log) types.Action {
 	return opaCall(ctx, config, nil, log)
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config OpaConfig, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper.Log) types.Action {
 	return opaCall(ctx, config, body, log)
 }
 
-func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log log.Log) types.Action {
+func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper.Log) types.Action {
 	request := make(map[string]interface{}, 6)
 	headers, _ := proxywasm.GetHttpRequestHeaders()
 

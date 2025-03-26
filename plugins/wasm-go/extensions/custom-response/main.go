@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -44,7 +43,7 @@ type CustomResponseConfig struct {
 	contentType    string
 }
 
-func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log log.Log) error {
+func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
 	headersArray := gjson.Get("headers").Array()
 	config.headers = make([][2]string, 0, len(headersArray))
 	for _, v := range headersArray {
@@ -97,7 +96,7 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log log.Log) 
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
 	if len(config.enableOnStatus) != 0 {
 		return types.ActionContinue
 	}
@@ -109,7 +108,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, 
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log log.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
 	// enableOnStatus is not empty, compare the status code.
 	// if match the status code, mock the response.
 	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
