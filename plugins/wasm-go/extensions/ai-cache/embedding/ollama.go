@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -71,7 +70,7 @@ type ollamaEmbeddingRequest struct {
 	Model string `json:"model"`
 }
 
-func (t *ollamaProvider) constructParameters(text string, log log.Log) (string, [][2]string, []byte, error) {
+func (t *ollamaProvider) constructParameters(text string, log wrapper.Log) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
@@ -107,7 +106,7 @@ func (t *ollamaProvider) parseTextEmbedding(responseBody []byte) (*ollamaRespons
 func (t *ollamaProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log log.Log,
+	log wrapper.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
 	if err != nil {

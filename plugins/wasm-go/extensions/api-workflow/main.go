@@ -45,7 +45,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
+func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 
 	edges := make([]Edge, 0)
 	nodes := make(map[string]Node)
@@ -175,7 +175,7 @@ func initWorkflowExecStatus(config *PluginConfig) (map[string]int, error) {
 	return result, nil
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 
 	initHeader := make([][2]string, 0)
 	// 初始化运行状态
@@ -200,7 +200,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 // 放入符合条件的edge
-func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config PluginConfig, log log.Log, ctx wrapper.HttpContext) error {
+func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
 
 	var err error
 	// 防止递归次数太多

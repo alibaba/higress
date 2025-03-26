@@ -17,7 +17,7 @@ func (r *redisProviderInitializer) ValidateConfig(cf ProviderConfig) error {
 	return nil
 }
 
-func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log log.Log) (Provider, error) {
+func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log wrapper.Log) (Provider, error) {
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
@@ -33,7 +33,7 @@ func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log log.Log
 type redisProvider struct {
 	config ProviderConfig
 	client wrapper.RedisClient
-	log    log.Log
+	log    wrapper.Log
 }
 
 func (rp *redisProvider) GetProviderType() string {

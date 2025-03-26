@@ -3,7 +3,6 @@ package vector
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -51,8 +50,8 @@ type EmbeddingQuerier interface {
 	QueryEmbedding(
 		emb []float64,
 		ctx wrapper.HttpContext,
-		log log.Log,
-		callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error
+		log wrapper.Log,
+		callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
 type EmbeddingUploader interface {
@@ -60,8 +59,8 @@ type EmbeddingUploader interface {
 		queryString string,
 		queryEmb []float64,
 		ctx wrapper.HttpContext,
-		log log.Log,
-		callback func(ctx wrapper.HttpContext, log log.Log, err error)) error
+		log wrapper.Log,
+		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
 type AnswerAndEmbeddingUploader interface {
@@ -70,16 +69,16 @@ type AnswerAndEmbeddingUploader interface {
 		queryEmb []float64,
 		answer string,
 		ctx wrapper.HttpContext,
-		log log.Log,
-		callback func(ctx wrapper.HttpContext, log log.Log, err error)) error
+		log wrapper.Log,
+		callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
 type StringQuerier interface {
 	QueryString(
 		queryString string,
 		ctx wrapper.HttpContext,
-		log log.Log,
-		callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error
+		log wrapper.Log,
+		callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error
 }
 
 type ProviderConfig struct {

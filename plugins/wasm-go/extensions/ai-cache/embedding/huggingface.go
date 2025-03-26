@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -80,7 +79,7 @@ type HuggingFaceEmbeddingRequest struct {
 	} `json:"options"`
 }
 
-func (t *HuggingFaceProvider) constructParameters(text string, log log.Log) (string, [][2]string, []byte, error) {
+func (t *HuggingFaceProvider) constructParameters(text string, log wrapper.Log) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
@@ -129,7 +128,7 @@ func (t *HuggingFaceProvider) parseTextEmbedding(responseBody []byte) ([]float64
 func (t *HuggingFaceProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log log.Log,
+	log wrapper.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
 	if err != nil {
