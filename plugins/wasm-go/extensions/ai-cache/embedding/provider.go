@@ -15,6 +15,7 @@ const (
 	PROVIDER_TYPE_OPENAI      = "openai"
 	PROVIDER_TYPE_OLLAMA      = "ollama"
 	PROVIDER_TYPE_HUGGINGFACE = "huggingface"
+	PROVIDER_TYPE_XFYUN       = "xfyun"
 )
 
 type providerInitializer interface {
@@ -31,6 +32,7 @@ var (
 		PROVIDER_TYPE_OPENAI:      &openAIProviderInitializer{},
 		PROVIDER_TYPE_OLLAMA:      &ollamaProviderInitializer{},
 		PROVIDER_TYPE_HUGGINGFACE: &HuggingFaceProviderInitializer{},
+		PROVIDER_TYPE_XFYUN:       &XfyunProviderInitializer{},
 	}
 )
 
