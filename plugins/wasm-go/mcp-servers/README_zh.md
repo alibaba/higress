@@ -1,6 +1,19 @@
 # MCP 服务器实现指南
 
-本指南介绍如何使用 Higress WASM Go SDK 实现 Model Context Protocol (MCP) 服务器。MCP 服务器提供工具和资源，扩展 AI 助手的能力。
+## 背景
+
+  Higress 作为基于 Envoy 的 API 网关，支持通过插件方式托管 MCP Server。MCP（Model Context Protocol）本质是面向 AI 更友好的 API，使 AI Agent 能够更容易地调用各种工具和服务。Higress 可以统一处理工具调用的认证/鉴权/限流/观测等能力，简化 AI 应用的开发和部署。
+
+  ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
+
+  通过 Higress 托管 MCP Server，可以实现：
+  - 统一的认证和鉴权机制，确保 AI 工具调用的安全性
+  - 精细化的速率限制，防止滥用和资源耗尽
+  - 完整的审计日志，记录所有工具调用行为
+  - 丰富的可观测性，监控工具调用的性能和健康状况
+  - 简化的部署和管理，通过 Higress 插件机制快速添加新的 MCP Server
+
+下面介绍如何使用 Higress WASM Go SDK 实现 Model Context Protocol (MCP) 服务器。MCP 服务器提供工具和资源，扩展 AI 助手的能力。
 
 ## 概述
 
