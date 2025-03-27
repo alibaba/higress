@@ -572,7 +572,7 @@ func (s *MCPServer) handleInitialize(
 	}
 
 	result := mcp.InitializeResult{
-		ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+		ProtocolVersion: request.Params.ProtocolVersion,
 		ServerInfo: mcp.Implementation{
 			Name:    s.name,
 			Version: s.version,

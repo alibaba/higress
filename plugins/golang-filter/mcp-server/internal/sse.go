@@ -12,6 +12,11 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// GetSSEChannelName returns the Redis channel name for the given session ID
+func GetSSEChannelName(sessionID string) string {
+	return fmt.Sprintf("mcp-server-sse:%s", sessionID)
+}
+
 // SSEServer implements a Server-Sent Events (SSE) based MCP server.
 // It provides real-time communication capabilities over HTTP using the SSE protocol.
 type SSEServer struct {
@@ -86,13 +91,13 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 
 // handleSSE handles incoming SSE connection requests.
 // It sets up appropriate headers and creates a new session for the client.
-func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
+func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct{}) {
 	sessionID := uuid.New().String()
 
 	s.sessions.Store(sessionID, true)
 	defer s.sessions.Delete(sessionID)
 
-	channel := fmt.Sprintf("sse:%s", sessionID)
+	channel := GetSSEChannelName(sessionID)
 
 	messageEndpoint := fmt.Sprintf(
 		"%s%s?sessionId=%s",
@@ -125,7 +130,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 	// 	}
 	// }()
 
-	err := s.redisClient.Subscribe(channel, func(message string) {
+	err := s.redisClient.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
 		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
@@ -143,16 +148,17 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 
 	// Start health check handler
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
 		for {
 			select {
-			case <-s.redisClient.stopChan:
+			case <-stopChan:
 				return
 			case <-ticker.C:
 				// Send health check message
-				healthCheckEvent := "event: health_check\ndata: ping\r\n\r\n"
+				currentTime := time.Now().Format(time.RFC3339)
+				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
 				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
 					api.LogErrorf("Failed to send health check: %v", err)
 				}
@@ -170,10 +176,11 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
-	if sessionID == "" {
-		s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
-		return
-	}
+	// support streamable http without sessionId
+	// if sessionID == "" {
+	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
+	// 	return
+	// }
 
 	// Set the client context in the server before handling the message
 	ctx := s.server.WithContext(r.Context(), NotificationContext{
@@ -196,7 +203,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		eventData, _ := json.Marshal(response)
 
 		if sessionID != "" {
-			channel := fmt.Sprintf("sse:%s", sessionID)
+			channel := GetSSEChannelName(sessionID)
 			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
 
 			if publishErr != nil {
