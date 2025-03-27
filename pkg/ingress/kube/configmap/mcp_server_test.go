@@ -31,7 +31,9 @@ func Test_validMcpServer(t *testing.T) {
 		{
 			name: "default",
 			mcp: &McpServer{
-				Enable: false,
+				Enable:    false,
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			wantErr: nil,
 		},
@@ -43,8 +45,10 @@ func Test_validMcpServer(t *testing.T) {
 		{
 			name: "enabled but no redis config",
 			mcp: &McpServer{
-				Enable: true,
-				Redis:  nil,
+				Enable:    true,
+				Redis:     nil,
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			wantErr: errors.New("redis config cannot be empty when mcp server is enabled"),
 		},
@@ -59,6 +63,13 @@ func Test_validMcpServer(t *testing.T) {
 					DB:       0,
 				},
 				SsePathSuffix: "/sse",
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "*",
+						MatchRuleType:   "exact",
+					},
+				},
 				Servers: []*SSEServer{
 					{
 						Name: "test-server",
@@ -104,6 +115,8 @@ func Test_compareMcpServer(t *testing.T) {
 				Redis: &RedisConfig{
 					Address: "localhost:6379",
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			new:        nil,
 			wantResult: ResultDelete,
@@ -116,12 +129,16 @@ func Test_compareMcpServer(t *testing.T) {
 				Redis: &RedisConfig{
 					Address: "localhost:6379",
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			new: &McpServer{
 				Enable: true,
 				Redis: &RedisConfig{
 					Address: "localhost:6379",
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			wantResult: ResultNothing,
 			wantErr:    nil,
@@ -133,12 +150,22 @@ func Test_compareMcpServer(t *testing.T) {
 				Redis: &RedisConfig{
 					Address: "localhost:6379",
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			new: &McpServer{
 				Enable: true,
 				Redis: &RedisConfig{
 					Address: "redis:6379",
 				},
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/test",
+						MatchRuleType:   "exact",
+					},
+				},
+				Servers: []*SSEServer{},
 			},
 			wantResult: ResultReplace,
 			wantErr:    nil,
@@ -171,6 +198,8 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			wantMcp: &McpServer{
 				Enable: true,
@@ -180,6 +209,8 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
 			},
 			wantErr: nil,
 		},
@@ -194,6 +225,13 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					DB:       0,
 				},
 				SsePathSuffix: "/sse",
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "*",
+						MatchRuleType:   "exact",
+					},
+				},
 				Servers: []*SSEServer{
 					{
 						Name: "test-server",
@@ -214,6 +252,13 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					DB:       0,
 				},
 				SsePathSuffix: "/sse",
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "*",
+						MatchRuleType:   "exact",
+					},
+				},
 				Servers: []*SSEServer{
 					{
 						Name: "test-server",
@@ -280,6 +325,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 						Password: "password",
 						DB:       0,
 					},
+					Servers:   []*SSEServer{},
+					MatchList: []*MatchRule{},
 				},
 			},
 			wantErr:       nil,
@@ -292,6 +339,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
+				Servers:   []*SSEServer{},
+				MatchList: []*MatchRule{},
 			},
 		},
 		{
@@ -302,6 +351,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 					Redis: &RedisConfig{
 						Address: "localhost:6379",
 					},
+					Servers:   []*SSEServer{},
+					MatchList: []*MatchRule{},
 				},
 			},
 			new: &HigressConfig{
@@ -310,6 +361,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 					Redis: &RedisConfig{
 						Address: "redis:6379",
 					},
+					Servers:   []*SSEServer{},
+					MatchList: []*MatchRule{},
 				},
 			},
 			wantErr:       nil,
@@ -319,6 +372,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 				Redis: &RedisConfig{
 					Address: "redis:6379",
 				},
+				Servers:   []*SSEServer{},
+				MatchList: []*MatchRule{},
 			},
 		},
 		{
@@ -329,6 +384,8 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 					Redis: &RedisConfig{
 						Address: "localhost:6379",
 					},
+					Servers:   []*SSEServer{},
+					MatchList: []*MatchRule{},
 				},
 			},
 			new: &HigressConfig{
