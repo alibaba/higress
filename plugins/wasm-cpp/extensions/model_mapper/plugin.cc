@@ -49,7 +49,7 @@ constexpr std::string_view DefaultMaxBodyBytes = "104857600";
 
 }  // namespace
 
-#define CONSUMER_HEADER "X-Mse-Consumer"
+#define CONSUMER_HEADER "x-mse-consumer"
 
 bool PluginRootContext::parsePluginConfig(const json& configuration,
                                           ModelMapperConfigRule& rule) {

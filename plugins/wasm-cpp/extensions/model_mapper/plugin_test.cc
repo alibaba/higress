@@ -14,6 +14,7 @@
 
 #include "extensions/model_mapper/plugin.h"
 
+#include <cctype>
 #include <cstddef>
 
 #include "gmock/gmock.h"
@@ -91,6 +92,8 @@ class ModelMapperTest : public ::testing::Test {
             *result = "1024";
           } else if (header == ":path") {
             *result = path_;
+          } else if (header == "x-mse-consumer") {
+            *result = consumer_;
           }
           return WasmResult::Ok;
         });
@@ -130,6 +133,7 @@ class ModelMapperTest : public ::testing::Test {
   std::string route_name_;
   std::string service_name_;
   std::string path_;
+  std::string consumer_;
   BufferBase body_;
   BufferBase config_;
 };
@@ -150,6 +154,340 @@ TEST_F(ModelMapperTest, ModelMappingTest) {
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "gpt-3.5"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-max"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4o-mini"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-plus"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "text-embedding-v1"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelMapperTest, ConditionalModelMappingTestNoConsumer) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "*": "qwen-long",
+     "gpt-4*": "qwen-max",
+     "gpt-4o": "qwen-turbo",
+     "gpt-4o-mini": "qwen-plus",
+     "text-embedding-v1": ""
+  },
+  "conditionalModelMappings": [
+    {
+      "consumers": [
+        "consumer-1a",
+        "consumer-1b"
+      ],
+      "modelMapping": {
+        "*": "qwen-long-*",
+        "gpt-4*": "qwen-max-1",
+        "gpt-4x": "",
+        "gpt-4o": "qwen-turbo-1",
+        "gpt-4o-mini": "qwen-plus-1",
+        "text-embedding-v1": "text-embedding-v1-1"
+      }
+    }
+  ]
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "gpt-3.5"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-max"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4o-mini"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-plus"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "text-embedding-v1"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelMapperTest, ConditionalModelMappingTestConsumerConfigured) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "*": "qwen-long",
+     "gpt-4*": "qwen-max",
+     "gpt-4o": "qwen-turbo",
+     "gpt-4o-mini": "qwen-plus",
+     "text-embedding-v1": ""
+  },
+  "conditionalModelMappings": [
+    {
+      "consumers": [
+        "consumer-1a",
+        "consumer-1b"
+      ],
+      "modelMapping": {
+        "*": "qwen-long-1",
+        "gpt-4*": "qwen-max-1",
+        "gpt-4x": "",
+        "gpt-4o": "qwen-turbo-1",
+        "gpt-4o-mini": "qwen-plus-1",
+        "text-embedding-v1": "text-embedding-v1-1"
+      }
+    }
+  ]
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  consumer_ = "consumer-1a";
+  std::string request_json = R"({"model": "gpt-3.5"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-max-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4x"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+
+  request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "gpt-4o-mini"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-plus-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({"model": "text-embedding-v1"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"text-embedding-v1-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  request_json = R"({})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-long-1"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelMapperTest, ConditionalModelMappingTestConsumerNotConfigured) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "*": "qwen-long",
+     "gpt-4*": "qwen-max",
+     "gpt-4o": "qwen-turbo",
+     "gpt-4o-mini": "qwen-plus",
+     "text-embedding-v1": ""
+  },
+  "conditionalModelMappings": [
+    {
+      "consumers": [
+        "consumer-1a",
+        "consumer-1b"
+      ],
+      "modelMapping": {
+        "*": "qwen-long-*",
+        "gpt-4*": "qwen-max-1",
+        "gpt-4x": "",
+        "gpt-4o": "qwen-turbo-1",
+        "gpt-4o-mini": "qwen-plus-1",
+        "text-embedding-v1": "text-embedding-v1-1"
+      }
+    }
+  ]
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  consumer_ = "consumer-2a";
   std::string request_json = R"({"model": "gpt-3.5"})";
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
