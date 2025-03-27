@@ -356,7 +356,8 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 	structFmt := `{
 		"name": "envoy.filters.http.golang",
 		"typed_config": {
-			"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+			"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
 			"value": {
 				"library_id": "mcp-server",
 				"library_path": "/var/lib/istio/envoy/mcp-server.so",
