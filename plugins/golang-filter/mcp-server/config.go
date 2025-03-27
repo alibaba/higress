@@ -42,8 +42,11 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	}
 	v := configStruct.Value
 
-	conf := &config{}
-	conf.stopChan = make(chan struct{})
+	conf := &config{
+		stopChan:  make(chan struct{}),
+		matchList: make([]internal.MatchRule, 0),
+		servers:   make([]*internal.SSEServer, 0),
+	}
 
 	// Parse match_list if exists
 	if matchList, ok := v.AsMap()["match_list"].([]interface{}); ok {

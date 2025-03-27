@@ -78,7 +78,11 @@ type McpServer struct {
 }
 
 func NewDefaultMcpServer() *McpServer {
-	return &McpServer{Enable: false}
+	return &McpServer{
+		Enable:    false,
+		Servers:   make([]*SSEServer, 0),
+		MatchList: make([]*MatchRule, 0),
+	}
 }
 
 const (
@@ -92,6 +96,26 @@ func validMcpServer(m *McpServer) error {
 
 	if m.Enable && m.Redis == nil {
 		return errors.New("redis config cannot be empty when mcp server is enabled")
+	}
+
+	// Validate match rule types
+	if m.MatchList != nil {
+		validTypes := map[string]bool{
+			"exact":    true,
+			"prefix":   true,
+			"suffix":   true,
+			"contains": true,
+			"regex":    true,
+		}
+
+		for _, rule := range m.MatchList {
+			if rule.MatchRuleType == "" {
+				return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
+			}
+			if !validTypes[rule.MatchRuleType] {
+				return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
+			}
+		}
 	}
 
 	return nil
