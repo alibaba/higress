@@ -363,7 +363,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 				"library_path": "/var/lib/istio/envoy/mcp-server.so",
 				"plugin_name": "mcp-server",
 				"plugin_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
 						"redis": {
 							"address": "%s",
