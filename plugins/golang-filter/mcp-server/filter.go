@@ -52,6 +52,11 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	url := NewRequestURL(header)
 	f.path = url.parsedURL.Path
 
+	// Check if request matches any rule in match_list
+	if !internal.IsMatch(f.config.matchList, url.host, f.path) {
+		return api.Continue
+	}
+
 	for _, server := range f.config.servers {
 		if f.path == server.GetSSEEndpoint() {
 			if url.method != http.MethodGet {
@@ -89,11 +94,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
-		if endStream {
-			return api.Continue
-		} else {
-			return api.StopAndBuffer
-		}
+		return api.Continue
 	}
 
 	if url.method != http.MethodGet {

@@ -28,6 +28,7 @@ type config struct {
 	stopChan      chan struct{}
 	servers       []*internal.SSEServer
 	defaultServer *internal.SSEServer
+	matchList     []internal.MatchRule
 }
 
 type parser struct {
@@ -43,6 +44,25 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 	conf := &config{}
 	conf.stopChan = make(chan struct{})
+
+	// Parse match_list if exists
+	if matchList, ok := v.AsMap()["match_list"].([]interface{}); ok {
+		for _, item := range matchList {
+			if ruleMap, ok := item.(map[string]interface{}); ok {
+				rule := internal.MatchRule{}
+				if domain, ok := ruleMap["match_rule_domain"].(string); ok {
+					rule.MatchRuleDomain = domain
+				}
+				if path, ok := ruleMap["match_rule_path"].(string); ok {
+					rule.MatchRulePath = path
+				}
+				if ruleType, ok := ruleMap["match_rule_type"].(string); ok {
+					rule.MatchRuleType = internal.RuleType(ruleType)
+				}
+				conf.matchList = append(conf.matchList, rule)
+			}
+		}
+	}
 
 	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
 	if !ok {
