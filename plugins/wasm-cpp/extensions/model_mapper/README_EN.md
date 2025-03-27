@@ -1,13 +1,22 @@
 ## Function Description
+
 The `model-mapper` plugin implements the functionality of routing based on the model parameter in the LLM protocol.
 
 ## Configuration Fields
 
-| Name                 | Data Type        | Filling Requirement                | Default Value                   | Description                                                                                                                                                                                                                                                         |
-| -----------          | --------------- | -----------------------            | ------                          | -------------------------------------------                                                                                                                                                                                                                  |
-| `modelKey`           | string          | Optional                           | model                           | The location of the model parameter in the request body.                                                                                                                                                                                                            |
-| `modelMapping`       | map of string   | Optional                           | -                               | AI model mapping table, used to map the model names in the request to the model names supported by the service provider.<br/>1. Supports prefix matching. For example, use "gpt-3-*" to match all models whose names start with “gpt-3-”;<br/>2. Supports using "*" as the key to configure a generic fallback mapping relationship;<br/>3. If the target name in the mapping is an empty string "", it means to keep the original model name. |
-| `enableOnPathSuffix` | array of string | Optional                           | ["/v1/chat/completions"]        | Only applies to requests with these specific path suffixes.                                                                                                                                           |
+| Name                       | Data Type       | Filling Requirement | Default Value            | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|----------------------------|-----------------|---------------------|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `modelKey`                 | string          | Optional            | model                    | The location of the model parameter in the request body.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `modelMapping`             | map of string   | Optional            | -                        | The default AI model mapping table, used to map the model names in the request to the model names supported by the service provider.<br/>1. Supports prefix matching. For example, use "gpt-3-*" to match all models whose names start with “gpt-3-”;<br/>2. Supports using "*" as the key to configure a generic fallback mapping relationship;<br/>3. If the target name in the mapping is an empty string "", it means to keep the original model name. |
+| `conditionalModelMappings` | array of object | Optional            | -                        | Conditional AI model mapping table, which will be checked one by one following the configuration order. If none of them matches the request, the default mapping table will be used.                                                                                                                                                                                                                                                                       |
+| `enableOnPathSuffix`       | array of string | Optional            | ["/v1/chat/completions"] | Only applies to requests with these specific path suffixes.                                                                                                                                                                                                                                                                                                                                                                                                |
+
+`conditionalModelMappings`的配置字段说明如下：
+
+| Name           | Data Type       | Filling Requirement | Default Value | Description                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|----------------|-----------------|---------------------|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `consumers`    | array of string | Required            | -             | Consumer names to enable the rule, which will be match against the consumer name returned by auth plugins.                                                                                                                                                                                                                                                                                                                                     |
+| `modelMapping` | map of string   | Optional            | -             | AI model mapping table, used to map the model names in the request to the model names supported by the service provider.<br/>1. Supports prefix matching. For example, use "gpt-3-*" to match all models whose names start with “gpt-3-”;<br/>2. Supports using "*" as the key to configure a generic fallback mapping relationship;<br/>3. If the target name in the mapping is an empty string "", it means to keep the original model name. |
 
 ## Runtime Properties
 
@@ -23,9 +32,16 @@ modelMapping:
   'gpt-4-*': "qwen-max"
   'gpt-4o': "qwen-vl-plus"
   '*': "qwen-turbo"
+conditionalModelMappings:
+  - consumers:
+      - "consumer1"
+    modelMapping:
+      'qwen-*': "qwen-max"
+      '*': "qwen-turbo"
 ```
 
-After enabling, model parameters starting with `gpt-4-` will be rewritten to `qwen-max`, `gpt-4o` will be rewritten to `qwen-vl-plus`, and all other models will be rewritten to `qwen-turbo`.
+After enabling, in the default scenario, model parameters starting with `gpt-4-` will be rewritten to `qwen-max`,
+`gpt-4o` will be rewritten to `qwen-vl-plus`, and all other models will be rewritten to `qwen-turbo`.
 
 For example, if the original request was:
 
@@ -63,3 +79,6 @@ After processing by this plugin, the original LLM request body will be modified 
     "top_p": 0.95
 }
 ```
+
+If the authentication plugin indicates that the request comes from `consumer1`, then model parameters starting with
+`qwen-*` will be rewritten to `qwen-max`, and all other models will be rewritten to `qwen-turbo`.
