@@ -16,7 +16,6 @@ import (
 const Name = "mcp-server"
 const Version = "1.0.0"
 const DefaultServerName = "defaultServer"
-const MessageEndpoint = "/message"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
@@ -25,7 +24,6 @@ func init() {
 type config struct {
 	ssePathSuffix string
 	redisClient   *internal.RedisClient
-	stopChan      chan struct{}
 	servers       []*internal.SSEServer
 	defaultServer *internal.SSEServer
 	matchList     []internal.MatchRule
@@ -43,7 +41,6 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	v := configStruct.Value
 
 	conf := &config{
-		stopChan:  make(chan struct{}),
 		matchList: make([]internal.MatchRule, 0),
 		servers:   make([]*internal.SSEServer, 0),
 	}
@@ -77,7 +74,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		return nil, fmt.Errorf("failed to parse redis config: %w", err)
 	}
 
-	redisClient, err := internal.NewRedisClient(redisConfig, conf.stopChan)
+	redisClient, err := internal.NewRedisClient(redisConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
 	}
@@ -136,7 +133,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
 			internal.WithRedisClient(redisClient),
 			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
-			internal.WithMessageEndpoint(fmt.Sprintf("%s%s", serverPath, MessageEndpoint))))
+			internal.WithMessageEndpoint(serverPath)))
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}
 	return conf, nil
@@ -170,6 +167,7 @@ func filterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 	return &filter{
 		callbacks: callbacks,
 		config:    conf,
+		stopChan:  make(chan struct{}),
 	}
 }
 

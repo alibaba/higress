@@ -19,11 +19,11 @@ type filter struct {
 	callbacks api.FilterCallbackHandler
 	path      string
 	config    *config
+	stopChan  chan struct{}
 
 	req        *http.Request
 	serverName string
 	message    bool
-	bodyBuffer []byte
 }
 
 type RequestURL struct {
@@ -116,18 +116,14 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
-		f.bodyBuffer = append(f.bodyBuffer, buffer.Bytes()...)
-
 		if endStream {
 			for _, server := range f.config.servers {
 				if f.path == server.GetMessageEndpoint() {
 					// Create a response recorder to capture the response
 					recorder := httptest.NewRecorder()
 					// Call the handleMessage method of SSEServer with complete body
-					server.HandleMessage(recorder, f.req, f.bodyBuffer)
+					server.HandleMessage(recorder, f.req, buffer.Bytes())
 					f.message = false
-					// clear buffer
-					f.bodyBuffer = nil
 					f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
 					return api.LocalReply
 				}
@@ -155,19 +151,33 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if !endStream {
+		return api.StopAndBuffer
+	}
+	if f.req != nil {
+		sessionID := f.req.URL.Query().Get("sessionId")
+		if sessionID != "" {
+			channel := internal.GetSSEChannelName(sessionID)
+			publishErr := f.config.redisClient.Publish(channel, buffer.String())
+			if publishErr != nil {
+				api.LogErrorf("Failed to publish wasm mcp server message to Redis: %v", publishErr)
+			}
+		}
+	}
+
 	if f.serverName != "" {
 		// handle specific server
 		for _, server := range f.config.servers {
 			if f.serverName == server.GetServerName() {
 				buffer.Reset()
-				server.HandleSSE(f.callbacks)
+				server.HandleSSE(f.callbacks, f.stopChan)
 				return api.Running
 			}
 		}
 		// handle default server
 		if f.serverName == f.config.defaultServer.GetServerName() {
 			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks)
+			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
 			return api.Running
 		}
 		return api.Continue
@@ -177,13 +187,14 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 
 // OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
-	if f.serverName != "" && f.config.stopChan != nil {
+	api.LogDebugf("OnDestroy: reason=%v", reason)
+	if f.serverName != "" && f.stopChan != nil {
 		select {
-		case <-f.config.stopChan:
+		case <-f.stopChan:
 			return
 		default:
 			api.LogDebug("Stopping SSE connection")
-			close(f.config.stopChan)
+			close(f.stopChan)
 		}
 	}
 }
