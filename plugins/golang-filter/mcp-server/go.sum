@@ -136,8 +136,12 @@ github.com/deckarep/golang-set v1.7.1 h1:SCQV0S6gTtp6itiFrTqI+pfmJ4LN85S1YzhDf9r
 github.com/deckarep/golang-set v1.7.1/go.mod h1:93vsz/8Wt4joVM7c2AVqh+YRMiUSc14yDtF28KmMOgQ=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
-github.com/envoyproxy/envoy v1.33.1-0.20250224062430-6c11eac01993 h1:98rKr5Irapq0t68+sHM78LIkflsiDVttSExZTaqsxSo=
-github.com/envoyproxy/envoy v1.33.1-0.20250224062430-6c11eac01993/go.mod h1:x7d0dNbE0xGuDBUkBg19VGCgnPQ+lJ2k8lDzDzKExow=
+github.com/envoyproxy/envoy v1.32.3 h1:eftH199KwYfyBTtm4reeEzsWTqraACEaTQ6efl31v0I=
+github.com/envoyproxy/envoy v1.32.3/go.mod h1:KGS+IUehDX1mSIdqodPTWskKOo7bZMLLy3GHxvOKcJk=
+github.com/envoyproxy/envoy v1.33.1-0.20250325161043-11ab50a29d99 h1:jih/Ieb7BFgVCStgvY5fXQ3mI9ByOt4wfwUF0d7qmqI=
+github.com/envoyproxy/envoy v1.33.1-0.20250325161043-11ab50a29d99/go.mod h1:x7d0dNbE0xGuDBUkBg19VGCgnPQ+lJ2k8lDzDzKExow=
+github.com/envoyproxy/envoy v1.33.2 h1:k3ChySbVo4HejvbDRxkgRroUnj6TZZpXPJJ0UGaZkXs=
+github.com/envoyproxy/envoy v1.33.2/go.mod h1:faFqv1XeNGX/ph6Zto5Culdcpk4Klxp730Q6XhWarV4=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=

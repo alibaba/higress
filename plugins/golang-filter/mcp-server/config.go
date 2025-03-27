@@ -29,6 +29,13 @@ type config struct {
 	matchList     []internal.MatchRule
 }
 
+func (c *config) Destroy() {
+	if c.redisClient != nil {
+		api.LogDebug("Closing Redis client")
+		c.redisClient.Close()
+	}
+}
+
 type parser struct {
 }
 

@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
-	github.com/envoyproxy/envoy v1.33.1-0.20250224062430-6c11eac01993
+	github.com/envoyproxy/envoy v1.33.1-0.20250325161043-11ab50a29d99
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.12.0

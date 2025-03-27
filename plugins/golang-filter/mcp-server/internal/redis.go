@@ -48,6 +48,7 @@ func ParseRedisConfig(config map[string]any) (*RedisConfig, error) {
 type RedisClient struct {
 	client *redis.Client
 	ctx    context.Context
+	cancel context.CancelFunc
 	config *RedisConfig
 }
 
@@ -67,67 +68,69 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	}
 	api.LogDebugf("Connected to Redis: %s", pong)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	redisClient := &RedisClient{
 		client: client,
-		ctx:    context.Background(),
+		ctx:    ctx,
+		cancel: cancel,
 		config: config,
 	}
 
 	// Start keep-alive check
-	// go redisClient.keepAlive()
+	go redisClient.keepAlive()
 
 	return redisClient, nil
 }
 
 // keepAlive periodically checks Redis connection and attempts to reconnect if needed
-// func (r *RedisClient) keepAlive() {
-// 	ticker := time.NewTicker(30 * time.Second)
-// 	defer ticker.Stop()
+func (r *RedisClient) keepAlive() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
-// 	for {
-// 		select {
-// 		case <-r.stopChan:
-// 			return
-// 		case <-ticker.C:
-// 			if err := r.checkConnection(); err != nil {
-// 				api.LogErrorf("Redis connection check failed: %v", err)
-// 				if err := r.reconnect(); err != nil {
-// 					api.LogErrorf("Failed to reconnect to Redis: %v", err)
-// 				}
-// 			}
-// 		}
-// 	}
-// }
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := r.checkConnection(); err != nil {
+				api.LogErrorf("Redis connection check failed: %v", err)
+				if err := r.reconnect(); err != nil {
+					api.LogErrorf("Failed to reconnect to Redis: %v", err)
+				}
+			}
+		}
+	}
+}
 
 // checkConnection verifies if the Redis connection is still alive
-// func (r *RedisClient) checkConnection() error {
-// 	_, err := r.client.Ping(r.ctx).Result()
-// 	return err
-// }
+func (r *RedisClient) checkConnection() error {
+	_, err := r.client.Ping(r.ctx).Result()
+	return err
+}
 
 // reconnect attempts to establish a new connection to Redis
-// func (r *RedisClient) reconnect() error {
-// 	// Close the old client
-// 	if err := r.client.Close(); err != nil {
-// 		api.LogErrorf("Error closing old Redis connection: %v", err)
-// 	}
+func (r *RedisClient) reconnect() error {
+	// Close the old client
+	if err := r.client.Close(); err != nil {
+		api.LogErrorf("Error closing old Redis connection: %v", err)
+	}
 
-// 	// Create new client
-// 	r.client = redis.NewClient(&redis.Options{
-// 		Addr:     r.config.Address,
-// 		Username: r.config.Username,
-// 		Password: r.config.Password,
-// 		DB:       r.config.DB,
-// 	})
+	// Create new client
+	r.client = redis.NewClient(&redis.Options{
+		Addr:     r.config.Address,
+		Username: r.config.Username,
+		Password: r.config.Password,
+		DB:       r.config.DB,
+	})
 
-// 	// Test the new connection
-// 	if err := r.checkConnection(); err != nil {
-// 		return fmt.Errorf("failed to reconnect to Redis: %w", err)
-// 	}
+	// Test the new connection
+	if err := r.checkConnection(); err != nil {
+		return fmt.Errorf("failed to reconnect to Redis: %w", err)
+	}
 
-// 	api.LogDebugf("Successfully reconnected to Redis")
-// 	return nil
-// }
+	api.LogDebugf("Successfully reconnected to Redis")
+	return nil
+}
 
 // Publish publishes a message to a Redis channel
 func (r *RedisClient) Publish(channel string, message string) error {
@@ -197,4 +200,10 @@ func (r *RedisClient) Get(key string) (string, error) {
 		return "", fmt.Errorf("failed to get key: %w", err)
 	}
 	return val, nil
+}
+
+// Close closes the Redis client and stops the keepalive goroutine
+func (r *RedisClient) Close() error {
+	r.cancel()
+	return r.client.Close()
 }
