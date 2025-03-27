@@ -40,7 +40,9 @@ struct ModelRouterConfigRule {
   std::string model_key_ = "model";
   std::string add_provider_header_;
   std::string model_to_header_;
-  std::vector<std::string> enable_on_path_suffix_ = {"/v1/chat/completions"};
+  std::vector<std::string> enable_on_path_suffix_ = {
+      "/completions",  "/embeddings",       "/images/generations",
+      "/audio/speech", "/fine_tuning/jobs", "/moderations"};
 };
 
 // PluginRootContext is the root context for all streams processed by the
