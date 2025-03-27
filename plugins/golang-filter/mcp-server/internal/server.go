@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -279,7 +278,7 @@ func (s *MCPServer) HandleMessage(
 		s.handleNotification(ctx, notification)
 		return nil // Return nil for notifications
 	}
-	api.LogInfof("HandleMessage: %s", baseMessage.Method)
+
 	switch baseMessage.Method {
 	case "initialize":
 		var request mcp.InitializeRequest

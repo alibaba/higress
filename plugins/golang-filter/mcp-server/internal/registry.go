@@ -4,7 +4,7 @@ var GlobalRegistry = NewServerRegistry()
 
 type Server interface {
 	ParseConfig(config map[string]any) error
-	NewServer() (*MCPServer, error)
+	NewServer(serverName string) (*MCPServer, error)
 }
 
 type ServerRegistry struct {

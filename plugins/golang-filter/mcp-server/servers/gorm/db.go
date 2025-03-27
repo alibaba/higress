@@ -28,7 +28,7 @@ func NewDBClient(dsn string, dbType string) (*DBClient, error) {
 	} else if dbType == "sqlite" {
 		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	} else {
-		return nil, fmt.Errorf("unsupported database type")
+		return nil, fmt.Errorf("unsupported database type %s", dbType)
 	}
 	// Connect to the database
 	if err != nil {

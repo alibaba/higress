@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyHttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
@@ -14,7 +15,8 @@ import (
 
 const Name = "mcp-server"
 const Version = "1.0.0"
-const DefaultServerName = "default"
+const DefaultServerName = "defaultServer"
+const MessageEndpoint = "/message"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
@@ -66,7 +68,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 	serverConfigs, ok := v.AsMap()["servers"].([]interface{})
 	if !ok {
-		api.LogInfo("No servers are configured")
+		api.LogDebug("No servers are configured")
 		return conf, nil
 	}
 
@@ -83,21 +85,36 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		if !ok {
 			return nil, fmt.Errorf("server %s path is not set", serverType)
 		}
+		serverName, ok := serverConfigMap["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("server %s name is not set", serverType)
+		}
 		server := internal.GlobalRegistry.GetServer(serverType)
 
 		if server == nil {
 			return nil, fmt.Errorf("server %s is not registered", serverType)
 		}
-		server.ParseConfig(serverConfigMap)
-		serverInstance, err := server.NewServer()
+		serverConfig, ok := serverConfigMap["config"].(map[string]interface{})
+		if !ok {
+			api.LogDebug(fmt.Sprintf("No config provided for server %s", serverType))
+		}
+		api.LogDebug(fmt.Sprintf("Server config: %+v", serverConfig))
+
+		err = server.ParseConfig(serverConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse server config: %w", err)
+		}
+
+		serverInstance, err := server.NewServer(serverName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize DBServer: %w", err)
 		}
+
 		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
 			internal.WithRedisClient(redisClient),
 			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
-			internal.WithMessageEndpoint(serverPath)))
-		api.LogInfo(fmt.Sprintf("Registered MCP Server: %s", serverType))
+			internal.WithMessageEndpoint(fmt.Sprintf("%s%s", serverPath, MessageEndpoint))))
+		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}
 	return conf, nil
 }

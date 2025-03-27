@@ -624,6 +624,41 @@ TEST_F(HmacAuthTest, TimestampSecCheck) {
   EXPECT_EQ(context_->onRequestBody(0, true), FilterDataStatus::Continue);
 }
 
+TEST_F(HmacAuthTest, EmptyAllowSet) {
+  headers_ = {
+      {":path", "/Third/Tools/checkSign"},
+      {":method", "GET"},
+      {"accept", "application/json"},
+      {"content-type", "application/json"},
+      {"x-ca-timestamp", "1646365291734"},
+      {"x-ca-nonce", "787dd0c2-7bd8-41cd-9c19-62c05ea524a2"},
+      {"x-ca-key", "appKey"},
+      {"x-ca-signature-headers", "x-ca-key,x-ca-nonce,x-ca-timestamp"},
+      {"x-ca-signature", "EdJSFAMOWyXZOpXhevZnjuS0ZafnwnCqaSk5hz+tXo8="},
+  };
+  HmacAuthConfigRule rule;
+  rule.credentials = {{"appKey", "appSecret"}};
+  //  EXPECT_EQ(root_context_->checkPlugin(rule, std::nullopt), true);
+
+  std::string configuration = R"(
+{
+  "consumers": [{"key": "appKey", "secret": "appSecret", "name": "consumer"}],
+  "_rules_": [
+    {
+      "_match_route_prefix_":["test"],
+      "allow":[]
+    }
+  ]
+})";
+  route_name_ = "test@op1";
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+  EXPECT_CALL(*mock_context_, sendLocalResponse(403, testing::_, testing::_,
+                                                testing::_, testing::_));
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopAllIterationAndBuffer);
+}
+
 }  // namespace hmac_auth
 }  // namespace null_plugin
 }  // namespace proxy_wasm

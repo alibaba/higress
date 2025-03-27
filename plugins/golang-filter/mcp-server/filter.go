@@ -42,7 +42,7 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	path, _ := header.Get(":path")
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	parsedURL, _ := url.Parse(path)
-	api.LogInfof("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
+	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
 	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL}
 }
 
@@ -61,7 +61,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				body := "SSE connection create"
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 			}
-			api.LogInfof("%s SSE connection started", server.GetServerName())
+			api.LogDebugf("%s SSE connection started", server.GetServerName())
 			server.SetBaseURL(url.baseURL)
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() {
@@ -181,7 +181,7 @@ func (f *filter) OnDestroy(reason api.DestroyReason) {
 		case <-f.config.stopChan:
 			return
 		default:
-			api.LogInfo("Stopping SSE connection")
+			api.LogDebug("Stopping SSE connection")
 			close(f.config.stopChan)
 		}
 	}

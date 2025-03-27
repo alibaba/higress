@@ -148,6 +148,11 @@ TEST_F(KeyAuthTest, InQuery) {
   path_ = "/test?hello=123&apiKey=123&x-api-key=def";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
+  
+  route_name_ = "pass";
+  path_ = "/pass?hello=123&apiKey=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
 }
 
 TEST_F(KeyAuthTest, InQueryWithConsumer) {
@@ -173,6 +178,35 @@ TEST_F(KeyAuthTest, InQueryWithConsumer) {
             FilterHeadersStatus::StopIteration);
 
   path_ = "/test?hello=123&apiKey=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, EmptyAllowSet) {
+  std::string configuration = R"(
+{
+  "consumers" : [{"credential" : "abc", "name" : "consumer1"}],
+  "keys" : [ "apiKey", "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : []}, {"_match_route_prefix_" : ["prefix"], "allow" : []} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?hello=1&apiKey=abc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  route_name_ = "noauth";
+  path_ = "/test?hello=1&apiKey=abc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+
+  route_name_ = "prefix@operation";
+  path_ = "/test?hello=1";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
 }
@@ -297,6 +331,131 @@ TEST_F(KeyAuthTest, ConsumerDifferentKey) {
 
   route_name_ = "test2";
   path_ = "/test?hello=123&apiKey2=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
+TEST_F(KeyAuthTest, ConsumerMultiCredentials) {
+  std::string configuration = R"(
+{
+  "global_auth": false,
+  "consumers": [
+    {
+      "name": "c1",
+      "credentials":["123","345"],
+      "keys": ["c1key"],
+      "in_header": false,
+      "in_query": true
+    },
+    {
+      "name": "c2",
+      "credentials":["abc","def"],
+      "keys": ["c2key"],
+      "in_header": false,
+      "in_query": true
+    }
+  ],
+  "_rules_": [
+    {
+      "_match_route_": ["test"],
+      "allow": ["c1"]
+    }
+  ]  
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?c1key=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+
+  path_ = "/test?c2key=adc";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, ConsumerDefaultKey) {
+  std::string configuration = R"(
+{
+  "global_auth": false,
+  "consumers": [
+    {
+      "name": "c1",
+      "credentials":["123","345"],
+      "keys": ["c1key"],
+      "in_header": false,
+      "in_query": true
+    },
+    {
+      "name": "c2",
+      "credentials":["abc","def"]
+    }
+  ],
+  "_rules_": [
+    {
+      "_match_route_": ["test"],
+      "allow": ["c2"]
+    }
+  ],
+  "keys": ["defaultkey"]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?c1key=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/test?defaultkey=def";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
+TEST_F(KeyAuthTest, NoGlobalKeySetting) {
+  std::string configuration = R"(
+{
+  "global_auth": false,
+  "consumers": [
+    {
+      "name": "c1",
+      "credentials":["123","345"],
+      "keys": ["c1key"],
+      "in_header": false,
+      "in_query": true
+    },
+    {
+      "name": "c2",
+      "credentials":["abc","def"],
+      "keys": ["c2key"]
+    }
+  ],
+  "_rules_": [
+    {
+      "_match_route_": ["test"],
+      "allow": ["c2"]
+    }
+  ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test?c1key=123";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  path_ = "/test?c2key=def";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
 }
