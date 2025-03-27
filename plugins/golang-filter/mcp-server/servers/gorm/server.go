@@ -50,7 +50,7 @@ func (c *DBConfig) NewServer(serverName string) (*internal.MCPServer, error) {
 
 	// Add query tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("query", "Run a read-only SQL query in database", GetQueryToolSchema()),
+		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query in database %s", c.dbType), GetQueryToolSchema()),
 		HandleQueryTool(dbClient),
 	)
 
