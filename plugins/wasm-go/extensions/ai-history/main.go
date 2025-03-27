@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -122,7 +121,7 @@ type ChatHistory struct {
 	Content string `json:"content"`
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
+func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	c.RedisInfo.ServiceName = json.Get("redis.serviceName").String()
 	if c.RedisInfo.ServiceName == "" {
 		return errors.New("redis service name must not be empty")
@@ -167,7 +166,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
 	return c.redisClient.Init(c.RedisInfo.Username, c.RedisInfo.Password, int64(c.RedisInfo.Timeout), wrapper.WithDataBase(c.RedisInfo.Database))
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	if !strings.Contains(contentType, "application/json") {
 		log.Warnf("content is not json, can't process:%s", contentType)
@@ -193,7 +192,7 @@ func TrimQuote(source string) string {
 	return strings.Trim(source, `"`)
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	bodyJson := gjson.ParseBytes(body)
 	if bodyJson.Get("stream").Bool() {
 		ctx.SetContext(StreamContextKey, struct{}{})
@@ -320,7 +319,7 @@ func getIntQueryParameter(name string, path string, defaultValue int) int {
 	return num
 }
 
-func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log log.Log) string {
+func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log wrapper.Log) string {
 	content := ""
 	for _, chunk := range strings.Split(sseMessage, "\n\n") {
 		subMessages := strings.Split(chunk, "\n")
@@ -356,14 +355,14 @@ func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage 
 	return content
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
 	return types.ActionContinue
 }
-func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte {
+func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
 		return chunk
@@ -455,7 +454,7 @@ func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chun
 	return chunk
 }
 
-func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any, value string, log log.Log) {
+func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any, value string, log wrapper.Log) {
 	question := questionI.(string)
 	identityKey := ctx.GetStringContext(IdentityKey, "")
 	var chat []ChatHistory

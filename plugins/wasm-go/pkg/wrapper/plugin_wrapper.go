@@ -21,12 +21,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
 )
+
+type Log log.Log
 
 const (
 	CustomLogKey       = "custom_log"
@@ -72,12 +75,12 @@ type HttpContext interface {
 	SetResponseBodyBufferLimit(byteSize uint32)
 }
 
-type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
-type oldParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log log.Log) error
-type oldOnHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log log.Log) types.Action
-type oldOnHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log log.Log) types.Action
-type oldOnHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte
-type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log log.Log)
+type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
+type oldParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig, log Log) error
+type oldOnHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
+type oldOnHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
+type oldOnHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log Log) []byte
+type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig) error
 type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig) error
@@ -89,7 +92,7 @@ type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config Plu
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
 	pluginName                  string
-	log                         log.Log
+	log                         Log
 	hasCustomConfig             bool
 	parseConfig                 ParseConfigFunc[PluginConfig]
 	parseRuleConfig             ParseRuleConfigFunc[PluginConfig]
@@ -116,7 +119,7 @@ var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 //
 // You should call this function in parseConfig phase, for example:
 //
-//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log log.Log) error {
+//	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
 //	  wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
 //		 wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
 //		 return nil
@@ -363,7 +366,7 @@ func ProcessStreamDone[PluginConfig any](f onHttpStreamDoneFunc[PluginConfig]) C
 }
 
 type logOption[PluginConfig any] struct {
-	logger log.Log
+	logger Log
 }
 
 func (o *logOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
@@ -371,7 +374,7 @@ func (o *logOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
 	ctx.log = o.logger
 }
 
-func WithLogger[PluginConfig any](logger log.Log) CtxOption[PluginConfig] {
+func WithLogger[PluginConfig any](logger Log) CtxOption[PluginConfig] {
 	return &logOption[PluginConfig]{logger}
 }
 

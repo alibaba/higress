@@ -152,7 +152,8 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 				return
 			case <-ticker.C:
 				// Send health check message
-				healthCheckEvent := "event: health_check\ndata: ping\r\n\r\n"
+				currentTime := time.Now().Format(time.RFC3339)
+				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
 				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
 					api.LogErrorf("Failed to send health check: %v", err)
 				}
