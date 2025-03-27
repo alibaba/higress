@@ -19,6 +19,7 @@ type filter struct {
 	callbacks api.FilterCallbackHandler
 	path      string
 	config    *config
+	stopChan  chan struct{}
 
 	req        *http.Request
 	serverName string
@@ -160,14 +161,14 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 		for _, server := range f.config.servers {
 			if f.serverName == server.GetServerName() {
 				buffer.Reset()
-				server.HandleSSE(f.callbacks)
+				server.HandleSSE(f.callbacks, f.stopChan)
 				return api.Running
 			}
 		}
 		// handle default server
 		if f.serverName == f.config.defaultServer.GetServerName() {
 			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks)
+			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
 			return api.Running
 		}
 		return api.Continue
@@ -177,13 +178,14 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 
 // OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
-	if f.serverName != "" && f.config.stopChan != nil {
+	api.LogDebugf("OnDestroy: reason=%v", reason)
+	if f.serverName != "" && f.stopChan != nil {
 		select {
-		case <-f.config.stopChan:
+		case <-f.stopChan:
 			return
 		default:
 			api.LogDebug("Stopping SSE connection")
-			close(f.config.stopChan)
+			close(f.stopChan)
 		}
 	}
 }

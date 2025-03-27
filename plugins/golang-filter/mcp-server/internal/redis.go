@@ -46,14 +46,13 @@ func ParseRedisConfig(config map[string]any) (*RedisConfig, error) {
 
 // RedisClient is a struct to handle Redis connections and operations
 type RedisClient struct {
-	client   *redis.Client
-	ctx      context.Context
-	stopChan chan struct{}
-	config   *RedisConfig
+	client *redis.Client
+	ctx    context.Context
+	config *RedisConfig
 }
 
 // NewRedisClient creates a new RedisClient instance and establishes a connection to the Redis server
-func NewRedisClient(config *RedisConfig, stopChan chan struct{}) (*RedisClient, error) {
+func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     config.Address,
 		Username: config.Username,
@@ -69,67 +68,66 @@ func NewRedisClient(config *RedisConfig, stopChan chan struct{}) (*RedisClient, 
 	api.LogDebugf("Connected to Redis: %s", pong)
 
 	redisClient := &RedisClient{
-		client:   client,
-		ctx:      context.Background(),
-		stopChan: stopChan,
-		config:   config,
+		client: client,
+		ctx:    context.Background(),
+		config: config,
 	}
 
 	// Start keep-alive check
-	go redisClient.keepAlive()
+	// go redisClient.keepAlive()
 
 	return redisClient, nil
 }
 
 // keepAlive periodically checks Redis connection and attempts to reconnect if needed
-func (r *RedisClient) keepAlive() {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+// func (r *RedisClient) keepAlive() {
+// 	ticker := time.NewTicker(30 * time.Second)
+// 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-r.stopChan:
-			return
-		case <-ticker.C:
-			if err := r.checkConnection(); err != nil {
-				api.LogErrorf("Redis connection check failed: %v", err)
-				if err := r.reconnect(); err != nil {
-					api.LogErrorf("Failed to reconnect to Redis: %v", err)
-				}
-			}
-		}
-	}
-}
+// 	for {
+// 		select {
+// 		case <-r.stopChan:
+// 			return
+// 		case <-ticker.C:
+// 			if err := r.checkConnection(); err != nil {
+// 				api.LogErrorf("Redis connection check failed: %v", err)
+// 				if err := r.reconnect(); err != nil {
+// 					api.LogErrorf("Failed to reconnect to Redis: %v", err)
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 // checkConnection verifies if the Redis connection is still alive
-func (r *RedisClient) checkConnection() error {
-	_, err := r.client.Ping(r.ctx).Result()
-	return err
-}
+// func (r *RedisClient) checkConnection() error {
+// 	_, err := r.client.Ping(r.ctx).Result()
+// 	return err
+// }
 
 // reconnect attempts to establish a new connection to Redis
-func (r *RedisClient) reconnect() error {
-	// Close the old client
-	if err := r.client.Close(); err != nil {
-		api.LogErrorf("Error closing old Redis connection: %v", err)
-	}
+// func (r *RedisClient) reconnect() error {
+// 	// Close the old client
+// 	if err := r.client.Close(); err != nil {
+// 		api.LogErrorf("Error closing old Redis connection: %v", err)
+// 	}
 
-	// Create new client
-	r.client = redis.NewClient(&redis.Options{
-		Addr:     r.config.Address,
-		Username: r.config.Username,
-		Password: r.config.Password,
-		DB:       r.config.DB,
-	})
+// 	// Create new client
+// 	r.client = redis.NewClient(&redis.Options{
+// 		Addr:     r.config.Address,
+// 		Username: r.config.Username,
+// 		Password: r.config.Password,
+// 		DB:       r.config.DB,
+// 	})
 
-	// Test the new connection
-	if err := r.checkConnection(); err != nil {
-		return fmt.Errorf("failed to reconnect to Redis: %w", err)
-	}
+// 	// Test the new connection
+// 	if err := r.checkConnection(); err != nil {
+// 		return fmt.Errorf("failed to reconnect to Redis: %w", err)
+// 	}
 
-	api.LogDebugf("Successfully reconnected to Redis")
-	return nil
-}
+// 	api.LogDebugf("Successfully reconnected to Redis")
+// 	return nil
+// }
 
 // Publish publishes a message to a Redis channel
 func (r *RedisClient) Publish(channel string, message string) error {
@@ -141,7 +139,7 @@ func (r *RedisClient) Publish(channel string, message string) error {
 }
 
 // Subscribe subscribes to a Redis channel and processes messages
-func (r *RedisClient) Subscribe(channel string, callback func(message string)) error {
+func (r *RedisClient) Subscribe(channel string, stopChan chan struct{}, callback func(message string)) error {
 	pubsub := r.client.Subscribe(r.ctx, channel)
 	_, err := pubsub.Receive(r.ctx)
 	if err != nil {
@@ -157,7 +155,7 @@ func (r *RedisClient) Subscribe(channel string, callback func(message string)) e
 		ch := pubsub.Channel()
 		for {
 			select {
-			case <-r.stopChan:
+			case <-stopChan:
 				api.LogDebugf("Stopping subscription to channel %s", channel)
 				return
 			case msg, ok := <-ch:

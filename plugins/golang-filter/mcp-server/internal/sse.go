@@ -86,7 +86,7 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 
 // handleSSE handles incoming SSE connection requests.
 // It sets up appropriate headers and creates a new session for the client.
-func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
+func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct{}) {
 	sessionID := uuid.New().String()
 
 	s.sessions.Store(sessionID, true)
@@ -125,7 +125,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 	// 	}
 	// }()
 
-	err := s.redisClient.Subscribe(channel, func(message string) {
+	err := s.redisClient.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
 		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
@@ -143,12 +143,12 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 
 	// Start health check handler
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
 		for {
 			select {
-			case <-s.redisClient.stopChan:
+			case <-stopChan:
 				return
 			case <-ticker.C:
 				// Send health check message
