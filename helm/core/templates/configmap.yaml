@@ -84,8 +84,8 @@
       discoveryAddress: {{ include "controller.name" . }}.{{.Release.Namespace}}.svc:15012
       {{- end }}
       proxyStatsMatcher:
-        inclusionRegexps:
-        - ".*"
+        exclusionRegexps:
+{{ toYaml .Values.global.proxy.proxyStatsMatcher.exclusionRegexps | indent 8 }}
 {{- end }}
 
 {{/* We take the mesh config above, defined with individual values.yaml, and merge with .Values.meshConfig */}}
