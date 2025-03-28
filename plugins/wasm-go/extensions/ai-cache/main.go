@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/config"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -39,7 +38,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, c *config.PluginConfig, log log.Log) error {
+func parseConfig(json gjson.Result, c *config.PluginConfig, log wrapper.Log) error {
 	// config.EmbeddingProviderConfig.FromJson(json.Get("embeddingProvider"))
 	// config.VectorDatabaseProviderConfig.FromJson(json.Get("vectorBaseProvider"))
 	// config.RedisConfig.FromJson(json.Get("redis"))
@@ -55,7 +54,7 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log log.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
 	skipCache, _ := proxywasm.GetHttpRequestHeader(SKIP_CACHE_HEADER)
 	if skipCache == "on" {
 		ctx.SetContext(SKIP_CACHE_HEADER, struct{}{})
@@ -79,7 +78,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log lo
 	return types.HeaderStopIteration
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []byte, log wrapper.Log) types.Action {
 
 	bodyJson := gjson.ParseBytes(body)
 	// TODO: It may be necessary to support stream mode determination for different LLM providers.
@@ -129,7 +128,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, c config.PluginConfig, body []by
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log log.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wrapper.Log) types.Action {
 	skipCache := ctx.GetContext(SKIP_CACHE_HEADER)
 	if skipCache != nil {
 		ctx.SetUserAttribute("cache_status", "skip")
@@ -151,7 +150,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log l
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte {
+func onHttpResponseBody(ctx wrapper.HttpContext, c config.PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
 	log.Debugf("[onHttpResponseBody] is last chunk: %v", isLastChunk)
 	log.Debugf("[onHttpResponseBody] chunk: %s", string(chunk))
 

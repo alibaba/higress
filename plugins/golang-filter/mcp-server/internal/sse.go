@@ -4,11 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// GetSSEChannelName returns the Redis channel name for the given session ID
+func GetSSEChannelName(sessionID string) string {
+	return fmt.Sprintf("mcp-server-sse:%s", sessionID)
+}
 
 // SSEServer implements a Server-Sent Events (SSE) based MCP server.
 // It provides real-time communication capabilities over HTTP using the SSE protocol.
@@ -17,8 +24,12 @@ type SSEServer struct {
 	baseURL         string
 	messageEndpoint string
 	sseEndpoint     string
-	sessions        map[string]bool
+	sessions        sync.Map
 	redisClient     *RedisClient // Redis client for pub/sub
+}
+
+func (s *SSEServer) SetBaseURL(baseURL string) {
+	s.baseURL = baseURL
 }
 
 func (s *SSEServer) GetMessageEndpoint() string {
@@ -69,7 +80,6 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 		server:          server,
 		sseEndpoint:     "/sse",
 		messageEndpoint: "/message",
-		sessions:        make(map[string]bool),
 	}
 
 	// Apply all options
@@ -81,17 +91,13 @@ func NewSSEServer(server *MCPServer, opts ...Option) *SSEServer {
 
 // handleSSE handles incoming SSE connection requests.
 // It sets up appropriate headers and creates a new session for the client.
-func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
+func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct{}) {
 	sessionID := uuid.New().String()
 
-	s.sessions[sessionID] = true
+	s.sessions.Store(sessionID, true)
+	defer s.sessions.Delete(sessionID)
 
-	// sessionStore, _ := json.Marshal(s.sessions)
-	// TODO: sse:sessions?
-	// s.redisClient.Set("sse:sessions", string(sessionStore), 0)
-	defer delete(s.sessions, sessionID)
-
-	channel := fmt.Sprintf("sse:%s", sessionID)
+	channel := GetSSEChannelName(sessionID)
 
 	messageEndpoint := fmt.Sprintf(
 		"%s%s?sessionId=%s",
@@ -124,9 +130,9 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 	// 	}
 	// }()
 
-	err := s.redisClient.Subscribe(channel, func(message string) {
+	err := s.redisClient.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
-		api.LogInfof("SSE Send message: %s", message)
+		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
 	})
 	if err != nil {
@@ -135,7 +141,30 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler) {
 
 	// Send the initial endpoint event
 	initialEvent := fmt.Sprintf("event: endpoint\ndata: %s\r\n\r\n", messageEndpoint)
-	s.redisClient.Publish(channel, initialEvent)
+	err = s.redisClient.Publish(channel, initialEvent)
+	if err != nil {
+		api.LogErrorf("Failed to send initial event: %v", err)
+	}
+
+	// Start health check handler
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stopChan:
+				return
+			case <-ticker.C:
+				// Send health check message
+				currentTime := time.Now().Format(time.RFC3339)
+				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
+				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
+					api.LogErrorf("Failed to send health check: %v", err)
+				}
+			}
+		}
+	}()
 }
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses
@@ -147,10 +176,11 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
-	if sessionID == "" {
-		s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
-		return
-	}
+	// support streamable http without sessionId
+	// if sessionID == "" {
+	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
+	// 	return
+	// }
 
 	// Set the client context in the server before handling the message
 	ctx := s.server.WithContext(r.Context(), NotificationContext{
@@ -173,7 +203,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		eventData, _ := json.Marshal(response)
 
 		if sessionID != "" {
-			channel := fmt.Sprintf("sse:%s", sessionID)
+			channel := GetSSEChannelName(sessionID)
 			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
 
 			if publishErr != nil {

@@ -5,26 +5,22 @@ import (
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+const Version = "1.0.0"
 
 func init() {
 	internal.GlobalRegistry.RegisterServer("database", &DBConfig{})
 }
 
 type DBConfig struct {
-	name   string
 	dbType string
 	dsn    string
 }
 
 func (c *DBConfig) ParseConfig(config map[string]any) error {
-	name, ok := config["name"].(string)
-	if !ok {
-		return errors.New("missing servername")
-	}
-	c.name = name
-
 	dsn, ok := config["dsn"].(string)
 	if !ok {
 		return errors.New("missing dsn")
@@ -36,13 +32,15 @@ func (c *DBConfig) ParseConfig(config map[string]any) error {
 		return errors.New("missing database type")
 	}
 	c.dbType = dbType
+	api.LogDebugf("DBConfig ParseConfig: %+v", config)
 	return nil
 }
 
-func (c *DBConfig) NewServer() (*internal.MCPServer, error) {
+func (c *DBConfig) NewServer(serverName string) (*internal.MCPServer, error) {
 	mcpServer := internal.NewMCPServer(
-		c.name,
-		"1.0.0",
+		serverName,
+		Version,
+		internal.WithInstructions(fmt.Sprintf("This is a %s database server", c.dbType)),
 	)
 
 	dbClient, err := NewDBClient(c.dsn, c.dbType)
@@ -52,7 +50,7 @@ func (c *DBConfig) NewServer() (*internal.MCPServer, error) {
 
 	// Add query tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("query", "Run a read-only SQL query in clickhouse database with repository git data", GetQueryToolSchema()),
+		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query in database %s", c.dbType), GetQueryToolSchema()),
 		HandleQueryTool(dbClient),
 	)
 
