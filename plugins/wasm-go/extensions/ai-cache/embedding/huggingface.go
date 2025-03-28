@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"net/http"
@@ -127,7 +128,7 @@ func (t *HuggingFaceProvider) parseTextEmbedding(responseBody []byte) ([]float64
 func (t *HuggingFaceProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
+	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
 	if err != nil {

@@ -3,6 +3,7 @@ package embedding
 import (
 	"errors"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -15,6 +16,7 @@ const (
 	PROVIDER_TYPE_OLLAMA      = "ollama"
 	PROVIDER_TYPE_HUGGINGFACE = "huggingface"
 	PROVIDER_TYPE_XFYUN       = "xfyun"
+	PROVIDER_TYPE_AZURE       = "azure"
 )
 
 type providerInitializer interface {
@@ -32,6 +34,7 @@ var (
 		PROVIDER_TYPE_OLLAMA:      &ollamaProviderInitializer{},
 		PROVIDER_TYPE_HUGGINGFACE: &HuggingFaceProviderInitializer{},
 		PROVIDER_TYPE_XFYUN:       &XfyunProviderInitializer{},
+		PROVIDER_TYPE_AZURE:       &AzureProviderInitializer{},
 	}
 )
 
@@ -108,6 +111,6 @@ type Provider interface {
 	GetEmbedding(
 		queryString string,
 		ctx wrapper.HttpContext,
-		log wrapper.Log,
+		log log.Log,
 		callback func(emb []float64, err error)) error
 }

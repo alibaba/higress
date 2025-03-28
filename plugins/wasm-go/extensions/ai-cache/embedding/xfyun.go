@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"math"
@@ -160,7 +161,7 @@ func constructAuth(requestURL, method, apiKey, apiSecret string) (string, error)
 	return "?" + params.Encode(), nil
 }
 
-func (t *XfyunProvider) constructParameters(text string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (t *XfyunProvider) constructParameters(text string, log log.Log) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
@@ -265,7 +266,7 @@ func (t *XfyunProvider) parseTextEmbedding(responseBody []byte) ([]float32, erro
 func (t *XfyunProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
+	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
 	if err != nil {

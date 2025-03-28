@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"net/http"
 	"strconv"
 
@@ -79,7 +80,7 @@ type CohereProvider struct {
 func (t *CohereProvider) GetProviderType() string {
 	return PROVIDER_TYPE_COHERE
 }
-func (t *CohereProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (t *CohereProvider) constructParameters(texts []string, log log.Log) (string, [][2]string, []byte, error) {
 	model := t.config.model
 
 	if model == "" {
@@ -118,7 +119,7 @@ func (t *CohereProvider) parseTextEmbedding(responseBody []byte) (*cohereRespons
 func (t *CohereProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
+	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters([]string{queryString}, log)
 	if err != nil {

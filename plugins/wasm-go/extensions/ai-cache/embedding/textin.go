@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"net/http"
 	"strconv"
 
@@ -97,7 +98,7 @@ type TIProvider struct {
 	client wrapper.HttpClient
 }
 
-func (t *TIProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (t *TIProvider) constructParameters(texts []string, log log.Log) (string, [][2]string, []byte, error) {
 
 	data := TextInEmbeddingRequest{
 		Input:         texts,
@@ -142,7 +143,7 @@ func (t *TIProvider) parseTextEmbedding(responseBody []byte) (*TextInResponse, e
 func (t *TIProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
+	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters([]string{queryString}, log)
 	if err != nil {

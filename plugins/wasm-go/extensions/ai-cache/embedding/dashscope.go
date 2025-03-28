@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"net/http"
 	"strconv"
 
@@ -103,7 +104,7 @@ type DSProvider struct {
 	client wrapper.HttpClient
 }
 
-func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (d *DSProvider) constructParameters(texts []string, log log.Log) (string, [][2]string, []byte, error) {
 
 	model := d.config.model
 
@@ -159,7 +160,7 @@ func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) 
 func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
+	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString}, log)
 	if err != nil {
