@@ -188,6 +188,7 @@ FilterHeadersStatus PluginRootContext::onHeader(
     ctx.mode_ = MODE_MULTIPART;
     ctx.boundary_ = boundary_value;
     LOG_DEBUG(absl::StrCat("Enable multipart/form-data mode. Boundary=", boundary_value));
+    removeRequestHeader(Wasm::Common::Http::Header::ContentLength);
     return FilterHeadersStatus::StopIteration;
   }
   return FilterHeadersStatus::Continue;
@@ -250,6 +251,7 @@ FilterDataStatus PluginRootContext::onMultipartBody(
     }
     std::string_view part = body_view.substr(pos, end_pos - pos);
     LOG_DEBUG(absl::StrCat("Part: ", part));
+    auto part_pos = pos;
     pos = end_pos;
 
     // Check if this part contains the model parameter
@@ -263,6 +265,7 @@ FilterDataStatus PluginRootContext::onMultipartBody(
       break;
     }
     value_start += 4; // Skip the "\r\n\r\n"
+    // model parameter should be only one line
     size_t value_end = part.find(CRLF, value_start);
     if (value_end == std::string_view::npos) {
       LOG_DEBUG("No value end found in part");
@@ -279,10 +282,12 @@ FilterDataStatus PluginRootContext::onMultipartBody(
         const auto& provider = model_value.substr(0, pos);
         const auto& model = model_value.substr(pos + 1);
         replaceRequestHeader(add_provider_header, provider);
-        setBuffer(WasmBufferType::HttpRequestBody, value_start,
-                  value_end - value_start, model);
+        size_t new_size = 0;
+        auto new_buffer_data = absl::StrCat(body_view.substr(0, part_pos + value_start), model, body_view.substr(part_pos + value_end));
+        auto result = setBuffer(WasmBufferType::HttpRequestBody, 0, std::numeric_limits<size_t>::max(), new_buffer_data, &new_size);
         LOG_DEBUG(absl::StrCat("model route to provider:", provider,
                                ", model:", model));
+        LOG_DEBUG(absl::StrCat("result=", result, "  new_size=", new_size));
       } else {
         LOG_DEBUG(absl::StrCat("model route to provider not work, model:",
                                model_value));
