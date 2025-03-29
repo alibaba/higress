@@ -61,7 +61,6 @@ type Tool interface {
 }
 
 type mcpServerConfig struct {
-	name           string
 	server         Server
 	methodHandlers utils.MethodHandlers
 }
@@ -75,6 +74,11 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	if serverName == "" {
 		return errors.New("server.name field is missing")
 	}
+	toolsArray := configJson.Get("tools").Array()
+	allowTools := make(map[string]struct{})
+	for _, toolJson := range toolsArray {
+		allowTools[toolJson.String()] = struct{}{}
+	}
 	if server, exist := globalContext.servers[serverName]; exist {
 		config.server = server.Clone()
 		config.server.SetConfig([]byte(serverJson.Get("config").Raw))
@@ -83,12 +87,10 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	}
 	config.methodHandlers = make(utils.MethodHandlers)
 	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		utils.OnMCPResponseSuccess(ctx, map[string]any{})
 		return nil
 	}
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		version := params.Get("protocolVersion").String()
 		if version == "" {
 			utils.OnMCPResponseError(ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams)
@@ -106,9 +108,13 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		return nil
 	}
 	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		var tools []map[string]any
 		for name, tool := range config.server.GetMCPTools() {
+			if len(allowTools) != 0 {
+				if _, allow := allowTools[name]; !allow {
+					continue
+				}
+			}
 			tools = append(tools, map[string]any{
 				"name":        name,
 				"description": tool.Description(),
@@ -124,6 +130,12 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	config.methodHandlers["tools/call"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
 		name := params.Get("name").String()
 		args := params.Get("arguments")
+		if len(allowTools) != 0 {
+			if _, allow := allowTools[name]; !allow {
+				utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams)
+				return nil
+			}
+		}
 		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		proxywasm.SetProperty([]string{"mcp_tool_name"}, []byte(name))
 		if tool, ok := config.server.GetMCPTools()[name]; ok {
