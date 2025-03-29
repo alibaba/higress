@@ -72,11 +72,6 @@ type HttpContext interface {
 	SetResponseBodyBufferLimit(byteSize uint32)
 	// Make a request to the target service of the current route using the specified URL and header.
 	RouteCall(method, url string, headers [][2]string, body []byte, callback ResponseCallback, timeoutMillisecond ...uint32) error
-	OnMCPToolCallSuccess(content []map[string]any)
-	OnMCPToolCallError(err error)
-	SendMCPToolTextResult(result string)
-	GetPluginName() string
-	ParseMCPServerConfig(config any) error
 }
 
 type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
@@ -108,15 +103,6 @@ type CommonVmCtx[PluginConfig any] struct {
 	onHttpResponseBody          onHttpBodyFunc[PluginConfig]
 	onHttpStreamingResponseBody onHttpStreamingBodyFunc[PluginConfig]
 	onHttpStreamDone            onHttpStreamDoneFunc[PluginConfig]
-	isJsonRpcSever              bool
-	handleJsonRpcMethod         bool
-	jsonRpcMethodHandlers       MethodHandlers[PluginConfig]
-	mcpTools                    MCPTools[PluginConfig]
-	onMcpToolRequest            mcpToolRequestFunc[PluginConfig]
-	onMcpToolResponse           mcpToolResponseFunc[PluginConfig]
-	onJsonRpcError              jsonRpcErrorFunc[PluginConfig]
-	jsonRpcRequestHandler       JsonRpcRequestHandler[PluginConfig]
-	jsonRpcResponseHandler      JsonRpcResponseHandler[PluginConfig]
 }
 
 type TickFuncEntry struct {
@@ -423,10 +409,8 @@ func NewCommonVmCtx[PluginConfig any](pluginName string, options ...CtxOption[Pl
 
 func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...CtxOption[PluginConfig]) *CommonVmCtx[PluginConfig] {
 	ctx := &CommonVmCtx[PluginConfig]{
-		pluginName:            pluginName,
-		hasCustomConfig:       true,
-		jsonRpcMethodHandlers: make(MethodHandlers[PluginConfig]),
-		mcpTools:              make(MCPTools[PluginConfig]),
+		pluginName:      pluginName,
+		hasCustomConfig: true,
 	}
 	for _, opt := range options {
 		opt.Apply(ctx)
@@ -526,12 +510,10 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 		userContext:   map[string]interface{}{},
 		userAttribute: map[string]interface{}{},
 	}
-	httpCtx.registerMCPTools(ctx.vm.mcpTools)
-	httpCtx.registerMCPToolProcessor()
-	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil || len(ctx.vm.jsonRpcMethodHandlers) > 0 || ctx.vm.jsonRpcRequestHandler != nil {
+	if ctx.vm.onHttpRequestBody != nil || ctx.vm.onHttpStreamingRequestBody != nil {
 		httpCtx.needRequestBody = true
 	}
-	if ctx.vm.onHttpResponseBody != nil || ctx.vm.onHttpStreamingResponseBody != nil || ctx.vm.jsonRpcResponseHandler != nil {
+	if ctx.vm.onHttpResponseBody != nil || ctx.vm.onHttpStreamingResponseBody != nil {
 		httpCtx.needResponseBody = true
 	}
 	if ctx.vm.onHttpStreamingRequestBody != nil {
@@ -737,9 +719,6 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 	if IsBinaryRequestBody() {
 		ctx.needRequestBody = false
 	}
-	if ctx.plugin.vm.isJsonRpcSever && HasRequestBody() {
-		return types.HeaderStopIteration
-	}
 	if ctx.plugin.vm.onHttpRequestHeaders == nil {
 		return types.ActionContinue
 	}
@@ -763,9 +742,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 		}
 		return types.ActionContinue
 	}
-	if ctx.plugin.vm.onHttpRequestBody != nil ||
-		len(ctx.plugin.vm.jsonRpcMethodHandlers) > 0 ||
-		ctx.plugin.vm.jsonRpcRequestHandler != nil {
+	if ctx.plugin.vm.onHttpRequestBody != nil {
 		ctx.requestBodySize += bodySize
 		if !endOfStream {
 			return types.ActionPause
@@ -775,14 +752,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 			ctx.plugin.vm.log.Warnf("get request body failed: %v", err)
 			return types.ActionContinue
 		}
-		if ctx.plugin.vm.onHttpRequestBody != nil {
-			return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body)
-		}
-		if len(ctx.plugin.vm.jsonRpcMethodHandlers) > 0 {
-			return ctx.HandleJsonRpcMethod(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcMethodHandlers)
-		}
-		// ctx.plugin.vm.jsonRpcRequestHandler not nil
-		return ctx.HandleJsonRpcRequest(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcRequestHandler)
+		return ctx.plugin.vm.onHttpRequestBody(ctx, *ctx.config, body)
 	}
 	return types.ActionContinue
 }
@@ -818,7 +788,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 		}
 		return types.ActionContinue
 	}
-	if ctx.plugin.vm.onHttpResponseBody != nil || ctx.plugin.vm.jsonRpcResponseHandler != nil {
+	if ctx.plugin.vm.onHttpResponseBody != nil {
 		ctx.responseBodySize += bodySize
 		if !endOfStream {
 			return types.ActionPause
@@ -828,11 +798,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 			ctx.plugin.vm.log.Warnf("get response body failed: %v", err)
 			return types.ActionContinue
 		}
-		if ctx.plugin.vm.onHttpResponseBody != nil {
-			return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body)
-		}
-		// ctx.plugin.vm.jsonRpcResponseHandler not nil
-		return ctx.HandleJsonRpcResponse(ctx, *ctx.config, body, ctx.plugin.vm.jsonRpcResponseHandler)
+		return ctx.plugin.vm.onHttpResponseBody(ctx, *ctx.config, body)
 	}
 	return types.ActionContinue
 }
@@ -858,5 +824,3 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, url string, headers []
 	}
 	return HttpCall(cluster, method, url, headers, body, callback, timeout)
 }
-
-func (ctx *CommonHttpCtx[PluginConfig]) GetPluginName() string { return ctx.plugin.vm.pluginName }

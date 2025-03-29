@@ -36,7 +36,7 @@ type DefaultLog struct {
 	pluginID   string
 }
 
-func (l *DefaultLog) log(level LogLevel, msg string) {
+func (l *DefaultLog) Log(level LogLevel, msg string) {
 	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
 	requestID := string(requestIDRaw)
 	if requestID == "" {
@@ -59,7 +59,7 @@ func (l *DefaultLog) log(level LogLevel, msg string) {
 	}
 }
 
-func (l *DefaultLog) logFormat(level LogLevel, format string, args ...interface{}) {
+func (l *DefaultLog) LogFormat(level LogLevel, format string, args ...interface{}) {
 	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
 	requestID := string(requestIDRaw)
 	if requestID == "" {
@@ -83,51 +83,51 @@ func (l *DefaultLog) logFormat(level LogLevel, format string, args ...interface{
 }
 
 func (l *DefaultLog) Trace(msg string) {
-	l.log(LogLevelTrace, msg)
+	l.Log(LogLevelTrace, msg)
 }
 
 func (l *DefaultLog) Tracef(format string, args ...interface{}) {
-	l.logFormat(LogLevelTrace, format, args...)
+	l.LogFormat(LogLevelTrace, format, args...)
 }
 
 func (l *DefaultLog) Debug(msg string) {
-	l.log(LogLevelDebug, msg)
+	l.Log(LogLevelDebug, msg)
 }
 
 func (l *DefaultLog) Debugf(format string, args ...interface{}) {
-	l.logFormat(LogLevelDebug, format, args...)
+	l.LogFormat(LogLevelDebug, format, args...)
 }
 
 func (l *DefaultLog) Info(msg string) {
-	l.log(LogLevelInfo, msg)
+	l.Log(LogLevelInfo, msg)
 }
 
 func (l *DefaultLog) Infof(format string, args ...interface{}) {
-	l.logFormat(LogLevelInfo, format, args...)
+	l.LogFormat(LogLevelInfo, format, args...)
 }
 
 func (l *DefaultLog) Warn(msg string) {
-	l.log(LogLevelWarn, msg)
+	l.Log(LogLevelWarn, msg)
 }
 
 func (l *DefaultLog) Warnf(format string, args ...interface{}) {
-	l.logFormat(LogLevelWarn, format, args...)
+	l.LogFormat(LogLevelWarn, format, args...)
 }
 
 func (l *DefaultLog) Error(msg string) {
-	l.log(LogLevelError, msg)
+	l.Log(LogLevelError, msg)
 }
 
 func (l *DefaultLog) Errorf(format string, args ...interface{}) {
-	l.logFormat(LogLevelError, format, args...)
+	l.LogFormat(LogLevelError, format, args...)
 }
 
 func (l *DefaultLog) Critical(msg string) {
-	l.log(LogLevelCritical, msg)
+	l.Log(LogLevelCritical, msg)
 }
 
 func (l *DefaultLog) Criticalf(format string, args ...interface{}) {
-	l.logFormat(LogLevelCritical, format, args...)
+	l.LogFormat(LogLevelCritical, format, args...)
 }
 
 func (l *DefaultLog) ResetID(pluginID string) {
