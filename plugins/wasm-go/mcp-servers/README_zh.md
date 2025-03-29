@@ -33,49 +33,20 @@ my-mcp-server/
 ├── go.mod                 # Go 模块定义
 ├── go.sum                 # Go 模块校验和
 ├── main.go                # 注册工具和资源的入口点
-├── server/
-│   └── server.go          # 服务器配置和解析
 └── tools/
     └── my_tool.go         # 工具实现
 ```
 
 ## 服务器配置
 
-服务器配置定义了服务器运行所需的参数。例如：
+为您的 MCP 服务器定义一个配置结构，用于存储 API 密钥等设置：
 
 ```go
-// server/server.go
-package server
+// config/config.go
+package config
 
-import (
-    "encoding/json"
-    "errors"
-
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-)
-
-// 定义服务器配置结构
-type MyMCPServer struct {
+type MyServerConfig struct {
     ApiKey string `json:"apiKey"`
-    // 根据需要添加其他配置字段
-}
-
-// 验证配置
-func (s MyMCPServer) ConfigHasError() error {
-    if s.ApiKey == "" {
-        return errors.New("missing api key")
-    }
-    return nil
-}
-
-// 从 JSON 解析配置
-func ParseFromConfig(configBytes []byte, server *MyMCPServer) error {
-    return json.Unmarshal(configBytes, server)
-}
-
-// 从 HTTP 请求解析配置
-func ParseFromRequest(ctx wrapper.HttpContext, server *MyMCPServer) error {
-    return ctx.ParseMCPServerConfig(server)
 }
 ```
 
@@ -96,12 +67,13 @@ package tools
 
 import (
     "encoding/json"
+    "errors"
     "fmt"
     "net/http"
     
-    "my-mcp-server/server"
-    
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+    "my-mcp-server/config"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 )
 
 // 定义带有输入参数的工具结构
@@ -121,12 +93,12 @@ func (t MyTool) Description() string {
 // 这对应于 MCP 工具 JSON 响应中的 "inputSchema" 字段，
 // 定义了工具输入参数的 JSON Schema，包括属性类型、描述和必填字段。
 func (t MyTool) InputSchema() map[string]any {
-    return wrapper.ToInputSchema(&MyTool{})
+    return server.ToInputSchema(&MyTool{})
 }
 
 // Create 基于 MCP 工具调用的输入参数实例化一个新的工具实例。
 // 它将 JSON 参数反序列化为结构体，为可选字段应用默认值，并返回配置好的工具实例。
-func (t MyTool) Create(params []byte) wrapper.MCPTool[server.MyMCPServer] {
+func (t MyTool) Create(params []byte) server.Tool {
     myTool := &MyTool{
         Param2: 5, // 默认值
     }
@@ -136,22 +108,19 @@ func (t MyTool) Create(params []byte) wrapper.MCPTool[server.MyMCPServer] {
 
 // Call 实现处理 MCP 工具调用的核心逻辑。当通过 MCP 框架调用工具时，执行此方法。
 // 它处理配置的参数，进行必要的 API 请求，并格式化返回给调用者的结果。
-func (t MyTool) Call(ctx wrapper.HttpContext, config server.MyMCPServer) error {
-    // 验证配置
-    err := server.ParseFromRequest(ctx, &config)
-    if err != nil {
-        return err
-    }
-    err = config.ConfigHasError()
-    if err != nil {
-        return err
+func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
+    // 获取服务器配置
+    serverConfig := &config.MyServerConfig{}
+    s.GetConfig(serverConfig)
+    if serverConfig.ApiKey == "" {
+        return errors.New("服务器配置中缺少 API 密钥")
     }
     
     // 在这里实现工具的逻辑
     // ...
     
     // 返回结果
-    ctx.SendMCPToolTextResult(fmt.Sprintf("结果: %s, %d", t.Param1, t.Param2))
+    utils.SendMCPToolTextResult(ctx, fmt.Sprintf("结果: %s, %d", t.Param1, t.Param2))
     return nil
 }
 ```
@@ -165,21 +134,20 @@ main.go 文件是 MCP 服务器的入口点。它注册工具和资源：
 package main
 
 import (
-    "my-mcp-server/server"
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 )
 
 func main() {}
 
 func init() {
-    wrapper.SetCtx(
+    myMCPServer := &server.MCPServer{}
+    server.Load(server.AddMCPServer(
         "my-mcp-server", // 服务器名称
-        wrapper.ParseRawConfig(server.ParseFromConfig),
-        wrapper.AddMCPTool("my_tool", tools.MyTool{}), // 注册工具
+        myMCPServer.AddMCPTool("my_tool", &tools.MyTool{}), // 注册工具
         // 根据需要添加更多工具
-    )
+    ))
 }
 ```
 
@@ -188,8 +156,21 @@ func init() {
 您的 MCP 服务器必须使用支持 Go 1.24 WebAssembly 编译功能的特定版本的 wasm-go SDK：
 
 ```bash
-# 添加具有特定版本标签的必需依赖项
-go get github.com/alibaba/higress/plugins/wasm-go@wasm-go-1.24
+# 添加必需的依赖项
+go get github.com/alibaba/higress/plugins/wasm-go
+```
+
+确保您的 go.mod 文件指定 Go 1.24：
+
+```
+module my-mcp-server
+
+go 1.24
+
+require (
+    github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250324133957-dab499f6ade6
+    // 其他依赖项
+)
 ```
 
 ## 构建 WASM 二进制文件
@@ -239,6 +220,8 @@ import (
     "testing"
 )
 
+// TestMyToolInputSchema 测试 MyTool 的 InputSchema 方法
+// 以验证 JSON schema 配置是否正确。
 func TestMyToolInputSchema(t *testing.T) {
     myTool := MyTool{}
     schema := myTool.InputSchema()
@@ -254,3 +237,4 @@ func TestMyToolInputSchema(t *testing.T) {
         t.Error("InputSchema 返回了空 schema")
     }
 }
+```

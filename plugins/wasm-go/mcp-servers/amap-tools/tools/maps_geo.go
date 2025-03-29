@@ -1,16 +1,33 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 
-	"amap-tools/server"
+	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 )
+
+var _ server.Tool = GeoRequest{}
 
 type GeoRequest struct {
 	Address string `json:"address" jsonschema_description:"待解析的结构化地址信息"`
@@ -22,41 +39,33 @@ func (t GeoRequest) Description() string {
 }
 
 func (t GeoRequest) InputSchema() map[string]any {
-	return wrapper.ToInputSchema(&GeoRequest{})
+	return server.ToInputSchema(&GeoRequest{})
 }
 
-func (t GeoRequest) Create(params []byte) wrapper.MCPTool[server.AmapMCPServer] {
+func (t GeoRequest) Create(params []byte) server.Tool {
 	request := &GeoRequest{}
 	json.Unmarshal(params, &request)
 	return request
 }
 
-func (t GeoRequest) Call(ctx wrapper.HttpContext, config server.AmapMCPServer) error {
-	err := server.ParseFromRequest(ctx, &config)
-	if err != nil {
-		log.Errorf("parse config from request failed, err:%s", err)
-		return err
-	}
-	err = config.ConfigHasError()
-	if err != nil {
-		return err
+func (t GeoRequest) Call(ctx server.HttpContext, s server.Server) error {
+	serverConfig := &config.AmapServerConfig{}
+	s.GetConfig(serverConfig)
+	if serverConfig.ApiKey == "" {
+		return errors.New("amap API-KEY is not configured")
 	}
 
-	apiKey := config.ApiKey
-	if apiKey == "" {
-		return fmt.Errorf("amap API-KEY is not set")
-	}
-
+	apiKey := serverConfig.ApiKey
 	url := fmt.Sprintf("https://restapi.amap.com/v3/geocode/geo?key=%s&address=%s&city=%s&source=ts_mcp", apiKey, url.QueryEscape(t.Address), url.QueryEscape(t.City))
 	return ctx.RouteCall(http.MethodGet, url,
 		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				ctx.OnMCPToolCallError(fmt.Errorf("geo call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo call failed, status: %d", statusCode))
 				return
 			}
 			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
+				Status   string `json:"status"`
+				Info     string `json:"info"`
 				Geocodes []struct {
 					Country  string `json:"country"`
 					Province string `json:"province"`
@@ -72,11 +81,11 @@ func (t GeoRequest) Call(ctx wrapper.HttpContext, config server.AmapMCPServer) e
 			}
 			err := json.Unmarshal(responseBody, &response)
 			if err != nil {
-				ctx.OnMCPToolCallError(fmt.Errorf("failed to parse geo response: %v", err))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse geo response: %v", err))
 				return
 			}
 			if response.Status != "1" {
-				ctx.OnMCPToolCallError(fmt.Errorf("geo failed: %s", response.Info))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo failed: %s", response.Info))
 				return
 			}
 			var results []map[string]string
@@ -96,6 +105,6 @@ func (t GeoRequest) Call(ctx wrapper.HttpContext, config server.AmapMCPServer) e
 				results = append(results, result)
 			}
 			result, _ := json.Marshal(results)
-			ctx.SendMCPToolTextResult(string(result))
+			utils.SendMCPToolTextResult(ctx, string(result))
 		})
 }
