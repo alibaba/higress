@@ -8,14 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tidwall/gjson"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -266,7 +267,6 @@ func (t *XfyunProvider) parseTextEmbedding(responseBody []byte) ([]float32, erro
 func (t *XfyunProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString)
 	if err != nil {

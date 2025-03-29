@@ -3,7 +3,6 @@ package embedding
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -111,6 +110,5 @@ type Provider interface {
 	GetEmbedding(
 		queryString string,
 		ctx wrapper.HttpContext,
-		log log.Log,
 		callback func(emb []float64, err error)) error
 }

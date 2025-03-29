@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	"net/http"
-	"strings"
 )
 
 const (
@@ -132,7 +133,6 @@ func (t *AzureProvider) parseTextEmbedding(responseBody []byte) (*AzureEmbedding
 func (t *AzureProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString)
 	if err != nil {

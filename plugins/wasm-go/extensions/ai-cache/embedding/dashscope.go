@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"net/http"
 	"strconv"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -160,7 +160,6 @@ func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) 
 func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log log.Log,
 	callback func(emb []float64, err error)) error {
 	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString})
 	if err != nil {
