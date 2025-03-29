@@ -17,14 +17,13 @@ package main
 import (
 	"quark-search/tools"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
 )
 
 func main() {}
 
 func init() {
-	quarkSearchServer := &server.MCPServer{}
-	server.Load(server.AddMCPServer(
-		"quark-search",
-		quarkSearchServer.AddMCPTool("web_search", &tools.WebSearch{})))
+	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
+		tools.LoadTools(&mcp.MCPServer{})))
+	mcp.InitMCPServer()
 }

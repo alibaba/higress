@@ -125,6 +125,56 @@ func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
 }
 ```
 
+## 工具加载
+
+为了更好地组织代码，您可以创建一个单独的文件来加载所有工具：
+
+```go
+// tools/load_tools.go
+package tools
+
+import (
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+)
+
+func LoadTools(server *mcp.MCPServer) server.Server {
+    return server.AddMCPTool("my_tool", &MyTool{}).
+        AddMCPTool("another_tool", &AnotherTool{})
+        // 根据需要添加更多工具
+}
+```
+
+以这种方式组织代码，可以方便被 all-in-one 目录下的 MCP server 插件集成。all-in-one 插件将所有 MCP server 的逻辑打包到一个插件里，从而降低网关上部署多个插件带来的额外开销。
+
+### All-in-One 集成
+
+all-in-one 插件将多个 MCP server 打包到一个 WASM 二进制文件中。每个 MCP server 保持自己的身份和配置，但它们共享同一个插件实例。以下是 all-in-one 插件中集成多个 MCP server 的示例：
+
+```go
+// all-in-one/main.go
+package main
+
+import (
+    amap "amap-tools/tools"
+    quark "quark-search/tools"
+    
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+)
+
+func main() {}
+
+func init() {
+    mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
+        quark.LoadTools(&mcp.MCPServer{})))
+    mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
+        amap.LoadTools(&mcp.MCPServer{})))
+    mcp.InitMCPServer()
+}
+```
+
+all-in-one 插件的配置方式与所有 MCP server 插件都是一样的，都是通过 server 配置中的 name 字段来找到对应的 MCP server。
+
 ## 主入口点
 
 main.go 文件是 MCP 服务器的入口点。它注册工具和资源：
@@ -136,20 +186,36 @@ package main
 import (
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
 )
 
 func main() {}
 
 func init() {
-    myMCPServer := &server.MCPServer{}
-    server.Load(server.AddMCPServer(
-        "my-mcp-server", // 服务器名称
-        myMCPServer.AddMCPTool("my_tool", &tools.MyTool{}), // 注册工具
-        // 根据需要添加更多工具
-    ))
+    mcp.LoadMCPServer(mcp.AddMCPServer("my-mcp-server",
+        tools.LoadTools(&mcp.MCPServer{})))
+    mcp.InitMCPServer()
 }
 ```
+
+## 插件配置
+
+当将您的 MCP 服务器部署为 Higress 插件时，您需要在 Higress 配置中进行配置。以下是一个示例配置：
+
+```yaml
+server:
+  # MCP 服务器名称 - 必须与代码中 mcp.AddMCPServer() 调用时使用的名称完全一致
+  name: my-mcp-server
+  # MCP 服务器配置
+  config:
+    apiKey: 您的API密钥
+  # 可选：如果配置了，则起到白名单作用 - 只有列在这里的工具才能被调用
+  tools:
+  - my_tool
+  - another_tool
+```
+
+> **重要提示**：server 配置中的 `name` 字段必须与代码中 `mcp.AddMCPServer()` 调用时使用的服务器名称完全一致。系统通过这个名称来识别应该由哪个 MCP 服务器处理请求。
 
 ## 依赖项
 
