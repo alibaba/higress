@@ -114,7 +114,7 @@ Azure OpenAI 所对应的 `embedding.type` 为 `azure`。它需要提前创建[A
 | ---------------------- | -------- | -------- | ------ | ------- | ---------------------------- |
 | `embedding.apiVersion` | string   | 必填     | -      | api版本 | 获取到的URI中api-version的值 |
 
-需要注意的是您必须要指定`serviceHost`，如`YOUR_RESOURCE_NAME.openai.azure.com`。模型默认使用了`text-embedding-ada-002`，如需其他模型，请在`embedding.model`中进行指定。
+需要注意的是您必须要指定`embedding.serviceHost`，如`YOUR_RESOURCE_NAME.openai.azure.com`。模型默认使用了`text-embedding-ada-002`，如需其他模型，请在`embedding.model`中进行指定。
 
 ### Cohere
 
