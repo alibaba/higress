@@ -15,8 +15,9 @@
 package filter
 
 import (
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"

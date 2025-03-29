@@ -14,7 +14,6 @@
 package server
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,69 +46,11 @@ type CtxOption interface {
 var globalContext Context
 
 type Server interface {
-	getMCPTools() map[string]Tool
-	setConfig(config []byte)
-	clone() Server
-
-	Valid() error
 	AddMCPTool(name string, tool Tool) Server
+	GetMCPTools() map[string]Tool
+	SetConfig(config []byte)
 	GetConfig(v any)
-}
-
-type MCPServer struct {
-	tools  map[string]Tool
-	config []byte
-}
-
-func (s MCPServer) clone() Server {
-	return &MCPServer{tools: s.tools}
-}
-
-func (s MCPServer) Valid() error {
-	return nil
-}
-
-func (s *MCPServer) AddMCPTool(name string, tool Tool) Server {
-	if s.tools == nil {
-		s.tools = make(map[string]Tool)
-	}
-	if _, exist := s.tools[name]; exist {
-		panic(fmt.Sprintf("Conflict! There is a tool with the same name:%s",
-			name))
-	}
-	s.tools[name] = tool
-	return s
-}
-
-// Can only be called during a tool call
-func (s *MCPServer) GetConfig(v any) {
-	var config []byte
-	serverConfigBase64, _ := proxywasm.GetHttpRequestHeader("x-higress-mcpserver-config")
-	proxywasm.RemoveHttpRequestHeader("x-higress-mcpserver-config")
-	if serverConfigBase64 != "" {
-		log.Info("parse server config from request")
-		serverConfig, err := base64.StdEncoding.DecodeString(serverConfigBase64)
-		if err != nil {
-			log.Errorf("base64 decode mcp server config failed:%s, bytes:%s", err, serverConfigBase64)
-		} else {
-			config = serverConfig
-		}
-	} else {
-		config = s.config
-	}
-	err := json.Unmarshal(config, v)
-	if err != nil {
-		log.Errorf("json unmarshal server config failed:%v, config:%s", err, config)
-	}
-}
-
-func (s *MCPServer) getMCPTools() map[string]Tool {
-	return s.tools
-}
-
-func (s *MCPServer) setConfig(config []byte) {
-	s.config = config
-
+	Clone() Server
 }
 
 type Tool interface {
