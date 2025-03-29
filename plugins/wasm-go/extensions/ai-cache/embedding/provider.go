@@ -32,9 +32,9 @@ var (
 		PROVIDER_TYPE_COHERE:      &cohereProviderInitializer{},
 		PROVIDER_TYPE_OPENAI:      &openAIProviderInitializer{},
 		PROVIDER_TYPE_OLLAMA:      &ollamaProviderInitializer{},
-		PROVIDER_TYPE_HUGGINGFACE: &HuggingFaceProviderInitializer{},
-		PROVIDER_TYPE_XFYUN:       &XfyunProviderInitializer{},
-		PROVIDER_TYPE_AZURE:       &AzureProviderInitializer{},
+		PROVIDER_TYPE_HUGGINGFACE: &huggingfaceProviderInitializer{},
+		PROVIDER_TYPE_XFYUN:       &xfyunProviderInitializer{},
+		PROVIDER_TYPE_AZURE:       &azureProviderInitializer{},
 	}
 )
 

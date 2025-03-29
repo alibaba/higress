@@ -17,12 +17,12 @@ const (
 	AZURE_ENDPOINT           = "/openai/deployments/{model}/embeddings"
 )
 
-type AzureProviderInitializer struct {
+type azureProviderInitializer struct {
 }
 
-var AzureConfig AzureProviderConfig
+var azureConfig azureProviderConfig
 
-type AzureProviderConfig struct {
+type azureProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务 API Key
 	// @Description zh-CN 文本特征提取服务 API Key
 	apiKey string
@@ -31,22 +31,22 @@ type AzureProviderConfig struct {
 	apiVersion string
 }
 
-func (c *AzureProviderInitializer) InitConfig(json gjson.Result) {
-	AzureConfig.apiKey = json.Get("apiKey").String()
-	AzureConfig.apiVersion = json.Get("apiVersion").String()
+func (c *azureProviderInitializer) InitConfig(json gjson.Result) {
+	azureConfig.apiKey = json.Get("apiKey").String()
+	azureConfig.apiVersion = json.Get("apiVersion").String()
 }
 
-func (c *AzureProviderInitializer) ValidateConfig() error {
-	if AzureConfig.apiKey == "" {
+func (c *azureProviderInitializer) ValidateConfig() error {
+	if azureConfig.apiKey == "" {
 		return errors.New("[Azure] apiKey is required")
 	}
-	if AzureConfig.apiVersion == "" {
+	if azureConfig.apiVersion == "" {
 		return errors.New("[Azure] apiVersion is required")
 	}
 	return nil
 }
 
-func (t *AzureProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
+func (t *azureProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
 		c.servicePort = AZURE_PORT
 	}
@@ -78,7 +78,7 @@ type AzureEmbeddingRequest struct {
 	Input string `json:"input"`
 }
 
-func (t *AzureProvider) constructParameters(text string, log log.Log) (string, [][2]string, []byte, error) {
+func (t *AzureProvider) constructParameters(text string) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
@@ -101,10 +101,10 @@ func (t *AzureProvider) constructParameters(text string, log log.Log) (string, [
 
 	// 拼接 endpoint
 	endpoint := strings.Replace(AZURE_ENDPOINT, "{model}", model, 1)
-	endpoint = endpoint + "?" + "api-version=" + AzureConfig.apiVersion
+	endpoint = endpoint + "?" + "api-version=" + azureConfig.apiVersion
 
 	headers := [][2]string{
-		{"api-key", AzureConfig.apiKey},
+		{"api-key", azureConfig.apiKey},
 		{"Content-Type", "application/json"},
 	}
 
@@ -134,7 +134,7 @@ func (t *AzureProvider) GetEmbedding(
 	ctx wrapper.HttpContext,
 	log log.Log,
 	callback func(emb []float64, err error)) error {
-	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
+	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString)
 	if err != nil {
 		log.Errorf("failed to construct parameters: %v", err)
 		return err

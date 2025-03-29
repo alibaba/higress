@@ -98,7 +98,7 @@ type TIProvider struct {
 	client wrapper.HttpClient
 }
 
-func (t *TIProvider) constructParameters(texts []string, log log.Log) (string, [][2]string, []byte, error) {
+func (t *TIProvider) constructParameters(texts []string) (string, [][2]string, []byte, error) {
 
 	data := TextInEmbeddingRequest{
 		Input:         texts,
@@ -145,7 +145,7 @@ func (t *TIProvider) GetEmbedding(
 	ctx wrapper.HttpContext,
 	log log.Log,
 	callback func(emb []float64, err error)) error {
-	embUrl, embHeaders, embRequestBody, err := t.constructParameters([]string{queryString}, log)
+	embUrl, embHeaders, embRequestBody, err := t.constructParameters([]string{queryString})
 	if err != nil {
 		log.Errorf("failed to construct parameters: %v", err)
 		return err
