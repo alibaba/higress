@@ -211,6 +211,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.proxy.includeOutboundPorts | string | `""` |  |
 | global.proxy.logLevel | string | `"warning"` | Log level for proxy, applies to gateways and sidecars. Expected values are: trace|debug|info|warning|error|critical|off |
 | global.proxy.privileged | bool | `false` | If set to true, istio-proxy container will have privileged securityContext |
+| global.proxy.proxyStatsMatcher | object | `{"inclusionRegexps":[".*"]}` | Proxy stats name regexps matcher for inclusion |
 | global.proxy.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | global.proxy.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
 | global.proxy.readinessPeriodSeconds | int | `2` | The period between readiness probes. |
