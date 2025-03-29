@@ -5,7 +5,7 @@ go 1.24
 toolchain go1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250324133957-dab499f6ade6
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329122411-e07be585ff55
 	github.com/tidwall/gjson v1.17.3
 )
 

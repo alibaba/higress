@@ -12,30 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package config
 
-import (
-	"encoding/json"
-	"errors"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-)
-
-type QuarkMCPServer struct {
+type QuarkServerConfig struct {
 	ApiKey string `json:"apiKey"`
-}
-
-func (s QuarkMCPServer) ConfigHasError() error {
-	if s.ApiKey == "" {
-		return errors.New("missing api key")
-	}
-	return nil
-}
-
-func ParseFromConfig(configBytes []byte, server *QuarkMCPServer) error {
-	return json.Unmarshal(configBytes, server)
-}
-
-func ParseFromRequest(ctx wrapper.HttpContext, server *QuarkMCPServer) error {
-	return ctx.ParseMCPServerConfig(server)
 }

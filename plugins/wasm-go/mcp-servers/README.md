@@ -33,49 +33,20 @@ my-mcp-server/
 ├── go.mod                 # Go module definition
 ├── go.sum                 # Go module checksums
 ├── main.go                # Entry point that registers tools and resources
-├── server/
-│   └── server.go          # Server configuration and parsing
 └── tools/
     └── my_tool.go         # Tool implementation
 ```
 
 ## Server Configuration
 
-The server configuration defines the parameters needed for the server to function. For example:
+Define a configuration structure for your MCP server to store settings like API keys:
 
 ```go
-// server/server.go
-package server
+// config/config.go
+package config
 
-import (
-    "encoding/json"
-    "errors"
-
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-)
-
-// Define your server configuration structure
-type MyMCPServer struct {
+type MyServerConfig struct {
     ApiKey string `json:"apiKey"`
-    // Add other configuration fields as needed
-}
-
-// Validate the configuration
-func (s MyMCPServer) ConfigHasError() error {
-    if s.ApiKey == "" {
-        return errors.New("missing api key")
-    }
-    return nil
-}
-
-// Parse configuration from JSON
-func ParseFromConfig(configBytes []byte, server *MyMCPServer) error {
-    return json.Unmarshal(configBytes, server)
-}
-
-// Parse configuration from HTTP request
-func ParseFromRequest(ctx wrapper.HttpContext, server *MyMCPServer) error {
-    return ctx.ParseMCPServerConfig(server)
 }
 ```
 
@@ -96,12 +67,13 @@ package tools
 
 import (
     "encoding/json"
+    "errors"
     "fmt"
     "net/http"
     
-    "my-mcp-server/server"
-    
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+    "my-mcp-server/config"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 )
 
 // Define your tool structure with input parameters
@@ -122,13 +94,13 @@ func (t MyTool) Description() string {
 // which defines the JSON Schema for the tool's input parameters, including
 // property types, descriptions, and required fields.
 func (t MyTool) InputSchema() map[string]any {
-    return wrapper.ToInputSchema(&MyTool{})
+    return server.ToInputSchema(&MyTool{})
 }
 
 // Create instantiates a new tool instance based on the input parameters
 // from an MCP tool call. It deserializes the JSON parameters into a struct,
 // applying default values for optional fields, and returns the configured tool instance.
-func (t MyTool) Create(params []byte) wrapper.MCPTool[server.MyMCPServer] {
+func (t MyTool) Create(params []byte) server.Tool {
     myTool := &MyTool{
         Param2: 5, // Default value
     }
@@ -139,22 +111,19 @@ func (t MyTool) Create(params []byte) wrapper.MCPTool[server.MyMCPServer] {
 // Call implements the core logic for handling an MCP tool call. This method is executed
 // when the tool is invoked through the MCP framework. It processes the configured parameters,
 // makes any necessary API requests, and formats the results to be returned to the caller.
-func (t MyTool) Call(ctx wrapper.HttpContext, config server.MyMCPServer) error {
-    // Validate configuration
-    err := server.ParseFromRequest(ctx, &config)
-    if err != nil {
-        return err
-    }
-    err = config.ConfigHasError()
-    if err != nil {
-        return err
+func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
+    // Get server configuration
+    serverConfig := &config.MyServerConfig{}
+    s.GetConfig(serverConfig)
+    if serverConfig.ApiKey == "" {
+        return errors.New("missing api key in server configuration")
     }
     
     // Implement your tool's logic here
     // ...
     
     // Return results
-    ctx.SendMCPToolTextResult(fmt.Sprintf("Result: %s, %d", t.Param1, t.Param2))
+    utils.SendMCPToolTextResult(ctx, fmt.Sprintf("Result: %s, %d", t.Param1, t.Param2))
     return nil
 }
 ```
@@ -168,21 +137,20 @@ The main.go file is the entry point for your MCP server. It registers your tools
 package main
 
 import (
-    "my-mcp-server/server"
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 )
 
 func main() {}
 
 func init() {
-    wrapper.SetCtx(
+    myMCPServer := &server.MCPServer{}
+    server.Load(server.AddMCPServer(
         "my-mcp-server", // Server name
-        wrapper.ParseRawConfig(server.ParseFromConfig),
-        wrapper.AddMCPTool("my_tool", tools.MyTool{}), // Register tools
+        myMCPServer.AddMCPTool("my_tool", &tools.MyTool{}), // Register tools
         // Add more tools as needed
-    )
+    ))
 }
 ```
 
@@ -191,8 +159,21 @@ func init() {
 Your MCP server must use a specific version of the wasm-go SDK that supports Go 1.24's WebAssembly compilation features:
 
 ```bash
-# Add the required dependency with the specific version tag
-go get github.com/alibaba/higress/plugins/wasm-go@wasm-go-1.24
+# Add the required dependency
+go get github.com/alibaba/higress/plugins/wasm-go
+```
+
+Make sure your go.mod file specifies Go 1.24:
+
+```
+module my-mcp-server
+
+go 1.24
+
+require (
+    github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250324133957-dab499f6ade6
+    // other dependencies
+)
 ```
 
 ## Building the WASM Binary
@@ -242,6 +223,8 @@ import (
     "testing"
 )
 
+// TestMyToolInputSchema tests the InputSchema method of MyTool
+// to verify that the JSON schema configuration is correct.
 func TestMyToolInputSchema(t *testing.T) {
     myTool := MyTool{}
     schema := myTool.InputSchema()
