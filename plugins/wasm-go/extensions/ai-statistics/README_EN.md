@@ -101,11 +101,45 @@ attributes:
     apply_to_span: false
 ```
 #### Metric
+
+Here is the English translation:
+
 ```
-route_upstream_model_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
-route_upstream_model_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
-route_upstream_model_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
-route_upstream_model_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
+# counter, cumulative count of input tokens
+route_upstream_model_consumer_metric_input_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 24
+
+# counter, cumulative count of output tokens
+route_upstream_model_consumer_metric_output_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 507
+
+# counter, cumulative total duration of both streaming and non-streaming requests
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 6470
+
+# counter, cumulative count of both streaming and non-streaming requests
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 2
+
+# counter, cumulative latency of the first token in streaming requests
+route_upstream_model_consumer_metric_llm_first_token_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 340
+
+# counter, cumulative count of streaming requests
+route_upstream_model_consumer_metric_llm_stream_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 1
+```
+
+Below are some example usages of these metrics:
+
+Average latency of the first token in streaming requests:
+
+```
+irate(route_upstream_model_consumer_metric_llm_first_token_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_stream_duration_count[2m])
+```
+
+Average process duration of both streaming and non-streaming requests:
+
+```
+irate(route_upstream_model_consumer_metric_llm_service_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 ```
 
 #### Log
