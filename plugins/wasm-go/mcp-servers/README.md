@@ -128,6 +128,56 @@ func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
 }
 ```
 
+## Tool Loading
+
+For better organization, you can create a separate file to load all your tools:
+
+```go
+// tools/load_tools.go
+package tools
+
+import (
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+)
+
+func LoadTools(server *mcp.MCPServer) server.Server {
+    return server.AddMCPTool("my_tool", &MyTool{}).
+        AddMCPTool("another_tool", &AnotherTool{})
+        // Add more tools as needed
+}
+```
+
+This approach to organizing code facilitates integration with the all-in-one MCP server plugin. The all-in-one plugin combines multiple MCP servers into a single plugin, reducing the overhead of deploying multiple plugins on the gateway.
+
+### All-in-One Integration
+
+The all-in-one plugin packages multiple MCP servers into a single WASM binary. Each MCP server maintains its own identity and configuration, but they share the same plugin instance. Here's an example of how multiple MCP servers are integrated in the all-in-one plugin:
+
+```go
+// all-in-one/main.go
+package main
+
+import (
+    amap "amap-tools/tools"
+    quark "quark-search/tools"
+    
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+)
+
+func main() {}
+
+func init() {
+    mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
+        quark.LoadTools(&mcp.MCPServer{})))
+    mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
+        amap.LoadTools(&mcp.MCPServer{})))
+    mcp.InitMCPServer()
+}
+```
+
+The configuration for the all-in-one plugin follows the same pattern as individual MCP server plugins. The `name` field in the server configuration is used to identify and route requests to the appropriate MCP server within the all-in-one plugin.
+
 ## Main Entry Point
 
 The main.go file is the entry point for your MCP server. It registers your tools and resources:
@@ -139,20 +189,36 @@ package main
 import (
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
 )
 
 func main() {}
 
 func init() {
-    myMCPServer := &server.MCPServer{}
-    server.Load(server.AddMCPServer(
-        "my-mcp-server", // Server name
-        myMCPServer.AddMCPTool("my_tool", &tools.MyTool{}), // Register tools
-        // Add more tools as needed
-    ))
+    mcp.LoadMCPServer(mcp.AddMCPServer("my-mcp-server",
+        tools.LoadTools(&mcp.MCPServer{})))
+    mcp.InitMCPServer()
 }
 ```
+
+## Plugin Configuration
+
+When deploying your MCP server as a Higress plugin, you need to configure it in the Higress configuration. Here's an example configuration:
+
+```yaml
+server:
+  # MCP server name - MUST match the name used in mcp.AddMCPServer() in your code
+  name: my-mcp-server
+  # MCP server configuration
+  config:
+    apiKey: your-api-key-here
+  # Optional: If configured, acts as a whitelist - only tools listed here can be called
+  tools:
+  - my_tool
+  - another_tool
+```
+
+> **Important**: The `name` field in the server configuration must exactly match the server name used in the `mcp.AddMCPServer()` call in your code. This is how the system identifies which MCP server should handle the request.
 
 ## Dependencies
 
