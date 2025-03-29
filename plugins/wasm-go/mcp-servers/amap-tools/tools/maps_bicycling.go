@@ -1,16 +1,33 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 
-	"amap-tools/server"
+	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 )
+
+var _ server.Tool = BicyclingRequest{}
 
 type BicyclingRequest struct {
 	Origin      string `json:"origin" jsonschema_description:"出发点经纬度，坐标格式为：经度，纬度"`
@@ -22,66 +39,57 @@ func (t BicyclingRequest) Description() string {
 }
 
 func (t BicyclingRequest) InputSchema() map[string]any {
-	return wrapper.ToInputSchema(&BicyclingRequest{})
+	return server.ToInputSchema(&BicyclingRequest{})
 }
 
-func (t BicyclingRequest) Create(params []byte) wrapper.MCPTool[server.AmapMCPServer] {
+func (t BicyclingRequest) Create(params []byte) server.Tool {
 	request := &BicyclingRequest{}
 	json.Unmarshal(params, &request)
 	return request
 }
 
-func (t BicyclingRequest) Call(ctx wrapper.HttpContext, config server.AmapMCPServer) error {
-	err := server.ParseFromRequest(ctx, &config)
-	if err != nil {
-		log.Errorf("parse config from request failed, err:%s", err)
-		return err
-	}
-	err = config.ConfigHasError()
-	if err != nil {
-		return err
+func (t BicyclingRequest) Call(ctx server.HttpContext, s server.Server) error {
+	serverConfig := &config.AmapServerConfig{}
+	s.GetConfig(serverConfig)
+	if serverConfig.ApiKey == "" {
+		return errors.New("amap API-KEY is not configured")
 	}
 
-	apiKey := config.ApiKey
-	if apiKey == "" {
-		return fmt.Errorf("amap API-KEY is not set")
-	}
-
-	url := fmt.Sprintf("http://restapi.amap.com/v4/direction/bicycling?key=%s&origin=%s&destination=%s&source=ts_mcp", apiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
+	url := fmt.Sprintf("http://restapi.amap.com/v4/direction/bicycling?key=%s&origin=%s&destination=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
 	return ctx.RouteCall(http.MethodGet, url,
 		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				ctx.OnMCPToolCallError(fmt.Errorf("bicycling call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("bicycling call failed, status: %d", statusCode))
 				return
 			}
 			var response struct {
 				Errcode int `json:"errcode"`
-				Data struct {
-					Origin string `json:"origin"`
+				Data    struct {
+					Origin      string `json:"origin"`
 					Destination string `json:"destination"`
-					Paths []struct {
+					Paths       []struct {
 						Distance string `json:"distance"`
 						Duration string `json:"duration"`
-						Steps []struct {
+						Steps    []struct {
 							Instruction string `json:"instruction"`
-							Road string `json:"road"`
-							Distance string `json:"distance"`
+							Road        string `json:"road"`
+							Distance    string `json:"distance"`
 							Orientation string `json:"orientation"`
-							Duration string `json:"duration"`
+							Duration    string `json:"duration"`
 						} `json:"steps"`
 					} `json:"paths"`
 				} `json:"data"`
 			}
 			err := json.Unmarshal(responseBody, &response)
 			if err != nil {
-				ctx.OnMCPToolCallError(fmt.Errorf("failed to parse bicycling response: %v", err))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse bicycling response: %v", err))
 				return
 			}
 			if response.Errcode != 0 {
-				ctx.OnMCPToolCallError(fmt.Errorf("bicycling failed: %v", response))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("bicycling failed: %v", response))
 				return
 			}
-			result := fmt.Sprintf(`{"origin": "%s", "destination": "%s", "paths": %s}`, response.Data.Origin, response.Data.Destination, string(responseBody))
-			ctx.SendMCPToolTextResult(result)
+			result, _ := json.MarshalIndent(response.Data.Paths, "", "  ")
+			utils.SendMCPToolTextResult(ctx, string(result))
 		})
 }

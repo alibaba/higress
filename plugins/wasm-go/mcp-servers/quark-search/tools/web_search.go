@@ -16,17 +16,20 @@ package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"quark-search/server"
+	"quark-search/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/tidwall/gjson"
 )
+
+var _ server.Tool = WebSearch{}
 
 type SearchResult struct {
 	Title   string
@@ -70,12 +73,12 @@ Because Quark search performs poorly for English searches, please use Chinese fo
 // which defines the JSON Schema for the tool's input parameters, including
 // property types, descriptions, and required fields.
 func (t WebSearch) InputSchema() map[string]any {
-	return wrapper.ToInputSchema(&WebSearch{})
+	return server.ToInputSchema(&WebSearch{})
 }
 
 // Create instantiates a new WebSearch tool instance based on the input parameters
 // from an MCP tool call.
-func (t WebSearch) Create(params []byte) wrapper.MCPTool[server.QuarkMCPServer] {
+func (t WebSearch) Create(params []byte) server.Tool {
 	webSearch := &WebSearch{
 		ContentMode: "summary",
 		Number:      5,
@@ -88,20 +91,17 @@ func (t WebSearch) Create(params []byte) wrapper.MCPTool[server.QuarkMCPServer] 
 // when the tool is invoked through the MCP framework. It processes the configured parameters,
 // makes the actual API request to the service, parses the response,
 // and formats the results to be returned to the caller.
-func (t WebSearch) Call(ctx wrapper.HttpContext, config server.QuarkMCPServer) error {
-	err := server.ParseFromRequest(ctx, &config)
-	if err != nil {
-		log.Errorf("parse config from request failed, err:%s", err)
-	}
-	err = config.ConfigHasError()
-	if err != nil {
-		return err
+func (t WebSearch) Call(ctx server.HttpContext, s server.Server) error {
+	serverConfig := &config.QuarkServerConfig{}
+	s.GetConfig(serverConfig)
+	if serverConfig.ApiKey == "" {
+		return errors.New("Quark search API key not configured")
 	}
 	return ctx.RouteCall(http.MethodGet, fmt.Sprintf("https://cloud-iqs.aliyuncs.com/search/genericSearch?query=%s", url.QueryEscape(t.Query)),
 		[][2]string{{"Accept", "application/json"},
-			{"X-API-Key", config.ApiKey}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			{"X-API-Key", serverConfig.ApiKey}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				ctx.OnMCPToolCallError(fmt.Errorf("quark search call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("quark search call failed, status: %d", statusCode))
 				return
 			}
 			jsonObj := gjson.ParseBytes(responseBody)
@@ -125,6 +125,6 @@ func (t WebSearch) Call(ctx wrapper.HttpContext, config server.QuarkMCPServer) e
 					results = append(results, result.Format())
 				}
 			}
-			ctx.SendMCPToolTextResult(fmt.Sprintf("# Search Results\n\n%s", strings.Join(results, "\n\n")))
+			utils.SendMCPToolTextResult(ctx, fmt.Sprintf("# Search Results\n\n%s", strings.Join(results, "\n\n")))
 		})
 }
