@@ -76,8 +76,8 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		return errors.New("server.name field is missing")
 	}
 	if server, exist := globalContext.servers[serverName]; exist {
-		config.server = server.clone()
-		config.server.setConfig([]byte(serverJson.Get("config").Raw))
+		config.server = server.Clone()
+		config.server.SetConfig([]byte(serverJson.Get("config").Raw))
 	} else {
 		return fmt.Errorf("mcp server not found:%s", serverName)
 	}
@@ -108,7 +108,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
 		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		var tools []map[string]any
-		for name, tool := range config.server.getMCPTools() {
+		for name, tool := range config.server.GetMCPTools() {
 			tools = append(tools, map[string]any{
 				"name":        name,
 				"description": tool.Description(),
@@ -126,7 +126,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		args := params.Get("arguments")
 		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		proxywasm.SetProperty([]string{"mcp_tool_name"}, []byte(name))
-		if tool, ok := config.server.getMCPTools()[name]; ok {
+		if tool, ok := config.server.GetMCPTools()[name]; ok {
 			log.Debugf("tool call with arguments[%s]", name, args.Raw)
 			toolInstance := tool.Create([]byte(args.Raw))
 			err := toolInstance.Call(ctx, config.server)
