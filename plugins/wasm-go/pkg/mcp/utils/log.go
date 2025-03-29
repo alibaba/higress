@@ -23,7 +23,6 @@ import (
 )
 
 type MCPServerLog struct {
-	wrapper.DefaultLog
 }
 
 func setMCPInfo(msg string) string {
@@ -38,12 +37,12 @@ func setMCPInfo(msg string) string {
 	mcpToolName := string(mcpToolNameRaw)
 	mcpInfo := mcpServerName
 	if mcpToolName != "" {
-		mcpInfo = fmt.Sprintf("%s/%s", mcpServerName, &mcpToolName)
+		mcpInfo = fmt.Sprintf("%s/%s", mcpServerName, mcpToolName)
 	}
 	return fmt.Sprintf("[mcp-server] [%s] [%s] %s", mcpInfo, requestID, msg)
 }
 
-func (l MCPServerLog) Log(level wrapper.LogLevel, msg string) {
+func (l MCPServerLog) log(level wrapper.LogLevel, msg string) {
 	msg = setMCPInfo(msg)
 	switch level {
 	case wrapper.LogLevelTrace:
@@ -61,7 +60,7 @@ func (l MCPServerLog) Log(level wrapper.LogLevel, msg string) {
 	}
 }
 
-func (l MCPServerLog) LogFormat(level wrapper.LogLevel, format string, args ...interface{}) {
+func (l MCPServerLog) logFormat(level wrapper.LogLevel, format string, args ...interface{}) {
 	format = setMCPInfo(format)
 	switch level {
 	case wrapper.LogLevelTrace:
@@ -77,4 +76,55 @@ func (l MCPServerLog) LogFormat(level wrapper.LogLevel, format string, args ...i
 	case wrapper.LogLevelCritical:
 		proxywasm.LogCriticalf(format, args...)
 	}
+}
+
+func (l MCPServerLog) Trace(msg string) {
+	l.log(wrapper.LogLevelTrace, msg)
+}
+
+func (l MCPServerLog) Tracef(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelTrace, format, args...)
+}
+
+func (l MCPServerLog) Debug(msg string) {
+	l.log(wrapper.LogLevelDebug, msg)
+}
+
+func (l MCPServerLog) Debugf(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelDebug, format, args...)
+}
+
+func (l MCPServerLog) Info(msg string) {
+	l.log(wrapper.LogLevelInfo, msg)
+}
+
+func (l MCPServerLog) Infof(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelInfo, format, args...)
+}
+
+func (l MCPServerLog) Warn(msg string) {
+	l.log(wrapper.LogLevelWarn, msg)
+}
+
+func (l MCPServerLog) Warnf(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelWarn, format, args...)
+}
+
+func (l MCPServerLog) Error(msg string) {
+	l.log(wrapper.LogLevelError, msg)
+}
+
+func (l MCPServerLog) Errorf(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelError, format, args...)
+}
+
+func (l MCPServerLog) Critical(msg string) {
+	l.log(wrapper.LogLevelCritical, msg)
+}
+
+func (l MCPServerLog) Criticalf(format string, args ...interface{}) {
+	l.logFormat(wrapper.LogLevelCritical, format, args...)
+}
+
+func (l MCPServerLog) ResetID(pluginID string) {
 }
