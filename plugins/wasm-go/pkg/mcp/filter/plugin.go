@@ -48,26 +48,78 @@ var globalContext Context
 
 type ParseFilterConfigF func(configBytes []byte, filterConfig any) error
 
-type ParseFilterConfigOption struct {
-	parseConfig ParseFilterConfigF
+type setConfigParserOption struct {
+	f ParseFilterConfigF
 }
 
-type FilterNameOption struct {
+func SetConfigParser(f ParseFilterConfigF) CtxOption {
+	return &setConfigParserOption{f}
 }
 
-type SetRequestFilterOption struct {
+func (o *setConfigParserOption) Apply(ctx *Context) {
+	ctx.parseFilterConfig = o.f
 }
 
-type SetResponseFilterOption struct {
+type filterNameOption struct {
+	name string
+}
+
+func FilterName(name string) CtxOption {
+	return &filterNameOption{name}
+}
+
+func (o *filterNameOption) Apply(ctx *Context) {
+	ctx.filterName = o.name
+}
+
+type setRequestFilterOption struct {
+	f RequestFilterF
+}
+
+func SetRequestFilter(f RequestFilterF) CtxOption {
+	return &setRequestFilterOption{f}
+}
+
+func (o *setRequestFilterOption) Apply(ctx *Context) {
+	ctx.requestFilter = o.f
+}
+
+type setResponseFilterOption struct {
+	f ResponseFilterF
+}
+
+func SetResponseFilter(f ResponseFilterF) CtxOption {
+	return &setResponseFilterOption{f}
+}
+
+func (o *setResponseFilterOption) Apply(ctx *Context) {
+	ctx.responseFilter = o.f
+}
+
+type onJsonRpcErrorOption struct {
+	f OnJsonRpcErrorF
+}
+
+func OnJsonRpcError(f OnJsonRpcErrorF) CtxOption {
+	return &onJsonRpcErrorOption{f}
+}
+
+func (o *onJsonRpcErrorOption) Apply(ctx *Context) {
+	ctx.onJsonRpcError = o.f
 }
 
 func Load(options ...CtxOption) {
-	globalContext := &Context{}
 	for _, opt := range options {
-		opt.Apply(globalContext)
+		opt.Apply(&globalContext)
+	}
+}
+
+func Initialize() {
+	if globalContext.filterName == "" {
+		panic("FilterName not set")
 	}
 	if globalContext.parseFilterConfig == nil {
-		panic("ParseFilterConfig not set")
+		panic("SetConfigParser not set")
 	}
 	if globalContext.requestFilter == nil && globalContext.responseFilter == nil {
 		panic("At least one of SetRequestFilter or SetResponseFilter needs to be set.")

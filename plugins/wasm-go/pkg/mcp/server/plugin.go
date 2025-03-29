@@ -204,11 +204,14 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 }
 
 func Load(options ...CtxOption) {
-	globalContext := &Context{
-		servers: make(map[string]Server),
-	}
 	for _, opt := range options {
-		opt.Apply(globalContext)
+		opt.Apply(&globalContext)
+	}
+}
+
+func Initialize() {
+	if globalContext.servers == nil {
+		panic("At least one mcpserver needs to be added.")
 	}
 	wrapper.SetCtx(
 		"mcp-server",
@@ -232,6 +235,9 @@ func AddMCPServer(name string, server Server) CtxOption {
 }
 
 func (o *addMCPServerOption) Apply(ctx *Context) {
+	if ctx.servers == nil {
+		ctx.servers = make(map[string]Server)
+	}
 	if _, exist := ctx.servers[o.name]; exist {
 		panic(fmt.Sprintf("Conflict! There is a mcp server with the same name:%s",
 			o.name))
