@@ -15,7 +15,8 @@
 package main
 
 import (
-	"amap-tools/tools"
+	amap "amap-tools/tools"
+	quark "quark-search/tools"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
 )
@@ -23,7 +24,9 @@ import (
 func main() {}
 
 func init() {
+	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
+		quark.LoadTools(&mcp.MCPServer{})))
 	mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
-		tools.LoadTools(&mcp.MCPServer{})))
+		amap.LoadTools(&mcp.MCPServer{})))
 	mcp.InitMCPServer()
 }
