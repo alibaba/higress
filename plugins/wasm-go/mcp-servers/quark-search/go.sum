@@ -1,5 +1,5 @@
-github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329122411-e07be585ff55 h1:yGPhs3VhC4Mj4SmbaLcKSZ1sV8wRW/eGf/13P0c2+S8=
-github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329122411-e07be585ff55/go.mod h1:csP9Mpkc+gVgbZsizCdcYSy0LJrQA+//RcnZBInyknc=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329145934-61b36a20cd9c h1:giBV8e7p0qxRdBsCu4AjXbpUI8sNiGkEtPNWEXf6fA4=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329145934-61b36a20cd9c/go.mod h1:csP9Mpkc+gVgbZsizCdcYSy0LJrQA+//RcnZBInyknc=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
