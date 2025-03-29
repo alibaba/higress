@@ -167,6 +167,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableLDSCache | bool | `false` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enablePushAllMCPClusters | bool | `true` |  |
+| global.enableRedis | bool | `false` | Whether to enable Redis(redis-stack-server) for Higress Controller, default is false. |
 | global.enableSRDS | bool | `true` |  |
 | global.enableStatus | bool | `true` | If true, Higress Controller will update the status field of Ingress resources. When migrating from Nginx Ingress, in order to avoid status field of Ingress objects being overwritten, this parameter needs to be set to false, so Higress won't write the entry IP to the status field of the corresponding Ingress object. |
 | global.externalIstiod | bool | `false` | Configure a remote cluster data plane controlled by an external istiod. When set to true, istiod is not deployed locally and only a subset of the other discovery charts are enabled. |
@@ -271,6 +272,22 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.serviceAnnotations | object | `{}` |  |
 | pilot.tag | string | `""` |  |
 | pilot.traceSampling | float | `1` |  |
+| redis.redis.affinity | object | `{}` | Affinity for Redis |
+| redis.redis.image | string | `"redis-stack-server"` | Specify the image |
+| redis.redis.name | string | `"redis-stack-server"` |  |
+| redis.redis.nodeSelector | object | `{}` | NodeSelector Node labels for Redis |
+| redis.redis.password | string | `""` | Specify the password, if not set, no password is used |
+| redis.redis.persistence.accessModes | list | `["ReadWriteOnce"]` | Persistent Volume access modes |
+| redis.redis.persistence.enabled | bool | `false` | Enable persistence on Redis, default is false |
+| redis.redis.persistence.size | string | `"1Gi"` | Persistent Volume size |
+| redis.redis.persistence.storageClass | string | `""` | If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner |
+| redis.redis.replicas | int | `1` | Specify the number of replicas |
+| redis.redis.resources | object | `{}` | Specify the resources |
+| redis.redis.service | object | `{"port":6379,"type":"ClusterIP"}` | Service parameters |
+| redis.redis.service.port | int | `6379` | Exporter service port |
+| redis.redis.service.type | string | `"ClusterIP"` | Exporter service type |
+| redis.redis.tag | string | `"7.4.0-v3"` | Specify the tag |
+| redis.redis.tolerations | list | `[]` | Tolerations for Redis |
 | revision | string | `""` |  |
 | tracing.enable | bool | `false` |  |
 | tracing.sampling | int | `100` |  |
