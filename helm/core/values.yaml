@@ -199,6 +199,11 @@ global:
     # -- Controls if sidecar is injected at the front of the container list and blocks the start of the other containers until the proxy is ready
     holdApplicationUntilProxyStarts: false
 
+    # -- Proxy stats name regexps matcher for inclusion
+    proxyStatsMatcher:
+      inclusionRegexps:
+        - ".*"
+
   proxy_init:
     # -- Base name for the proxy_init container, used to configure iptables.
     image: proxyv2
