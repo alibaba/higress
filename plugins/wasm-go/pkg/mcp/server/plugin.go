@@ -107,20 +107,20 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		})
 		return nil
 	}
-	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		var tools []map[string]any
-		for name, tool := range config.server.GetMCPTools() {
-			if len(allowTools) != 0 {
-				if _, allow := allowTools[name]; !allow {
-					continue
-				}
+	var tools []map[string]any
+	for name, tool := range config.server.GetMCPTools() {
+		if len(allowTools) != 0 {
+			if _, allow := allowTools[name]; !allow {
+				continue
 			}
-			tools = append(tools, map[string]any{
-				"name":        name,
-				"description": tool.Description(),
-				"inputSchema": tool.InputSchema(),
-			})
 		}
+		tools = append(tools, map[string]any{
+			"name":        name,
+			"description": tool.Description(),
+			"inputSchema": tool.InputSchema(),
+		})
+	}
+	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{
 			"tools":      tools,
 			"nextCursor": "",
