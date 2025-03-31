@@ -24,6 +24,7 @@ type filter struct {
 	req        *http.Request
 	serverName string
 	message    bool
+	proxyURL   *url.URL
 }
 
 type RequestURL struct {
@@ -54,6 +55,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 
 	// Check if request matches any rule in match_list
 	if !internal.IsMatch(f.config.matchList, url.host, f.path) {
+		api.LogDebugf("Request does not match any rule in match_list: %s", url.parsedURL.String())
 		return api.Continue
 	}
 
@@ -94,6 +96,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
+		f.proxyURL = url.parsedURL
 		return api.Continue
 	}
 
@@ -154,8 +157,8 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if !endStream {
 		return api.StopAndBuffer
 	}
-	if f.req != nil {
-		sessionID := f.req.URL.Query().Get("sessionId")
+	if f.proxyURL != nil {
+		sessionID := f.proxyURL.Query().Get("sessionId")
 		if sessionID != "" {
 			channel := internal.GetSSEChannelName(sessionID)
 			publishErr := f.config.redisClient.Publish(channel, buffer.String())
