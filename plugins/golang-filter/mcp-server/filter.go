@@ -161,7 +161,8 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 		sessionID := f.proxyURL.Query().Get("sessionId")
 		if sessionID != "" {
 			channel := internal.GetSSEChannelName(sessionID)
-			publishErr := f.config.redisClient.Publish(channel, buffer.String())
+			eventData := fmt.Sprintf("event: message\ndata: %s\n\n", buffer.String())
+			publishErr := f.config.redisClient.Publish(channel, eventData)
 			if publishErr != nil {
 				api.LogErrorf("Failed to publish wasm mcp server message to Redis: %v", publishErr)
 			}
