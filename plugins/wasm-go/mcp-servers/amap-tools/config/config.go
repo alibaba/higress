@@ -12,18 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package config
 
-import (
-	"amap-tools/tools"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
-)
-
-func main() {}
-
-func init() {
-	mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
-		tools.LoadTools(&mcp.MCPServer{})))
-	mcp.InitMCPServer()
+// AmapServerConfig defines the configuration structure for the Amap MCP server
+type AmapServerConfig struct {
+	ApiKey string `json:"apiKey"`
+	// Add other configuration fields as needed
 }

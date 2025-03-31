@@ -53,6 +53,16 @@ type SSEServer struct {
 	Config map[string]interface{} `json:"config,omitempty"`
 }
 
+// MatchRule defines a rule for matching requests
+type MatchRule struct {
+	// Domain pattern, supports wildcards
+	MatchRuleDomain string `json:"match_rule_domain,omitempty"`
+	// Path pattern to match
+	MatchRulePath string `json:"match_rule_path,omitempty"`
+	// Type of match rule: exact, prefix, suffix, contains, regex
+	MatchRuleType string `json:"match_rule_type,omitempty"`
+}
+
 // McpServer defines the configuration for MCP (Model Context Protocol) server
 type McpServer struct {
 	// Flag to control whether MCP server is enabled
@@ -63,10 +73,16 @@ type McpServer struct {
 	SsePathSuffix string `json:"sse_path_suffix,omitempty"`
 	// List of SSE servers Configs
 	Servers []*SSEServer `json:"servers,omitempty"`
+	// List of match rules for filtering requests
+	MatchList []*MatchRule `json:"match_list,omitempty"`
 }
 
 func NewDefaultMcpServer() *McpServer {
-	return &McpServer{Enable: false}
+	return &McpServer{
+		Enable:    false,
+		Servers:   make([]*SSEServer, 0),
+		MatchList: make([]*MatchRule, 0),
+	}
 }
 
 const (
@@ -80,6 +96,26 @@ func validMcpServer(m *McpServer) error {
 
 	if m.Enable && m.Redis == nil {
 		return errors.New("redis config cannot be empty when mcp server is enabled")
+	}
+
+	// Validate match rule types
+	if m.MatchList != nil {
+		validTypes := map[string]bool{
+			"exact":    true,
+			"prefix":   true,
+			"suffix":   true,
+			"contains": true,
+			"regex":    true,
+		}
+
+		for _, rule := range m.MatchList {
+			if rule.MatchRuleType == "" {
+				return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
+			}
+			if !validTypes[rule.MatchRuleType] {
+				return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
+			}
+		}
 	}
 
 	return nil
@@ -131,6 +167,17 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 				}
 			}
 			newMcp.Servers[i] = newServer
+		}
+	}
+
+	if len(mcp.MatchList) > 0 {
+		newMcp.MatchList = make([]*MatchRule, len(mcp.MatchList))
+		for i, rule := range mcp.MatchList {
+			newMcp.MatchList[i] = &MatchRule{
+				MatchRuleDomain: rule.MatchRuleDomain,
+				MatchRulePath:   rule.MatchRulePath,
+				MatchRuleType:   rule.MatchRuleType,
+			}
 		}
 	}
 
@@ -268,7 +315,7 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 }
 
 func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
-	// 构建 servers 配置
+	// Build servers configuration
 	servers := "[]"
 	if len(mcp.Servers) > 0 {
 		serverConfigs := make([]string, len(mcp.Servers))
@@ -291,11 +338,26 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		servers = fmt.Sprintf("[%s]", strings.Join(serverConfigs, ","))
 	}
 
-	// 构建完整的配置结构
+	// Build match_list configuration
+	matchList := "[]"
+	if len(mcp.MatchList) > 0 {
+		matchConfigs := make([]string, len(mcp.MatchList))
+		for i, rule := range mcp.MatchList {
+			matchConfigs[i] = fmt.Sprintf(`{
+				"match_rule_domain": "%s",
+				"match_rule_path": "%s",
+				"match_rule_type": "%s"
+			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType)
+		}
+		matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
+	}
+
+	// Build complete configuration structure
 	structFmt := `{
 		"name": "envoy.filters.http.golang",
 		"typed_config": {
-			"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+			"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
 			"value": {
 				"library_id": "mcp-server",
 				"library_path": "/var/lib/istio/envoy/mcp-server.so",
@@ -310,6 +372,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 							"db": %d
 						},
 						"sse_path_suffix": "%s",
+						"match_list": %s,
 						"servers": %s
 					}
 				}
@@ -323,5 +386,6 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		mcp.Redis.Password,
 		mcp.Redis.DB,
 		mcp.SsePathSuffix,
+		matchList,
 		servers)
 }

@@ -19,11 +19,12 @@ type filter struct {
 	callbacks api.FilterCallbackHandler
 	path      string
 	config    *config
+	stopChan  chan struct{}
 
 	req        *http.Request
 	serverName string
 	message    bool
-	bodyBuffer []byte
+	proxyURL   *url.URL
 }
 
 type RequestURL struct {
@@ -51,6 +52,12 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	url := NewRequestURL(header)
 	f.path = url.parsedURL.Path
+
+	// Check if request matches any rule in match_list
+	if !internal.IsMatch(f.config.matchList, url.host, f.path) {
+		api.LogDebugf("Request does not match any rule in match_list: %s", url.parsedURL.String())
+		return api.Continue
+	}
 
 	for _, server := range f.config.servers {
 		if f.path == server.GetSSEEndpoint() {
@@ -89,11 +96,8 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
-		if endStream {
-			return api.Continue
-		} else {
-			return api.StopAndBuffer
-		}
+		f.proxyURL = url.parsedURL
+		return api.Continue
 	}
 
 	if url.method != http.MethodGet {
@@ -115,18 +119,14 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
-		f.bodyBuffer = append(f.bodyBuffer, buffer.Bytes()...)
-
 		if endStream {
 			for _, server := range f.config.servers {
 				if f.path == server.GetMessageEndpoint() {
 					// Create a response recorder to capture the response
 					recorder := httptest.NewRecorder()
 					// Call the handleMessage method of SSEServer with complete body
-					server.HandleMessage(recorder, f.req, f.bodyBuffer)
+					server.HandleMessage(recorder, f.req, buffer.Bytes())
 					f.message = false
-					// clear buffer
-					f.bodyBuffer = nil
 					f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
 					return api.LocalReply
 				}
@@ -154,19 +154,34 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if !endStream {
+		return api.StopAndBuffer
+	}
+	if f.proxyURL != nil {
+		sessionID := f.proxyURL.Query().Get("sessionId")
+		if sessionID != "" {
+			channel := internal.GetSSEChannelName(sessionID)
+			eventData := fmt.Sprintf("event: message\ndata: %s\n\n", buffer.String())
+			publishErr := f.config.redisClient.Publish(channel, eventData)
+			if publishErr != nil {
+				api.LogErrorf("Failed to publish wasm mcp server message to Redis: %v", publishErr)
+			}
+		}
+	}
+
 	if f.serverName != "" {
 		// handle specific server
 		for _, server := range f.config.servers {
 			if f.serverName == server.GetServerName() {
 				buffer.Reset()
-				server.HandleSSE(f.callbacks)
+				server.HandleSSE(f.callbacks, f.stopChan)
 				return api.Running
 			}
 		}
 		// handle default server
 		if f.serverName == f.config.defaultServer.GetServerName() {
 			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks)
+			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
 			return api.Running
 		}
 		return api.Continue
@@ -176,13 +191,14 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 
 // OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
-	if f.serverName != "" && f.config.stopChan != nil {
+	api.LogDebugf("OnDestroy: reason=%v", reason)
+	if f.serverName != "" && f.stopChan != nil {
 		select {
-		case <-f.config.stopChan:
+		case <-f.stopChan:
 			return
 		default:
 			api.LogDebug("Stopping SSE connection")
-			close(f.config.stopChan)
+			close(f.stopChan)
 		}
 	}
 }

@@ -1,16 +1,33 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 
-	"amap-tools/server"
+	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 )
+
+var _ server.Tool = DrivingRequest{}
 
 type DrivingRequest struct {
 	Origin      string `json:"origin" jsonschema_description:"出发点经度，纬度，坐标格式为：经度，纬度"`
@@ -22,68 +39,59 @@ func (t DrivingRequest) Description() string {
 }
 
 func (t DrivingRequest) InputSchema() map[string]any {
-	return wrapper.ToInputSchema(&DrivingRequest{})
-}
+	return server.ToInputSchema(&DrivingRequest{})
 
-func (t DrivingRequest) Create(params []byte) wrapper.MCPTool[server.AmapMCPServer] {
+}
+func (t DrivingRequest) Create(params []byte) server.Tool {
 	request := &DrivingRequest{}
 	json.Unmarshal(params, &request)
 	return request
 }
 
-func (t DrivingRequest) Call(ctx wrapper.HttpContext, config server.AmapMCPServer) error {
-	err := server.ParseFromRequest(ctx, &config)
-	if err != nil {
-		log.Errorf("parse config from request failed, err:%s", err)
-		return err
-	}
-	err = config.ConfigHasError()
-	if err != nil {
-		return err
+func (t DrivingRequest) Call(ctx server.HttpContext, s server.Server) error {
+	serverConfig := &config.AmapServerConfig{}
+	s.GetConfig(serverConfig)
+	if serverConfig.ApiKey == "" {
+		return errors.New("amap API-KEY is not configured")
 	}
 
-	apiKey := config.ApiKey
-	if apiKey == "" {
-		return fmt.Errorf("amap API-KEY is not set")
-	}
-
-	url := fmt.Sprintf("http://restapi.amap.com/v3/direction/driving?key=%s&origin=%s&destination=%s&source=ts_mcp", apiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
+	url := fmt.Sprintf("http://restapi.amap.com/v3/direction/driving?key=%s&origin=%s&destination=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
 	return ctx.RouteCall(http.MethodGet, url,
 		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				ctx.OnMCPToolCallError(fmt.Errorf("driving call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("driving call failed, status: %d", statusCode))
 				return
 			}
 			var response struct {
 				Status string `json:"status"`
 				Info   string `json:"info"`
-				Route struct {
-					Origin string `json:"origin"`
+				Route  struct {
+					Origin      string `json:"origin"`
 					Destination string `json:"destination"`
-					Paths []struct {
-						Path string `json:"path"`
+					Paths       []struct {
+						Path     string `json:"path"`
 						Distance string `json:"distance"`
 						Duration string `json:"duration"`
-						Steps []struct {
+						Steps    []struct {
 							Instruction string `json:"instruction"`
-							Road string `json:"road"`
-							Distance string `json:"distance"`
+							Road        string `json:"road"`
+							Distance    string `json:"distance"`
 							Orientation string `json:"orientation"`
-							Duration string `json:"duration"`
+							Duration    string `json:"duration"`
 						} `json:"steps"`
 					} `json:"paths"`
 				} `json:"route"`
 			}
 			err := json.Unmarshal(responseBody, &response)
 			if err != nil {
-				ctx.OnMCPToolCallError(fmt.Errorf("failed to parse driving response: %v", err))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse driving response: %v", err))
 				return
 			}
 			if response.Status != "1" {
-				ctx.OnMCPToolCallError(fmt.Errorf("driving failed: %s", response.Info))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("driving failed: %s", response.Info))
 				return
 			}
-			result := fmt.Sprintf(`{"origin": "%s", "destination": "%s", "paths": %s}`, response.Route.Origin, response.Route.Destination, string(responseBody))
-			ctx.SendMCPToolTextResult(result)
+			result, _ := json.MarshalIndent(response.Route.Paths, "", "  ")
+			utils.SendMCPToolTextResult(ctx, string(result))
 		})
 }
