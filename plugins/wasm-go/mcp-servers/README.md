@@ -180,7 +180,7 @@ The configuration for the all-in-one plugin follows the same pattern as individu
 
 ## REST-to-MCP Configuration
 
-Higress supports a special REST-to-MCP configuration that allows you to convert REST APIs to MCP tools without writing any code. This is useful for quickly integrating existing REST APIs with AI assistants.
+Higress supports a special REST-to-MCP configuration that allows you to convert REST APIs to MCP tools without writing any code. This is useful for quickly integrating existing REST APIs with AI assistants. This capability is built into all MCP servers and can be used with the all-in-one plugin. The implementation is available at [rest_server.go](https://github.com/alibaba/higress/blob/wasm-go-1.24/plugins/wasm-go/pkg/mcp/server/rest_server.go).
 
 ### Configuration Format
 
