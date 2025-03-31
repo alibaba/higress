@@ -177,7 +177,7 @@ all-in-one 插件的配置方式与所有 MCP server 插件都是一样的，都
 
 ## REST-to-MCP 配置
 
-Higress 支持一种特殊的 REST-to-MCP 配置，允许您无需编写任何代码即可将 REST API 转换为 MCP 工具。这对于快速将现有 REST API 与 AI 助手集成非常有用。
+Higress 支持一种特殊的 REST-to-MCP 配置，允许您无需编写任何代码即可将 REST API 转换为 MCP 工具。这对于快速将现有 REST API 与 AI 助手集成非常有用。这个能力是所有 MCP 服务器内置的，可以基于 all-in-one 这个插件来使用。内置的逻辑实现在 [rest_server.go](https://github.com/alibaba/higress/blob/wasm-go-1.24/plugins/wasm-go/pkg/mcp/server/rest_server.go)。
 
 ### 配置格式
 
