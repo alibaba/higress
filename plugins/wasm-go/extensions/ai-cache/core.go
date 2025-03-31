@@ -130,7 +130,7 @@ func performEmbeddingQuery(key string, ctx wrapper.HttpContext, c config.PluginC
 		return logAndReturnError(log, fmt.Sprintf("[performEmbeddingQuery] no embedding provider configured for similarity search"))
 	}
 
-	return activeEmbeddingProvider.GetEmbedding(key, ctx, log, func(textEmbedding []float64, err error) {
+	return activeEmbeddingProvider.GetEmbedding(key, ctx, func(textEmbedding []float64, err error) {
 		log.Debugf("[%s] [performEmbeddingQuery] GetEmbedding success, length of embedding: %d, error: %v", PLUGIN_NAME, len(textEmbedding), err)
 		if err != nil {
 			handleInternalError(err, fmt.Sprintf("[%s] [performEmbeddingQuery] error getting embedding for key: %s", PLUGIN_NAME, key), log)

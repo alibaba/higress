@@ -102,6 +102,24 @@ LLM 结果缓存插件，默认配置方式可以直接用于 openai 协议的�
 
 ## 文本向量化提供商特有配置
 
+### Azure OpenAI
+
+Azure OpenAI 所对应的 `embedding.type` 为 `azure`。它需要提前创建[Azure OpenAI 账户](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/overview)，然后您需要在[Azure AI Foundry](https://ai.azure.com/resource/deployments)中挑选一个模型并将其部署，点击您部署好的模型，您可以在终结点中看到目标 URI 以及密钥。请将 URI 中的 host 填入`embedding.serviceHost`，密钥填入`apiKey`。
+
+一个完整的 URI 示例为 https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/embeddings?api-version=2024-10-21，您需要将`YOUR_RESOURCE_NAME.openai.azure.com`填入`embedding.serviceHost`。
+
+它特有的配置字段如下：
+
+| 名称                   | 数据类型 | 填写要求 | 默认值 | 描述    | 填写值                       |
+| ---------------------- | -------- | -------- | ------ | ------- | ---------------------------- |
+| `embedding.apiVersion` | string   | 必填     | -      | api版本 | 获取到的URI中api-version的值 |
+
+需要注意的是您必须要指定`embedding.serviceHost`，如`YOUR_RESOURCE_NAME.openai.azure.com`。模型默认使用了`text-embedding-ada-002`，如需其他模型，请在`embedding.model`中进行指定。
+
+### Cohere
+
+Cohere 所对应的 `embedding.type` 为 `cohere`。它并无特有的配置字段。需要提前创建 [API Key](https://docs.cohere.com/reference/embed)，并将其填入`embedding.apiKey`。
+
 ### OpenAI
 
 OpenAI 所对应的 `embedding.type` 为 `openai`。它并无特有的配置字段。需要提前创建 [API Key](https://platform.openai.com/settings/organization/api-keys)，并将其填入`embedding.apiKey`，一个 API Key 的示例为` sk-xxxxxxx`。
@@ -110,16 +128,11 @@ OpenAI 所对应的 `embedding.type` 为 `openai`。它并无特有的配置字�
 
 Ollama 所对应的 `embedding.type` 为 `ollama`。它并无特有的配置字段。
 
-### 讯飞星火
+### Hugging Face
 
-讯飞星火 所对应的 `embedding.type` 为 `xfyun`。它需要提前创建[应用](https://console.xfyun.cn/services/emb)，获取`APPID`  、`APISecret`和`APIKey`，并将`APIKey`填入`embedding.apiKey`中。
+Hugging Face 所对应的 `embedding.type` 为 `huggingface`。它并无特有的配置字段。需要提前创建 [hf_token](https://huggingface.co/blog/getting-started-with-embeddings)，并将其填入`embedding.apiKey`，一个 hf_token 的示例为` hf_xxxxxxx`。
 
-它特有的配置字段如下：
-
-| 名称                  | 数据类型 | 填写要求 | 默认值 | 描述                 | 填写值           |
-| --------------------- | -------- | -------- | ------ | -------------------- | ---------------- |
-| `embedding.appId`     | string   | 必填     | -      | 应用 ID              | 获取的 APPID     |
-| `embedding.apiSecret` | string   | 必填     | -      | 调用 API 所需 Secret | 获取的 APISecret |
+`embedding.model`默认指定为`sentence-transformers/all-MiniLM-L6-v2`
 
 ### Textln
 
@@ -133,15 +146,16 @@ Textln 所对应的 `embedding.type` 为 `textln`。它需要提前获取[`app-i
 | `embedding.textinSecretCode`    | string   | 必填     | -      | 调用 API 所需 Secret | 获取的 secret-code |
 | `embedding.textinMatryoshkaDim` | int      | 必填     | -      | 返回的单个向量长度   |                    |
 
-### Hugging Face
+### 讯飞星火
 
-Hugging Face 所对应的 `embedding.type` 为 `huggingface`。它并无特有的配置字段。需要提前创建 [hf_token](https://huggingface.co/blog/getting-started-with-embeddings)，并将其填入`embedding.apiKey`，一个 hf_token 的示例为` hf_xxxxxxx`。
+讯飞星火 所对应的 `embedding.type` 为 `xfyun`。它需要提前创建[应用](https://console.xfyun.cn/services/emb)，获取`APPID`  、`APISecret`和`APIKey`，并将`APIKey`填入`embedding.apiKey`中。
 
-`embedding.model`默认指定为`sentence-transformers/all-MiniLM-L6-v2`
+它特有的配置字段如下：
 
-### Cohere
-
-Cohere 所对应的 `embedding.type` 为 `cohere`。它并无特有的配置字段。需要提前创建 [API Key](https://docs.cohere.com/reference/embed)，并将其填入`embedding.apiKey`。
+| 名称                  | 数据类型 | 填写要求 | 默认值 | 描述                 | 填写值           |
+| --------------------- | -------- | -------- | ------ | -------------------- | ---------------- |
+| `embedding.appId`     | string   | 必填     | -      | 应用 ID              | 获取的 APPID     |
+| `embedding.apiSecret` | string   | 必填     | -      | 调用 API 所需 Secret | 获取的 APISecret |
 
 ## 向量数据库提供商特有配置
 

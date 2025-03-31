@@ -8,13 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tidwall/gjson"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -22,12 +24,12 @@ const (
 	XFYUN_PORT   = 443
 )
 
-type XfyunProviderInitializer struct {
+type xfyunProviderInitializer struct {
 }
 
-var XfyunConfig XfyunProviderConfig
+var xfyunConfig xfyunProviderConfig
 
-type XfyunProviderConfig struct {
+type xfyunProviderConfig struct {
 	// @Title zh-CN 文本特征提取服务 API Key
 	// @Description zh-CN 文本特征提取服务 API Key。
 	apiKey string
@@ -39,26 +41,26 @@ type XfyunProviderConfig struct {
 	xfyunApiSecret string
 }
 
-func (c *XfyunProviderInitializer) InitConfig(json gjson.Result) {
-	XfyunConfig.xfyunAppID = json.Get("appId").String()
-	XfyunConfig.xfyunApiSecret = json.Get("apiSecret").String()
-	XfyunConfig.apiKey = json.Get("apiKey").String()
+func (c *xfyunProviderInitializer) InitConfig(json gjson.Result) {
+	xfyunConfig.xfyunAppID = json.Get("appId").String()
+	xfyunConfig.xfyunApiSecret = json.Get("apiSecret").String()
+	xfyunConfig.apiKey = json.Get("apiKey").String()
 }
 
-func (c *XfyunProviderInitializer) ValidateConfig() error {
-	if XfyunConfig.apiKey == "" {
+func (c *xfyunProviderInitializer) ValidateConfig() error {
+	if xfyunConfig.apiKey == "" {
 		return errors.New("[Xfyun] apiKey is required")
 	}
-	if XfyunConfig.xfyunAppID == "" {
+	if xfyunConfig.xfyunAppID == "" {
 		return errors.New("[Xfyun] appId is required")
 	}
-	if XfyunConfig.xfyunApiSecret == "" {
+	if xfyunConfig.xfyunApiSecret == "" {
 		return errors.New("[Xfyun] apiSecret is required")
 	}
 	return nil
 }
 
-func (t *XfyunProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
+func (t *xfyunProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
 		c.servicePort = XFYUN_PORT
 	}
@@ -160,14 +162,14 @@ func constructAuth(requestURL, method, apiKey, apiSecret string) (string, error)
 	return "?" + params.Encode(), nil
 }
 
-func (t *XfyunProvider) constructParameters(text string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (t *XfyunProvider) constructParameters(text string) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
 	}
 
 	host := "https://" + t.config.serviceHost + "/"
-	auth, err := constructAuth(host, "POST", XfyunConfig.apiKey, XfyunConfig.xfyunApiSecret)
+	auth, err := constructAuth(host, "POST", xfyunConfig.apiKey, xfyunConfig.xfyunApiSecret)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -199,7 +201,7 @@ func (t *XfyunProvider) constructParameters(text string, log wrapper.Log) (strin
 	// 构建请求体
 	data := XfyunReqBody{
 		Header: XfyunHeader{
-			AppID:  XfyunConfig.xfyunAppID,
+			AppID:  xfyunConfig.xfyunAppID,
 			Status: 3,
 		},
 		Parameter: XfyunParameter{
@@ -265,9 +267,8 @@ func (t *XfyunProvider) parseTextEmbedding(responseBody []byte) ([]float32, erro
 func (t *XfyunProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
 	callback func(emb []float64, err error)) error {
-	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
+	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString)
 	if err != nil {
 		log.Errorf("failed to construct parameters: %v", err)
 		return err
