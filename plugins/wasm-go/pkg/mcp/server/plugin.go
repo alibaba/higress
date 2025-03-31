@@ -74,16 +74,41 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	if serverName == "" {
 		return errors.New("server.name field is missing")
 	}
-	toolsArray := configJson.Get("tools").Array()
+
+	// Parse allowTools
+	allowToolsArray := configJson.Get("allowTools").Array()
 	allowTools := make(map[string]struct{})
-	for _, toolJson := range toolsArray {
+	for _, toolJson := range allowToolsArray {
 		allowTools[toolJson.String()] = struct{}{}
 	}
-	if server, exist := globalContext.servers[serverName]; exist {
-		config.server = server.Clone()
-		config.server.SetConfig([]byte(serverJson.Get("config").Raw))
+
+	// Check if we have REST tools defined
+	toolsJson := configJson.Get("tools")
+	if toolsJson.Exists() && len(toolsJson.Array()) > 0 {
+		// Create REST-to-MCP server
+		restServer := NewRestMCPServer()
+		restServer.SetConfig([]byte(serverJson.Get("config").Raw))
+
+		// Parse and add tools
+		for _, toolJson := range toolsJson.Array() {
+			var restTool RestTool
+			if err := json.Unmarshal([]byte(toolJson.Raw), &restTool); err != nil {
+				return fmt.Errorf("failed to parse tool config: %v", err)
+			}
+
+			if err := restServer.AddRestTool(restTool); err != nil {
+				return fmt.Errorf("failed to add tool %s: %v", restTool.Name, err)
+			}
+		}
+		config.server = restServer
 	} else {
-		return fmt.Errorf("mcp server not found:%s", serverName)
+		// Original logic for registered servers
+		if server, exist := globalContext.servers[serverName]; exist {
+			config.server = server.Clone()
+			config.server.SetConfig([]byte(serverJson.Get("config").Raw))
+		} else {
+			return fmt.Errorf("mcp server not found:%s", serverName)
+		}
 	}
 	config.methodHandlers = make(utils.MethodHandlers)
 	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {

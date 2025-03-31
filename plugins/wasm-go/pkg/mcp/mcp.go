@@ -1,69 +1,50 @@
 package mcp
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/filter"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 )
 
 var _ server.Server = &MCPServer{}
 
+// MCPServer implements the Server interface using BaseMCPServer
 type MCPServer struct {
-	tools  map[string]server.Tool
-	config []byte
+	base server.BaseMCPServer
 }
 
-func (s MCPServer) Clone() server.Server {
-	return &MCPServer{tools: s.tools}
+// NewMCPServer creates a new MCPServer
+func NewMCPServer() *MCPServer {
+	return &MCPServer{
+		base: server.NewBaseMCPServer(),
+	}
 }
 
+// Clone implements Server interface
+func (s *MCPServer) Clone() server.Server {
+	return &MCPServer{
+		base: s.base.CloneBase(),
+	}
+}
+
+// AddMCPTool implements Server interface
 func (s *MCPServer) AddMCPTool(name string, tool server.Tool) server.Server {
-	if s.tools == nil {
-		s.tools = make(map[string]server.Tool)
-	}
-	if _, exist := s.tools[name]; exist {
-		panic(fmt.Sprintf("Conflict! There is a tool with the same name:%s",
-			name))
-	}
-	s.tools[name] = tool
+	s.base.AddMCPTool(name, tool)
 	return s
 }
 
-// Can only be called during a tool call
+// GetConfig implements Server interface
 func (s *MCPServer) GetConfig(v any) {
-	var config []byte
-	serverConfigBase64, _ := proxywasm.GetHttpRequestHeader("x-higress-mcpserver-config")
-	proxywasm.RemoveHttpRequestHeader("x-higress-mcpserver-config")
-	if serverConfigBase64 != "" {
-		log.Info("parse server config from request")
-		serverConfig, err := base64.StdEncoding.DecodeString(serverConfigBase64)
-		if err != nil {
-			log.Errorf("base64 decode mcp server config failed:%s, bytes:%s", err, serverConfigBase64)
-		} else {
-			config = serverConfig
-		}
-	} else {
-		config = s.config
-	}
-	err := json.Unmarshal(config, v)
-	if err != nil {
-		log.Errorf("json unmarshal server config failed:%v, config:%s", err, config)
-	}
+	s.base.GetConfig(v)
 }
 
+// GetMCPTools implements Server interface
 func (s *MCPServer) GetMCPTools() map[string]server.Tool {
-	return s.tools
+	return s.base.GetMCPTools()
 }
 
+// SetConfig implements Server interface
 func (s *MCPServer) SetConfig(config []byte) {
-	s.config = config
-
+	s.base.SetConfig(config)
 }
 
 // mcp server function
