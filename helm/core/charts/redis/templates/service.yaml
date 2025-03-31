@@ -9,8 +9,7 @@ spec:
   type: {{ .Values.redis.service.type }}
   ports:
     - port: {{ .Values.redis.service.port }}
-      targetPort: http
+      targetPort: 6379
       protocol: TCP
-      name: http
   selector:
     {{- include "redis.selectorLabels" . | nindent 4 }}
