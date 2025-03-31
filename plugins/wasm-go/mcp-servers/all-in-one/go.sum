@@ -1,5 +1,9 @@
 github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329145934-61b36a20cd9c h1:giBV8e7p0qxRdBsCu4AjXbpUI8sNiGkEtPNWEXf6fA4=
 github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250329145934-61b36a20cd9c/go.mod h1:csP9Mpkc+gVgbZsizCdcYSy0LJrQA+//RcnZBInyknc=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250330032733-a3f709c6bf3c h1:7NUKWzu/HH1OCHJEnsogHDFjf5GXcagv489qN6uudjw=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250330032733-a3f709c6bf3c/go.mod h1:csP9Mpkc+gVgbZsizCdcYSy0LJrQA+//RcnZBInyknc=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250331125043-e9661a6dabda h1:kvubg2BmbBfw6CtqEvTMsiU/UdEII/DYyKFYwZ3+TP0=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250331125043-e9661a6dabda/go.mod h1:R/g1lYl9ToNltcs01QbOPhZG/h1klHcmjGaowyeWdEI=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
@@ -8,6 +12,7 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711 h1:n5sZwSZWQ5uKS69hu50/0gliTFrIJ1w+g/FSdIIiZIs=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=
@@ -22,10 +27,12 @@ github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.17.3 h1:bwWLZU7icoKRG+C+0PNwIKC6FCJO/Q3p2pZvuP0jN94=
 github.com/tidwall/gjson v1.17.3/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
+github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
 github.com/tidwall/pretty v1.2.0 h1:RWIZEg2iJ8/g6fDDYzMpobmaoGh5OLl4AXtGUGPcqCs=
 github.com/tidwall/pretty v1.2.0/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=
+github.com/tidwall/pretty v1.2.1/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=
 github.com/tidwall/resp v0.1.1 h1:Ly20wkhqKTmDUPlyM1S7pWo5kk0tDu8OoC/vFArXmwE=
 github.com/tidwall/resp v0.1.1/go.mod h1:3/FrruOBAxPTPtundW0VXgmsQ4ZBA0Aw714lVYgwFa0=
 github.com/tidwall/sjson v1.2.5 h1:kLy8mja+1c9jlljvWTlSazM7cKDRfJuR/bOJhcY5NcY=
