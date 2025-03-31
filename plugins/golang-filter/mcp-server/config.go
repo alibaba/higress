@@ -88,8 +88,8 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	conf.redisClient = redisClient
 
 	ssePathSuffix, ok := v.AsMap()["sse_path_suffix"].(string)
-	if !ok {
-		return nil, fmt.Errorf("sse path suffix is not set")
+	if !ok || ssePathSuffix == "" {
+		return nil, fmt.Errorf("sse path suffix is not set or empty")
 	}
 	conf.ssePathSuffix = ssePathSuffix
 
