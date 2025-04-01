@@ -21,7 +21,7 @@ helm install higress -n higress-system higress.io/higress --create-namespace --r
 
 ## Uninstall
 
-To uninstall/delete the higress deployment:
+To uninstall/delete the higress deployment :
 
 ```console
 helm delete higress -n higress-system
