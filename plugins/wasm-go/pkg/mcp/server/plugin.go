@@ -115,6 +115,10 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{})
 		return nil
 	}
+	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+		utils.OnMCPResponseSuccess(ctx, map[string]any{})
+		return nil
+	}
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
 		version := params.Get("protocolVersion").String()
 		if version == "" {
