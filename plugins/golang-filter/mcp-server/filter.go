@@ -25,6 +25,7 @@ type filter struct {
 	serverName string
 	message    bool
 	proxyURL   *url.URL
+	skip       bool
 }
 
 type RequestURL struct {
@@ -55,6 +56,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 
 	// Check if request matches any rule in match_list
 	if !internal.IsMatch(f.config.matchList, url.host, f.path) {
+		f.skip = true
 		api.LogDebugf("Request does not match any rule in match_list: %s", url.parsedURL.String())
 		return api.Continue
 	}
@@ -118,6 +120,9 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 // DecodeData might be called multiple times during handling the request body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if f.skip {
+		return api.Continue
+	}
 	if f.message {
 		if endStream {
 			for _, server := range f.config.servers {
@@ -140,6 +145,9 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 // Callbacks which are called in response path
 // The endStream is true if the response doesn't have body
 func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
+	if f.skip {
+		return api.Continue
+	}
 	if f.serverName != "" {
 		header.Set("Content-Type", "text/event-stream")
 		header.Set("Cache-Control", "no-cache")
@@ -154,6 +162,9 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if f.skip {
+		return api.Continue
+	}
 	if !endStream {
 		return api.StopAndBuffer
 	}
