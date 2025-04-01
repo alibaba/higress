@@ -25,7 +25,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
-	"github.com/tidwall/gjson"
 )
 
 var _ server.Tool = TextSearchRequest{}
@@ -64,36 +63,6 @@ func (t TextSearchRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("text search call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status     string `json:"status"`
-				Info       string `json:"info"`
-				Suggestion struct {
-					Keywords []string `json:"keywords"`
-					Cities   []struct {
-						Name string `json:"name"`
-					} `json:"cities"`
-				} `json:"suggestion"`
-				Pois []struct {
-					ID       string `json:"id"`
-					Name     string `json:"name"`
-					Address  string `json:"address"`
-					Typecode string `json:"typecode"`
-				} `json:"pois"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse text search response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("text search failed: %s", response.Info))
-				return
-			}
-			var cities []string
-			for _, city := range response.Suggestion.Cities {
-				cities = append(cities, city.Name)
-			}
-			result := fmt.Sprintf(`{"suggestion": {"keywords": %s, "cities": %s}, "pois": %s}`, string(responseBody), string(responseBody), gjson.GetBytes(responseBody, "pois").Raw)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

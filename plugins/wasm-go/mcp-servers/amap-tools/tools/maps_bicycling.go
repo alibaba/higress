@@ -62,34 +62,6 @@ func (t BicyclingRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("bicycling call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Errcode int `json:"errcode"`
-				Data    struct {
-					Origin      string `json:"origin"`
-					Destination string `json:"destination"`
-					Paths       []struct {
-						Distance string `json:"distance"`
-						Duration string `json:"duration"`
-						Steps    []struct {
-							Instruction string `json:"instruction"`
-							Road        string `json:"road"`
-							Distance    string `json:"distance"`
-							Orientation string `json:"orientation"`
-							Duration    string `json:"duration"`
-						} `json:"steps"`
-					} `json:"paths"`
-				} `json:"data"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse bicycling response: %v", err))
-				return
-			}
-			if response.Errcode != 0 {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("bicycling failed: %v", response))
-				return
-			}
-			result, _ := json.MarshalIndent(response.Data.Paths, "", "  ")
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

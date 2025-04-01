@@ -62,36 +62,6 @@ func (t DrivingRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("driving call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
-				Route  struct {
-					Origin      string `json:"origin"`
-					Destination string `json:"destination"`
-					Paths       []struct {
-						Path     string `json:"path"`
-						Distance string `json:"distance"`
-						Duration string `json:"duration"`
-						Steps    []struct {
-							Instruction string `json:"instruction"`
-							Road        string `json:"road"`
-							Distance    string `json:"distance"`
-							Orientation string `json:"orientation"`
-							Duration    string `json:"duration"`
-						} `json:"steps"`
-					} `json:"paths"`
-				} `json:"route"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse driving response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("driving failed: %s", response.Info))
-				return
-			}
-			result, _ := json.MarshalIndent(response.Route.Paths, "", "  ")
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

@@ -25,7 +25,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
-	"github.com/tidwall/gjson"
 )
 
 var _ server.Tool = WalkingRequest{}
@@ -63,35 +62,6 @@ func (t WalkingRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("walking call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
-				Route  struct {
-					Origin      string `json:"origin"`
-					Destination string `json:"destination"`
-					Paths       []struct {
-						Distance string `json:"distance"`
-						Duration string `json:"duration"`
-						Steps    []struct {
-							Instruction string `json:"instruction"`
-							Road        string `json:"road"`
-							Distance    string `json:"distance"`
-							Orientation string `json:"orientation"`
-							Duration    string `json:"duration"`
-						} `json:"steps"`
-					} `json:"paths"`
-				} `json:"route"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse walking response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("walking failed: %s", response.Info))
-				return
-			}
-			result := fmt.Sprintf(`{"origin": "%s", "destination": "%s", "paths": %s}`, response.Route.Origin, response.Route.Destination, gjson.GetBytes(responseBody, "route.paths").Raw)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
