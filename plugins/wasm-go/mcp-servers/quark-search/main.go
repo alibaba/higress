@@ -24,6 +24,6 @@ func main() {}
 
 func init() {
 	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
-		tools.LoadTools(&mcp.MCPServer{})))
+		tools.LoadTools(mcp.NewMCPServer())))
 	mcp.InitMCPServer()
 }

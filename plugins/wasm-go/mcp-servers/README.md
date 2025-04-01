@@ -391,7 +391,7 @@ server:
   config:
     apiKey: your-api-key-here
   # Optional: If configured, acts as a whitelist - only tools listed here can be called
-  tools:
+  allowTools:
   - my_tool
   - another_tool
 ```

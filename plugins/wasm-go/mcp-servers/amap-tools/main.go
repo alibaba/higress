@@ -24,6 +24,6 @@ func main() {}
 
 func init() {
 	mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
-		tools.LoadTools(&mcp.MCPServer{})))
+		tools.LoadTools(mcp.NewMCPServer())))
 	mcp.InitMCPServer()
 }
