@@ -178,6 +178,184 @@ func init() {
 
 The configuration for the all-in-one plugin follows the same pattern as individual MCP server plugins. The `name` field in the server configuration is used to identify and route requests to the appropriate MCP server within the all-in-one plugin.
 
+## REST-to-MCP Configuration
+
+Higress supports a special REST-to-MCP configuration that allows you to convert REST APIs to MCP tools without writing any code. This is useful for quickly integrating existing REST APIs with AI assistants. This capability is built into all MCP servers and can be used with the all-in-one plugin. The implementation is available at [rest_server.go](https://github.com/alibaba/higress/blob/wasm-go-1.24/plugins/wasm-go/pkg/mcp/server/rest_server.go).
+
+### Configuration Format
+
+To use the REST-to-MCP feature, you need to define your tools in the plugin configuration:
+
+```yaml
+server:
+  name: rest-amap-server
+  config:
+    apiKey: your-api-key-here
+tools:
+- name: maps-geo
+  description: "Convert structured address information to latitude and longitude coordinates. Supports parsing landmarks, scenic spots, and building names into coordinates."
+  args:
+  - name: address
+    description: "The structured address to parse"
+    required: true
+  - name: city
+    description: "The city to search in"
+    required: false
+  requestTemplate:
+    url: "https://restapi.amap.com/v3/geocode/geo?key={{.config.apiKey}}&address={{.args.address}}&city={{.args.city}}&source=ts_mcp"
+    method: GET
+    headers:
+    - key: x-api-key
+      value: "{{.config.apiKey}}"
+    - key: Content-Type
+      value: application/json
+  responseTemplate:
+    body: |
+      # Geocoding Information
+      {{- range $index, $geo := .Geocodes }}
+      ## Location {{add $index 1}}
+
+      - **Country**: {{ $geo.Country }}
+      - **Province**: {{ $geo.Province }}
+      - **City**: {{ $geo.City }}
+      - **City Code**: {{ $geo.Citycode }}
+      - **District**: {{ $geo.District }}
+      - **Street**: {{ $geo.Street }}
+      - **Number**: {{ $geo.Number }}
+      - **Administrative Code**: {{ $geo.Adcode }}
+      - **Coordinates**: {{ $geo.Location }}
+      - **Level**: {{ $geo.Level }}
+      {{- end }}
+```
+
+### Template Syntax
+
+The REST-to-MCP feature uses the [GJSON Template](https://github.com/higress-group/gjson_template) library for template rendering, which combines Go's template syntax with GJSON's powerful path syntax:
+
+- **Request Templates**: Used to construct the HTTP request URL, headers, and body
+  - Access configuration values with `.config.fieldName`
+  - Access tool arguments with `.args.argName`
+
+- **Response Templates**: Used to transform the HTTP response into a format suitable for AI consumption
+  - Access JSON response fields using GJSON path syntax
+  - Use template functions like `add`, `upper`, `lower`, etc.
+  - Use control structures like `if`, `range`, etc.
+
+GJSON Template includes all of [Sprig](https://github.com/Masterminds/sprig)'s functions, providing a rich set of over 70 template functions for string manipulation, math operations, date formatting, list processing, and more. This makes GJSON Template functionally equivalent to Helm's template capabilities.
+
+Some commonly used Sprig functions include:
+
+- **String manipulation**: `trim`, `upper`, `lower`, `replace`, `plural`, `nospace`
+- **Math operations**: `add`, `sub`, `mul`, `div`, `max`, `min`
+- **Date formatting**: `now`, `date`, `dateInZone`, `dateModify`
+- **List operations**: `list`, `first`, `last`, `uniq`, `sortAlpha`
+- **Dictionary operations**: `dict`, `get`, `set`, `hasKey`, `pluck`
+- **Flow control**: `ternary`, `default`, `empty`, `coalesce`
+- **Type conversion**: `toString`, `toJson`, `toPrettyJson`, `toRawJson`
+- **Encoding/decoding**: `b64enc`, `b64dec`, `urlquery`, `urlqueryescape`
+- **UUID generation**: `uuidv4`
+
+For a complete reference of all available functions, see the [Helm documentation on functions](https://helm.sh/docs/chart_template_guide/function_list/), as GJSON Template includes the same function set.
+
+### GJSON Path Syntax
+
+GJSON Template supports the full GJSON path syntax, which provides powerful JSON querying capabilities:
+
+- **Dot notation**: `address.city`
+- **Array indexing**: `users.0.name`
+- **Array iteration**: `users.#.name`
+- **Wildcards**: `users.*.name`
+- **Array filtering**: `users.#(age>=30)#.name`
+- **Modifiers**: `users.@reverse.#.name`
+- **Multipath**: `{name:users.0.name,count:users.#}`
+- **Escape characters**: `path.with\.dot`
+
+For more complex queries, you can use the `gjson` function directly in your templates:
+
+```
+<!-- Using the gjson function for complex queries -->
+Active users: {{gjson "users.#(active==true)#.name"}}
+
+<!-- Array filtering with multiple conditions -->
+Active developers over 30: {{gjson "users.#(active==true && age>30)#.name"}}
+
+<!-- Using modifiers -->
+User names (reversed): {{gjson "users.@reverse.#.name"}}
+
+<!-- Iterating over filtered results -->
+Admins:
+{{range $user := gjson "users.#(roles.#(==admin)>0)#"}}
+  - {{$user.name}} ({{$user.age}})
+{{end}}
+```
+
+For a complete reference of GJSON path syntax, see the [GJSON documentation](https://github.com/tidwall/gjson#path-syntax).
+
+### AI Prompt for Template Generation
+
+When working with AI assistants to generate templates for REST-to-MCP configuration, you can use the following prompt:
+
+```
+Please help me create a REST-to-MCP configuration for Higress that converts a REST API to an MCP tool. The configuration should follow this format:
+
+```yaml
+server:
+  name: rest-api-server
+  config:
+    apiKey: your-api-key-here
+tools:
+- name: tool-name
+  description: "Detailed description of what this tool does"
+  args:
+  - name: arg1
+    description: "Description of argument 1"
+    required: true
+  - name: arg2
+    description: "Description of argument 2"
+    required: false
+    default: "default value"
+  requestTemplate:
+    url: "https://api.example.com/endpoint?key={{.config.apiKey}}&param={{.args.arg1}}"
+    method: GET
+    headers:
+    - key: x-api-key
+      value: "{{.config.apiKey}}"
+    - key: Content-Type
+      value: application/json
+    body: |
+      {
+        "param1": "{{.args.arg1}}",
+        "param2": "{{.args.arg2}}"
+      }
+  responseTemplate:
+    body: |
+      # Result
+      {{- range $index, $item := .items }}
+      ## Item {{add $index 1}}
+      - **Name**: {{ $item.name }}
+      - **Value**: {{ $item.value }}
+      {{- end }}
+```
+
+The REST API I want to convert is [describe your API here, including endpoints, parameters, and response format].
+
+Please generate a complete configuration that:
+1. Has a descriptive name and appropriate server configuration
+2. Defines all necessary arguments with clear descriptions and appropriate required/default values
+3. Creates a requestTemplate that correctly formats the API request, including headers with template values
+4. Creates a responseTemplate that transforms the API response into a readable format for AI consumption
+
+The templates use GJSON Template syntax (https://github.com/higress-group/gjson_template), which combines Go templates with GJSON path syntax for JSON processing. The template engine supports:
+
+1. Basic dot notation for accessing fields: {{.fieldName}}
+2. The gjson function for complex queries: {{gjson "users.#(active==true)#.name"}}
+3. All Sprig template functions (like Helm): {{add}}, {{upper}}, {{lower}}, {{date}}, etc.
+4. Control structures: {{if}}, {{range}}, {{with}}, etc.
+5. Variable assignment: {{$var := .value}}
+
+For complex JSON responses, consider using GJSON's powerful filtering and querying capabilities to extract and format the most relevant information.
+```
+
 ## Main Entry Point
 
 The main.go file is the entry point for your MCP server. It registers your tools and resources:
@@ -306,4 +484,3 @@ func TestMyToolInputSchema(t *testing.T) {
         t.Error("InputSchema returned an empty schema")
     }
 }
-```
