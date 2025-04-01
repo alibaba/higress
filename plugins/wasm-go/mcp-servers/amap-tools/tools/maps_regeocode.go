@@ -61,27 +61,6 @@ func (t ReGeocodeRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("regeocode call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status    string `json:"status"`
-				Info      string `json:"info"`
-				Regeocode struct {
-					AddressComponent struct {
-						Province string `json:"province"`
-						City     string `json:"city"`
-						District string `json:"district"`
-					} `json:"addressComponent"`
-				} `json:"regeocode"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse regeocode response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("regeocode failed: %s", response.Info))
-				return
-			}
-			result := fmt.Sprintf(`{"province": "%s", "city": "%s", "district": "%s"}`, response.Regeocode.AddressComponent.Province, response.Regeocode.AddressComponent.City, response.Regeocode.AddressComponent.District)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

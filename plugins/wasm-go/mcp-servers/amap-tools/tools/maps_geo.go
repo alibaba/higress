@@ -63,48 +63,6 @@ func (t GeoRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status   string `json:"status"`
-				Info     string `json:"info"`
-				Geocodes []struct {
-					Country  string `json:"country"`
-					Province string `json:"province"`
-					City     string `json:"city"`
-					Citycode string `json:"citycode"`
-					District string `json:"district"`
-					Street   string `json:"street"`
-					Number   string `json:"number"`
-					Adcode   string `json:"adcode"`
-					Location string `json:"location"`
-					Level    string `json:"level"`
-				} `json:"geocodes"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse geo response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo failed: %s", response.Info))
-				return
-			}
-			var results []map[string]string
-			for _, geo := range response.Geocodes {
-				result := map[string]string{
-					"country":  geo.Country,
-					"province": geo.Province,
-					"city":     geo.City,
-					"citycode": geo.Citycode,
-					"district": geo.District,
-					"street":   geo.Street,
-					"number":   geo.Number,
-					"adcode":   geo.Adcode,
-					"location": geo.Location,
-					"level":    geo.Level,
-				}
-				results = append(results, result)
-			}
-			result, _ := json.Marshal(results)
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

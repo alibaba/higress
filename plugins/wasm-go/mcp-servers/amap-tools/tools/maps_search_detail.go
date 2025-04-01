@@ -61,32 +61,6 @@ func (t SearchDetailRequest) Call(ctx server.HttpContext, s server.Server) error
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("search detail call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
-				Pois   []struct {
-					ID           string            `json:"id"`
-					Name         string            `json:"name"`
-					Location     string            `json:"location"`
-					Address      string            `json:"address"`
-					BusinessArea string            `json:"business_area"`
-					Cityname     string            `json:"cityname"`
-					Type         string            `json:"type"`
-					Alias        string            `json:"alias"`
-					BizExt       map[string]string `json:"biz_ext"`
-				} `json:"pois"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse search detail response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("search detail failed: %s", response.Info))
-				return
-			}
-			poi := response.Pois[0]
-			result, _ := json.MarshalIndent(poi, "", "  ")
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

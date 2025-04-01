@@ -61,37 +61,6 @@ func (t WeatherRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("weather call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status    string `json:"status"`
-				Info      string `json:"info"`
-				Forecasts []struct {
-					City  string `json:"city"`
-					Casts []struct {
-						Date         string `json:"date"`
-						Week         string `json:"week"`
-						DayWeather   string `json:"dayweather"`
-						NightWeather string `json:"nightweather"`
-						DayTemp      string `json:"daytemp"`
-						NightTemp    string `json:"nighttemp"`
-						DayWind      string `json:"daywind"`
-						NightWind    string `json:"nightwind"`
-						DayPower     string `json:"daypower"`
-						NightPower   string `json:"nightpower"`
-						Humidity     string `json:"humidity"`
-					} `json:"casts"`
-				} `json:"forecasts"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse weather response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("weather failed: %s", response.Info))
-				return
-			}
-			forecasts := response.Forecasts[0]
-			result, _ := json.MarshalIndent(forecasts, "", "  ")
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
