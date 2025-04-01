@@ -16,7 +16,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"strconv"
 	"strings"
 
@@ -29,10 +31,14 @@ import (
 func main() {
 	wrapper.SetCtx(
 		"custom-response",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 	)
+}
+
+type CustomResponseConfigs struct {
+	configs        []CustomResponseConfig
+	enableOnStatus []uint32
 }
 
 type CustomResponseConfig struct {
@@ -43,7 +49,48 @@ type CustomResponseConfig struct {
 	contentType    string
 }
 
-func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.Log) error {
+func parseConfig(gjson gjson.Result, configs *CustomResponseConfigs) error {
+	if gjson.IsArray() {
+		for _, cf := range gjson.Array() {
+			item := new(CustomResponseConfig)
+			if err := parseConfigItem(cf, item); err != nil {
+				return err
+			}
+			configs.configs = append(configs.configs, *item)
+		}
+
+	} else {
+		item := new(CustomResponseConfig)
+		if err := parseConfigItem(gjson, item); err != nil {
+			return err
+		}
+		configs.configs = append(configs.configs, *item)
+	}
+	for _, configItem := range configs.configs {
+		if Contains(configs.enableOnStatus, configItem.enableOnStatus...) {
+			log.Errorf("enbaled status code %v, want to add %v", configs.enableOnStatus, configItem.statusCode)
+			return errors.New("enableOnStatus can only use once")
+		}
+		configs.enableOnStatus = append(configs.enableOnStatus, configItem.enableOnStatus...)
+	}
+	if len(configs.enableOnStatus) == 0 {
+		return errors.New("enableOnStatus is required")
+	}
+	return nil
+}
+
+func Contains[T comparable](slice []T, item ...T) bool {
+	for _, v := range slice {
+		for _, v2 := range item {
+			if v == v2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func parseConfigItem(gjson gjson.Result, config *CustomResponseConfig) error {
 	headersArray := gjson.Get("headers").Array()
 	config.headers = make([][2]string, 0, len(headersArray))
 	for _, v := range headersArray {
@@ -92,23 +139,10 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig, log wrapper.L
 		}
 		config.enableOnStatus = append(config.enableOnStatus, uint32(parsedEnableOnStatus))
 	}
-
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
-	if len(config.enableOnStatus) != 0 {
-		return types.ActionContinue
-	}
-	err := proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
-	if err != nil {
-		log.Errorf("send http response failed: %v", err)
-	}
-
-	return types.ActionPause
-}
-
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs) types.Action {
 	// enableOnStatus is not empty, compare the status code.
 	// if match the status code, mock the response.
 	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
@@ -122,14 +156,18 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig,
 		return types.ActionContinue
 	}
 
-	for _, v := range config.enableOnStatus {
+	for _, v := range configs.enableOnStatus {
 		if uint32(statusCode) == v {
-			err = proxywasm.SendHttpResponseWithDetail(config.statusCode, "custom-response", config.headers, []byte(config.body), -1)
-			if err != nil {
-				log.Errorf("send http response failed: %v", err)
+			for _, configItem := range configs.configs {
+				if Contains(configItem.enableOnStatus, v) {
+					err = proxywasm.SendHttpResponseWithDetail(configItem.statusCode, "custom-response", configItem.headers, []byte(configItem.body), -1)
+					if err != nil {
+						log.Errorf("send http response failed: %v", err)
+					}
+					return types.ActionContinue
+				}
 			}
 		}
 	}
-
 	return types.ActionContinue
 }
