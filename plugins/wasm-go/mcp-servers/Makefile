@@ -2,7 +2,7 @@
 
 # Variables
 SERVER_NAME ?= quark-search
-REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
+REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/mcp-server/
 GO_VERSION ?= 1.24
 BUILD_TIME := $(shell date "+%Y%m%d-%H%M%S")
 COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null)
@@ -18,8 +18,8 @@ build:
 	@echo ""
 	@echo "Output WASM file: ${SERVER_NAME}/main.wasm"
 
-# Build Docker image
-build-image:
+# Build Docker image (depends on build target to ensure WASM binary exists)
+build-image: build
 	@echo "Building Docker image for ${SERVER_NAME}..."
 	docker build -t ${IMG} \
 		--build-arg SERVER_NAME=${SERVER_NAME} \

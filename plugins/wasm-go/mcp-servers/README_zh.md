@@ -388,7 +388,7 @@ server:
   config:
     apiKey: 您的API密钥
   # 可选：如果配置了，则起到白名单作用 - 只有列在这里的工具才能被调用
-  tools:
+  allowTools:
   - my_tool
   - another_tool
 ```
