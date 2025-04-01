@@ -25,8 +25,8 @@ func main() {}
 
 func init() {
 	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
-		quark.LoadTools(&mcp.MCPServer{})))
+		quark.LoadTools(mcp.NewMCPServer())))
 	mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
-		amap.LoadTools(&mcp.MCPServer{})))
+		amap.LoadTools(mcp.NewMCPServer())))
 	mcp.InitMCPServer()
 }
