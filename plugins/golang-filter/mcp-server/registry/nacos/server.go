@@ -45,7 +45,9 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 		constant.WithTimeoutMs(5000),
 		constant.WithNotLoadCacheAtStart(true),
 		constant.WithOpenKMS(true),
+		constant.WithLogLevel("error"),
 	)
+	cc.AppendToStdout = true
 
 	if config.Namespace != nil {
 		cc.NamespaceId = *config.Namespace
@@ -150,7 +152,7 @@ func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) 
 			if nacosRegistry.refreshToolsList() {
 				resetToolsToMcpServer(mcpServer, nacosRegistry)
 			}
-			time.Sleep(time.Second * 10)
+			time.Sleep(time.Second * 3)
 		}
 	}()
 	return mcpServer, nil
@@ -166,5 +168,5 @@ func resetToolsToMcpServer(mcpServer *internal.MCPServer, reg registry.McpServer
 		})
 	}
 	mcpServer.SetTools(wrappedTools...)
-	api.LogInfo("Config changed reset tools")
+	api.LogInfof("Tools reset, new tools list len %d", len(wrappedTools))
 }
