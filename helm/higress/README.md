@@ -296,3 +296,4 @@ The command removes all the Kubernetes components associated with the chart and 
 | tracing.skywalking.service | string | `""` |  |
 | tracing.timeout | int | `500` |  |
 | upstream | object | `{"connectionBufferLimits":10485760,"idleTimeout":10}` | Upstream config settings |
+
