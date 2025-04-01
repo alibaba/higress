@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -76,18 +77,56 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 		api.LogErrorf("Match service error for patter %s", serviceMatcher)
 		return false
 	}
+
+	currentServiceList := map[string]bool{}
+
 	for _, service := range serviceList {
 		if !pattern.MatchString(service) {
 			continue
 		}
 
-		if _, ok := n.currentServiceSet[group+service]; !ok {
+		formatServiceName := getFormatServiceName(group, service)
+		if _, ok := n.currentServiceSet[formatServiceName]; !ok {
 			changed = true
 			n.refreshToolsListForService(group, service)
 			n.listenToService(group, service)
 		}
+
+		currentServiceList[formatServiceName] = true
 	}
+
+	serviceShouldBeDeleted := []string{}
+	for serviceName, _ := range n.currentServiceSet {
+		if !strings.HasPrefix(serviceName, group) {
+			continue
+		}
+
+		if _, ok := currentServiceList[serviceName]; !ok {
+			serviceShouldBeDeleted = append(serviceShouldBeDeleted, serviceName)
+			changed = true
+			toolsShouldBeDeleted := []string{}
+			for toolName, _ := range n.toolsDescription {
+				if strings.HasPrefix(toolName, serviceName) {
+					toolsShouldBeDeleted = append(toolsShouldBeDeleted, toolName)
+				}
+			}
+
+			for _, toolName := range toolsShouldBeDeleted {
+				delete(n.toolsDescription, toolName)
+				delete(n.toolsRpcContext, toolName)
+			}
+		}
+	}
+
+	for _, service := range serviceShouldBeDeleted {
+		delete(n.currentServiceSet, service)
+	}
+
 	return changed
+}
+
+func getFormatServiceName(group string, service string) string {
+	return fmt.Sprintf("%s_%s", group, service)
 }
 
 func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) {
@@ -167,8 +206,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 		n.toolsDescription[tool.Name] = tool
 		n.toolsRpcContext[tool.Name] = &context
 	}
-	n.currentServiceSet[group+service] = true
-	api.LogInfo(fmt.Sprintf("Refresh tools list for service success %s:%s", group, service))
+	n.currentServiceSet[getFormatServiceName(group, service)] = true
 }
 
 func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.CredentialInfo {
