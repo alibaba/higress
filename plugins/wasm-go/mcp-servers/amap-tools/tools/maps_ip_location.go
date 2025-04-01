@@ -61,24 +61,6 @@ func (t IPLocationRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("ip location call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status    string `json:"status"`
-				Info      string `json:"info"`
-				Province  string `json:"province"`
-				City      string `json:"city"`
-				Adcode    string `json:"adcode"`
-				Rectangle string `json:"rectangle"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse ip location response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("ip location failed: %s", response.Info))
-				return
-			}
-			result := fmt.Sprintf(`{"province": "%s", "city": "%s", "adcode": "%s", "rectangle": "%s"}`, response.Province, response.City, response.Adcode, response.Rectangle)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
