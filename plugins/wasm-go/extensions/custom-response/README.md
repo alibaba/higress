@@ -15,35 +15,57 @@ description: 自定义应答插件配置参考
 
 ## 配置字段
 
-| 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
-| -------- | -------- | -------- | -------- | -------- |
-|  status_code    |  number     |  选填      |   200  |  自定义 HTTP 应答状态码   |
-|  headers     |  array of string      |  选填     |   -  |  自定义 HTTP 应答头，key 和 value 用`=`分隔   |
-|  body      |  string    |  选填     |   -   |  自定义 HTTP 应答 Body  |
-|  enable_on_status   |  array of number    |   选填     |  -  | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码   |
+| 名称 | 数据类型 | 填写要求 |  默认值 | 描述                              |
+| -------- | -------- |------| -------- |---------------------------------|
+|  status_code    |  number     | 选填   |   200  | 自定义 HTTP 应答状态码                  |
+|  headers     |  array of string      | 选填   |   -  | 自定义 HTTP 应答头，key 和 value 用`=`分隔 |
+|  body      |  string    | 选填   |   -   | 自定义 HTTP 应答 Body                |
+|  enable_on_status   |  array of number    | 必填   |  -  | 匹配原始状态码，生成自定义响应，不填写时，插件不生效      |
 
 ## 配置示例
 
 ### Mock 应答场景
 
 ```yaml
-status_code: 200
-headers:
-- Content-Type=application/json
-- Hello=World
-body: "{\"hello\":\"world\"}"
+- body: '{"hello":"world 200"}'
+  enable_on_status:
+    - 200
+    - 201
+  headers:
+    - key1=value1
+    - key2=value2
+  status_code: 200
+- body: '{"hello":"world 404"}'
+  enable_on_status:
+    - 404
+  headers:
+    - key1=value1
+    - key2=value2
+  status_code: 200
 
 ```
 
-根据该配置，请求将返回自定义应答如下：
+根据该配置，200、201请求将返回自定义应答如下：
 
 ```text
 HTTP/1.1 200 OK
 Content-Type: application/json
-Hello: World
-Content-Length: 17
+key1: value1
+key2: value2
+Content-Length: 21
 
-{"hello":"world"}
+{"hello":"world 200"}
+```
+根据该配置，404请求将返回自定义应答如下：
+
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world 400"}
 ```
 
 ### 触发限流时自定义响应
