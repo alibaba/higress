@@ -49,6 +49,8 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 	)
 	cc.AppendToStdout = true
 
+	cc.DiableLog = true
+
 	if config.Namespace != nil {
 		cc.NamespaceId = *config.Namespace
 	}
