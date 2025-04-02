@@ -20,6 +20,8 @@ github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985 h1:rO
 github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985/go.mod h1:rU3M+Tq5VrQOo0dxpKHGb03Ty0sdWIZfAH+YCOACx/Y=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711 h1:n5sZwSZWQ5uKS69hu50/0gliTFrIJ1w+g/FSdIIiZIs=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
+github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 h1:Ta+RBsZYML3hjoenbGJoS2L6aWJN+hqlxKoqzj/Y2SY=
+github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
 github.com/huandu/xstrings v1.5.0 h1:2ag3IFq9ZDANvthTwTiqSSZLjDc+BedvHPAp5tJy2TI=
 github.com/huandu/xstrings v1.5.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=

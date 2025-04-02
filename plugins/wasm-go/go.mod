@@ -4,7 +4,7 @@ go 1.24.1
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.18.0
