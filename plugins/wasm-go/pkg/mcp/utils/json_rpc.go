@@ -23,7 +23,6 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
@@ -104,7 +103,7 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 		log.Debugf("json rpc call id[%d] method[%s] with params[%s]", id, method, params.Raw)
 		err := handle(ctx, id, params)
 		if err != nil {
-			OnJsonRpcResponseError(ctx, err, utils.ErrInvalidRequest)
+			OnJsonRpcResponseError(ctx, err, ErrInvalidRequest)
 			return types.ActionContinue
 		}
 		// Waiting for the response
