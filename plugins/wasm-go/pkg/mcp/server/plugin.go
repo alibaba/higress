@@ -112,17 +112,17 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	}
 	config.methodHandlers = make(utils.MethodHandlers)
 	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		utils.OnMCPResponseSuccess(ctx, map[string]any{})
+		utils.OnMCPResponseSuccess(ctx, map[string]any{}, "mcp:ping")
 		return nil
 	}
 	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
-		proxywasm.SendHttpResponseWithDetail(200, "notifications/initialized response", nil, nil, -1)
+		proxywasm.SendHttpResponseWithDetail(200, "mcp:notifications/initialized", nil, nil, -1)
 		return nil
 	}
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
 		version := params.Get("protocolVersion").String()
 		if version == "" {
-			utils.OnMCPResponseError(ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams)
+			utils.OnMCPResponseError(ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams, "mcp:initialize:error")
 		}
 		utils.OnMCPResponseSuccess(ctx, map[string]any{
 			"protocolVersion": version,
@@ -133,7 +133,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 				"name":    serverName,
 				"version": "1.0.0",
 			},
-		})
+		}, "mcp:initialize")
 		return nil
 	}
 	var tools []map[string]any
@@ -153,7 +153,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{
 			"tools":      tools,
 			"nextCursor": "",
-		})
+		}, "mcp:tools/list")
 		return nil
 	}
 	config.methodHandlers["tools/call"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
@@ -161,7 +161,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		args := params.Get("arguments")
 		if len(allowTools) != 0 {
 			if _, allow := allowTools[name]; !allow {
-				utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams)
+				utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
 				return nil
 			}
 		}
@@ -178,7 +178,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 			}
 			return nil
 		}
-		utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams)
+		utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
 		return nil
 	}
 

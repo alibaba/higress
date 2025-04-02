@@ -57,7 +57,7 @@ func sendJsonRpcResponse(id int64, extras map[string]any, debugInfo string) {
 	proxywasm.SendHttpResponseWithDetail(200, debugInfo, [][2]string{{"Content-Type", "application/json; charset=utf-8"}}, body, -1)
 }
 
-func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any) {
+func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any, debugInfo ...string) {
 	var (
 		id int64
 		ok bool
@@ -67,10 +67,14 @@ func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any) {
 		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
 		return
 	}
-	sendJsonRpcResponse(id, map[string]any{JResult: result}, "json_rpc_success")
+	responseDebugInfo := "json_rpc_success"
+	if len(debugInfo) > 0 {
+		responseDebugInfo = debugInfo[0]
+	}
+	sendJsonRpcResponse(id, map[string]any{JResult: result}, responseDebugInfo)
 }
 
-func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, code ...int) {
+func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, errorCode int, debugInfo ...string) {
 	var (
 		id int64
 		ok bool
@@ -80,14 +84,14 @@ func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, code ...int) {
 		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
 		return
 	}
-	errorCode := ErrInternalError
-	if len(code) > 0 {
-		errorCode = code[0]
+	responseDebugInfo := "json_rpc_error"
+	if len(debugInfo) > 0 {
+		responseDebugInfo = debugInfo[0]
 	}
 	sendJsonRpcResponse(id, map[string]any{JError: map[string]any{
 		JMessage: err.Error(),
 		JCode:    errorCode,
-	}}, "json_rpc_error")
+	}}, responseDebugInfo)
 }
 
 func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHandlers) types.Action {
