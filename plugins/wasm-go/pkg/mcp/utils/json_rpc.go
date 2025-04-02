@@ -40,17 +40,42 @@ const (
 	ErrInternalError  = -32603
 )
 
-type JsonRpcRequestHandler func(context wrapper.HttpContext, id int64, method string, params gjson.Result) types.Action
+// JsonRpcID represents a JSON-RPC ID which can be either a string or a number
+type JsonRpcID struct {
+	StringValue string
+	IntValue    int64
+	IsString    bool
+}
 
-type JsonRpcResponseHandler func(context wrapper.HttpContext, id int64, result gjson.Result, error gjson.Result) types.Action
+// NewJsonRpcIDFromGjson creates a JsonRpcID from a gjson.Result
+func NewJsonRpcIDFromGjson(result gjson.Result) JsonRpcID {
+	if result.Type == gjson.String {
+		return JsonRpcID{
+			StringValue: result.String(),
+			IsString:    true,
+		}
+	}
+	return JsonRpcID{
+		IntValue: result.Int(),
+		IsString: false,
+	}
+}
 
-type JsonRpcMethodHandler func(context wrapper.HttpContext, id int64, params gjson.Result) error
+type JsonRpcRequestHandler func(context wrapper.HttpContext, id JsonRpcID, method string, params gjson.Result) types.Action
+
+type JsonRpcResponseHandler func(context wrapper.HttpContext, id JsonRpcID, result gjson.Result, error gjson.Result) types.Action
+
+type JsonRpcMethodHandler func(context wrapper.HttpContext, id JsonRpcID, params gjson.Result) error
 
 type MethodHandlers map[string]JsonRpcMethodHandler
 
-func sendJsonRpcResponse(id int64, extras map[string]any, debugInfo string) {
+func sendJsonRpcResponse(id JsonRpcID, extras map[string]any, debugInfo string) {
 	body := []byte(`{"jsonrpc": "2.0"}`)
-	body, _ = sjson.SetBytes(body, "id", id)
+	if id.IsString {
+		body, _ = sjson.SetBytes(body, "id", id.StringValue)
+	} else {
+		body, _ = sjson.SetBytes(body, "id", id.IntValue)
+	}
 	for key, value := range extras {
 		body, _ = sjson.SetBytes(body, key, value)
 	}
@@ -59,11 +84,11 @@ func sendJsonRpcResponse(id int64, extras map[string]any, debugInfo string) {
 
 func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any, debugInfo ...string) {
 	var (
-		id int64
+		id JsonRpcID
 		ok bool
 	)
 	idRaw := ctx.GetContext(CtxJsonRpcID)
-	if id, ok = idRaw.(int64); !ok {
+	if id, ok = idRaw.(JsonRpcID); !ok {
 		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
 		return
 	}
@@ -76,11 +101,11 @@ func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any, de
 
 func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, errorCode int, debugInfo ...string) {
 	var (
-		id int64
+		id JsonRpcID
 		ok bool
 	)
 	idRaw := ctx.GetContext(CtxJsonRpcID)
-	if id, ok = idRaw.(int64); !ok {
+	if id, ok = idRaw.(JsonRpcID); !ok {
 		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
 		return
 	}
@@ -95,12 +120,13 @@ func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, errorCode int, d
 }
 
 func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHandlers) types.Action {
-	id := gjson.GetBytes(body, "id").Int()
+	idResult := gjson.GetBytes(body, "id")
+	id := NewJsonRpcIDFromGjson(idResult)
 	ctx.SetContext(CtxJsonRpcID, id)
 	method := gjson.GetBytes(body, "method").String()
 	params := gjson.GetBytes(body, "params")
 	if handle, ok := handles[method]; ok {
-		log.Debugf("json rpc call id[%d] method[%s] with params[%s]", id, method, params.Raw)
+		log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
 		err := handle(ctx, id, params)
 		if err != nil {
 			OnJsonRpcResponseError(ctx, err, ErrInvalidRequest)
@@ -114,18 +140,20 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 }
 
 func HandleJsonRpcRequest(ctx wrapper.HttpContext, body []byte, handle JsonRpcRequestHandler) types.Action {
-	id := gjson.GetBytes(body, "id").Int()
+	idResult := gjson.GetBytes(body, "id")
+	id := NewJsonRpcIDFromGjson(idResult)
 	ctx.SetContext(CtxJsonRpcID, id)
 	method := gjson.GetBytes(body, "method").String()
 	params := gjson.GetBytes(body, "params")
-	log.Debugf("json rpc call id[%d] method[%s] with params[%s]", id, method, params.Raw)
+	log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
 	return handle(ctx, id, method, params)
 }
 
 func HandleJsonRpcResponse(ctx wrapper.HttpContext, body []byte, handle JsonRpcResponseHandler) types.Action {
-	id := gjson.GetBytes(body, "id").Int()
+	idResult := gjson.GetBytes(body, "id")
+	id := NewJsonRpcIDFromGjson(idResult)
 	error := gjson.GetBytes(body, "error")
 	result := gjson.GetBytes(body, "result")
-	log.Debugf("json rpc response id[%d] error[%s] result[%s]", id, error.Raw, result.Raw)
+	log.Debugf("json rpc response error[%s] result[%s]", error.Raw, result.Raw)
 	return handle(ctx, id, result, error)
 }

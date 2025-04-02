@@ -111,15 +111,15 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		}
 	}
 	config.methodHandlers = make(utils.MethodHandlers)
-	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{}, "mcp:ping")
 		return nil
 	}
-	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		proxywasm.SendHttpResponseWithDetail(200, "mcp:notifications/initialized", nil, nil, -1)
 		return nil
 	}
-	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		version := params.Get("protocolVersion").String()
 		if version == "" {
 			utils.OnMCPResponseError(ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams, "mcp:initialize:error")
@@ -149,14 +149,14 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 			"inputSchema": tool.InputSchema(),
 		})
 	}
-	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{
 			"tools":      tools,
 			"nextCursor": "",
 		}, "mcp:tools/list")
 		return nil
 	}
-	config.methodHandlers["tools/call"] = func(ctx wrapper.HttpContext, id int64, params gjson.Result) error {
+	config.methodHandlers["tools/call"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		name := params.Get("name").String()
 		args := params.Get("arguments")
 		if len(allowTools) != 0 {

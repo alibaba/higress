@@ -146,7 +146,7 @@ func parseRawConfig(configBytes []byte, config *mcpFilterConfig) error {
 	if err != nil {
 		return err
 	}
-	config.requestHandler = func(context wrapper.HttpContext, id int64, method string, params gjson.Result) types.Action {
+	config.requestHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, method string, params gjson.Result) types.Action {
 		if globalContext.requestFilter == nil {
 			return types.ActionContinue
 		}
@@ -154,7 +154,7 @@ func parseRawConfig(configBytes []byte, config *mcpFilterConfig) error {
 		toolArgs := params.Get("arguments")
 		return globalContext.requestFilter(context, config.config, toolName, toolArgs)
 	}
-	config.responseHandler = func(context wrapper.HttpContext, id int64, result, error gjson.Result) types.Action {
+	config.responseHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, result, error gjson.Result) types.Action {
 		if result.Exists() && globalContext.responseFilter != nil {
 			isError := result.Get("isError").Bool()
 			content := result.Get("content")
