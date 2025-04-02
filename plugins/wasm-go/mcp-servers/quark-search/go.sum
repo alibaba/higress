@@ -4,6 +4,8 @@ github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250330032733-a3f709c6bf3c 
 github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250330032733-a3f709c6bf3c/go.mod h1:csP9Mpkc+gVgbZsizCdcYSy0LJrQA+//RcnZBInyknc=
 github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250331125043-e9661a6dabda h1:kvubg2BmbBfw6CtqEvTMsiU/UdEII/DYyKFYwZ3+TP0=
 github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250331125043-e9661a6dabda/go.mod h1:R/g1lYl9ToNltcs01QbOPhZG/h1klHcmjGaowyeWdEI=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250401124952-88dae4b8ca9e h1:8qo7T2l9cx+hXea8sNMaxT9KT6fsdIltA/lpNyd2nxg=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250401124952-88dae4b8ca9e/go.mod h1:R/g1lYl9ToNltcs01QbOPhZG/h1klHcmjGaowyeWdEI=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
