@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 const (
@@ -172,7 +172,7 @@ func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, r
 		if contentPushed {
 			if m.ReasoningContent != "" {
 				// This shouldn't happen, but if it does, we can add a log here.
-				proxywasm.LogWarnf("[ai-proxy] Content already pushed, but reasoning content is not empty: %v", m)
+				log.Warnf("[ai-proxy] Content already pushed, but reasoning content is not empty: %v", m)
 			}
 			return
 		}

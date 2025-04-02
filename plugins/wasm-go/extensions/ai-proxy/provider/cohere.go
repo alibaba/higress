@@ -65,16 +65,16 @@ func (m *cohereProvider) GetProviderType() string {
 	return providerTypeCohere
 }
 
-func (m *cohereProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *cohereProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 	return nil
 }
 
-func (m *cohereProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *cohereProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
 func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohereTextGenRequest {
@@ -96,19 +96,19 @@ func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohe
 	}
 }
 
-func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, cohereDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
 }
 
-func (m *cohereProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *cohereProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
-		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+		return m.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 	request := &chatCompletionRequest{}
-	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+	if err := m.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
 

@@ -38,7 +38,7 @@ func main() {
 }
 
 const (
-	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%s:%s" // redis key为前缀:限流规则名称:限流类型:限流key名称:限流key对应的实际值
+	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%d:%d:%s:%s" // redis key为前缀:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
 	FixedWindowScript      string = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
@@ -84,7 +84,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	}
 
 	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, ruleItem.key, val)
+	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, configItem.timeWindow, configItem.count, ruleItem.key, val)
 	keys := []interface{}{limitKey}
 	args := []interface{}{configItem.count, configItem.timeWindow}
 	// 执行限流逻辑

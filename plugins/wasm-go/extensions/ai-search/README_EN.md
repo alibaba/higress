@@ -270,7 +270,7 @@ searchFrom:
   servicePort: 443
 ```
 
-This configuration is suitable for models that support web search options, such as OpenAI's gpt-4o-search-preview model. When the request contains a `web_search_options` field, even if it's an empty object (`"web_search_options": {}`), the plugin will be activated.
+When the request contains a `web_search_options` field, even if it's an empty object (`"web_search_options": {}`), the plugin will be activated.
 
 ### Search Context Size Configuration
 

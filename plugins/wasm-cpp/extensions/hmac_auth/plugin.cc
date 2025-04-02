@@ -294,7 +294,12 @@ bool PluginRootContext::checkConsumer(
   }
   auto key_to_name_iter = rule.key_to_name.find(std::string(ca_key));
   if (key_to_name_iter != rule.key_to_name.end()) {
-    if (allow_set && !allow_set.value().empty()) {
+    if (allow_set) {
+      if (allow_set.value().empty()) {
+        LOG_DEBUG("allow set is empty, nobody is allowed");
+        deniedUnauthorizedConsumer();
+        return false;
+      }
       if (allow_set.value().find(key_to_name_iter->second) ==
           allow_set.value().end()) {
         LOG_DEBUG(absl::StrCat("consumer is not allowed: ",
@@ -435,6 +440,7 @@ FilterHeadersStatus PluginContext::onRequestHeaders(uint32_t, bool) {
   auto config = rootCtx->getMatchAuthConfig();
   config_ = config.first;
   if (!config_) {
+    LOG_DEBUG("no matched config found");
     return FilterHeadersStatus::Continue;
   }
   allow_set_ = config.second;

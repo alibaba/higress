@@ -59,6 +59,7 @@ static_resources:
                                 "activeProviderId": "moonshot",
                                 "providers": [
                                   {
+                                    "id": "moonshot",
                                     "type": "moonshot",
                                     "domain": "api.moonshot.cn",
                                     "apiTokens": [
@@ -71,11 +72,13 @@ static_resources:
                                       "gpt-35-turbo": "moonshot-v1-32k",
                                       "gpt-4-turbo": "moonshot-v1-128k",
                                       "*": "moonshot-v1-8k"
-                                    },
+                                    }
                                   }
                                 ]
                               }
                   - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
     - name: httpbin
       connect_timeout: 30s

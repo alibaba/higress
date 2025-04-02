@@ -48,19 +48,19 @@ func (c *cloudflareProvider) GetProviderType() string {
 	return providerTypeCloudflare
 }
 
-func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	c.config.handleRequestHeaders(c, ctx, apiName, log)
+func (c *cloudflareProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	c.config.handleRequestHeaders(c, ctx, apiName)
 	return nil
 }
 
-func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (c *cloudflareProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
+	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body)
 }
 
-func (c *cloudflareProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (c *cloudflareProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeader(headers, strings.Replace(cloudflareChatCompletionPath, "{account_id}", c.config.cloudflareAccountId, 1))
 	util.OverwriteRequestHostHeader(headers, cloudflareDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+c.config.GetApiTokenInUse(ctx))

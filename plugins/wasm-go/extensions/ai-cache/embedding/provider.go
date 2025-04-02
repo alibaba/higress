@@ -14,6 +14,8 @@ const (
 	PROVIDER_TYPE_OPENAI      = "openai"
 	PROVIDER_TYPE_OLLAMA      = "ollama"
 	PROVIDER_TYPE_HUGGINGFACE = "huggingface"
+	PROVIDER_TYPE_XFYUN       = "xfyun"
+	PROVIDER_TYPE_AZURE       = "azure"
 )
 
 type providerInitializer interface {
@@ -29,7 +31,9 @@ var (
 		PROVIDER_TYPE_COHERE:      &cohereProviderInitializer{},
 		PROVIDER_TYPE_OPENAI:      &openAIProviderInitializer{},
 		PROVIDER_TYPE_OLLAMA:      &ollamaProviderInitializer{},
-		PROVIDER_TYPE_HUGGINGFACE: &HuggingFaceProviderInitializer{},
+		PROVIDER_TYPE_HUGGINGFACE: &huggingfaceProviderInitializer{},
+		PROVIDER_TYPE_XFYUN:       &xfyunProviderInitializer{},
+		PROVIDER_TYPE_AZURE:       &azureProviderInitializer{},
 	}
 )
 
@@ -106,6 +110,5 @@ type Provider interface {
 	GetEmbedding(
 		queryString string,
 		ctx wrapper.HttpContext,
-		log wrapper.Log,
 		callback func(emb []float64, err error)) error
 }

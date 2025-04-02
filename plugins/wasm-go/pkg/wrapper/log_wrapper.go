@@ -31,22 +31,6 @@ const (
 	LogLevelCritical
 )
 
-type Log interface {
-	Trace(msg string)
-	Tracef(format string, args ...interface{})
-	Debug(msg string)
-	Debugf(format string, args ...interface{})
-	Info(msg string)
-	Infof(format string, args ...interface{})
-	Warn(msg string)
-	Warnf(format string, args ...interface{})
-	Error(msg string)
-	Errorf(format string, args ...interface{})
-	Critical(msg string)
-	Criticalf(format string, args ...interface{})
-	resetID(pluginID string)
-}
-
 type DefaultLog struct {
 	pluginName string
 	pluginID   string
@@ -146,6 +130,6 @@ func (l *DefaultLog) Criticalf(format string, args ...interface{}) {
 	l.logFormat(LogLevelCritical, format, args...)
 }
 
-func (l *DefaultLog) resetID(pluginID string) {
+func (l *DefaultLog) ResetID(pluginID string) {
 	l.pluginID = pluginID
 }

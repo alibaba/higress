@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-GO_VERSION=1.20
+GO_VERSION=1.22
 
 WORK_DIR=`cd $(dirname "$0")/../..;pwd`
 

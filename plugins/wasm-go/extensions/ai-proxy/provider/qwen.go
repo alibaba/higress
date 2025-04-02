@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -23,12 +23,13 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDefaultDomain            = "dashscope.aliyuncs.com"
-	qwenChatCompletionPath       = "/api/v1/services/aigc/text-generation/generation"
-	qwenTextEmbeddingPath        = "/api/v1/services/embeddings/text-embedding/text-embedding"
-	qwenCompatiblePath           = "/compatible-mode/v1/chat/completions"
-	qwenBailianPath              = "/api/v1/apps"
-	qwenMultimodalGenerationPath = "/api/v1/services/aigc/multimodal-generation/generation"
+	qwenDefaultDomain               = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath          = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath           = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenChatCompatiblePath          = "/compatible-mode/v1/chat/completions"
+	qwenTextEmbeddingCompatiblePath = "/compatible-mode/v1/embeddings"
+	qwenBailianPath                 = "/api/v1/apps"
+	qwenMultimodalGenerationPath    = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -52,15 +53,22 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
-func (m *qwenProviderInitializer) DefaultCapabilities() map[string]string {
-	return map[string]string{
-		string(ApiNameChatCompletion): qwenChatCompletionPath,
-		string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool) map[string]string {
+	if qwenEnableCompatible {
+		return map[string]string{
+			string(ApiNameChatCompletion): qwenChatCompatiblePath,
+			string(ApiNameEmbeddings):     qwenTextEmbeddingCompatiblePath,
+		}
+	} else {
+		return map[string]string{
+			string(ApiNameChatCompletion): qwenChatCompletionPath,
+			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+		}
 	}
 }
 
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(m.DefaultCapabilities())
+	config.setDefaultCapabilities(m.DefaultCapabilities(config.qwenEnableCompatible))
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -72,7 +80,7 @@ type qwenProvider struct {
 	contextCache *contextCache
 }
 
-func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if m.config.qwenDomain != "" {
 		util.OverwriteRequestHostHeader(headers, m.config.qwenDomain)
 	} else {
@@ -80,22 +88,32 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
-	if m.config.IsOriginal() {
-	} else if m.config.qwenEnableCompatible {
-		util.OverwriteRequestPathHeader(headers, qwenCompatiblePath)
-	} else if apiName == ApiNameChatCompletion || apiName == ApiNameEmbeddings {
+	if !m.config.IsOriginal() {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 }
 
-func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	if m.config.qwenEnableCompatible {
+		if gjson.GetBytes(body, "model").Exists() {
+			rawModel := gjson.GetBytes(body, "model").String()
+			mappedModel := getMappedModel(rawModel, m.config.modelMapping)
+			newBody, err := sjson.SetBytes(body, "model", mappedModel)
+			if err != nil {
+				log.Errorf("Replace model error: %v", err)
+				return newBody, err
+			}
+			return newBody, nil
+		}
+		return body, nil
+	}
 	switch apiName {
 	case ApiNameChatCompletion:
-		return m.onChatCompletionRequestBody(ctx, body, headers, log)
+		return m.onChatCompletionRequestBody(ctx, body, headers)
 	case ApiNameEmbeddings:
-		return m.onEmbeddingsRequestBody(ctx, body, log)
+		return m.onEmbeddingsRequestBody(ctx, body)
 	default:
-		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+		return m.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 }
 
@@ -103,8 +121,8 @@ func (m *qwenProvider) GetProviderType() string {
 	return providerTypeQwen
 }
 
-func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 
 	if m.config.protocol == protocolOriginal {
 		ctx.DontReadRequestBody()
@@ -114,46 +132,16 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 	return nil
 }
 
-func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if m.config.qwenEnableCompatible {
-		if gjson.GetBytes(body, "model").Exists() {
-			rawModel := gjson.GetBytes(body, "model").String()
-			mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
-			newBody, err := sjson.SetBytes(body, "model", mappedModel)
-			if err != nil {
-				log.Errorf("Replace model error: %v", err)
-				return types.ActionContinue, err
-			}
-
-			// TODO: Temporary fix to clamp top_p value to the range [qwenTopPMin, qwenTopPMax].
-			if topPValue := gjson.GetBytes(body, "top_p"); topPValue.Exists() {
-				rawTopP := topPValue.Float()
-				scaledTopP := math.Max(qwenTopPMin, math.Min(rawTopP, qwenTopPMax))
-				newBody, err = sjson.SetBytes(newBody, "top_p", scaledTopP)
-				if err != nil {
-					log.Errorf("Failed to replace top_p: %v", err)
-					return types.ActionContinue, err
-				}
-			}
-
-			err = proxywasm.ReplaceHttpRequestBody(newBody)
-			if err != nil {
-				log.Errorf("Replace request body error: %v", err)
-				return types.ActionContinue, err
-			}
-		}
-		return types.ActionContinue, nil
-	}
-
+func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
-func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
 	request := &chatCompletionRequest{}
-	err := m.config.parseRequestAndMapModel(ctx, request, body, log)
+	err := m.config.parseRequestAndMapModel(ctx, request, body)
 	if err != nil {
 		return nil, err
 	}
@@ -175,9 +163,9 @@ func (m *qwenProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body
 	return m.buildQwenTextGenerationRequest(ctx, request, streaming)
 }
 
-func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	request := &embeddingsRequest{}
-	if err := m.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+	if err := m.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
 
@@ -188,7 +176,7 @@ func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []b
 	return json.Marshal(qwenRequest)
 }
 
-func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, event StreamEvent, log wrapper.Log) ([]StreamEvent, error) {
+func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, event StreamEvent) ([]StreamEvent, error) {
 	if m.config.qwenEnableCompatible || name != ApiNameChatCompletion {
 		return nil, nil
 	}
@@ -202,7 +190,7 @@ func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, e
 	}
 
 	var outputEvents []StreamEvent
-	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse, incrementalStreaming, log)
+	responses := m.buildChatCompletionStreamingResponse(ctx, qwenResponse, incrementalStreaming)
 	for _, response := range responses {
 		responseBody, err := json.Marshal(response)
 		if err != nil {
@@ -216,15 +204,15 @@ func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, e
 	return outputEvents, nil
 }
 
-func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if m.config.qwenEnableCompatible {
 		return body, nil
 	}
 	if apiName == ApiNameChatCompletion {
-		return m.onChatCompletionResponseBody(ctx, body, log)
+		return m.onChatCompletionResponseBody(ctx, body)
 	}
 	if apiName == ApiNameEmbeddings {
-		return m.onEmbeddingsResponseBody(ctx, body, log)
+		return m.onEmbeddingsResponseBody(ctx, body)
 	}
 	if m.config.isSupportedAPI(apiName) {
 		return body, nil
@@ -232,7 +220,7 @@ func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName Ap
 	return nil, errUnsupportedApiName
 }
 
-func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	qwenResponse := &qwenTextGenResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
@@ -241,7 +229,7 @@ func (m *qwenProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, bod
 	return json.Marshal(response)
 }
 
-func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *qwenProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	qwenResponse := &qwenTextEmbeddingResponse{}
 	if err := json.Unmarshal(body, qwenResponse); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal Qwen response: %v", err)
@@ -321,7 +309,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 	}
 }
 
-func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse, incrementalStreaming bool, log wrapper.Log) []*chatCompletionResponse {
+func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse, incrementalStreaming bool) []*chatCompletionResponse {
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
@@ -685,9 +673,10 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenChatCompletionPath),
 		strings.Contains(path, qwenMultimodalGenerationPath),
 		strings.Contains(path, qwenBailianPath),
-		strings.Contains(path, qwenCompatiblePath):
+		strings.Contains(path, qwenChatCompatiblePath):
 		return ApiNameChatCompletion
-	case strings.Contains(path, qwenTextEmbeddingPath):
+	case strings.Contains(path, qwenTextEmbeddingPath),
+		strings.Contains(path, qwenTextEmbeddingCompatiblePath):
 		return ApiNameEmbeddings
 	default:
 		return ""

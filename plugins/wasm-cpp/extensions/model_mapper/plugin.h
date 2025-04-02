@@ -41,7 +41,9 @@ struct ModelMapperConfigRule {
   std::map<std::string, std::string> exact_model_mapping_;
   std::vector<std::pair<std::string, std::string>> prefix_model_mapping_;
   std::string default_model_mapping_;
-  std::vector<std::string> enable_on_path_suffix_ = {"/v1/chat/completions"};
+  std::vector<std::string> enable_on_path_suffix_ = {
+      "/completions",  "/embeddings",       "/images/generations",
+      "/audio/speech", "/fine_tuning/jobs", "/moderations"};
 };
 
 // PluginRootContext is the root context for all streams processed by the

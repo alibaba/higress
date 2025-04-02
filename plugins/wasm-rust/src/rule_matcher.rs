@@ -15,11 +15,7 @@
 use crate::error::WasmRustError;
 use crate::internal::{get_http_request_header, get_property};
 use crate::log::Log;
-#[cfg(not(test))]
-use proxy_wasm::hostcalls::log;
 use proxy_wasm::traits::RootContext;
-#[cfg(not(test))]
-use proxy_wasm::types::LogLevel;
 use serde::de::DeserializeOwned;
 use serde_json::{from_slice, Map, Value};
 use std::borrow::Borrow;
@@ -111,15 +107,6 @@ where
                     self.global_config = Some(Rc::new(plugin_config));
                 }
                 Err(err) => {
-                    #[cfg(not(test))]
-                    {
-                        log(
-                            LogLevel::Warn,
-                            format!("parse global config failed, err:{:?}", err).as_str(),
-                        )
-                        .unwrap();
-                    }
-
                     global_config_error = WasmRustError::new(err.to_string());
                 }
             }
@@ -349,7 +336,12 @@ pub fn on_configure<RC: RootContext, PluginConfig: Default + DeserializeOwned>(
         Ok(value) => value,
     };
 
-    rule_matcher.parse_rule_config(&value).is_ok()
+    if let Err(err) = rule_matcher.parse_rule_config(&value) {
+        log.error(format!("parse_rule_config fail {}", err).as_str());
+        false
+    } else {
+        true
+    }
 }
 
 #[cfg(test)]

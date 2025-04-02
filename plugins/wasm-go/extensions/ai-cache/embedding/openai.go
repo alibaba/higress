@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -93,7 +94,7 @@ type OpenAIProvider struct {
 	client wrapper.HttpClient
 }
 
-func (t *OpenAIProvider) constructParameters(text string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (t *OpenAIProvider) constructParameters(text string) (string, [][2]string, []byte, error) {
 	if text == "" {
 		err := errors.New("queryString text cannot be empty")
 		return "", nil, nil, err
@@ -130,9 +131,8 @@ func (t *OpenAIProvider) parseTextEmbedding(responseBody []byte) (*OpenAIRespons
 func (t *OpenAIProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
 	callback func(emb []float64, err error)) error {
-	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString, log)
+	embUrl, embHeaders, embRequestBody, err := t.constructParameters(queryString)
 	if err != nil {
 		log.Errorf("failed to construct parameters: %v", err)
 		return err

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -135,13 +136,13 @@ func (m *hunyuanProvider) useOpenAICompatibleAPI() bool {
 	return len(m.config.hunyuanAuthId) == 0 && len(m.config.hunyuanAuthKey) == 0
 }
 
-func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *hunyuanProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return nil
 }
 
-func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if m.useOpenAICompatibleAPI() {
 		util.OverwriteRequestHostHeader(headers, hunyuanOpenAiDomain)
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
@@ -156,7 +157,7 @@ func (m *hunyuanProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNa
 }
 
 // hunyuan 的 OnRequestBody 逻辑中包含了对 headers 签名的逻辑，并且插入 context 以后还要重新计算签名，因此无法复用 handleRequestBody 方法
-func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
@@ -185,7 +186,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 
 		// 若无配置文件，直接返回
 		if m.config.context == nil {
-			return types.ActionContinue, replaceJsonRequestBody(request, log)
+			return types.ActionContinue, replaceJsonRequestBody(request)
 		}
 		err := m.contextCache.GetContent(func(content string, err error) {
 			log.Debugf("#debug nash5# ctx file loaded! callback start, content is: %s", content)
@@ -204,17 +205,17 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
 			_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
-			if err := replaceJsonRequestBody(request, log); err != nil {
+			if err := replaceJsonRequestBody(request); err != nil {
 				util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 			}
-		}, log)
+		})
 		if err == nil {
 			log.Debugf("#debug nash5# ctx file load success!")
 			return types.ActionPause, nil
 		}
 
 		log.Debugf("#debug nash5# ctx file load failed!")
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
+		return types.ActionContinue, replaceJsonRequestBody(request)
 	}
 
 	// 使用open ai接口协议
@@ -228,7 +229,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		return types.ActionContinue, errors.New("missing model in chat completion request")
 	}
 	ctx.SetContext(ctxKeyOriginalRequestModel, model) // 设置原始请求的model，以便返回值使用
-	mappedModel := getMappedModel(model, m.config.modelMapping, log)
+	mappedModel := getMappedModel(model, m.config.modelMapping)
 	if mappedModel == "" {
 		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
 	}
@@ -258,7 +259,7 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 			string(body),
 		)
 		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
-		return types.ActionContinue, replaceJsonRequestBody(hunyuanRequest, log)
+		return types.ActionContinue, replaceJsonRequestBody(hunyuanRequest)
 	}
 
 	err := m.contextCache.GetContent(func(content string, err error) {
@@ -278,10 +279,10 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 		authorizedValueNew := GetTC3Authorizationcode(m.config.hunyuanAuthId, m.config.hunyuanAuthKey, timestamp, hunyuanDomain, hunyuanChatCompletionTCAction, string(hunyuanBody))
 		_ = util.OverwriteRequestAuthorization(authorizedValueNew)
 
-		if err := replaceJsonRequestBody(hunyuanRequest, log); err != nil {
+		if err := replaceJsonRequestBody(hunyuanRequest); err != nil {
 			util.ErrorHandler("ai-proxy.hunyuan.insert_ctx_failed", fmt.Errorf("failed to replace request body: %v", err))
 		}
-	}, log)
+	})
 	if err == nil {
 		return types.ActionPause, nil
 	}
@@ -289,12 +290,12 @@ func (m *hunyuanProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 }
 
 // hunyuan 的 TransformRequestBodyHeaders 方法只在 failover 健康检查的时候会调用
-func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
 	if m.useOpenAICompatibleAPI() {
-		return m.config.defaultTransformRequestBody(ctx, apiName, body, log)
+		return m.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 	request := &chatCompletionRequest{}
-	err := m.config.parseRequestAndMapModel(ctx, request, body, log)
+	err := m.config.parseRequestAndMapModel(ctx, request, body)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +318,7 @@ func (m *hunyuanProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, a
 	return json.Marshal(hunyuanRequest)
 }
 
-func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() || name != ApiNameChatCompletion {
 		return chunk, nil
 	}
@@ -364,7 +365,7 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 		newBufferedBody = newBufferedBody[newEventPivot+2:] // 跳过结束标识
 
 		// 转换并追加到输出缓冲区
-		convertedData, _ := m.convertChunkFromHunyuanToOpenAI(ctx, eventData, log)
+		convertedData, _ := m.convertChunkFromHunyuanToOpenAI(ctx, eventData)
 		// log.Debugf("@@@ >>> converted one chunk: %s", string(convertedData))
 		outputBuffer = append(outputBuffer, convertedData...)
 	}
@@ -376,7 +377,7 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	return outputBuffer, nil
 }
 
-func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContext, hunyuanChunk []byte, log wrapper.Log) ([]byte, error) {
+func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContext, hunyuanChunk []byte) ([]byte, error) {
 	// 将hunyuan的chunk转为openai的chunk
 	hunyuanFormattedChunk := &hunyuanTextGenDetailedResponseNonStreaming{}
 	if err := json.Unmarshal(hunyuanChunk, hunyuanFormattedChunk); err != nil {
@@ -433,7 +434,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	return []byte(openAIChunk.String()), nil
 }
 
-func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if m.config.IsOriginal() || m.useOpenAICompatibleAPI() {
 		return body, nil
 	}
