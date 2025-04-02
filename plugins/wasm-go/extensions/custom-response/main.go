@@ -32,6 +32,7 @@ func main() {
 	wrapper.SetCtx(
 		"custom-response",
 		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 	)
 }
@@ -72,9 +73,6 @@ func parseConfig(gjson gjson.Result, configs *CustomResponseConfigs) error {
 			return errors.New("enableOnStatus can only use once")
 		}
 		configs.enableOnStatus = append(configs.enableOnStatus, configItem.enableOnStatus...)
-	}
-	if len(configs.enableOnStatus) == 0 {
-		return errors.New("enableOnStatus is required")
 	}
 	return nil
 }
@@ -140,6 +138,18 @@ func parseConfigItem(gjson gjson.Result, config *CustomResponseConfig) error {
 		config.enableOnStatus = append(config.enableOnStatus, uint32(parsedEnableOnStatus))
 	}
 	return nil
+}
+
+func onHttpRequestHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs) types.Action {
+	if len(configs.enableOnStatus) != 0 {
+		return types.ActionContinue
+	}
+	err := proxywasm.SendHttpResponseWithDetail(configs.rules[0].statusCode, "custom-response", configs.rules[0].headers, []byte(configs.rules[0].body), -1)
+	if err != nil {
+		log.Errorf("send http response failed: %v", err)
+	}
+
+	return types.ActionPause
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs) types.Action {
