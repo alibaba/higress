@@ -171,20 +171,25 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	// 前端版本
 	frontendVersion, isFrontendVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
 	if isFrontendVersionOk {
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", config.XHigressTag, frontendVersion, grayConfig.UserStickyMaxAge))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
 	}
 	// 设置GrayWeight 唯一值
 	if grayConfig.GrayWeight > 0 {
 		uniqueId, isUniqueIdOk := ctx.GetContext(grayConfig.UniqueGrayTag).(string)
 		if isUniqueIdOk {
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.UserStickyMaxAge))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
 		}
 	}
 	// 设置后端的版本
 	if util.IsBackendGrayEnabled(grayConfig) {
 		backendVersion, isBackVersionOk := ctx.GetContext(grayConfig.BackendGrayTag).(string)
-		if isBackVersionOk && backendVersion != "" {
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%s; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.UserStickyMaxAge))
+		if isBackVersionOk {
+			if backendVersion == "" {
+				// 删除后端灰度版本
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/;", grayConfig.BackendGrayTag, backendVersion))
+			} else {
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.StoreMaxAge))
+			}
 		}
 	}
 	return types.ActionContinue

@@ -9,8 +9,8 @@ description: 前端灰度插件配置参考
 
 ## 运行属性
 
-插件执行阶段：`认证阶段`
-插件执行优先级：`450`
+插件执行阶段：`默认阶段`
+插件执行优先级：`1000`
 
 
 ## 配置字段
@@ -19,7 +19,7 @@ description: 前端灰度插件配置参考
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
 | `localStorageGrayKey`         | string       | 非必填 | -   | 使用JWT鉴权方式，用户ID的唯一标识来自`localStorage`中，如果配置了当前参数，则`grayKey`失效 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
-| `userStickyMaxAge`         | int       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
+| `storeMaxAge`         | int       | 非必填 | 60 * 60 * 24 * 365   | 网关设置Cookie最大存储时长：单位为秒，默认为1年 |
 | `indexPaths` | array of strings | 非必填 | - | 强制处理的路径，支持 `Glob` 模式匹配。例如：在 微前端场景下，XHR 接口如： `/resource/**/manifest-main.json`本质是一个资源请求，需要走插件转发逻辑。 |
 | `skippedPaths` | array of strings | 非必填 | - | 用于排除特定路径，避免当前插件处理这些请求，支持 `Glob` 模式匹配。例如，在 rewrite 场景下，XHR 接口请求 `/api/**` 如果经过插件转发逻辑，可能会导致非预期的结果。 |
 | `skippedByHeaders` | map of string to string   | 非必填  | -   | 用于通过请求头过滤，指定哪些请求不被当前插件

@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -56,7 +57,7 @@ type BodyInjection struct {
 }
 
 type GrayConfig struct {
-	UserStickyMaxAge    string
+	StoreMaxAge         int
 	GrayKey             string
 	LocalStorageGrayKey string
 	GraySubKey          string
@@ -125,7 +126,12 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = GetWithDefault(json, "backendGrayTag", "x-mse-tag")
 	grayConfig.UniqueGrayTag = GetWithDefault(json, "uniqueGrayTag", "x-higress-uid")
-	grayConfig.UserStickyMaxAge = GetWithDefault(json, "UserStickyMaxAge", "172800")
+	grayConfig.StoreMaxAge = 60 * 60 * 24 * 365 // 默认一年
+	storeMaxAge, err := strconv.Atoi(GetWithDefault(json, "StoreMaxAge", strconv.Itoa(grayConfig.StoreMaxAge)))
+	if err != nil {
+		grayConfig.StoreMaxAge = storeMaxAge
+	}
+
 	grayConfig.Html = json.Get("html").String()
 	grayConfig.SkippedPaths = compatibleConvertToStringList(json.Get("skippedPaths").Array(), json.Get("skippedPathPrefixes").Array())
 	grayConfig.IndexPaths = compatibleConvertToStringList(json.Get("indexPaths").Array(), json.Get("includePathPrefixes").Array())

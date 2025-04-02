@@ -48,9 +48,8 @@ static_resources:
                             value: |
                               {
                                 "grayKey": "userId",
-                                "uniqueGrayTag": "x-higress-uid",
-                                "backendGrayTag": "x-mse-tag",
-                                "userStickyMaxAge": 172800,
+                                "backendGrayTag": "env",
+                                "uniqueGrayTag": "uuid",
                                 "rules": [
                                   {
                                     "name": "inner-user",
@@ -90,8 +89,7 @@ static_resources:
                                   "/mfe/**/mf-manifest-main.json"
                                 ],
                                 "baseDeployment": {
-                                  "version": "v1",
-                                  "backendVersion":"base"
+                                  "version": "v1"
                                 },
                                 "grayDeployments": [
                                   {
