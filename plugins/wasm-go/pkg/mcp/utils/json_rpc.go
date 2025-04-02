@@ -23,6 +23,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
@@ -84,7 +85,7 @@ func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, errorCode int, d
 		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
 		return
 	}
-	responseDebugInfo := "json_rpc_error"
+	responseDebugInfo := fmt.Sprintf("json_rpc_error(%s)", err)
 	if len(debugInfo) > 0 {
 		responseDebugInfo = debugInfo[0]
 	}
@@ -103,7 +104,7 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 		log.Debugf("json rpc call id[%d] method[%s] with params[%s]", id, method, params.Raw)
 		err := handle(ctx, id, params)
 		if err != nil {
-			OnJsonRpcResponseError(ctx, err)
+			OnJsonRpcResponseError(ctx, err, utils.ErrInvalidRequest)
 			return types.ActionContinue
 		}
 		// Waiting for the response
