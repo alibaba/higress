@@ -37,7 +37,7 @@ func main() {
 }
 
 type CustomResponseConfigs struct {
-	configs        []CustomResponseConfig
+	rules          []CustomResponseConfig
 	enableOnStatus []uint32
 }
 
@@ -50,13 +50,13 @@ type CustomResponseConfig struct {
 }
 
 func parseConfig(gjson gjson.Result, configs *CustomResponseConfigs) error {
-	if gjson.IsArray() {
-		for _, cf := range gjson.Array() {
+	if gjson.Get("rules").Exists() && gjson.Get("rules").IsArray() {
+		for _, cf := range gjson.Get("rules").Array() {
 			item := new(CustomResponseConfig)
 			if err := parseConfigItem(cf, item); err != nil {
 				return err
 			}
-			configs.configs = append(configs.configs, *item)
+			configs.rules = append(configs.rules, *item)
 		}
 
 	} else {
@@ -64,9 +64,9 @@ func parseConfig(gjson gjson.Result, configs *CustomResponseConfigs) error {
 		if err := parseConfigItem(gjson, item); err != nil {
 			return err
 		}
-		configs.configs = append(configs.configs, *item)
+		configs.rules = append(configs.rules, *item)
 	}
-	for _, configItem := range configs.configs {
+	for _, configItem := range configs.rules {
 		if Contains(configs.enableOnStatus, configItem.enableOnStatus...) {
 			log.Errorf("enbaled status code %v, want to add %v", configs.enableOnStatus, configItem.statusCode)
 			return errors.New("enableOnStatus can only use once")
@@ -158,7 +158,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, configs CustomResponseConfig
 
 	for _, v := range configs.enableOnStatus {
 		if uint32(statusCode) == v {
-			for _, configItem := range configs.configs {
+			for _, configItem := range configs.rules {
 				if Contains(configItem.enableOnStatus, v) {
 					err = proxywasm.SendHttpResponseWithDetail(configItem.statusCode, "custom-response", configItem.headers, []byte(configItem.body), -1)
 					if err != nil {

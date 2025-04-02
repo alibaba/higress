@@ -24,25 +24,48 @@ description: 自定义应答插件配置参考
 
 ## 配置示例
 
-### Mock 应答场景
+### 不同状态码相同应答场景
 
 ```yaml
-- body: '{"hello":"world 200"}'
-  enable_on_status:
-    - 200
-    - 201
-  headers:
-    - key1=value1
-    - key2=value2
-  status_code: 200
-- body: '{"hello":"world 404"}'
-  enable_on_status:
-    - 404
-  headers:
-    - key1=value1
-    - key2=value2
-  status_code: 200
+enable_on_status:
+  - 200
+status_code: 200
+headers:
+  - Content-Type=application/json
+  - Hello=World
+body: "{\"hello\":\"world\"}"
+```
+根据该配置，200请求将返回自定义应答如下：
 
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world"}
+```
+
+### 不同状态码不同应答场景
+
+```yaml
+rules:
+  - body: '{"hello":"world 200"}'
+    enable_on_status:
+      - 200
+      - 201
+    headers:
+      - key1=value1
+      - key2=value2
+    status_code: 200
+  - body: '{"hello":"world 404"}'
+    enable_on_status:
+      - 404
+    headers:
+      - key1=value1
+      - key2=value2
+    status_code: 200
 ```
 
 根据该配置，200、201请求将返回自定义应答如下：
