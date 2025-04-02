@@ -45,10 +45,11 @@ type RestToolHeader struct {
 
 // RestToolRequestTemplate defines how to construct the HTTP request
 type RestToolRequestTemplate struct {
-	URL     string           `json:"url"`
-	Method  string           `json:"method"`
-	Headers []RestToolHeader `json:"headers"`
-	Body    string           `json:"body"`
+	URL        string           `json:"url"`
+	Method     string           `json:"method"`
+	Headers    []RestToolHeader `json:"headers"`
+	Body       string           `json:"body"`
+	ArgsToBody bool             `json:"argsToBody,omitempty"`
 }
 
 // RestToolResponseTemplate defines how to transform the HTTP response
@@ -265,12 +266,46 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 
 	// Execute request body if needed
 	var requestBody []byte
-	if t.toolConfig.parsedBodyTemplate != nil {
+	var hasJsonContentType bool
+
+	// Check if any header is Content-Type: application/json
+	for _, header := range headers {
+		if header[0] == "Content-Type" && (header[1] == "application/json" || header[1] == "application/json; charset=utf-8") {
+			hasJsonContentType = true
+			break
+		}
+	}
+
+	if t.toolConfig.RequestTemplate.ArgsToBody {
+		// Use args directly as the request body
+		argsJson, err := json.Marshal(t.arguments)
+		if err != nil {
+			return fmt.Errorf("error marshaling args to JSON: %v", err)
+		}
+		requestBody = argsJson
+
+		// Add JSON content type if not already present
+		if !hasJsonContentType {
+			headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
+		}
+	} else if t.toolConfig.parsedBodyTemplate != nil {
 		body, err := executeTemplate(t.toolConfig.parsedBodyTemplate, templateDataBytes)
 		if err != nil {
 			return fmt.Errorf("error executing body template: %v", err)
 		}
 		requestBody = []byte(body)
+
+		// Check if body is JSON and add content type if needed
+		trimmedBody := bytes.TrimSpace(requestBody)
+		if !hasJsonContentType && len(trimmedBody) > 0 &&
+			((trimmedBody[0] == '{' && trimmedBody[len(trimmedBody)-1] == '}') ||
+				(trimmedBody[0] == '[' && trimmedBody[len(trimmedBody)-1] == ']')) {
+			// Try to parse as JSON to confirm
+			var js interface{}
+			if json.Unmarshal(trimmedBody, &js) == nil {
+				headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
+			}
+		}
 	}
 
 	// Make HTTP request
