@@ -159,13 +159,15 @@ func executeTemplate(tmpl *template.Template, data []byte) (string, error) {
 
 // RestMCPServer implements Server interface for REST-to-MCP conversion
 type RestMCPServer struct {
+	name        string
 	base        BaseMCPServer
 	toolsConfig map[string]RestTool // Store original tool configs for template rendering
 }
 
 // NewRestMCPServer creates a new REST-to-MCP server
-func NewRestMCPServer() *RestMCPServer {
+func NewRestMCPServer(name string) *RestMCPServer {
 	return &RestMCPServer{
+		name:        name,
 		base:        NewBaseMCPServer(),
 		toolsConfig: make(map[string]RestTool),
 	}
@@ -186,6 +188,7 @@ func (s *RestMCPServer) AddRestTool(toolConfig RestTool) error {
 
 	s.toolsConfig[toolConfig.Name] = toolConfig
 	s.base.AddMCPTool(toolConfig.Name, &RestMCPTool{
+		serverName: s.name,
 		name:       toolConfig.Name,
 		toolConfig: toolConfig,
 	})
@@ -228,6 +231,7 @@ func (s *RestMCPServer) GetToolConfig(name string) (RestTool, bool) {
 
 // RestMCPTool implements Tool interface for REST-to-MCP
 type RestMCPTool struct {
+	serverName string
 	name       string
 	toolConfig RestTool
 	arguments  map[string]interface{}
@@ -236,6 +240,7 @@ type RestMCPTool struct {
 // Create implements Tool interface
 func (t *RestMCPTool) Create(params []byte) Tool {
 	newTool := &RestMCPTool{
+		serverName: t.serverName,
 		name:       t.name,
 		toolConfig: t.toolConfig,
 		arguments:  make(map[string]interface{}),
@@ -459,10 +464,10 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 					utils.OnMCPToolCallError(ctx, fmt.Errorf("error executing response template: %v", err))
 					return
 				}
-				utils.SendMCPToolTextResult(ctx, result)
+				utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 			} else {
 				// Just return raw response as JSON string
-				utils.SendMCPToolTextResult(ctx, string(responseBody))
+				utils.SendMCPToolTextResult(ctx, string(responseBody), fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 			}
 		})
 

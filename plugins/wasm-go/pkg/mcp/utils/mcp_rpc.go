@@ -54,7 +54,7 @@ func OnMCPToolCallError(ctx wrapper.HttpContext, err error, debugInfo ...string)
 }
 
 func SendMCPToolTextResult(ctx wrapper.HttpContext, result string, debugInfo ...string) {
-	responseDebugInfo := "mcp:tools/call:result"
+	responseDebugInfo := "mcp:tools/call::result"
 	if len(debugInfo) > 0 {
 		responseDebugInfo = debugInfo[0]
 	}

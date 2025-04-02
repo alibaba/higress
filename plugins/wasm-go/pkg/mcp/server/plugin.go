@@ -86,7 +86,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	toolsJson := configJson.Get("tools")
 	if toolsJson.Exists() && len(toolsJson.Array()) > 0 {
 		// Create REST-to-MCP server
-		restServer := NewRestMCPServer()
+		restServer := NewRestMCPServer(serverName)
 		restServer.SetConfig([]byte(serverJson.Get("config").Raw))
 
 		// Parse and add tools
