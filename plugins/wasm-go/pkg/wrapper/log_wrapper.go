@@ -31,23 +31,9 @@ const (
 	LogLevelCritical
 )
 
-type Log interface {
-	Trace(msg string)
-	Tracef(format string, args ...interface{})
-	Debug(msg string)
-	Debugf(format string, args ...interface{})
-	Info(msg string)
-	Infof(format string, args ...interface{})
-	Warn(msg string)
-	Warnf(format string, args ...interface{})
-	Error(msg string)
-	Errorf(format string, args ...interface{})
-	Critical(msg string)
-	Criticalf(format string, args ...interface{})
-}
-
 type DefaultLog struct {
 	pluginName string
+	pluginID   string
 }
 
 func (l *DefaultLog) log(level LogLevel, msg string) {
@@ -56,7 +42,7 @@ func (l *DefaultLog) log(level LogLevel, msg string) {
 	if requestID == "" {
 		requestID = "nil"
 	}
-	msg = fmt.Sprintf("[%s] [%s] %s", l.pluginName, requestID, msg)
+	msg = fmt.Sprintf("[%s] [%s] [%s] %s", l.pluginName, l.pluginID, requestID, msg)
 	switch level {
 	case LogLevelTrace:
 		proxywasm.LogTrace(msg)
@@ -79,7 +65,7 @@ func (l *DefaultLog) logFormat(level LogLevel, format string, args ...interface{
 	if requestID == "" {
 		requestID = "nil"
 	}
-	format = fmt.Sprintf("[%s] [%s] %s", l.pluginName, requestID, format)
+	format = fmt.Sprintf("[%s] [%s] [%s] %s", l.pluginName, l.pluginID, requestID, format)
 	switch level {
 	case LogLevelTrace:
 		proxywasm.LogTracef(format, args...)
@@ -142,4 +128,8 @@ func (l *DefaultLog) Critical(msg string) {
 
 func (l *DefaultLog) Criticalf(format string, args ...interface{}) {
 	l.logFormat(LogLevelCritical, format, args...)
+}
+
+func (l *DefaultLog) ResetID(pluginID string) {
+	l.pluginID = pluginID
 }

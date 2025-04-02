@@ -2,7 +2,6 @@ package config
 
 import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -75,18 +74,21 @@ func (c *PluginConfig) Validate() error {
 	return nil
 }
 
-func (c *PluginConfig) Complete(log wrapper.Log) error {
+func (c *PluginConfig) Complete() error {
 	if c.activeProviderConfig == nil {
 		c.activeProvider = nil
 		return nil
 	}
+
 	var err error
+
 	c.activeProvider, err = provider.CreateProvider(*c.activeProviderConfig)
+	if err != nil {
+		return err
+	}
 
 	providerConfig := c.GetProviderConfig()
-	err = providerConfig.SetApiTokensFailover(log, c.activeProvider)
-
-	return err
+	return providerConfig.SetApiTokensFailover(c.activeProvider)
 }
 
 func (c *PluginConfig) GetProvider() provider.Provider {

@@ -31,6 +31,7 @@ Attribute 配置说明:
 | `key`         | string | 必填  | -   | attrribute 名称           |
 | `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
 | `value`      | string | 必填  | -   | attrribute 取值 key value/path |
+| `default_value`      | string | 非必填  | -   | attrribute 默认值 |
 | `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
 | `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
@@ -100,11 +101,43 @@ attributes:
     apply_to_span: false
 ```
 #### 监控
+
 ```
-route_upstream_model_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
-route_upstream_model_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
-route_upstream_model_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
-route_upstream_model_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
+# counter 类型，输入 token 数量的累加值
+route_upstream_model_consumer_metric_input_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 24
+
+# counter 类型，输出 token 数量的累加值
+route_upstream_model_consumer_metric_output_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 507
+
+# counter 类型，流式请求和非流式请求消耗总时间的累加值
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 6470
+
+# counter 类型，流式请求和非流式请求次数的累加值
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 2
+
+# counter 类型，流式请求首个 token 延时的累加值
+route_upstream_model_consumer_metric_llm_first_token_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 340
+
+# counter 类型，流式请求次数的累加值
+route_upstream_model_consumer_metric_llm_stream_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 1
+```
+
+以下是使用指标的几个示例：
+
+流式请求首个 token 的平均延时：
+
+```
+irate(route_upstream_model_consumer_metric_llm_first_token_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_stream_duration_count[2m])
+```
+
+流式请求和非流式请求平均消耗的总时长：
+
+```
+irate(route_upstream_model_consumer_metric_llm_service_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 ```
 
 #### 日志

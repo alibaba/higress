@@ -51,6 +51,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | controller.name | string | `"higress-controller"` |  |
 | controller.nodeSelector | object | `{}` |  |
 | controller.podAnnotations | object | `{}` |  |
+| controller.podLabels | object | `{}` | Labels to apply to the pod |
 | controller.podSecurityContext | object | `{}` |  |
 | controller.ports[0].name | string | `"http"` |  |
 | controller.ports[0].port | int | `8888` |  |
@@ -115,6 +116,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.podAnnotations."prometheus.io/port" | string | `"15020"` |  |
 | gateway.podAnnotations."prometheus.io/scrape" | string | `"true"` |  |
 | gateway.podAnnotations."sidecar.istio.io/inject" | string | `"false"` |  |
+| gateway.podLabels | object | `{}` | Labels to apply to the pod |
 | gateway.rbac.enabled | bool | `true` | If enabled, roles will be created to enable accessing certificates from Gateways. This is not needed when using http://gateway-api.org/. |
 | gateway.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | gateway.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
@@ -128,7 +130,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.resources.requests.memory | string | `"2048Mi"` |  |
 | gateway.revision | string | `""` | revision declares which revision this gateway is a part of |
 | gateway.rollingMaxSurge | string | `"100%"` |  |
-| gateway.rollingMaxUnavailable | string | `"25%"` |  |
+| gateway.rollingMaxUnavailable | string | `"25%"` | If global.local is true, the default value is 100%, otherwise it is 25% |
 | gateway.securityContext | string | `nil` | Define the security context for the pod. If unset, this will be automatically set to the minimum privileges required to bind to port 80 and 443. On Kubernetes 1.22+, this only requires the `net.ipv4.ip_unprivileged_port_start` sysctl. |
 | gateway.service.annotations | object | `{}` |  |
 | gateway.service.externalTrafficPolicy | string | `""` |  |
@@ -162,9 +164,10 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableH3 | bool | `false` |  |
 | global.enableIPv6 | bool | `false` |  |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
-| global.enableLDSCache | bool | `true` |  |
+| global.enableLDSCache | bool | `false` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enablePushAllMCPClusters | bool | `true` |  |
+| global.enableRedis | bool | `false` | Whether to enable Redis(redis-stack-server) for Higress, default is false. |
 | global.enableSRDS | bool | `true` |  |
 | global.enableStatus | bool | `true` | If true, Higress Controller will update the status field of Ingress resources. When migrating from Nginx Ingress, in order to avoid status field of Ingress objects being overwritten, this parameter needs to be set to false, so Higress won't write the entry IP to the status field of the corresponding Ingress object. |
 | global.externalIstiod | bool | `false` | Configure a remote cluster data plane controlled by an external istiod. When set to true, istiod is not deployed locally and only a subset of the other discovery charts are enabled. |
@@ -209,6 +212,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.proxy.includeOutboundPorts | string | `""` |  |
 | global.proxy.logLevel | string | `"warning"` | Log level for proxy, applies to gateways and sidecars. Expected values are: trace|debug|info|warning|error|critical|off |
 | global.proxy.privileged | bool | `false` | If set to true, istio-proxy container will have privileged securityContext |
+| global.proxy.proxyStatsMatcher | object | `{"inclusionRegexps":[".*"]}` | Proxy stats name regexps matcher for inclusion |
 | global.proxy.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | global.proxy.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
 | global.proxy.readinessPeriodSeconds | int | `2` | The period between readiness probes. |
@@ -269,6 +273,22 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.serviceAnnotations | object | `{}` |  |
 | pilot.tag | string | `""` |  |
 | pilot.traceSampling | float | `1` |  |
+| redis.redis.affinity | object | `{}` | Affinity for Redis |
+| redis.redis.image | string | `"redis-stack-server"` | Specify the image |
+| redis.redis.name | string | `"redis-stack-server"` |  |
+| redis.redis.nodeSelector | object | `{}` | NodeSelector Node labels for Redis |
+| redis.redis.password | string | `""` | Specify the password, if not set, no password is used |
+| redis.redis.persistence.accessModes | list | `["ReadWriteOnce"]` | Persistent Volume access modes |
+| redis.redis.persistence.enabled | bool | `false` | Enable persistence on Redis, default is false |
+| redis.redis.persistence.size | string | `"1Gi"` | Persistent Volume size |
+| redis.redis.persistence.storageClass | string | `""` | If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner |
+| redis.redis.replicas | int | `1` | Specify the number of replicas |
+| redis.redis.resources | object | `{}` | Specify the resources |
+| redis.redis.service | object | `{"port":6379,"type":"ClusterIP"}` | Service parameters |
+| redis.redis.service.port | int | `6379` | Exporter service port |
+| redis.redis.service.type | string | `"ClusterIP"` | Exporter service type |
+| redis.redis.tag | string | `"7.4.0-v3"` | Specify the tag |
+| redis.redis.tolerations | list | `[]` | Tolerations for Redis |
 | revision | string | `""` |  |
 | tracing.enable | bool | `false` |  |
 | tracing.sampling | int | `100` |  |

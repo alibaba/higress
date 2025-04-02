@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
-	"strings"
 )
 
 // parseIPNets 解析Ip段配置
@@ -24,7 +25,12 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 }
 
 // parseIP 解析IP
-func parseIP(source string) string {
+func parseIP(source string, fromHeader bool) string {
+
+	if fromHeader {
+		source = strings.Split(source, ",")[0]
+	}
+	source = strings.Trim(source, " ")
 	if strings.Contains(source, ".") {
 		// parse ipv4
 		return strings.Split(source, ":")[0]

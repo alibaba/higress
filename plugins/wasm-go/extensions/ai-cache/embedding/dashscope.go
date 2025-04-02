@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -103,7 +104,7 @@ type DSProvider struct {
 	client wrapper.HttpClient
 }
 
-func (d *DSProvider) constructParameters(texts []string, log wrapper.Log) (string, [][2]string, []byte, error) {
+func (d *DSProvider) constructParameters(texts []string) (string, [][2]string, []byte, error) {
 
 	model := d.config.model
 
@@ -159,9 +160,8 @@ func (d *DSProvider) parseTextEmbedding(responseBody []byte) (*Response, error) 
 func (d *DSProvider) GetEmbedding(
 	queryString string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
 	callback func(emb []float64, err error)) error {
-	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString}, log)
+	embUrl, embHeaders, embRequestBody, err := d.constructParameters([]string{queryString})
 	if err != nil {
 		log.Errorf("failed to construct parameters: %v", err)
 		return err

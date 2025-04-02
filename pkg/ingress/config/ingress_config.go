@@ -151,9 +151,37 @@ type IngressConfig struct {
 	clusterId cluster.ID
 
 	httpsConfigMgr *cert.ConfigMgr
+
+	// templateProcessor processes template variables in config
+	templateProcessor *TemplateProcessor
+
+	// secretConfigMgr manages secret dependencies
+	secretConfigMgr *SecretConfigMgr
 }
 
-func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *IngressConfig {
+// getSecretValue implements the getValue function for secret references
+func (m *IngressConfig) getSecretValue(valueType, namespace, name, key string) (string, error) {
+	if valueType != "secret" {
+		return "", fmt.Errorf("unsupported value type: %s", valueType)
+	}
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	for _, controller := range m.remoteIngressControllers {
+		secret, err := controller.SecretLister().Secrets(namespace).Get(name)
+		if err == nil {
+			if value, exists := secret.Data[key]; exists {
+				return string(value), nil
+			}
+			return "", fmt.Errorf("key %s not found in secret %s/%s", key, namespace, name)
+		}
+	}
+	return "", fmt.Errorf("secret %s/%s not found", namespace, name)
+}
+
+func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *IngressConfig {
+	clusterId := options.ClusterId
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
@@ -170,17 +198,24 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
 	}
-	mcpbridgeController := mcpbridge.NewController(localKubeClient, clusterId)
+
+	// Initialize secret config manager
+	config.secretConfigMgr = NewSecretConfigMgr(xdsUpdater)
+
+	// Initialize template processor with value getter function
+	config.templateProcessor = NewTemplateProcessor(config.getSecretValue, namespace, config.secretConfigMgr)
+
+	mcpbridgeController := mcpbridge.NewController(localKubeClient, options)
 	mcpbridgeController.AddEventHandler(config.AddOrUpdateMcpBridge, config.DeleteMcpBridge)
 	config.mcpbridgeController = mcpbridgeController
 	config.mcpbridgeLister = mcpbridgeController.Lister()
 
-	wasmPluginController := wasmplugin.NewController(localKubeClient, clusterId)
+	wasmPluginController := wasmplugin.NewController(localKubeClient, options)
 	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
 	config.wasmPluginController = wasmPluginController
 	config.wasmPluginLister = wasmPluginController.Lister()
 
-	http2rpcController := http2rpc.NewController(localKubeClient, clusterId)
+	http2rpcController := http2rpc.NewController(localKubeClient, options)
 	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
 	config.http2rpcController = http2rpcController
 	config.http2rpcLister = http2rpcController.Lister()
@@ -225,8 +260,9 @@ func (m *IngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f ist
 }
 
 func (m *IngressConfig) AddLocalCluster(options common.Options) {
-	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
+	secretController := secret.NewController(m.localKubeClient, options)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
+	secretController.AddEventHandler(m.secretConfigMgr.HandleSecretChange)
 
 	var ingressController common.IngressController
 	v1 := common.V1Available(m.localKubeClient)
@@ -253,10 +289,24 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 	var configs = make([]config.Config, 0)
 
 	if configsFromIngress := m.listFromIngressControllers(typ, namespace); configsFromIngress != nil {
+		// Process templates for ingress configs
+		for i := range configsFromIngress {
+			if err := m.templateProcessor.ProcessConfig(&configsFromIngress[i]); err != nil {
+				IngressLog.Errorf("Failed to process template for config %s/%s: %v",
+					configsFromIngress[i].Namespace, configsFromIngress[i].Name, err)
+			}
+		}
 		configs = append(configs, configsFromIngress...)
 	}
 
 	if configsFromGateway := m.listFromGatewayControllers(typ, namespace); configsFromGateway != nil {
+		// Process templates for gateway configs
+		for i := range configsFromGateway {
+			if err := m.templateProcessor.ProcessConfig(&configsFromGateway[i]); err != nil {
+				IngressLog.Errorf("Failed to process template for config %s/%s: %v",
+					configsFromGateway[i].Namespace, configsFromGateway[i].Name, err)
+			}
+		}
 		configs = append(configs, configsFromGateway...)
 	}
 
@@ -986,7 +1036,6 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		return nil, nil
 	}
 	return result, nil
-
 }
 
 func isBoolValueTrue(b *wrappers.BoolValue) bool {

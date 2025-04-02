@@ -144,3 +144,15 @@ func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string,
 	t.Logf("🏗 Updating %s %s", name, namespace)
 	return c.Update(ctx, cm)
 }
+
+func ApplySecret(t *testing.T, c client.Client, namespace string, name string, key string, val string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cm := &v1.Secret{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm); err != nil {
+		return err
+	}
+	cm.Data[key] = []byte(val)
+	t.Logf("🏗 Updating Secret %s %s", name, namespace)
+	return c.Update(ctx, cm)
+}

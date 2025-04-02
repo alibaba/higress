@@ -108,10 +108,7 @@ impl EventStream {
     }
 
     fn is_2eol(&self, i: usize) -> Option<usize> {
-        let size1 = match self.is_eol(i) {
-            None => return None,
-            Some(size1) => size1,
-        };
+        let size1 = self.is_eol(i)?;
         if i + size1 < self.buffer.len() {
             match self.is_eol(i + size1) {
                 None => {

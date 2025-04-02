@@ -118,7 +118,14 @@ func TestConvertGatewaysForKIngress(t *testing.T) {
 		RawClusterId: "kingress__",
 	}
 	kingressV1Controller := kcontrollerv1.NewController(fake, fake, v1Options, nil)
-	m := NewKIngressConfig(fake, nil, "wakanda", "gw-123-istio")
+	options := common.Options{
+		Enable:           true,
+		ClusterId:        "gw-123-istio",
+		RawClusterId:     "gw-123-istio__",
+		GatewayHttpPort:  80,
+		GatewayHttpsPort: 443,
+	}
+	m := NewKIngressConfig(fake, nil, "wakanda", options)
 	m.remoteIngressControllers = map[cluster.ID]common.KIngressController{
 		"kingress": kingressV1Controller,
 	}

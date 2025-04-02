@@ -85,7 +85,7 @@
       {{- end }}
       proxyStatsMatcher:
         inclusionRegexps:
-        - ".*"
+{{ toYaml .Values.global.proxy.proxyStatsMatcher.inclusionRegexps | indent 8 }}
 {{- end }}
 
 {{/* We take the mesh config above, defined with individual values.yaml, and merge with .Values.meshConfig */}}

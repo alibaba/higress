@@ -46,13 +46,15 @@ Description of configuration fields for each item in `limit_keys`.
 | query_per_day             | int           | No, one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day` is optional. | -             | Allowed number of requests per day.                              |
 
 Description of configuration fields for each item in `redis`.
-| Configuration Item        | Type          | Required | Default Value                                               | Description                                                               |
-|---------------------------|---------------|----------|------------------------------------------------------------|---------------------------------------------------------------------------|
-| service_name              | string        | Required | -                                                          | Full FQDN name of the Redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local. |
-| service_port              | int           | No       | 80 for static services; otherwise 6379                     | Service port for the Redis service.                                      |
-| username                  | string        | No       | -                                                          | Redis username.                                                          |
-| password                  | string        | No       | -                                                          | Redis password.                                                          |
-| timeout                   | int           | No       | 1000                                                       | Redis connection timeout in milliseconds.                               |
+| Configuration Item | Type   | Required | Default Value                          | Description                                                                                                     |
+|--------------------|--------|----------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| service_name       | string | Required | -                                      | Full FQDN name of the Redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local. |
+| service_port       | int    | No       | 80 for static services; otherwise 6379 | Service port for the Redis service.                                                                             |
+| username           | string | No       | -                                      | Redis username.                                                                                                 |
+| password           | string | No       | -                                      | Redis password.                                                                                                 |
+| timeout            | int    | No       | 1000                                   | Redis connection timeout in milliseconds.                                                                       |
+| database           | int    | No       | 0                                      | The database ID used, for example, configured as 1, corresponds to `SELECT 1`.                                  |
+
 
 ## Configuration Examples
 

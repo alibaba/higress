@@ -44,6 +44,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	}
 	enabledGray := util.IsGrayEnabled(grayConfig, requestPath)
 	ctx.SetContext(config.EnabledGray, enabledGray)
+	secFetchMode, _ := proxywasm.GetHttpRequestHeader("sec-fetch-mode")
+	ctx.SetContext(config.SecFetchMode, secFetchMode)
 
 	if !enabledGray {
 		log.Infof("gray not enabled")
@@ -132,6 +134,10 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if !enabledGray {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
+	}
+	secFetchMode, isSecFetchModeOk := ctx.GetContext(config.SecFetchMode).(string)
+	if isSecFetchModeOk && secFetchMode == "cors" {
+		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
 	}
 	isPageRequest, ok := ctx.GetContext(config.IsPageRequest).(bool)
 	if !ok {

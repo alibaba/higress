@@ -19,7 +19,9 @@ set -euo pipefail
 source "$(dirname -- "$0")/setup-istio-env.sh"
 
 cd ${ROOT}/external/istio
-rm -rf out/linux_${TARGET_ARCH}; 
+rm -rf out/linux_${TARGET_ARCH};
+
+BUILD_TOOLS_IMG=${BUILD_TOOLS_IMG:-"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools:release-1.19-ef344298e65eeb2d9e2d07b87eb4e715c2def613"}
 
 GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${TARGET_ARCH} \
     ISTIO_ENVOY_LINUX_RELEASE_URL=${ISTIO_ENVOY_LINUX_RELEASE_URL} \
@@ -28,5 +30,5 @@ GOOS_LOCAL=linux TARGET_OS=linux TARGET_ARCH=${TARGET_ARCH} \
     ISTIO_BASE_REGISTRY="${HUB}" \
     BASE_VERSION="${HIGRESS_BASE_VERSION}" \
     DOCKER_RUN_OPTIONS="--user root -e HTTP_PROXY -e HTTPS_PROXY" \
-    IMG=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/build-tools:release-1.19-ef344298e65eeb2d9e2d07b87eb4e715c2def613 \
+    IMG=${BUILD_TOOLS_IMG} \
     make build-linux

@@ -51,9 +51,8 @@ const (
 )
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig, log wrapper.Log) types.Action {
-	path := wrapper.GetRequestPathWithoutQuery()
 	// If the request's domain and path match the MatchRules, skip authentication
-	if config.MatchRules.IsAllowedByMode(ctx.Host(), path) {
+	if config.MatchRules.IsAllowedByMode(ctx.Host(), ctx.Method(), wrapper.GetRequestPathWithoutQuery()) {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}

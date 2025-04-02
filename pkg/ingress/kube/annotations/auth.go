@@ -15,12 +15,6 @@
 package annotations
 
 import (
-	"errors"
-	"sort"
-	"strings"
-
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
@@ -57,99 +51,8 @@ func (a auth) Parse(annotations Annotations, config *Ingress, globalContext *Glo
 	if !needAuthConfig(annotations) {
 		return nil
 	}
-
-	authConfig := &AuthConfig{
-		AuthType: defaultAuthType,
-	}
-
-	// Check auth type
-	authType, err := annotations.ParseStringASAP(authType)
-	if err != nil {
-		IngressLog.Errorf("Parse auth type error %v within ingress %/%s", err, config.Namespace, config.Name)
-		return nil
-	}
-	if authType != defaultAuthType {
-		IngressLog.Errorf("Auth type %s within ingress %/%s is not supported yet.", authType, config.Namespace, config.Name)
-		return nil
-	}
-
-	secretName, _ := annotations.ParseStringASAP(authSecretAnn)
-	namespaced := util.SplitNamespacedName(secretName)
-	if namespaced.Name == "" {
-		IngressLog.Errorf("Auth secret name within ingress %s/%s is invalid", config.Namespace, config.Name)
-		return nil
-	}
-	if namespaced.Namespace == "" {
-		namespaced.Namespace = config.Namespace
-	}
-
-	configKey := util.ClusterNamespacedName{
-		NamespacedName: namespaced,
-		ClusterId:      config.ClusterId,
-	}
-	authConfig.AuthSecret = configKey
-
-	// Subscribe secret
-	globalContext.WatchedSecrets.Insert(configKey.String())
-
-	secretType := authFileAuthSecretType
-	if rawSecretType, err := annotations.ParseStringASAP(authSecretTypeAnn); err == nil {
-		resultAuthSecretType := authSecretType(rawSecretType)
-		if resultAuthSecretType == authFileAuthSecretType || resultAuthSecretType == authMapAuthSecretType {
-			secretType = resultAuthSecretType
-		}
-	}
-
-	authConfig.AuthRealm, _ = annotations.ParseStringASAP(authRealm)
-
-	// Process credentials.
-	secretLister, exist := globalContext.ClusterSecretLister[config.ClusterId]
-	if !exist {
-		IngressLog.Errorf("secret lister of cluster %s doesn't exist", config.ClusterId)
-		return nil
-	}
-	authSecret, err := secretLister.Secrets(namespaced.Namespace).Get(namespaced.Name)
-	if err != nil {
-		IngressLog.Errorf("Secret %s within ingress %s/%s is not found",
-			namespaced.String(), config.Namespace, config.Name)
-		return nil
-	}
-	credentials, err := convertCredentials(secretType, authSecret)
-	if err != nil {
-		IngressLog.Errorf("Parse auth secret fail, err %v", err)
-		return nil
-	}
-	authConfig.Credentials = credentials
-
-	config.Auth = authConfig
+	IngressLog.Error("The annotation nginx.ingress.kubernetes.io/auth-type is no longer supported after version 2.0.0, please use the higress wasm plugin (e.g., basic-auth) as an alternative.")
 	return nil
-}
-
-func convertCredentials(secretType authSecretType, secret *corev1.Secret) ([]string, error) {
-	var result []string
-	switch secretType {
-	case authFileAuthSecretType:
-		users, exist := secret.Data[authFileKey]
-		if !exist {
-			return nil, errors.New("the auth file type must has auth key in secret data")
-		}
-		userList := strings.Split(string(users), "\n")
-		for _, item := range userList {
-			if !strings.Contains(item, ":") {
-				continue
-			}
-			result = append(result, item)
-		}
-	case authMapAuthSecretType:
-		for name, password := range secret.Data {
-			result = append(result, name+":"+string(password))
-		}
-	}
-	sort.SliceStable(result, func(i, j int) bool {
-		return result[i] < result[j]
-	})
-
-	return result, nil
 }
 
 func needAuthConfig(annotations Annotations) bool {

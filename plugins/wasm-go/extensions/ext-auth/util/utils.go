@@ -37,3 +37,12 @@ func ExtractFromHeader(headers [][2]string, headerKey string) string {
 	}
 	return ""
 }
+
+func ContainsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if strings.EqualFold(item, s) {
+			return true
+		}
+	}
+	return false
+}

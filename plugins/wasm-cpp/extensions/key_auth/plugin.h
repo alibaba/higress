@@ -38,10 +38,26 @@ namespace key_auth {
 
 struct Consumer {
   std::string name;
-  std::string credential;
+  std::unordered_set<std::string> credentials;
   std::optional<std::vector<std::string>> keys;
   std::optional<bool> in_query = std::nullopt;
   std::optional<bool> in_header = std::nullopt;
+
+  // std::string debugString() const {
+  //   std::string msg;
+  //   msg += "name: " + name + "\n";
+  //   msg += "  keys: \n";
+  //   if (keys.has_value()) {
+  //     for (const auto& item : keys.value()) {
+  //       msg += "  - " + item + "\n";
+  //     }
+  //   }
+  //   msg += "  credentials: \n";
+  //   for (const auto& item : credentials) {
+  //     msg += "  - " + item + "\n";
+  //   }
+  //   return msg;
+  // }
 };
 
 struct KeyAuthConfigRule {
@@ -52,6 +68,30 @@ struct KeyAuthConfigRule {
   std::vector<std::string> keys;
   bool in_query = true;
   bool in_header = true;
+
+  // std::string debugString(std::string prompt="") const {
+  //   std::string msg;
+  //   msg += prompt + "\n";
+  //   msg += "realm: " + realm + "\n";
+  //   msg += "keys: \n";
+  //   for (const auto& item : keys) {
+  //     msg += "- " + item + "\n";
+  //   }
+  //   msg += "credentials: \n";
+  //   for (const auto& item : credentials) {
+  //     msg += "- " + item + "\n";
+  //   }
+  //   msg += "credential_to_name: \n";
+  //   for (const auto& item : credential_to_name) {
+  //     msg += "- " + item.first + ": " + item.second + "\n";
+  //   }
+  //   msg += "consumers: \n";
+  //   for (const auto& item : consumers) {
+  //     msg += "- " + item.debugString();
+  //   }
+
+  //   return msg;
+  // }
 };
 
 // PluginRootContext is the root context for all streams processed by the

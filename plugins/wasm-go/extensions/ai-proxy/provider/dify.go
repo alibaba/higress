@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -50,12 +51,12 @@ func (d *difyProvider) GetProviderType() string {
 	return providerTypeDify
 }
 
-func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	d.config.handleRequestHeaders(d, ctx, apiName, log)
+func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	d.config.handleRequestHeaders(d, ctx, apiName)
 	return nil
 }
 
-func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if d.config.difyApiUrl != "" {
 		log.Debugf("use local host: %s", d.config.difyApiUrl)
 		util.OverwriteRequestHostHeader(headers, d.config.difyApiUrl)
@@ -73,19 +74,19 @@ func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+d.config.GetApiTokenInUse(ctx))
 }
 
-func (d *difyProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (d *difyProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if apiName != ApiNameChatCompletion {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)
+	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body)
 }
 
-func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
-		return d.config.defaultTransformRequestBody(ctx, apiName, body, log)
+		return d.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 	request := &chatCompletionRequest{}
-	err := d.config.parseRequestAndMapModel(ctx, request, body, log)
+	err := d.config.parseRequestAndMapModel(ctx, request, body)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (d *difyProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiN
 	return json.Marshal(difyRequest)
 }
 
-func (d *difyProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (d *difyProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}
@@ -146,7 +147,7 @@ func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *Di
 	}
 }
 
-func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
