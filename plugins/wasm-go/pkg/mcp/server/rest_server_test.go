@@ -15,11 +15,383 @@ package server
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/tidwall/sjson"
 )
+
+func TestConvertArgToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name:     "string value",
+			input:    "test string",
+			expected: "test string",
+		},
+		{
+			name:     "boolean true",
+			input:    true,
+			expected: "true",
+		},
+		{
+			name:     "boolean false",
+			input:    false,
+			expected: "false",
+		},
+		{
+			name:     "integer",
+			input:    42,
+			expected: "42",
+		},
+		{
+			name:     "float",
+			input:    3.14,
+			expected: "3.14",
+		},
+		{
+			name:     "map",
+			input:    map[string]interface{}{"key": "value"},
+			expected: `{"key":"value"}`,
+		},
+		{
+			name:     "array",
+			input:    []interface{}{1, 2, 3},
+			expected: "[1,2,3]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertArgToString(tt.input)
+			if result != tt.expected {
+				t.Errorf("convertArgToString(%v) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHasContentType(t *testing.T) {
+	tests := []struct {
+		name            string
+		headers         [][2]string
+		contentTypeStr  string
+		expectedOutcome bool
+	}{
+		{
+			name: "exact match",
+			headers: [][2]string{
+				{"Content-Type", "application/json"},
+			},
+			contentTypeStr:  "application/json",
+			expectedOutcome: true,
+		},
+		{
+			name: "case insensitive match",
+			headers: [][2]string{
+				{"content-type", "application/JSON"},
+			},
+			contentTypeStr:  "application/json",
+			expectedOutcome: true,
+		},
+		{
+			name: "substring match",
+			headers: [][2]string{
+				{"Content-Type", "application/json; charset=utf-8"},
+			},
+			contentTypeStr:  "application/json",
+			expectedOutcome: true,
+		},
+		{
+			name: "no match",
+			headers: [][2]string{
+				{"Content-Type", "text/plain"},
+			},
+			contentTypeStr:  "application/json",
+			expectedOutcome: false,
+		},
+		{
+			name: "header not present",
+			headers: [][2]string{
+				{"Accept", "application/json"},
+			},
+			contentTypeStr:  "application/json",
+			expectedOutcome: false,
+		},
+		{
+			name:            "empty headers",
+			headers:         [][2]string{},
+			contentTypeStr:  "application/json",
+			expectedOutcome: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasContentType(tt.headers, tt.contentTypeStr)
+			if result != tt.expectedOutcome {
+				t.Errorf("hasContentType(%v, %v) = %v, want %v", tt.headers, tt.contentTypeStr, result, tt.expectedOutcome)
+			}
+		})
+	}
+}
+
+func TestRestToolValidation(t *testing.T) {
+	tests := []struct {
+		name          string
+		tool          RestTool
+		expectedError bool
+	}{
+		{
+			name: "valid tool with no args options",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:    "https://example.com",
+					Method: "GET",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid tool with argsToJsonBody",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:            "https://example.com",
+					Method:         "POST",
+					ArgsToJsonBody: true,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid tool with argsToUrlParam",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:            "https://example.com",
+					Method:         "GET",
+					ArgsToUrlParam: true,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid tool with argsToFormBody",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:            "https://example.com",
+					Method:         "POST",
+					ArgsToFormBody: true,
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "invalid tool with multiple args options",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:            "https://example.com",
+					Method:         "POST",
+					ArgsToJsonBody: true,
+					ArgsToFormBody: true,
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid tool with all args options",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:            "https://example.com",
+					Method:         "POST",
+					ArgsToJsonBody: true,
+					ArgsToUrlParam: true,
+					ArgsToFormBody: true,
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.tool.parseTemplates()
+			if (err != nil) != tt.expectedError {
+				t.Errorf("parseTemplates() error = %v, expectedError %v", err, tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestInputSchemaWithComplexTypes(t *testing.T) {
+	// Create a tool with array and object type arguments
+	tool := RestMCPTool{
+		toolConfig: RestTool{
+			Args: []RestToolArg{
+				{
+					Name:        "stringArg",
+					Description: "A string argument",
+					Type:        "string",
+				},
+				{
+					Name:        "arrayArg",
+					Description: "An array argument",
+					Type:        "array",
+					Items: map[string]interface{}{
+						"type": "string",
+					},
+				},
+				{
+					Name:        "objectArg",
+					Description: "An object argument",
+					Type:        "object",
+					Properties: map[string]interface{}{
+						"name": map[string]interface{}{
+							"type":        "string",
+							"description": "Name property",
+						},
+						"age": map[string]interface{}{
+							"type":        "integer",
+							"description": "Age property",
+						},
+					},
+				},
+				{
+					Name:        "arrayOfObjects",
+					Description: "An array of objects",
+					Type:        "array",
+					Items: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"id": map[string]interface{}{
+								"type": "string",
+							},
+							"value": map[string]interface{}{
+								"type": "number",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	schema := tool.InputSchema()
+
+	// Check schema structure
+	if schema["type"] != "object" {
+		t.Errorf("Expected schema type to be 'object', got %v", schema["type"])
+	}
+
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected properties to be a map, got %T", schema["properties"])
+	}
+
+	// Check individual property types
+	checkProperty := func(name, expectedType string) {
+		prop, ok := properties[name].(map[string]interface{})
+		if !ok {
+			t.Fatalf("Expected property %s to be a map, got %T", name, properties[name])
+		}
+		if prop["type"] != expectedType {
+			t.Errorf("Expected property %s type to be '%s', got %v", name, expectedType, prop["type"])
+		}
+	}
+
+	checkProperty("stringArg", "string")
+	checkProperty("arrayArg", "array")
+	checkProperty("objectArg", "object")
+	checkProperty("arrayOfObjects", "array")
+
+	// Check array items
+	arrayArg, _ := properties["arrayArg"].(map[string]interface{})
+	if arrayArg["items"] == nil {
+		t.Errorf("Expected arrayArg to have items property")
+	}
+
+	// Check object properties
+	objectArg, _ := properties["objectArg"].(map[string]interface{})
+	if objectArg["properties"] == nil {
+		t.Errorf("Expected objectArg to have properties property")
+	}
+
+	// Check array of objects
+	arrayOfObjects, _ := properties["arrayOfObjects"].(map[string]interface{})
+	items, ok := arrayOfObjects["items"].(map[string]interface{})
+	if !ok || items["type"] != "object" {
+		t.Errorf("Expected arrayOfObjects items to be of type object")
+	}
+}
+
+func TestArgsToUrlParamAndFormBody(t *testing.T) {
+	// Test argsToUrlParam
+	t.Run("argsToUrlParam", func(t *testing.T) {
+		args := map[string]interface{}{
+			"string": "value",
+			"int":    42,
+			"bool":   true,
+			"array":  []interface{}{1, 2, 3},
+			"object": map[string]interface{}{"key": "value"},
+		}
+
+		// Parse URL and add parameters
+		baseURL := "https://example.com/api"
+		parsedURL, _ := url.Parse(baseURL)
+		query := parsedURL.Query()
+
+		for key, value := range args {
+			query.Set(key, convertArgToString(value))
+		}
+
+		parsedURL.RawQuery = query.Encode()
+		result := parsedURL.String()
+
+		// Verify each parameter is in the URL
+		for key, value := range args {
+			strValue := convertArgToString(value)
+			encodedValue := url.QueryEscape(strValue)
+			paramStr := key + "=" + encodedValue
+
+			if !strings.Contains(result, paramStr) {
+				t.Errorf("URL parameter missing: %s", paramStr)
+			}
+		}
+	})
+
+	// Test argsToFormBody
+	t.Run("argsToFormBody", func(t *testing.T) {
+		args := map[string]interface{}{
+			"string": "value",
+			"int":    42,
+			"bool":   true,
+			"array":  []interface{}{1, 2, 3},
+			"object": map[string]interface{}{"key": "value"},
+		}
+
+		// Create form values
+		formValues := url.Values{}
+		for key, value := range args {
+			formValues.Set(key, convertArgToString(value))
+		}
+
+		formBody := formValues.Encode()
+
+		// Verify each parameter is in the form body
+		for key, value := range args {
+			strValue := convertArgToString(value)
+			encodedValue := url.QueryEscape(strValue)
+			paramStr := key + "=" + encodedValue
+
+			if !strings.Contains(formBody, paramStr) {
+				t.Errorf("Form body missing parameter: %s", paramStr)
+			}
+		}
+	})
+}
 
 func TestRestToolConfig(t *testing.T) {
 	// Example REST tool configuration
@@ -39,16 +411,46 @@ func TestRestToolConfig(t *testing.T) {
         {
           "name": "address",
           "description": "待解析的结构化地址信息",
+          "type": "string",
           "required": true
         },
         {
           "name": "city",
           "description": "指定查询的城市",
           "required": false
+        },
+        {
+          "name": "output",
+          "description": "输出格式",
+          "type": "string",
+          "enum": ["json", "xml"],
+          "default": "json"
+        },
+        {
+          "name": "options",
+          "description": "高级选项",
+          "type": "object",
+          "properties": {
+            "extensions": {
+              "type": "string",
+              "enum": ["base", "all"]
+            },
+            "batch": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "name": "batch_addresses",
+          "description": "批量地址",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       ],
       "requestTemplate": {
-        "url": "https://restapi.amap.com/v3/geocode/geo?key={{.config.apiKey}}&address={{.args.address}}&city={{.args.city}}&source=ts_mcp",
+        "url": "https://restapi.amap.com/v3/geocode/geo?key={{.config.apiKey}}&address={{.args.address}}&city={{.args.city}}&output={{.args.output}}&source=ts_mcp",
         "method": "GET",
         "headers": [
           {
@@ -80,6 +482,7 @@ func TestRestToolConfig(t *testing.T) {
 			{
 				Name:        "address",
 				Description: "待解析的结构化地址信息",
+				Type:        "string",
 				Required:    true,
 			},
 			{
@@ -87,9 +490,38 @@ func TestRestToolConfig(t *testing.T) {
 				Description: "指定查询的城市",
 				Required:    false,
 			},
+			{
+				Name:        "output",
+				Description: "输出格式",
+				Type:        "string",
+				Enum:        []interface{}{"json", "xml"},
+				Default:     "json",
+			},
+			{
+				Name:        "options",
+				Description: "高级选项",
+				Type:        "object",
+				Properties: map[string]interface{}{
+					"extensions": map[string]interface{}{
+						"type": "string",
+						"enum": []interface{}{"base", "all"},
+					},
+					"batch": map[string]interface{}{
+						"type": "boolean",
+					},
+				},
+			},
+			{
+				Name:        "batch_addresses",
+				Description: "批量地址",
+				Type:        "array",
+				Items: map[string]interface{}{
+					"type": "string",
+				},
+			},
 		},
 		RequestTemplate: RestToolRequestTemplate{
-			URL:    "https://restapi.amap.com/v3/geocode/geo?key={{.config.apiKey}}&address={{.args.address}}&city={{.args.city}}&source=ts_mcp",
+			URL:    "https://restapi.amap.com/v3/geocode/geo?key={{.config.apiKey}}&address={{.args.address}}&city={{.args.city}}&output={{.args.output}}&source=ts_mcp",
 			Method: "GET",
 			Headers: []RestToolHeader{
 				{
@@ -125,7 +557,11 @@ func TestRestToolConfig(t *testing.T) {
 
 	var templateData []byte
 	templateData, _ = sjson.SetBytes(templateData, "config", map[string]interface{}{"apiKey": "test-api-key"})
-	templateData, _ = sjson.SetBytes(templateData, "args", map[string]interface{}{"address": "北京市朝阳区阜通东大街6号", "city": "北京"})
+	templateData, _ = sjson.SetBytes(templateData, "args", map[string]interface{}{
+		"address": "北京市朝阳区阜通东大街6号",
+		"city":    "北京",
+		"output":  "json",
+	})
 
 	// Test URL template
 	url, err := executeTemplate(tool.parsedURLTemplate, templateData)
@@ -133,9 +569,29 @@ func TestRestToolConfig(t *testing.T) {
 		t.Fatalf("Failed to execute URL template: %v", err)
 	}
 
-	expectedURL := "https://restapi.amap.com/v3/geocode/geo?key=test-api-key&address=北京市朝阳区阜通东大街6号&city=北京&source=ts_mcp"
+	expectedURL := "https://restapi.amap.com/v3/geocode/geo?key=test-api-key&address=北京市朝阳区阜通东大街6号&city=北京&output=json&source=ts_mcp"
 	if url != expectedURL {
 		t.Errorf("URL template rendering failed. Expected: %s, Got: %s", expectedURL, url)
+	}
+
+	// Test InputSchema for complex types
+	mcpTool := &RestMCPTool{
+		toolConfig: tool,
+	}
+
+	schema := mcpTool.InputSchema()
+	properties := schema["properties"].(map[string]interface{})
+
+	// Check object type
+	options, ok := properties["options"].(map[string]interface{})
+	if !ok || options["type"] != "object" {
+		t.Errorf("Expected options to be of type object")
+	}
+
+	// Check array type
+	batchAddresses, ok := properties["batch_addresses"].(map[string]interface{})
+	if !ok || batchAddresses["type"] != "array" {
+		t.Errorf("Expected batch_addresses to be of type array")
 	}
 
 	// Test response template with sample data

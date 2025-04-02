@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	template "github.com/higress-group/gjson_template"
 	"github.com/tidwall/sjson"
@@ -32,9 +34,14 @@ import (
 type RestToolArg struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
+	Type        string        `json:"type,omitempty"` // JSON Schema type: string, number, integer, boolean, array, object
 	Required    bool          `json:"required,omitempty"`
 	Default     interface{}   `json:"default,omitempty"`
 	Enum        []interface{} `json:"enum,omitempty"`
+	// For array type
+	Items interface{} `json:"items,omitempty"`
+	// For object type
+	Properties interface{} `json:"properties,omitempty"`
 }
 
 // RestToolHeader represents an HTTP header
@@ -45,11 +52,13 @@ type RestToolHeader struct {
 
 // RestToolRequestTemplate defines how to construct the HTTP request
 type RestToolRequestTemplate struct {
-	URL        string           `json:"url"`
-	Method     string           `json:"method"`
-	Headers    []RestToolHeader `json:"headers"`
-	Body       string           `json:"body"`
-	ArgsToBody bool             `json:"argsToBody,omitempty"`
+	URL            string           `json:"url"`
+	Method         string           `json:"method"`
+	Headers        []RestToolHeader `json:"headers"`
+	Body           string           `json:"body"`
+	ArgsToJsonBody bool             `json:"argsToJsonBody,omitempty"` // Use args as JSON body
+	ArgsToUrlParam bool             `json:"argsToUrlParam,omitempty"` // Add args to URL parameters
+	ArgsToFormBody bool             `json:"argsToFormBody,omitempty"` // Use args as form-urlencoded body
 }
 
 // RestToolResponseTemplate defines how to transform the HTTP response
@@ -83,6 +92,21 @@ func templateFuncs() template.FuncMap {
 // parseTemplates parses all templates in the tool configuration
 func (t *RestTool) parseTemplates() error {
 	var err error
+
+	// Validate args configuration - only one of the three options can be true
+	argsOptionCount := 0
+	if t.RequestTemplate.ArgsToJsonBody {
+		argsOptionCount++
+	}
+	if t.RequestTemplate.ArgsToUrlParam {
+		argsOptionCount++
+	}
+	if t.RequestTemplate.ArgsToFormBody {
+		argsOptionCount++
+	}
+	if argsOptionCount > 1 {
+		return fmt.Errorf("only one of argsToJsonBody, argsToUrlParam, or argsToFormBody can be set to true")
+	}
 
 	// Parse URL template
 	t.parsedURLTemplate, err = template.New("url").Funcs(templateFuncs()).Parse(t.RequestTemplate.URL)
@@ -217,18 +241,101 @@ func (t *RestMCPTool) Create(params []byte) Tool {
 		arguments:  make(map[string]interface{}),
 	}
 
-	if err := json.Unmarshal(params, &newTool.arguments); err != nil {
+	// Parse raw arguments
+	var rawArgs map[string]interface{}
+	if err := json.Unmarshal(params, &rawArgs); err != nil {
 		log.Warnf("Failed to parse tool arguments: %v", err)
 	}
 
-	// Apply default values for missing arguments
+	// Process arguments with type conversion
 	for _, arg := range t.toolConfig.Args {
-		if _, exists := newTool.arguments[arg.Name]; !exists && arg.Default != nil {
-			newTool.arguments[arg.Name] = arg.Default
+		// Check if argument was provided
+		rawValue, exists := rawArgs[arg.Name]
+		if !exists {
+			// Apply default if available
+			if arg.Default != nil {
+				newTool.arguments[arg.Name] = arg.Default
+			}
+			continue
+		}
+
+		// Convert value based on type
+		switch arg.Type {
+		case "boolean":
+			// Convert to boolean
+			switch v := rawValue.(type) {
+			case bool:
+				newTool.arguments[arg.Name] = v
+			case string:
+				if v == "true" {
+					newTool.arguments[arg.Name] = true
+				} else if v == "false" {
+					newTool.arguments[arg.Name] = false
+				} else {
+					newTool.arguments[arg.Name] = rawValue
+				}
+			default:
+				newTool.arguments[arg.Name] = rawValue
+			}
+		case "integer":
+			// Convert to integer
+			switch v := rawValue.(type) {
+			case float64:
+				newTool.arguments[arg.Name] = int(v)
+			case string:
+				if intVal, err := json.Number(v).Int64(); err == nil {
+					newTool.arguments[arg.Name] = int(intVal)
+				} else {
+					newTool.arguments[arg.Name] = rawValue
+				}
+			default:
+				newTool.arguments[arg.Name] = rawValue
+			}
+		case "number":
+			// Convert to number (float64)
+			switch v := rawValue.(type) {
+			case string:
+				if floatVal, err := json.Number(v).Float64(); err == nil {
+					newTool.arguments[arg.Name] = floatVal
+				} else {
+					newTool.arguments[arg.Name] = rawValue
+				}
+			default:
+				newTool.arguments[arg.Name] = rawValue
+			}
+		default:
+			// For string, array, object, or unspecified types, use as is
+			newTool.arguments[arg.Name] = rawValue
 		}
 	}
 
 	return newTool
+}
+
+// convertArgToString converts an argument value to a string representation
+func convertArgToString(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case bool, int, int64, float64:
+		return fmt.Sprintf("%v", v)
+	default:
+		// For complex types, try to marshal to JSON
+		if jsonBytes, err := json.Marshal(v); err == nil {
+			return string(jsonBytes)
+		}
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// hasContentType checks if the headers contain a specific content type
+func hasContentType(headers [][2]string, contentTypeSubstr string) bool {
+	for _, header := range headers {
+		if strings.EqualFold(header[0], "Content-Type") && strings.Contains(strings.ToLower(header[1]), contentTypeSubstr) {
+			return true
+		}
+	}
+	return false
 }
 
 // Call implements Tool interface
@@ -244,7 +351,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	templateDataBytes, _ = sjson.SetBytes(templateDataBytes, "args", t.arguments)
 
 	// Execute URL template
-	url, err := executeTemplate(t.toolConfig.parsedURLTemplate, templateDataBytes)
+	urlStr, err := executeTemplate(t.toolConfig.parsedURLTemplate, templateDataBytes)
 	if err != nil {
 		return fmt.Errorf("error executing URL template: %v", err)
 	}
@@ -264,20 +371,36 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		headers = append(headers, [2]string{header.Key, value})
 	}
 
-	// Execute request body if needed
-	var requestBody []byte
-	var hasJsonContentType bool
+	// Check for existing content types
+	hasJsonContentType := hasContentType(headers, "application/json")
+	hasFormContentType := hasContentType(headers, "application/x-www-form-urlencoded")
 
-	// Check if any header is Content-Type: application/json
-	for _, header := range headers {
-		if header[0] == "Content-Type" && (header[1] == "application/json" || header[1] == "application/json; charset=utf-8") {
-			hasJsonContentType = true
-			break
+	// Process URL parameters if argsToUrlParam is true
+	if t.toolConfig.RequestTemplate.ArgsToUrlParam {
+		// Parse the URL to add parameters
+		parsedURL, err := url.Parse(urlStr)
+		if err != nil {
+			return fmt.Errorf("error parsing URL: %v", err)
 		}
+
+		// Get existing query values
+		query := parsedURL.Query()
+
+		// Add arguments to query parameters
+		for key, value := range t.arguments {
+			query.Set(key, convertArgToString(value))
+		}
+
+		// Update the URL with the new query string
+		parsedURL.RawQuery = query.Encode()
+		urlStr = parsedURL.String()
 	}
 
-	if t.toolConfig.RequestTemplate.ArgsToBody {
-		// Use args directly as the request body
+	// Prepare request body
+	var requestBody []byte
+
+	if t.toolConfig.RequestTemplate.ArgsToJsonBody {
+		// Use args directly as JSON in the request body
 		argsJson, err := json.Marshal(t.arguments)
 		if err != nil {
 			return fmt.Errorf("error marshaling args to JSON: %v", err)
@@ -287,6 +410,19 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		// Add JSON content type if not already present
 		if !hasJsonContentType {
 			headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
+		}
+	} else if t.toolConfig.RequestTemplate.ArgsToFormBody {
+		// Use args as form-urlencoded body
+		formValues := url.Values{}
+		for key, value := range t.arguments {
+			formValues.Set(key, convertArgToString(value))
+		}
+
+		requestBody = []byte(formValues.Encode())
+
+		// Add form content type if not already present
+		if !hasFormContentType {
+			headers = append(headers, [2]string{"Content-Type", "application/x-www-form-urlencoded"})
 		}
 	} else if t.toolConfig.parsedBodyTemplate != nil {
 		body, err := executeTemplate(t.toolConfig.parsedBodyTemplate, templateDataBytes)
@@ -309,7 +445,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	}
 
 	// Make HTTP request
-	ctx.RouteCall(t.toolConfig.RequestTemplate.Method, url, headers, requestBody,
+	ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d", statusCode))
@@ -346,9 +482,15 @@ func (t *RestMCPTool) InputSchema() map[string]any {
 
 	for _, arg := range t.toolConfig.Args {
 		argSchema := map[string]interface{}{
-			"type":        "string",
 			"description": arg.Description,
 		}
+
+		// Set type (default to string if not specified)
+		argType := arg.Type
+		if argType == "" {
+			argType = "string"
+		}
+		argSchema["type"] = argType
 
 		// Add enum if specified
 		if arg.Enum != nil && len(arg.Enum) > 0 {
@@ -358,6 +500,16 @@ func (t *RestMCPTool) InputSchema() map[string]any {
 		// Add default if specified
 		if arg.Default != nil {
 			argSchema["default"] = arg.Default
+		}
+
+		// Add items for array type
+		if argType == "array" && arg.Items != nil {
+			argSchema["items"] = arg.Items
+		}
+
+		// Add properties for object type
+		if argType == "object" && arg.Properties != nil {
+			argSchema["properties"] = arg.Properties
 		}
 
 		properties[arg.Name] = argSchema
