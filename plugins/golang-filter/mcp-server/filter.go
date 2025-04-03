@@ -71,7 +71,6 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 			}
 			api.LogDebugf("%s SSE connection started", server.GetServerName())
-			server.SetBaseURL(url.baseURL)
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() {
 			if url.method != http.MethodPost {
@@ -112,7 +111,6 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
-		f.config.defaultServer.SetBaseURL(url.baseURL)
 	}
 	return api.LocalReply
 }
