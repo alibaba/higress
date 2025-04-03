@@ -39,6 +39,7 @@ func main() {
 
 type CustomResponseConfig struct {
 	rules                 []CustomResponseRule
+	defaultRule           *CustomResponseRule
 	enableOnStatusRuleMap map[uint32]*CustomResponseRule
 }
 
@@ -59,15 +60,19 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 			if err := parseRuleItem(cf, item); err != nil {
 				return err
 			}
+			// the first rule item which enableOnStatus is empty to be set default
+			if len(item.enableOnStatus) == 0 && config.defaultRule == nil {
+				config.defaultRule = item
+			}
 			config.rules = append(config.rules, *item)
 		}
-
 	} else {
 		rule := new(CustomResponseRule)
 		if err := parseRuleItem(gjson, rule); err != nil {
 			return err
 		}
 		config.rules = append(config.rules, *rule)
+		config.defaultRule = rule
 	}
 	config.enableOnStatusRuleMap = make(map[uint32]*CustomResponseRule)
 	for i, configItem := range config.rules {
@@ -79,8 +84,8 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 			config.enableOnStatusRuleMap[statusCode] = &config.rules[i]
 		}
 	}
-	if rulesVersion && len(config.enableOnStatusRuleMap) == 0 {
-		return errors.New("enableOnStatus is required")
+	if rulesVersion && config.defaultRule == nil {
+		return errors.New("config cant empty")
 	}
 	return nil
 }
@@ -141,7 +146,7 @@ func onHttpRequestHeaders(_ wrapper.HttpContext, config CustomResponseConfig) ty
 	if len(config.enableOnStatusRuleMap) != 0 {
 		return types.ActionContinue
 	}
-	err := proxywasm.SendHttpResponseWithDetail(config.rules[0].statusCode, "custom-response", config.rules[0].headers, []byte(config.rules[0].body), -1)
+	err := proxywasm.SendHttpResponseWithDetail(config.defaultRule.statusCode, "custom-response", config.defaultRule.headers, []byte(config.defaultRule.body), -1)
 	if err != nil {
 		log.Errorf("send http response failed: %v", err)
 	}

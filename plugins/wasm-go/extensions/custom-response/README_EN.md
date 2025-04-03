@@ -19,12 +19,12 @@ Plugin Execution Priority: `910`
 
 The configuration field description of `rules` is as follows：
 
-| Name               | Data Type          | Requirements | Default Value | Description                                                                                                                                                 |
-|--------------------|--------------------|--------------|-----|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `status_code`      | number             | Optional     | 200 | Custom HTTP response status code                                                                                                                            |
-| `headers`          | array of string    | Optional     | -   | Custom HTTP response headers, keys and values separated by `=`                                                                                              |
-| `body`             | string             | Optional     | -   | Custom HTTP response body                                                                                                                                   |
-| `enable_on_status` | array of number    | Required     | -   | Match original status codes to generate custom responses; if not specified, the plugin not enabled，an error occurred during the parsing configuration phase |
+| Name               | Data Type          | Requirements | Default Value | Description                                                                                                                                                                             |
+|--------------------|--------------------|--------------|-----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `status_code`      | number             | Optional     | 200 | Custom HTTP response status code                                                                                                                                                        |
+| `headers`          | array of string    | Optional     | -   | Custom HTTP response headers, keys and values separated by `=`                                                                                                                          |
+| `body`             | string             | Optional     | -   | Custom HTTP response body                                                                                                                                                               |
+| `enable_on_status` | array of number    | Optional     | -   | Match original status codes to generate custom responses; if not specified, the original status code is not checked, take the first rule with enable_on_status null as the default rule |
 
 ## Old version - Only one return is supported
 | Name | Data Type | Requirements | Default Value | Description                                                                                        |
