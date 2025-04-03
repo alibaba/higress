@@ -18,10 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"strconv"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -37,12 +37,12 @@ func main() {
 	)
 }
 
-type CustomResponseConfigs struct {
-	rules          []CustomResponseConfig
+type CustomResponseConfig struct {
+	rules          []CustomResponseRule
 	enableOnStatus []uint32
 }
 
-type CustomResponseConfig struct {
+type CustomResponseRule struct {
 	statusCode     uint32
 	headers        [][2]string
 	body           string
@@ -50,34 +50,38 @@ type CustomResponseConfig struct {
 	contentType    string
 }
 
-func parseConfig(gjson gjson.Result, configs *CustomResponseConfigs) error {
-	if gjson.Get("rules").Exists() && gjson.Get("rules").IsArray() {
+func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
+	rulesVersion := gjson.Get("rules").Exists() && gjson.Get("rules").IsArray()
+	if rulesVersion {
 		for _, cf := range gjson.Get("rules").Array() {
-			item := new(CustomResponseConfig)
-			if err := parseConfigItem(cf, item); err != nil {
+			item := new(CustomResponseRule)
+			if err := parseRuleItem(cf, item); err != nil {
 				return err
 			}
-			configs.rules = append(configs.rules, *item)
+			config.rules = append(config.rules, *item)
 		}
 
 	} else {
-		item := new(CustomResponseConfig)
-		if err := parseConfigItem(gjson, item); err != nil {
+		rule := new(CustomResponseRule)
+		if err := parseRuleItem(gjson, rule); err != nil {
 			return err
 		}
-		configs.rules = append(configs.rules, *item)
+		config.rules = append(config.rules, *rule)
 	}
-	for _, configItem := range configs.rules {
-		if Contains(configs.enableOnStatus, configItem.enableOnStatus...) {
-			log.Errorf("enbaled status code %v, want to add %v", configs.enableOnStatus, configItem.statusCode)
+	for _, configItem := range config.rules {
+		if ContainsAny(config.enableOnStatus, configItem.enableOnStatus...) {
+			log.Errorf("enabled status code %v, want to add %v", config.enableOnStatus, configItem.statusCode)
 			return errors.New("enableOnStatus can only use once")
 		}
-		configs.enableOnStatus = append(configs.enableOnStatus, configItem.enableOnStatus...)
+		config.enableOnStatus = append(config.enableOnStatus, configItem.enableOnStatus...)
+	}
+	if rulesVersion && len(config.enableOnStatus) == 0 {
+		return errors.New("enableOnStatus is required")
 	}
 	return nil
 }
 
-func Contains[T comparable](slice []T, item ...T) bool {
+func ContainsAny[T comparable](slice []T, item ...T) bool {
 	for _, v := range slice {
 		for _, v2 := range item {
 			if v == v2 {
@@ -88,63 +92,63 @@ func Contains[T comparable](slice []T, item ...T) bool {
 	return false
 }
 
-func parseConfigItem(gjson gjson.Result, config *CustomResponseConfig) error {
+func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
 	headersArray := gjson.Get("headers").Array()
-	config.headers = make([][2]string, 0, len(headersArray))
+	rule.headers = make([][2]string, 0, len(headersArray))
 	for _, v := range headersArray {
 		kv := strings.SplitN(v.String(), "=", 2)
 		if len(kv) == 2 {
 			key := strings.TrimSpace(kv[0])
 			value := strings.TrimSpace(kv[1])
 			if strings.EqualFold(key, "content-type") {
-				config.contentType = value
+				rule.contentType = value
 			} else if strings.EqualFold(key, "content-length") {
 				continue
 			} else {
-				config.headers = append(config.headers, [2]string{key, value})
+				rule.headers = append(rule.headers, [2]string{key, value})
 			}
 		} else {
 			return fmt.Errorf("invalid header pair format: %s", v.String())
 		}
 	}
 
-	config.body = gjson.Get("body").String()
-	if config.contentType == "" && config.body != "" {
-		if json.Valid([]byte(config.body)) {
-			config.contentType = "application/json; charset=utf-8"
+	rule.body = gjson.Get("body").String()
+	if rule.contentType == "" && rule.body != "" {
+		if json.Valid([]byte(rule.body)) {
+			rule.contentType = "application/json; charset=utf-8"
 		} else {
-			config.contentType = "text/plain; charset=utf-8"
+			rule.contentType = "text/plain; charset=utf-8"
 		}
 	}
-	config.headers = append(config.headers, [2]string{"content-type", config.contentType})
+	rule.headers = append(rule.headers, [2]string{"content-type", rule.contentType})
 
-	config.statusCode = 200
+	rule.statusCode = 200
 	if gjson.Get("status_code").Exists() {
 		statusCode := gjson.Get("status_code")
 		parsedStatusCode, err := strconv.Atoi(statusCode.String())
 		if err != nil {
 			return fmt.Errorf("invalid status code value: %s", statusCode.String())
 		}
-		config.statusCode = uint32(parsedStatusCode)
+		rule.statusCode = uint32(parsedStatusCode)
 	}
 
 	enableOnStatusArray := gjson.Get("enable_on_status").Array()
-	config.enableOnStatus = make([]uint32, 0, len(enableOnStatusArray))
+	rule.enableOnStatus = make([]uint32, 0, len(enableOnStatusArray))
 	for _, v := range enableOnStatusArray {
 		parsedEnableOnStatus, err := strconv.Atoi(v.String())
 		if err != nil {
 			return fmt.Errorf("invalid enable_on_status value: %s", v.String())
 		}
-		config.enableOnStatus = append(config.enableOnStatus, uint32(parsedEnableOnStatus))
+		rule.enableOnStatus = append(rule.enableOnStatus, uint32(parsedEnableOnStatus))
 	}
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs) types.Action {
-	if len(configs.enableOnStatus) != 0 {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig) types.Action {
+	if len(config.enableOnStatus) != 0 {
 		return types.ActionContinue
 	}
-	err := proxywasm.SendHttpResponseWithDetail(configs.rules[0].statusCode, "custom-response", configs.rules[0].headers, []byte(configs.rules[0].body), -1)
+	err := proxywasm.SendHttpResponseWithDetail(config.rules[0].statusCode, "custom-response", config.rules[0].headers, []byte(config.rules[0].body), -1)
 	if err != nil {
 		log.Errorf("send http response failed: %v", err)
 	}
@@ -152,7 +156,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, configs CustomResponseConfigs) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig) types.Action {
 	// enableOnStatus is not empty, compare the status code.
 	// if match the status code, mock the response.
 	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
@@ -166,10 +170,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, configs CustomResponseConfig
 		return types.ActionContinue
 	}
 
-	for _, v := range configs.enableOnStatus {
+	for _, v := range config.enableOnStatus {
 		if uint32(statusCode) == v {
-			for _, configItem := range configs.rules {
-				if Contains(configItem.enableOnStatus, v) {
+			for _, configItem := range config.rules {
+				if ContainsAny(configItem.enableOnStatus, v) {
 					err = proxywasm.SendHttpResponseWithDetail(configItem.statusCode, "custom-response", configItem.headers, []byte(configItem.body), -1)
 					if err != nil {
 						log.Errorf("send http response failed: %v", err)

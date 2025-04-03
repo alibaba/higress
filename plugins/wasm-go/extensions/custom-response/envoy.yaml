@@ -40,11 +40,54 @@ static_resources:
                           configuration:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
 #                            value: |-
-#                              {"rules":[{"headers":["key1=value1","key2=value2"],"status_code":200,"enable_on_status":[200,201],"body":"{\"hello\":\"world 200\"}"},{"headers":["key1=value1","key2=value2"],"status_code":200,"enable_on_status":[404],"body":"{\"hello\":\"world 404\"}"}]}
+#                              {
+#                                "rules": [
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "enable_on_status": [
+#                                      200,
+#                                      201
+#                                    ],
+#                                    "body": "{\"hello\":\"world 200\"}"
+#                                  },
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "enable_on_status": [
+#                                      404
+#                                    ],
+#                                    "body": "{\"hello\":\"world 404\"}"
+#                                  }
+#                                ]
+#                              }
 #                            value: |-
-#                              {"headers":["key1=value1","key2=value2"],"status_code":200,"body":"{\"hello\":\"world 200\"}","enable_on_status":[200]}
+#                              {
+#                                "headers": [
+#                                  "key1=value1",
+#                                  "key2=value2"
+#                                ],
+#                                "status_code": 200,
+#                                "body": "{\"hello\":\"world 200\"}",
+#                                "enable_on_status": [
+#                                  200
+#                                ]
+#                              }
                             value: |-
-                              {"headers":["key1=value1","key2=value2"],"status_code":200,"body":"{\"hello\":\"world 200\"}"}
+                              {
+                                "headers": [
+                                  "key1=value1",
+                                  "key2=value2"
+                                ],
+                                "status_code": 200,
+                                "body": "{\"hello\":\"world 200\"}"
+                              }
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
