@@ -11,14 +11,16 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 ## 运行属性
 
 插件执行阶段：`默认阶段`
-插件执行优先级：`440`
+插件执行优先级：`460`
 
 ## 配置字段
 
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|----------|----------|--------|------|
+| defaultEnable | bool | 选填 | true | 插件功能默认是否开启。设置为false时，仅当请求中包含web_search_options字段时才启用插件功能 |
 | needReference | bool | 选填 | false | 是否在回答中添加引用来源 |
 | referenceFormat | string | 选填 | `"**References:**\n%s"` | 引用内容格式，必须包含%s占位符 |
+| referenceLocation | string | 选填 | "head" | 引用位置："head"在回答开头，"tail"在回答结尾 |
 | defaultLang | string | 选填 | - | 默认搜索语言代码（如zh-CN/en-US） |
 | promptTemplate | string | 选填 | 内置模板 | 提示模板，必须包含`{search_results}`和`{question}`占位符 |
 | searchFrom | array of object | 必填 | - | 参考下面搜索引擎配置，至少配置一个引擎 |
@@ -44,6 +46,7 @@ description: higress 支持通过集成搜索引擎（Google/Bing/Arxiv/Elastics
 | llmUrl | string | 必填 | - | LLM服务API地址 |
 | llmModelName | string | 必填 | - | LLM模型名称 |
 | timeoutMillisecond | number | 选填 | 30000 | API调用超时时间（毫秒） |
+| maxCount | number | 选填 | 3 | 搜索重写生成的最大查询次数 |
 
 ## 搜索引擎通用配置
 
@@ -224,6 +227,18 @@ searchFrom:
   servicePort: 8080
 ```
 
+### 自定义引用位置
+
+```yaml
+needReference: true
+referenceLocation: "tail"  # 在回答结尾添加引用，而不是开头
+searchFrom:
+- type: bing
+  apiKey: "your-bing-key"
+  serviceName: "search-service.dns"
+  servicePort: 8080
+```
+
 ### 搜索重写配置
 
 ```yaml
@@ -241,6 +256,41 @@ searchRewrite:
   llmModelName: "gpt-3.5-turbo"
   timeoutMillisecond: 15000
 ```
+
+### 按需启用插件配置
+
+配置插件仅在请求中包含`web_search_options`字段时才启用：
+
+```yaml
+defaultEnable: false
+searchFrom:
+- type: google
+  apiKey: "your-google-api-key"
+  cx: "search-engine-id"
+  serviceName: "google-svc.dns"
+  servicePort: 443
+```
+
+这种配置可以兼容OpenAI的搜索模型协议。当请求中包含`web_search_options`字段时，即使是空对象（`"web_search_options": {}`），插件也会被激活。
+
+### 搜索上下文大小配置
+
+通过在请求中的`web_search_options`字段中添加`search_context_size`参数，可以动态调整搜索查询次数：
+
+```json
+{
+  "web_search_options": {
+    "search_context_size": "medium"
+  }
+}
+```
+
+`search_context_size`支持三个级别：
+- `low`: 生成1个搜索查询（适合简单问题）
+- `medium`: 生成3个搜索查询（默认值）
+- `high`: 生成5个搜索查询（适合复杂问题）
+
+这个设置会覆盖配置中的`maxCount`值，允许客户端根据问题复杂度动态调整搜索深度。
 
 ## 注意事项
 

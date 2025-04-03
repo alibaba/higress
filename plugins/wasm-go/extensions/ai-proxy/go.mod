@@ -14,10 +14,16 @@ require (
 )
 
 require (
+	github.com/tetratelabs/wazero v1.7.2 // indirect
+	github.com/wasilibs/go-re2 v1.6.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+)
+
+require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
-	github.com/magefile/mage v1.14.0 // indirect
+	github.com/magefile/mage v1.15.1-0.20230912152418-9f54e0f83e2a // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

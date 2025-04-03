@@ -40,6 +40,7 @@ type HigressConfig struct {
 	Upstream             *Upstream   `json:"upstream,omitempty"`
 	DisableXEnvoyHeaders bool        `json:"disableXEnvoyHeaders,omitempty"`
 	AddXRealIpHeader     bool        `json:"addXRealIpHeader,omitempty"`
+	McpServer            *McpServer  `json:"mcpServer,omitempty"`
 }
 
 func NewDefaultHigressConfig() *HigressConfig {
@@ -51,6 +52,7 @@ func NewDefaultHigressConfig() *HigressConfig {
 		Upstream:             globalOption.Upstream,
 		DisableXEnvoyHeaders: globalOption.DisableXEnvoyHeaders,
 		AddXRealIpHeader:     globalOption.AddXRealIpHeader,
+		McpServer:            NewDefaultMcpServer(),
 	}
 	return higressConfig
 }

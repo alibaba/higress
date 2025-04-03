@@ -89,6 +89,9 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	globalOptionController := NewGlobalOptionController(namespace)
 	configmapMgr.AddItemControllers(globalOptionController)
 
+	mcpServerController := NewMcpServerController(namespace)
+	configmapMgr.AddItemControllers(mcpServerController)
+
 	configmapMgr.initEventHandlers()
 
 	return configmapMgr

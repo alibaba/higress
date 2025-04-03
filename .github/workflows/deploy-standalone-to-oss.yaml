@@ -20,11 +20,11 @@ jobs:
         name: Prepare Standalone Package
         run: |
           mkdir ./artifact
-          cp ./tools/get-higress.sh ./artifact
           LOCAL_RELEASE_URL="https://github.com/higress-group/higress-standalone/releases"
           VERSION=$(curl -Ls $LOCAL_RELEASE_URL | grep 'href="/higress-group/higress-standalone/releases/tag/v[0-9]*.[0-9]*.[0-9]*\"' | sed -E 's/.*\/higress-group\/higress-standalone\/releases\/tag\/(v[0-9\.]+)".*/\1/g' | head -1)
           DOWNLOAD_URL="https://github.com/higress-group/higress-standalone/archive/refs/tags/${VERSION}.tar.gz"
           curl -SsL "$DOWNLOAD_URL" -o "./artifact/higress-${VERSION}.tar.gz"
+          curl -SsL "https://raw.githubusercontent.com/higress-group/higress-standalone/refs/heads/main/src/get-higress.sh" -o "./artifact/get-higress.sh"
           echo -n "$VERSION" > ./artifact/VERSION
           echo "Version=$VERSION"
       # Step 3
