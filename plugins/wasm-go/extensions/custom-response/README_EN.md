@@ -94,6 +94,49 @@ Content-Length: 21
 {"hello":"world 404"}
 ```
 
+### Fuzzy matching scene
+
+```yaml
+rules:
+  - body: '{"hello":"world 2xx"}'
+    prefix_on_status:
+      - '2xx'
+    headers:
+      - key1=value1
+      - key2=value2
+    status_code: 200
+  - body: '{"hello":"world 40x"}'
+    prefix_on_status:
+      - '40x'
+    headers:
+      - key1=value1
+      - key2=value2
+    status_code: 200
+```
+
+According to this configuration, the status code between 200-299 will return a custom reply as follows：
+
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world 2xx"}
+```
+According to this configuration, the status code between 401-409 will return a custom reply as follows：
+
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world 40x"}
+```
+
 ### Mock Response Scenario
 ```yaml
 enable_on_status:
