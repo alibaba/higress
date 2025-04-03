@@ -14,20 +14,12 @@ description: 自定义应答插件配置参考
 插件执行优先级：`910`
 
 ## 配置字段
-### 老版本-只支持一种返回
-| 名称 | 数据类型 | 填写要求 |  默认值 | 描述                              |
-| -------- | -------- |------| -------- |---------------------------------|
-|  `status_code`    |  number     | 选填   |   200  | 自定义 HTTP 应答状态码                  |
-|  `headers`     |  array of string      | 选填   |   -  | 自定义 HTTP 应答头，key 和 value 用`=`分隔 |
-|  `body`      |  string    | 选填   |   -   | 自定义 HTTP 应答 Body                |
-|  `enable_on_status`   |  array of number    | 选填   |  -  | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码      |
-
 ### 新版本-支持多种返回
-| 名称                  | 数据类型            | 填写要求 | 默认值 | 描述                                  |
-|---------------------|-----------------|------|-----|-------------------------------------|
-| roules              | Array           | 必填   | -   | 规则组                                 |
+| 名称    | 数据类型            | 填写要求 | 默认值 | 描述                                  |
+|-------|-----------------|------|-----|-------------------------------------|
+| rules | array of object           | 必填   | -   | 规则组                                 |
 
-`roules`的配置字段说明如下：
+`rules`的配置字段说明如下：
 
 | 名称             | 数据类型            | 填写要求 | 默认值 | 描述                                  |
 |----------------|-----------------|------|-----|-------------------------------------|
@@ -36,32 +28,17 @@ description: 自定义应答插件配置参考
 | `body`           | string          | 选填   | -   | 自定义 HTTP 应答 Body                    |
 | `enable_on_status` | array of number | 必填   | -   | 匹配原始状态码，生成自定义响应，不填写时，插件不生效，解析配置阶段报错 |
 
+### 老版本-只支持一种返回
+| 名称 | 数据类型 | 填写要求 |  默认值 | 描述                              |
+| -------- | -------- |------| -------- |---------------------------------|
+|  `status_code`    |  number     | 选填   |   200  | 自定义 HTTP 应答状态码                  |
+|  `headers`     |  array of string      | 选填   |   -  | 自定义 HTTP 应答头，key 和 value 用`=`分隔 |
+|  `body`      |  string    | 选填   |   -   | 自定义 HTTP 应答 Body                |
+|  `enable_on_status`   |  array of number    | 选填   |  -  | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码      |
+
 ## 配置示例
 
-### 不同状态码相同应答场景
-
-```yaml
-enable_on_status:
-  - 200
-status_code: 200
-headers:
-  - Content-Type=application/json
-  - Hello=World
-body: "{\"hello\":\"world\"}"
-```
-根据该配置，200请求将返回自定义应答如下：
-
-```text
-HTTP/1.1 200 OK
-Content-Type: application/json
-key1: value1
-key2: value2
-Content-Length: 21
-
-{"hello":"world"}
-```
-
-### 不同状态码不同应答场景
+### 新版本-不同状态码不同应答场景
 
 ```yaml
 rules:
@@ -103,6 +80,29 @@ key2: value2
 Content-Length: 21
 
 {"hello":"world 400"}
+```
+
+### 老版本-不同状态码相同应答场景
+
+```yaml
+enable_on_status:
+  - 200
+status_code: 200
+headers:
+  - Content-Type=application/json
+  - Hello=World
+body: "{\"hello\":\"world\"}"
+```
+根据该配置，200请求将返回自定义应答如下：
+
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world"}
 ```
 
 ### 触发限流时自定义响应

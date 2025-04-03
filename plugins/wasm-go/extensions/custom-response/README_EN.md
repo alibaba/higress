@@ -12,20 +12,12 @@ Plugin Execution Phase: `Authentication Phase`
 Plugin Execution Priority: `910`
 
 ## Configuration Fields
-## Old version - Only one return is supported
-| Name | Data Type | Requirements | Default Value | Description                                                                                        |
-| -------- | -------- | -------- | -------- |----------------------------------------------------------------------------------------------------|
-|  `status_code`    |  number     |  Optional      |   200  | Custom HTTP response status code                                                                   |
-|  `headers`     |  array of string      |  Optional     |   -  | Custom HTTP response headers, keys and values separated by `=`                                     |
-|  `body`      |  string    |  Optional     |   -   | Custom HTTP response body                                                                          |
-|  `enable_on_status`   |  array of number    |   Optional     |  -  | Match original status codes to generate custom responses; if not specified, the original status code is not checked |
-
 ### New version - Supports multiple returns
 | Name                  | Data Type            | Requirements     | Default Value | Description         |
 |---------------------|-----------------|----------|-----|------------|
-| roules              | Array           | Required | -   | rule array |
+| rules              | array of object           | Required | -   | rule array |
 
-The configuration field description of `roules` is as follows：
+The configuration field description of `rules` is as follows：
 
 | Name               | Data Type          | Requirements | Default Value | Description                                                                                                                                                 |
 |--------------------|--------------------|--------------|-----|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -34,27 +26,17 @@ The configuration field description of `roules` is as follows：
 | `body`             | string             | Optional     | -   | Custom HTTP response body                                                                                                                                   |
 | `enable_on_status` | array of number    | Required     | -   | Match original status codes to generate custom responses; if not specified, the plugin not enabled，an error occurred during the parsing configuration phase |
 
-## Configuration Example
-### Mock Response Scenario
-```yaml
-enable_on_status:
-  - 200
-status_code: 200
-headers:
-  - Content-Type=application/json
-  - Hello=World
-body: "{\"hello\":\"world\"}"
-```
-With this configuration, 200/201 response will return the following custom response:
-```text
-HTTP/1.1 200 OK
-Content-Type: application/json
-key1: value1
-key2: value2
-Content-Length: 21
+## Old version - Only one return is supported
+| Name | Data Type | Requirements | Default Value | Description                                                                                        |
+| -------- | -------- | -------- | -------- |----------------------------------------------------------------------------------------------------|
+|  `status_code`    |  number     |  Optional      |   200  | Custom HTTP response status code                                                                   |
+|  `headers`     |  array of string      |  Optional     |   -  | Custom HTTP response headers, keys and values separated by `=`                                     |
+|  `body`      |  string    |  Optional     |   -   | Custom HTTP response body                                                                          |
+|  `enable_on_status`   |  array of number    |   Optional     |  -  | Match original status codes to generate custom responses; if not specified, the original status code is not checked |
 
-{"hello":"world"}
-```
+
+## Configuration Example
+
 ### Different status codes for different response scenarios
 
 ```yaml
@@ -108,6 +90,28 @@ Content-Length: 21
 
 {"hello":"world 404"}
 ```
+
+### Mock Response Scenario
+```yaml
+enable_on_status:
+  - 200
+status_code: 200
+headers:
+  - Content-Type=application/json
+  - Hello=World
+body: "{\"hello\":\"world\"}"
+```
+With this configuration, 200/201 response will return the following custom response:
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+key1: value1
+key2: value2
+Content-Length: 21
+
+{"hello":"world"}
+```
+
 ### Custom Response on Rate Limiting
 ```yaml
 enable_on_status:

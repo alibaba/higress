@@ -51,7 +51,8 @@ type CustomResponseRule struct {
 }
 
 func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
-	rulesVersion := gjson.Get("rules").Exists() && gjson.Get("rules").IsArray()
+	rules := gjson.Get("rules")
+	rulesVersion := rules.Exists() && rules.IsArray()
 	if rulesVersion {
 		for _, cf := range gjson.Get("rules").Array() {
 			item := new(CustomResponseRule)
