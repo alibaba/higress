@@ -38,8 +38,8 @@ func main() {
 }
 
 type CustomResponseConfig struct {
-	rules          []CustomResponseRule
-	enableOnStatus []uint32
+	rules                 []CustomResponseRule
+	enableOnStatusRuleMap map[uint32]*CustomResponseRule
 }
 
 type CustomResponseRule struct {
@@ -69,28 +69,20 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 		}
 		config.rules = append(config.rules, *rule)
 	}
-	for _, configItem := range config.rules {
-		if ContainsAny(config.enableOnStatus, configItem.enableOnStatus...) {
-			log.Errorf("enabled status code %v, want to add %v", config.enableOnStatus, configItem.statusCode)
-			return errors.New("enableOnStatus can only use once")
+	config.enableOnStatusRuleMap = make(map[uint32]*CustomResponseRule)
+	for i, configItem := range config.rules {
+		for _, statusCode := range configItem.enableOnStatus {
+			if v, ok := config.enableOnStatusRuleMap[statusCode]; ok {
+				log.Errorf("enable_on_status code used in %v, want to add %v", v, configItem.statusCode)
+				return errors.New("enableOnStatus can only use once")
+			}
+			config.enableOnStatusRuleMap[statusCode] = &config.rules[i]
 		}
-		config.enableOnStatus = append(config.enableOnStatus, configItem.enableOnStatus...)
 	}
-	if rulesVersion && len(config.enableOnStatus) == 0 {
+	if rulesVersion && len(config.enableOnStatusRuleMap) == 0 {
 		return errors.New("enableOnStatus is required")
 	}
 	return nil
-}
-
-func ContainsAny[T comparable](slice []T, item ...T) bool {
-	for _, v := range slice {
-		for _, v2 := range item {
-			if v == v2 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
@@ -145,8 +137,8 @@ func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig) types.Action {
-	if len(config.enableOnStatus) != 0 {
+func onHttpRequestHeaders(_ wrapper.HttpContext, config CustomResponseConfig) types.Action {
+	if len(config.enableOnStatusRuleMap) != 0 {
 		return types.ActionContinue
 	}
 	err := proxywasm.SendHttpResponseWithDetail(config.rules[0].statusCode, "custom-response", config.rules[0].headers, []byte(config.rules[0].body), -1)
@@ -157,8 +149,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CustomResponseConfig) 
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig) types.Action {
-	// enableOnStatus is not empty, compare the status code.
+func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) types.Action {
+	// enableOnStatusRuleMap is not empty, compare the status code.
 	// if match the status code, mock the response.
 	statusCodeStr, err := proxywasm.GetHttpResponseHeader(":status")
 	if err != nil {
@@ -170,19 +162,12 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config CustomResponseConfig)
 		log.Errorf("parse http response status code failed: %v", err)
 		return types.ActionContinue
 	}
-
-	for _, v := range config.enableOnStatus {
-		if uint32(statusCode) == v {
-			for _, configItem := range config.rules {
-				if ContainsAny(configItem.enableOnStatus, v) {
-					err = proxywasm.SendHttpResponseWithDetail(configItem.statusCode, "custom-response", configItem.headers, []byte(configItem.body), -1)
-					if err != nil {
-						log.Errorf("send http response failed: %v", err)
-					}
-					return types.ActionContinue
-				}
-			}
+	if rule, ok := config.enableOnStatusRuleMap[uint32(statusCode)]; ok {
+		err = proxywasm.SendHttpResponseWithDetail(rule.statusCode, "custom-response", rule.headers, []byte(rule.body), -1)
+		if err != nil {
+			log.Errorf("send http response failed: %v", err)
 		}
+		return types.ActionContinue
 	}
 	return types.ActionContinue
 }
