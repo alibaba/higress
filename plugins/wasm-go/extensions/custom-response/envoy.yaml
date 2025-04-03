@@ -69,6 +69,33 @@ static_resources:
 #                              }
 #                            value: |-
 #                              {
+#                                "rules": [
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "enable_on_status": [
+#                                      200
+#                                    ],
+#                                    "body": "{\"hello\":\"world 200\"}"
+#                                  },
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "prefix_on_status": [
+#                                      "40x"
+#                                    ],
+#                                    "body": "{\"hello\":\"world 40x\"}"
+#                                  }
+#                                ]
+#                              }
+#                            value: |-
+#                              {
 #                                "headers": [
 #                                  "key1=value1",
 #                                  "key2=value2"

@@ -41,6 +41,7 @@ type CustomResponseConfig struct {
 	rules                 []CustomResponseRule
 	defaultRule           *CustomResponseRule
 	enableOnStatusRuleMap map[uint32]*CustomResponseRule
+	preFixOnStatusRuleMap map[string]*CustomResponseRule
 }
 
 type CustomResponseRule struct {
@@ -48,6 +49,7 @@ type CustomResponseRule struct {
 	headers        [][2]string
 	body           string
 	enableOnStatus []uint32
+	prefixOnStatus []string
 	contentType    string
 }
 
@@ -75,13 +77,21 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 		config.defaultRule = rule
 	}
 	config.enableOnStatusRuleMap = make(map[uint32]*CustomResponseRule)
+	config.preFixOnStatusRuleMap = make(map[string]*CustomResponseRule)
 	for i, configItem := range config.rules {
 		for _, statusCode := range configItem.enableOnStatus {
 			if v, ok := config.enableOnStatusRuleMap[statusCode]; ok {
-				log.Errorf("enable_on_status code used in %v, want to add %v", v, configItem.statusCode)
+				log.Errorf("enable_on_status code used in %v, want to add %v", v, statusCode)
 				return errors.New("enableOnStatus can only use once")
 			}
 			config.enableOnStatusRuleMap[statusCode] = &config.rules[i]
+		}
+		for _, prefixCode := range configItem.prefixOnStatus {
+			if v, ok := config.preFixOnStatusRuleMap[prefixCode]; ok {
+				log.Errorf("prefix_on_status code used in %v, want to add %v", v, prefixCode)
+				return errors.New("prefixOnStatus can only use once")
+			}
+			config.preFixOnStatusRuleMap[prefixCode] = &config.rules[i]
 		}
 	}
 	if rulesVersion && config.defaultRule == nil {
@@ -139,13 +149,55 @@ func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
 		}
 		rule.enableOnStatus = append(rule.enableOnStatus, uint32(parsedEnableOnStatus))
 	}
+
+	prefixOnStatusArray := gjson.Get("prefix_on_status").Array()
+	rule.prefixOnStatus = make([]string, 0, len(prefixOnStatusArray))
+	for _, v := range prefixOnStatusArray {
+		str, err := isValidPrefixString(v.String())
+		if err != nil {
+			return err
+		}
+		rule.prefixOnStatus = append(rule.prefixOnStatus, str)
+	}
 	return nil
 }
 
+func isValidPrefixString(s string) (string, error) {
+	const requiredLength = 3
+	if len(s) != requiredLength {
+		return "", fmt.Errorf("invalid prefix_on_status %q: length must be %d", s, requiredLength)
+	}
+
+	lower := strings.ToLower(s)
+	hasX := false
+	hasDigit := false
+
+	for _, c := range lower {
+		switch {
+		case c == 'x':
+			hasX = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		default:
+			return "", fmt.Errorf("invalid prefix_on_status %q: must contain only digits and x/X", s)
+		}
+	}
+
+	if !hasX {
+		return "", fmt.Errorf("invalid prefix_on_status %q: must contain x/X (use enable_on_status for exact statusCode matching)", s)
+	}
+	if !hasDigit {
+		return "", fmt.Errorf("invalid prefix_on_status %q: must contain at least one digit", s)
+	}
+
+	return lower, nil
+}
+
 func onHttpRequestHeaders(_ wrapper.HttpContext, config CustomResponseConfig) types.Action {
-	if len(config.enableOnStatusRuleMap) != 0 {
+	if len(config.enableOnStatusRuleMap) != 0 || len(config.preFixOnStatusRuleMap) != 0 {
 		return types.ActionContinue
 	}
+	log.Infof("use default rule %+v", config.defaultRule)
 	err := proxywasm.SendHttpResponseWithDetail(config.defaultRule.statusCode, "custom-response", config.defaultRule.headers, []byte(config.defaultRule.body), -1)
 	if err != nil {
 		log.Errorf("send http response failed: %v", err)
@@ -174,5 +226,43 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 		}
 		return types.ActionContinue
 	}
+
+	if rule, match := prefixMatchCode(config.preFixOnStatusRuleMap, statusCodeStr); match {
+		err = proxywasm.SendHttpResponseWithDetail(rule.statusCode, "custom-response", rule.headers, []byte(rule.body), -1)
+		if err != nil {
+			log.Errorf("send http response failed: %v", err)
+		}
+		return types.ActionContinue
+	}
 	return types.ActionContinue
+}
+
+func prefixMatchCode(prefixMap map[string]*CustomResponseRule, statusCode string) (*CustomResponseRule, bool) {
+	if len(prefixMap) == 0 || statusCode == "" {
+		return nil, false
+	}
+	codeLen := len(statusCode)
+	for pattern, rule := range prefixMap {
+		// 规则1：模式长度必须与状态码一致
+		if len(pattern) != codeLen {
+			continue
+		}
+		// 规则2：所有数字位必须精确匹配
+		match := true
+		for i, c := range pattern {
+			// 如果是数字位需要校验
+			if c >= '0' && c <= '9' {
+				// 边界检查防止panic
+				if i >= codeLen || statusCode[i] != byte(c) {
+					match = false
+					break
+				}
+			}
+			// 非数字位（如x）自动匹配
+		}
+		if match {
+			return rule, true
+		}
+	}
+	return nil, false
 }
