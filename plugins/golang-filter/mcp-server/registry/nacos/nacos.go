@@ -87,9 +87,11 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 
 		formatServiceName := getFormatServiceName(group, service)
 		if _, ok := n.currentServiceSet[formatServiceName]; !ok {
-			changed = true
-			n.refreshToolsListForService(group, service)
+			refreshed := n.refreshToolsListForService(group, service)
 			n.listenToService(group, service)
+			if refreshed {
+				changed = true
+			}
 		}
 
 		currentServiceList[formatServiceName] = true
@@ -129,7 +131,7 @@ func getFormatServiceName(group string, service string) string {
 	return fmt.Sprintf("%s_%s", group, service)
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) {
+func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) bool {
 
 	if newConfig == nil {
 		dataId := makeToolsConfigId(service)
@@ -140,7 +142,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 
 		if err != nil {
 			api.LogError(fmt.Sprintf("Get tools config for sercice %s:%s error %s", group, service, err))
-			return
+			return false
 		}
 
 		newConfig = &content
@@ -155,17 +157,21 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 
 		if err != nil {
 			api.LogError(fmt.Sprintf("List instance for sercice %s:%s error %s", group, service, err))
-			return
+			return false
 		}
 
 		instances = &instancesFromNacos
 	}
 
 	var applicationDescription registry.McpApplicationDescription
+	if newConfig == nil || len(*newConfig) == 0 {
+		return false
+	}
+
 	err := json.Unmarshal([]byte(*newConfig), &applicationDescription)
 	if err != nil {
 		api.LogError(fmt.Sprintf("Parse tools config for sercice %s:%s error, config is %s, error is %s", group, service, *newConfig, err))
-		return
+		return false
 	}
 
 	wrappedInstances := []registry.Instance{}
@@ -184,6 +190,20 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 
 	if n.toolsRpcContext == nil {
 		n.toolsRpcContext = map[string]*registry.RpcContext{}
+	}
+
+	toolsNeedReset := []string{}
+
+	formatServiceName := getFormatServiceName(group, service)
+	for tool, _ := range n.toolsDescription {
+		if strings.HasPrefix(tool, formatServiceName) {
+			toolsNeedReset = append(toolsNeedReset, tool)
+		}
+	}
+
+	for _, tool := range toolsNeedReset {
+		delete(n.toolsDescription, tool)
+		delete(n.toolsRpcContext, tool)
 	}
 
 	for _, tool := range applicationDescription.ToolsDescription {
@@ -207,6 +227,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 		n.toolsRpcContext[tool.Name] = &context
 	}
 	n.currentServiceSet[getFormatServiceName(group, service)] = true
+	return true
 }
 
 func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.CredentialInfo {
@@ -231,8 +252,8 @@ func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.Cr
 	return &credential
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForService(group string, service string) {
-	n.refreshToolsListForServiceWithContent(group, service, nil, nil)
+func (n *NacosMcpRegsitry) refreshToolsListForService(group string, service string) bool {
+	return n.refreshToolsListForServiceWithContent(group, service, nil, nil)
 }
 
 func (n *NacosMcpRegsitry) listenToService(group string, service string) {
