@@ -40,16 +40,14 @@ func main() {
 type CustomResponseConfig struct {
 	rules                 []CustomResponseRule
 	defaultRule           *CustomResponseRule
-	enableOnStatusRuleMap map[uint32]*CustomResponseRule
-	preFixOnStatusRuleMap map[string]*CustomResponseRule
+	enableOnStatusRuleMap map[string]*CustomResponseRule
 }
 
 type CustomResponseRule struct {
 	statusCode     uint32
 	headers        [][2]string
 	body           string
-	enableOnStatus []uint32
-	prefixOnStatus []string
+	enableOnStatus []string
 	contentType    string
 }
 
@@ -76,8 +74,7 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 		config.rules = append(config.rules, *rule)
 		config.defaultRule = rule
 	}
-	config.enableOnStatusRuleMap = make(map[uint32]*CustomResponseRule)
-	config.preFixOnStatusRuleMap = make(map[string]*CustomResponseRule)
+	config.enableOnStatusRuleMap = make(map[string]*CustomResponseRule)
 	for i, configItem := range config.rules {
 		for _, statusCode := range configItem.enableOnStatus {
 			if v, ok := config.enableOnStatusRuleMap[statusCode]; ok {
@@ -86,15 +83,8 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 			}
 			config.enableOnStatusRuleMap[statusCode] = &config.rules[i]
 		}
-		for _, prefixCode := range configItem.prefixOnStatus {
-			if v, ok := config.preFixOnStatusRuleMap[prefixCode]; ok {
-				log.Errorf("prefix_on_status code used in %v, want to add %v", v, prefixCode)
-				return errors.New("prefixOnStatus can only use once")
-			}
-			config.preFixOnStatusRuleMap[prefixCode] = &config.rules[i]
-		}
 	}
-	if rulesVersion && config.defaultRule == nil {
+	if rulesVersion && config.defaultRule == nil && len(config.enableOnStatusRuleMap) == 0 {
 		return errors.New("config cant empty")
 	}
 	return nil
@@ -141,28 +131,24 @@ func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
 	}
 
 	enableOnStatusArray := gjson.Get("enable_on_status").Array()
-	rule.enableOnStatus = make([]uint32, 0, len(enableOnStatusArray))
+	rule.enableOnStatus = make([]string, 0, len(enableOnStatusArray))
 	for _, v := range enableOnStatusArray {
-		parsedEnableOnStatus, err := strconv.Atoi(v.String())
+		s := v.String()
+		_, err := strconv.Atoi(s)
 		if err != nil {
-			return fmt.Errorf("invalid enable_on_status value: %s", v.String())
+			matchString, err := isValidFuzzyMatchString(s)
+			if err != nil {
+				return err
+			}
+			rule.enableOnStatus = append(rule.enableOnStatus, matchString)
+			continue
 		}
-		rule.enableOnStatus = append(rule.enableOnStatus, uint32(parsedEnableOnStatus))
-	}
-
-	prefixOnStatusArray := gjson.Get("prefix_on_status").Array()
-	rule.prefixOnStatus = make([]string, 0, len(prefixOnStatusArray))
-	for _, v := range prefixOnStatusArray {
-		str, err := isValidPrefixString(v.String())
-		if err != nil {
-			return err
-		}
-		rule.prefixOnStatus = append(rule.prefixOnStatus, str)
+		rule.enableOnStatus = append(rule.enableOnStatus, s)
 	}
 	return nil
 }
 
-func isValidPrefixString(s string) (string, error) {
+func isValidFuzzyMatchString(s string) (string, error) {
 	const requiredLength = 3
 	if len(s) != requiredLength {
 		return "", fmt.Errorf("invalid prefix_on_status %q: length must be %d", s, requiredLength)
@@ -194,7 +180,7 @@ func isValidPrefixString(s string) (string, error) {
 }
 
 func onHttpRequestHeaders(_ wrapper.HttpContext, config CustomResponseConfig) types.Action {
-	if len(config.enableOnStatusRuleMap) != 0 || len(config.preFixOnStatusRuleMap) != 0 {
+	if len(config.enableOnStatusRuleMap) != 0 {
 		return types.ActionContinue
 	}
 	log.Infof("use default rule %+v", config.defaultRule)
@@ -214,12 +200,7 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 		log.Errorf("get http response status code failed: %v", err)
 		return types.ActionContinue
 	}
-	statusCode, err := strconv.ParseUint(statusCodeStr, 10, 32)
-	if err != nil {
-		log.Errorf("parse http response status code failed: %v", err)
-		return types.ActionContinue
-	}
-	if rule, ok := config.enableOnStatusRuleMap[uint32(statusCode)]; ok {
+	if rule, ok := config.enableOnStatusRuleMap[statusCodeStr]; ok {
 		err = proxywasm.SendHttpResponseWithDetail(rule.statusCode, "custom-response", rule.headers, []byte(rule.body), -1)
 		if err != nil {
 			log.Errorf("send http response failed: %v", err)
@@ -227,7 +208,7 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 		return types.ActionContinue
 	}
 
-	if rule, match := prefixMatchCode(config.preFixOnStatusRuleMap, statusCodeStr); match {
+	if rule, match := prefixMatchCode(config.enableOnStatusRuleMap, statusCodeStr); match {
 		err = proxywasm.SendHttpResponseWithDetail(rule.statusCode, "custom-response", rule.headers, []byte(rule.body), -1)
 		if err != nil {
 			log.Errorf("send http response failed: %v", err)
@@ -237,14 +218,18 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 	return types.ActionContinue
 }
 
-func prefixMatchCode(prefixMap map[string]*CustomResponseRule, statusCode string) (*CustomResponseRule, bool) {
-	if len(prefixMap) == 0 || statusCode == "" {
+func prefixMatchCode(statusRuleMap map[string]*CustomResponseRule, statusCode string) (*CustomResponseRule, bool) {
+	if len(statusRuleMap) == 0 || statusCode == "" {
 		return nil, false
 	}
 	codeLen := len(statusCode)
-	for pattern, rule := range prefixMap {
+	for pattern, rule := range statusRuleMap {
 		// 规则1：模式长度必须与状态码一致
 		if len(pattern) != codeLen {
+			continue
+		}
+		// 纯数字的enableOnStauts已经判断过，跳过
+		if !strings.Contains(pattern, "x") {
 			continue
 		}
 		// 规则2：所有数字位必须精确匹配

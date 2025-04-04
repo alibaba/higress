@@ -21,13 +21,12 @@ description: 自定义应答插件配置参考
 
 `rules`的配置字段说明如下：
 
-| 名称                 | 数据类型            | 填写要求 | 默认值 | 描述                                                                     |
-|--------------------|-----------------|------|-----|------------------------------------------------------------------------|
-| `status_code`      | number          | 选填   | 200 | 自定义 HTTP 应答状态码                                                         |
-| `headers`          | array of string | 选填   | -   | 自定义 HTTP 应答头，key 和 value 用`=`分隔                                        |
-| `body`             | string          | 选填   | -   | 自定义 HTTP 应答 Body                                                       |
-| `enable_on_status` | array of number | 选填   | -   | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码,取第一个`enable_on_status`为空的规则作为默认规则        |
-| `prefix_on_status` | array of string | 选填   | -   | 模糊匹配原始状态码，生成自定义响应。可填写`2xx`来匹配200-299之间的状态码，`20x`来匹配200-209之间的状态码，x代表任意一位数字 |
+| 名称                 | 数据类型                      | 填写要求 | 默认值 | 描述                                                                                                                                                   |
+|--------------------|---------------------------|------|-----|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `status_code`      | number                    | 选填   | 200 | 自定义 HTTP 应答状态码                                                                                                                                       |
+| `headers`          | array of string           | 选填   | -   | 自定义 HTTP 应答头，key 和 value 用`=`分隔                                                                                                                      |
+| `body`             | string                    | 选填   | -   | 自定义 HTTP 应答 Body                                                                                                                                     |
+| `enable_on_status` | array of string or number | 选填   | -   | 匹配原始状态码，生成自定义响应。可填写精确值如:`200`,`404`等，也可以模糊匹配例如：`2xx`来匹配200-299之间的状态码，`20x`来匹配200-209之间的状态码，x代表任意一位数字。不填写时，不判断原始状态码,取第一个`enable_on_status`为空的规则作为默认规则 |
 
 ### 老版本-只支持一种返回
 | 名称 | 数据类型 | 填写要求 |  默认值 | 描述                              |
@@ -37,7 +36,7 @@ description: 自定义应答插件配置参考
 |  `body`      |  string    | 选填   |   -   | 自定义 HTTP 应答 Body                |
 |  `enable_on_status`   |  array of number    | 选填   |  -  | 匹配原始状态码，生成自定义响应，不填写时，不判断原始状态码      |
 
-匹配优先级：enable_on_status > prefix_on_status > 默认配置(第一个enable_on_status为空的配置)
+匹配优先级：精确匹配 > 模糊匹配 > 默认配置(第一个enable_on_status为空的配置)
 
 ## 配置示例
 
@@ -89,15 +88,15 @@ Content-Length: 21
 
 ```yaml
 rules:
-  - body: '{"hello":"world 2xx"}'
-    prefix_on_status:
-      - '2xx'
+  - body: '{"hello":"world 200"}'
+    enable_on_status:
+      - 200
     headers:
       - key1=value1
       - key2=value2
     status_code: 200
   - body: '{"hello":"world 40x"}'
-    prefix_on_status:
+    enable_on_status:
       - '40x'
     headers:
       - key1=value1
@@ -105,7 +104,7 @@ rules:
     status_code: 200
 ```
 
-根据该配置，200-299之间的状态码将返回自定义应答如下：
+根据该配置，200状态码将返回自定义应答如下：
 
 ```text
 HTTP/1.1 200 OK
@@ -114,7 +113,7 @@ key1: value1
 key2: value2
 Content-Length: 21
 
-{"hello":"world 2xx"}
+{"hello":"world 200"}
 ```
 根据该配置，401-409之间的状态码将返回自定义应答如下：
 

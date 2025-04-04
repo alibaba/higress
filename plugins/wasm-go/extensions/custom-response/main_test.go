@@ -63,7 +63,7 @@ func TestIsValidPrefixString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result, err := isValidPrefixString(tt.input)
+		result, err := isValidFuzzyMatchString(tt.input)
 		if tt.hasError {
 			if err == nil {
 				t.Errorf("%q: expected error but got none", tt.input)

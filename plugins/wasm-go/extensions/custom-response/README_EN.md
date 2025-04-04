@@ -19,15 +19,14 @@ Plugin Execution Priority: `910`
 
 The configuration field description of `rules` is as follows：
 
-| Name               | Data Type       | Requirements | Default Value | Description                                                                                                                                                                             |
-|--------------------|-----------------|--------------|-----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `status_code`      | number          | Optional     | 200 | Custom HTTP response status code                                                                                                                                                        |
-| `headers`          | array of string | Optional     | -   | Custom HTTP response headers, keys and values separated by `=`                                                                                                                          |
-| `body`             | string          | Optional     | -   | Custom HTTP response body                                                                                                                                                               |
-| `enable_on_status` | array of number | Optional     | -   | Match original status codes to generate custom responses; if not specified, the original status code is not checked, take the first rule with enable_on_status null as the default rule |
-| `prefix_on_status` | array of string | Optional     | -   | Fuzzy matching of raw status codes to generate custom responses. You can fill in '2xx' to match the status code between 200 and 299, and '20x' to match the status code between 200 and 209, with x representing any digit |
+| Name               | Data Type                 | Requirements | Default Value | Description                                                                                                                                                                             |
+|--------------------|---------------------------|--------------|-----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `status_code`      | number                    | Optional     | 200 | Custom HTTP response status code                                                                                                                                                        |
+| `headers`          | array of string           | Optional     | -   | Custom HTTP response headers, keys and values separated by `=`                                                                                                                          |
+| `body`             | string                    | Optional     | -   | Custom HTTP response body                                                                                                                                                               |
+| `enable_on_status` | array of string or number | Optional     | -   | Match the original status code to generate a custom response. You can fill in the exact value such as :`200`,`404`, etc., you can also fuzzy match such as: `2xx` to match the status code between 200-299, `20x` to match the status code between 200-209, x represents any digit. If enable_on_status is not specified, the original status code is not determined and the first rule with ENABLE_ON_status left blank is used as the default rule |
 
-Matching priority: enable_on_status > prefix_on_status > Default configuration (the first enable_on_status parameter is null)
+Matching priority: Exact Match > Fuzzy Match > Default configuration (the first enable_on_status parameter is null)
 
 ## Old version - Only one return is supported
 | Name | Data Type | Requirements | Default Value | Description                                                                                        |
@@ -46,15 +45,15 @@ Matching priority: enable_on_status > prefix_on_status > Default configuration (
 rules:
   - body: '{"hello":"world 200"}'
     enable_on_status:
-      - 200
-      - 201
+      - '200'
+      - '201'
     headers:
       - key1=value1
       - key2=value2
     status_code: 200
   - body: '{"hello":"world 404"}'
     enable_on_status:
-      - 404
+      - '404'
     headers:
       - key1=value1
       - key2=value2
@@ -98,15 +97,15 @@ Content-Length: 21
 
 ```yaml
 rules:
-  - body: '{"hello":"world 2xx"}'
-    prefix_on_status:
-      - '2xx'
+  - body: '{"hello":"world 200"}'
+    enable_on_status:
+      - 200
     headers:
       - key1=value1
       - key2=value2
     status_code: 200
   - body: '{"hello":"world 40x"}'
-    prefix_on_status:
+    enable_on_status:
       - '40x'
     headers:
       - key1=value1
@@ -114,7 +113,7 @@ rules:
     status_code: 200
 ```
 
-According to this configuration, the status code between 200-299 will return a custom reply as follows：
+According to this configuration, the status 200 will return a custom reply as follows：
 
 ```text
 HTTP/1.1 200 OK
@@ -123,7 +122,7 @@ key1: value1
 key2: value2
 Content-Length: 21
 
-{"hello":"world 2xx"}
+{"hello":"world 200"}
 ```
 According to this configuration, the status code between 401-409 will return a custom reply as follows：
 

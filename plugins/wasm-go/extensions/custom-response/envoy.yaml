@@ -67,33 +67,33 @@ static_resources:
 #                                  }
 #                                ]
 #                              }
-#                            value: |-
-#                              {
-#                                "rules": [
-#                                  {
-#                                    "headers": [
-#                                      "key1=value1",
-#                                      "key2=value2"
-#                                    ],
-#                                    "status_code": 200,
-#                                    "enable_on_status": [
-#                                      200
-#                                    ],
-#                                    "body": "{\"hello\":\"world 200\"}"
-#                                  },
-#                                  {
-#                                    "headers": [
-#                                      "key1=value1",
-#                                      "key2=value2"
-#                                    ],
-#                                    "status_code": 200,
-#                                    "prefix_on_status": [
-#                                      "40x"
-#                                    ],
-#                                    "body": "{\"hello\":\"world 40x\"}"
-#                                  }
-#                                ]
-#                              }
+                            value: |-
+                              {
+                                "rules": [
+                                  {
+                                    "headers": [
+                                      "key1=value1",
+                                      "key2=value2"
+                                    ],
+                                    "status_code": 200,
+                                    "enable_on_status": [
+                                      200
+                                    ],
+                                    "body": "{\"hello\":\"world 200\"}"
+                                  },
+                                  {
+                                    "headers": [
+                                      "key1=value1",
+                                      "key2=value2"
+                                    ],
+                                    "status_code": 200,
+                                    "enable_on_status": [
+                                      "40x"
+                                    ],
+                                    "body": "{\"hello\":\"world 40x\"}"
+                                  }
+                                ]
+                              }
 #                            value: |-
 #                              {
 #                                "headers": [
@@ -106,15 +106,15 @@ static_resources:
 #                                  200
 #                                ]
 #                              }
-                            value: |-
-                              {
-                                "headers": [
-                                  "key1=value1",
-                                  "key2=value2"
-                                ],
-                                "status_code": 200,
-                                "body": "{\"hello\":\"world 200\"}"
-                              }
+#                            value: |-
+#                              {
+#                                "headers": [
+#                                  "key1=value1",
+#                                  "key2=value2"
+#                                ],
+#                                "status_code": 200,
+#                                "body": "{\"hello\":\"world 200\"}"
+#                              }
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
