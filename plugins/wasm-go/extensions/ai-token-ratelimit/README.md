@@ -41,13 +41,22 @@ description: AI Token限流插件配置参考
 
 `limit_keys`中每一项的配置字段说明
 
-| 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                         |
-| ---------------- | ------ | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| key              | string | 是                                                           | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
-| token_per_second | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求token数                                             |
-| token_per_minute | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求token数                                           |
-| token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数                                           |
-| token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数                                             |
+| 配置项           | 类型   | 必填                                                                             | 默认值 | 说明                                                                                                                                                                                                          |
+| ---------------- | ------ |--------------------------------------------------------------------------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| key              | string | 是                                                                              | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
+| token_per_second | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求token数                                                                                                                                                                                                |
+| token_per_minute | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求token数                                                                                                                                                                                               |
+| token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数                                                                                                                                                                                               |
+| token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数                                                                                                                                                                                                |
+| token_bucket_strategy    | object    | 否                                              | -      | 基于令牌桶算法限流                                                            |
+
+`token_bucket_strategy` 中每一项的配置字段说明
+
+| 配置项                | 类型            | 必填                       | 默认值 | 说明                                                         |
+| --------------------- | --------------- | -------------------------- | ------ | ------------------------------------------------------------ |
+| rate    | int    |  是                                            | -      |  每秒颁发的token数|
+| capacity    | int    |  是                                            | -      |  桶大小|
+
 
 `redis`中每一项的配置字段说明
 
@@ -132,9 +141,11 @@ rule_items:
       # ip段，符合这个ip段的ip，每个ip 100qpd
       - key: 1.1.1.0/24
         token_per_day: 100
-      # 兜底用，即默认每个ip 1000qpd
+      # 兜底用，即默认每个ip，每秒颁发1个token，桶大小为100
       - key: 0.0.0.0/0
-        token_per_day: 1000
+        token_bucket_strategy:
+          rate: 1
+          capacity: 100
 redis:
   service_name: redis.static
 ```

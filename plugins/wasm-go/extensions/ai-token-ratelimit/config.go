@@ -40,10 +40,11 @@ const (
 	DefaultRejectedCode uint32 = 429
 	DefaultRejectedMsg  string = "Too many requests"
 
-	Second           int64 = 1
-	SecondsPerMinute       = 60 * Second
-	SecondsPerHour         = 60 * SecondsPerMinute
-	SecondsPerDay          = 24 * SecondsPerHour
+	Second              int64 = 1
+	SecondsPerMinute          = 60 * Second
+	SecondsPerHour            = 60 * SecondsPerMinute
+	SecondsPerDay             = 24 * SecondsPerHour
+	TokenBucketStrategy       = "token_bucket_strategy"
 )
 
 var timeWindows = map[string]int64{
@@ -75,6 +76,11 @@ type LimitByPerIp struct {
 	headerName string // 根据该请求头获取客户端ip
 }
 
+type TokenBucketConfig struct {
+	rate     int64 // 每秒令牌数量
+	capacity int64 // 桶大小
+}
+
 type LimitConfigItem struct {
 	configType limitConfigItemType // 限流配置项key类型
 	key        string              // 限流key
@@ -82,6 +88,7 @@ type LimitConfigItem struct {
 	regexp     *re.Regexp          // 正则表达式,仅用于itemType为regexpType
 	count      int64               // 指定时间窗口内的总请求数量阈值
 	timeWindow int64               // 时间窗口大小
+	bucket     *TokenBucketConfig  // 令牌桶配置
 }
 
 func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
@@ -288,7 +295,44 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 	return nil
 }
 
+func getTokenBucketStrategyConfigItem(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
+	strategy := item.Get(TokenBucketStrategy)
+	if strategy.Exists() {
+		if !strategy.IsObject() {
+			return nil, errors.New("value of token_bucket_strategy must be object")
+		} else if !strategy.Get("rate").Exists() {
+			return nil, errors.New("rate must be set for key:token_bucket_strategy")
+		} else if !strategy.Get("capacity").Exists() {
+			return nil, errors.New("capacity must be set for key:token_bucket_strategy")
+		}
+		rate := strategy.Get("rate").Int()
+		capacity := strategy.Get("capacity").Int()
+		if rate <= 0 || capacity <= 0 {
+			return nil, errors.New("rate and capacity must be greater than 0 for key:token_bucket_strategy")
+		}
+		tokenBucketConfig := TokenBucketConfig{
+			rate:     rate,
+			capacity: capacity,
+		}
+		return &LimitConfigItem{
+			configType: itemType,
+			key:        key,
+			ipNet:      ipNet,
+			regexp:     regexp,
+			bucket:     &tokenBucketConfig,
+		}, nil
+	}
+	return nil, nil
+}
+
 func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
+	// 是否使用令牌桶策略
+	if configItem, err := getTokenBucketStrategyConfigItem(item, itemType, key, ipNet, regexp); err != nil {
+		return nil, err
+	} else if configItem != nil {
+		return configItem, nil
+	}
+
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
 		if q.Exists() && q.Int() > 0 {
