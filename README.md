@@ -14,12 +14,9 @@
 <a href="https://trendshift.io/repositories/10918" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10918" alt="alibaba%2Fhigress | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 
-[**Official Site**](https://higress.io/en-us/) &nbsp; |
-&nbsp; [**Docs**](https://higress.io/en-us/docs/overview/what-is-higress) &nbsp; |
-&nbsp; [**Blog**](https://higress.io/en-us/blog) &nbsp; |
-&nbsp; [**Developer**](https://higress.io/en-us/docs/developers/developers_dev) &nbsp; |
-&nbsp; [**Higress in Cloud**](https://www.alibabacloud.com/product/microservices-engine?spm=higress-website.topbar.0.0.0) &nbsp;
-
+[**Official Site**](https://higress.ai/en/) &nbsp; |
+&nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/) &nbsp; |
+&nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
 
 <p>
    English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>

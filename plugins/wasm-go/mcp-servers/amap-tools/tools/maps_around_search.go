@@ -63,26 +63,6 @@ func (t AroundSearchRequest) Call(ctx server.HttpContext, s server.Server) error
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("around search call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
-				Pois   []struct {
-					ID       string `json:"id"`
-					Name     string `json:"name"`
-					Address  string `json:"address"`
-					Typecode string `json:"typecode"`
-				} `json:"pois"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse around search response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("around search failed: %s", response.Info))
-				return
-			}
-			result, _ := json.MarshalIndent(response.Pois, "", "  ")
-			utils.SendMCPToolTextResult(ctx, string(result))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

@@ -8,7 +8,7 @@ replace amap-tools => ../amap-tools
 
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250331125043-e9661a6dabda
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250402072030-ae5d1c59f256
 	quark-search v0.0.0-00010101000000-000000000000
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985 // indirect
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711 // indirect
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
