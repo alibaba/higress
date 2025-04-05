@@ -85,7 +85,7 @@ func parseConfig(gjson gjson.Result, config *CustomResponseConfig) error {
 		}
 	}
 	if rulesVersion && config.defaultRule == nil && len(config.enableOnStatusRuleMap) == 0 {
-		return errors.New("config cant empty")
+		return errors.New("no valid config is found")
 	}
 	return nil
 }
@@ -151,7 +151,7 @@ func parseRuleItem(gjson gjson.Result, rule *CustomResponseRule) error {
 func isValidFuzzyMatchString(s string) (string, error) {
 	const requiredLength = 3
 	if len(s) != requiredLength {
-		return "", fmt.Errorf("invalid prefix_on_status %q: length must be %d", s, requiredLength)
+		return "", fmt.Errorf("invalid enable_on_status %q: length must be %d", s, requiredLength)
 	}
 
 	lower := strings.ToLower(s)
@@ -165,15 +165,15 @@ func isValidFuzzyMatchString(s string) (string, error) {
 		case c >= '0' && c <= '9':
 			hasDigit = true
 		default:
-			return "", fmt.Errorf("invalid prefix_on_status %q: must contain only digits and x/X", s)
+			return "", fmt.Errorf("invalid enable_on_status %q: must contain only digits and x/X", s)
 		}
 	}
 
 	if !hasX {
-		return "", fmt.Errorf("invalid prefix_on_status %q: must contain x/X (use enable_on_status for exact statusCode matching)", s)
+		return "", fmt.Errorf("invalid enable_on_status %q: fuzzy match must contain x/X (use enable_on_status for exact statusCode matching)", s)
 	}
 	if !hasDigit {
-		return "", fmt.Errorf("invalid prefix_on_status %q: must contain at least one digit", s)
+		return "", fmt.Errorf("invalid enable_on_status %q: must contain at least one digit", s)
 	}
 
 	return lower, nil
@@ -208,7 +208,7 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 		return types.ActionContinue
 	}
 
-	if rule, match := prefixMatchCode(config.enableOnStatusRuleMap, statusCodeStr); match {
+	if rule, match := fuzzyMatchCode(config.enableOnStatusRuleMap, statusCodeStr); match {
 		err = proxywasm.SendHttpResponseWithDetail(rule.statusCode, "custom-response", rule.headers, []byte(rule.body), -1)
 		if err != nil {
 			log.Errorf("send http response failed: %v", err)
@@ -218,7 +218,7 @@ func onHttpResponseHeaders(_ wrapper.HttpContext, config CustomResponseConfig) t
 	return types.ActionContinue
 }
 
-func prefixMatchCode(statusRuleMap map[string]*CustomResponseRule, statusCode string) (*CustomResponseRule, bool) {
+func fuzzyMatchCode(statusRuleMap map[string]*CustomResponseRule, statusCode string) (*CustomResponseRule, bool) {
 	if len(statusRuleMap) == 0 || statusCode == "" {
 		return nil, false
 	}
@@ -228,7 +228,7 @@ func prefixMatchCode(statusRuleMap map[string]*CustomResponseRule, statusCode st
 		if len(pattern) != codeLen {
 			continue
 		}
-		// 纯数字的enableOnStauts已经判断过，跳过
+		// 纯数字的enableOnStatus已经判断过，跳过
 		if !strings.Contains(pattern, "x") {
 			continue
 		}

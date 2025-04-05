@@ -26,6 +26,20 @@ The configuration field description of `rules` is as follows：
 | `body`             | string                    | Optional     | -   | Custom HTTP response body                                                                                                                                                               |
 | `enable_on_status` | array of string or number | Optional     | -   | Match the original status code to generate a custom response. You can fill in the exact value such as :`200`,`404`, etc., you can also fuzzy match such as: `2xx` to match the status code between 200-299, `20x` to match the status code between 200-209, x represents any digit. If enable_on_status is not specified, the original status code is not determined and the first rule with ENABLE_ON_status left blank is used as the default rule |
 
+#### Fuzzy matching rule
+* Length is 3
+* At least one digit
+* At least one x(case insensitive)
+
+| rule | Matching content                                                                                     |
+|------|------------------------------------------------------------------------------------------|
+| 40x  | 400-409; If the first two digits are 40                                                                      |
+| 1x4  | 104,114,124,134,144,154,164,174,184,194；The first and third positions are 1 and 4 respectively                              |
+| x23  | 023,123,223,323,423,523,623,723,823,923；The second and third positions are 23                                  |  
+| 4xx  | 400-499；The first digit is 4                                                                         |
+| x4x  | 040-049,140-149,240-249,340-349,440-449,540-549,640-649,740-749,840-849,940-949；The second digit is 4 |
+| xx4  | When the mantissa is 4                                                                                 |
+
 Matching priority: Exact Match > Fuzzy Match > Default configuration (the first enable_on_status parameter is null)
 
 ## Old version - Only one return is supported

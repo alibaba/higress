@@ -36,7 +36,7 @@ func Test_prefixMatchCode(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, found := prefixMatchCode(rules, tt.code)
+		_, found := fuzzyMatchCode(rules, tt.code)
 		if found != tt.expectHit {
 			t.Errorf("code:%s expect:%v got:%v", tt.code, tt.expectHit, found)
 		}
