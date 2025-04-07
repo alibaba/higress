@@ -15,6 +15,11 @@
 
 下面介绍如何使用 Higress WASM Go SDK 实现 Model Context Protocol (MCP) 服务器。MCP 服务器提供工具和资源，扩展 AI 助手的能力。
 
+ [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/)
+
+ [**Wasm Plugin Hub**](https://higress.cn/en/plugin/)
+
+
 ## 概述
 
 MCP 服务器是一个独立的应用程序，通过 Model Context Protocol 与 AI 助手通信。它可以提供：

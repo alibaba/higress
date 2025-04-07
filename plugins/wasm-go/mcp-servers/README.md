@@ -15,6 +15,10 @@
 
 This guide explains how to implement a Model Context Protocol (MCP) server using the Higress WASM Go SDK. MCP servers provide tools and resources that extend the capabilities of AI assistants.
 
+ [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/)
+
+ [**Wasm Plugin Hub**](https://higress.cn/en/plugin/)
+
 ## Overview
 
 An MCP server is a standalone application that communicates with AI assistants through the Model Context Protocol. It can provide:
