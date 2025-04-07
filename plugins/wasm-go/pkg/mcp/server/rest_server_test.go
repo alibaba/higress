@@ -75,6 +75,125 @@ func TestConvertArgToString(t *testing.T) {
 	}
 }
 
+func TestResponseTemplatePrependAppend(t *testing.T) {
+	// Test response template with PrependBody and AppendBody
+	sampleResponse := `{"result": "success", "data": {"name": "Test", "value": 42}}`
+
+	tests := []struct {
+		name        string
+		template    RestToolResponseTemplate
+		expected    []string
+		notExpected []string
+	}{
+		{
+			name: "with body template only",
+			template: RestToolResponseTemplate{
+				Body: "# Result\n- Name: {{.data.name}}\n- Value: {{.data.value}}",
+			},
+			expected: []string{
+				"# Result",
+				"- Name: Test",
+				"- Value: 42",
+			},
+			notExpected: []string{
+				"Field Descriptions:",
+				"End of Response",
+				`{"result": "success"`,
+			},
+		},
+		{
+			name: "with prepend only",
+			template: RestToolResponseTemplate{
+				PrependBody: "# Field Descriptions:\n- result: Operation result\n- data: Response data\n\n",
+			},
+			expected: []string{
+				"# Field Descriptions:",
+				"- result: Operation result",
+				"- data: Response data",
+				`{"result": "success"`,
+				`"name": "Test"`,
+			},
+		},
+		{
+			name: "with append only",
+			template: RestToolResponseTemplate{
+				AppendBody: "\n\n*End of Response*",
+			},
+			expected: []string{
+				`{"result": "success"`,
+				`"name": "Test"`,
+				"*End of Response*",
+			},
+		},
+		{
+			name: "with both prepend and append",
+			template: RestToolResponseTemplate{
+				PrependBody: "# API Response:\n\n",
+				AppendBody:  "\n\n*This is raw JSON data with field 'name' = Test and 'value' = 42*",
+			},
+			expected: []string{
+				"# API Response:",
+				`{"result": "success"`,
+				`"name": "Test"`,
+				"*This is raw JSON data with field 'name' = Test and 'value' = 42*",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a tool with the test template
+			tool := RestTool{
+				ResponseTemplate: tt.template,
+			}
+
+			// Parse templates
+			err := tool.parseTemplates()
+			if err != nil {
+				t.Fatalf("Failed to parse templates: %v", err)
+			}
+
+			// Simulate response processing
+			var result string
+			responseBody := []byte(sampleResponse)
+
+			// Case 1: Full response template is provided
+			if tool.parsedResponseTemplate != nil {
+				templateResult, err := executeTemplate(tool.parsedResponseTemplate, responseBody)
+				if err != nil {
+					t.Fatalf("Failed to execute response template: %v", err)
+				}
+				result = templateResult
+			} else {
+				// Case 2: No template, but prepend/append might be used
+				rawResponse := string(responseBody)
+
+				// Apply prepend/append if specified
+				if tool.ResponseTemplate.PrependBody != "" || tool.ResponseTemplate.AppendBody != "" {
+					result = tool.ResponseTemplate.PrependBody + rawResponse + tool.ResponseTemplate.AppendBody
+				} else {
+					// Case 3: No template and no prepend/append, just use raw response
+					result = rawResponse
+				}
+			}
+
+			// Check that the result contains expected substrings
+			for _, substr := range tt.expected {
+				if !strings.Contains(result, substr) {
+					t.Errorf("Expected substring not found: %s", substr)
+				}
+			}
+
+			// Check that the result does not contain unexpected substrings
+			for _, substr := range tt.notExpected {
+				if strings.Contains(result, substr) {
+					t.Errorf("Unexpected substring found: %s", substr)
+				}
+			}
+		})
+	}
+}
+
 func TestHasContentType(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -213,6 +332,63 @@ func TestRestToolValidation(t *testing.T) {
 				},
 			},
 			expectedError: true,
+		},
+		{
+			name: "invalid tool with both Body and PrependBody",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:    "https://example.com",
+					Method: "GET",
+				},
+				ResponseTemplate: RestToolResponseTemplate{
+					Body:        "# Result\n{{.data}}",
+					PrependBody: "# Field Descriptions:\n",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid tool with both Body and AppendBody",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:    "https://example.com",
+					Method: "GET",
+				},
+				ResponseTemplate: RestToolResponseTemplate{
+					Body:       "# Result\n{{.data}}",
+					AppendBody: "\n*End of response*",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "invalid tool with Body, PrependBody, and AppendBody",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:    "https://example.com",
+					Method: "GET",
+				},
+				ResponseTemplate: RestToolResponseTemplate{
+					Body:        "# Result\n{{.data}}",
+					PrependBody: "# Field Descriptions:\n",
+					AppendBody:  "\n*End of response*",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "valid tool with PrependBody and AppendBody but no Body",
+			tool: RestTool{
+				RequestTemplate: RestToolRequestTemplate{
+					URL:    "https://example.com",
+					Method: "GET",
+				},
+				ResponseTemplate: RestToolResponseTemplate{
+					PrependBody: "# Field Descriptions:\n",
+					AppendBody:  "\n*End of response*",
+				},
+			},
+			expectedError: false,
 		},
 	}
 

@@ -63,7 +63,9 @@ type RestToolRequestTemplate struct {
 
 // RestToolResponseTemplate defines how to transform the HTTP response
 type RestToolResponseTemplate struct {
-	Body string `json:"body"`
+	Body        string `json:"body"`
+	PrependBody string `json:"prependBody,omitempty"` // Text to insert before the response body
+	AppendBody  string `json:"appendBody,omitempty"`  // Text to insert after the response body
 }
 
 // RestTool represents a REST API that can be called as an MCP tool
@@ -134,6 +136,11 @@ func (t *RestTool) parseTemplates() error {
 
 	// Parse response template if present
 	if t.ResponseTemplate.Body != "" {
+		// Validate that PrependBody and AppendBody are not used with Body
+		if t.ResponseTemplate.PrependBody != "" || t.ResponseTemplate.AppendBody != "" {
+			return fmt.Errorf("PrependBody and AppendBody cannot be used when Body is specified")
+		}
+
 		t.parsedResponseTemplate, err = template.New("response").Funcs(templateFuncs()).Parse(t.ResponseTemplate.Body)
 		if err != nil {
 			return fmt.Errorf("error parsing response template: %v", err)
@@ -457,18 +464,31 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 				return
 			}
 
-			// Execute response template
+			// Process response
+			var result string
+
+			// Case 1: Full response template is provided
 			if t.toolConfig.parsedResponseTemplate != nil {
-				result, err := executeTemplate(t.toolConfig.parsedResponseTemplate, responseBody)
+				templateResult, err := executeTemplate(t.toolConfig.parsedResponseTemplate, responseBody)
 				if err != nil {
 					utils.OnMCPToolCallError(ctx, fmt.Errorf("error executing response template: %v", err))
 					return
 				}
-				utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
+				result = templateResult
 			} else {
-				// Just return raw response as JSON string
-				utils.SendMCPToolTextResult(ctx, string(responseBody), fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
+				// Case 2: No template, but prepend/append might be used
+				rawResponse := string(responseBody)
+
+				// Apply prepend/append if specified
+				if t.toolConfig.ResponseTemplate.PrependBody != "" || t.toolConfig.ResponseTemplate.AppendBody != "" {
+					result = t.toolConfig.ResponseTemplate.PrependBody + rawResponse + t.toolConfig.ResponseTemplate.AppendBody
+				} else {
+					// Case 3: No template and no prepend/append, just use raw response
+					result = rawResponse
+				}
 			}
+
+			utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		})
 
 	return nil
