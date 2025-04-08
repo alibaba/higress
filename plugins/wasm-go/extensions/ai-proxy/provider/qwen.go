@@ -53,7 +53,10 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
 }
 
-func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool) map[string]string {
+func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible, qwenEnableCustomCompatible bool) map[string]string {
+	if qwenEnableCustomCompatible {
+		return map[string]string{}
+	}
 	if qwenEnableCompatible {
 		return map[string]string{
 			string(ApiNameChatCompletion): qwenChatCompatiblePath,
@@ -68,7 +71,7 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 }
 
 func (m *qwenProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
-	config.setDefaultCapabilities(m.DefaultCapabilities(config.qwenEnableCompatible))
+	config.setDefaultCapabilities(m.DefaultCapabilities(config.qwenEnableCompatible, config.qwenEnableCustomCompatible))
 	return &qwenProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -94,7 +97,7 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
-	if m.config.qwenEnableCompatible {
+	if m.config.qwenEnableCompatible || m.config.qwenEnableCustomCompatible {
 		if gjson.GetBytes(body, "model").Exists() {
 			rawModel := gjson.GetBytes(body, "model").String()
 			mappedModel := getMappedModel(rawModel, m.config.modelMapping)
@@ -133,7 +136,7 @@ func (m *qwenProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 }
 
 func (m *qwenProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if !m.config.isSupportedAPI(apiName) {
+	if !m.config.isSupportedAPI(apiName) && !m.config.qwenEnableCustomCompatible {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
@@ -177,7 +180,7 @@ func (m *qwenProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []b
 }
 
 func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, event StreamEvent) ([]StreamEvent, error) {
-	if m.config.qwenEnableCompatible || name != ApiNameChatCompletion {
+	if m.config.qwenEnableCompatible || m.config.qwenEnableCustomCompatible || name != ApiNameChatCompletion {
 		return nil, nil
 	}
 
@@ -205,7 +208,7 @@ func (m *qwenProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, e
 }
 
 func (m *qwenProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
-	if m.config.qwenEnableCompatible {
+	if m.config.qwenEnableCompatible || m.config.qwenEnableCustomCompatible {
 		return body, nil
 	}
 	if apiName == ApiNameChatCompletion {

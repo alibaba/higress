@@ -230,6 +230,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
+	// @Title zh-CN 开启通义千问自定义兼容模式
+	// @Description zh-CN 启用通义千问自定义兼容模式后，将调用自定义兼容模式接口，同时对请求/响应不做修改。
+	qwenEnableCustomCompatible bool `required:"false" yaml:"qwenEnableCustomCompatible" json:"qwenEnableCustomCompatible"`
 	// @Title zh-CN Ollama Server IP/Domain
 	// @Description zh-CN 仅适用于 Ollama 服务。Ollama 服务器的主机地址。
 	ollamaServerHost string `required:"false" yaml:"ollamaServerHost" json:"ollamaServerHost"`
@@ -324,6 +327,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
 	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	c.qwenEnableCustomCompatible = json.Get("qwenEnableCustomCompatible").Bool()
 	c.qwenDomain = json.Get("qwenDomain").String()
 	if c.qwenDomain != "" {
 		// TODO: validate the domain, if not valid, set to default
