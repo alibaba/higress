@@ -69,6 +69,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wr
 		if err := CheckCacheForKey(key, ctx, c, log); err != nil {
 			log.Errorf("[onHttpRequestHeaders] check cache for key: %s failed, error: %v", key, err)
 		}
+		ctx.DisableReroute()
 		_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
@@ -84,7 +85,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log wr
 	}
 
 	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
-
+	
+	ctx.DisableReroute()
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	// The request has a body and requires delaying the header transmission until a cache miss occurs,
 	// at which point the header should be sent.
