@@ -6,6 +6,7 @@ import (
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
@@ -16,17 +17,19 @@ import (
 const Name = "mcp-server"
 const Version = "1.0.0"
 const DefaultServerName = "defaultServer"
+const ConfigPathSuffix = "/config"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
 }
 
 type config struct {
-	ssePathSuffix string
-	redisClient   *internal.RedisClient
-	servers       []*internal.SSEServer
-	defaultServer *internal.SSEServer
-	matchList     []internal.MatchRule
+	ssePathSuffix    string
+	redisClient      *internal.RedisClient
+	servers          []*internal.SSEServer
+	defaultServer    *internal.SSEServer
+	matchList        []internal.MatchRule
+	mcpConfigHandler *handler.MCPConfigHandler
 }
 
 func (c *config) Destroy() {
@@ -171,6 +174,7 @@ func filterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 	if !ok {
 		panic("unexpected config type")
 	}
+	conf.mcpConfigHandler = handler.NewMCPConfigHandler(conf.redisClient, callbacks)
 	return &filter{
 		callbacks: callbacks,
 		config:    conf,
