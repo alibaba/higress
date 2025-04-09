@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
@@ -21,11 +22,12 @@ type filter struct {
 	config    *config
 	stopChan  chan struct{}
 
-	req        *http.Request
-	serverName string
-	message    bool
-	proxyURL   *url.URL
-	skip       bool
+	req              *http.Request
+	serverName       string
+	message          bool
+	proxyURL         *url.URL
+	skip             bool
+	mcpConfigHandler *handler.MCPConfigHandler
 }
 
 type RequestURL struct {
@@ -76,7 +78,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		} else if f.path == server.GetMessageEndpoint() || strings.HasSuffix(f.path, ConfigPathSuffix) {
 			if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
 				api.LogDebugf("Handling config request: %s", f.path)
-				if f.config.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
+				if f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
 					return api.LocalReply
 				}
 			}
@@ -111,7 +113,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			serverName := parts[1]
 			uid := parts[2]
 			// Get encoded config
-			encodedConfig, err := f.config.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+			encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
 			if err != nil {
 				api.LogErrorf("Failed to get config for %s:%s: %v", serverName, uid, err)
 			} else if encodedConfig != "" {
@@ -150,7 +152,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			// Handle config POST request
 			if strings.HasSuffix(f.path, ConfigPathSuffix) {
 				api.LogDebugf("Handling config request: %s", f.path)
-				if f.config.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes()) {
+				if f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes()) {
 					return api.LocalReply
 				}
 			}
@@ -178,7 +180,7 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 	if f.skip {
 		return api.Continue
 	}
-	if f.serverName != "" {
+	if f.serverName != "" && f.config.redisClient != nil {
 		header.Set("Content-Type", "text/event-stream")
 		header.Set("Cache-Control", "no-cache")
 		header.Set("Connection", "keep-alive")
@@ -198,7 +200,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if !endStream {
 		return api.StopAndBuffer
 	}
-	if f.proxyURL != nil {
+	if f.proxyURL != nil && f.config.redisClient != nil {
 		sessionID := f.proxyURL.Query().Get("sessionId")
 		if sessionID != "" {
 			channel := internal.GetSSEChannelName(sessionID)
@@ -211,21 +213,26 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	}
 
 	if f.serverName != "" {
-		// handle specific server
-		for _, server := range f.config.servers {
-			if f.serverName == server.GetServerName() {
+		if f.config.redisClient != nil {
+			// handle specific server
+			for _, server := range f.config.servers {
+				if f.serverName == server.GetServerName() {
+					buffer.Reset()
+					server.HandleSSE(f.callbacks, f.stopChan)
+					return api.Running
+				}
+			}
+			// handle default server
+			if f.serverName == f.config.defaultServer.GetServerName() {
 				buffer.Reset()
-				server.HandleSSE(f.callbacks, f.stopChan)
+				f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
 				return api.Running
 			}
+			return api.Continue
+		} else {
+			buffer.SetString("Redis is not enabled, SSE connection is not supported")
+			return api.Continue
 		}
-		// handle default server
-		if f.serverName == f.config.defaultServer.GetServerName() {
-			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
-			return api.Running
-		}
-		return api.Continue
 	}
 	return api.Continue
 }

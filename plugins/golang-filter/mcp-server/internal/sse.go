@@ -202,7 +202,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	if response != nil {
 		eventData, _ := json.Marshal(response)
 
-		if sessionID != "" {
+		if sessionID != "" && s.redisClient != nil {
 			channel := GetSSEChannelName(sessionID)
 			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
 

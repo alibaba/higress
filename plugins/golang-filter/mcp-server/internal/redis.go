@@ -17,15 +17,16 @@ type RedisConfig struct {
 	secret   string // Encryption key
 }
 
-func ParseRedisConfig(config map[string]any) (*RedisConfig, error) {
+// ParseRedisConfig parses Redis configuration from a map
+func ParseRedisConfig(config map[string]interface{}) (*RedisConfig, error) {
 	c := &RedisConfig{}
 
 	// address is required
-	addr, ok := config["address"].(string)
-	if !ok {
-		return nil, fmt.Errorf("address is required and must be a string")
+	if addr, ok := config["address"].(string); ok && addr != "" {
+		c.address = addr
+	} else {
+		return nil, fmt.Errorf("address is required and must be a non-empty string")
 	}
-	c.address = addr
 
 	// username is optional
 	if username, ok := config["username"].(string); ok {

@@ -24,12 +24,11 @@ func init() {
 }
 
 type config struct {
-	ssePathSuffix    string
-	redisClient      *internal.RedisClient
-	servers          []*internal.SSEServer
-	defaultServer    *internal.SSEServer
-	matchList        []internal.MatchRule
-	mcpConfigHandler *handler.MCPConfigHandler
+	ssePathSuffix string
+	redisClient   *internal.RedisClient
+	servers       []*internal.SSEServer
+	defaultServer *internal.SSEServer
+	matchList     []internal.MatchRule
 }
 
 func (c *config) Destroy() {
@@ -74,21 +73,22 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 	}
 
-	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("redis config is not set")
-	}
+	// Redis configuration is optional
+	if redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{}); ok {
+		redisConfig, err := internal.ParseRedisConfig(redisConfigMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse redis config: %w", err)
+		}
 
-	redisConfig, err := internal.ParseRedisConfig(redisConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse redis config: %w", err)
+		redisClient, err := internal.NewRedisClient(redisConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
+		}
+		conf.redisClient = redisClient
+		api.LogDebug("Redis client initialized")
+	} else {
+		api.LogDebug("Redis configuration not provided, running without Redis")
 	}
-
-	redisClient, err := internal.NewRedisClient(redisConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
-	}
-	conf.redisClient = redisClient
 
 	ssePathSuffix, ok := v.AsMap()["sse_path_suffix"].(string)
 	if !ok || ssePathSuffix == "" {
@@ -130,7 +130,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 		api.LogDebug(fmt.Sprintf("Server config: %+v", serverConfig))
 
-		err = server.ParseConfig(serverConfig)
+		err := server.ParseConfig(serverConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse server config: %w", err)
 		}
@@ -141,7 +141,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 
 		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
-			internal.WithRedisClient(redisClient),
+			internal.WithRedisClient(conf.redisClient),
 			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
 			internal.WithMessageEndpoint(serverPath)))
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
@@ -161,10 +161,13 @@ func (p *parser) Merge(parent interface{}, child interface{}) interface{} {
 		newConfig.ssePathSuffix = childConfig.ssePathSuffix
 	}
 	if childConfig.servers != nil {
-		newConfig.servers = append(newConfig.servers, childConfig.servers...)
+		newConfig.servers = childConfig.servers
 	}
 	if childConfig.defaultServer != nil {
 		newConfig.defaultServer = childConfig.defaultServer
+	}
+	if childConfig.matchList != nil {
+		newConfig.matchList = childConfig.matchList
 	}
 	return &newConfig
 }
@@ -174,11 +177,11 @@ func filterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 	if !ok {
 		panic("unexpected config type")
 	}
-	conf.mcpConfigHandler = handler.NewMCPConfigHandler(conf.redisClient, callbacks)
 	return &filter{
-		callbacks: callbacks,
-		config:    conf,
-		stopChan:  make(chan struct{}),
+		callbacks:        callbacks,
+		config:           conf,
+		stopChan:         make(chan struct{}),
+		mcpConfigHandler: handler.NewMCPConfigHandler(conf.redisClient, callbacks),
 	}
 }
 
