@@ -5,11 +5,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+)
+
+const (
+	RedisNotEnabledResponseBody = "Redis is not enabled, SSE connection is not supported"
 )
 
 // The callbacks in the filter, like `DecodeHeaders`, can be implemented on demand.
@@ -180,12 +185,16 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 	if f.skip {
 		return api.Continue
 	}
-	if f.serverName != "" && f.config.redisClient != nil {
-		header.Set("Content-Type", "text/event-stream")
-		header.Set("Cache-Control", "no-cache")
-		header.Set("Connection", "keep-alive")
-		header.Set("Access-Control-Allow-Origin", "*")
-		header.Del("Content-Length")
+	if f.serverName != "" {
+		if f.config.redisClient != nil {
+			header.Set("Content-Type", "text/event-stream")
+			header.Set("Cache-Control", "no-cache")
+			header.Set("Connection", "keep-alive")
+			header.Set("Access-Control-Allow-Origin", "*")
+			header.Del("Content-Length")
+		} else {
+			header.Set("Content-Length", strconv.Itoa(len(RedisNotEnabledResponseBody)))
+		}
 		return api.Continue
 	}
 	return api.Continue
@@ -230,7 +239,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			}
 			return api.Continue
 		} else {
-			buffer.SetString("Redis is not enabled, SSE connection is not supported")
+			buffer.SetString(RedisNotEnabledResponseBody)
 			return api.Continue
 		}
 	}
