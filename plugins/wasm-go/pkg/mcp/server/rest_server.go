@@ -615,7 +615,9 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 					result = rawResponse
 				}
 			}
-
+			if result == "" {
+				result = "success"
+			}
 			utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		})
 
