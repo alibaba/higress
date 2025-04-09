@@ -40,6 +40,9 @@ func (n *NacosMcpRegsitry) ListToolsDesciption() []*registry.ToolDescription {
 }
 
 func (n *NacosMcpRegsitry) GetToolRpcContext(toolName string) (*registry.RpcContext, bool) {
+	if n.toolsRpcContext == nil {
+		n.refreshToolsList()
+	}
 	tool, ok := n.toolsRpcContext[toolName]
 	return tool, ok
 }
@@ -131,6 +134,22 @@ func getFormatServiceName(group string, service string) string {
 	return fmt.Sprintf("%s_%s", group, service)
 }
 
+func (n *NacosMcpRegsitry) deleteToolForService(group string, service string) {
+	toolsNeedReset := []string{}
+
+	formatServiceName := getFormatServiceName(group, service)
+	for tool, _ := range n.toolsDescription {
+		if strings.HasPrefix(tool, formatServiceName) {
+			toolsNeedReset = append(toolsNeedReset, tool)
+		}
+	}
+
+	for _, tool := range toolsNeedReset {
+		delete(n.toolsDescription, tool)
+		delete(n.toolsRpcContext, tool)
+	}
+}
+
 func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) bool {
 
 	if newConfig == nil {
@@ -164,8 +183,14 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 	}
 
 	var applicationDescription registry.McpApplicationDescription
-	if newConfig == nil || len(*newConfig) == 0 {
+	if newConfig == nil {
 		return false
+	}
+
+	// config deleted, tools should be removed
+	if len(*newConfig) == 0 {
+		n.deleteToolForService(group, service)
+		return true
 	}
 
 	err := json.Unmarshal([]byte(*newConfig), &applicationDescription)
@@ -192,19 +217,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 		n.toolsRpcContext = map[string]*registry.RpcContext{}
 	}
 
-	toolsNeedReset := []string{}
-
-	formatServiceName := getFormatServiceName(group, service)
-	for tool, _ := range n.toolsDescription {
-		if strings.HasPrefix(tool, formatServiceName) {
-			toolsNeedReset = append(toolsNeedReset, tool)
-		}
-	}
-
-	for _, tool := range toolsNeedReset {
-		delete(n.toolsDescription, tool)
-		delete(n.toolsRpcContext, tool)
-	}
+	n.deleteToolForService(group, service)
 
 	for _, tool := range applicationDescription.ToolsDescription {
 		meta := applicationDescription.ToolsMeta[tool.Name]
