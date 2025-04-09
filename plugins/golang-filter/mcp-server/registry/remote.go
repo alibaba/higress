@@ -50,8 +50,11 @@ func FixedQueryToken(cred *CredentialInfo, h *HttpRemoteCallHandle) {
 	h.Query[key.(string)] = value.(string)
 }
 
-func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
-	instance := selectOneInstance(ctx)
+func newHttpRemoteCallHandle(ctx *RpcContext) (*HttpRemoteCallHandle, error) {
+	instance, err := selectOneInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
 	method, ok := ctx.ToolMeta.InvokeContext["method"]
 	if !ok {
 		method = DEFAULT_HTTP_METHOD
@@ -64,7 +67,7 @@ func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
 
 	return &HttpRemoteCallHandle{
 		CommonRemoteCallHandle: CommonRemoteCallHandle{
-			Instance: &instance,
+			Instance: instance,
 		},
 		Protocol: ctx.Protocol,
 		Headers:  http.Header{},
@@ -72,7 +75,7 @@ func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
 		Query:    map[string]string{},
 		Path:     path,
 		Method:   method,
-	}
+	}, nil
 }
 
 // http remote handle implementation
@@ -160,20 +163,25 @@ func (h *HttpRemoteCallHandle) doHttpCall() (*http.Response, error) {
 	return http.DefaultClient.Do(&request)
 }
 
-func selectOneInstance(ctx *RpcContext) Instance {
+func selectOneInstance(ctx *RpcContext) (*Instance, error) {
 	instanceId := 0
+	if ctx.Instances == nil || len(*ctx.Instances) == 0 {
+		return nil, fmt.Errorf("No instance")
+	}
+
 	instances := *ctx.Instances
-	if len(instances) != 1 {
+	if len(instances) > 1 {
 		instanceId = rand.Intn(len(instances) - 1)
 	}
-	return instances[instanceId]
+	select_instance := instances[instanceId]
+	return &select_instance, nil
 }
 
-func getRemoteCallhandle(ctx *RpcContext) RemoteCallHandle {
+func getRemoteCallhandle(ctx *RpcContext) (RemoteCallHandle, error) {
 	if ctx.Protocol == PROTOCOL_HTTP || ctx.Protocol == PROTOCOL_HTTPS {
 		return newHttpRemoteCallHandle(ctx)
 	} else {
-		return nil
+		return nil, nil
 	}
 }
 
@@ -184,9 +192,13 @@ func CommonRemoteCall(reg McpServerRegistry, toolName string, parameters map[str
 		return nil, fmt.Errorf("Unknown tool %s", toolName)
 	}
 
-	remoteHandle := getRemoteCallhandle(ctx)
+	remoteHandle, err := getRemoteCallhandle(ctx)
 	if remoteHandle == nil {
 		return nil, fmt.Errorf("Unknown backend protocol %s", ctx.Protocol)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("Call backend server error: %w", err)
 	}
 
 	return remoteHandle.HandleToolCall(ctx, parameters)

@@ -101,4 +101,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/nacos-group/nacos-sdk-go/v2 v2.2.9 => github.com/luoxiner/nacos-sdk-go/v2 v2.2.9-30
+replace github.com/nacos-group/nacos-sdk-go/v2 v2.2.9 => github.com/luoxiner/nacos-sdk-go/v2 v2.2.9-40
