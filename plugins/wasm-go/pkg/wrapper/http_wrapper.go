@@ -118,7 +118,7 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 	callID, err = proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
 		respBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
 		if err != nil {
-			proxywasm.LogCriticalf("failed to get response body: %v", err)
+			proxywasm.LogDebugf("body is empty")
 		}
 		respHeaders, err := proxywasm.GetHttpCallResponseHeaders()
 		if err != nil {
