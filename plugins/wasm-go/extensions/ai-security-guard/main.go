@@ -454,11 +454,14 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AISecurityConfig, data 
 		if ctx.BufferQueueSize() >= config.bufferLimit || ctx.GetContext("end_of_stream_received").(bool) {
 			ctx.SetContext("during_call", true)
 			var buffer string
-			for i := 0; i < config.bufferLimit; i++ {
+			for ctx.BufferQueueSize() > 0 {
 				front := ctx.PopBuffer()
 				bufferQueue = append(bufferQueue, front)
 				msg := gjson.GetBytes(front, config.responseStreamContentJsonPath).String()
 				buffer += msg
+				if len([]rune(buffer)) >= config.bufferLimit {
+					break
+				}
 			}
 			timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 			randomID, _ := generateHexID(16)
