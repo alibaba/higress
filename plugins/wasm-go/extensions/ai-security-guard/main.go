@@ -30,6 +30,7 @@ func main() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
 }
@@ -102,6 +103,7 @@ type AISecurityConfig struct {
 	protocolOriginal              bool
 	riskLevelBar                  string
 	timeout                       uint32
+	bufferLimit                   int
 	metrics                       map[string]proxywasm.MetricCounter
 }
 
@@ -231,6 +233,11 @@ func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) e
 		config.timeout = uint32(obj.Int())
 	} else {
 		config.timeout = DefaultTimeout
+	}
+	if obj := json.Get("bufferLimit"); obj.Exists() {
+		config.bufferLimit = int(obj.Int())
+	} else {
+		config.bufferLimit = 10
 	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
@@ -379,7 +386,123 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	return types.HeaderStopIteration
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	ctx.SetContext("end_of_stream_received", false)
+	ctx.SetContext("during_call", false)
+	ctx.SetContext("risk_detected", false)
+	sessionID, _ := generateHexID(20)
+	ctx.SetContext("sessionID", sessionID)
+	if strings.Contains(contentType, "text/event-stream") {
+		ctx.NeedPauseStreamingResponse()
+		return types.ActionContinue
+	} else {
+		ctx.DisableStreamingHandler()
+		return types.HeaderStopIteration
+	}
+}
+
+func onHttpStreamingBody(ctx wrapper.HttpContext, config AISecurityConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+	var bufferQueue [][]byte
+	var singleCall func()
+	var callback func(statusCode int, responseHeaders http.Header, responseBody []byte)
+	callback = func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			if ctx.GetContext("end_of_stream_received").(bool) {
+				proxywasm.ResumeHttpResponse()
+			}
+			ctx.SetContext("during_call", false)
+			return
+		}
+		var response Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Error("failed to unmarshal aliyun content security response at response phase")
+			if ctx.GetContext("end_of_stream_received").(bool) {
+				proxywasm.ResumeHttpResponse()
+			}
+			ctx.SetContext("during_call", false)
+			return
+		}
+		if riskLevelToInt(response.Data.RiskLevel) >= riskLevelToInt(config.riskLevelBar) {
+			denyMessage := DefaultDenyMessage
+			if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
+				denyMessage = "\n" + response.Data.Advice[0].Answer
+			} else if config.denyMessage != "" {
+				denyMessage = config.denyMessage
+			}
+			marshalledDenyMessage := marshalStr(denyMessage, log)
+			randomID := generateRandomID()
+			jsonData := []byte(fmt.Sprintf(OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
+			proxywasm.InjectEncodedDataToFilterChain(jsonData, true)
+			return
+		}
+		endStream := ctx.GetContext("end_of_stream_received").(bool) && ctx.BufferQueueSize() == 0
+		proxywasm.InjectEncodedDataToFilterChain(bytes.Join(bufferQueue, []byte("")), endStream)
+		bufferQueue = [][]byte{}
+		if endStream {
+			proxywasm.ResumeHttpResponse()
+		} else {
+			ctx.SetContext("during_call", false)
+			singleCall()
+		}
+	}
+	singleCall = func() {
+		if ctx.GetContext("during_call").(bool) {
+			return
+		}
+		if ctx.BufferQueueSize() >= config.bufferLimit || ctx.GetContext("end_of_stream_received").(bool) {
+			ctx.SetContext("during_call", true)
+			var buffer string
+			for i := 0; i < config.bufferLimit; i++ {
+				front := ctx.PopBuffer()
+				bufferQueue = append(bufferQueue, front)
+				msg := gjson.GetBytes(front, config.responseStreamContentJsonPath).String()
+				buffer += msg
+			}
+			timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+			randomID, _ := generateHexID(16)
+			log.Debugf("current content piece: %s", buffer)
+			params := map[string]string{
+				"Format":            "JSON",
+				"Version":           "2022-03-02",
+				"SignatureMethod":   "Hmac-SHA1",
+				"SignatureNonce":    randomID,
+				"SignatureVersion":  "1.0",
+				"Action":            "TextModerationPlus",
+				"AccessKeyId":       config.ak,
+				"Timestamp":         timestamp,
+				"Service":           config.responseCheckService,
+				"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, ctx.GetContext("sessionID").(string), marshalStr(buffer, log)),
+			}
+			if config.token != "" {
+				params["SecurityToken"] = config.token
+			}
+			signature := getSign(params, config.sk+"&")
+			reqParams := url.Values{}
+			for k, v := range params {
+				reqParams.Add(k, v)
+			}
+			reqParams.Add("Signature", signature)
+			err := config.client.Post(fmt.Sprintf("/?%s", reqParams.Encode()), [][2]string{{"User-Agent", AliyunUserAgent}}, nil, callback, config.timeout)
+			if err != nil {
+				log.Errorf("failed call the safe check service: %v", err)
+				if ctx.GetContext("end_of_stream_received").(bool) {
+					proxywasm.ResumeHttpResponse()
+				}
+			}
+		}
+	}
+	if !ctx.GetContext("risk_detected").(bool) {
+		ctx.PushBuffer(data)
+		ctx.SetContext("end_of_stream_received", endOfStream)
+		if !ctx.GetContext("during_call").(bool) {
+			singleCall()
+		}
+	} else if endOfStream {
+		proxywasm.ResumeHttpResponse()
+	}
+	return []byte{}
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
