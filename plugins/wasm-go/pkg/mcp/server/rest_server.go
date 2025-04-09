@@ -42,6 +42,9 @@ type RestToolArg struct {
 	Items interface{} `json:"items,omitempty"`
 	// For object type
 	Properties interface{} `json:"properties,omitempty"`
+	// Position specifies where the argument should be placed in the request
+	// Valid values: query, path, header, cookie, body
+	Position string `json:"position,omitempty"`
 }
 
 // RestToolHeader represents an HTTP header
@@ -81,6 +84,9 @@ type RestTool struct {
 	parsedHeaderTemplates  map[string]*template.Template
 	parsedBodyTemplate     *template.Template
 	parsedResponseTemplate *template.Template
+
+	// Map of argument names to their positions
+	argPositions map[string]string
 }
 
 // templateFuncs returns the template functions map
@@ -144,6 +150,14 @@ func (t *RestTool) parseTemplates() error {
 		t.parsedResponseTemplate, err = template.New("response").Funcs(templateFuncs()).Parse(t.ResponseTemplate.Body)
 		if err != nil {
 			return fmt.Errorf("error parsing response template: %v", err)
+		}
+	}
+
+	// Initialize argument positions map
+	t.argPositions = make(map[string]string)
+	for _, arg := range t.Args {
+		if arg.Position != "" {
+			t.argPositions[arg.Name] = strings.ToLower(arg.Position)
 		}
 	}
 
@@ -387,56 +401,102 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	hasJsonContentType := hasContentType(headers, "application/json")
 	hasFormContentType := hasContentType(headers, "application/x-www-form-urlencoded")
 
+	// Categorize arguments by position
+	pathArgs := make(map[string]interface{})
+	queryArgs := make(map[string]interface{})
+	headerArgs := make(map[string]interface{})
+	cookieArgs := make(map[string]interface{})
+	bodyArgs := make(map[string]interface{})
+	defaultArgs := make(map[string]interface{}) // Args without explicit position
+
+	// Categorize arguments based on their position
+	for name, value := range t.arguments {
+		position, hasPosition := t.toolConfig.argPositions[name]
+		if !hasPosition {
+			defaultArgs[name] = value
+			continue
+		}
+
+		switch position {
+		case "path":
+			pathArgs[name] = value
+		case "query":
+			queryArgs[name] = value
+		case "header":
+			headerArgs[name] = value
+		case "cookie":
+			cookieArgs[name] = value
+		case "body":
+			bodyArgs[name] = value
+		default:
+			// If position is invalid, treat as default
+			defaultArgs[name] = value
+		}
+	}
+
+	// Process path parameters
+	for name, value := range pathArgs {
+		placeholder := fmt.Sprintf("{%s}", name)
+		urlStr = strings.Replace(urlStr, placeholder, convertArgToString(value), -1)
+	}
+
+	// Parse the URL to add query parameters
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("error parsing URL: %v", err)
+	}
+
+	// Get existing query values
+	query := parsedURL.Query()
+
+	// Add query parameters
+	for name, value := range queryArgs {
+		query.Set(name, convertArgToString(value))
+	}
+
 	// Process URL parameters if argsToUrlParam is true
 	if t.toolConfig.RequestTemplate.ArgsToUrlParam {
-		// Parse the URL to add parameters
-		parsedURL, err := url.Parse(urlStr)
-		if err != nil {
-			return fmt.Errorf("error parsing URL: %v", err)
+		// Add default arguments to query parameters
+		for name, value := range defaultArgs {
+			query.Set(name, convertArgToString(value))
+		}
+	}
+
+	// Update the URL with the new query string
+	parsedURL.RawQuery = query.Encode()
+	urlStr = parsedURL.String()
+
+	// Add header parameters
+	for name, value := range headerArgs {
+		headers = append(headers, [2]string{name, convertArgToString(value)})
+	}
+
+	// Add cookie parameters
+	for name, value := range cookieArgs {
+		cookie := fmt.Sprintf("%s=%s", name, convertArgToString(value))
+
+		// Check if Cookie header already exists
+		cookieHeaderFound := false
+		for i, header := range headers {
+			if strings.EqualFold(header[0], "Cookie") {
+				headers[i][1] = header[1] + "; " + cookie
+				cookieHeaderFound = true
+				break
+			}
 		}
 
-		// Get existing query values
-		query := parsedURL.Query()
-
-		// Add arguments to query parameters
-		for key, value := range t.arguments {
-			query.Set(key, convertArgToString(value))
+		// If no Cookie header exists, add one
+		if !cookieHeaderFound {
+			headers = append(headers, [2]string{"Cookie", cookie})
 		}
-
-		// Update the URL with the new query string
-		parsedURL.RawQuery = query.Encode()
-		urlStr = parsedURL.String()
 	}
 
 	// Prepare request body
 	var requestBody []byte
+	hasExplicitBody := t.toolConfig.parsedBodyTemplate != nil
 
-	if t.toolConfig.RequestTemplate.ArgsToJsonBody {
-		// Use args directly as JSON in the request body
-		argsJson, err := json.Marshal(t.arguments)
-		if err != nil {
-			return fmt.Errorf("error marshaling args to JSON: %v", err)
-		}
-		requestBody = argsJson
-
-		// Add JSON content type if not already present
-		if !hasJsonContentType {
-			headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
-		}
-	} else if t.toolConfig.RequestTemplate.ArgsToFormBody {
-		// Use args as form-urlencoded body
-		formValues := url.Values{}
-		for key, value := range t.arguments {
-			formValues.Set(key, convertArgToString(value))
-		}
-
-		requestBody = []byte(formValues.Encode())
-
-		// Add form content type if not already present
-		if !hasFormContentType {
-			headers = append(headers, [2]string{"Content-Type", "application/x-www-form-urlencoded"})
-		}
-	} else if t.toolConfig.parsedBodyTemplate != nil {
+	if hasExplicitBody {
+		// If explicit body template is provided, use it
 		body, err := executeTemplate(t.toolConfig.parsedBodyTemplate, templateDataBytes)
 		if err != nil {
 			return fmt.Errorf("error executing body template: %v", err)
@@ -451,6 +511,74 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 			// Try to parse as JSON to confirm
 			var js interface{}
 			if json.Unmarshal(trimmedBody, &js) == nil {
+				headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
+			}
+		}
+	} else if t.toolConfig.RequestTemplate.ArgsToJsonBody {
+		// Combine body args and default args for JSON body
+		combinedArgs := make(map[string]interface{})
+
+		// Only use body args if not using explicit body template
+		for k, v := range bodyArgs {
+			combinedArgs[k] = v
+		}
+
+		// Add default args
+		for k, v := range defaultArgs {
+			combinedArgs[k] = v
+		}
+
+		// Use args directly as JSON in the request body
+		argsJson, err := json.Marshal(combinedArgs)
+		if err != nil {
+			return fmt.Errorf("error marshaling args to JSON: %v", err)
+		}
+		requestBody = argsJson
+
+		// Add JSON content type if not already present
+		if !hasJsonContentType {
+			headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
+		}
+	} else if t.toolConfig.RequestTemplate.ArgsToFormBody {
+		// Use args as form-urlencoded body
+		formValues := url.Values{}
+
+		// Only use body args if not using explicit body template
+		for name, value := range bodyArgs {
+			formValues.Set(name, convertArgToString(value))
+		}
+
+		// Add default args
+		for name, value := range defaultArgs {
+			formValues.Set(name, convertArgToString(value))
+		}
+
+		requestBody = []byte(formValues.Encode())
+
+		// Add form content type if not already present
+		if !hasFormContentType {
+			headers = append(headers, [2]string{"Content-Type", "application/x-www-form-urlencoded"})
+		}
+	} else if len(bodyArgs) > 0 {
+		// If we have body args but no explicit body handling method,
+		// check if there's already a form content type
+		if hasFormContentType {
+			// Format as form-urlencoded
+			formValues := url.Values{}
+			for name, value := range bodyArgs {
+				formValues.Set(name, convertArgToString(value))
+			}
+			requestBody = []byte(formValues.Encode())
+		} else {
+			// Default to JSON
+			argsJson, err := json.Marshal(bodyArgs)
+			if err != nil {
+				return fmt.Errorf("error marshaling body args to JSON: %v", err)
+			}
+			requestBody = argsJson
+
+			// Add JSON content type if not already present
+			if !hasJsonContentType {
 				headers = append(headers, [2]string{"Content-Type", "application/json; charset=utf-8"})
 			}
 		}
