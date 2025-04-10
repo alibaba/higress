@@ -170,6 +170,12 @@ func (r *RedisClient) Subscribe(channel string, stopChan chan struct{}, callback
 
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Redis Subscribe recovered from panic: %v", r)
+			}
+		}()
+
+		defer func() {
 			pubsub.Close()
 			api.LogDebugf("Closed subscription to channel %s", channel)
 		}()

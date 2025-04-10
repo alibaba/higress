@@ -148,6 +148,12 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 	// Start health check handler
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Health check handler recovered from panic: %v", r)
+			}
+		}()
+
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 

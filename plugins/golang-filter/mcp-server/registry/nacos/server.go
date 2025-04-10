@@ -150,6 +150,12 @@ func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) 
 	nacosRegistry.RegisterToolChangeEventListener(&listener)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("NacosToolsListRefresh recovered from panic: %v", r)
+			}
+		}()
+
 		for {
 			if nacosRegistry.refreshToolsList() {
 				resetToolsToMcpServer(mcpServer, nacosRegistry)

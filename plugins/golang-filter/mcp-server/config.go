@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -21,6 +24,14 @@ const ConfigPathSuffix = "/config"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Pprof server recovered from panic: %v", r)
+			}
+		}()
+		api.LogError(http.ListenAndServe("localhost:6060", nil).Error())
+	}()
 }
 
 type config struct {
