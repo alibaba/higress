@@ -36,12 +36,13 @@ type filter struct {
 }
 
 type RequestURL struct {
-	method    string
-	scheme    string
-	host      string
-	path      string
-	baseURL   string
-	parsedURL *url.URL
+	method     string
+	scheme     string
+	host       string
+	path       string
+	baseURL    string
+	parsedURL  *url.URL
+	internalIP bool
 }
 
 func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
@@ -49,10 +50,11 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	scheme, _ := header.Get(":scheme")
 	host, _ := header.Get(":authority")
 	path, _ := header.Get(":path")
+	internalIP, _ := header.Get("x-envoy-internal")
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	parsedURL, _ := url.Parse(path)
 	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
-	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL}
+	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL, internalIP: internalIP == "true"}
 }
 
 // Callbacks which are called in request path
@@ -81,6 +83,10 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			server.SetBaseURL(url.baseURL)
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() || strings.HasSuffix(f.path, ConfigPathSuffix) {
+			if strings.HasSuffix(f.path, ConfigPathSuffix) && !url.internalIP {
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
+				return api.LocalReply
+			}
 			if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
 				api.LogDebugf("Handling config request: %s", f.path)
 				if f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
