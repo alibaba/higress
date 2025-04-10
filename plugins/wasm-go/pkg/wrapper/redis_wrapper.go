@@ -20,9 +20,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/resp"
 )
 
@@ -125,7 +127,19 @@ func WithDataBase(dataBase int) optionFunc {
 	}
 }
 
+var clusterConfMap map[string]redisConfig
+
+type redisConfig struct {
+	clientClusterName string
+	username          string
+	password          string
+	timeout           uint32
+}
+
 func NewRedisClusterClient[C Cluster](cluster C) *RedisClusterClient[C] {
+	if clusterConfMap == nil {
+		clusterConfMap = make(map[string]redisConfig)
+	}
 	return &RedisClusterClient[C]{
 		cluster: cluster,
 		checkReadyFunc: func() error {
@@ -139,39 +153,68 @@ func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
 		respQuery,
-		func(status int, responseSize int) {
-			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
-			var responseValue resp.Value
-			if status != 0 {
-				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
-				responseValue = resp.ErrorValue(fmt.Errorf("cannot connect to redis cluster"))
-			} else {
-				if err != nil {
-					proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
-					responseValue = resp.ErrorValue(fmt.Errorf("cannot get redis response"))
-				} else {
-					rd := resp.NewReader(bytes.NewReader(response))
-					value, _, err := rd.ReadValue()
-					if err != nil && err != io.EOF {
-						proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
-						responseValue = resp.ErrorValue(fmt.Errorf("cannot read redis response"))
-					} else {
-						responseValue = value
-						proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s, respValue: %s",
-							requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)), base64.StdEncoding.EncodeToString(response))
-					}
-				}
-			}
-			if callback != nil {
-				callback(responseValue)
-			}
-		})
+		redisRespCallback(cluster, respQuery, callback, requestID))
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
 	} else {
-		proxywasm.LogDebugf("redis call start, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)))
+		proxywasm.LogDebugf("redis call start, request-id: %s, respQuery: %s", requestID, base64.StdEncoding.EncodeToString(respQuery))
 	}
 	return err
+}
+
+func redisRespCallback(cluster Cluster, respQuery []byte, callback RedisResponseCallback, requestID string) func(status int, responseSize int) {
+	return func(status int, responseSize int) {
+		response, err := proxywasm.GetRedisCallResponse(0, responseSize)
+		var responseValue resp.Value
+		if status != 0 {
+			proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
+			responseValue = resp.ErrorValue(fmt.Errorf("cannot connect to redis cluster"))
+		} else {
+			if err != nil {
+				proxywasm.LogCriticalf("failed to get redis response body, request-id: %s, error: %v", requestID, err)
+				responseValue = resp.ErrorValue(fmt.Errorf("cannot get redis response"))
+			} else {
+				rd := resp.NewReader(bytes.NewReader(response))
+				value, _, err := rd.ReadValue()
+				if err != nil && err != io.EOF {
+					proxywasm.LogCriticalf("failed to read redis response body, request-id: %s, error: %v", requestID, err)
+					responseValue = resp.ErrorValue(fmt.Errorf("cannot read redis response"))
+				} else {
+					responseValue = value
+					proxywasm.LogDebugf("redis call end, request-id: %s, respQuery: %s, respValue: %s",
+						requestID, base64.StdEncoding.EncodeToString([]byte(respQuery)), base64.StdEncoding.EncodeToString(response))
+				}
+			}
+		}
+		key := "redisInitialized" + requestID
+		data, cas, err := proxywasm.GetSharedData(key)
+		if strings.HasPrefix(responseValue.String(), "NOAUTH") && (errors.Is(err, types.ErrorStatusNotFound) || data == nil) {
+			if config, ok := clusterConfMap[cluster.ClusterName()]; ok {
+				for initTimes := 1; initTimes <= 2; initTimes++ {
+					proxywasm.LogInfof("trying to initialize redis for the %d time", initTimes)
+					initErr := proxywasm.RedisInit(config.clientClusterName, config.username, config.password, config.timeout)
+					if initErr == nil {
+						err = proxywasm.SetSharedData(key, []byte("1"), cas)
+						if err != nil {
+							proxywasm.LogErrorf("failed to set ket %s, err %v", key, err)
+							break
+						}
+						_, err = proxywasm.DispatchRedisCall(cluster.ClusterName(), respQuery, redisRespCallback(cluster, respQuery, callback, requestID))
+						if err != nil {
+							proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
+							break
+						} else {
+							return
+						}
+					}
+				}
+			}
+		}
+		_ = proxywasm.SetSharedData(key, nil, 0)
+		if callback != nil {
+			callback(responseValue)
+		}
+	}
 }
 
 func respString(args []interface{}) []byte {
@@ -196,6 +239,14 @@ func (c *RedisClusterClient[C]) Init(username, password string, timeout int64, o
 	clusterName := c.cluster.ClusterName()
 	if c.option.dataBase != 0 {
 		clusterName = fmt.Sprintf("%s?db=%d", clusterName, c.option.dataBase)
+	}
+	if _, ok := clusterConfMap[c.cluster.ClusterName()]; !ok {
+		clusterConfMap[c.cluster.ClusterName()] = redisConfig{
+			clientClusterName: clusterName,
+			username:          username,
+			password:          password,
+			timeout:           uint32(timeout),
+		}
 	}
 	err := proxywasm.RedisInit(clusterName, username, password, uint32(timeout))
 	if err != nil {
