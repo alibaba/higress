@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -123,7 +124,7 @@ func convertToStringMap(result gjson.Result) map[string]string {
 	return m
 }
 
-func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
+func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) error {
 	// 解析 GrayKey
 	grayConfig.LocalStorageGrayKey = json.Get("localStorageGrayKey").String()
 	grayConfig.GrayKey = json.Get("grayKey").String()
@@ -189,13 +190,13 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		}
 	}
 
-	globalFeatureKey := GetWithDefault(json, "injection.globalConfig.featureKey", "FEATURE_STATUS")
-	globalKey := GetWithDefault(json, "injection.globalConfig.key", "HIGRESS_CONSOLE_CONFIG")
-	if !isValidName(globalFeatureKey) {
-		globalFeatureKey = "FEATURE_STATUS"
+	injectGlobalFeatureKey := GetWithDefault(json, "injection.globalConfig.featureKey", "FEATURE_STATUS")
+	injectGlobalKey := GetWithDefault(json, "injection.globalConfig.key", "HIGRESS_CONSOLE_CONFIG")
+	if !isValidName(injectGlobalFeatureKey) {
+		return errors.New("injection.globalConfig.featureKey is invalid")
 	}
-	if !isValidName(globalKey) {
-		globalKey = "HIGRESS_CONSOLE_CONFIG"
+	if !isValidName(injectGlobalKey) {
+		return errors.New("injection.globalConfig.featureKey is invalid")
 	}
 
 	grayConfig.Injection = &Injection{
@@ -205,10 +206,11 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 			Last:  convertToStringList(json.Get("injection.body.last").Array()),
 		},
 		GlobalConfig: &GlobalConfig{
-			FeatureKey: globalFeatureKey,
-			Key:        globalKey,
+			FeatureKey: injectGlobalFeatureKey,
+			Key:        injectGlobalKey,
 			Value:      json.Get("injection.globalConfig.value").String(),
 			Enabled:    json.Get("injection.globalConfig.enabled").Bool(),
 		},
 	}
+	return nil
 }

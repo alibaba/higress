@@ -6,6 +6,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -16,20 +17,24 @@ import (
 func main() {
 	wrapper.SetCtx(
 		"frontend-gray",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeader),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeader),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
 }
 
-func parseConfig(json gjson.Result, grayConfig *config.GrayConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, grayConfig *config.GrayConfig) error {
 	// 解析json 为GrayConfig
-	config.JsonToGrayConfig(json, grayConfig)
+	if err := config.JsonToGrayConfig(json, grayConfig); err != nil {
+		log.Errorf("failed to parse config: %v", err)
+		return err
+	}
+
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig) types.Action {
 	requestPath := util.GetRequestPath()
 	enabledGray := util.IsGrayEnabled(requestPath, &grayConfig)
 	ctx.SetContext(config.EnabledGray, enabledGray)
@@ -118,7 +123,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	return types.ActionContinue
 }
 
-func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig) types.Action {
 	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
 	if !enabledGray {
 		ctx.DontReadResponseBody()
@@ -198,7 +203,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, body []byte) types.Action {
 	enabledGray, _ := ctx.GetContext(config.EnabledGray).(bool)
 	if !enabledGray {
 		return types.ActionContinue
