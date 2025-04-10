@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -73,6 +74,12 @@ type GrayConfig struct {
 	SkippedByHeaders    map[string]string
 	IndexPaths          []string
 	GrayWeight          int
+}
+
+func isValidName(s string) bool {
+	// 定义一个正则表达式，匹配字母、数字和下划线
+	re := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+	return re.MatchString(s)
 }
 
 func GetWithDefault(json gjson.Result, path, defaultValue string) string {
@@ -182,6 +189,15 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 		}
 	}
 
+	globalFeatureKey := GetWithDefault(json, "injection.globalConfig.featureKey", "FEATURE_STATUS")
+	globalKey := GetWithDefault(json, "injection.globalConfig.key", "HIGRESS_CONSOLE_CONFIG")
+	if !isValidName(globalFeatureKey) {
+		globalFeatureKey = "FEATURE_STATUS"
+	}
+	if !isValidName(globalKey) {
+		globalKey = "HIGRESS_CONSOLE_CONFIG"
+	}
+
 	grayConfig.Injection = &Injection{
 		Head: convertToStringList(json.Get("injection.head").Array()),
 		Body: &BodyInjection{
@@ -189,8 +205,8 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) {
 			Last:  convertToStringList(json.Get("injection.body.last").Array()),
 		},
 		GlobalConfig: &GlobalConfig{
-			FeatureKey: GetWithDefault(json, "injection.globalConfig.featureKey", "FEATURE_STATUS"),
-			Key:        GetWithDefault(json, "injection.globalConfig.key", "HIGRESS_CONSOLE_CONFIG"),
+			FeatureKey: globalFeatureKey,
+			Key:        globalKey,
 			Value:      json.Get("injection.globalConfig.value").String(),
 			Enabled:    json.Get("injection.globalConfig.enabled").Bool(),
 		},

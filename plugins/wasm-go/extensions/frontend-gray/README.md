@@ -88,7 +88,7 @@ description: 前端灰度插件配置参考
 `injection.globalConfig`字段配置说明：
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
-| `key`  | string | 非必填   |  HIGRESS_CONSOLE_CONFIG  | 注入到windwow全局变量的key值 |
+| `key`  | string | 非必填   |  HIGRESS_CONSOLE_CONFIG  | 注入到window全局变量的key值 |
 | `featureKey`  | string | 非必填   | FEATURE_STATUS   | 关于`rules`相关规则的命中情况，返回实例`{"beta-user":true,"inner-user":false}` |
 | `value`  | string | 非必填   | -   | 自定义的全局变量 |
 | `enabled`  | boolean | 非必填   | false   | 是否开启注入全局变量 |

@@ -33,12 +33,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	requestPath := util.GetRequestPath()
 	enabledGray := util.IsGrayEnabled(requestPath, &grayConfig)
 	ctx.SetContext(config.EnabledGray, enabledGray)
+	route, _ := util.GetRouteName()
 
 	if !enabledGray {
-		log.Infof("gray not enabled, requestPath: %v", requestPath)
+		log.Infof("route: %s, gray not enabled, requestPath: %v", route, requestPath)
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
+
 	cookie, _ := proxywasm.GetHttpRequestHeader("cookie")
 	isHtmlRequest := util.CheckIsHtmlRequest(requestPath)
 	ctx.SetContext(config.IsHtmlRequest, isHtmlRequest)
@@ -75,13 +77,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if isHtmlRequest {
 		// index首页请求每次都会进度灰度规则判断
 		deployment = util.FilterGrayRule(&grayConfig, grayKeyValue, cookie)
-		log.Infof("index html request: %v, backend: %v, xPreHigressVersion: %s", requestPath, deployment.BackendVersion, frontendVersion)
+		log.Infof("route: %s, index html request: %v, backend: %v, xPreHigressVersion: %s", route, requestPath, deployment.BackendVersion, frontendVersion)
 		ctx.SetContext(config.PreHigressVersion, deployment.Version)
 		ctx.SetContext(grayConfig.BackendGrayTag, deployment.BackendVersion)
 	} else {
 		if util.IsSupportMultiVersion(grayConfig) {
 			deployment = util.FilterMultiVersionGrayRule(&grayConfig, grayKeyValue, cookie, requestPath)
-			log.Infof("multi version %v", deployment)
+			log.Infof("route: %s, multi version %v", route, deployment)
 		} else {
 			grayDeployment := util.FilterGrayRule(&grayConfig, grayKeyValue, cookie)
 			if isIndexRequest {
@@ -97,7 +99,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 	if rewrite.Host != "" {
 		err := proxywasm.ReplaceHttpRequestHeader(":authority", rewrite.Host)
 		if err != nil {
-			log.Errorf("host rewrite failed: %v", err)
+			log.Errorf("route: %s, host rewrite failed: %v", route, err)
 		}
 	}
 
@@ -109,7 +111,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 			rewritePath = util.PrefixFileRewrite(requestPath, deployment.Version, grayConfig.Rewrite.File)
 		}
 		if requestPath != rewritePath {
-			route, _ := util.GetRouteName()
 			log.Infof("route: %s, rewrite path:%s, rewritePath:%s, Version:%v", route, requestPath, rewritePath, deployment.Version)
 			proxywasm.ReplaceHttpRequestHeader(":path", rewritePath)
 		}
@@ -162,6 +163,8 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig,
 			ctx.BufferResponseBody()
 			proxywasm.ReplaceHttpResponseHeaders(util.ReconvertHeaders(headersMap))
 		} else {
+			route, _ := util.GetRouteName()
+			log.Errorf("route: %s, request error code: %s, message: %v", route, status, err)
 			ctx.DontReadResponseBody()
 			return types.ActionContinue
 		}
@@ -223,7 +226,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, grayConfig config.GrayConfig, b
 
 	// 最终替换响应体
 	if err := proxywasm.ReplaceHttpResponseBody([]byte(newHtml)); err != nil {
-		log.Errorf("Error replacing injected response body: %v", err)
+		route, _ := util.GetRouteName()
+		log.Errorf("route: %s, Failed to replace response body: %v", route, err)
 		return types.ActionContinue
 	}
 	return types.ActionContinue
