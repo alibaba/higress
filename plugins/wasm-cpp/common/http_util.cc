@@ -157,32 +157,68 @@ inline std::string subspan(absl::string_view source, size_t start, size_t end) {
   return {source.data() + start, end - start};
 }
 
+class QueryParams {
+public:
+    using ParamMap = std::unordered_map<std::string, std::string>;
+    ParamMap params;
+
+    void emplace(const std::string& name, const std::string& value) {
+        params.emplace(name, value);
+    }
+};
+
 QueryParams parseParameters(absl::string_view data, size_t start,
                             bool decode_params) {
-  QueryParams params;
-
-  while (start < data.size()) {
-    size_t end = data.find('&', start);
-    if (end == std::string::npos) {
-      end = data.size();
-    }
-    absl::string_view param(data.data() + start, end - start);
-
-    const size_t equal = param.find('=');
-    if (equal != std::string::npos) {
-      const auto param_name = subspan(data, start, start + equal);
-      const auto param_value = subspan(data, start + equal + 1, end);
-      params.emplace(
-          decode_params ? PercentEncoding::decode(param_name) : param_name,
-          decode_params ? PercentEncoding::decode(param_value) : param_value);
-    } else {
-      params.emplace(subspan(data, start, end), "");
+    if (start > data.size()) {
+        throw std::out_of_range("Start index is out of range.");
     }
 
-    start = end + 1;
-  }
+    QueryParams params;
 
-  return params;
+    while (start < data.size()) {
+        size_t end = data.find('&', start);
+        if (end == std::string::npos) {
+            end = data.size();
+        }
+
+        absl::string_view param(data.data() + start, end - start);
+
+        const size_t equal = param.find('=');
+        if (equal != std::string::npos) {
+            auto param_name = subspan(data, start, start + equal);
+            auto param_value = subspan(data, start + equal + 1, end);
+
+            try {
+                if (decode_params) {
+                    param_name = PercentEncoding::decode(param_name);
+                    param_value = PercentEncoding::decode(param_value);
+                }
+            } catch (const std::exception& e) {
+                // Handle decoding exceptions if necessary, or rethrow.
+                throw;
+            }
+
+            params.emplace(param_name, param_value);
+        } else {
+            // Handle parameters without '=' (i.e., no value).
+            // Optionally decode according to `decode_params`.
+            try {
+                if (decode_params) {
+                    auto decoded_param = PercentEncoding::decode(param);
+                    params.emplace(decoded_param, "");
+                } else {
+                    params.emplace(param, "");
+                }
+            } catch (const std::exception& e) {
+                // Handle decoding exceptions if necessary, or rethrow.
+                throw;
+            }
+        }
+
+        start = end + 1;
+    }
+
+    return params;
 }
 
 std::vector<std::string> getAllOfHeader(std::string_view key) {
