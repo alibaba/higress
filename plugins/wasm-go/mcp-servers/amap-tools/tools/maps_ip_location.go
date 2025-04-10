@@ -20,21 +20,23 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"amap-tools/config"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
 var _ server.Tool = IPLocationRequest{}
 
 type IPLocationRequest struct {
-	IP string `json:"ip" jsonschema_description:"IP地址"`
+	IP string `json:"ip" jsonschema_description:"IP地址,获取不到则填写unknow,服务端将根据socket地址来获取IP"`
 }
 
 func (t IPLocationRequest) Description() string {
-	return "IP 定位根据用户输入的 IP 地址，定位 IP 的所在位置"
+	return "通过IP定位所在的国家和城市等位置信息"
 }
 
 func (t IPLocationRequest) InputSchema() map[string]any {
@@ -53,7 +55,19 @@ func (t IPLocationRequest) Call(ctx server.HttpContext, s server.Server) error {
 	if serverConfig.ApiKey == "" {
 		return errors.New("amap API-KEY is not configured")
 	}
-
+	if t.IP == "" || strings.Contains(t.IP, "unknow") {
+		var bs []byte
+		var ipStr string
+		fromHeader := false
+		bs, _ = proxywasm.GetProperty([]string{"source", "address"})
+		if len(bs) > 0 {
+			ipStr = string(bs)
+		} else {
+			ipStr, _ = proxywasm.GetHttpRequestHeader("x-forwarded-for")
+			fromHeader = true
+		}
+		t.IP = parseIP(ipStr, fromHeader)
+	}
 	url := fmt.Sprintf("https://restapi.amap.com/v3/ip?ip=%s&key=%s&source=ts_mcp", url.QueryEscape(t.IP), serverConfig.ApiKey)
 	return ctx.RouteCall(http.MethodGet, url,
 		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
@@ -63,4 +77,22 @@ func (t IPLocationRequest) Call(ctx server.HttpContext, s server.Server) error {
 			}
 			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
+}
+
+// parseIP 解析IP
+func parseIP(source string, fromHeader bool) string {
+
+	if fromHeader {
+		source = strings.Split(source, ",")[0]
+	}
+	source = strings.Trim(source, " ")
+	if strings.Contains(source, ".") {
+		// parse ipv4
+		return strings.Split(source, ":")[0]
+	}
+	//parse ipv6
+	if strings.Contains(source, "]") {
+		return strings.Split(source, "]")[0][1:]
+	}
+	return source
 }
