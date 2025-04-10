@@ -57,9 +57,8 @@ Port descriptions:
 - Port 8080: Gateway HTTP protocol entry
 - Port 8443: Gateway HTTPS protocol entry
 
-> **All Higress Docker images use their own dedicated repository and are not affected by Docker Hub rate limits.**
-
-> **Additionally, they have an image security scanning mechanism (powered by Alibaba Cloud ACR), making them safe to use in production environments.**
+> All Higress Docker images use Higress's own image repository and are not affected by Docker Hub rate limits.
+> In addition, the submission and updates of the images are protected by a security scanning mechanism (powered by Alibaba Cloud ACR), making them very secure for use in production environments.
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
 
