@@ -61,46 +61,6 @@ Attribute 配置说明:
 
 ### 空配置
 #### 监控
-```
-route_upstream_model_metric_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 10
-route_upstream_model_metric_llm_duration_count{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1
-route_upstream_model_metric_llm_first_token_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 309
-route_upstream_model_metric_llm_service_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1955
-route_upstream_model_metric_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 69
-```
-
-#### 日志
-```json
-{
-  "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
-}
-```
-
-#### 链路追踪
-配置为空时，不会在span中添加额外的attribute
-
-### 从非openai协议提取token使用信息
-在ai-proxy中设置协议为original时，以百炼为例，可作如下配置指定如何提取model, input_token, output_token
-
-```yaml
-attributes:
-  - key: model
-    value_source: response_body
-    value: usage.models.0.model_id
-    apply_to_log: true
-    apply_to_span: false
-  - key: input_token
-    value_source: response_body
-    value: usage.models.0.input_tokens
-    apply_to_log: true
-    apply_to_span: false
-  - key: output_token
-    value_source: response_body
-    value: usage.models.0.output_tokens
-    apply_to_log: true
-    apply_to_span: false
-```
-#### 监控
 
 ```
 # counter 类型，输入 token 数量的累加值
@@ -141,10 +101,50 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 ```
 
 #### 日志
+```json
+{
+  "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
+}
+```
+
+#### 链路追踪
+配置为空时，不会在span中添加额外的attribute
+
+### 从非openai协议提取token使用信息
+在ai-proxy中设置协议为original时，以百炼为例，可作如下配置指定如何提取model, input_token, output_token
+
+```yaml
+attributes:
+  - key: model
+    value_source: response_body
+    value: usage.models.0.model_id
+    apply_to_log: true
+    apply_to_span: false
+  - key: input_token
+    value_source: response_body
+    value: usage.models.0.input_tokens
+    apply_to_log: true
+    apply_to_span: false
+  - key: output_token
+    value_source: response_body
+    value: usage.models.0.output_tokens
+    apply_to_log: true
+    apply_to_span: false
+```
+#### 监控
+
+```
+route_upstream_model_consumer_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
+route_upstream_model_consumer_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
+```
+
+#### 日志
 此配置下日志效果如下：
 ```json
 {
-  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"  
+  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"
 }
 ```
 
@@ -152,7 +152,7 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 链路追踪的 span 中可以看到 model, input_token, output_token 三个额外的 attribute
 
 ### 配合认证鉴权记录consumer
-举例如下： 
+举例如下：
 ```yaml
 attributes:
   - key: consumer # 配合认证鉴权记录consumer
