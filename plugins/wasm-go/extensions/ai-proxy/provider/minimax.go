@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -73,45 +74,45 @@ func (m *minimaxProvider) GetProviderType() string {
 	return providerTypeMinimax
 }
 
-func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *minimaxProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 	// Delay the header processing to allow changing streaming mode in OnRequestBody
 	return nil
 }
 
-func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *minimaxProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestHostHeader(headers, minimaxDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
 }
 
-func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
 	if minimaxApiTypePro == m.config.minimaxApiType {
 		// Use chat completion Pro API.
-		return m.handleRequestBodyByChatCompletionPro(body, log)
+		return m.handleRequestBodyByChatCompletionPro(body)
 	} else {
 		// Use chat completion V2 API.
-		return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+		return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 	}
 }
 
 // handleRequestBodyByChatCompletionPro processes the request body using the chat completion Pro API.
-func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log wrapper.Log) (types.Action, error) {
+func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte) (types.Action, error) {
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return types.ActionContinue, err
 	}
 
 	// Map the model and rewrite the request path.
-	request.Model = getMappedModel(request.Model, m.config.modelMapping, log)
+	request.Model = getMappedModel(request.Model, m.config.modelMapping)
 	_ = util.OverwriteRequestPath(fmt.Sprintf("%s?GroupId=%s", minimaxChatCompletionProPath, m.config.minimaxGroupId))
 
 	if m.config.context == nil {
 		minimaxRequest := m.buildMinimaxChatCompletionProRequest(request, "")
-		return types.ActionContinue, replaceJsonRequestBody(minimaxRequest, log)
+		return types.ActionContinue, replaceJsonRequestBody(minimaxRequest)
 	}
 
 	err := m.contextCache.GetContent(func(content string, err error) {
@@ -126,30 +127,30 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte, log 
 		// For minimaxChatCompletionPro, we need to manually handle context messages.
 		// minimaxChatCompletionV2 uses the default defaultInsertHttpContextMessage method to insert context messages.
 		minimaxRequest := m.buildMinimaxChatCompletionProRequest(request, content)
-		if err := replaceJsonRequestBody(minimaxRequest, log); err != nil {
+		if err := replaceJsonRequestBody(minimaxRequest); err != nil {
 			util.ErrorHandler("ai-proxy.minimax.insert_ctx_failed", fmt.Errorf("failed to replace Request body: %v", err))
 		}
-	}, log)
+	})
 	if err == nil {
 		return types.ActionPause, nil
 	}
 	return types.ActionContinue, err
 }
 
-func (m *minimaxProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
-	return m.handleRequestBodyByChatCompletionV2(body, headers, log)
+func (m *minimaxProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	return m.handleRequestBodyByChatCompletionV2(body, headers)
 }
 
 // handleRequestBodyByChatCompletionV2 processes the request body using the chat completion V2 API.
-func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (m *minimaxProvider) handleRequestBodyByChatCompletionV2(body []byte, headers http.Header) ([]byte, error) {
 	util.OverwriteRequestPathHeader(headers, minimaxChatCompletionV2Path)
 
 	rawModel := gjson.GetBytes(body, "model").String()
-	mappedModel := getMappedModel(rawModel, m.config.modelMapping, log)
+	mappedModel := getMappedModel(rawModel, m.config.modelMapping)
 	return sjson.SetBytes(body, "model", mappedModel)
 }
 
-func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	// Skip OnStreamingResponseBody() and OnResponseBody() when using the original protocol
 	// or when the model corresponds to the chat completion V2 interface.
 	if m.config.protocol == protocolOriginal || minimaxApiTypePro != m.config.minimaxApiType {
@@ -160,7 +161,7 @@ func (m *minimaxProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiN
 }
 
 // OnStreamingResponseBody handles streaming response chunks from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
-func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
@@ -199,7 +200,7 @@ func (m *minimaxProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 }
 
 // TransformResponseBody handles the final response body from the Minimax service only for requests using the OpenAI protocol and corresponding to the chat completion Pro API.
-func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (m *minimaxProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}

@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+)
+
+const (
+	pathAzureFiles   = "/openai/files"
+	pathAzureBatches = "/openai/batches"
 )
 
 // azureProvider is the provider for Azure OpenAI service.
@@ -20,6 +27,8 @@ func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
 		// TODO: azure's pattern is the same as openai, just need to handle the prefix, can be done in TransformRequestHeaders to support general capabilities
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+		string(ApiNameFiles):          PathOpenAIFiles,
+		string(ApiNameBatches):        PathOpenAIBatches,
 	}
 }
 
@@ -62,38 +71,53 @@ func (m *azureProvider) GetProviderType() string {
 	return providerTypeAzure
 }
 
-func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	m.config.handleRequestHeaders(m, ctx, apiName, log)
+func (m *azureProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
 	return nil
 }
 
-func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if !m.config.isSupportedAPI(apiName) {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body, log)
+func (m *azureProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
-func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
-	if apiName != "" {
-		u, e := url.Parse(ctx.Path())
-		if e == nil {
-			customApiVersion := u.Query().Get("api-version")
-			if customApiVersion == "" {
-				util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
-			} else {
-				q := m.serviceUrl.Query()
-				q.Set("api-version", customApiVersion)
-				newUrl := *m.serviceUrl
-				newUrl.RawQuery = q.Encode()
-				util.OverwriteRequestPathHeader(headers, newUrl.RequestURI())
+func (m *azureProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	finalRequestUrl := *m.serviceUrl
+	if u, e := url.Parse(ctx.Path()); e == nil {
+		if len(u.Query()) != 0 {
+			q := m.serviceUrl.Query()
+			for k, v := range u.Query() {
+				switch len(v) {
+				case 0:
+					break
+				case 1:
+					q.Set(k, v[0])
+					break
+				default:
+					delete(q, k)
+					for _, vv := range v {
+						q.Add(k, vv)
+					}
+				}
 			}
-		} else {
-			log.Errorf("failed to parse request path: %v", e)
-			util.OverwriteRequestPathHeader(headers, m.serviceUrl.RequestURI())
+			finalRequestUrl.RawQuery = q.Encode()
 		}
+
+		if filesIndex := strings.Index(u.Path, "/files"); filesIndex != -1 {
+			finalRequestUrl.Path = pathAzureFiles + u.Path[filesIndex+len("/files"):]
+		} else if batchesIndex := strings.Index(u.Path, "/batches"); batchesIndex != -1 {
+			finalRequestUrl.Path = pathAzureBatches + u.Path[batchesIndex+len("/batches"):]
+		}
+	} else {
+		log.Errorf("failed to parse request path: %v", e)
 	}
+	util.OverwriteRequestPathHeader(headers, finalRequestUrl.RequestURI())
+
 	util.OverwriteRequestHostHeader(headers, m.serviceUrl.Host)
 	headers.Set("api-key", m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
+
+	if !m.config.isSupportedAPI(apiName) {
+		// If the API is not supported, we should not read the request body and keep it as it is.
+		ctx.DontReadRequestBody()
+	}
 }

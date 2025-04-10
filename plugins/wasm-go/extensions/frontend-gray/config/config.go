@@ -13,6 +13,7 @@ const (
 	IsPageRequest   = "is-page-request"
 	IsNotFound      = "is-not-found"
 	EnabledGray     = "enabled-gray"
+	SecFetchMode    = "sec-fetch-mode"
 )
 
 type LogInfo func(format string, args ...interface{})

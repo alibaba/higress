@@ -82,12 +82,12 @@ func (d *deeplProvider) GetProviderType() string {
 	return providerTypeDeepl
 }
 
-func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	d.config.handleRequestHeaders(d, ctx, apiName, log)
+func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	d.config.handleRequestHeaders(d, ctx, apiName)
 	return nil
 }
 
-func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if apiName != "" {
 		util.OverwriteRequestPathHeader(headers, deeplChatCompletionPath)
 	}
@@ -96,14 +96,14 @@ func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName
 	util.OverwriteRequestAuthorizationHeader(headers, "DeepL-Auth-Key "+d.config.GetApiTokenInUse(ctx))
 }
 
-func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !d.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body, log)
+	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body)
 }
 
-func (d *deeplProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header, log wrapper.Log) ([]byte, error) {
+func (d *deeplProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
 	request := &chatCompletionRequest{}
 	if err := decodeChatCompletionRequest(body, request); err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (d *deeplProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, api
 	return json.Marshal(baiduRequest)
 }
 
-func (d *deeplProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (d *deeplProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}

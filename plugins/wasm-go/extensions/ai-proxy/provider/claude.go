@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -112,12 +113,12 @@ func (c *claudeProvider) GetProviderType() string {
 	return providerTypeClaude
 }
 
-func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) error {
-	c.config.handleRequestHeaders(c, ctx, apiName, log)
+func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	c.config.handleRequestHeaders(c, ctx, apiName)
 	return nil
 }
 
-func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header, log wrapper.Log) {
+func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), c.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
@@ -130,26 +131,26 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	headers.Set("anthropic-version", c.config.claudeVersion)
 }
 
-func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !c.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body, log)
+	return c.config.handleRequestBody(c, c.contextCache, ctx, apiName, body)
 }
 
-func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
-		return c.config.defaultTransformRequestBody(ctx, apiName, body, log)
+		return c.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 	request := &chatCompletionRequest{}
-	if err := c.config.parseRequestAndMapModel(ctx, request, body, log); err != nil {
+	if err := c.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
 	claudeRequest := c.buildClaudeTextGenRequest(request)
 	return json.Marshal(claudeRequest)
 }
 
-func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) ([]byte, error) {
+func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
 		return body, nil
 	}
@@ -164,7 +165,7 @@ func (c *claudeProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 	return json.Marshal(response)
 }
 
-func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool, log wrapper.Log) ([]byte, error) {
+func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
@@ -185,7 +186,7 @@ func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 				log.Errorf("unable to unmarshal claude response: %v", err)
 				continue
 			}
-			response := c.streamResponseClaude2OpenAI(ctx, &claudeResponse, log)
+			response := c.streamResponseClaude2OpenAI(ctx, &claudeResponse)
 			if response != nil {
 				responseBody, err := json.Marshal(response)
 				if err != nil {
@@ -266,7 +267,7 @@ func stopReasonClaude2OpenAI(reason *string) string {
 	}
 }
 
-func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenStreamResponse, log wrapper.Log) *chatCompletionResponse {
+func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenStreamResponse) *chatCompletionResponse {
 	switch origResponse.Type {
 	case "message_start":
 		choice := chatCompletionChoice{

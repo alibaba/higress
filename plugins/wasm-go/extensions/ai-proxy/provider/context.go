@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/gjson"
@@ -64,7 +65,7 @@ type ContextInserter interface {
 	insertHttpContextMessage(body []byte, content string, onlyOneSystemBeforeFile bool) ([]byte, error)
 }
 
-func (c *contextCache) GetContent(callback func(string, error), log wrapper.Log) error {
+func (c *contextCache) GetContent(callback func(string, error)) error {
 	if callback == nil {
 		return errors.New("callback is nil")
 	}
@@ -94,10 +95,10 @@ func createContextCache(providerConfig *ProviderConfig) *contextCache {
 		return nil
 	}
 	fileUrlObj, _ := url.Parse(contextConfig.fileUrl)
-	cluster := plainCluster{
-		serviceName: contextConfig.serviceName,
-		servicePort: contextConfig.servicePort,
-		hostName:    fileUrlObj.Host,
+	cluster := wrapper.FQDNCluster{
+		FQDN: contextConfig.serviceName,
+		Port: contextConfig.servicePort,
+		Host: fileUrlObj.Host,
 	}
 	return &contextCache{
 		client:  wrapper.NewClusterClient(cluster),
@@ -106,32 +107,27 @@ func createContextCache(providerConfig *ProviderConfig) *contextCache {
 	}
 }
 
-func (c *contextCache) GetContextFromFile(ctx wrapper.HttpContext, provider Provider, body []byte, log wrapper.Log) error {
-	// get context will overwrite the original request host and path
-	// save the original request host and path in case they are needed for apiToken health check
-	ctx.SetContext(ctxRequestHost, wrapper.GetRequestHost())
-	ctx.SetContext(ctxRequestPath, wrapper.GetRequestPath())
-
+func (c *contextCache) GetContextFromFile(ctx wrapper.HttpContext, provider Provider, body []byte) error {
 	if c.loaded {
 		log.Debugf("context file loaded from cache")
-		insertContext(provider, c.content, nil, body, log)
+		insertContext(provider, c.content, nil, body)
 		return nil
 	}
 
 	log.Infof("loading context file from %s", c.fileUrl.String())
 	return c.client.Get(c.fileUrl.Path, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		if statusCode != http.StatusOK {
-			insertContext(provider, "", fmt.Errorf("failed to load context file, status: %d", statusCode), nil, log)
+			insertContext(provider, "", fmt.Errorf("failed to load context file, status: %d", statusCode), nil)
 			return
 		}
 		c.content = string(responseBody)
 		c.loaded = true
 		log.Debugf("content: %s", c.content)
-		insertContext(provider, c.content, nil, body, log)
+		insertContext(provider, c.content, nil, body)
 	}, c.timeout)
 }
 
-func insertContext(provider Provider, content string, err error, body []byte, log wrapper.Log) {
+func insertContext(provider Provider, content string, err error, body []byte) {
 	defer func() {
 		_ = proxywasm.ResumeHttpRequest()
 	}()
@@ -151,7 +147,7 @@ func insertContext(provider Provider, content string, err error, body []byte, lo
 	if err != nil {
 		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.insert_ctx_failed", typ), fmt.Errorf("failed to insert context message: %v", err))
 	}
-	if err := replaceRequestBody(body, log); err != nil {
+	if err := replaceRequestBody(body); err != nil {
 		util.ErrorHandler(fmt.Sprintf("ai-proxy.%s.replace_request_body_failed", typ), fmt.Errorf("failed to replace request body: %v", err))
 	}
 }

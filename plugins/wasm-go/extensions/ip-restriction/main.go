@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
-	"net"
-	"strings"
 )
 
 const (
@@ -101,9 +101,6 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 
 	if config.IPSourceType == HeaderSourceType {
 		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
-		if err == nil {
-			s = strings.Split(strings.Trim(s, " "), ",")[0]
-		}
 	} else {
 		var bs []byte
 		bs, err = proxywasm.GetProperty([]string{"source", "address"})
@@ -112,7 +109,7 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	ip := parseIP(s)
+	ip := parseIP(s, config.IPSourceType == HeaderSourceType)
 	realIP := net.ParseIP(ip)
 	if realIP == nil {
 		return nil, fmt.Errorf("invalid ip[%s]", ip)
