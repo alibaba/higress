@@ -14,7 +14,7 @@ import (
 	envoyHttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
 
-const Name = "mcp-server"
+const Name = "mcp-session"
 const Version = "1.0.0"
 const DefaultServerName = "defaultServer"
 const ConfigPathSuffix = "/config"
