@@ -28,10 +28,6 @@ type SSEServer struct {
 	redisClient     *RedisClient // Redis client for pub/sub
 }
 
-func (s *SSEServer) SetBaseURL(baseURL string) {
-	s.baseURL = baseURL
-}
-
 func (s *SSEServer) GetMessageEndpoint() string {
 	return s.messageEndpoint
 }
