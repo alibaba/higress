@@ -27,7 +27,7 @@ func init() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				api.LogErrorf("Pprof server recovered from panic: %v", r)
+				api.LogErrorf("PProf server recovered from panic: %v", r)
 			}
 		}()
 		api.LogError(http.ListenAndServe("localhost:6060", nil).Error())
