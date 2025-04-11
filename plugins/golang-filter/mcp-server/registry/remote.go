@@ -122,14 +122,14 @@ func (h *HttpRemoteCallHandle) handleParamMapping(mapInfo *map[string]ParameterM
 	for param, value := range params {
 		if info, ok := paramMapInfo[param]; ok {
 			if info.Position == "Query" {
-				h.Query[info.BackendName] = fmt.Sprintf("%s", value)
+				h.Query[info.BackendName] = fmt.Sprintf("%v", value)
 			} else if info.Position == "Header" {
-				h.Headers[info.BackendName] = []string{fmt.Sprintf("%s", value)}
+				h.Headers[info.BackendName] = []string{fmt.Sprintf("%v", value)}
 			} else {
 				return fmt.Errorf("Unsupport position for args %s, pos is %s", param, info.Position)
 			}
 		} else {
-			h.Query[param] = fmt.Sprintf("%s", value)
+			h.Query[param] = fmt.Sprintf("%v", value)
 		}
 	}
 	return nil
