@@ -35,11 +35,12 @@ func init() {
 }
 
 type config struct {
-	ssePathSuffix string
-	redisClient   *internal.RedisClient
-	servers       []*internal.SSEServer
-	defaultServer *internal.SSEServer
-	matchList     []internal.MatchRule
+	ssePathSuffix         string
+	redisClient           *internal.RedisClient
+	servers               []*internal.SSEServer
+	defaultServer         *internal.SSEServer
+	matchList             []internal.MatchRule
+	enableUserLevelServer bool
 }
 
 func (c *config) Destroy() {
@@ -100,6 +101,15 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	} else {
 		api.LogDebug("Redis configuration not provided, running without Redis")
 	}
+
+	enableUserLevelServer, ok := v.AsMap()["enable_user_level_server"].(bool)
+	if !ok {
+		enableUserLevelServer = false
+		if conf.redisClient == nil {
+			return nil, fmt.Errorf("redis configuration is not provided, enable_user_level_server is true")
+		}
+	}
+	conf.enableUserLevelServer = enableUserLevelServer
 
 	ssePathSuffix, ok := v.AsMap()["sse_path_suffix"].(string)
 	if !ok || ssePathSuffix == "" {

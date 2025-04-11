@@ -75,13 +75,16 @@ type McpServer struct {
 	Servers []*SSEServer `json:"servers,omitempty"`
 	// List of match rules for filtering requests
 	MatchList []*MatchRule `json:"match_list,omitempty"`
+	// Flag to control whether user level server is enabled
+	EnableUserLevelServer bool `json:"enable_user_level_server,omitempty"`
 }
 
 func NewDefaultMcpServer() *McpServer {
 	return &McpServer{
-		Enable:    false,
-		Servers:   make([]*SSEServer, 0),
-		MatchList: make([]*MatchRule, 0),
+		Enable:                false,
+		Servers:               make([]*SSEServer, 0),
+		MatchList:             make([]*MatchRule, 0),
+		EnableUserLevelServer: false,
 	}
 }
 
@@ -94,8 +97,8 @@ func validMcpServer(m *McpServer) error {
 		return nil
 	}
 
-	if m.Enable && m.Redis == nil {
-		return errors.New("redis config cannot be empty when mcp server is enabled")
+	if m.EnableUserLevelServer && m.Redis == nil {
+		return errors.New("redis config cannot be empty when user level server is enabled")
 	}
 
 	// Validate match rule types
@@ -151,6 +154,8 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 	}
 
 	newMcp.SsePathSuffix = mcp.SsePathSuffix
+
+	newMcp.EnableUserLevelServer = mcp.EnableUserLevelServer
 
 	if len(mcp.Servers) > 0 {
 		newMcp.Servers = make([]*SSEServer, len(mcp.Servers))
@@ -373,7 +378,8 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 						},
 						"sse_path_suffix": "%s",
 						"match_list": %s,
-						"servers": %s
+						"servers": %s,
+						"enable_user_level_server": %t
 					}
 				}
 			}
@@ -387,5 +393,6 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		mcp.Redis.DB,
 		mcp.SsePathSuffix,
 		matchList,
-		servers)
+		servers,
+		mcp.EnableUserLevelServer)
 }

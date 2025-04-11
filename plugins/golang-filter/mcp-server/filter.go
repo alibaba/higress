@@ -83,14 +83,16 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			server.SetBaseURL(url.baseURL)
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() || strings.HasSuffix(f.path, ConfigPathSuffix) {
-			if strings.HasSuffix(f.path, ConfigPathSuffix) && !url.internalIP {
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
-				return api.LocalReply
-			}
-			if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
-				api.LogDebugf("Handling config request: %s", f.path)
-				if f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
+			if f.config.enableUserLevelServer {
+				if strings.HasSuffix(f.path, ConfigPathSuffix) && !url.internalIP {
+					f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
 					return api.LocalReply
+				}
+				if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
+					api.LogDebugf("Handling config request: %s", f.path)
+					if f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
+						return api.LocalReply
+					}
 				}
 			}
 			if f.path == server.GetMessageEndpoint() && url.method != http.MethodPost {
@@ -119,19 +121,21 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	}
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
 		f.proxyURL = url.parsedURL
-		parts := strings.Split(url.parsedURL.Path, "/")
-		if len(parts) >= 3 {
-			serverName := parts[1]
-			uid := parts[2]
-			// Get encoded config
-			encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
-			if err != nil {
-				api.LogErrorf("Failed to get config for %s:%s: %v", serverName, uid, err)
-			} else if encodedConfig != "" {
-				header.Set("x-higress-mcpserver-config", encodedConfig)
-				api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
-			} else {
-				api.LogDebugf("No config found for %s:%s", serverName, uid)
+		if f.config.enableUserLevelServer {
+			parts := strings.Split(url.parsedURL.Path, "/")
+			if len(parts) >= 3 {
+				serverName := parts[1]
+				uid := parts[2]
+				// Get encoded config
+				encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+				if err != nil {
+					api.LogErrorf("Failed to get config for %s:%s: %v", serverName, uid, err)
+				} else if encodedConfig != "" {
+					header.Set("x-higress-mcpserver-config", encodedConfig)
+					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
+				} else {
+					api.LogDebugf("No config found for %s:%s", serverName, uid)
+				}
 			}
 		}
 		return api.Continue
@@ -160,11 +164,13 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	}
 	if f.message {
 		if endStream {
-			// Handle config POST request
-			if strings.HasSuffix(f.path, ConfigPathSuffix) {
-				api.LogDebugf("Handling config request: %s", f.path)
-				if f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes()) {
-					return api.LocalReply
+			if f.config.enableUserLevelServer {
+				// Handle config POST request
+				if strings.HasSuffix(f.path, ConfigPathSuffix) {
+					api.LogDebugf("Handling config request: %s", f.path)
+					if f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes()) {
+						return api.LocalReply
+					}
 				}
 			}
 
