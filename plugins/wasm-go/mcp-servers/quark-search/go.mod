@@ -3,7 +3,7 @@ module quark-search
 go 1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250402072030-ae5d1c59f256
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250407124215-3431eeb8d374
 	github.com/tidwall/gjson v1.18.0
 )
 
