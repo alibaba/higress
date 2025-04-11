@@ -84,7 +84,7 @@ For other installation methods such as Helm deployment under K8s, please refer t
   - Simplified deployment and management through Higress's plugin mechanism for quickly adding new MCP Servers
   - Dynamic updates without disruption: Thanks to Envoy's friendly handling of long connections and Wasm plugin's dynamic update mechanism, MCP Server logic can be updated on-the-fly without any traffic disruption or connection drops
 
-     [Learn more...](https://higress.cn/ai/mcp-quick-start/?spm=36971b57.7beea2de.0.0.d85f20a94jsWGm)
+     [Learn more...](https://higress.cn/en/ai/mcp-quick-start/?spm=36971b57.7beea2de.0.0.d85f20a94jsWGm)
 
 - **Kubernetes ingress controller**:
 
