@@ -254,3 +254,13 @@ func (r *RedisClient) Close() error {
 	r.cancel()
 	return r.client.Close()
 }
+
+// Eval executes a Lua script
+func (r *RedisClient) Eval(script string, numKeys int, keys []string, args []interface{}) (interface{}, error) {
+	result, err := r.client.Eval(r.ctx, script, keys, args...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute Lua script: %w", err)
+	}
+
+	return result, nil
+}

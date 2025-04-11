@@ -41,6 +41,14 @@ type RedisConfig struct {
 	DB int `json:"db,omitempty"`
 }
 
+// MCPRatelimitConfig defines the configuration for rate limit
+type MCPRatelimitConfig struct {
+	// The limit of the rate limit
+	Limit int64 `json:"limit,omitempty"`
+	// The window of the rate limit
+	Window int64 `json:"window,omitempty"`
+}
+
 // SSEServer defines the configuration for Server-Sent Events (SSE) server
 type SSEServer struct {
 	// The name of the SSE server
@@ -77,6 +85,8 @@ type McpServer struct {
 	MatchList []*MatchRule `json:"match_list,omitempty"`
 	// Flag to control whether user level server is enabled
 	EnableUserLevelServer bool `json:"enable_user_level_server,omitempty"`
+	// Rate limit config for MCP server
+	Ratelimit *MCPRatelimitConfig `json:"ratelimit,omitempty"`
 }
 
 func NewDefaultMcpServer() *McpServer {
@@ -152,7 +162,12 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 			DB:       mcp.Redis.DB,
 		}
 	}
-
+	if mcp.Ratelimit != nil {
+		newMcp.Ratelimit = &MCPRatelimitConfig{
+			Limit:  mcp.Ratelimit.Limit,
+			Window: mcp.Ratelimit.Window,
+		}
+	}
 	newMcp.SsePathSuffix = mcp.SsePathSuffix
 
 	newMcp.EnableUserLevelServer = mcp.EnableUserLevelServer
@@ -358,7 +373,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 	}
 
 	// Build complete configuration structure
-	structFmt := `{
+	structBase := `{
 		"name": "envoy.filters.http.golang",
 		"typed_config": {
 			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
@@ -369,13 +384,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 				"plugin_name": "mcp-session",
 				"plugin_config": {
 					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-					"value": {
-						"redis": {
-							"address": "%s",
-							"username": "%s",
-							"password": "%s",
-							"db": %d
-						},
+					"value": {%s%s
 						"sse_path_suffix": "%s",
 						"match_list": %s,
 						"servers": %s,
@@ -386,11 +395,29 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		}
 	}`
 
-	return fmt.Sprintf(structFmt,
-		mcp.Redis.Address,
-		mcp.Redis.Username,
-		mcp.Redis.Password,
-		mcp.Redis.DB,
+	redisField := ""
+	if mcp.Redis != nil {
+		redisField = fmt.Sprintf(`
+					"redis": {
+						"address": "%s",
+						"username": "%s",
+						"password": "%s",
+						"db": %d
+					},`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
+	}
+
+	rateLimitField := ""
+	if mcp.Ratelimit != nil {
+		rateLimitField = fmt.Sprintf(`
+					"rate_limit": {
+						"limit": %d,
+						"window": %d
+					},`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window)
+	}
+
+	return fmt.Sprintf(structBase,
+		redisField,
+		rateLimitField,
 		mcp.SsePathSuffix,
 		matchList,
 		servers,

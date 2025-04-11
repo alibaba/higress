@@ -27,12 +27,14 @@ type filter struct {
 	config    *config
 	stopChan  chan struct{}
 
-	req              *http.Request
-	serverName       string
-	message          bool
-	proxyURL         *url.URL
-	skip             bool
-	mcpConfigHandler *handler.MCPConfigHandler
+	req        *http.Request
+	serverName string
+	message    bool
+	proxyURL   *url.URL
+	skip       bool
+
+	mcpConfigHandler    *handler.MCPConfigHandler
+	mcpRatelimitHandler *handler.MCPRatelimitHandler
 }
 
 type RequestURL struct {
@@ -128,12 +130,15 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				// Get encoded config
 				encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
 				if err != nil {
-					api.LogErrorf("Failed to get config for %s:%s: %v", serverName, uid, err)
+					api.LogDebugf("user is using shared/public API key (no custom config found)")
+					if !f.mcpRatelimitHandler.HandleRatelimit(url.parsedURL.Path, url.method, []byte{}) {
+						return api.LocalReply
+					}
 				} else if encodedConfig != "" {
 					header.Set("x-higress-mcpserver-config", encodedConfig)
 					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
 				} else {
-					api.LogDebugf("No config found for %s:%s", serverName, uid)
+					api.LogDebugf("Empty config found for %s:%s", serverName, uid)
 				}
 			}
 		}

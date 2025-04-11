@@ -41,6 +41,7 @@ type config struct {
 	defaultServer         *internal.SSEServer
 	matchList             []internal.MatchRule
 	enableUserLevelServer bool
+	rateLimitConfig       *handler.MCPRatelimitConfig
 }
 
 func (c *config) Destroy() {
@@ -110,6 +111,17 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 	}
 	conf.enableUserLevelServer = enableUserLevelServer
+
+	if rateLimit, ok := v.AsMap()["rate_limit"].(map[string]interface{}); ok {
+		rateLimitConfig := &handler.MCPRatelimitConfig{}
+		if limit, ok := rateLimit["limit"].(int64); ok {
+			rateLimitConfig.Limit = limit
+		}
+		if window, ok := rateLimit["window"].(int64); ok {
+			rateLimitConfig.Window = window
+		}
+		conf.rateLimitConfig = rateLimitConfig
+	}
 
 	ssePathSuffix, ok := v.AsMap()["sse_path_suffix"].(string)
 	if !ok || ssePathSuffix == "" {
@@ -199,10 +211,11 @@ func filterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 		panic("unexpected config type")
 	}
 	return &filter{
-		callbacks:        callbacks,
-		config:           conf,
-		stopChan:         make(chan struct{}),
-		mcpConfigHandler: handler.NewMCPConfigHandler(conf.redisClient, callbacks),
+		callbacks:           callbacks,
+		config:              conf,
+		stopChan:            make(chan struct{}),
+		mcpConfigHandler:    handler.NewMCPConfigHandler(conf.redisClient, callbacks),
+		mcpRatelimitHandler: handler.NewMCPRatelimitHandler(conf.redisClient, callbacks, conf.rateLimitConfig),
 	}
 }
 
