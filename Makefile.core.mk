@@ -235,8 +235,7 @@ clean-gateway: clean-istio
 	rm -rf external/proxy
 	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
-	rm -rf external/package/mcp-server_amd64.so
-	rm -rf external/package/mcp-server_arm64.so
+	rm -rf external/package/*.so
 
 clean-env:
 	rm -rf out/

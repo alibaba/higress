@@ -45,17 +45,30 @@ func Test_validMcpServer(t *testing.T) {
 		{
 			name: "enabled but no redis config",
 			mcp: &McpServer{
-				Enable:    true,
-				Redis:     nil,
-				MatchList: []*MatchRule{},
-				Servers:   []*SSEServer{},
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList:             []*MatchRule{},
+				Servers:               []*SSEServer{},
 			},
-			wantErr: errors.New("redis config cannot be empty when mcp server is enabled"),
+			wantErr: nil,
+		},
+		{
+			name: "enabled with user level server but no redis config",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: true,
+				Redis:                 nil,
+				MatchList:             []*MatchRule{},
+				Servers:               []*SSEServer{},
+			},
+			wantErr: errors.New("redis config cannot be empty when user level server is enabled"),
 		},
 		{
 			name: "valid config with redis",
 			mcp: &McpServer{
-				Enable: true,
+				Enable:                true,
+				EnableUserLevelServer: true,
 				Redis: &RedisConfig{
 					Address:  "localhost:6379",
 					Username: "default",

@@ -36,4 +36,4 @@ RUN if [ "$GOARCH" = "arm64" ]; then \
 FROM scratch AS output
 ARG GO_FILTER_NAME
 ARG GOARCH
-COPY --from=golang-base /${GO_FILTER_NAME}.so ${GO_FILTER_NAME}_${GOARCH}.so
+COPY --from=golang-base /${GO_FILTER_NAME}.so golang-filter_${GOARCH}.so

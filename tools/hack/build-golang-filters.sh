@@ -29,7 +29,7 @@ if [ ! -n "$INNER_GO_FILTER_NAME" ]; then
             name=${file##*/}
             echo "🚀 Build Go Filter: $name"
             GO_FILTER_NAME=${name} GOARCH=${TARGET_ARCH} make build
-            cp ${GO_FILTERS_DIR}/${file}/${name}_${TARGET_ARCH}.so ${OUTPUT_PACKAGE_DIR}
+            cp ${GO_FILTERS_DIR}/${file}/golang-filter_${TARGET_ARCH}.so ${OUTPUT_PACKAGE_DIR}
         fi
     done
 else
