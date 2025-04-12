@@ -168,7 +168,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(serverName))
 		proxywasm.SetProperty([]string{"mcp_tool_name"}, []byte(name))
 		if tool, ok := config.server.GetMCPTools()[name]; ok {
-			log.Debugf("tool call with arguments[%s]", name, args.Raw)
+			log.Debugf("tool call [%s] with arguments[%s]", name, args.Raw)
 			toolInstance := tool.Create([]byte(args.Raw))
 			err := toolInstance.Call(ctx, config.server)
 			// TODO: validate the json schema through github.com/kaptinlin/jsonschema

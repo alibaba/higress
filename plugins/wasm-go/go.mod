@@ -20,7 +20,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985 // indirect
+	github.com/higress-group/gjson_template v0.0.0-20250412161735-977d6c10ae72 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
