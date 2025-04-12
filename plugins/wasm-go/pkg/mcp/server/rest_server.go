@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	template "github.com/higress-group/gjson_template"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/sjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
@@ -89,11 +90,47 @@ type RestTool struct {
 	argPositions map[string]string
 }
 
+// parseIP
+func parseIP(source string, fromHeader bool) string {
+	if fromHeader {
+		source = strings.Split(source, ",")[0]
+	}
+	source = strings.Trim(source, " ")
+	if strings.Contains(source, ".") {
+		// parse ipv4
+		return strings.Split(source, ":")[0]
+	}
+	//parse ipv6
+	if strings.Contains(source, "]") {
+		return strings.Split(source, "]")[0][1:]
+	}
+	return source
+}
+
 // templateFuncs returns the template functions map
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"add": func(a, b int) int { return a + b },
-		// Add more helper functions as needed
+		// Get IP from socket
+		"getSocketIP": func() string {
+			bs, _ := proxywasm.GetProperty([]string{"source", "address"})
+			if len(bs) > 0 {
+				return parseIP(string(bs), false)
+			}
+			return ""
+		},
+		// Get IP from header, fallback to socket if not available
+		"getRealIP": func() string {
+			ipStr, _ := proxywasm.GetHttpRequestHeader("x-forwarded-for")
+			if ipStr != "" {
+				return parseIP(ipStr, true)
+			}
+			// Fallback to socket IP if header is not available
+			bs, _ := proxywasm.GetProperty([]string{"source", "address"})
+			if len(bs) > 0 {
+				return parseIP(string(bs), false)
+			}
+			return ""
+		},
 	}
 }
 
