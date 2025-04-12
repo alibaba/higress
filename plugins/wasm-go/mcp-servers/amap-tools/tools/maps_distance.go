@@ -25,7 +25,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
-	"github.com/tidwall/gjson"
 )
 
 var _ server.Tool = DistanceRequest{}
@@ -63,26 +62,6 @@ func (t DistanceRequest) Call(ctx server.HttpContext, s server.Server) error {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("distance call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status  string `json:"status"`
-				Info    string `json:"info"`
-				Results []struct {
-					OriginID string `json:"origin_id"`
-					DestID   string `json:"dest_id"`
-					Distance string `json:"distance"`
-					Duration string `json:"duration"`
-				} `json:"results"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse distance response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("distance failed: %s", response.Info))
-				return
-			}
-			result := fmt.Sprintf(`{"results": %s}`, gjson.GetBytes(responseBody, "results").Raw)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

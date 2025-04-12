@@ -25,7 +25,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
-	"github.com/tidwall/gjson"
 )
 
 var _ server.Tool = TransitIntegratedRequest{}
@@ -65,70 +64,6 @@ func (t TransitIntegratedRequest) Call(ctx server.HttpContext, s server.Server) 
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("transit integrated call failed, status: %d", statusCode))
 				return
 			}
-			var response struct {
-				Status string `json:"status"`
-				Info   string `json:"info"`
-				Route  struct {
-					Origin      string `json:"origin"`
-					Destination string `json:"destination"`
-					Distance    string `json:"distance"`
-					Transits    []struct {
-						Duration        string `json:"duration"`
-						WalkingDistance string `json:"walking_distance"`
-						Segments        []struct {
-							Walking struct {
-								Origin      string `json:"origin"`
-								Destination string `json:"destination"`
-								Distance    string `json:"distance"`
-								Duration    string `json:"duration"`
-								Steps       []struct {
-									Instruction     string `json:"instruction"`
-									Road            string `json:"road"`
-									Distance        string `json:"distance"`
-									Action          string `json:"action"`
-									AssistantAction string `json:"assistant_action"`
-								} `json:"steps"`
-							} `json:"walking"`
-							Bus struct {
-								Buslines []struct {
-									Name          string `json:"name"`
-									DepartureStop struct {
-										Name string `json:"name"`
-									} `json:"departure_stop"`
-									ArrivalStop struct {
-										Name string `json:"name"`
-									} `json:"arrival_stop"`
-									Distance string `json:"distance"`
-									Duration string `json:"duration"`
-									ViaStops []struct {
-										Name string `json:"name"`
-									} `json:"via_stops"`
-								} `json:"buslines"`
-							} `json:"bus"`
-							Entrance struct {
-								Name string `json:"name"`
-							} `json:"entrance"`
-							Exit struct {
-								Name string `json:"name"`
-							} `json:"exit"`
-							Railway struct {
-								Name string `json:"name"`
-								Trip string `json:"trip"`
-							} `json:"railway"`
-						} `json:"segments"`
-					} `json:"transits"`
-				} `json:"route"`
-			}
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("failed to parse transit integrated response: %v", err))
-				return
-			}
-			if response.Status != "1" {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("transit integrated failed: %s", response.Info))
-				return
-			}
-			result := fmt.Sprintf(`{"origin": "%s", "destination": "%s", "distance": "%s", "transits": %s}`, response.Route.Origin, response.Route.Destination, response.Route.Distance, gjson.GetBytes(responseBody, "route.transits").Raw)
-			utils.SendMCPToolTextResult(ctx, result)
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

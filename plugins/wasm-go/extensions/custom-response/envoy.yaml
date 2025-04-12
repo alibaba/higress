@@ -1,9 +1,3 @@
-admin:
-  address:
-    socket_address:
-      protocol: TCP
-      address: 0.0.0.0
-      port_value: 9901
 static_resources:
   listeners:
     - name: listener_0
@@ -27,9 +21,9 @@ static_resources:
                       domains: ["*"]
                       routes:
                         - match:
-                            prefix: "/"
+                            prefix: "/echo"
                           route:
-                            cluster: httpbin
+                            cluster: echo-server
                 http_filters:
                   - name: wasmdemo
                     typed_config:
@@ -42,30 +36,100 @@ static_resources:
                             runtime: envoy.wasm.runtime.v8
                             code:
                               local:
-                                filename: /etc/envoy/main.wasm
+                                filename: /etc/envoy/plugin.wasm
                           configuration:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
-                            value: |
+#                            value: |-
+#                              {
+#                                "rules": [
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "enable_on_status": [
+#                                      200,
+#                                      201
+#                                    ],
+#                                    "body": "{\"hello\":\"world 200\"}"
+#                                  },
+#                                  {
+#                                    "headers": [
+#                                      "key1=value1",
+#                                      "key2=value2"
+#                                    ],
+#                                    "status_code": 200,
+#                                    "enable_on_status": [
+#                                      404
+#                                    ],
+#                                    "body": "{\"hello\":\"world 404\"}"
+#                                  }
+#                                ]
+#                              }
+                            value: |-
                               {
-                                "headers": ["key1=value1", "key2=value2"],
-                                "status_code": 200,
-                                "enable_on_status": [200, 201],
-                                "body": "{\"hello\":\"world\"}"
+                                "rules": [
+                                  {
+                                    "headers": [
+                                      "key1=value1",
+                                      "key2=value2"
+                                    ],
+                                    "status_code": 200,
+                                    "enable_on_status": [
+                                      200
+                                    ],
+                                    "body": "{\"hello\":\"world 200\"}"
+                                  },
+                                  {
+                                    "headers": [
+                                      "key1=value1",
+                                      "key2=value2"
+                                    ],
+                                    "status_code": 200,
+                                    "enable_on_status": [
+                                      "40x"
+                                    ],
+                                    "body": "{\"hello\":\"world 40x\"}"
+                                  }
+                                ]
                               }
+#                            value: |-
+#                              {
+#                                "headers": [
+#                                  "key1=value1",
+#                                  "key2=value2"
+#                                ],
+#                                "status_code": 200,
+#                                "body": "{\"hello\":\"world 200\"}",
+#                                "enable_on_status": [
+#                                  200
+#                                ]
+#                              }
+#                            value: |-
+#                              {
+#                                "headers": [
+#                                  "key1=value1",
+#                                  "key2=value2"
+#                                ],
+#                                "status_code": 200,
+#                                "body": "{\"hello\":\"world 200\"}"
+#                              }
                   - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
-    - name: httpbin
+    - name: echo-server
       connect_timeout: 30s
       type: LOGICAL_DNS
-      # Comment out the following line to test on v6 networks
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
-        cluster_name: httpbin
+        cluster_name: echo-server
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
-                      address: httpbin
-                      port_value: 80
+                      address: echo-server
+                      port_value: 3000

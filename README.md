@@ -14,12 +14,9 @@
 <a href="https://trendshift.io/repositories/10918" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10918" alt="alibaba%2Fhigress | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
 
-[**Official Site**](https://higress.io/en-us/) &nbsp; |
-&nbsp; [**Docs**](https://higress.io/en-us/docs/overview/what-is-higress) &nbsp; |
-&nbsp; [**Blog**](https://higress.io/en-us/blog) &nbsp; |
-&nbsp; [**Developer**](https://higress.io/en-us/docs/developers/developers_dev) &nbsp; |
-&nbsp; [**Higress in Cloud**](https://www.alibabacloud.com/product/microservices-engine?spm=higress-website.topbar.0.0.0) &nbsp;
-
+[**Official Site**](https://higress.ai/en/) &nbsp; |
+&nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/) &nbsp; |
+&nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
 
 <p>
    English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>
@@ -60,7 +57,8 @@ Port descriptions:
 - Port 8080: Gateway HTTP protocol entry
 - Port 8443: Gateway HTTPS protocol entry
 
-**All Higress Docker images use their own dedicated repository, unaffected by Docker Hub access restrictions in certain regions**
+> All Higress Docker images use Higress's own image repository and are not affected by Docker Hub rate limits.
+> In addition, the submission and updates of the images are protected by a security scanning mechanism (powered by Alibaba Cloud ACR), making them very secure for use in production environments.
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
 
@@ -85,6 +83,8 @@ For other installation methods such as Helm deployment under K8s, please refer t
   - Rich observability for monitoring the performance and health of tool calls
   - Simplified deployment and management through Higress's plugin mechanism for quickly adding new MCP Servers
   - Dynamic updates without disruption: Thanks to Envoy's friendly handling of long connections and Wasm plugin's dynamic update mechanism, MCP Server logic can be updated on-the-fly without any traffic disruption or connection drops
+
+     [Learn more...](https://higress.cn/en/ai/mcp-quick-start/?spm=36971b57.7beea2de.0.0.d85f20a94jsWGm)
 
 - **Kubernetes ingress controller**:
 
