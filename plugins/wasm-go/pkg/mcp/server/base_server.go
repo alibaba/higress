@@ -16,7 +16,6 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
@@ -39,7 +38,8 @@ func NewBaseMCPServer() BaseMCPServer {
 // AddMCPTool adds a tool to the server
 func (s *BaseMCPServer) AddMCPTool(name string, tool Tool) Server {
 	if _, exist := s.tools[name]; exist {
-		panic(fmt.Sprintf("Conflict! There is a tool with the same name:%s", name))
+		log.Errorf("Conflict! There is a tool with the same name:%s", name)
+		return s
 	}
 	s.tools[name] = tool
 	return s
