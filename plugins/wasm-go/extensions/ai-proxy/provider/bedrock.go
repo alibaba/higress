@@ -1,13 +1,19 @@
 package provider
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/crc32"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -26,6 +32,7 @@ const (
 	bedrockChatCompletionPath = "/model/%s/converse"
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
+	bedrockSignedHeaders            = "host;x-amz-date"
 )
 
 type bedrockProviderInitializer struct {
@@ -58,6 +65,434 @@ func (b *bedrockProviderInitializer) CreateProvider(config ProviderConfig) (Prov
 type bedrockProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+}
+
+func (b *bedrockProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
+	events := extractAmazonEventStreamEvents(ctx, chunk)
+	if len(events) == 0 {
+		return chunk, fmt.Errorf("No events are extracted ")
+	}
+	var responseBuilder strings.Builder
+	for _, event := range events {
+		outputEvent, err := b.convertEventFromBedrockToOpenAI(ctx, event)
+		if err != nil {
+			log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
+			return chunk, err
+		}
+		responseBuilder.WriteString(string(outputEvent))
+	}
+	return []byte(responseBuilder.String()), nil
+}
+
+func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContext, bedrockEvent ConverseStreamEvent) ([]byte, error) {
+	choices := make([]chatCompletionChoice, 0)
+	chatChoice := chatCompletionChoice{
+		Delta: &chatMessage{},
+	}
+	if bedrockEvent.Role != nil {
+		chatChoice.Delta.Role = *bedrockEvent.Role
+	}
+	if bedrockEvent.Delta != nil {
+		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
+	}
+	if bedrockEvent.StopReason != nil {
+		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
+	}
+	choices = append(choices, chatChoice)
+	requestId := ctx.GetStringContext("X-Amzn-Requestid", "")
+	openAIFormattedChunk := &chatCompletionResponse{
+		Id:                requestId,
+		Created:           time.Now().UnixMilli() / 1000,
+		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
+		SystemFingerprint: "",
+		Object:            objectChatCompletion,
+		Choices:           choices,
+	}
+	if bedrockEvent.Usage != nil {
+		openAIFormattedChunk.Choices = choices[:0]
+		openAIFormattedChunk.Usage = usage{
+			CompletionTokens: bedrockEvent.Usage.OutputTokens,
+			PromptTokens:     bedrockEvent.Usage.InputTokens,
+			TotalTokens:      bedrockEvent.Usage.TotalTokens,
+		}
+	}
+
+	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
+	var openAIChunk strings.Builder
+	openAIChunk.WriteString(ssePrefix)
+	openAIChunk.WriteString(string(openAIFormattedChunkBytes))
+	openAIChunk.WriteString("\n\n")
+	return []byte(openAIChunk.String()), nil
+}
+
+type ConverseStreamEvent struct {
+	ContentBlockIndex int                                   `json:"contentBlockIndex,omitempty"`
+	Delta             *converseStreamEventContentBlockDelta `json:"delta,omitempty"`
+	Role              *string                               `json:"role,omitempty"`
+	StopReason        *string                               `json:"stopReason,omitempty"`
+	Usage             *tokenUsage                           `json:"usage,omitempty"`
+	Start             *contentBlockStart                    `json:"start,omitempty"`
+}
+
+type converseStreamEventContentBlockDelta struct {
+	Text    *string            `json:"text,omitempty"`
+	ToolUse *toolUseBlockDelta `json:"toolUse,omitempty"`
+}
+
+type toolUseBlockStart struct {
+	Name      string `json:"name"`
+	ToolUseID string `json:"toolUseId"`
+}
+
+type contentBlockStart struct {
+	ToolUse *toolUseBlockStart `json:"toolUse,omitempty"`
+}
+
+type toolUseBlockDelta struct {
+	Input string `json:"input"`
+}
+
+func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []ConverseStreamEvent {
+	body := chunk
+	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
+		body = append(bufferedStreamingBody, chunk...)
+	}
+
+	r := bytes.NewReader(body)
+	var events []ConverseStreamEvent
+	var lastRead int64 = -1
+	messageBuffer := make([]byte, 1024)
+	defer func() {
+		log.Infof("extractAmazonEventStreamEvents: lastRead=%d, r.Size=%d", lastRead, r.Size())
+		ctx.SetContext(ctxKeyStreamingBody, nil)
+	}()
+
+	for {
+		msg, err := decodeMessage(r, messageBuffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Errorf("failed to decode message: %v", err)
+			break
+		}
+		var event ConverseStreamEvent
+		if err = json.Unmarshal(msg.Payload, &event); err == nil {
+			events = append(events, event)
+		}
+		lastRead = r.Size() - int64(r.Len())
+	}
+	return events
+}
+
+type bedrockStreamMessage struct {
+	Headers headers
+	Payload []byte
+}
+
+type EventFrame struct {
+	TotalLength   uint32
+	HeadersLength uint32
+	PreludeCRC    uint32
+	Headers       map[string]interface{}
+	Payload       []byte
+	PayloadCRC    uint32
+}
+
+type headers []header
+
+type header struct {
+	Name  string
+	Value Value
+}
+
+func (hs *headers) Set(name string, value Value) {
+	var i int
+	for ; i < len(*hs); i++ {
+		if (*hs)[i].Name == name {
+			(*hs)[i].Value = value
+			return
+		}
+	}
+
+	*hs = append(*hs, header{
+		Name: name, Value: value,
+	})
+}
+
+func decodeMessage(reader io.Reader, payloadBuf []byte) (m bedrockStreamMessage, err error) {
+	crc := crc32.New(crc32.MakeTable(crc32.IEEE))
+	hashReader := io.TeeReader(reader, crc)
+
+	prelude, err := decodePrelude(hashReader, crc)
+	if err != nil {
+		return bedrockStreamMessage{}, err
+	}
+
+	if prelude.HeadersLen > 0 {
+		lr := io.LimitReader(hashReader, int64(prelude.HeadersLen))
+		m.Headers, err = decodeHeaders(lr)
+		if err != nil {
+			return bedrockStreamMessage{}, err
+		}
+	}
+
+	if payloadLen := prelude.PayloadLen(); payloadLen > 0 {
+		buf, err := decodePayload(payloadBuf, io.LimitReader(hashReader, int64(payloadLen)))
+		if err != nil {
+			return bedrockStreamMessage{}, err
+		}
+		m.Payload = buf
+	}
+
+	msgCRC := crc.Sum32()
+	if err := validateCRC(reader, msgCRC); err != nil {
+		return bedrockStreamMessage{}, err
+	}
+
+	return m, nil
+}
+
+func decodeHeaders(r io.Reader) (headers, error) {
+	hs := headers{}
+
+	for {
+		name, err := decodeHeaderName(r)
+		if err != nil {
+			if err == io.EOF {
+				// EOF while getting header name means no more headers
+				break
+			}
+			return nil, err
+		}
+
+		value, err := decodeHeaderValue(r)
+		if err != nil {
+			return nil, err
+		}
+
+		hs.Set(name, value)
+	}
+
+	return hs, nil
+}
+
+func decodeHeaderValue(r io.Reader) (Value, error) {
+	var raw rawValue
+
+	typ, err := decodeUint8(r)
+	if err != nil {
+		return nil, err
+	}
+	raw.Type = valueType(typ)
+
+	var v Value
+
+	switch raw.Type {
+	case stringValueType:
+		var tv StringValue
+		err = tv.decode(r)
+		v = tv
+	default:
+		log.Errorf("unknown value type %d", raw.Type)
+	}
+
+	// Error could be EOF, let caller deal with it
+	return v, err
+}
+
+type Value interface {
+	Get() interface{}
+}
+
+type StringValue string
+
+func (v StringValue) Get() interface{} {
+	return string(v)
+}
+
+func (v *StringValue) decode(r io.Reader) error {
+	s, err := decodeStringValue(r)
+	if err != nil {
+		return err
+	}
+
+	*v = StringValue(s)
+	return nil
+}
+
+func decodeBytesValue(r io.Reader) ([]byte, error) {
+	var raw rawValue
+	var err error
+	raw.Len, err = decodeUint16(r)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, raw.Len)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
+}
+
+func decodeUint16(r io.Reader) (uint16, error) {
+	var b [2]byte
+	bs := b[:]
+	_, err := io.ReadFull(r, bs)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint16(bs), nil
+}
+
+func decodeStringValue(r io.Reader) (string, error) {
+	v, err := decodeBytesValue(r)
+	return string(v), err
+}
+
+type rawValue struct {
+	Type  valueType
+	Len   uint16 // Only set for variable length slices
+	Value []byte // byte representation of value, BigEndian encoding.
+}
+
+type valueType uint8
+
+const (
+	trueValueType valueType = iota
+	falseValueType
+	int8ValueType  // Byte
+	int16ValueType // Short
+	int32ValueType // Integer
+	int64ValueType // Long
+	bytesValueType
+	stringValueType
+	timestampValueType
+	uuidValueType
+)
+
+func decodeHeaderName(r io.Reader) (string, error) {
+	var n headerName
+
+	var err error
+	n.Len, err = decodeUint8(r)
+	if err != nil {
+		return "", err
+	}
+
+	name := n.Name[:n.Len]
+	if _, err := io.ReadFull(r, name); err != nil {
+		return "", err
+	}
+
+	return string(name), nil
+}
+
+func decodeUint8(r io.Reader) (uint8, error) {
+	type byteReader interface {
+		ReadByte() (byte, error)
+	}
+
+	if br, ok := r.(byteReader); ok {
+		v, err := br.ReadByte()
+		return v, err
+	}
+
+	var b [1]byte
+	_, err := io.ReadFull(r, b[:])
+	return b[0], err
+}
+
+const maxHeaderNameLen = 255
+
+type headerName struct {
+	Len  uint8
+	Name [maxHeaderNameLen]byte
+}
+
+func decodePayload(buf []byte, r io.Reader) ([]byte, error) {
+	w := bytes.NewBuffer(buf[0:0])
+
+	_, err := io.Copy(w, r)
+	return w.Bytes(), err
+}
+
+type messagePrelude struct {
+	Length     uint32
+	HeadersLen uint32
+	PreludeCRC uint32
+}
+
+func (p messagePrelude) ValidateLens() error {
+	if p.Length == 0 {
+		return fmt.Errorf("message prelude want: 16, have: %v", int(p.Length))
+	}
+	return nil
+}
+
+func (p messagePrelude) PayloadLen() uint32 {
+	return p.Length - p.HeadersLen - 16
+}
+
+func decodePrelude(r io.Reader, crc hash.Hash32) (messagePrelude, error) {
+	var p messagePrelude
+
+	var err error
+	p.Length, err = decodeUint32(r)
+	if err != nil {
+		return messagePrelude{}, err
+	}
+
+	p.HeadersLen, err = decodeUint32(r)
+	if err != nil {
+		return messagePrelude{}, err
+	}
+
+	if err := p.ValidateLens(); err != nil {
+		return messagePrelude{}, err
+	}
+
+	preludeCRC := crc.Sum32()
+	if err := validateCRC(r, preludeCRC); err != nil {
+		return messagePrelude{}, err
+	}
+
+	p.PreludeCRC = preludeCRC
+
+	return p, nil
+}
+
+func decodeUint32(r io.Reader) (uint32, error) {
+	var b [4]byte
+	bs := b[:]
+	_, err := io.ReadFull(r, bs)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint32(bs), nil
+}
+
+func validateCRC(r io.Reader, expect uint32) error {
+	msgCRC, err := decodeUint32(r)
+	if err != nil {
+		return err
+	}
+
+	if msgCRC != expect {
+		return fmt.Errorf("message checksum mismatch")
+	}
+
+	return nil
+}
+
+func (b *bedrockProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	ctx.SetContext("X-Amzn-Requestid", headers.Get("X-Amzn-Requestid"))
+	if headers.Get("Content-Type") == "application/vnd.amazon.eventstream" {
+		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
+	}
 }
 
 func (b *bedrockProvider) GetProviderType() string {
@@ -169,73 +604,10 @@ type ConverseStreamMetadataEvent struct {
 	} `json:"metrics"`
 }
 
-func (b *bedrockProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiName, event StreamEvent) ([]StreamEvent, error) {
-	var outputEvents []StreamEvent
-	bedrockResponse := &bedrockConverseStreamResponse{}
-	if err := json.Unmarshal([]byte(event.Data), bedrockResponse); err != nil {
-		log.Errorf("unable to unmarshal bedrock response: %v", err)
-		return nil, fmt.Errorf("unable to unmarshal bedrock response: %v", err)
-	}
-
-	responses := b.buildChatCompletionStreamingResponse(ctx, bedrockResponse)
-	for _, response := range responses {
-		responseBody, err := json.Marshal(response)
-		if err != nil {
-			log.Errorf("unable to marshal response: %v", err)
-			return nil, fmt.Errorf("unable to marshal response: %v", err)
-		}
-		modifiedEvent := event
-		modifiedEvent.Data = string(responseBody)
-		outputEvents = append(outputEvents, modifiedEvent)
-	}
-
-	return outputEvents, nil
-}
-
-func (b *bedrockProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseStreamResponse) []*chatCompletionResponse {
-	requestId, _ := proxywasm.GetHttpResponseHeader("x-amzn-requestid")
-	baseMessage := chatCompletionResponse{
-		Id:                requestId,
-		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
-		Choices:           make([]chatCompletionChoice, 0),
-		SystemFingerprint: "",
-		Object:            objectChatCompletionChunk,
-	}
-	responses := make([]*chatCompletionResponse, 0)
-	if bedrockResponse.MessageStart != nil {
-		response := *&baseMessage
-		convertedMessage := &chatMessage{Role: bedrockResponse.MessageStart.Role}
-		response.Choices = append(response.Choices, chatCompletionChoice{Delta: convertedMessage})
-		responses = append(responses, &response)
-	}
-	if bedrockResponse.ContentBlockDelta != nil {
-		response := *&baseMessage
-		convertedMessage := &chatMessage{Content: bedrockResponse.ContentBlockDelta.Delta.Text, ReasoningContent: bedrockResponse.ContentBlockDelta.Delta.ReasoningContent.Text}
-		response.Choices = append(response.Choices, chatCompletionChoice{Delta: convertedMessage})
-		responses = append(responses, &response)
-	}
-	if bedrockResponse.MessageStop != nil {
-		response := *&baseMessage
-		response.Choices = append(response.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: bedrockResponse.MessageStop.StopReason})
-		responses = append(responses, &response)
-	}
-	if bedrockResponse.Metadata != nil {
-		response := *&baseMessage
-		response.Choices = []chatCompletionChoice{{Delta: &chatMessage{}}}
-		response.Usage = usage{
-			PromptTokens:     bedrockResponse.Metadata.Usage.InputTokens,
-			CompletionTokens: bedrockResponse.Metadata.Usage.OutputTokens,
-			TotalTokens:      bedrockResponse.Metadata.Usage.TotalTokens,
-		}
-		responses = append(responses, &response)
-	}
-	return responses
-}
-
 func (b *bedrockProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	bedrockResponse := &bedrockConverseResponse{}
 	if err := json.Unmarshal(body, bedrockResponse); err != nil {
+		log.Errorf("unable to unmarshal bedrock response: %v", err)
 		return nil, fmt.Errorf("unable to unmarshal bedrock response: %v", err)
 	}
 	response := b.buildChatCompletionResponse(ctx, bedrockResponse)
@@ -250,11 +622,10 @@ func (b *bedrockProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, b
 	}
 
 	streaming := request.Stream
+	headers.Set("Accept", "*/*")
 	if streaming {
-		headers.Set("Accept", "text/event-stream")
 		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockStreamChatCompletionPath, request.Model))
 	} else {
-		headers.Set("Accept", "*/*")
 		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockChatCompletionPath, request.Model))
 	}
 	return b.buildBedrockTextGenerationRequest(request, headers)
@@ -294,10 +665,10 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				Role:    bedrockResponse.Output.Message.Role,
 				Content: outputContent,
 			},
-			FinishReason: bedrockResponse.StopReason,
+			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
 		},
 	}
-	requestId, _ := proxywasm.GetHttpResponseHeader("x-amzn-requestid")
+	requestId := ctx.GetStringContext("X-Amzn-Requestid", "")
 	return &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
@@ -310,6 +681,19 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 			CompletionTokens: bedrockResponse.Usage.OutputTokens,
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
 		},
+	}
+}
+
+func stopReasonBedrock2OpenAI(reason string) string {
+	switch reason {
+	case "end_turn":
+		return finishReasonStop
+	case "stop_sequence":
+		return finishReasonStop
+	case "max_tokens":
+		return finishReasonLength
+	default:
+		return reason
 	}
 }
 
@@ -350,9 +734,9 @@ type imageSource struct {
 
 type bedrockInferenceConfig struct {
 	StopSequences []string `json:"stopSequences,omitempty"`
-	MaxTokens     int      `json:"max_tokens,omitempty"`
+	MaxTokens     int      `json:"maxTokens,omitempty"`
 	Temperature   float64  `json:"temperature,omitempty"`
-	TopP          float64  `json:"top_p,omitempty"`
+	TopP          float64  `json:"topP,omitempty"`
 }
 
 type bedrockConverseResponse struct {
@@ -419,24 +803,27 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 	amzDate := t.Format("20060102T150405Z")
 	dateStamp := t.Format("20060102")
 	path, _ := proxywasm.GetHttpRequestHeader(":path")
+	if headers != nil {
+		path = headers.Get(":path")
+	}
 	signature := b.generateSignature(path, amzDate, dateStamp, body)
 	if headers != nil {
 		headers.Set("X-Amz-Date", amzDate)
-		headers.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=host;x-amz-date, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, signature))
+		headers.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
 	} else {
 		_ = proxywasm.ReplaceHttpRequestHeader("X-Amz-Date", amzDate)
-		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=host;x-amz-date, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, signature))
+		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
 	}
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
 	hashedPayload := sha256Hex(body)
+	path = urlEncoding(path)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-date:%s\n", endpoint, amzDate)
-	signedHeaders := "host;x-amz-date"
 	canonicalRequest := fmt.Sprintf("%s\n%s\n\n%s\n%s\n%s",
-		httpPostMethod, path, canonicalHeaders, signedHeaders, hashedPayload)
+		httpPostMethod, path, canonicalHeaders, bedrockSignedHeaders, hashedPayload)
 
 	credentialScope := fmt.Sprintf("%s/%s/%s/aws4_request", dateStamp, b.config.awsRegion, awsService)
 	hashedCanonReq := sha256Hex([]byte(canonicalRequest))
@@ -446,6 +833,16 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	signingKey := getSignatureKey(b.config.awsSecretKey, dateStamp, b.config.awsRegion, awsService)
 	signature := hmacHex(signingKey, stringToSign)
 	return signature
+}
+
+func urlEncoding(rawStr string) string {
+	encodedStr := strings.ReplaceAll(rawStr, ":", "%3A")
+	encodedStr = strings.ReplaceAll(encodedStr, "+", "%2B")
+	encodedStr = strings.ReplaceAll(encodedStr, "=", "%3D")
+	encodedStr = strings.ReplaceAll(encodedStr, "&", "%26")
+	encodedStr = strings.ReplaceAll(encodedStr, "$", "%24")
+	encodedStr = strings.ReplaceAll(encodedStr, "@", "%40")
+	return encodedStr
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {
