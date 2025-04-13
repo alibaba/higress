@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	template "github.com/higress-group/gjson_template"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -130,6 +131,82 @@ func templateFuncs() template.FuncMap {
 				return parseIP(string(bs), false)
 			}
 			return ""
+		},
+		// Convert time to a specified timezone and format it
+		// Usage: {{ dateInZone "2006-01-02 15:04:05" now "America/New_York" }}
+		// Compatible with Sprig's dateInZone function (format, timeValue, timezone)
+		// If useStandardTime is not provided, it defaults to true
+		"dateInZone": func(format string, timeValue interface{}, timezone string, useStandardTime ...bool) string {
+			var t time.Time
+
+			// Handle different types of time values
+			switch tv := timeValue.(type) {
+			case string:
+				// Special case for "now"
+				if tv == "now" {
+					t = time.Now().UTC()
+				} else {
+					// Parse the time string
+					var err error
+					// Try to parse time formats
+					formats := []string{
+						// Format for time.String() output: "2006-01-02 15:04:05.999999999 -0700 MST"
+						"2006-01-02 15:04:05.999999999 -0700 MST",
+						// Format for time.String() with monotonic clock: "2006-01-02 15:04:05.999999999 -0700 MST m=±0.000000000"
+						"2006-01-02 15:04:05.999999999 -0700 MST m=+0.000000000",
+					}
+
+					parsed := false
+					for _, f := range formats {
+						if t, err = time.Parse(f, tv); err == nil {
+							parsed = true
+							break
+						}
+
+						// Special handling for time.String() with monotonic clock
+						if strings.Contains(tv, " m=") {
+							// Extract the part before " m="
+							parts := strings.Split(tv, " m=")
+							if len(parts) > 0 {
+								if t, err = time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", parts[0]); err == nil {
+									parsed = true
+									break
+								}
+							}
+						}
+					}
+
+					if !parsed {
+						return fmt.Sprintf("Error parsing time: %v", err)
+					}
+				}
+			case time.Time:
+				// If it's already a time.Time, use it directly
+				t = tv
+			default:
+				// For any other type, convert to string and try to parse
+				timeStr := fmt.Sprintf("%v", tv)
+				if timeStr == "now" {
+					t = time.Now().UTC()
+				} else {
+					return fmt.Sprintf("Error: unsupported time value type: %T", tv)
+				}
+			}
+
+			// Default to standard time if not specified
+			stdTime := true
+			if len(useStandardTime) > 0 {
+				stdTime = useStandardTime[0]
+			}
+
+			// Convert from UTC to the target timezone
+			converted, err := utils.ConvertTime(t, "UTC", timezone, stdTime)
+			if err != nil {
+				return fmt.Sprintf("Error converting time: %v", err)
+			}
+
+			// Format the time according to the provided format
+			return converted.Format(format)
 		},
 	}
 }
