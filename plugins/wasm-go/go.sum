@@ -22,6 +22,8 @@ github.com/higress-group/gjson_template v0.0.0-20250412161735-977d6c10ae72 h1:Jg
 github.com/higress-group/gjson_template v0.0.0-20250412161735-977d6c10ae72/go.mod h1:rU3M+Tq5VrQOo0dxpKHGb03Ty0sdWIZfAH+YCOACx/Y=
 github.com/higress-group/gjson_template v0.0.0-20250413071454-1972d4daa190 h1:0hJq4K0NFt+SKXKoxcdKm/MihK1Fag2lek+uWt7yBCg=
 github.com/higress-group/gjson_template v0.0.0-20250413071454-1972d4daa190/go.mod h1:rU3M+Tq5VrQOo0dxpKHGb03Ty0sdWIZfAH+YCOACx/Y=
+github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b h1:rRI9+ThQbe+nw4jUiYEyOFaREkXCMMW9k1X2gy2d6pE=
+github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b/go.mod h1:rU3M+Tq5VrQOo0dxpKHGb03Ty0sdWIZfAH+YCOACx/Y=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711 h1:n5sZwSZWQ5uKS69hu50/0gliTFrIJ1w+g/FSdIIiZIs=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250323151219-d75620c61711/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 h1:Ta+RBsZYML3hjoenbGJoS2L6aWJN+hqlxKoqzj/Y2SY=
