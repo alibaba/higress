@@ -78,7 +78,7 @@ type RestTool struct {
 	Name             string                   `json:"name"`
 	Description      string                   `json:"description"`
 	Args             []RestToolArg            `json:"args"`
-	RequestTemplate  RestToolRequestTemplate  `json:"requestTemplate"`
+	RequestTemplate  RestToolRequestTemplate  `json:"requestTemplate,omitempty"`
 	ResponseTemplate RestToolResponseTemplate `json:"responseTemplate"`
 
 	// Parsed templates (not from JSON)
@@ -89,6 +89,9 @@ type RestTool struct {
 
 	// Map of argument names to their positions
 	argPositions map[string]string
+
+	// Flag to indicate if this is a direct response tool (no HTTP request)
+	isDirectResponseTool bool
 }
 
 // parseIP
@@ -139,42 +142,47 @@ func templateFuncs() template.FuncMap {
 func (t *RestTool) parseTemplates() error {
 	var err error
 
-	// Validate args configuration - only one of the three options can be true
-	argsOptionCount := 0
-	if t.RequestTemplate.ArgsToJsonBody {
-		argsOptionCount++
-	}
-	if t.RequestTemplate.ArgsToUrlParam {
-		argsOptionCount++
-	}
-	if t.RequestTemplate.ArgsToFormBody {
-		argsOptionCount++
-	}
-	if argsOptionCount > 1 {
-		return fmt.Errorf("only one of argsToJsonBody, argsToUrlParam, or argsToFormBody can be set to true")
-	}
-
-	// Parse URL template
-	t.parsedURLTemplate, err = template.New("url").Funcs(templateFuncs()).Parse(t.RequestTemplate.URL)
-	if err != nil {
-		return fmt.Errorf("error parsing URL template: %v", err)
-	}
-
-	// Parse header templates
-	t.parsedHeaderTemplates = make(map[string]*template.Template)
-	for i, header := range t.RequestTemplate.Headers {
-		tmplName := fmt.Sprintf("header_%d", i)
-		t.parsedHeaderTemplates[header.Key], err = template.New(tmplName).Funcs(templateFuncs()).Parse(header.Value)
-		if err != nil {
-			return fmt.Errorf("error parsing header template for %s: %v", header.Key, err)
+	// Check if this is a direct response tool (no RequestTemplate)
+	if t.RequestTemplate.URL == "" {
+		t.isDirectResponseTool = true
+	} else {
+		// Validate args configuration - only one of the three options can be true
+		argsOptionCount := 0
+		if t.RequestTemplate.ArgsToJsonBody {
+			argsOptionCount++
 		}
-	}
+		if t.RequestTemplate.ArgsToUrlParam {
+			argsOptionCount++
+		}
+		if t.RequestTemplate.ArgsToFormBody {
+			argsOptionCount++
+		}
+		if argsOptionCount > 1 {
+			return fmt.Errorf("only one of argsToJsonBody, argsToUrlParam, or argsToFormBody can be set to true")
+		}
 
-	// Parse body template if present
-	if t.RequestTemplate.Body != "" {
-		t.parsedBodyTemplate, err = template.New("body").Funcs(templateFuncs()).Parse(t.RequestTemplate.Body)
+		// Parse URL template
+		t.parsedURLTemplate, err = template.New("url").Funcs(templateFuncs()).Parse(t.RequestTemplate.URL)
 		if err != nil {
-			return fmt.Errorf("error parsing body template: %v", err)
+			return fmt.Errorf("error parsing URL template: %v", err)
+		}
+
+		// Parse header templates
+		t.parsedHeaderTemplates = make(map[string]*template.Template)
+		for i, header := range t.RequestTemplate.Headers {
+			tmplName := fmt.Sprintf("header_%d", i)
+			t.parsedHeaderTemplates[header.Key], err = template.New(tmplName).Funcs(templateFuncs()).Parse(header.Value)
+			if err != nil {
+				return fmt.Errorf("error parsing header template for %s: %v", header.Key, err)
+			}
+		}
+
+		// Parse body template if present
+		if t.RequestTemplate.Body != "" {
+			t.parsedBodyTemplate, err = template.New("body").Funcs(templateFuncs()).Parse(t.RequestTemplate.Body)
+			if err != nil {
+				return fmt.Errorf("error parsing body template: %v", err)
+			}
 		}
 	}
 
@@ -414,6 +422,29 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	templateDataBytes, _ = sjson.SetBytes(templateDataBytes, "config", config)
 	templateDataBytes, _ = sjson.SetBytes(templateDataBytes, "args", t.arguments)
 
+	// Check if this is a direct response tool (no HTTP request needed)
+	if t.toolConfig.isDirectResponseTool {
+		// Process response directly
+		var result string
+
+		// Render the response template with the arguments
+		if t.toolConfig.parsedResponseTemplate != nil {
+			templateResult, err := executeTemplate(t.toolConfig.parsedResponseTemplate, templateDataBytes)
+			if err != nil {
+				return fmt.Errorf("error executing response template: %v", err)
+			}
+			result = templateResult
+		} else {
+			// Fallback if no template is provided
+			result = "success"
+		}
+
+		// Send the result
+		utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
+		return nil
+	}
+
+	// Regular REST tool with HTTP request
 	// Execute URL template
 	urlStr, err := executeTemplate(t.toolConfig.parsedURLTemplate, templateDataBytes)
 	if err != nil {
