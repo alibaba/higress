@@ -419,6 +419,16 @@ func (s *MCPServer) HandleMessage(
 			)
 		}
 		return s.handleToolCall(ctx, baseMessage.ID, request)
+	case "":
+		var response mcp.JSONRPCResponse
+		if err := json.Unmarshal(message, &response); err != nil {
+			return createErrorResponse(
+				baseMessage.ID,
+				mcp.INVALID_REQUEST,
+				"Invalid message format",
+			)
+		}
+		return nil
 	default:
 		return createErrorResponse(
 			baseMessage.ID,
