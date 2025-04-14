@@ -10,35 +10,42 @@ import (
 )
 
 type RedisConfig struct {
-	Address  string
-	Username string
-	Password string
-	DB       int
+	address  string
+	username string
+	password string
+	db       int
+	secret   string // Encryption key
 }
 
-func ParseRedisConfig(config map[string]any) (*RedisConfig, error) {
+// ParseRedisConfig parses Redis configuration from a map
+func ParseRedisConfig(config map[string]interface{}) (*RedisConfig, error) {
 	c := &RedisConfig{}
 
 	// address is required
-	addr, ok := config["address"].(string)
-	if !ok {
-		return nil, fmt.Errorf("address is required and must be a string")
+	if addr, ok := config["address"].(string); ok && addr != "" {
+		c.address = addr
+	} else {
+		return nil, fmt.Errorf("address is required and must be a non-empty string")
 	}
-	c.Address = addr
 
 	// username is optional
 	if username, ok := config["username"].(string); ok {
-		c.Username = username
+		c.username = username
 	}
 
 	// password is optional
 	if password, ok := config["password"].(string); ok {
-		c.Password = password
+		c.password = password
 	}
 
 	// db is optional, default to 0
 	if db, ok := config["db"].(int); ok {
-		c.DB = db
+		c.db = db
+	}
+
+	// secret is optional
+	if secret, ok := config["secret"].(string); ok {
+		c.secret = secret
 	}
 
 	return c, nil
@@ -50,15 +57,16 @@ type RedisClient struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	config *RedisConfig
+	crypto *Crypto
 }
 
 // NewRedisClient creates a new RedisClient instance and establishes a connection to the Redis server
 func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     config.Address,
-		Username: config.Username,
-		Password: config.Password,
-		DB:       config.DB,
+		Addr:     config.address,
+		Username: config.username,
+		Password: config.password,
+		DB:       config.db,
 	})
 
 	// Ping the Redis server to check the connection
@@ -69,11 +77,22 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	api.LogDebugf("Connected to Redis: %s", pong)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	var crypto *Crypto
+	if config.secret != "" {
+		crypto, err = NewCrypto(config.secret)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+
 	redisClient := &RedisClient{
 		client: client,
 		ctx:    ctx,
 		cancel: cancel,
 		config: config,
+		crypto: crypto,
 	}
 
 	// Start keep-alive check
@@ -117,10 +136,10 @@ func (r *RedisClient) reconnect() error {
 
 	// Create new client
 	r.client = redis.NewClient(&redis.Options{
-		Addr:     r.config.Address,
-		Username: r.config.Username,
-		Password: r.config.Password,
-		DB:       r.config.DB,
+		Addr:     r.config.address,
+		Username: r.config.username,
+		Password: r.config.password,
+		DB:       r.config.db,
 	})
 
 	// Test the new connection
@@ -150,6 +169,12 @@ func (r *RedisClient) Subscribe(channel string, stopChan chan struct{}, callback
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Redis Subscribe recovered from panic: %v", r)
+			}
+		}()
+
 		defer func() {
 			pubsub.Close()
 			api.LogDebugf("Closed subscription to channel %s", channel)
@@ -184,7 +209,19 @@ func (r *RedisClient) Subscribe(channel string, stopChan chan struct{}, callback
 
 // Set sets the value of a key in Redis
 func (r *RedisClient) Set(key string, value string, expiration time.Duration) error {
-	err := r.client.Set(r.ctx, key, value, expiration).Err()
+	var finalValue string
+	if r.crypto != nil {
+		// Encrypt the data
+		encryptedValue, err := r.crypto.Encrypt([]byte(value))
+		if err != nil {
+			return fmt.Errorf("failed to encrypt value: %w", err)
+		}
+		finalValue = encryptedValue
+	} else {
+		finalValue = value
+	}
+
+	err := r.client.Set(r.ctx, key, finalValue, expiration).Err()
 	if err != nil {
 		return fmt.Errorf("failed to set key: %w", err)
 	}
@@ -193,17 +230,37 @@ func (r *RedisClient) Set(key string, value string, expiration time.Duration) er
 
 // Get retrieves the value of a key from Redis
 func (r *RedisClient) Get(key string) (string, error) {
-	val, err := r.client.Get(r.ctx, key).Result()
+	value, err := r.client.Get(r.ctx, key).Result()
 	if err == redis.Nil {
 		return "", fmt.Errorf("key does not exist")
 	} else if err != nil {
 		return "", fmt.Errorf("failed to get key: %w", err)
 	}
-	return val, nil
+
+	if r.crypto != nil {
+		// Decrypt the data
+		decryptedValue, err := r.crypto.Decrypt(value)
+		if err != nil {
+			return "", fmt.Errorf("failed to decrypt value: %w", err)
+		}
+		return string(decryptedValue), nil
+	}
+
+	return value, nil
 }
 
 // Close closes the Redis client and stops the keepalive goroutine
 func (r *RedisClient) Close() error {
 	r.cancel()
 	return r.client.Close()
+}
+
+// Eval executes a Lua script
+func (r *RedisClient) Eval(script string, numKeys int, keys []string, args []interface{}) (interface{}, error) {
+	result, err := r.client.Eval(r.ctx, script, keys, args...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute Lua script: %w", err)
+	}
+
+	return result, nil
 }

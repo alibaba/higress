@@ -28,10 +28,6 @@ type SSEServer struct {
 	redisClient     *RedisClient // Redis client for pub/sub
 }
 
-func (s *SSEServer) SetBaseURL(baseURL string) {
-	s.baseURL = baseURL
-}
-
 func (s *SSEServer) GetMessageEndpoint() string {
 	return s.messageEndpoint
 }
@@ -148,6 +144,12 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 	// Start health check handler
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Health check handler recovered from panic: %v", r)
+			}
+		}()
+
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
@@ -158,7 +160,15 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 			case <-ticker.C:
 				// Send health check message
 				currentTime := time.Now().Format(time.RFC3339)
-				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
+				pingRequest := mcp.JSONRPCRequest{
+					JSONRPC: mcp.JSONRPC_VERSION,
+					ID:      currentTime,
+					Request: mcp.Request{
+						Method: "ping",
+					},
+				}
+				pingData, _ := json.Marshal(pingRequest)
+				healthCheckEvent := fmt.Sprintf("event: message\ndata: %s\n\n", pingData)
 				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
 					api.LogErrorf("Failed to send health check: %v", err)
 				}
@@ -202,7 +212,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	if response != nil {
 		eventData, _ := json.Marshal(response)
 
-		if sessionID != "" {
+		if sessionID != "" && s.redisClient != nil {
 			channel := GetSSEChannelName(sessionID)
 			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
 
