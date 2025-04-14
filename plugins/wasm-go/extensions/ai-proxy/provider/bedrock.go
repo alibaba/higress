@@ -549,62 +549,6 @@ func (b *bedrockProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName
 	return nil, errUnsupportedApiName
 }
 
-type bedrockConverseStreamResponse struct {
-	MessageStart      *MessageStartEvent           `json:"messageStart,omitempty"`
-	ContentBlockStart *ContentBlockStartEvent      `json:"contentBlockStart,omitempty"`
-	ContentBlockDelta *ContentBlockDeltaEvent      `json:"contentBlockDelta,omitempty"`
-	ContentBlockStop  *ContentBlockStopEvent       `json:"contentBlockStop,omitempty"`
-	MessageStop       *MessageStopEvent            `json:"messageStop,omitempty"`
-	Metadata          *ConverseStreamMetadataEvent `json:"metadata,omitempty"`
-}
-
-type MessageStartEvent struct {
-	Role string `json:"role"`
-}
-
-type ContentBlockStartEvent struct {
-	ContentBlockIndex int `json:"contentBlockIndex"`
-	Start             struct {
-		ToolUse struct {
-			ToolUseId string `json:"toolUseId"`
-			Name      string `json:"name"`
-		} `json:"toolUse,omitempty"`
-	} `json:"start"`
-}
-
-type ContentBlockDeltaEvent struct {
-	ContentBlockIndex int `json:"contentBlockIndex"`
-	Delta             struct {
-		Text             string `json:"text,omitempty"`
-		ReasoningContent struct {
-			Signature string `json:"signature"`
-			Text      string `json:"text"`
-		} `json:"reasoningContent,omitempty"`
-		ToolUse struct {
-			Input string `json:"input"`
-		} `json:"toolUse,omitempty"`
-	} `json:"delta"`
-}
-
-type ContentBlockStopEvent struct {
-	ContentBlockIndex int `json:"contentBlockIndex"`
-}
-
-type MessageStopEvent struct {
-	StopReason string `json:"stopReason"`
-}
-
-type ConverseStreamMetadataEvent struct {
-	Usage struct {
-		InputTokens  int `json:"inputTokens"`
-		OutputTokens int `json:"outputTokens"`
-		TotalTokens  int `json:"totalTokens"`
-	} `json:"usage"`
-	Metrics struct {
-		LatencyMs float64 `json:"latencyMs"`
-	} `json:"metrics"`
-}
-
 func (b *bedrockProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	bedrockResponse := &bedrockConverseResponse{}
 	if err := json.Unmarshal(body, bedrockResponse); err != nil {
