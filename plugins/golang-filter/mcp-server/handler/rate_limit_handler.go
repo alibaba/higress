@@ -66,8 +66,8 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 	serverName := parts[1]
 	uid := parts[2]
 
-	// Build rate limit key using serverName and uid
-	limitKey := fmt.Sprintf("limit:%s:%s", serverName, uid)
+	// Build rate limit key using serverName, uid, window and limit
+	limitKey := fmt.Sprintf("mcp-server-limit:%s:%s:%d:%d", serverName, uid, h.window, h.limit)
 	keys := []string{limitKey}
 
 	args := []interface{}{h.limit, h.window}
