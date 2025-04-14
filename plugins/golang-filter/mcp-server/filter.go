@@ -5,10 +5,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+)
+
+const (
+	RedisNotEnabledResponseBody = "Redis is not enabled, SSE connection is not supported"
 )
 
 // The callbacks in the filter, like `DecodeHeaders`, can be implemented on demand.
@@ -26,15 +32,20 @@ type filter struct {
 	message    bool
 	proxyURL   *url.URL
 	skip       bool
+
+	userLevelConfig     bool
+	mcpConfigHandler    *handler.MCPConfigHandler
+	mcpRatelimitHandler *handler.MCPRatelimitHandler
 }
 
 type RequestURL struct {
-	method    string
-	scheme    string
-	host      string
-	path      string
-	baseURL   string
-	parsedURL *url.URL
+	method     string
+	scheme     string
+	host       string
+	path       string
+	baseURL    string
+	parsedURL  *url.URL
+	internalIP bool
 }
 
 func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
@@ -42,10 +53,11 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	scheme, _ := header.Get(":scheme")
 	host, _ := header.Get(":authority")
 	path, _ := header.Get(":path")
+	internalIP, _ := header.Get("x-envoy-internal")
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	parsedURL, _ := url.Parse(path)
 	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
-	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL}
+	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL, internalIP: internalIP == "true"}
 }
 
 // Callbacks which are called in request path
@@ -71,11 +83,11 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 			}
 			api.LogDebugf("%s SSE connection started", server.GetServerName())
-			server.SetBaseURL(url.baseURL)
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() {
 			if url.method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
+				return api.LocalReply
 			}
 			// Create a new http.Request object
 			f.req = &http.Request{
@@ -97,8 +109,57 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			}
 		}
 	}
+
+	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
+		if !url.internalIP {
+			api.LogWarnf("Access denied: non-internal IP address %s", url.parsedURL.String())
+			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
+			return api.LocalReply
+		}
+		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
+			api.LogDebugf("Handling config request: %s", f.path)
+			f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{})
+			return api.LocalReply
+		}
+		f.req = &http.Request{
+			Method: url.method,
+			URL:    url.parsedURL,
+		}
+		f.userLevelConfig = true
+		if endStream {
+			return api.Continue
+		} else {
+			return api.StopAndBuffer
+		}
+	}
+
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
 		f.proxyURL = url.parsedURL
+		if f.config.enableUserLevelServer {
+			parts := strings.Split(url.parsedURL.Path, "/")
+			if len(parts) < 3 {
+				api.LogDebugf("Access denied: missing uid in path %s", url.parsedURL.Path)
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied: missing uid", nil, 0, "")
+				return api.LocalReply
+			}
+			serverName := parts[1]
+			uid := parts[2]
+			// Get encoded config
+			encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+			if err != nil {
+				api.LogWarnf("Access denied: no valid config found for uid %s", uid)
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
+				return api.LocalReply
+			} else if encodedConfig != "" {
+				header.Set("x-higress-mcpserver-config", encodedConfig)
+				api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
+			} else {
+				api.LogDebugf("Empty config found for %s:%s", serverName, uid)
+				if !f.mcpRatelimitHandler.HandleRatelimit(url.parsedURL.Path, url.method, []byte{}) {
+					return api.LocalReply
+				}
+			}
+		}
 		return api.Continue
 	}
 
@@ -112,7 +173,6 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
-		f.config.defaultServer.SetBaseURL(url.baseURL)
 	}
 	return api.LocalReply
 }
@@ -138,6 +198,11 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			}
 		}
 		return api.StopAndBuffer
+	} else if f.userLevelConfig {
+		// Handle config POST request
+		api.LogDebugf("Handling config request: %s", f.path)
+		f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes())
+		return api.LocalReply
 	}
 	return api.Continue
 }
@@ -149,11 +214,15 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 		return api.Continue
 	}
 	if f.serverName != "" {
-		header.Set("Content-Type", "text/event-stream")
-		header.Set("Cache-Control", "no-cache")
-		header.Set("Connection", "keep-alive")
-		header.Set("Access-Control-Allow-Origin", "*")
-		header.Del("Content-Length")
+		if f.config.redisClient != nil {
+			header.Set("Content-Type", "text/event-stream")
+			header.Set("Cache-Control", "no-cache")
+			header.Set("Connection", "keep-alive")
+			header.Set("Access-Control-Allow-Origin", "*")
+			header.Del("Content-Length")
+		} else {
+			header.Set("Content-Length", strconv.Itoa(len(RedisNotEnabledResponseBody)))
+		}
 		return api.Continue
 	}
 	return api.Continue
@@ -168,7 +237,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if !endStream {
 		return api.StopAndBuffer
 	}
-	if f.proxyURL != nil {
+	if f.proxyURL != nil && f.config.redisClient != nil {
 		sessionID := f.proxyURL.Query().Get("sessionId")
 		if sessionID != "" {
 			channel := internal.GetSSEChannelName(sessionID)
@@ -181,21 +250,26 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	}
 
 	if f.serverName != "" {
-		// handle specific server
-		for _, server := range f.config.servers {
-			if f.serverName == server.GetServerName() {
+		if f.config.redisClient != nil {
+			// handle specific server
+			for _, server := range f.config.servers {
+				if f.serverName == server.GetServerName() {
+					buffer.Reset()
+					server.HandleSSE(f.callbacks, f.stopChan)
+					return api.Running
+				}
+			}
+			// handle default server
+			if f.serverName == f.config.defaultServer.GetServerName() {
 				buffer.Reset()
-				server.HandleSSE(f.callbacks, f.stopChan)
+				f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
 				return api.Running
 			}
+			return api.Continue
+		} else {
+			buffer.SetString(RedisNotEnabledResponseBody)
+			return api.Continue
 		}
-		// handle default server
-		if f.serverName == f.config.defaultServer.GetServerName() {
-			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
-			return api.Running
-		}
-		return api.Continue
 	}
 	return api.Continue
 }
