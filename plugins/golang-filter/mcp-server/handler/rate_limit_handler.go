@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,15 +14,15 @@ import (
 type MCPRatelimitHandler struct {
 	redisClient *internal.RedisClient
 	callbacks   api.FilterCallbackHandler
-	limit       int64    // Maximum requests allowed per window
-	window      int64    // Time window in seconds
+	limit       int      // Maximum requests allowed per window
+	window      int      // Time window in seconds
 	whitelist   []string // Whitelist of UIDs that bypass rate limiting
 }
 
 // MCPRatelimitConfig is the configuration for the rate limit handler
 type MCPRatelimitConfig struct {
-	Limit     int64    `json:"limit"`
-	Window    int64    `json:"window"`
+	Limit     int      `json:"limit"`
+	Window    int      `json:"window"`
 	Whitelist []string `json:"white_list"` // List of UIDs that bypass rate limiting
 }
 
@@ -30,7 +31,7 @@ func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.Fil
 	if conf == nil {
 		conf = &MCPRatelimitConfig{
 			Limit:     100,
-			Window:    int64(24 * time.Hour), // 24 hours in seconds
+			Window:    int(24 * time.Hour / time.Second), // 24 hours in seconds
 			Whitelist: []string{},
 		}
 	}
@@ -47,19 +48,18 @@ const (
 	// Lua script for rate limiting
 	LimitScript = `
         local ttl = redis.call('ttl', KEYS[1])
-        if ttl < 0 then
-            redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
-            return {ARGV[1], ARGV[1] - 1, ARGV[2]}
-        end
-        local remaining = redis.call('incrby', KEYS[1], -1)
-        return {ARGV[1], remaining, ttl}
+    	if ttl < 0 then
+        	redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
+        	return {ARGV[1], ARGV[1] - 1, ARGV[2]}
+    	end
+    	return {ARGV[1], redis.call('incrby', KEYS[1], -1), ttl}
     `
 )
 
 type LimitContext struct {
-	Count     int64 // Current request count
-	Remaining int64 // Remaining requests allowed
-	Reset     int64 // Time until reset in seconds
+	Count     int // Current request count
+	Remaining int // Remaining requests allowed
+	Reset     int // Time until reset in seconds
 }
 
 func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body []byte) bool {
@@ -100,9 +100,9 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 	}
 
 	context := LimitContext{
-		Count:     resultArray[0].(int64),
-		Remaining: resultArray[1].(int64),
-		Reset:     resultArray[2].(int64),
+		Count:     parseRedisValue(resultArray[0]),
+		Remaining: parseRedisValue(resultArray[1]),
+		Reset:     parseRedisValue(resultArray[2]),
 	}
 
 	if context.Remaining < 0 {
@@ -111,4 +111,19 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 	}
 
 	return true
+}
+
+// parseRedisValue converts the value from Redis to an int
+func parseRedisValue(value interface{}) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case string:
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return 0
 }

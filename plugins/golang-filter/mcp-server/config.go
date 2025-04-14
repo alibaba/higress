@@ -114,14 +114,18 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 	if rateLimit, ok := v.AsMap()["rate_limit"].(map[string]interface{}); ok {
 		rateLimitConfig := &handler.MCPRatelimitConfig{}
-		if limit, ok := rateLimit["limit"].(int64); ok {
-			rateLimitConfig.Limit = limit
+		if limit, ok := rateLimit["limit"].(float64); ok {
+			rateLimitConfig.Limit = int(limit)
 		}
-		if window, ok := rateLimit["window"].(int64); ok {
-			rateLimitConfig.Window = window
+		if window, ok := rateLimit["window"].(float64); ok {
+			rateLimitConfig.Window = int(window)
 		}
-		if whiteList, ok := rateLimit["white_list"].([]string); ok {
-			rateLimitConfig.Whitelist = whiteList
+		if whiteList, ok := rateLimit["white_list"].([]interface{}); ok {
+			for _, item := range whiteList {
+				if uid, ok := item.(string); ok {
+					rateLimitConfig.Whitelist = append(rateLimitConfig.Whitelist, uid)
+				}
+			}
 		}
 		conf.rateLimitConfig = rateLimitConfig
 	}
