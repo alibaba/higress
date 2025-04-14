@@ -90,6 +90,11 @@ func (h *MCPConfigHandler) handleStoreConfig(serverName string, uid string, body
 		return true
 	}
 
+	if requestBody.Config == nil {
+		h.sendErrorResponse(http.StatusBadRequest, "INVALID_REQUEST", "Config cannot be null")
+		return true
+	}
+
 	response, err := h.configStore.StoreConfig(serverName, uid, requestBody.Config)
 	if err != nil {
 		api.LogErrorf("Failed to store config for server %s, uid %s: %v", serverName, uid, err)
