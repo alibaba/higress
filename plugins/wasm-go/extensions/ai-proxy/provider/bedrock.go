@@ -493,6 +493,7 @@ func (b *bedrockProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiN
 	if headers.Get("Content-Type") == "application/vnd.amazon.eventstream" {
 		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
 	}
+	headers.Del("Content-Length")
 }
 
 func (b *bedrockProvider) GetProviderType() string {
