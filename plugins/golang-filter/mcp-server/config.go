@@ -120,6 +120,9 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		if window, ok := rateLimit["window"].(int64); ok {
 			rateLimitConfig.Window = window
 		}
+		if whiteList, ok := rateLimit["white_list"].([]string); ok {
+			rateLimitConfig.Whitelist = whiteList
+		}
 		conf.rateLimitConfig = rateLimitConfig
 	}
 

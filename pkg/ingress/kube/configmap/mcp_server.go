@@ -47,6 +47,8 @@ type MCPRatelimitConfig struct {
 	Limit int64 `json:"limit,omitempty"`
 	// The window of the rate limit
 	Window int64 `json:"window,omitempty"`
+	// The white list of the rate limit
+	WhiteList []string `json:"white_list,omitempty"`
 }
 
 // SSEServer defines the configuration for Server-Sent Events (SSE) server
@@ -164,8 +166,9 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 	}
 	if mcp.Ratelimit != nil {
 		newMcp.Ratelimit = &MCPRatelimitConfig{
-			Limit:  mcp.Ratelimit.Limit,
-			Window: mcp.Ratelimit.Window,
+			Limit:     mcp.Ratelimit.Limit,
+			Window:    mcp.Ratelimit.Window,
+			WhiteList: mcp.Ratelimit.WhiteList,
 		}
 	}
 	newMcp.SsePathSuffix = mcp.SsePathSuffix
@@ -388,7 +391,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 						"sse_path_suffix": "%s",
 						"match_list": %s,
 						"servers": %s,
-						"enable_user_level_server": %t
+						"enable_user_level_server": %t,
 					}
 				}
 			}
@@ -406,14 +409,16 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 					},`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
 	}
 
-	rateLimitField := ""
-	if mcp.Ratelimit != nil {
-		rateLimitField = fmt.Sprintf(`
+	whiteList := "[]"
+	if len(mcp.Ratelimit.WhiteList) > 0 {
+		whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
+	}
+	rateLimitField := fmt.Sprintf(`
 					"rate_limit": {
 						"limit": %d,
-						"window": %d
-					},`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window)
-	}
+						"window": %d,
+						"white_list": %s
+					},`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
 
 	return fmt.Sprintf(structBase,
 		redisField,

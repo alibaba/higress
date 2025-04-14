@@ -33,6 +33,7 @@ type filter struct {
 	proxyURL   *url.URL
 	skip       bool
 
+	userLevelConfig     bool
 	mcpConfigHandler    *handler.MCPConfigHandler
 	mcpRatelimitHandler *handler.MCPRatelimitHandler
 }
@@ -83,19 +84,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			}
 			api.LogDebugf("%s SSE connection started", server.GetServerName())
 			return api.LocalReply
-		} else if f.path == server.GetMessageEndpoint() || strings.HasSuffix(f.path, ConfigPathSuffix) {
-			if f.config.enableUserLevelServer {
-				if strings.HasSuffix(f.path, ConfigPathSuffix) && !url.internalIP {
-					f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
-					return api.LocalReply
-				}
-				if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
-					api.LogDebugf("Handling config request: %s", f.path)
-					if f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{}) {
-						return api.LocalReply
-					}
-				}
-			}
+		} else if f.path == server.GetMessageEndpoint() {
 			if f.path == server.GetMessageEndpoint() && url.method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
@@ -120,25 +109,53 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			}
 		}
 	}
+
+	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
+		if !url.internalIP {
+			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
+			return api.LocalReply
+		}
+		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
+			api.LogDebugf("Handling config request: %s", f.path)
+			f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{})
+			return api.LocalReply
+		}
+		f.req = &http.Request{
+			Method: url.method,
+			URL:    url.parsedURL,
+		}
+		f.userLevelConfig = true
+		if endStream {
+			return api.Continue
+		} else {
+			return api.StopAndBuffer
+		}
+	}
+
 	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
 		f.proxyURL = url.parsedURL
 		if f.config.enableUserLevelServer {
 			parts := strings.Split(url.parsedURL.Path, "/")
-			if len(parts) >= 3 {
-				serverName := parts[1]
-				uid := parts[2]
-				// Get encoded config
-				encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
-				if err != nil {
-					api.LogDebugf("user is using shared/public API key (no custom config found)")
-					if !f.mcpRatelimitHandler.HandleRatelimit(url.parsedURL.Path, url.method, []byte{}) {
-						return api.LocalReply
-					}
-				} else if encodedConfig != "" {
-					header.Set("x-higress-mcpserver-config", encodedConfig)
-					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
-				} else {
-					api.LogDebugf("Empty config found for %s:%s", serverName, uid)
+			if len(parts) < 3 {
+				api.LogDebugf("Access denied: missing uid in path %s", url.parsedURL.Path)
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied: missing uid", nil, 0, "")
+				return api.LocalReply
+			}
+			serverName := parts[1]
+			uid := parts[2]
+			// Get encoded config
+			encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+			if err != nil {
+				api.LogWarnf("Access denied: no valid config found for uid %s", uid)
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
+				return api.LocalReply
+			} else if encodedConfig != "" {
+				header.Set("x-higress-mcpserver-config", encodedConfig)
+				api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
+			} else {
+				api.LogDebugf("Empty config found for %s:%s", serverName, uid)
+				if !f.mcpRatelimitHandler.HandleRatelimit(url.parsedURL.Path, url.method, []byte{}) {
+					return api.LocalReply
 				}
 			}
 		}
@@ -167,16 +184,6 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	}
 	if f.message {
 		if endStream {
-			if f.config.enableUserLevelServer {
-				// Handle config POST request
-				if strings.HasSuffix(f.path, ConfigPathSuffix) {
-					api.LogDebugf("Handling config request: %s", f.path)
-					if f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes()) {
-						return api.LocalReply
-					}
-				}
-			}
-
 			for _, server := range f.config.servers {
 				if f.path == server.GetMessageEndpoint() {
 					// Create a response recorder to capture the response
@@ -190,6 +197,11 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			}
 		}
 		return api.StopAndBuffer
+	} else if f.userLevelConfig {
+		// Handle config POST request
+		api.LogDebugf("Handling config request: %s", f.path)
+		f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes())
+		return api.LocalReply
 	}
 	return api.Continue
 }

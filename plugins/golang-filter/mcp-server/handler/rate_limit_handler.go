@@ -13,22 +13,25 @@ import (
 type MCPRatelimitHandler struct {
 	redisClient *internal.RedisClient
 	callbacks   api.FilterCallbackHandler
-	limit       int64 // Maximum requests allowed per window
-	window      int64 // Time window in seconds
+	limit       int64    // Maximum requests allowed per window
+	window      int64    // Time window in seconds
+	whitelist   []string // Whitelist of UIDs that bypass rate limiting
 }
 
 // MCPRatelimitConfig is the configuration for the rate limit handler
 type MCPRatelimitConfig struct {
-	Limit  int64 `json:"limit"`
-	Window int64 `json:"window"`
+	Limit     int64    `json:"limit"`
+	Window    int64    `json:"window"`
+	Whitelist []string `json:"white_list"` // List of UIDs that bypass rate limiting
 }
 
 // NewMCPRatelimitHandler creates a new rate limit handler
 func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.FilterCallbackHandler, conf *MCPRatelimitConfig) *MCPRatelimitHandler {
 	if conf == nil {
 		conf = &MCPRatelimitConfig{
-			Limit:  100,
-			Window: int64(24 * time.Hour), // 24 hours in seconds
+			Limit:     100,
+			Window:    int64(24 * time.Hour), // 24 hours in seconds
+			Whitelist: []string{},
 		}
 	}
 	return &MCPRatelimitHandler{
@@ -36,6 +39,7 @@ func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.Fil
 		callbacks:   callbacks,
 		limit:       conf.Limit,
 		window:      conf.Window,
+		whitelist:   conf.Whitelist,
 	}
 }
 
@@ -61,10 +65,18 @@ type LimitContext struct {
 func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body []byte) bool {
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
+		h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
 		return false
 	}
 	serverName := parts[1]
 	uid := parts[2]
+
+	// Check if the UID is in whitelist
+	for _, whitelistedUID := range h.whitelist {
+		if whitelistedUID == uid {
+			return true // Bypass rate limiting for whitelisted UIDs
+		}
+	}
 
 	// Build rate limit key using serverName, uid, window and limit
 	limitKey := fmt.Sprintf("mcp-server-limit:%s:%s:%d:%d", serverName, uid, h.window, h.limit)
