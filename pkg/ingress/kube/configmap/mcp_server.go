@@ -375,8 +375,33 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 	}
 
+	// 构建 Redis 配置
+	redisConfig := "null"
+	if mcp.Redis != nil {
+		redisConfig = fmt.Sprintf(`{
+							"address": "%s",
+							"username": "%s",
+							"password": "%s",
+							"db": %d
+						}`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
+	}
+
+	// 构建限流配置
+	rateLimitConfig := "null"
+	if mcp.Ratelimit != nil {
+		whiteList := "[]"
+		if len(mcp.Ratelimit.WhiteList) > 0 {
+			whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
+		}
+		rateLimitConfig = fmt.Sprintf(`{
+							"limit": %d,
+							"window": %d,
+							"white_list": %s
+						}`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
+	}
+
 	// Build complete configuration structure
-	structBase := `{
+	return fmt.Sprintf(`{
 		"name": "envoy.filters.http.golang",
 		"typed_config": {
 			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
@@ -387,45 +412,20 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 				"plugin_name": "mcp-session",
 				"plugin_config": {
 					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-					"value": {%s%s
+					"value": {
+						"redis": %s,
+						"rate_limit": %s,
 						"sse_path_suffix": "%s",
 						"match_list": %s,
 						"servers": %s,
-						"enable_user_level_server": %t,
+						"enable_user_level_server": %t
 					}
 				}
 			}
 		}
-	}`
-
-	redisField := ""
-	if mcp.Redis != nil {
-		redisField = fmt.Sprintf(`
-					"redis": {
-						"address": "%s",
-						"username": "%s",
-						"password": "%s",
-						"db": %d
-					},`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
-	}
-
-	whiteList := "[]"
-	rateLimitField := ""
-	if mcp.Ratelimit != nil {
-		if len(mcp.Ratelimit.WhiteList) > 0 {
-			whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
-		}
-		rateLimitField = fmt.Sprintf(`
-					"rate_limit": {
-						"limit": %d,
-						"window": %d,
-						"white_list": %s
-					},`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
-	}
-
-	return fmt.Sprintf(structBase,
-		redisField,
-		rateLimitField,
+	}`,
+		redisConfig,
+		rateLimitConfig,
 		mcp.SsePathSuffix,
 		matchList,
 		servers,
