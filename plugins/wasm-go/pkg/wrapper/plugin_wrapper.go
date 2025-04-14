@@ -408,7 +408,6 @@ func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...C
 		var config PluginConfig
 		if unsafe.Sizeof(config) != 0 {
 			msg := "the `parseConfig` is missing in NewCommonVmCtx's arguments"
-			ctx.log.Critical(msg)
 			panic(msg)
 		}
 		ctx.hasCustomConfig = false
