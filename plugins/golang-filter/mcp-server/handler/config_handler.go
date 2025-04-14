@@ -134,9 +134,9 @@ func (h *MCPConfigHandler) GetEncodedConfig(serverName string, uid string) (stri
 	}
 
 	// Check if config exists and is not empty
-	if config, ok := conf["config"]; ok && len(config) > 0 {
+	if len(conf) > 0 {
 		// Convert config map to JSON string
-		configBytes, err := json.Marshal(config)
+		configBytes, err := json.Marshal(conf)
 		if err != nil {
 			return "", fmt.Errorf("failed to marshal config: %w", err)
 		}
