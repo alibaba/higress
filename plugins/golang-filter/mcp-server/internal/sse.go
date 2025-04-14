@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/google/uuid"
@@ -143,30 +142,30 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	}
 
 	// Start health check handler
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				api.LogErrorf("Health check handler recovered from panic: %v", r)
-			}
-		}()
+	// go func() {
+	// 	defer func() {
+	// 		if r := recover(); r != nil {
+	// 			api.LogErrorf("Health check handler recovered from panic: %v", r)
+	// 		}
+	// 	}()
 
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
+	// 	ticker := time.NewTicker(5 * time.Second)
+	// 	defer ticker.Stop()
 
-		for {
-			select {
-			case <-stopChan:
-				return
-			case <-ticker.C:
-				// Send health check message
-				currentTime := time.Now().Format(time.RFC3339)
-				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
-				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
-					api.LogErrorf("Failed to send health check: %v", err)
-				}
-			}
-		}
-	}()
+	// 	for {
+	// 		select {
+	// 		case <-stopChan:
+	// 			return
+	// 		case <-ticker.C:
+	// 			// Send health check message
+	// 			currentTime := time.Now().Format(time.RFC3339)
+	// 			healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
+	// 			if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
+	// 				api.LogErrorf("Failed to send health check: %v", err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
 }
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses

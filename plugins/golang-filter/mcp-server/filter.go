@@ -112,7 +112,8 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 
 	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
 		if !url.internalIP {
-			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied", nil, 0, "")
+			api.LogWarnf("Access denied: non-internal IP address %s", url.parsedURL.String())
+			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
 			return api.LocalReply
 		}
 		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
