@@ -112,6 +112,10 @@ func (c *NacosConfig) ParseConfig(config map[string]any) error {
 		return errors.New("missing serviceMatcher")
 	}
 
+	if namespace, ok := config["namespace"].(string); ok {
+		c.Namespace = &namespace
+	}
+
 	matchers := map[string]string{}
 	for key, value := range serviceMatcher {
 		matchers[key] = value.(string)

@@ -3,11 +3,6 @@
 	url = https://github.com/higress-group/api
 	branch = istio-1.19
 	shallow = true
-[submodule "istio/istio"]
-	path = istio/istio
-	url = https://github.com/higress-group/istio
-	branch = istio-1.19
-	shallow = true
 [submodule "istio/client-go"]
 	path = istio/client-go
 	url = https://github.com/higress-group/client-go
