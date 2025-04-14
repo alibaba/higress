@@ -410,15 +410,18 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 	}
 
 	whiteList := "[]"
-	if len(mcp.Ratelimit.WhiteList) > 0 {
-		whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
-	}
-	rateLimitField := fmt.Sprintf(`
+	rateLimitField := ""
+	if mcp.Ratelimit != nil {
+		if len(mcp.Ratelimit.WhiteList) > 0 {
+			whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
+		}
+		rateLimitField = fmt.Sprintf(`
 					"rate_limit": {
 						"limit": %d,
 						"window": %d,
 						"white_list": %s
 					},`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
+	}
 
 	return fmt.Sprintf(structBase,
 		redisField,
