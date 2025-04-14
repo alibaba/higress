@@ -85,7 +85,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 			api.LogDebugf("%s SSE connection started", server.GetServerName())
 			return api.LocalReply
 		} else if f.path == server.GetMessageEndpoint() {
-			if f.path == server.GetMessageEndpoint() && url.method != http.MethodPost {
+			if url.method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
 			}
