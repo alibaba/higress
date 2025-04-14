@@ -88,7 +88,7 @@ type McpServer struct {
 	// Flag to control whether user level server is enabled
 	EnableUserLevelServer bool `json:"enable_user_level_server,omitempty"`
 	// Rate limit config for MCP server
-	Ratelimit *MCPRatelimitConfig `json:"ratelimit,omitempty"`
+	Ratelimit *MCPRatelimitConfig `json:"rate_limit,omitempty"`
 }
 
 func NewDefaultMcpServer() *McpServer {
