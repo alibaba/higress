@@ -34,7 +34,7 @@ type WeatherRequest struct {
 }
 
 func (t WeatherRequest) Description() string {
-	return "根据城市名称或者标准adcode查询指定城市的天气，城市名称可以通过maps_ip_location工具获取"
+	return "根据城市名称或者标准adcode查询指定城市的天气，城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t WeatherRequest) InputSchema() map[string]any {

@@ -3,9 +3,13 @@ package main
 import (
 	"fmt"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
@@ -13,20 +17,31 @@ import (
 	envoyHttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
 
-const Name = "mcp-server"
+const Name = "mcp-session"
 const Version = "1.0.0"
 const DefaultServerName = "defaultServer"
+const ConfigPathSuffix = "/config"
 
 func init() {
 	envoyHttp.RegisterHttpFilterFactoryAndConfigParser(Name, filterFactory, &parser{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("PProf server recovered from panic: %v", r)
+			}
+		}()
+		api.LogError(http.ListenAndServe("localhost:6060", nil).Error())
+	}()
 }
 
 type config struct {
-	ssePathSuffix string
-	redisClient   *internal.RedisClient
-	servers       []*internal.SSEServer
-	defaultServer *internal.SSEServer
-	matchList     []internal.MatchRule
+	ssePathSuffix         string
+	redisClient           *internal.RedisClient
+	servers               []*internal.SSEServer
+	defaultServer         *internal.SSEServer
+	matchList             []internal.MatchRule
+	enableUserLevelServer bool
+	rateLimitConfig       *handler.MCPRatelimitConfig
 }
 
 func (c *config) Destroy() {
@@ -71,21 +86,49 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 	}
 
-	redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{})
+	// Redis configuration is optional
+	if redisConfigMap, ok := v.AsMap()["redis"].(map[string]interface{}); ok {
+		redisConfig, err := internal.ParseRedisConfig(redisConfigMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse redis config: %w", err)
+		}
+
+		redisClient, err := internal.NewRedisClient(redisConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
+		}
+		conf.redisClient = redisClient
+		api.LogDebug("Redis client initialized")
+	} else {
+		api.LogDebug("Redis configuration not provided, running without Redis")
+	}
+
+	enableUserLevelServer, ok := v.AsMap()["enable_user_level_server"].(bool)
 	if !ok {
-		return nil, fmt.Errorf("redis config is not set")
+		enableUserLevelServer = false
+		if conf.redisClient == nil {
+			return nil, fmt.Errorf("redis configuration is not provided, enable_user_level_server is true")
+		}
 	}
+	conf.enableUserLevelServer = enableUserLevelServer
 
-	redisConfig, err := internal.ParseRedisConfig(redisConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse redis config: %w", err)
+	if rateLimit, ok := v.AsMap()["rate_limit"].(map[string]interface{}); ok {
+		rateLimitConfig := &handler.MCPRatelimitConfig{}
+		if limit, ok := rateLimit["limit"].(float64); ok {
+			rateLimitConfig.Limit = int(limit)
+		}
+		if window, ok := rateLimit["window"].(float64); ok {
+			rateLimitConfig.Window = int(window)
+		}
+		if whiteList, ok := rateLimit["white_list"].([]interface{}); ok {
+			for _, item := range whiteList {
+				if uid, ok := item.(string); ok {
+					rateLimitConfig.Whitelist = append(rateLimitConfig.Whitelist, uid)
+				}
+			}
+		}
+		conf.rateLimitConfig = rateLimitConfig
 	}
-
-	redisClient, err := internal.NewRedisClient(redisConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
-	}
-	conf.redisClient = redisClient
 
 	ssePathSuffix, ok := v.AsMap()["sse_path_suffix"].(string)
 	if !ok || ssePathSuffix == "" {
@@ -127,7 +170,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 		api.LogDebug(fmt.Sprintf("Server config: %+v", serverConfig))
 
-		err = server.ParseConfig(serverConfig)
+		err := server.ParseConfig(serverConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse server config: %w", err)
 		}
@@ -138,7 +181,7 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		}
 
 		conf.servers = append(conf.servers, internal.NewSSEServer(serverInstance,
-			internal.WithRedisClient(redisClient),
+			internal.WithRedisClient(conf.redisClient),
 			internal.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, ssePathSuffix)),
 			internal.WithMessageEndpoint(serverPath)))
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
@@ -158,10 +201,13 @@ func (p *parser) Merge(parent interface{}, child interface{}) interface{} {
 		newConfig.ssePathSuffix = childConfig.ssePathSuffix
 	}
 	if childConfig.servers != nil {
-		newConfig.servers = append(newConfig.servers, childConfig.servers...)
+		newConfig.servers = childConfig.servers
 	}
 	if childConfig.defaultServer != nil {
 		newConfig.defaultServer = childConfig.defaultServer
+	}
+	if childConfig.matchList != nil {
+		newConfig.matchList = childConfig.matchList
 	}
 	return &newConfig
 }
@@ -172,9 +218,11 @@ func filterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 		panic("unexpected config type")
 	}
 	return &filter{
-		callbacks: callbacks,
-		config:    conf,
-		stopChan:  make(chan struct{}),
+		callbacks:           callbacks,
+		config:              conf,
+		stopChan:            make(chan struct{}),
+		mcpConfigHandler:    handler.NewMCPConfigHandler(conf.redisClient, callbacks),
+		mcpRatelimitHandler: handler.NewMCPRatelimitHandler(conf.redisClient, callbacks, conf.rateLimitConfig),
 	}
 }
 
