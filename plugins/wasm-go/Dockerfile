@@ -17,7 +17,14 @@ COPY . .
 WORKDIR /workspace/extensions/$PLUGIN_NAME
 
 RUN go mod tidy
-RUN tinygo build -o /main.wasm -scheduler=none -gc=custom -tags="custommalloc nottinygc_finalizer $EXTRA_TAGS" -target=wasi ./
+RUN \
+  if echo "$PLUGIN_NAME" | grep -Eq '^waf$'; then \
+    # Please use higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.19-tinygo0.28.1-oras1.0.0 as BUILDER
+    go run mage.go build && \
+      mv ./local/main.wasm /main.wasm ; \
+  else \
+    tinygo build -o /main.wasm -scheduler=none -gc=custom -tags="custommalloc nottinygc_finalizer $EXTRA_TAGS" -target=wasi ./ ; \
+  fi
 
 FROM scratch as output
 
