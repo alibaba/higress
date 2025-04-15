@@ -125,17 +125,21 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 	ctx.SetContext(CtxJsonRpcID, id)
 	method := gjson.GetBytes(body, "method").String()
 	params := gjson.GetBytes(body, "params")
-	if handle, ok := handles[method]; ok {
-		log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
-		err := handle(ctx, id, params)
-		if err != nil {
-			OnJsonRpcResponseError(ctx, err, ErrInvalidRequest)
-			return types.ActionContinue
+	if method != "" {
+		if handle, ok := handles[method]; ok {
+			log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
+			err := handle(ctx, id, params)
+			if err != nil {
+				OnJsonRpcResponseError(ctx, err, ErrInvalidRequest)
+				return types.ActionContinue
+			}
+			// Waiting for the response
+			return types.ActionPause
 		}
-		// Waiting for the response
-		return types.ActionPause
+		OnJsonRpcResponseError(ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
+	} else {
+		proxywasm.SendHttpResponseWithDetail(200, "json_rpc_ack", nil, nil, -1)
 	}
-	OnJsonRpcResponseError(ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
 	return types.ActionContinue
 }
 

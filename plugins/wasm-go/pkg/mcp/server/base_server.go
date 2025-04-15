@@ -72,6 +72,9 @@ func (s *BaseMCPServer) GetConfig(v any) {
 	} else {
 		config = s.config
 	}
+	if len(config) == 0 {
+		return
+	}
 	err := json.Unmarshal(config, v)
 	if err != nil {
 		log.Errorf("json unmarshal server config failed:%v, config:%s", err, config)

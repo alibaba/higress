@@ -694,12 +694,12 @@ func (ctx *CommonHttpCtx[PluginConfig]) DisableReroute() {
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetRequestBodyBufferLimit(size uint32) {
-	ctx.plugin.vm.log.Infof("SetRequestBodyBufferLimit: %d", size)
+	ctx.plugin.vm.log.Debugf("SetRequestBodyBufferLimit: %d", size)
 	_ = proxywasm.SetProperty([]string{"set_decoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) {
-	ctx.plugin.vm.log.Infof("SetResponseBodyBufferLimit: %d", size)
+	ctx.plugin.vm.log.Debugf("SetResponseBodyBufferLimit: %d", size)
 	_ = proxywasm.SetProperty([]string{"set_encoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
 }
 
