@@ -144,7 +144,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.3/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.4/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -235,8 +235,7 @@ clean-gateway: clean-istio
 	rm -rf external/proxy
 	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
-	rm -rf external/package/mcp-server_amd64.so
-	rm -rf external/package/mcp-server_arm64.so
+	rm -rf external/package/*.so
 
 clean-env:
 	rm -rf out/

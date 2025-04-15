@@ -36,7 +36,7 @@ type TextSearchRequest struct {
 }
 
 func (t TextSearchRequest) Description() string {
-	return "关键词搜，根据用户传入关键词，搜索出相关的POI"
+	return "关键词搜，根据用户传入关键词，搜索出相关的POI，城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t TextSearchRequest) InputSchema() map[string]any {
