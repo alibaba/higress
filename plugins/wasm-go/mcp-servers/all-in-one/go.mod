@@ -8,7 +8,7 @@ replace amap-tools => ../amap-tools
 
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250413143111-22e90c61ae13
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250415030540-b7c7ef6b2c9a
 	quark-search v0.0.0-00010101000000-000000000000
 )
 

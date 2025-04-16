@@ -1,0 +1,108 @@
+server:
+  name: traditional-chinese-medicine-tongue-diagnosis
+  config:
+    appCode: ""
+tools:
+  - name: AI-tongue-diagnosis
+    description: AI舌诊-舌象识别-体质检测-健康报告
+    args:
+      - name: customerAge
+        description: 顾客年龄
+        type: integer
+        required: true
+        position: body
+      - name: customerSex
+        description: 顾客性别
+        type: string
+        required: true
+        position: body
+      - name: frontRear
+        description: 前后位置标识
+        type: string
+        required: true
+        position: body
+      - name: situation
+        description: 当前情况标识
+        type: integer
+        required: true
+        position: body
+      - name: tonguePic
+        description: 舌头图片的URL地址
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://aizong.market.alicloudapi.com/symptomDiagnose/cloudResult
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 操作状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.diagnoseFeatures**:  (Type: array)
+            - **data.diagnoseFeatures[].acupointEffect**: 穴位效果 (Type: string)
+            - **data.diagnoseFeatures[].acupointName**: 穴位名称 (Type: string)
+            - **data.diagnoseFeatures[].causesFormation**: 形成原因 (Type: string)
+            - **data.diagnoseFeatures[].living**: 生活习惯 (Type: string)
+            - **data.diagnoseFeatures[].medicatedFoods**:  (Type: array)
+              - **data.diagnoseFeatures[].medicatedFoods[].apply**: 适用症状 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].attention**: 注意事项 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].effect**: 效果 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].foodName**: 食物名称 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].formula**: 配方 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].genus**: 类别 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].prescriptionAnalysis**: 处方分析 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].provenance**: 出处 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].source**: 来源 (Type: string)
+              - **data.diagnoseFeatures[].medicatedFoods[].usage**: 使用方法 (Type: string)
+            - **data.diagnoseFeatures[].scoring**: 评分 (Type: string)
+            - **data.diagnoseFeatures[].skillEffect**: 技能效果 (Type: string)
+            - **data.diagnoseFeatures[].skillName**: 技能名称 (Type: string)
+            - **data.diagnoseFeatures[].thisExplain**: 解释 (Type: string)
+            - **data.diagnoseFeatures[].typeName**: 类型名称 (Type: string)
+          - **data.faceTongueFeatures**:  (Type: array)
+            - **data.faceTongueFeatures[].clinicalSignificance**: 临床意义 (Type: string)
+            - **data.faceTongueFeatures[].feature**: 特征 (Type: string)
+            - **data.faceTongueFeatures[].normalStatus**: 正常状态 (Type: string)
+            - **data.faceTongueFeatures[].status**:  (Type: string)
+            - **data.faceTongueFeatures[].termBroadHeading**: 术语大类 (Type: string)
+            - **data.faceTongueFeatures[].terminology**: 术语 (Type: string)
+          - **data.physiqueFeatures**:  (Type: array)
+            - **data.physiqueFeatures[].pathologyExplain**: 病理解释 (Type: string)
+            - **data.physiqueFeatures[].physiologyExplain**: 生理解释 (Type: string)
+            - **data.physiqueFeatures[].scoring**: 评分 (Type: string)
+            - **data.physiqueFeatures[].susceptibilityDisease**: 易感疾病 (Type: string)
+            - **data.physiqueFeatures[].syndromeExplain**: 体质解释 (Type: string)
+            - **data.physiqueFeatures[].syndromeName**: 体质名称 (Type: string)
+          - **data.recommendSymptoms**:  (Type: array)
+            - **data.recommendSymptoms[].probility**: 概率 (Type: string)
+            - **data.recommendSymptoms[].symptom**: 症状 (Type: string)
+          - **data.scoring**: 评分 (Type: string)
+          - **data.viscera**:  (Type: array)
+            - **data.viscera[].pathologyExplain**: 病理解释 (Type: string)
+            - **data.viscera[].physiologyExplain**: 生理解释 (Type: string)
+            - **data.viscera[].scoring**: 评分 (Type: string)
+            - **data.viscera[].susceptibilityDisease**: 易感疾病 (Type: string)
+            - **data.viscera[].syndromeExplain**: 脏腑解释 (Type: string)
+            - **data.viscera[].syndromeName**: 脏腑名称 (Type: string)
+        - **msg**: 操作结果信息 (Type: string)
+
+        ## Original Response
+

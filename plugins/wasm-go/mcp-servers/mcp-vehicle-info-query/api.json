@@ -1,0 +1,691 @@
+{
+  "info": {
+    "description": "【聚美出品 】【九成以上查得率---车架号VIN码解析 VIN码车架号查询 VIN车架号 VIN车辆信息查询 车架号VIN查询 车架号查询 VIN解析 VIN车架号查询 车架号VIN查询 VIN解析 VIN车架号查询 车架号VIN查询 VIN解析 VIN车架号查询 车架号VIN查询 车辆信息查询 VIN解析 VIN车架号查询 车架号VIN查询 VIN解析 VIN车架号查询 车架号VIN查询 】",
+    "title": "VIN码解析-VIN码查询-VIN车架号查询-车架号VIN查询-车辆识别码VIN解析-VIN码查询-车辆信息查询-VIN码解析",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/vehicle/vin-upgrade-query": {
+      "post": {
+        "operationId": "VIN码车辆查询升级版",
+        "summary": "VIN码 车辆信息查询_升级版",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vin": {
+                    "description": "车架号",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vin"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见code返回码说明"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rlxs": {
+                          "type": "string",
+                          "description": "燃料形式"
+                        },
+                        "model_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "series_name": {
+                                "type": "string",
+                                "description": "车系"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "车型车款"
+                              },
+                              "brand_name": {
+                                "type": "string",
+                                "description": "品牌名称"
+                              }
+                            }
+                          }
+                        },
+                        "full_weight_zz": {
+                          "type": "string",
+                          "description": "核载质量"
+                        },
+                        "csjg": {
+                          "type": "string",
+                          "description": "车身结构"
+                        },
+                        "year": {
+                          "type": "string",
+                          "description": "年款"
+                        },
+                        "chassis_number": {
+                          "type": "string",
+                          "description": "底盘号"
+                        },
+                        "rear_brake_type": {
+                          "type": "string",
+                          "description": "后制动器类型"
+                        },
+                        "engine_model": {
+                          "type": "string",
+                          "description": "发动机型号"
+                        },
+                        "gyfs": {
+                          "type": "string",
+                          "description": "供油方式"
+                        },
+                        "gearnum": {
+                          "type": "string",
+                          "description": "变速箱档位数"
+                        },
+                        "high": {
+                          "type": "string",
+                          "description": "高度(mm)"
+                        },
+                        "rear_tyre_size": {
+                          "type": "string",
+                          "description": "后轮胎规格"
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "厂家指导价"
+                        },
+                        "driven_type": {
+                          "type": "string",
+                          "description": "驱动方式"
+                        },
+                        "body_type": {
+                          "type": "string",
+                          "description": "车体结构"
+                        },
+                        "vin": {
+                          "type": "string",
+                          "description": "车架号"
+                        },
+                        "displacement": {
+                          "type": "string",
+                          "description": "排量(L)"
+                        },
+                        "front_tyre_size": {
+                          "type": "string",
+                          "description": "前轮胎规格"
+                        },
+                        "brand_name": {
+                          "type": "string",
+                          "description": "品牌名称"
+                        },
+                        "market_date": {
+                          "type": "string",
+                          "description": "上市时间"
+                        },
+                        "version": {
+                          "type": "string",
+                          "description": "销售版本"
+                        },
+                        "front_brake_type": {
+                          "type": "string",
+                          "description": "前制动器类型"
+                        },
+                        "wheelbase": {
+                          "type": "string",
+                          "description": "轴距(mm)"
+                        },
+                        "zdgl": {
+                          "type": "string",
+                          "description": "最大功率"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "车型车款"
+                        },
+                        "geartype": {
+                          "type": "string",
+                          "description": "变速箱类型"
+                        },
+                        "gearbox_number": {
+                          "type": "string",
+                          "description": "变速箱号"
+                        },
+                        "market_price": {
+                          "type": "string",
+                          "description": "市场参考价"
+                        },
+                        "trackfront": {
+                          "type": "string",
+                          "description": "前轮距(mm)"
+                        },
+                        "img": {
+                          "type": "string",
+                          "description": "车型图片，有效期30天。建议自行下载保存，避免丢失"
+                        },
+                        "ryxh": {
+                          "type": "string",
+                          "description": "燃油标号"
+                        },
+                        "is_rules": {
+                          "type": "integer",
+                          "description": "vin是否合规 1是 0否"
+                        },
+                        "displacement_ml": {
+                          "type": "string",
+                          "description": "排量(mL)"
+                        },
+                        "full_weight_max": {
+                          "type": "string",
+                          "description": "最大满载质量(kg)"
+                        },
+                        "cms": {
+                          "type": "string",
+                          "description": "车门数(个)"
+                        },
+                        "scale": {
+                          "type": "string",
+                          "description": "车辆级别"
+                        },
+                        "is_commercial": {
+                          "type": "integer",
+                          "description": "是否商用 1 是 0 否"
+                        },
+                        "manufacturer": {
+                          "type": "string",
+                          "description": "厂商"
+                        },
+                        "is_import": {
+                          "type": "integer",
+                          "description": "是否进口 0国产 1进口"
+                        },
+                        "parking_brake_type": {
+                          "type": "string",
+                          "description": "驻车制动类型"
+                        },
+                        "nedczhyh": {
+                          "type": "string",
+                          "description": "油耗"
+                        },
+                        "zws": {
+                          "type": "string",
+                          "description": "座位数(个)"
+                        },
+                        "series_name": {
+                          "type": "string",
+                          "description": "车系"
+                        },
+                        "gearbox": {
+                          "type": "string",
+                          "description": "变速箱"
+                        },
+                        "trackrear": {
+                          "type": "string",
+                          "description": "后轮距(mm)"
+                        },
+                        "full_weight": {
+                          "type": "string",
+                          "description": "整备质量(kg)"
+                        },
+                        "length": {
+                          "type": "string",
+                          "description": "长度(mm)"
+                        },
+                        "stop_date": {
+                          "type": "string",
+                          "description": "停产日期"
+                        },
+                        "zdml": {
+                          "type": "string",
+                          "description": "最大马力"
+                        },
+                        "width": {
+                          "type": "string",
+                          "description": "宽度(mm)"
+                        },
+                        "effluent_standard": {
+                          "type": "string",
+                          "description": "环保标准"
+                        },
+                        "qfs": {
+                          "type": "string",
+                          "description": "气缸数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/vehicle/vin-query": {
+      "post": {
+        "operationId": "VIN码车辆查询",
+        "summary": "根据车架号，返回车辆信息",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vin": {
+                    "description": "车架号",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vin"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "gearboxinfo": {
+                          "type": "object",
+                          "properties": {
+                            "gearboxbrand": {
+                              "type": "string",
+                              "description": "变速箱品牌",
+                              "example": "捷特科"
+                            },
+                            "positionpiclist": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "位置图片列表",
+                              "example": [
+                                "http://pic1.jisuapi.cn/car/upload/gearbox/27c591f5f8fb8c32.png"
+                              ]
+                            },
+                            "gravityoil": {
+                              "type": "string",
+                              "description": "重力加油量",
+                              "example": "4L-5L"
+                            },
+                            "gearboxmodel": {
+                              "type": "string",
+                              "description": "变速箱型号",
+                              "example": "JF010E/JATCO"
+                            },
+                            "mechanicaloil": {
+                              "type": "string",
+                              "description": "机械加油量",
+                              "example": "12L"
+                            },
+                            "jointpiclist": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "接口图片列表",
+                              "example": [
+                                "http://pic1.jisuapi.cn/car/upload/gearbox/15ff006f59a9f1d9.png"
+                              ]
+                            }
+                          }
+                        },
+                        "fueltype": {
+                          "type": "string",
+                          "description": "燃油类型",
+                          "example": "汽油"
+                        },
+                        "frontbraketype": {
+                          "type": "string",
+                          "description": "前制动类型",
+                          "example": "通风盘式"
+                        },
+                        "comfuelconsumption": {
+                          "type": "string",
+                          "description": "油耗",
+                          "example": 11.1
+                        },
+                        "enginemodel": {
+                          "type": "string",
+                          "description": "发动机型号",
+                          "example": "VQ35DE"
+                        },
+                        "gearnum": {
+                          "type": "string",
+                          "description": "档位数",
+                          "example": 6
+                        },
+                        "machineoil": {
+                          "type": "object",
+                          "properties": {
+                            "volume": {
+                              "type": "string",
+                              "description": "参考用量",
+                              "example": "4.6L"
+                            },
+                            "viscosity": {
+                              "type": "string",
+                              "description": "粘稠度",
+                              "example": "5W-30"
+                            },
+                            "level": {
+                              "type": "string",
+                              "description": "质量等级",
+                              "example": "SP"
+                            },
+                            "grade": {
+                              "type": "string",
+                              "description": "机油分类",
+                              "example": "全合成"
+                            }
+                          }
+                        },
+                        "len": {
+                          "type": "string",
+                          "description": "长 mm",
+                          "example": 4860
+                        },
+                        "maxhorsepower": {
+                          "type": "string",
+                          "description": "最大马力(Ps)",
+                          "example": 310
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "厂商指导价",
+                          "example": "48.88万"
+                        },
+                        "parkingbraketype": {
+                          "type": "string",
+                          "description": "驻车制动类型",
+                          "example": "脚踩式"
+                        },
+                        "logo": {
+                          "type": "string",
+                          "example": "https://img.jumdata.com/vin-query/logo/202205/20220519/LGBR2HE42BR001167.jpg"
+                        },
+                        "vin": {
+                          "type": "string",
+                          "description": "车架号",
+                          "example": "LGBR2HE42BR001167"
+                        },
+                        "displacement": {
+                          "type": "string",
+                          "description": "排量 L",
+                          "example": "3.5L"
+                        },
+                        "model": {
+                          "type": "string",
+                          "description": "工信部型号",
+                          "example": "DFL6490VJD1"
+                        },
+                        "brand": {
+                          "type": "string",
+                          "description": "品牌",
+                          "example": "日产"
+                        },
+                        "environmentalstandards": {
+                          "type": "string",
+                          "description": "排放标准",
+                          "example": "国四"
+                        },
+                        "rearbraketype": {
+                          "type": "string",
+                          "description": "后制动类型",
+                          "example": "通风盘式"
+                        },
+                        "height": {
+                          "type": "string",
+                          "description": "高",
+                          "example": 1730
+                        },
+                        "drivemode": {
+                          "type": "string",
+                          "description": "驱动方式",
+                          "example": "适时四驱"
+                        },
+                        "displacementml": {
+                          "type": "string",
+                          "description": "排量(mL)",
+                          "example": 3498
+                        },
+                        "iscorrect": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "groupid": {
+                          "type": "string",
+                          "description": "车型组ID",
+                          "example": 3886
+                        },
+                        "weight": {
+                          "type": "string",
+                          "description": "整备质量 kg",
+                          "example": 1902
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "groupname": {
+                          "type": "string",
+                          "description": "车型组名称",
+                          "example": "楼兰 3.5L(2011.09-2015.12)"
+                        },
+                        "yeartype": {
+                          "type": "string",
+                          "description": "年款",
+                          "example": 2011
+                        },
+                        "sizetype": {
+                          "type": "string",
+                          "description": "尺寸类型",
+                          "example": "中型SUV"
+                        },
+                        "seatnum": {
+                          "type": "string",
+                          "description": "座位数",
+                          "example": 5
+                        },
+                        "doornum": {
+                          "type": "string",
+                          "description": "车门数",
+                          "example": 5
+                        },
+                        "wheelbase": {
+                          "type": "string",
+                          "description": "轴距",
+                          "example": 2825
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "名称",
+                          "example": "日产 楼兰 2011款 3.5L V6 CVT"
+                        },
+                        "geartype": {
+                          "type": "string",
+                          "description": "变速箱类型",
+                          "example": "无级变速(CVT)"
+                        },
+                        "cylindernum": {
+                          "type": "string",
+                          "description": "气缸数",
+                          "example": 6
+                        },
+                        "bodystructure": {
+                          "type": "string",
+                          "description": "车体结构",
+                          "example": "承载式"
+                        },
+                        "fuelgrade": {
+                          "type": "string",
+                          "description": "燃油标号",
+                          "example": "95号"
+                        },
+                        "carid": {
+                          "type": "integer",
+                          "description": "车ID 对应车型API中的ID，可获取车型详细信息",
+                          "example": 26834
+                        },
+                        "manufacturer": {
+                          "type": "string",
+                          "description": "厂家名称",
+                          "example": "东风日产"
+                        },
+                        "fuelmethod": {
+                          "type": "string",
+                          "description": "喷射方式",
+                          "example": "多点电喷"
+                        },
+                        "engine": {
+                          "type": "string",
+                          "description": "发动机",
+                          "example": "VQ35DE"
+                        },
+                        "bodytype": {
+                          "type": "string",
+                          "description": "车身型式",
+                          "example": "两厢"
+                        },
+                        "gearbox": {
+                          "type": "string",
+                          "description": "变速箱",
+                          "example": "6挡 无级变速(CVT)"
+                        },
+                        "fronttiresize": {
+                          "type": "string",
+                          "description": "前轮胎尺寸",
+                          "example": "235/65 R18"
+                        },
+                        "maxpower": {
+                          "type": "string",
+                          "description": "最大功率 KW",
+                          "example": 228
+                        },
+                        "isimport": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "reartiresize": {
+                          "type": "string",
+                          "description": "后轮胎尺寸",
+                          "example": "235/65 R18"
+                        },
+                        "listdate": {
+                          "type": "string",
+                          "description": "上市日期",
+                          "example": "2011-09-08T00:00:00Z"
+                        },
+                        "width": {
+                          "type": "string",
+                          "description": "宽",
+                          "example": 1885
+                        },
+                        "carlist": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "名称",
+                                "example": "日产 楼兰 2011款 3.5L V6 CVT"
+                              },
+                              "typeid": {
+                                "type": "integer",
+                                "description": "车型ID 对应车型大全里的根据车型获取车的parentid",
+                                "example": 1985
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "工信部型号",
+                                "example": "DFL6490VJD1"
+                              },
+                              "typename": {
+                                "type": "string",
+                                "description": "车型名称 对应typeid",
+                                "example": "楼兰"
+                              },
+                              "carid": {
+                                "type": "integer",
+                                "description": "车ID 对应车型API中的ID",
+                                "example": 26834
+                              }
+                            }
+                          }
+                        },
+                        "typename": {
+                          "type": "string",
+                          "description": "车型名称 对应typeid",
+                          "example": "楼兰"
+                        },
+                        "marketprice": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": 18213504767834964000
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jmfaceip.market.alicloudapi.com"
+    }
+  ]
+}
