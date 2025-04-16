@@ -26,8 +26,9 @@ func claimsToHeader(claims map[string]any, cth []cfg.ClaimsToHeader) {
 		if v, ok := claims[cth[i].Claim]; ok {
 			if *cth[i].Override {
 				proxywasm.ReplaceHttpRequestHeader(cth[i].Header, fmt.Sprint(v))
+			} else {
+				proxywasm.AddHttpRequestHeader(cth[i].Header, fmt.Sprint(v))
 			}
-			proxywasm.AddHttpRequestHeader(cth[i].Header, fmt.Sprint(v))
 		}
 	}
 }
