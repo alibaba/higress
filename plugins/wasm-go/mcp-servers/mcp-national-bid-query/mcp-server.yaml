@@ -1,0 +1,224 @@
+server:
+  name: national-bid-query
+  config:
+    appCode: ""
+tools:
+  - name: bid-query
+    description: 招中标项目列表查询
+    args:
+      - name: cityCode
+        description: 市编码（以地级市的身份证号码前四位置+00 来表示），该信息在返回参数中可能没有返回。
+        type: string
+        position: body
+      - name: classId
+        description: 信息类别( 1：招标，2：中标)
+        type: string
+        required: true
+        position: body
+      - name: endDate
+        description: 结束日期(格式：yyyy-MM-dd)
+        type: string
+        required: true
+        position: body
+      - name: keyword
+        description: 搜索值
+        type: string
+        position: body
+      - name: pageIndex
+        description: 页码
+        type: integer
+        required: true
+        position: body
+      - name: pageSize
+        description: 页数
+        type: integer
+        required: true
+        position: body
+      - name: proviceCode
+        description: 省编码（省或直辖市所在地区身份证号前两位+0000），例如贵州省编码为520000
+        type: string
+        position: body
+      - name: searchMode
+        description: 搜索模(1：全部，2：标题，3：内容)
+        type: integer
+        required: true
+        position: body
+      - name: searchType
+        description: 搜索业务类别(1：智能订阅搜索，2：精准订阅搜索，3：高级定义条件搜索)
+        type: integer
+        required: true
+        position: body
+      - name: startDate
+        description: 开始日期(格式：yyyy-MM-dd)
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://gov.market.alicloudapi.com/queryProject
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.data**:  (Type: array)
+            - **data.data[].cityCode**:  (Type: string)
+            - **data.data[].collectWebID**:  (Type: integer)
+            - **data.data[].content**:  (Type: string)
+            - **data.data[].hasFile**:  (Type: integer)
+            - **data.data[].id**:  (Type: integer)
+            - **data.data[].isHasFile**:  (Type: boolean)
+            - **data.data[].newsTypeID**:  (Type: integer)
+            - **data.data[].proviceCode**:  (Type: string)
+            - **data.data[].publish**:  (Type: string)
+            - **data.data[].score**:  (Type: number)
+            - **data.data[].title**:  (Type: string)
+          - **data.enddate**:  (Type: string)
+          - **data.hasNext**:  (Type: boolean)
+          - **data.maxCount**:  (Type: integer)
+          - **data.mess**:  (Type: string)
+          - **data.pageID**:  (Type: integer)
+          - **data.pageNumber**:  (Type: integer)
+          - **data.pageid**:  (Type: integer)
+          - **data.seKeyWords**:  (Type: string)
+          - **data.startdate**:  (Type: string)
+          - **data.state**:  (Type: integer)
+          - **data.total**:  (Type: integer)
+        - **msg**:  (Type: string)
+
+        ## Original Response
+
+  - name: bid-detail
+    description: 招中标项目结构化查询
+    args:
+      - name: id
+        description: 项目信息ID
+        type: string
+        required: true
+        position: body
+      - name: publishTime
+        description: "项目信息发布时间\t"
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://gov.market.alicloudapi.com/getStructureDetail
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.agencyContactPersons**:  (Type: array)
+            - **data.agencyContactPersons[]**: Items of type object
+          - **data.agencyName**:  (Type: string)
+          - **data.agencyPhoneArr**:  (Type: array)
+            - **data.agencyPhoneArr[]**: Items of type string
+          - **data.bidMoney**:  (Type: integer)
+          - **data.budgetMoney**:  (Type: integer)
+          - **data.cityCode**:  (Type: string)
+          - **data.collectUrl**:  (Type: string)
+          - **data.newsTypeID**:  (Type: integer)
+          - **data.partyAContactPersons**:  (Type: array)
+            - **data.partyAContactPersons[]**: Items of type object
+          - **data.partyAPhoneArr**:  (Type: array)
+            - **data.partyAPhoneArr[]**: Items of type string
+          - **data.partyBContactPersons**:  (Type: array)
+            - **data.partyBContactPersons[]**: Items of type object
+          - **data.partyBName**:  (Type: string)
+          - **data.partyBPhoneArr**:  (Type: array)
+            - **data.partyBPhoneArr[]**: Items of type string
+          - **data.projectID**:  (Type: integer)
+          - **data.proviceCode**:  (Type: string)
+          - **data.publishTime**:  (Type: string)
+        - **msg**:  (Type: string)
+
+        ## Original Response
+
+  - name: bid-project
+    description: 招中标项目详情查询
+    args:
+      - name: id
+        description: 项目信息ID
+        type: string
+        required: true
+        position: body
+      - name: publishTime
+        description: 项目信息发布时间
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://gov.market.alicloudapi.com/getProject
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.cityCode**: 城市代码 (Type: string)
+          - **data.classid**: 分类ID (Type: integer)
+          - **data.collectWebID**: 收集网页ID (Type: integer)
+          - **data.content**:  (Type: string)
+          - **data.id**: 数据ID (Type: integer)
+          - **data.isFollowUp**: 是否有后续 (Type: integer)
+          - **data.newsTypeID**: 新闻类型ID (Type: integer)
+          - **data.proviceCode**: 省份代码 (Type: string)
+          - **data.publish**: 发布时间 (Type: string)
+          - **data.title**: 标题 (Type: string)
+          - **data.userID**: 用户ID (Type: integer)
+        - **msg**: 响应消息 (Type: string)
+
+        ## Original Response
+
