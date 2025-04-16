@@ -1,0 +1,120 @@
+{
+  "info": {
+    "description": "商品条形码、药品条形码查询，根据条形码信息，返回对应的名称、价格、厂家等信息。能实现来源可查、去向可追，有效控制产品质量安全风险，保障消费者权益。【注：条码查询，目前只支持69开头的13或069开头的14位国内商品，进口和国外商品暂不支持查询】",
+    "title": "【万维易源】商品条码查询-国内商品条码信息查询-药品条码查询-条形码数据查询-条码信息检索",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/barcode": {
+      "get": {
+        "operationId": "商品条码查询",
+        "summary": "国内商品条码查询",
+        "parameters": [
+          {
+            "description": "国内商品条形码（69开头）",
+            "example": "6938166920785",
+            "in": "query",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "showapi_res_code": {
+                      "type": "integer",
+                      "description": "响应代码"
+                    },
+                    "showapi_res_error": {
+                      "type": "string",
+                      "description": "错误信息"
+                    },
+                    "showapi_res_body": {
+                      "type": "object",
+                      "properties": {
+                        "flag": {
+                          "type": "string",
+                          "description": "查询结果标志"
+                        },
+                        "remark": {
+                          "type": "string",
+                          "description": "查询结果备注"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "条形码"
+                        },
+                        "goodsName": {
+                          "type": "string",
+                          "description": "商品名称"
+                        },
+                        "manuName": {
+                          "type": "string",
+                          "description": "厂商"
+                        },
+                        "spec": {
+                          "type": "string",
+                          "description": "规格"
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "参考价格(单位:元)"
+                        },
+                        "trademark": {
+                          "type": "string",
+                          "description": "商标/品牌名称"
+                        },
+                        "img": {
+                          "type": "string",
+                          "description": "图片地址"
+                        },
+                        "ret_code": {
+                          "type": "string",
+                          "description": "返回代码"
+                        },
+                        "goodsType": {
+                          "type": "string",
+                          "description": "商品分类"
+                        },
+                        "sptmImg": {
+                          "type": "string",
+                          "description": "条码图片"
+                        },
+                        "ycg": {
+                          "type": "string",
+                          "description": "原产地"
+                        },
+                        "engName": {
+                          "type": "string",
+                          "description": "英文名称"
+                        },
+                        "note": {
+                          "type": "string",
+                          "description": "备注信息"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://barcode14.market.alicloudapi.com"
+    }
+  ]
+}

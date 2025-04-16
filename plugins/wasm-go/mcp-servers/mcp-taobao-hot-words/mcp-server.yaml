@@ -1,0 +1,42 @@
+server:
+  name: taobao-hot-words
+  config:
+    appCode: ""
+tools:
+  - name: taobao-hot-words
+    description: 淘宝站内搜索关键词排名查询工具。对淘宝全站所有搜索关键词，根据用户实时搜索频度进行处理，协助商家全面掌控搜索关键词近期的市场排名，分布特征等。可根据用户输入的关键词 ，查询出该关键词在全站的搜索排名以及和该关键词在全站关联度最高的 TOP 10 关键词，按降序排列输出。
+    args:
+      - name: key
+        description: 关键词
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: http://tbhot.market.alicloudapi.com/tbhot10
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **goodsList**: 商品列表 (Type: array)
+          - **goodsList[]**: Items of type string
+        - **key**: 查询关键字 (Type: string)
+        - **status**: 状态码 (Type: string)
+        - **time**: 响应时间 (Type: string)
+
+        ## Original Response
+

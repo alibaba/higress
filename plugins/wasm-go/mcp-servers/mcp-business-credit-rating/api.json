@@ -1,0 +1,143 @@
+{
+  "info": {
+    "description": "【企业信用评级-企业信用查询】★通过公司名称、注册号或社会统一信用代码任一项，查询企业信用评级信息。★毫秒级响应，支持高并发，24h不间断运维，专业技术支持在线服务。★新老客户享专属活动价，详情可咨询客服。——全品类接口专家",
+    "title": "企业信用评级-企业信用查询【数链云】",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/credit/rating": {
+      "get": {
+        "operationId": "企业信用评级",
+        "summary": "企业信用评级",
+        "parameters": [
+          {
+            "description": "搜索关键字（公司名称、注册号或社会统一信用代码）",
+            "in": "query",
+            "name": "keyword",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页数量 1开始",
+            "in": "query",
+            "name": "pageNum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "每页数量 默认 10",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "msg": {
+                      "description": "响应消息",
+                      "example": "成功",
+                      "type": "string"
+                    },
+                    "success": {
+                      "description": "是否成功",
+                      "example": "true",
+                      "type": "boolean"
+                    },
+                    "code": {
+                      "description": "状态码",
+                      "example": "200",
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "orderNo": {
+                          "description": "订单号",
+                          "example": "276085547371344356",
+                          "type": "string"
+                        },
+                        "total": {
+                          "description": "总数",
+                          "example": "22",
+                          "type": "integer"
+                        },
+                        "items": {
+                          "items": {
+                            "properties": {
+                              "ratingOutlook": {
+                                "description": "评级展望",
+                                "example": "负面",
+                                "type": "string"
+                              },
+                              "ratingDate": {
+                                "description": "评级日期",
+                                "example": "2024-04-16",
+                                "format": "date",
+                                "type": "string"
+                              },
+                              "gid": {
+                                "description": "全球ID",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "ratingCompanyName": {
+                                "description": "评级公司名称",
+                                "example": "惠誉国际信用评级有限公司",
+                                "type": "string"
+                              },
+                              "logo": {
+                                "description": "评级公司Logo",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "alias": {
+                                "description": "评级公司别名",
+                                "example": "惠誉国际",
+                                "type": "string"
+                              },
+                              "bondCreditLevel": {
+                                "description": "债券信用等级",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "subjectLevel": {
+                                "description": "主体等级",
+                                "example": "A+",
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://slyhonour.market.alicloudapi.com"
+    }
+  ]
+}

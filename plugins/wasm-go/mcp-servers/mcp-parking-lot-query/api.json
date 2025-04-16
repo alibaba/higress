@@ -1,0 +1,468 @@
+{
+  "info": {
+    "description": "【全国停车场数据实时查询】停车场数据实时查询，返回包括停车场位置，车位数，剩余车位、费用等信息,覆盖全国十万个以上停车场。—— 我们只做精品!",
+    "title": "【聚美智数】全国停车场数据实时查询-停车场实时查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/parking/query/detail": {
+      "post": {
+        "operationId": "停车场查询_详情",
+        "summary": "根据停车场id查询停车场",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "description": "停车场id",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "province": {
+                          "description": "省份名",
+                          "example": "浙江省",
+                          "type": "string"
+                        },
+                        "city": {
+                          "description": "城市名",
+                          "example": "杭州市",
+                          "type": "string"
+                        },
+                        "area": {
+                          "description": "区域名",
+                          "example": "上城区",
+                          "type": "string"
+                        },
+                        "address": {
+                          "description": "地址",
+                          "example": "浙江省杭州市上城区庆春路175号",
+                          "type": "string"
+                        },
+                        "pid": {
+                          "description": "停车场ID",
+                          "example": "112",
+                          "type": "integer"
+                        },
+                        "type": {
+                          "description": "停车场类型",
+                          "example": "商业",
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "停车场名称",
+                          "example": "交通银行大厦停车场",
+                          "type": "string"
+                        },
+                        "lng": {
+                          "description": "经度（百度经纬度）",
+                          "example": "120.173981",
+                          "type": "number"
+                        },
+                        "lat": {
+                          "description": "纬度（百度经纬度）",
+                          "example": "30.263525000000001",
+                          "type": "number"
+                        },
+                        "price": {
+                          "description": "价格",
+                          "example": "10",
+                          "type": "integer"
+                        },
+                        "priceunit": {
+                          "description": "价格单位",
+                          "example": "元/首小时",
+                          "type": "string"
+                        },
+                        "pricedesc": {
+                          "description": "收费描述",
+                          "example": "首小时10元，后每小时6元。",
+                          "type": "string"
+                        },
+                        "num": {
+                          "description": "总车位数",
+                          "example": "20",
+                          "type": "integer"
+                        },
+                        "leftnum": {
+                          "description": "剩余车位数",
+                          "example": "1",
+                          "type": "integer"
+                        },
+                        "canbook": {
+                          "description": "是否可预订",
+                          "example": "2",
+                          "type": "string"
+                        },
+                        "bookprice": {
+                          "description": "预定价格",
+                          "example": "",
+                          "type": "string"
+                        },
+                        "piclist": {
+                          "description": "停车场图片列表",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "code": {
+                      "description": "返回码",
+                      "example": "200",
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "description": "返回码对应的描述",
+                      "example": "成功",
+                      "type": "string"
+                    },
+                    "taskNo": {
+                      "description": "本次请求号",
+                      "example": "67489759626405114132",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/parking/query/nearby": {
+      "post": {
+        "operationId": "停车场查询_根据周边",
+        "summary": "根据经纬度查询停车场信息",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "distance": {
+                    "description": "距离范围，默认1000米",
+                    "type": "string"
+                  },
+                  "size": {
+                    "description": "页码，默认10",
+                    "type": "string"
+                  },
+                  "lng": {
+                    "description": "经度",
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "页码，默认1",
+                    "type": "string"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "lng",
+                  "lat"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "total": {
+                          "description": "总数",
+                          "type": "integer"
+                        },
+                        "list": {
+                          "items": {
+                            "properties": {
+                              "province": {
+                                "description": "省份名",
+                                "type": "string"
+                              },
+                              "city": {
+                                "description": "城市名",
+                                "type": "string"
+                              },
+                              "area": {
+                                "description": "区域名",
+                                "type": "string"
+                              },
+                              "address": {
+                                "description": "地址",
+                                "type": "string"
+                              },
+                              "pid": {
+                                "description": "停车场ID",
+                                "type": "integer"
+                              },
+                              "type": {
+                                "description": "停车场类型",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "停车场名称",
+                                "type": "string"
+                              },
+                              "lng": {
+                                "description": "经度（百度经纬度）",
+                                "format": "float",
+                                "type": "number"
+                              },
+                              "lat": {
+                                "description": "纬度（百度经纬度）",
+                                "format": "float",
+                                "type": "number"
+                              },
+                              "price": {
+                                "description": "价格",
+                                "type": "integer"
+                              },
+                              "priceunit": {
+                                "description": "价格单位",
+                                "type": "string"
+                              },
+                              "pricedesc": {
+                                "description": "收费描述",
+                                "type": "string"
+                              },
+                              "num": {
+                                "description": "总车位数",
+                                "type": "integer"
+                              },
+                              "leftnum": {
+                                "description": "剩余车位数",
+                                "type": "integer"
+                              },
+                              "canbook": {
+                                "description": "是否可预订",
+                                "type": "string"
+                              },
+                              "bookprice": {
+                                "description": "预定价格",
+                                "type": "string"
+                              },
+                              "piclist": {
+                                "items": {
+                                  "description": "停车场图片列表",
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "code": {
+                      "description": "返回码",
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "description": "返回码对应的描述",
+                      "type": "string"
+                    },
+                    "taskNo": {
+                      "description": "本次请求号",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/parking/query/city": {
+      "post": {
+        "operationId": "停车场查询_根据城市",
+        "summary": "根据城市名称查询停车场信息",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "size": {
+                    "description": "页码，默认10",
+                    "type": "string"
+                  },
+                  "city": {
+                    "description": "城市名称",
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "页码，默认1",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "total": {
+                          "description": "总数",
+                          "type": "integer"
+                        },
+                        "list": {
+                          "items": {
+                            "properties": {
+                              "province": {
+                                "description": "省份名",
+                                "type": "string"
+                              },
+                              "city": {
+                                "description": "城市名",
+                                "type": "string"
+                              },
+                              "area": {
+                                "description": "区域名",
+                                "type": "string"
+                              },
+                              "address": {
+                                "description": "地址",
+                                "type": "string"
+                              },
+                              "pid": {
+                                "description": "停车场ID",
+                                "type": "integer"
+                              },
+                              "type": {
+                                "description": "停车场类型",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "停车场名称",
+                                "type": "string"
+                              },
+                              "lng": {
+                                "description": "经度（百度经纬度）",
+                                "format": "float",
+                                "type": "number"
+                              },
+                              "lat": {
+                                "description": "纬度（百度经纬度）",
+                                "format": "float",
+                                "type": "number"
+                              },
+                              "price": {
+                                "description": "价格",
+                                "type": "integer"
+                              },
+                              "priceunit": {
+                                "description": "价格单位",
+                                "type": "string"
+                              },
+                              "pricedesc": {
+                                "description": "收费描述",
+                                "type": "string"
+                              },
+                              "num": {
+                                "description": "总车位数",
+                                "type": "integer"
+                              },
+                              "leftnum": {
+                                "description": "剩余车位数",
+                                "type": "integer"
+                              },
+                              "canbook": {
+                                "description": "是否可预订",
+                                "type": "string"
+                              },
+                              "bookprice": {
+                                "description": "预定价格",
+                                "type": "string"
+                              },
+                              "piclist": {
+                                "description": "停车场图片列表",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "code": {
+                      "description": "详见code返回码说明",
+                      "type": "integer"
+                    },
+                    "msg": {
+                      "description": "code 对应的描述",
+                      "type": "string"
+                    },
+                    "taskNo": {
+                      "description": "本次请求号",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jumparking.market.alicloudapi.com"
+    }
+  ]
+}
