@@ -49,6 +49,9 @@ func (c *config) Destroy() {
 		api.LogDebug("Closing Redis client")
 		c.redisClient.Close()
 	}
+	for _, server := range c.servers {
+		server.Close()
+	}
 }
 
 type parser struct {

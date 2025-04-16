@@ -70,10 +70,13 @@ func (h *MCPConfigHandler) handleGetConfig(serverName string, uid string) bool {
 	}
 
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		http.StatusOK,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 	return true
 }
@@ -103,10 +106,13 @@ func (h *MCPConfigHandler) handleStoreConfig(serverName string, uid string, body
 	}
 
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		http.StatusOK,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 	return true
 }
@@ -124,10 +130,13 @@ func (h *MCPConfigHandler) sendErrorResponse(status int, code string, message st
 		},
 	}
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		status,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 }
 

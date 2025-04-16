@@ -242,3 +242,7 @@ func (s *SSEServer) writeJSONRPCError(
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(response)
 }
+
+func (s *SSEServer) Close() {
+	s.server.Close()
+}
