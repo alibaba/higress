@@ -1,0 +1,85 @@
+server:
+  name: weather-server
+  config:
+    apiKey: ""
+tools:
+- name: get_weather
+  description: "获取指定城市的实时天气信息"
+  args:
+  - name: city
+    description: "城市名称（支持中文或英文，如：苏州、suzhou）"
+    type: string
+    required: true
+  - name: units
+    description: "温度单位 (metric: 摄氏度, imperial: 华氏度)"
+    type: string
+    required: false
+    default: "metric"
+  - name: lang
+    description: "返回语言 (zh_cn: 中文, en: 英文)"
+    type: string
+    required: false
+    default: "zh_cn"
+  requestTemplate:
+    url: "http://api.openweathermap.org/data/2.5/weather"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: x-api-key
+      value: "{{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "description": "{{ (index .weather 0).description}}",
+        "temperature": {{.main.temp}},
+        "humidity": {{.main.humidity}},
+        "wind_speed": {{.wind.speed}},
+        "city": "{{.args.city}}"
+      }
+
+- name: get_weather_forecast
+  description: "获取指定城市的天气预报信息"
+  args:
+  - name: city
+    description: "城市名称（支持中文或英文，如：苏州、suzhou）"
+    type: string
+    required: true
+  - name: days
+    description: "预报天数（最多5天）"
+    type: integer
+    required: false
+    default: 5
+  - name: units
+    description: "温度单位 (metric: 摄氏度, imperial: 华氏度)"
+    type: string
+    required: false
+    default: "metric"
+  - name: lang
+    description: "返回语言 (zh_cn: 中文, en: 英文)"
+    type: string
+    required: false
+    default: "zh_cn"
+  requestTemplate:
+    url: "http://api.openweathermap.org/data/2.5/forecast"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: x-api-key
+      value: "{{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "forecasts": 
+        {{- range $index, $item := .list }}
+        {
+          "date": "{{$item.dt_txt}}",
+          "description": "{{ (index $item.weather0).description}}",
+          "temp_min": {{$item.main.temp_min}},
+          "temp_max": {{$item.main.temp_max}},
+          "humidity": {{$item.main.humidity}},
+          "wind_speed": {{$item.wind.speed}},
+          "city": "{{$.args.city}}"
+        }{{if not $index.last}},{{end}}
+        {{- end }}
+      
+      }
