@@ -116,7 +116,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		return nil
 	}
 	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
-		proxywasm.SendHttpResponseWithDetail(200, "mcp:notifications/initialized", nil, nil, -1)
+		proxywasm.SendHttpResponseWithDetail(202, "mcp:notifications/initialized", nil, nil, -1)
 		return nil
 	}
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {

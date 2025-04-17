@@ -138,7 +138,7 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 		}
 		OnJsonRpcResponseError(ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
 	} else {
-		proxywasm.SendHttpResponseWithDetail(200, "json_rpc_ack", nil, nil, -1)
+		proxywasm.SendHttpResponseWithDetail(202, "json_rpc_ack", nil, nil, -1)
 	}
 	return types.ActionContinue
 }
