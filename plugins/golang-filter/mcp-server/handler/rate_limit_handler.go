@@ -69,8 +69,8 @@ type LimitContext struct {
 }
 
 // TODO: needs to be refactored, rate limit should be registered as a request hook in MCP server
-func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body []byte) bool {
-	parts := strings.Split(path, "/")
+func (h *MCPRatelimitHandler) HandleRatelimit(req *http.Request, body []byte) bool {
+	parts := strings.Split(req.URL.Path, "/")
 	if len(parts) < 3 {
 		h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
 		return false
@@ -140,7 +140,12 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 			return false
 		}
 		// Send JSON-RPC response
-		h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusAccepted, string(jsonResponse), nil, 0, "")
+		sessionID := req.URL.Query().Get("sessionId")
+		if sessionID != "" {
+			h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusAccepted, string(jsonResponse), nil, 0, "")
+		} else {
+			h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, string(jsonResponse), nil, 0, "")
+		}
 		return false
 	}
 

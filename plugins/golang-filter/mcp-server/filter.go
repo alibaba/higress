@@ -113,6 +113,11 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 
+	f.req = &http.Request{
+		Method: url.method,
+		URL:    url.parsedURL,
+	}
+
 	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
 		if !url.internalIP {
 			api.LogWarnf("Access denied: non-internal IP address %s", url.parsedURL.String())
@@ -121,12 +126,8 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
 			api.LogDebugf("Handling config request: %s", f.path)
-			f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{})
+			f.mcpConfigHandler.HandleConfigRequest(f.req, []byte{})
 			return api.LocalReply
-		}
-		f.req = &http.Request{
-			Method: url.method,
-			URL:    url.parsedURL,
 		}
 		f.userLevelConfig = true
 		if endStream {
@@ -149,10 +150,6 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 					header.Set("x-higress-mcpserver-config", encodedConfig)
 					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
 				}
-			}
-			f.req = &http.Request{
-				Method: url.method,
-				URL:    url.parsedURL,
 			}
 			f.ratelimit = true
 		}
@@ -201,7 +198,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	} else if f.userLevelConfig {
 		// Handle config POST request
 		api.LogDebugf("Handling config request: %s", f.path)
-		f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes())
+		f.mcpConfigHandler.HandleConfigRequest(f.req, buffer.Bytes())
 		return api.LocalReply
 	} else if f.ratelimit {
 		if checkJSONRPCMethod(buffer.Bytes(), "tools/list") {
@@ -223,7 +220,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			return api.LocalReply
 		} else if encodedConfig == "" && checkJSONRPCMethod(buffer.Bytes(), "tools/call") {
 			api.LogDebugf("Empty config found for %s:%s", serverName, uid)
-			if !f.mcpRatelimitHandler.HandleRatelimit(f.req.URL.Path, f.req.Method, buffer.Bytes()) {
+			if !f.mcpRatelimitHandler.HandleRatelimit(f.req, buffer.Bytes()) {
 				return api.LocalReply
 			}
 		}
