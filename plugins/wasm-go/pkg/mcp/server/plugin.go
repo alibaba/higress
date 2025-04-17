@@ -255,6 +255,15 @@ func StoreServerState(ctx wrapper.HttpContext, config any) {
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config mcpServerConfig) types.Action {
 	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 	ctx.SetResponseBodyBufferLimit(defaultMaxBodyBytes)
+
+	if ctx.Method() == "GET" {
+		proxywasm.SendHttpResponseWithDetail(405, "not_support_sse_on_this_endpoint", nil, nil, -1)
+		return types.HeaderStopAllIterationAndWatermark
+	}
+	if !wrapper.HasRequestBody() {
+		proxywasm.SendHttpResponseWithDetail(400, "missing_body_in_mcp_request", nil, nil, -1)
+		return types.HeaderStopAllIterationAndWatermark
+	}
 	return types.HeaderStopIteration
 }
 
