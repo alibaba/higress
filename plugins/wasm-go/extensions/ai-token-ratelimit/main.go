@@ -140,7 +140,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		log.Errorf("redis call failed: %v", err)
 		return types.ActionContinue
 	}
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
