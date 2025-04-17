@@ -192,9 +192,9 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer with complete body
-				server.HandleMessage(recorder, f.req, buffer.Bytes())
+				httpStatus := server.HandleMessage(recorder, f.req, buffer.Bytes())
 				f.message = false
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
 				return api.LocalReply
 			}
 		}
@@ -223,7 +223,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			return api.LocalReply
 		} else if encodedConfig == "" && checkJSONRPCMethod(buffer.Bytes(), "tools/call") {
 			api.LogDebugf("Empty config found for %s:%s", serverName, uid)
-			if !f.mcpRatelimitHandler.HandleRatelimit(f.req.URL.Path, f.req.Method, []byte{}) {
+			if !f.mcpRatelimitHandler.HandleRatelimit(f.req.URL.Path, f.req.Method, buffer.Bytes()) {
 				return api.LocalReply
 			}
 		}

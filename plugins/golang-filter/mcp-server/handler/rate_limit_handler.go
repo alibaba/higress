@@ -68,6 +68,7 @@ type LimitContext struct {
 	Reset     int // Time until reset in seconds
 }
 
+// TODO: needs to be refactored, rate limit should be registered as a request hook in MCP server
 func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body []byte) bool {
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
@@ -125,9 +126,10 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 			"isError": true,
 		}
 		// Create JSON-RPC response
+		id := getJSONPRCID(body)
 		response := mcp.JSONRPCResponse{
 			JSONRPC: mcp.JSONRPC_VERSION,
-			ID:      "rate_limit",
+			ID:      id,
 			Result:  result,
 		}
 		// Convert response to JSON
@@ -143,6 +145,19 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 	}
 
 	return true
+}
+
+func getJSONPRCID(body []byte) mcp.RequestId {
+	baseMessage := struct {
+		JSONRPC string      `json:"jsonrpc"`
+		Method  string      `json:"method"`
+		ID      interface{} `json:"id,omitempty"`
+	}{}
+	if err := json.Unmarshal(body, &baseMessage); err != nil {
+		api.LogWarnf("Failed to unmarshal request body: %v, not a JSON RPC request", err)
+		return ""
+	}
+	return baseMessage.ID
 }
 
 // parseRedisValue converts the value from Redis to an int
