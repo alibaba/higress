@@ -197,6 +197,8 @@ func (t *RestTool) parseTemplates() error {
 		if err != nil {
 			return fmt.Errorf("error parsing response template: %v", err)
 		}
+	} else if t.isDirectResponseTool {
+		return errors.New("direct response mode must set responseTemplate.body")
 	}
 
 	// Initialize argument positions map
@@ -428,17 +430,11 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		var result string
 
 		// Render the response template with the arguments
-		if t.toolConfig.parsedResponseTemplate != nil {
-			templateResult, err := executeTemplate(t.toolConfig.parsedResponseTemplate, templateDataBytes)
-			if err != nil {
-				return fmt.Errorf("error executing response template: %v", err)
-			}
-			result = templateResult
-		} else {
-			// Fallback if no template is provided
-			result = "success"
+		templateResult, err := executeTemplate(t.toolConfig.parsedResponseTemplate, templateDataBytes)
+		if err != nil {
+			return fmt.Errorf("error executing response template: %v", err)
 		}
-
+		result = templateResult
 		// Send the result
 		utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		return nil
@@ -657,7 +653,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	err = ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d, response: %se", statusCode, responseBody))
 				return
 			}
 
