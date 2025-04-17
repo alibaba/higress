@@ -1,0 +1,75 @@
+server:
+  name: zodiac-analysis
+  config:
+    appCode: ""
+tools:
+  - name: zodiac-analysis
+    description: 星座运势查询
+    args:
+      - name: needMonth
+        description: 是否需要本月运势的数据，1为需要，其他不需要
+        type: string
+        position: query
+      - name: needTomorrow
+        description: 是否需要明天的数据，1为需要，其他不需要
+        type: string
+        position: query
+      - name: needWeek
+        description: 是否需要本周运势的数据，1为需要，其他不需要
+        type: string
+        position: query
+      - name: needYear
+        description: 是否需要本年运势的数据，1为需要，其他不需要
+        type: string
+        position: query
+      - name: star
+        description: 十二星座，其值分别为 baiyang jinniu shuangzi juxie shizi chunv tiancheng tianxie sheshou mojie shuiping shuangyu
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://luck141219.market.alicloudapi.com/star
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.day**:  (Type: object)
+            - **showapi_res_body.day.day_notice**: 今日提醒 (Type: string)
+            - **showapi_res_body.day.general_txt**: 运势简评 (Type: string)
+            - **showapi_res_body.day.grxz**: 贵人星座 (Type: string)
+            - **showapi_res_body.day.love_star**: 爱情指数，最高5分 (Type: integer)
+            - **showapi_res_body.day.love_txt**: 爱情运势 (Type: string)
+            - **showapi_res_body.day.lucky_color**: 吉色 (Type: string)
+            - **showapi_res_body.day.lucky_direction**: 吉利方位 (Type: string)
+            - **showapi_res_body.day.lucky_num**: 幸运数字 (Type: string)
+            - **showapi_res_body.day.lucky_time**: 吉时 (Type: string)
+            - **showapi_res_body.day.money_star**: 财富指数，最高5分 (Type: integer)
+            - **showapi_res_body.day.money_txt**: 财富运势 (Type: string)
+            - **showapi_res_body.day.summary_star**: 综合指数，最高5分 (Type: integer)
+            - **showapi_res_body.day.time**: 时间 (Type: string)
+            - **showapi_res_body.day.work_star**: 工作指数，最高5分 (Type: integer)
+            - **showapi_res_body.day.work_txt**: 工作运势 (Type: string)
+          - **showapi_res_body.day_notice**:  (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+          - **showapi_res_body.star**: 星座 (Type: string)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
