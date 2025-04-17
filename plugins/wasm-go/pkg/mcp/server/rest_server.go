@@ -654,7 +654,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	}
 
 	// Make HTTP request
-	ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
+	err = ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d", statusCode))
@@ -689,7 +689,10 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 			}
 			utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		})
-
+	if err != nil {
+		utils.OnMCPToolCallError(ctx, errors.New("call api failed, service not found"))
+		log.Errorf("call api failed, err:%v", err)
+	}
 	return nil
 }
 
