@@ -130,6 +130,9 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 				}
 			}
 		}
+		if errorText, ok := rateLimit["error_text"].(string); ok {
+			rateLimitConfig.ErrorText = errorText
+		}
 		conf.rateLimitConfig = rateLimitConfig
 	}
 
