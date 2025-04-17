@@ -17,6 +17,7 @@ package wrapper
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"time"
 	"unsafe"
@@ -704,6 +705,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) 
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
+	defer recoverFunc()
 	requestID, _ := proxywasm.GetHttpRequestHeader("x-request-id")
 	_ = proxywasm.SetProperty([]string{"x_request_id"}, []byte(requestID))
 	config, err := ctx.plugin.GetMatchConfig()
@@ -726,6 +728,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, end
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStream bool) types.Action {
+	defer recoverFunc()
 	if ctx.config == nil {
 		return types.ActionContinue
 	}
@@ -758,6 +761,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestBody(bodySize int, endOfStr
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
+	defer recoverFunc()
 	if ctx.config == nil {
 		return types.ActionContinue
 	}
@@ -772,6 +776,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, en
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfStream bool) types.Action {
+	defer recoverFunc()
 	if ctx.config == nil {
 		return types.ActionContinue
 	}
@@ -804,6 +809,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() {
+	defer recoverFunc()
 	if ctx.config == nil {
 		return
 	}
@@ -823,4 +829,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, url string, headers []
 		BaseCluster: BaseCluster{notify: ctx},
 	}
 	return HttpCall(cluster, method, url, headers, body, callback, timeout)
+}
+
+func recoverFunc() {
+	if r := recover(); r != nil {
+		const size = 64 << 10
+		buf := make([]byte, size)
+		buf = buf[:runtime.Stack(buf, false)]
+		log.Errorf("recovered from panic %v, stack: %s", r, buf)
+	}
 }
