@@ -1,0 +1,76 @@
+server:
+  name: brave-search-server
+  config:
+    apiKey: ""
+tools:
+- name: brave_web_search
+  description: "使用Brave Search API进行网页搜索，适用于一般查询、新闻、文章和在线内容。支持分页、内容过滤和新鲜度控制。每次请求最多返回20条结果。"
+  args:
+  - name: query
+    description: "搜索查询（最多400字符，50个词）"
+    type: string
+    required: true
+  - name: count
+    description: "结果数量（1-20，默认10）"
+    type: integer
+    required: false
+    default: 10
+  - name: offset
+    description: "分页偏移量（最大9，默认0）"
+    type: integer
+    required: false
+    default: 0
+  requestTemplate:
+    url: "https://api.search.brave.com/res/v1/web/search"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Accept
+      value: "application/json"
+    - key: Accept-Encoding
+      value: "gzip"
+    - key: X-Subscription-Token
+      value: "{{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {{- range $index, $item := .web.results }}
+      ## 结果 {{add $index 1}}
+      - **标题**: {{ $item.title }}
+      - **描述**: {{ $item.description }}
+      - **URL**: {{ $item.url }}
+      {{- end }}
+
+- name: brave_local_search
+  description: "使用Brave的Local Search API搜索本地商家和地点。适用于与物理位置、商家、餐厅、服务等相关的查询。返回详细信息包括商家名称、地址、评分、评论数、电话号码、营业时间等。如果没有本地结果，会自动回退到网页搜索。"
+  args:
+  - name: query
+    description: "本地搜索查询（例如'Central Park附近的披萨'）"
+    type: string
+    required: true
+  - name: count
+    description: "结果数量（1-20，默认5）"
+    type: integer
+    required: false
+    default: 5
+  requestTemplate:
+    url: "https://api.search.brave.com/res/v1/web/search"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Accept
+      value: "application/json"
+    - key: Accept-Encoding
+      value: "gzip"
+    - key: X-Subscription-Token
+      value: "{{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {{- range $index, $item := .results }}
+      ## 结果 {{add $index 1}}
+      - **名称**: {{ $item.name }}
+      - **地址**: {{ $item.address.streetAddress }}, {{ $item.address.addressLocality }}, {{ $item.address.addressRegion }} {{ $item.address.postalCode }}
+      - **电话**: {{ $item.phone }}
+      - **评分**: {{ $item.rating.ratingValue }} ({{ $item.rating.ratingCount }} 条评论)
+      - **价格范围**: {{ $item.priceRange }}
+      - **营业时间**: {{ join $item.openingHours ", " }}
+      {{- end }}
