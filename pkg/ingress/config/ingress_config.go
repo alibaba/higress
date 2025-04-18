@@ -152,6 +152,7 @@ type IngressConfig struct {
 
 	httpsConfigMgr *cert.ConfigMgr
 
+	commonOptions common.Options
 	// templateProcessor processes template variables in config
 	templateProcessor *TemplateProcessor
 
@@ -197,6 +198,7 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		namespace:                namespace,
 		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
 		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
+		commonOptions:            options,
 	}
 
 	// Initialize secret config manager
@@ -904,7 +906,7 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	result := &extensions.WasmPlugin{
 		Selector: &istiotype.WorkloadSelector{
 			MatchLabels: map[string]string{
-				"higress": m.namespace + "-higress-gateway",
+				m.commonOptions.GatewaySelectorKey: m.commonOptions.GatewaySelectorValue,
 			},
 		},
 		Url:             obj.Url,
