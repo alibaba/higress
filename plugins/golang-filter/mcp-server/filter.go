@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 const (
@@ -35,6 +37,7 @@ type filter struct {
 
 	userLevelConfig     bool
 	mcpConfigHandler    *handler.MCPConfigHandler
+	ratelimit           bool
 	mcpRatelimitHandler *handler.MCPRatelimitHandler
 }
 
@@ -110,6 +113,11 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 
+	f.req = &http.Request{
+		Method: url.method,
+		URL:    url.parsedURL,
+	}
+
 	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
 		if !url.internalIP {
 			api.LogWarnf("Access denied: non-internal IP address %s", url.parsedURL.String())
@@ -118,12 +126,8 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
 			api.LogDebugf("Handling config request: %s", f.path)
-			f.mcpConfigHandler.HandleConfigRequest(f.path, url.method, []byte{})
+			f.mcpConfigHandler.HandleConfigRequest(f.req, []byte{})
 			return api.LocalReply
-		}
-		f.req = &http.Request{
-			Method: url.method,
-			URL:    url.parsedURL,
 		}
 		f.userLevelConfig = true
 		if endStream {
@@ -137,30 +141,23 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		f.proxyURL = url.parsedURL
 		if f.config.enableUserLevelServer {
 			parts := strings.Split(url.parsedURL.Path, "/")
-			if len(parts) < 3 {
-				api.LogDebugf("Access denied: missing uid in path %s", url.parsedURL.Path)
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "Access denied: missing uid", nil, 0, "")
-				return api.LocalReply
-			}
-			serverName := parts[1]
-			uid := parts[2]
-			// Get encoded config
-			encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
-			if err != nil {
-				api.LogWarnf("Access denied: no valid config found for uid %s", uid)
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
-				return api.LocalReply
-			} else if encodedConfig != "" {
-				header.Set("x-higress-mcpserver-config", encodedConfig)
-				api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
-			} else {
-				api.LogDebugf("Empty config found for %s:%s", serverName, uid)
-				if !f.mcpRatelimitHandler.HandleRatelimit(url.parsedURL.Path, url.method, []byte{}) {
-					return api.LocalReply
+			if len(parts) >= 3 {
+				serverName := parts[1]
+				uid := parts[2]
+				// Get encoded config
+				encodedConfig, _ := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+				if encodedConfig != "" {
+					header.Set("x-higress-mcpserver-config", encodedConfig)
+					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
 				}
 			}
+			f.ratelimit = true
 		}
-		return api.Continue
+		if endStream {
+			return api.Continue
+		} else {
+			return api.StopAndBuffer
+		}
 	}
 
 	if url.method != http.MethodGet {
@@ -183,26 +180,50 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if f.skip {
 		return api.Continue
 	}
+	if !endStream {
+		return api.StopAndBuffer
+	}
 	if f.message {
-		if endStream {
-			for _, server := range f.config.servers {
-				if f.path == server.GetMessageEndpoint() {
-					// Create a response recorder to capture the response
-					recorder := httptest.NewRecorder()
-					// Call the handleMessage method of SSEServer with complete body
-					server.HandleMessage(recorder, f.req, buffer.Bytes())
-					f.message = false
-					f.callbacks.DecoderFilterCallbacks().SendLocalReply(recorder.Code, recorder.Body.String(), recorder.Header(), 0, "")
-					return api.LocalReply
-				}
+		for _, server := range f.config.servers {
+			if f.path == server.GetMessageEndpoint() {
+				// Create a response recorder to capture the response
+				recorder := httptest.NewRecorder()
+				// Call the handleMessage method of SSEServer with complete body
+				httpStatus := server.HandleMessage(recorder, f.req, buffer.Bytes())
+				f.message = false
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
+				return api.LocalReply
 			}
 		}
-		return api.StopAndBuffer
 	} else if f.userLevelConfig {
 		// Handle config POST request
 		api.LogDebugf("Handling config request: %s", f.path)
-		f.mcpConfigHandler.HandleConfigRequest(f.path, f.req.Method, buffer.Bytes())
+		f.mcpConfigHandler.HandleConfigRequest(f.req, buffer.Bytes())
 		return api.LocalReply
+	} else if f.ratelimit {
+		if checkJSONRPCMethod(buffer.Bytes(), "tools/list") {
+			api.LogDebugf("Not a tools call request, skipping ratelimit")
+			return api.Continue
+		}
+		parts := strings.Split(f.req.URL.Path, "/")
+		if len(parts) < 3 {
+			api.LogWarnf("Access denied: no valid uid found")
+			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
+			return api.LocalReply
+		}
+		serverName := parts[1]
+		uid := parts[2]
+		encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
+		if err != nil {
+			api.LogWarnf("Access denied: no valid config found for uid %s", uid)
+			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
+			return api.LocalReply
+		} else if encodedConfig == "" && checkJSONRPCMethod(buffer.Bytes(), "tools/call") {
+			api.LogDebugf("Empty config found for %s:%s", serverName, uid)
+			if !f.mcpRatelimitHandler.HandleRatelimit(f.req, buffer.Bytes()) {
+				return api.LocalReply
+			}
+		}
 	}
 	return api.Continue
 }
@@ -286,4 +307,15 @@ func (f *filter) OnDestroy(reason api.DestroyReason) {
 			close(f.stopChan)
 		}
 	}
+}
+
+// check if the request is a tools/call request
+func checkJSONRPCMethod(body []byte, method string) bool {
+	var request mcp.CallToolRequest
+	if err := json.Unmarshal(body, &request); err != nil {
+		api.LogWarnf("Failed to unmarshal request body: %v, not a JSON RPC request", err)
+		return true
+	}
+
+	return request.Method == method
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 type MCPRatelimitHandler struct {
@@ -17,6 +19,7 @@ type MCPRatelimitHandler struct {
 	limit       int      // Maximum requests allowed per window
 	window      int      // Time window in seconds
 	whitelist   []string // Whitelist of UIDs that bypass rate limiting
+	errorText   string   // Error text to be displayed
 }
 
 // MCPRatelimitConfig is the configuration for the rate limit handler
@@ -24,6 +27,7 @@ type MCPRatelimitConfig struct {
 	Limit     int      `json:"limit"`
 	Window    int      `json:"window"`
 	Whitelist []string `json:"white_list"` // List of UIDs that bypass rate limiting
+	ErrorText string   `json:"error_text"` // Error text to be displayed
 }
 
 // NewMCPRatelimitHandler creates a new rate limit handler
@@ -33,6 +37,7 @@ func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.Fil
 			Limit:     100,
 			Window:    int(24 * time.Hour / time.Second), // 24 hours in seconds
 			Whitelist: []string{},
+			ErrorText: "API rate limit exceeded",
 		}
 	}
 	return &MCPRatelimitHandler{
@@ -41,6 +46,7 @@ func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.Fil
 		limit:       conf.Limit,
 		window:      conf.Window,
 		whitelist:   conf.Whitelist,
+		errorText:   conf.ErrorText,
 	}
 }
 
@@ -62,8 +68,9 @@ type LimitContext struct {
 	Reset     int // Time until reset in seconds
 }
 
-func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body []byte) bool {
-	parts := strings.Split(path, "/")
+// TODO: needs to be refactored, rate limit should be registered as a request hook in MCP server
+func (h *MCPRatelimitHandler) HandleRatelimit(req *http.Request, body []byte) bool {
+	parts := strings.Split(req.URL.Path, "/")
 	if len(parts) < 3 {
 		h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
 		return false
@@ -106,11 +113,56 @@ func (h *MCPRatelimitHandler) HandleRatelimit(path string, method string, body [
 	}
 
 	if context.Remaining < 0 {
-		h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusTooManyRequests, "", nil, 0, "")
+		// Create error response content
+		errorContent := []mcp.TextContent{
+			{
+				Type: "text",
+				Text: h.errorText,
+			},
+		}
+		// Create response result
+		result := map[string]interface{}{
+			"content": errorContent,
+			"isError": true,
+		}
+		// Create JSON-RPC response
+		id := getJSONPRCID(body)
+		response := mcp.JSONRPCResponse{
+			JSONRPC: mcp.JSONRPC_VERSION,
+			ID:      id,
+			Result:  result,
+		}
+		// Convert response to JSON
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			api.LogErrorf("Failed to marshal JSON response: %v", err)
+			h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusInternalServerError, "", nil, 0, "")
+			return false
+		}
+		// Send JSON-RPC response
+		sessionID := req.URL.Query().Get("sessionId")
+		if sessionID != "" {
+			h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusAccepted, string(jsonResponse), nil, 0, "")
+		} else {
+			h.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, string(jsonResponse), nil, 0, "")
+		}
 		return false
 	}
 
 	return true
+}
+
+func getJSONPRCID(body []byte) mcp.RequestId {
+	baseMessage := struct {
+		JSONRPC string      `json:"jsonrpc"`
+		Method  string      `json:"method"`
+		ID      interface{} `json:"id,omitempty"`
+	}{}
+	if err := json.Unmarshal(body, &baseMessage); err != nil {
+		api.LogWarnf("Failed to unmarshal request body: %v, not a JSON RPC request", err)
+		return ""
+	}
+	return baseMessage.ID
 }
 
 // parseRedisValue converts the value from Redis to an int

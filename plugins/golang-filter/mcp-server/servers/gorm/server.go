@@ -16,8 +16,9 @@ func init() {
 }
 
 type DBConfig struct {
-	dbType string
-	dsn    string
+	dbType      string
+	dsn         string
+	description string
 }
 
 func (c *DBConfig) ParseConfig(config map[string]any) error {
@@ -33,6 +34,10 @@ func (c *DBConfig) ParseConfig(config map[string]any) error {
 	}
 	c.dbType = dbType
 	api.LogDebugf("DBConfig ParseConfig: %+v", config)
+	c.description, ok = config["description"].(string)
+	if !ok {
+		c.description = ""
+	}
 	return nil
 }
 
@@ -43,14 +48,10 @@ func (c *DBConfig) NewServer(serverName string) (*internal.MCPServer, error) {
 		internal.WithInstructions(fmt.Sprintf("This is a %s database server", c.dbType)),
 	)
 
-	dbClient, err := NewDBClient(c.dsn, c.dbType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize DBClient: %w", err)
-	}
-
+	dbClient := NewDBClient(c.dsn, c.dbType, mcpServer.GetDestoryChannel())
 	// Add query tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query in database %s", c.dbType), GetQueryToolSchema()),
+		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query in database %s. Database description: %s", c.dbType, c.description), GetQueryToolSchema()),
 		HandleQueryTool(dbClient),
 	)
 

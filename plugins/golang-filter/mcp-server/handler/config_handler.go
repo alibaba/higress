@@ -26,14 +26,14 @@ func NewMCPConfigHandler(redisClient *internal.RedisClient, callbacks api.Filter
 }
 
 // HandleConfigRequest processes configuration requests
-func (h *MCPConfigHandler) HandleConfigRequest(path string, method string, body []byte) bool {
+func (h *MCPConfigHandler) HandleConfigRequest(req *http.Request, body []byte) bool {
 	// Check if it's a configuration request
-	if !strings.HasSuffix(path, "/config") {
+	if !strings.HasSuffix(req.URL.Path, "/config") {
 		return false
 	}
 
 	// Extract serverName and uid from path
-	pathParts := strings.Split(strings.TrimSuffix(path, "/config"), "/")
+	pathParts := strings.Split(strings.TrimSuffix(req.URL.Path, "/config"), "/")
 	if len(pathParts) < 2 {
 		h.sendErrorResponse(http.StatusBadRequest, "INVALID_PATH", "Invalid path format")
 		return true
@@ -41,7 +41,7 @@ func (h *MCPConfigHandler) HandleConfigRequest(path string, method string, body 
 	uid := pathParts[len(pathParts)-1]
 	serverName := pathParts[len(pathParts)-2]
 
-	switch method {
+	switch req.Method {
 	case http.MethodGet:
 		return h.handleGetConfig(serverName, uid)
 	case http.MethodPost:
@@ -70,10 +70,13 @@ func (h *MCPConfigHandler) handleGetConfig(serverName string, uid string) bool {
 	}
 
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		http.StatusOK,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 	return true
 }
@@ -103,10 +106,13 @@ func (h *MCPConfigHandler) handleStoreConfig(serverName string, uid string, body
 	}
 
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		http.StatusOK,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 	return true
 }
@@ -124,10 +130,13 @@ func (h *MCPConfigHandler) sendErrorResponse(status int, code string, message st
 		},
 	}
 	responseBytes, _ := json.Marshal(response)
+	headers := map[string][]string{
+		"Content-Type": {"application/json"},
+	}
 	h.callbacks.DecoderFilterCallbacks().SendLocalReply(
 		status,
 		string(responseBytes),
-		nil, 0, "",
+		headers, 0, "",
 	)
 }
 
