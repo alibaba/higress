@@ -179,10 +179,10 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses
 // back through both the SSE connection and HTTP response.
-func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body json.RawMessage) {
+func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body json.RawMessage) int {
 	if r.Method != http.MethodPost {
 		s.writeJSONRPCError(w, nil, mcp.INVALID_REQUEST, fmt.Sprintf("Method %s not allowed", r.Method))
-		return
+		return http.StatusBadRequest
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
@@ -207,7 +207,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 
 	// Process message through MCPServer
 	response := s.server.HandleMessage(ctx, body)
-
+	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
 		eventData, _ := json.Marshal(response)
@@ -219,15 +219,22 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 			if publishErr != nil {
 				api.LogErrorf("Failed to publish message to Redis: %v", publishErr)
 			}
+			w.WriteHeader(http.StatusAccepted)
+			status = http.StatusAccepted
+		} else {
+			// support streamable http
+			w.WriteHeader(http.StatusOK)
+			status = http.StatusOK
 		}
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(response)
 	} else {
 		// For notifications, just send 202 Accepted with no body
 		w.WriteHeader(http.StatusAccepted)
+		status = http.StatusAccepted
 	}
+	return status
 }
 
 // writeJSONRPCError writes a JSON-RPC error response with the given error details.
@@ -241,4 +248,8 @@ func (s *SSEServer) writeJSONRPCError(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(response)
+}
+
+func (s *SSEServer) Close() {
+	s.server.Close()
 }
