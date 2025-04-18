@@ -49,6 +49,9 @@ func (c *config) Destroy() {
 		api.LogDebug("Closing Redis client")
 		c.redisClient.Close()
 	}
+	for _, server := range c.servers {
+		server.Close()
+	}
 }
 
 type parser struct {
@@ -126,6 +129,9 @@ func (p *parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 					rateLimitConfig.Whitelist = append(rateLimitConfig.Whitelist, uid)
 				}
 			}
+		}
+		if errorText, ok := rateLimit["error_text"].(string); ok {
+			rateLimitConfig.ErrorText = errorText
 		}
 		conf.rateLimitConfig = rateLimitConfig
 	}
