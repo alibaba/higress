@@ -24,7 +24,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/resp"
 )
 
@@ -153,7 +152,7 @@ func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback
 	_, err := proxywasm.DispatchRedisCall(
 		cluster.ClusterName(),
 		respQuery,
-		redisRespCallback(cluster, respQuery, callback, requestID))
+		redisRespCallback(cluster, respQuery, callback, requestID, false))
 	if err != nil {
 		proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
 	} else {
@@ -162,7 +161,7 @@ func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback
 	return err
 }
 
-func redisRespCallback(cluster Cluster, respQuery []byte, callback RedisResponseCallback, requestID string) func(status int, responseSize int) {
+func redisRespCallback(cluster Cluster, respQuery []byte, callback RedisResponseCallback, requestID string, authRetried bool) func(status int, responseSize int) {
 	return func(status int, responseSize int) {
 		response, err := proxywasm.GetRedisCallResponse(0, responseSize)
 		var responseValue resp.Value
@@ -186,31 +185,23 @@ func redisRespCallback(cluster Cluster, respQuery []byte, callback RedisResponse
 				}
 			}
 		}
-		key := "redisInitialized" + requestID
-		data, cas, err := proxywasm.GetSharedData(key)
-		if strings.HasPrefix(responseValue.String(), "NOAUTH") && (errors.Is(err, types.ErrorStatusNotFound) || data == nil) {
+
+		if strings.HasPrefix(responseValue.String(), "NOAUTH") && !authRetried {
 			if config, ok := clusterConfMap[cluster.ClusterName()]; ok {
 				for initTimes := 1; initTimes <= 2; initTimes++ {
 					proxywasm.LogInfof("trying to initialize redis for the %d time", initTimes)
 					initErr := proxywasm.RedisInit(config.clientClusterName, config.username, config.password, config.timeout)
 					if initErr == nil {
-						err = proxywasm.SetSharedData(key, []byte("1"), cas)
-						if err != nil {
-							proxywasm.LogErrorf("failed to set ket %s, err %v", key, err)
-							break
-						}
-						_, err = proxywasm.DispatchRedisCall(cluster.ClusterName(), respQuery, redisRespCallback(cluster, respQuery, callback, requestID))
+						_, err = proxywasm.DispatchRedisCall(cluster.ClusterName(), respQuery, redisRespCallback(cluster, respQuery, callback, requestID, true))
 						if err != nil {
 							proxywasm.LogCriticalf("redis call failed, request-id: %s, error: %v", requestID, err)
-							break
-						} else {
-							return
 						}
+						return
 					}
 				}
 			}
 		}
-		_ = proxywasm.SetSharedData(key, nil, 0)
+
 		if callback != nil {
 			callback(responseValue)
 		}
