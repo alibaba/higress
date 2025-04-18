@@ -68,6 +68,7 @@ const (
 	providerTypeCoze       = "coze"
 	providerTypeTogetherAI = "together-ai"
 	providerTypeDify       = "dify"
+	providerTypeBedrock    = "bedrock"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -138,6 +139,7 @@ var (
 		providerTypeCoze:       &cozeProviderInitializer{},
 		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 		providerTypeDify:       &difyProviderInitializer{},
+		providerTypeBedrock:    &bedrockProviderInitializer{},
 	}
 )
 
@@ -242,6 +244,15 @@ type ProviderConfig struct {
 	// @Title zh-CN hunyuan api id for authorization
 	// @Description zh-CN 仅适用于Hun Yuan AI服务鉴权
 	hunyuanAuthId string `required:"false" yaml:"hunyuanAuthId" json:"hunyuanAuthId"`
+	// @Title zh-CN Amazon Bedrock AccessKey for authorization
+	// @Description zh-CN 仅适用于Amazon Bedrock服务鉴权，API key/id 参考：https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/reference_sigv.html
+	awsAccessKey string `required:"false" yaml:"awsAccessKey" json:"awsAccessKey"`
+	// @Title zh-CN Amazon Bedrock SecretKey for authorization
+	// @Description zh-CN 仅适用于Amazon Bedrock服务鉴权
+	awsSecretKey string `required:"false" yaml:"awsSecretKey" json:"awsSecretKey"`
+	// @Title zh-CN Amazon Bedrock Region
+	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
+	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -346,6 +357,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.claudeVersion = json.Get("claudeVersion").String()
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
+	c.awsAccessKey = json.Get("awsAccessKey").String()
+	c.awsSecretKey = json.Get("awsSecretKey").String()
+	c.awsRegion = json.Get("awsRegion").String()
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
