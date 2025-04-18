@@ -48,12 +48,12 @@ The meanings of various values for `value_source` ​​are as follows:
 
 When `value_source` is `response_streaming_body`, `rule` should be configured to specify how to obtain the specified value from the streaming body. The meaning of the value is as follows:
 
-- `first`: extract value from the first valid chunk 
-- `replace`: extract value from the last valid chunk 
+- `first`: extract value from the first valid chunk
+- `replace`: extract value from the last valid chunk
 - `append`: join value pieces from all valid chunks
 
 ## Configuration example
-If you want to record ai-statistic related statistical values ​​​​in the gateway access log, you need to modify log_format and add a new field based on the original log_format. The example is as follows:
+If you want to record ai-statistic related statistical values in the gateway access log, you need to modify log_format and add a new field based on the original log_format. The example is as follows:
 
 ```yaml
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
@@ -61,12 +61,43 @@ If you want to record ai-statistic related statistical values ​​​​in the
 
 ### Empty
 #### Metric
+
 ```
-route_upstream_model_metric_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 10
-route_upstream_model_metric_llm_duration_count{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1
-route_upstream_model_metric_llm_first_token_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 309
-route_upstream_model_metric_llm_service_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1955
-route_upstream_model_metric_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 69
+# counter, cumulative count of input tokens
+route_upstream_model_consumer_metric_input_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 24
+
+# counter, cumulative count of output tokens
+route_upstream_model_consumer_metric_output_token{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 507
+
+# counter, cumulative total duration of both streaming and non-streaming requests
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 6470
+
+# counter, cumulative count of both streaming and non-streaming requests
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 2
+
+# counter, cumulative latency of the first token in streaming requests
+route_upstream_model_consumer_metric_llm_first_token_duration{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 340
+
+# counter, cumulative count of streaming requests
+route_upstream_model_consumer_metric_llm_stream_duration_count{ai_route="ai-route-aliyun.internal",ai_cluster="outbound|443||llm-aliyun.internal.dns",ai_model="qwen-turbo",ai_consumer="none"} 1
+```
+
+Below are some example usages of these metrics:
+
+Average latency of the first token in streaming requests:
+
+```
+irate(route_upstream_model_consumer_metric_llm_first_token_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_stream_duration_count[2m])
+```
+
+Average process duration of both streaming and non-streaming requests:
+
+```
+irate(route_upstream_model_consumer_metric_llm_service_duration[2m])
+/
+irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 ```
 
 #### Log
@@ -101,17 +132,18 @@ attributes:
     apply_to_span: false
 ```
 #### Metric
+
 ```
-route_upstream_model_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
-route_upstream_model_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
-route_upstream_model_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
-route_upstream_model_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
+route_upstream_model_consumer_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
+route_upstream_model_consumer_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
 ```
 
 #### Log
 ```json
 {
-  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"  
+  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"
 }
 ```
 
@@ -130,7 +162,7 @@ attributes:
 ### Record questions and answers
 ```yaml
 attributes:
-  - key: question 
+  - key: question
     value_source: request_body
     value: messages.@reverse.0.content
     apply_to_log: true

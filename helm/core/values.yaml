@@ -9,6 +9,8 @@ global:
   xdsMaxRecvMsgSize: "104857600"
   defaultUpstreamConcurrencyThreshold: 10000
   enableSRDS: true
+  # -- Whether to enable Redis(redis-stack-server) for Higress, default is false.
+  enableRedis: false
   onDemandRDS: false
   hostRDSMergeSubset: false
   onlyPushRouteCluster: true
@@ -198,6 +200,11 @@ global:
 
     # -- Controls if sidecar is injected at the front of the container list and blocks the start of the other containers until the proxy is ready
     holdApplicationUntilProxyStarts: false
+
+    # -- Proxy stats name regexps matcher for inclusion
+    proxyStatsMatcher:
+      inclusionRegexps:
+        - ".*"
 
   proxy_init:
     # -- Base name for the proxy_init container, used to configure iptables.
@@ -575,7 +582,7 @@ controller:
 
   podSecurityContext:
     {}
-    # fsGroup: 2000
+  # fsGroup: 2000
 
   ports:
     - name: http
@@ -599,9 +606,9 @@ controller:
     # capabilities:
     #   drop:
     #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
 
   resources:
     requests:
@@ -724,3 +731,40 @@ downstream:
 upstream:
   idleTimeout: 10
   connectionBufferLimits: 10485760
+
+redis:
+  redis:
+    name: redis-stack-server
+    # -- Specify the image
+    image: "redis-stack-server"
+    # -- Specify the tag
+    tag: "7.4.0-v3"
+    # -- Specify the number of replicas
+    replicas: 1
+    # -- Specify the password, if not set, no password is used
+    password: ""
+    # -- Service parameters
+    service:
+      # -- Exporter service type
+      type: ClusterIP
+      # -- Exporter service port
+      port: 6379
+    # -- Specify the resources
+    resources: {}
+    # -- NodeSelector Node labels for Redis
+    nodeSelector: {}
+    # -- Tolerations for Redis
+    tolerations: []
+    # -- Affinity for Redis
+    affinity: {}
+    persistence:
+      # -- Enable persistence on Redis, default is false
+      enabled: false
+      # -- If defined, storageClassName: <storageClass>
+      # -- If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner
+      storageClass: ""
+      # -- Persistent Volume access modes
+      accessModes:
+        - ReadWriteOnce
+      # -- Persistent Volume size
+      size: 1Gi
