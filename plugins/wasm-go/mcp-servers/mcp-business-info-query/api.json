@@ -1,0 +1,1446 @@
+{
+  "info": {
+    "description": "全国企业全量工商信息，根据企业全名查询企业各维度工商数据，包括工商注册基本信息,工商注册股东信息,工商注册变更记录,工商注册分支机构,工商注册基本董事会，专利，商标，著作权，对外投资，融资记录，法律诉讼，法院公告，招聘信息，年报，最新新闻等工商信息。如需要订制采集其他数据、国外企业数据可以联系客服。",
+    "title": "企业工商信息查询【天眼+启信】-查老板-查工商投融资-查专利商标-查工商年报-查工商风险失信-查法院公告-精准、模糊工商查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/getCompanyBaseInfo/{CompanyNameOrCreditNo}/": {
+      "get": {
+        "operationId": "企业工商数据精准查询",
+        "summary": "精准查询企业工商基本数据,包括工商注册信息,股东信息,变更记录,分支机构,董事会信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "支持企业全称和企业社会信任代码",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyNameOrCreditNo",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "响应状态"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "startDate": {
+                          "type": "string",
+                          "description": "公司成立日期"
+                        },
+                        "registerCapital": {
+                          "type": "string",
+                          "description": "注册资本"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "公司名称"
+                        },
+                        "registerData": {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "description": "经营状态"
+                            },
+                            "creditNo": {
+                              "type": "string",
+                              "description": "统一社会信用代码"
+                            },
+                            "orgNo": {
+                              "type": "string",
+                              "description": "组织机构代码"
+                            },
+                            "businessTerm": {
+                              "type": "string",
+                              "description": "营业期限"
+                            },
+                            "belongOrg": {
+                              "type": "string",
+                              "description": "登记机关"
+                            },
+                            "regType": {
+                              "type": "string",
+                              "description": "企业类型"
+                            },
+                            "registerNo": {
+                              "type": "string",
+                              "description": "工商注册号"
+                            },
+                            "address": {
+                              "type": "string",
+                              "description": "公司地址"
+                            },
+                            "businessScope": {
+                              "type": "string",
+                              "description": "经营范围"
+                            }
+                          }
+                        },
+                        "partnerData": {
+                          "type": "object",
+                          "properties": {
+                            "list": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "totalRealCapital": {
+                                    "type": "string",
+                                    "description": "实缴资本"
+                                  },
+                                  "partnerType": {
+                                    "type": "string",
+                                    "description": "股东类型"
+                                  },
+                                  "totalShouldCapital": {
+                                    "type": "string",
+                                    "description": "认缴资本"
+                                  },
+                                  "partnerName": {
+                                    "type": "string",
+                                    "description": "股东姓名"
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "description": "股东总数"
+                            }
+                          }
+                        },
+                        "changeRecordData": {
+                          "type": "object",
+                          "properties": {
+                            "list": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "date": {
+                                    "type": "string",
+                                    "description": "变更日期"
+                                  },
+                                  "item": {
+                                    "type": "string",
+                                    "description": "变更项目"
+                                  },
+                                  "after": {
+                                    "type": "string",
+                                    "description": "变更后内容"
+                                  },
+                                  "before": {
+                                    "type": "string",
+                                    "description": "变更前内容"
+                                  }
+                                }
+                              }
+                            },
+                            "hasMore": {
+                              "type": "boolean",
+                              "description": "是否有更多变更记录"
+                            }
+                          }
+                        },
+                        "employeeData": {
+                          "type": "object",
+                          "properties": {
+                            "list": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "description": "员工姓名"
+                                  },
+                                  "title": {
+                                    "type": "string",
+                                    "description": "职位"
+                                  }
+                                }
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "description": "员工总数"
+                            }
+                          }
+                        },
+                        "legalPersonName": {
+                          "type": "string",
+                          "description": "法定代表人姓名"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fuzzyQueryCompanyInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业工商数据模糊查询",
+        "summary": "企业工商基本数据模糊查询",
+        "parameters": [
+          {
+            "description": "查询页数，默认为第一页",
+            "example": "1",
+            "in": "query",
+            "name": "PageNum",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "支持企业名称、简称、注册号、信任号等模糊匹配",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "公司名称"
+                              },
+                              "legal_person_name": {
+                                "type": "string",
+                                "description": "法人代表姓名"
+                              },
+                              "reg_capital": {
+                                "type": "string",
+                                "description": "注册资本"
+                              },
+                              "reg_date": {
+                                "type": "string",
+                                "description": "注册日期"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数"
+                        },
+                        "num": {
+                          "type": "integer",
+                          "description": "当前数量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fuzzySuggestCompanyName/{Keyword}/": {
+      "get": {
+        "operationId": "企业名称搜索建议查询",
+        "summary": "企业工商名称搜索建议查询,只返回推荐匹配的企业名称，适合联想查询，输入框搜索建议",
+        "parameters": [
+          {
+            "description": "当请求查询关键字无返回结果时是否抛出404错误。0为否，1为是，默认为否。可以避免传入无效关键字时扣减次数。",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "查询关键字，至少3个字",
+            "example": "小米科技",
+            "in": "path",
+            "name": "Keyword",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "响应状态，true表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "companyname": {
+                                "type": "string",
+                                "description": "公司名称"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyBranchInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业分支机构信息",
+        "summary": "企业所有分支机构信息",
+        "parameters": [
+          {
+            "description": "查询页数，默认为第一页",
+            "example": "1",
+            "in": "query",
+            "name": "PageNum",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "状态标志，表示请求是否成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "description": "总数"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "分公司名称"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyAbnormalInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业经营异常信息",
+        "summary": "企业经营异常信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "orgName": {
+                                "type": "string",
+                                "example": "桐庐县市场监督管理局"
+                              },
+                              "iReason": {
+                                "type": "string",
+                                "example": "2017年度未按照《企业信息公示暂行条例》第八条规定的期限公示年度报告的"
+                              },
+                              "oDate": {
+                                "type": "string",
+                                "example": "-"
+                              },
+                              "oReason": {
+                                "type": "string",
+                                "example": "-"
+                              },
+                              "iDate": {
+                                "type": "string",
+                                "example": "2018-07-09"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyJudgmentDebtorInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业被执行人信息",
+        "summary": "企业被执行人信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "传入企业全称",
+            "example": "北京拜克洛克科技有限公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "状态标识，true表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "description": "数据总数"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "caseOrg": {
+                                "type": "string",
+                                "description": "案件所属法院"
+                              },
+                              "caseNo": {
+                                "type": "string",
+                                "description": "案件编号"
+                              },
+                              "caseMoney": {
+                                "type": "string",
+                                "description": "案件金额"
+                              },
+                              "pulishDate": {
+                                "type": "string",
+                                "description": "发布日期"
+                              },
+                              "parties": {
+                                "type": "string",
+                                "description": "当事人"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyCourtInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业法院公告信息",
+        "summary": "企业法院公告信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "请求状态"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pulishDate": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "发布日期和时间"
+                          },
+                          "courtName": {
+                            "type": "string",
+                            "description": "法庭名称"
+                          },
+                          "courtNo": {
+                            "type": "string",
+                            "description": "案件编号"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyLawsuitInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业法律诉讼信息",
+        "summary": "企业法律诉讼信息，主要是裁判文书",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "传入企业全称",
+            "example": "北京拜克洛克科技有限公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "请求状态"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "caseContent": {
+                            "type": "string",
+                            "description": "案件内容"
+                          },
+                          "caseReason": {
+                            "type": "string",
+                            "description": "案由"
+                          },
+                          "pulishDate": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "发布日期"
+                          },
+                          "caseName": {
+                            "type": "string",
+                            "description": "案件名称"
+                          },
+                          "caseNo": {
+                            "type": "string",
+                            "description": "案号"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyFinancingInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业融资信息",
+        "summary": "企业融资信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "状态标识，true表示成功"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "amount": {
+                            "type": "string",
+                            "description": "投资金额"
+                          },
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "投资日期"
+                          },
+                          "round": {
+                            "type": "string",
+                            "description": "融资轮次"
+                          },
+                          "investors": {
+                            "type": "string",
+                            "description": "投资者列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyInvestEventsInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业对外投资信息",
+        "summary": "企业对外投资信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "操作状态，true表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "investCompanyName": {
+                                "type": "string",
+                                "description": "投资公司名称"
+                              },
+                              "investCapital": {
+                                "type": "string",
+                                "description": "投资金额"
+                              },
+                              "investDate": {
+                                "type": "string",
+                                "description": "投资日期"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "列表总数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyPatentsInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业专利信息",
+        "summary": "查询企业公布的专利信息，包括发明专利，实用新型，实用外观，发明授权等类型",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "请求状态"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "patentName": {
+                                "type": "string",
+                                "description": "专利名称"
+                              },
+                              "createNum": {
+                                "type": "string",
+                                "description": "专利编号"
+                              },
+                              "createDate": {
+                                "type": "string",
+                                "description": "创建日期"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "专利类型"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyTrademarksInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业商标信息",
+        "summary": "企业商标信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "状态标志"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "当前状态"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "类型"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "名称"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanySoftwareCopyrightsInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业软件著作权信息",
+        "summary": "企业软件著作权信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "请求状态，true表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "publishDate": {
+                                "type": "string",
+                                "description": "发布日期"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "软件名称"
+                              },
+                              "regNo": {
+                                "type": "string",
+                                "description": "注册号"
+                              },
+                              "versionNo": {
+                                "type": "string",
+                                "description": "版本号"
+                              },
+                              "shortName": {
+                                "type": "string",
+                                "description": "简称"
+                              },
+                              "typeNo": {
+                                "type": "string",
+                                "description": "类型编号"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyOtherCopyrightsInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业其它著作权信息",
+        "summary": "企业其它著作权信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "状态标志，表示请求是否成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "publishDate": {
+                                "type": "string",
+                                "description": "发布日期"
+                              },
+                              "className": {
+                                "type": "string",
+                                "description": "类别名称"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "名称"
+                              },
+                              "createDate": {
+                                "type": "string",
+                                "description": "创建日期"
+                              },
+                              "regNo": {
+                                "type": "string",
+                                "description": "注册号"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyYearReportInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业年报信息",
+        "summary": "企业年报信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "响应状态"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rptDate": {
+                            "type": "string",
+                            "description": "报告日期"
+                          },
+                          "rptDetail": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "description": "公司状态"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "公司名称"
+                              },
+                              "creditNo": {
+                                "type": "string",
+                                "description": "统一社会信用代码"
+                              },
+                              "isInvest": {
+                                "type": "string",
+                                "description": "是否有投资"
+                              },
+                              "isEquity": {
+                                "type": "string",
+                                "description": "是否有股权"
+                              },
+                              "staffNum": {
+                                "type": "string",
+                                "description": "员工人数"
+                              }
+                            }
+                          },
+                          "rptYear": {
+                            "type": "string",
+                            "description": "报告年度"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyJobsInfo/{CompanyName}/": {
+      "get": {
+        "operationId": "企业招聘信息",
+        "summary": "企业招聘信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "响应状态"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "salary": {
+                                "type": "string",
+                                "description": "薪资范围"
+                              },
+                              "date": {
+                                "type": "string",
+                                "description": "发布日期"
+                              },
+                              "years": {
+                                "type": "string",
+                                "description": "工作年限"
+                              },
+                              "education": {
+                                "type": "string",
+                                "description": "学历要求"
+                              },
+                              "position": {
+                                "type": "string",
+                                "description": "职位名称"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getCompanyProfileTags/{CompanyName}/": {
+      "get": {
+        "operationId": "大数据企业画像标签信息",
+        "summary": "基于大数据对企业的画像标签信息",
+        "parameters": [
+          {
+            "description": "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。",
+            "example": "0",
+            "in": "query",
+            "name": "isRaiseErrorCode",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "CompanyName",
+            "example": "小米科技有限责任公司",
+            "in": "path",
+            "name": "CompanyName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "boolean",
+                      "description": "响应状态，true表示成功"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "数据列表"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.81api.com"
+    }
+  ]
+}

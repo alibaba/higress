@@ -73,6 +73,24 @@ K8sでのHelmデプロイなどの他のインストール方法については�
 
   ![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
 
+- **MCP Server ホスティング**:
+
+  Higressは、EnvoyベースのAPIゲートウェイとして、プラグインメカニズムを通じてMCP Serverをホストすることができます。MCP（Model Context Protocol）は本質的にAIにより親和性の高いAPIであり、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。Higressはツール呼び出しの認証、認可、レート制限、可観測性などの統一機能を提供し、AIアプリケーションの開発とデプロイを簡素化します。
+
+  ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
+
+  **🌟 今すぐ試してみよう！** [https://mcp.higress.ai/](https://mcp.higress.ai/) でHigressがホストするリモートMCPサーバーを体験できます。このプラットフォームでは、HigressがどのようにリモートMCPサーバーをホストおよび管理するかを直接体験できます。
+  
+  ![Higress MCP サーバープラットフォーム](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
+  Higressを使用してMCP Serverをホストすることで、以下のことが実現できます：
+  - 統一された認証と認可メカニズム、AIツール呼び出しのセキュリティを確保
+  - きめ細かいレート制限、乱用やリソース枯渇を防止
+  - 包括的な監査ログ、すべてのツール呼び出し行動を記録
+  - 豊富な可観測性、ツール呼び出しのパフォーマンスと健全性を監視
+  - 簡素化されたデプロイと管理、Higressのプラグインメカニズムを通じて新しいMCP Serverを迅速に追加
+  - 動的更新による無停止：Envoyの長時間接続に対する友好的なサポートとWasmプラグインの動的更新メカニズムにより、MCP Serverのロジックをリアルタイムで更新でき、トラフィックに完全に影響を与えず、接続が切断されることはありません
+
 - **Kubernetes Ingressゲートウェイ**:
 
   HigressはK8sクラスターのIngressエントリーポイントゲートウェイとして機能し、多くのK8s Nginx Ingressの注釈に対応しています。K8s Nginx IngressからHigressへのスムーズな移行が可能です。

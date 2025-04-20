@@ -1,0 +1,380 @@
+{
+  "info": {
+    "description": "查询企业或某技术的专利，帮助用户掌握相同技术领域的发展状况，为规避他人知识产权和调整研发方向提供参考",
+    "title": "企业专利信息-专利信息查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/utn/ip/PatentDetail": {
+      "get": {
+        "operationId": "专利信息详情",
+        "summary": "查询企业或某技术的专利，帮助用户掌握相同技术领域的发展状况，为规避他人知识产权和调整研发方向提供参考",
+        "parameters": [
+          {
+            "description": "专利信息列表接口返回的Id",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "返回数据格式：json或xml，默认json",
+            "in": "query",
+            "name": "dtype",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "orderNo": {
+                      "description": "订单编号",
+                      "example": "1359050786293813200",
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "LegalStatusDate": {
+                          "description": "法律状态日期",
+                          "example": "2019-11-15 00:00:00",
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "Agent": {
+                          "description": "代理人",
+                          "example": "肖平安",
+                          "type": "string"
+                        },
+                        "PublicationDate": {
+                          "description": "公布日期",
+                          "example": "2018-11-13 00:00:00",
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "Agency": {
+                          "description": "代理机构",
+                          "example": "北京科亿知识产权代理事务所（普通合伙）",
+                          "type": "string"
+                        },
+                        "OtherReferences": {
+                          "description": "其他引用",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "IPCList": {
+                          "description": "国际专利分类号列表",
+                          "example": "H04L9/32",
+                          "type": "string"
+                        },
+                        "LegalStatusDesc": {
+                          "description": "法律状态描述",
+                          "example": "授权",
+                          "type": "string"
+                        },
+                        "Abstract": {
+                          "description": "摘要",
+                          "example": "本发明公开了一种基于非对称密码算法的保护隐私征信方法...",
+                          "type": "string"
+                        },
+                        "Title": {
+                          "description": "标题",
+                          "example": "一种基于非对称密码算法的保护隐私征信方法",
+                          "type": "string"
+                        },
+                        "KindCodeDesc": {
+                          "description": "类型代码描述",
+                          "example": "发明",
+                          "type": "string"
+                        },
+                        "PrimaryExaminer": {
+                          "description": "主审查员",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "AssiantExaminer": {
+                          "description": "辅助审查员",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "ApplicationDate": {
+                          "description": "申请日期",
+                          "example": "2015-05-13 00:00:00",
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "PatentImage": {
+                          "description": "专利图片链接",
+                          "example": "https://filecdn.shuidi.cn/img/upload/images_patent/cc/b4/eb/ccb4ebc86ad8b0093fcc0c30999be8fc.png/0x0.jpg",
+                          "type": "string"
+                        },
+                        "AssigneestringList": {
+                          "description": "专利权人列表",
+                          "example": "上海凭安企业信用征信有限公司,上海凭安征信服务有限公司",
+                          "type": "string"
+                        },
+                        "PatentLegalHistory": {
+                          "items": {
+                            "properties": {
+                              "LegalStatusDate": {
+                                "description": "法律状态日期",
+                                "example": "2019-11-15 00:00:00",
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "Desc": {
+                                "description": "描述",
+                                "example": "专利权人的姓名或者名称、地址的变更IPC(主分类):H04L   9/32变更前 专利权人:上海凭安企业信用征信有限公司 地址:201700 上海市长宁区广顺路33号8幢193室变更后 专利权人:上海凭安征信服务有限公司 地址:200335 上海市长宁区广顺路33号8幢193室",
+                                "type": "string"
+                              },
+                              "LegalStatus": {
+                                "description": "法律状态",
+                                "example": "专利权人的姓名或者名称、地址的变更",
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "InventorStringList": {
+                          "description": "发明人列表",
+                          "example": "韩洪慧,杨茂江",
+                          "type": "string"
+                        },
+                        "IPCDesc": {
+                          "description": "国际专利分类号描述",
+                          "example": "包括用于检验系统用户的身份或凭据的装置〔5〕",
+                          "type": "string"
+                        },
+                        "DocumentTypes": {
+                          "description": "文档类型",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "ApplicationNumber": {
+                          "description": "申请号",
+                          "example": "CN201510241189.8",
+                          "type": "string"
+                        },
+                        "PublicationNumber": {
+                          "description": "公布号",
+                          "example": "CN104821883B",
+                          "type": "string"
+                        },
+                        "Cites": {
+                          "description": "引用",
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "statusMessage": {
+                      "description": "状态消息",
+                      "example": "请求成功",
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "description": "状态码",
+                      "example": "1",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/utn/ip/PatentPageByKey/V2": {
+      "get": {
+        "operationId": "专利信息列表",
+        "summary": "查询企业或某技术的专利，帮助用户掌握相同技术领域的发展状况，为规避他人知识产权和调整研发方向提供参考",
+        "parameters": [
+          {
+            "description": "搜索关键字（公司名称、社会统一信用代码、注册号）",
+            "in": "query",
+            "name": "keyword",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "页码，默认第1页",
+            "in": "query",
+            "name": "pageIndex",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页条数，默认为10，最大不超过10条",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "返回数据格式：json或xml，默认json",
+            "in": "query",
+            "name": "dtype",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "orderNo": {
+                      "description": "订单号",
+                      "example": "1359050786163789800",
+                      "type": "integer"
+                    },
+                    "data": {
+                      "properties": {
+                        "Paging": {
+                          "properties": {
+                            "PageSize": {
+                              "description": "每页显示条数",
+                              "example": "10",
+                              "type": "integer"
+                            },
+                            "TotalRecords": {
+                              "description": "总记录数",
+                              "example": "8842",
+                              "type": "integer"
+                            },
+                            "PageIndex": {
+                              "description": "当前页码",
+                              "example": "3",
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "Items": {
+                          "items": {
+                            "properties": {
+                              "PublicationDate": {
+                                "description": "公开日期",
+                                "example": "2018-04-27 00:00:00",
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "Agency": {
+                                "description": "代理机构",
+                                "example": "北京三高永信知识产权代理有限责任公司",
+                                "type": "string"
+                              },
+                              "IPCList": {
+                                "description": "IPC分类号",
+                                "example": "H04M7/00",
+                                "type": "string"
+                              },
+                              "LegalStatusDesc": {
+                                "description": "法律状态描述",
+                                "example": "授权",
+                                "type": "string"
+                              },
+                              "Title": {
+                                "description": "标题",
+                                "example": "语音通道建立方法、装置及系统",
+                                "type": "string"
+                              },
+                              "KindCodeDesc": {
+                                "description": "类别代码描述",
+                                "example": "发明",
+                                "type": "string"
+                              },
+                              "ApplicationDate": {
+                                "description": "申请日期",
+                                "example": "2015-06-26 00:00:00",
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "AssigneeStringList": {
+                                "description": "申请人",
+                                "example": "小米科技有限责任公司",
+                                "type": "string"
+                              },
+                              "InventorStringList": {
+                                "description": "发明人",
+                                "example": "侯俊杰,辛显龙,金峰",
+                                "type": "string"
+                              },
+                              "IPCDesc": {
+                                "description": "IPC分类描述",
+                                "example": "交换中心之间的互连装置",
+                                "type": "string"
+                              },
+                              "ApplicationNumber": {
+                                "description": "申请号",
+                                "example": "CN201510363777.9",
+                                "type": "string"
+                              },
+                              "Id": {
+                                "description": "ID",
+                                "example": "45233394",
+                                "type": "integer"
+                              },
+                              "PublicationNumber": {
+                                "description": "公开号",
+                                "example": "CN105100523B",
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "statusMessage": {
+                      "description": "状态消息",
+                      "example": "请求成功",
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "description": "状态码",
+                      "example": "1",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "请求成功"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://icpatent.market.alicloudapi.com"
+    }
+  ]
+}

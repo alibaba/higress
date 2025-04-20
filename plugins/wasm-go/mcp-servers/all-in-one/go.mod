@@ -6,9 +6,11 @@ replace quark-search => ../quark-search
 
 replace amap-tools => ../amap-tools
 
+replace github.com/alibaba/higress/plugins/wasm-go => ../..
+
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250409124819-db06b7ed4817
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250417132640-fb2e8d5157ad
 	quark-search v0.0.0-00010101000000-000000000000
 )
 
@@ -20,7 +22,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985 // indirect
+	github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b // indirect
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect

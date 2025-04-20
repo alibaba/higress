@@ -76,6 +76,10 @@ For other installation methods such as Helm deployment under K8s, please refer t
 
   ![](https://img.alicdn.com/imgextra/i1/O1CN01wv8H4g1mS4MUzC1QC_!!6000000004952-2-tps-1764-597.png)
 
+  **🌟 Try it now!** Experience Higress-hosted Remote MCP Servers at [https://mcp.higress.ai/](https://mcp.higress.ai/)
+  
+  ![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
   By hosting MCP Servers with Higress, you can achieve:
   - Unified authentication and authorization mechanisms, ensuring the security of AI tool calls
   - Fine-grained rate limiting to prevent abuse and resource exhaustion

@@ -1,0 +1,242 @@
+{
+  "info": {
+    "description": "【Word文档转PDF PDF转Word等文档】接口可实现PDF与Word\\PPT\\Excel\\TXT等文档的互相转换，支持设置水印等功能。 —— 我们只做精品！",
+    "title": "【聚美智数】PDF转Word\\PPT\\Excel\\TXT-Word文档转PDF-文档转换-文档格式转换-文件格式转换",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/file-convert/word2pdf": {
+      "post": {
+        "operationId": "文档转PDF",
+        "summary": "文件转PDF",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "watermarkImage": {
+                    "description": "水印图片，base64或图片url，若需要在转换后的pdf加上图片水印，传入该参数即可",
+                    "type": "string"
+                  },
+                  "watermarkFontName": {
+                    "description": "文字水印字体，直接传字体的中文名称。支持：宋体、黑体、微软雅黑。默认： 黑体",
+                    "type": "string"
+                  },
+                  "callBackUrl": {
+                    "description": "接入商接收文件转换结果的接口地址，聚美智数通过该地址，将信息推送给接入商，详见：推送说明",
+                    "type": "string"
+                  },
+                  "watermarkTransparency": {
+                    "description": "透明度，默认：0.4",
+                    "type": "number"
+                  },
+                  "fileUrl": {
+                    "description": "可外网下载的文件URL地址，支持Word、Excel、PPT和txt，Word和Excel最大支持10M，PPT最大支持80M, txt最大支持2M",
+                    "type": "string"
+                  },
+                  "watermarkFontSize": {
+                    "description": "文字水印大小，默认：20",
+                    "type": "integer"
+                  },
+                  "watermarkRotation": {
+                    "description": "内容旋转角度，默认：0",
+                    "type": "integer"
+                  },
+                  "watermarkText": {
+                    "description": "水印文字，若需要在转换后的pdf加上文字水印，传入该参数即可",
+                    "type": "string"
+                  },
+                  "watermarkColor": {
+                    "description": "文字水印颜色，16进制值，默认：#666666",
+                    "type": "string"
+                  },
+                  "watermarkLocation": {
+                    "description": "位置，默认：LAY。LAY - 3 * 3 平铺，TOP_LEFT - 顶部居左，TOP_CENTER - 顶部居中，TOP_RIGHT - 顶部局右，CENTER_LEFT - 中部居左，CENTER - 居中，CENTER_RIGHT - 中部局右，BOTTOM_LEFT - 底部居左，BOTTOM_CENTER - 底部居中，BOTTOM_RIGHT - 底部局右",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fileUrl"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回信息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "convertTaskId": {
+                          "type": "string",
+                          "description": "转换任务Id"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/file-convert/pdf2word": {
+      "post": {
+        "operationId": "PDF转文档",
+        "summary": "将PDF转换为Word、PPT、Excel",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "callBackUrl": {
+                    "description": "接入商接收文件转换结果的接口地址，聚美智数通过该地址，将信息推送给接入商，详见：推送说明",
+                    "type": "string"
+                  },
+                  "fileUrl": {
+                    "description": "可外网下载的文件URL地址，支持Word、PPT、Excel，PDF文件最大支持30M，页数限制在80页之内",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "转换为目标文档扩展名，可选值：docx, doc, pptx, ppt, xlsx, xls",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fileUrl",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "任务编号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "convertTaskId": {
+                          "type": "string",
+                          "description": "转换任务Id"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/file-convert/result": {
+      "post": {
+        "operationId": "文档转换结果查询",
+        "summary": "文件转换结果查询",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "convertTaskId": {
+                    "description": "转换任务ID",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "convertTaskId"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": 41020892700032660000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jmwjzhwjzh.market.alicloudapi.com"
+    }
+  ]
+}

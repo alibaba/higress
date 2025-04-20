@@ -24,6 +24,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
@@ -73,6 +74,8 @@ type HttpContext interface {
 	SetRequestBodyBufferLimit(byteSize uint32)
 	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
 	SetResponseBodyBufferLimit(byteSize uint32)
+	// Get contextId of HttpContext
+	GetContextId() uint32
 }
 
 type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log Log) error
@@ -406,7 +409,6 @@ func NewCommonVmCtxWithOptions[PluginConfig any](pluginName string, options ...C
 		var config PluginConfig
 		if unsafe.Sizeof(config) != 0 {
 			msg := "the `parseConfig` is missing in NewCommonVmCtx's arguments"
-			ctx.log.Critical(msg)
 			panic(msg)
 		}
 		ctx.hasCustomConfig = false
@@ -444,14 +446,15 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 		if !gjson.ValidBytes(data) {
 			ctx.vm.log.Warnf("the plugin configuration is not a valid json: %s", string(data))
 			return types.OnPluginStartStatusFailed
-
+		}
+		pluginID := gjson.GetBytes(data, PluginIDKey).String()
+		if pluginID != "" {
+			ctx.vm.log.ResetID(pluginID)
+			data, _ = sjson.DeleteBytes([]byte(data), PluginIDKey)
 		}
 		jsonData = gjson.ParseBytes(data)
 	}
-	pluginID := jsonData.Get(PluginIDKey).String()
-	if pluginID != "" {
-		ctx.vm.log.ResetID(pluginID)
-	}
+
 	var parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error
 	if ctx.vm.parseRuleConfig != nil {
 		parseOverrideConfig = func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
@@ -671,6 +674,10 @@ func (ctx *CommonHttpCtx[PluginConfig]) SetRequestBodyBufferLimit(size uint32) {
 func (ctx *CommonHttpCtx[PluginConfig]) SetResponseBodyBufferLimit(size uint32) {
 	ctx.plugin.vm.log.Infof("SetResponseBodyBufferLimit: %d", size)
 	_ = proxywasm.SetProperty([]string{"set_encoder_buffer_limit"}, []byte(strconv.Itoa(int(size))))
+}
+
+func (ctx *CommonHttpCtx[PluginConfig]) GetContextId() uint32 {
+	return ctx.contextID
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
