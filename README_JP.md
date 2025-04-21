@@ -30,7 +30,9 @@ Higressは、IstioとEnvoyをベースにしたクラウドネイティブAPIゲ
 
 HigressのAIゲートウェイ機能は、国内外のすべての[主要モデルプロバイダー](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider)をサポートし、vllm/ollamaなどに基づく自己構築DeepSeekモデルにも対応しています。また、プラグインメカニズムを通じてMCP（Model Context Protocol）サーバーをホストすることもでき、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。[openapi-to-mcpツール](https://github.com/higress-group/openapi-to-mcpserver)を使用すると、OpenAPI仕様を迅速にリモートMCPサーバーに変換してホスティングできます。HigressはLLM APIとMCP APIの統一管理を提供します。
 
-**🌟 今すぐ[https://mcp.higress.ai/](https://mcp.higress.ai/)で体験**してください。HigressがホストするリモートMCPサーバーを直接体験できます。
+**🌟 今すぐ[https://mcp.higress.ai/](https://mcp.higress.ai/)で体験**してください。HigressがホストするリモートMCPサーバーを直接体験できます:
+
+![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
 
 ### 企業での採用
 
@@ -82,8 +84,6 @@ K8sでのHelmデプロイなどの他のインストール方法については�
   Higressは、EnvoyベースのAPIゲートウェイとして、プラグインメカニズムを通じてMCP Serverをホストすることができます。MCP（Model Context Protocol）は本質的にAIにより親和性の高いAPIであり、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。Higressはツール呼び出しの認証、認可、レート制限、可観測性などの統一機能を提供し、AIアプリケーションの開発とデプロイを簡素化します。
 
   ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
-  
-  ![Higress MCP サーバープラットフォーム](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
 
   Higressを使用してMCP Serverをホストすることで、以下のことが実現できます：
   - 統一された認証と認可メカニズム、AIツール呼び出しのセキュリティを確保
