@@ -22,15 +22,19 @@
 </p>
 
 
+## Higressとは？
+
 Higressは、IstioとEnvoyをベースにしたクラウドネイティブAPIゲートウェイで、Go/Rust/JSなどを使用してWasmプラグインを作成できます。数十の既製の汎用プラグインと、すぐに使用できるコンソールを提供しています（デモは[こちら](http://demo.higress.io/)）。
 
-Higressは、Tengineのリロードが長時間接続のビジネスに影響を与える問題や、gRPC/Dubboの負荷分散能力の不足を解決するために、Alibaba内部で誕生しました。
+### 主な使用シナリオ
 
-Alibaba Cloudは、Higressを基盤にクラウドネイティブAPIゲートウェイ製品を構築し、多くの企業顧客に99.99％のゲートウェイ高可用性保証サービスを提供しています。
+HigressのAIゲートウェイ機能は、国内外のすべての[主要モデルプロバイダー](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider)をサポートし、vllm/ollamaなどに基づく自己構築DeepSeekモデルにも対応しています。また、プラグインメカニズムを通じてMCP（Model Context Protocol）サーバーをホストすることもでき、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。[openapi-to-mcpツール](https://github.com/higress-group/openapi-to-mcpserver)を使用すると、OpenAPI仕様を迅速にリモートMCPサーバーに変換してホスティングできます。HigressはLLM APIとMCP APIの統一管理を提供します。
 
-Higressは、AIゲートウェイ機能を基盤に、Tongyi Qianwen APP、Bailian大規模モデルAPI、機械学習PAIプラットフォームなどのAIビジネスをサポートしています。また、国内の主要なAIGC企業（例：ZeroOne）やAI製品（例：FastGPT）にもサービスを提供しています。
+**🌟 今すぐ[https://mcp.higress.ai/](https://mcp.higress.ai/)で体験**してください。HigressがホストするリモートMCPサーバーを直接体験できます。
 
-![](https://img.alicdn.com/imgextra/i2/O1CN011AbR8023V8R5N0HcA_!!6000000007260-2-tps-1080-606.png)
+### 企業での採用
+
+Higressは、Tengineのリロードが長時間接続のビジネスに影響を与える問題や、gRPC/Dubboの負荷分散能力の不足を解決するために、Alibaba内部で誕生しました。Alibaba Cloud内では、HigressのAIゲートウェイ機能がTongyi Qianwen APP、Tongyi Bailian Model Studio、機械学習PAIプラットフォームなどの中核的なAIアプリケーションをサポートしています。また、国内の主要なAIGC企業（例：ZeroOne）やAI製品（例：FastGPT）にもサービスを提供しています。Alibaba Cloudは、Higressを基盤にクラウドネイティブAPIゲートウェイ製品を構築し、多くの企業顧客に99.99％のゲートウェイ高可用性保証サービスを提供しています。
 
 
 ## 目次
@@ -78,8 +82,6 @@ K8sでのHelmデプロイなどの他のインストール方法については�
   Higressは、EnvoyベースのAPIゲートウェイとして、プラグインメカニズムを通じてMCP Serverをホストすることができます。MCP（Model Context Protocol）は本質的にAIにより親和性の高いAPIであり、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。Higressはツール呼び出しの認証、認可、レート制限、可観測性などの統一機能を提供し、AIアプリケーションの開発とデプロイを簡素化します。
 
   ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
-
-  **🌟 今すぐ試してみよう！** [https://mcp.higress.ai/](https://mcp.higress.ai/) でHigressがホストするリモートMCPサーバーを体験できます。このプラットフォームでは、HigressがどのようにリモートMCPサーバーをホストおよび管理するかを直接体験できます。
   
   ![Higress MCP サーバープラットフォーム](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
 
