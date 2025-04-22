@@ -55,6 +55,7 @@ constexpr std::string_view Host(":authority");
 constexpr std::string_view Path(":path");
 constexpr std::string_view EnvoyOriginalPath("x-envoy-original-path");
 constexpr std::string_view Accept("accept");
+constexpr std::string_view ContentDisposition("content-disposition");
 constexpr std::string_view ContentMD5("content-md5");
 constexpr std::string_view ContentType("content-type");
 constexpr std::string_view ContentLength("content-length");
@@ -68,6 +69,7 @@ constexpr std::string_view StrictTransportSecurity("strict-transport-security");
 namespace ContentTypeValues {
 constexpr std::string_view Grpc{"application/grpc"};
 constexpr std::string_view Json{"application/json"};
+constexpr std::string_view MultipartFormData{"multipart/form-data"};
 }  // namespace ContentTypeValues
 
 class PercentEncoding {
