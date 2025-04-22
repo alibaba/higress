@@ -27,7 +27,7 @@ type ElasticsearchSearch struct {
 	password           string
 }
 
-func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) {
+func NewElasticsearchSearch(config *gjson.Result, needReference bool) (*ElasticsearchSearch, error) {
 	engine := &ElasticsearchSearch{}
 	serviceName := config.Get("serviceName").String()
 	if serviceName == "" {
@@ -61,7 +61,7 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 		return nil, errors.New("semanticTextField not found")
 	}
 
-	if config.Get("needReference").Bool() {
+	if needReference {
 		engine.linkField = config.Get("linkField").String()
 		if engine.linkField == "" {
 			return nil, errors.New("linkField not found")
