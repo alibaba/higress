@@ -28,7 +28,7 @@ On the user's MCP Client interface, add the generated SSE URL to the MCP Server 
 ```json
 "mcpServers": {
     "bravesearch": {
-      "url": "http://mcp.higress.ai/mcp-brave-search/{generate_key}",
+      "url": "http://mcp.higress.ai/mcp-bravesearch/{generate_key}",
     }
 }
 ```
