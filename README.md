@@ -22,13 +22,21 @@
    English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>
 </p>
 
+## What is Higress?
+
 Higress is a cloud-native API gateway based on Istio and Envoy, which can be extended with Wasm plugins written in Go/Rust/JS. It provides dozens of ready-to-use general-purpose plugins and an out-of-the-box console (try the [demo here](http://demo.higress.io/)).
 
-Higress was born within Alibaba to solve the issues of Tengine reload affecting long-connection services and insufficient load balancing capabilities for gRPC/Dubbo.
+### Core Use Cases
 
-Alibaba Cloud has built its cloud-native API gateway product based on Higress, providing 99.99% gateway high availability guarantee service capabilities for a large number of enterprise customers.
+Higress's AI gateway capabilities support all [mainstream model providers](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider) both domestic and international. It also supports hosting MCP (Model Context Protocol) Servers through its plugin mechanism, enabling AI Agents to easily call various tools and services. With the [openapi-to-mcp tool](https://github.com/higress-group/openapi-to-mcpserver), you can quickly convert OpenAPI specifications into remote MCP servers for hosting. Higress provides unified management for both LLM API and MCP API. 
 
-Higress's AI gateway capabilities support all [mainstream model providers](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider) both domestic and international, as well as self-built DeepSeek models based on vllm/ollama. Within Alibaba Cloud, it supports AI businesses such as Tongyi Qianwen APP, Bailian large model API, and machine learning PAI platform. It also serves leading AIGC enterprises (such as Zero One Infinite) and AI products (such as FastGPT).
+**🌟 Try it now at [https://mcp.higress.ai/](https://mcp.higress.ai/)** to experience Higress-hosted Remote MCP Servers firsthand:
+
+![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
+### Enterprise Adoption
+
+Higress was born within Alibaba to solve the issues of Tengine reload affecting long-connection services and insufficient load balancing capabilities for gRPC/Dubbo. Within Alibaba Cloud, Higress's AI gateway capabilities support core AI applications such as Tongyi Bailian model studio, machine learning PAI platform, and other critical AI services. Alibaba Cloud has built its cloud-native API gateway product based on Higress, providing 99.99% gateway high availability guarantee service capabilities for a large number of enterprise customers.
 
 ## Summary
 
@@ -64,27 +72,27 @@ For other installation methods such as Helm deployment under K8s, please refer t
 
 ## Use Cases
 
-- **AI Gateway**:
-
-  Higress can connect to all LLM model providers both domestic and international using a unified protocol, while also providing rich AI observability, multi-model load balancing/fallback, AI token rate limiting, AI caching, and other capabilities:
-
-  ![](https://img.alicdn.com/imgextra/i2/O1CN01izmBNX1jbHT7lP3Yr_!!6000000004566-0-tps-1920-1080.jpg)
-
 - **MCP Server Hosting**:
 
-  Higress, as an Envoy-based API gateway, supports hosting MCP Servers through its plugin mechanism. MCP (Model Context Protocol) is essentially an AI-friendly API that enables AI Agents to more easily call various tools and services. Higress provides unified capabilities for authentication, authorization, rate limiting, and observability for tool calls, simplifying the development and deployment of AI applications.
+  Higress hosts MCP Servers through its plugin mechanism, enabling AI Agents to easily call various tools and services. With the [openapi-to-mcp tool](https://github.com/higress-group/openapi-to-mcpserver), you can quickly convert OpenAPI specifications into remote MCP servers.
 
   ![](https://img.alicdn.com/imgextra/i1/O1CN01wv8H4g1mS4MUzC1QC_!!6000000004952-2-tps-1764-597.png)
 
-  By hosting MCP Servers with Higress, you can achieve:
-  - Unified authentication and authorization mechanisms, ensuring the security of AI tool calls
-  - Fine-grained rate limiting to prevent abuse and resource exhaustion
-  - Comprehensive audit logs recording all tool call behaviors
-  - Rich observability for monitoring the performance and health of tool calls
-  - Simplified deployment and management through Higress's plugin mechanism for quickly adding new MCP Servers
-  - Dynamic updates without disruption: Thanks to Envoy's friendly handling of long connections and Wasm plugin's dynamic update mechanism, MCP Server logic can be updated on-the-fly without any traffic disruption or connection drops
+  Key benefits of hosting MCP Servers with Higress:
+  - Unified authentication and authorization mechanisms
+  - Fine-grained rate limiting to prevent abuse
+  - Comprehensive audit logs for all tool calls
+  - Rich observability for monitoring performance
+  - Simplified deployment through Higress's plugin mechanism
+  - Dynamic updates without disruption or connection drops
 
      [Learn more...](https://higress.cn/en/ai/mcp-quick-start/?spm=36971b57.7beea2de.0.0.d85f20a94jsWGm)
+
+- **AI Gateway**:
+
+  Higress connects to all LLM model providers using a unified protocol, with AI observability, multi-model load balancing, token rate limiting, and caching capabilities:
+
+  ![](https://img.alicdn.com/imgextra/i2/O1CN01izmBNX1jbHT7lP3Yr_!!6000000004566-0-tps-1920-1080.jpg)
 
 - **Kubernetes ingress controller**:
 

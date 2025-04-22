@@ -37,7 +37,7 @@ type TransitIntegratedRequest struct {
 }
 
 func (t TransitIntegratedRequest) Description() string {
-	return "公交路径规划 API 可以根据用户起终点经纬度坐标规划综合各类公共（火车、公交、地铁）交通方式的通勤方案，并且返回通勤方案的数据，跨城场景下必须传起点城市与终点城市"
+	return "公交路径规划 API 可以根据用户起终点经纬度坐标规划综合各类公共（火车、公交、地铁）交通方式的通勤方案，并且返回通勤方案的数据，跨城场景下必须传起点城市与终点城市, 起点城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t TransitIntegratedRequest) InputSchema() map[string]any {

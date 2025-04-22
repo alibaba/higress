@@ -1,5 +1,9 @@
 # MCP Server Implementation Guide
 
+> **🌟 Try it now!** Experience Higress-hosted Remote MCP Servers at [https://mcp.higress.ai/](https://mcp.higress.ai/). This platform allows you to see firsthand how Higress can host and manage Remote MCP Servers.
+> 
+> ![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
 ## Background
 
   Higress, as an Envoy-based API gateway, supports hosting MCP Servers through its plugin mechanism. MCP (Model Context Protocol) is essentially an AI-friendly API that enables AI Agents to more easily call various tools and services. Higress provides unified capabilities for authentication, authorization, rate limiting, and observability for tool calls, simplifying the development and deployment of AI applications.

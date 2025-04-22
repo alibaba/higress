@@ -28,10 +28,6 @@ type SSEServer struct {
 	redisClient     *RedisClient // Redis client for pub/sub
 }
 
-func (s *SSEServer) SetBaseURL(baseURL string) {
-	s.baseURL = baseURL
-}
-
 func (s *SSEServer) GetMessageEndpoint() string {
 	return s.messageEndpoint
 }
@@ -148,6 +144,12 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 	// Start health check handler
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("Health check handler recovered from panic: %v", r)
+			}
+		}()
+
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
@@ -158,7 +160,15 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 			case <-ticker.C:
 				// Send health check message
 				currentTime := time.Now().Format(time.RFC3339)
-				healthCheckEvent := fmt.Sprintf(": ping - %s\n\n", currentTime)
+				pingRequest := mcp.JSONRPCRequest{
+					JSONRPC: mcp.JSONRPC_VERSION,
+					ID:      currentTime,
+					Request: mcp.Request{
+						Method: "ping",
+					},
+				}
+				pingData, _ := json.Marshal(pingRequest)
+				healthCheckEvent := fmt.Sprintf("event: message\ndata: %s\n\n", pingData)
 				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
 					api.LogErrorf("Failed to send health check: %v", err)
 				}
@@ -169,10 +179,10 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses
 // back through both the SSE connection and HTTP response.
-func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body json.RawMessage) {
+func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body json.RawMessage) int {
 	if r.Method != http.MethodPost {
 		s.writeJSONRPCError(w, nil, mcp.INVALID_REQUEST, fmt.Sprintf("Method %s not allowed", r.Method))
-		return
+		return http.StatusBadRequest
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
@@ -197,27 +207,34 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 
 	// Process message through MCPServer
 	response := s.server.HandleMessage(ctx, body)
-
+	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
 		eventData, _ := json.Marshal(response)
 
-		if sessionID != "" {
+		if sessionID != "" && s.redisClient != nil {
 			channel := GetSSEChannelName(sessionID)
 			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
 
 			if publishErr != nil {
 				api.LogErrorf("Failed to publish message to Redis: %v", publishErr)
 			}
+			w.WriteHeader(http.StatusAccepted)
+			status = http.StatusAccepted
+		} else {
+			// support streamable http
+			w.WriteHeader(http.StatusOK)
+			status = http.StatusOK
 		}
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(response)
 	} else {
 		// For notifications, just send 202 Accepted with no body
 		w.WriteHeader(http.StatusAccepted)
+		status = http.StatusAccepted
 	}
+	return status
 }
 
 // writeJSONRPCError writes a JSON-RPC error response with the given error details.
@@ -231,4 +248,8 @@ func (s *SSEServer) writeJSONRPCError(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(response)
+}
+
+func (s *SSEServer) Close() {
+	s.server.Close()
 }

@@ -35,7 +35,7 @@ type GeoRequest struct {
 }
 
 func (t GeoRequest) Description() string {
-	return "将详细的结构化地址转换为经纬度坐标。支持对地标性名胜景区、建筑物名称解析为经纬度坐标"
+	return "将详细的结构化地址转换为经纬度坐标。支持对地标性名胜景区、建筑物名称解析为经纬度坐标, 城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t GeoRequest) InputSchema() map[string]any {
