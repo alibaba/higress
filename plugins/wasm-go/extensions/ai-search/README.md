@@ -208,13 +208,9 @@ searchFrom:
 searchFrom:
 - type: elasticsearch
   serviceName: "es-svc.static"
-  # 固定地址服务的端口默认是80
-  servicePort: 80
   index: "knowledge_base"
   contentField: "content"
   semanticTextField: "semantic_text"
-  linkField: "url" 
-  titleField: "title"
   # username: "elastic"
   # password: "password"
 ```

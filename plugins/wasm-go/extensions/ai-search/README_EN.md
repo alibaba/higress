@@ -207,13 +207,9 @@ Note that excessive concurrency may lead to rate limiting, adjust according to a
 searchFrom:
 - type: elasticsearch
   serviceName: "es-svc.static"
-  # static ip service use 80 as default port
-  servicePort: 80
   index: "knowledge_base"
   contentField: "content"
   semanticTextField: "semantic_text"
-  linkField: "url" 
-  titleField: "title"
   # username: "elastic"
   # password: "password"
 ```
