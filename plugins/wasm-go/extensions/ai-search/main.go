@@ -185,7 +185,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			arxivExists = true
 			onlyQuark = false
 		case "elasticsearch":
-			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e)
+			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e, config.needReference)
 			if err != nil {
 				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
 			}
