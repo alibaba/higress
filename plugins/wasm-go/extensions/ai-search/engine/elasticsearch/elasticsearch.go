@@ -35,7 +35,13 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 	}
 	servicePort := config.Get("servicePort").Int()
 	if servicePort == 0 {
-		return nil, errors.New("servicePort not found")
+		if strings.HasSuffix(serviceName, ".static") {
+			servicePort = 80
+		} else if strings.HasSuffix(serviceName, ".dns") {
+			servicePort = 443
+		} else {
+			return nil, errors.New("servicePort not found")
+		}
 	}
 	engine.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
@@ -54,14 +60,18 @@ func NewElasticsearchSearch(config *gjson.Result) (*ElasticsearchSearch, error) 
 	if engine.semanticTextField == "" {
 		return nil, errors.New("semanticTextField not found")
 	}
-	engine.linkField = config.Get("linkField").String()
-	if engine.linkField == "" {
-		return nil, errors.New("linkField not found")
+
+	if config.Get("needReference").Bool() {
+		engine.linkField = config.Get("linkField").String()
+		if engine.linkField == "" {
+			return nil, errors.New("linkField not found")
+		}
+		engine.titleField = config.Get("titleField").String()
+		if engine.titleField == "" {
+			return nil, errors.New("titleField not found")
+		}
 	}
-	engine.titleField = config.Get("titleField").String()
-	if engine.titleField == "" {
-		return nil, errors.New("titleField not found")
-	}
+
 	engine.timeoutMillisecond = uint32(config.Get("timeoutMillisecond").Uint())
 	if engine.timeoutMillisecond == 0 {
 		engine.timeoutMillisecond = 5000
@@ -93,6 +103,9 @@ func (e ElasticsearchSearch) generateAuthorizationHeader() string {
 func (e ElasticsearchSearch) generateQueryBody(ctx engine.SearchContext) string {
 	queryText := strings.Join(ctx.Querys, " ")
 	return fmt.Sprintf(`{
+        "_source":{
+            "excludes": "%s"
+        },
 		"retriever": {
 			"rrf": {
 				"retrievers": [
@@ -118,7 +131,7 @@ func (e ElasticsearchSearch) generateQueryBody(ctx engine.SearchContext) string 
 				]
 			}
 		}
-	}`, e.contentField, queryText, e.semanticTextField, queryText)
+	}`, e.semanticTextField, e.contentField, queryText, e.semanticTextField, queryText)
 }
 
 func (e ElasticsearchSearch) CallArgs(ctx engine.SearchContext) engine.CallArgs {
@@ -145,9 +158,7 @@ func (e ElasticsearchSearch) ParseResult(ctx engine.SearchContext, response []by
 			Link:    source.Get(e.linkField).String(),
 			Content: source.Get(e.contentField).String(),
 		}
-		if result.Valid() {
-			results = append(results, result)
-		}
+		results = append(results, result)
 	}
 	return results
 }

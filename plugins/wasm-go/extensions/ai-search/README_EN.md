@@ -80,12 +80,16 @@ It is strongly recommended to enable this feature when using Arxiv or Elasticsea
 | index | string | Required    | - | Elasticsearch index name to search |
 | contentField | string | Required    | - | Content field name to query        |
 | semanticTextField | string | Required    | - | Embedding field name to query      |
-| linkField | string | Required    | - | Result link field name             |
-| titleField | string | Required    | - | Result title field name            |
+| linkField | string | Optional    | - | Result link field name, needed when `needReference` is configured |
+| titleField | string | Optional    | - | Result title field name, needed when `needReference` is configured          |
 | username | string | Optional          | - | Elasticsearch username             |
 | password | string | Optional    | - | Elasticsearch password             |
 
 The [Reciprocal Rank Fusion (RRF)](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/rrf.html) query used in hybrid search requires Elasticsearch version 8.8 or higher.
+
+Currently, document vectorization relies on Elasticsearch's embedding model, which requires an Elasticsearch Enterprise license or a 30-day trial license. To install the built-in embedding model in Elasticsearch, please refer to [this documentation](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-elser#alternative-download-deploy). If you wish to install a third-party embedding model, please refer to [this guide](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-text-emb-vector-search-example).
+
+For a complete tutorial on integrating the ai-search plugin with Elasticsearch, please refer to: [Building a RAG Application with LangChain + Higress + Elasticsearch](https://cr7258.github.io/blogs/original/2025/15-rag-higress-es-langchain).
 
 ## Quark Specific Configuration
 
