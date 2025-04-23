@@ -69,6 +69,7 @@ const (
 	providerTypeTogetherAI = "together-ai"
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
+	providerTypeVertex     = "vertex"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -140,6 +141,7 @@ var (
 		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
+		providerTypeVertex:     &vertexProviderInitializer{},
 	}
 )
 
@@ -277,6 +279,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Vertex AI访问区域
+	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
+	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
+	// @Title zh-CN Vertex AI项目Id
+	// @Description zh-CN 仅适用于Vertex AI服务。创建和管理项目请参阅https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=zh-cn#identifiers
+	vertexProjectId string `required:"false" yaml:"vertexProjectId" json:"vertexProjectId"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -363,12 +371,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
-	if c.typ == providerTypeGemini {
+	if c.typ == providerTypeGemini || c.typ == providerTypeVertex {
 		c.geminiSafetySetting = make(map[string]string)
 		for k, v := range json.Get("geminiSafetySetting").Map() {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.vertexRegion = json.Get("vertexRegion").String()
+	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
