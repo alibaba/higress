@@ -556,3 +556,107 @@ func TestSortHTTPRoutesWithMoreRules(t *testing.T) {
 		}
 	}
 }
+
+type supportV1Client struct {
+	kube.Client
+}
+
+func (s *supportV1Client) GetKubernetesVersion() (*kubeVersion.Info, error) {
+	return &kubeVersion.Info{
+		GitVersion: "v1.28.3-aliyun.1",
+	}, nil
+}
+
+type unSupportV1Client struct {
+	kube.Client
+}
+
+func (u *unSupportV1Client) GetKubernetesVersion() (*kubeVersion.Info, error) {
+	return &kubeVersion.Info{
+		GitVersion: "v1.18.0",
+	}, nil
+}
+
+type supportNetworkingClient struct {
+	kube.Client
+}
+
+func (s *supportNetworkingClient) GetKubernetesVersion() (*kubeVersion.Info, error) {
+	return &kubeVersion.Info{
+		GitVersion: "v1.18.0-aliyun.1",
+	}, nil
+}
+
+type unSupportNetworkingClient struct {
+	kube.Client
+}
+
+func (u *unSupportNetworkingClient) GetKubernetesVersion() (*kubeVersion.Info, error) {
+	return &kubeVersion.Info{
+		GitVersion: "v1.17.0-aliyun.1",
+	}, nil
+}
+
+type errorClient struct {
+	kube.Client
+}
+
+func (e *errorClient) GetKubernetesVersion() (*kubeVersion.Info, error) {
+	return &kubeVersion.Info{
+		GitVersion: "error",
+	}, nil
+}
+
+func TestV1Available(t *testing.T) {
+	fakeClient := kube.NewFakeClient()
+
+	v1Client := &supportV1Client{
+		fakeClient,
+	}
+
+	if !V1Available(v1Client) {
+		t.Fatal("should support v1")
+	}
+
+	v1Beta1Client := &unSupportV1Client{
+		fakeClient,
+	}
+	if V1Available(v1Beta1Client) {
+		t.Fatal("should not support v1")
+	}
+
+	errorClient := &errorClient{
+		fakeClient,
+	}
+	// will fallback to v1
+	if !V1Available(errorClient, WithInterval(1*time.Second), WithTimeout(3*time.Second)) {
+		t.Fatal("should fallback to v1")
+	}
+}
+
+func TestNetworkingIngressAvailable(t *testing.T) {
+	fakeClient := kube.NewFakeClient()
+
+	networkingClient := &supportNetworkingClient{
+		fakeClient,
+	}
+
+	if !NetworkingIngressAvailable(networkingClient) {
+		t.Fatal("should support networking")
+	}
+
+	notNetworkingClient := &unSupportNetworkingClient{
+		fakeClient,
+	}
+	if NetworkingIngressAvailable(notNetworkingClient) {
+		t.Fatal("should not support networking")
+	}
+
+	errorClient := &errorClient{
+		fakeClient,
+	}
+	// will fallback to networking
+	if !NetworkingIngressAvailable(errorClient, WithInterval(1*time.Second), WithTimeout(3*time.Second)) {
+		t.Fatal("should fallback to networking")
+	}
+}
