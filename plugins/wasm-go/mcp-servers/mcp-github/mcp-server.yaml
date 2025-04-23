@@ -52,6 +52,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: search_repositories
   description: 搜索GitHub仓库
@@ -78,6 +80,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: create_repository
   description: 在您的账户中创建新的GitHub仓库
@@ -115,6 +119,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_file_contents
   description: 从GitHub仓库获取文件或目录内容
@@ -145,6 +151,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: push_files
   description: 在单个提交中推送多个文件到GitHub仓库
@@ -192,6 +200,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: create_issue
   description: 在GitHub仓库创建新Issue
@@ -246,6 +256,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: create_pull_request
   description: 在GitHub仓库创建新的Pull Request
@@ -301,6 +313,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: fork_repository
   description: 将GitHub仓库fork到您的账户或指定组织
@@ -331,6 +345,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: create_branch
   description: 在GitHub仓库创建新分支
@@ -366,6 +382,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: list_commits
   description: 获取GitHub仓库分支的提交列表
@@ -400,6 +418,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: list_issues
   description: 列出并过滤GitHub仓库的Issues
@@ -452,6 +472,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: update_issue
   description: 更新GitHub仓库中的现有Issue
@@ -515,6 +537,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: add_issue_comment
   description: 在GitHub Issue中添加评论
@@ -549,6 +573,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: search_code
   description: 在GitHub仓库中搜索代码
@@ -583,6 +609,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: search_issues
   description: 在GitHub仓库中搜索Issues和Pull Requests
@@ -617,6 +645,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: search_users
   description: 在GitHub中搜索用户
@@ -651,6 +681,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_issue
   description: 获取GitHub仓库中特定Issue的详细信息
@@ -677,6 +709,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_pull_request
   description: 获取GitHub仓库中特定Pull Request的详细信息
@@ -703,6 +737,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: list_pull_requests
   description: 列出并过滤GitHub仓库的Pull Requests
@@ -753,6 +789,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: create_pull_request_review
   description: 在GitHub Pull Request上创建review
@@ -814,6 +852,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: merge_pull_request
   description: 合并GitHub Pull Request
@@ -858,6 +898,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_pull_request_files
   description: 获取GitHub Pull Request中更改的文件列表
@@ -884,6 +926,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_pull_request_status
   description: 获取GitHub Pull Request的状态检查结果
@@ -910,6 +954,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: update_pull_request_branch
   description: 使用base分支的最新更改更新Pull Request分支
@@ -944,6 +990,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_pull_request_comments
   description: 获取GitHub Pull Request的review评论
@@ -970,6 +1018,8 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
 
 - name: get_pull_request_reviews
   description: 获取GitHub Pull Request的reviews
@@ -996,3 +1046,5 @@ tools:
       value: "application/vnd.github+json"
     - key: X-GitHub-Api-Version
       value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"

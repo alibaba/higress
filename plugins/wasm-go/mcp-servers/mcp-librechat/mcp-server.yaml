@@ -1,0 +1,145 @@
+server:
+  name: librechat-api-server
+  config:
+    apiKey: ""
+tools:
+  - name: delete_file
+    description: Delete a file
+    args:
+      - name: fileId
+        description: ""
+        type: string
+        required: true
+        position: path
+      - name: session_id
+        description: ""
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: https://api.librechat.ai/v1/files/{session_id}/{fileId}
+      method: DELETE
+      headers:
+        - key: x-api-key
+          value: "{{ .config.apiKey }}"
+    responseTemplate: {}
+  - name: executeCode
+    description: Execute code - Execute code with specified language and parameters
+    args:
+      - name: args
+        description: Optional command line arguments to pass to the program
+        type: string
+        position: body
+      - name: code
+        description: The source code to be executed
+        type: string
+        required: true
+        position: body
+      - name: entity_id
+        description: Optional assistant/agent identifier for file sharing and reference. Must be a valid nanoid-compatible string.
+        type: string
+        position: body
+      - name: files
+        description: Array of file references to be used during execution
+        type: array
+        items:
+          type: object
+        position: body
+      - name: lang
+        description: The programming language of the code
+        type: string
+        required: true
+        enum: ["c","cpp","d","f90","go","java","js","php","py","rs","ts","r"]
+        position: body
+      - name: user_id
+        description: Optional user identifier
+        type: string
+        position: body
+    requestTemplate:
+      url: https://api.librechat.ai/v1/exec
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+        - key: x-api-key
+          value: "{{ .config.apiKey }}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **files**:  (Type: array)
+          - **files[].id**:  (Type: string)
+          - **files[].name**:  (Type: string)
+          - **files[].path**:  (Type: string)
+        - **language**:  (Type: string)
+        - **run**:  (Type: object)
+          - **run.code**:  (Type: integer)
+          - **run.cpu_time**:  (Type: number)
+          - **run.memory**:  (Type: integer)
+          - **run.message**:  (Type: string)
+          - **run.output**:  (Type: string)
+          - **run.signal**:  (Type: string)
+          - **run.status**:  (Type: string)
+          - **run.stderr**:  (Type: string)
+          - **run.stdout**:  (Type: string)
+          - **run.wall_time**:  (Type: number)
+        - **session_id**:  (Type: string)
+        - **version**:  (Type: string)
+
+        ## Original Response
+
+  - name: get_file
+    description: Get files information
+    args:
+      - name: detail
+        description: ""
+        type: string
+        position: query
+      - name: session_id
+        description: ""
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: https://api.librechat.ai/v1/files/{session_id}
+      method: GET
+      headers:
+        - key: x-api-key
+          value: "{{ .config.apiKey }}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **items**: Array of items (Type: array)
+          - **items.content**:  (Type: string)
+          - **items.contentType**:  (Type: string)
+          - **items.etag**:  (Type: string)
+          - **items.id**:  (Type: string)
+          - **items.lastModified**:  (Type: string)
+          - **items.metadata**:  (Type: object)
+            - **items.metadata.content-type**:  (Type: string)
+            - **items.metadata.original-filename**:  (Type: string)
+          - **items.name**:  (Type: string)
+          - **items.session_id**:  (Type: string)
+          - **items.size**:  (Type: number)
+
+        ## Original Response
+
