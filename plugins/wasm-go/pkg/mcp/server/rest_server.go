@@ -652,8 +652,8 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	// Make HTTP request
 	err = ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d, response: %se", statusCode, responseBody))
+			if statusCode >= 300 || statusCode < 200 {
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d, response: %s", statusCode, responseBody))
 				return
 			}
 

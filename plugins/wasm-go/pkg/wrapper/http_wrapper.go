@@ -140,14 +140,14 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 			headers.Add(h[0], h[1])
 		}
 		proxywasm.LogDebugf("http call end, id: %s, code: %d, normal: %t, body: %s",
-			requestID, code, normalResponse, respBody)
+			requestID, code, normalResponse, strings.ReplaceAll(string(respBody), "\n", `\n`))
 		callback(code, headers, respBody)
 		httpCallNotify.HttpCallEnd(callID)
 	})
 	if err == nil {
 		httpCallNotify.HttpCallStart(callID)
 		proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
-			requestID, cluster.ClusterName(), method, rawURL, headers, body, timeout)
+			requestID, cluster.ClusterName(), method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`), timeout)
 	}
 	return err
 }
