@@ -20,6 +20,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"time"
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
@@ -30,10 +31,35 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
+
+const (
+	defaultInterval = 3 * time.Second
+	defaultTimeout  = 1 * time.Minute
+)
+
+type retry struct {
+	interval time.Duration
+	timeout  time.Duration
+}
+
+type RetryOption func(o *retry)
+
+func WithInterval(interval time.Duration) RetryOption {
+	return func(r *retry) {
+		r.interval = interval
+	}
+}
+
+func WithTimeout(timeout time.Duration) RetryOption {
+	return func(r *retry) {
+		r.timeout = timeout
+	}
+}
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 	if resource == nil || resource.APIGroup == nil ||
@@ -45,43 +71,99 @@ func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
 }
 
 // V1Available check if the "networking/v1" Ingress is available.
-func V1Available(client kube.Client) bool {
+func V1Available(client kube.Client, retryOptions ...RetryOption) bool {
+	retry := &retry{
+		interval: defaultInterval,
+		timeout:  defaultTimeout,
+	}
+
+	for _, option := range retryOptions {
+		option(retry)
+	}
+
+	// most case is greater than 1.18
+	supportV1 := true
+	err := wait.PollImmediate(retry.interval, retry.timeout, func() (done bool, err error) {
+		available, err := v1Available(client)
+		if err != nil {
+			IngressLog.Errorf("check v1 available error: %v", err)
+			// retry
+			return false, nil
+		}
+		supportV1 = available
+		// we have done.
+		return true, nil
+	})
+
+	if err != nil {
+		IngressLog.Errorf("check v1 available finally error: %v", err)
+	}
+
+	return supportV1
+}
+
+// v1Available check if the "networking/v1" Ingress is available.
+func v1Available(client kube.Client) (bool, error) {
 	// check kubernetes version to use new ingress package or not
-	version119, _ := version.ParseGeneric("v1.19.0")
+	return IsRunningVersionAtLeast("v1.19.0", client)
+}
+
+// IsRunningVersionAtLeast check if the running version is greater than or equal to the atLeastVersion.
+func IsRunningVersionAtLeast(atLeastVersionStr string, client kube.Client) (bool, error) {
+	atLeastVersion, _ := version.ParseGeneric(atLeastVersionStr)
 
 	serverVersion, err := client.GetKubernetesVersion()
 	if err != nil {
-		// Consider the new ingress package is available as default
-		return true
+		queryK8sVersionFail.Increment()
+		return false, err
 	}
 
 	runningVersion, err := version.ParseGeneric(serverVersion.String())
 	if err != nil {
-		// Consider the new ingress package is available as default
-		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
-		return true
+		queryK8sVersionFail.Increment()
+		return false, err
 	}
 
-	return runningVersion.AtLeast(version119)
+	return runningVersion.AtLeast(atLeastVersion), nil
 }
 
 // NetworkingIngressAvailable check if the "networking" group Ingress is available.
-func NetworkingIngressAvailable(client kube.Client) bool {
+func NetworkingIngressAvailable(client kube.Client, retryOptions ...RetryOption) bool {
+	retry := &retry{
+		interval: defaultInterval,
+		timeout:  defaultTimeout,
+	}
+
+	for _, option := range retryOptions {
+		option(retry)
+	}
+
+	// most case is greater than or equal 1.18.
+	supportNetworking := true
+
+	err := wait.PollImmediate(retry.interval, retry.timeout, func() (done bool, err error) {
+		available, err := networkingIngressAvailable(client)
+		if err != nil {
+			IngressLog.Errorf("check networking available error: %v", err)
+			// retry
+			return false, nil
+		}
+		supportNetworking = available
+		// we have done.
+		return true, nil
+	})
+
+	if err != nil {
+		IngressLog.Errorf("check networking available finally error: %v", err)
+	}
+
+	return supportNetworking
+}
+
+// networkingIngressAvailable check if the "networking" group Ingress is available.
+func networkingIngressAvailable(client kube.Client) (bool, error) {
 	// check kubernetes version to use new ingress package or not
-	version118, _ := version.ParseGeneric("v1.18.0")
-
-	serverVersion, err := client.GetKubernetesVersion()
-	if err != nil {
-		return false
-	}
-
-	runningVersion, err := version.ParseGeneric(serverVersion.String())
-	if err != nil {
-		IngressLog.Errorf("unexpected error parsing running Kubernetes version: %v", err)
-		return false
-	}
-
-	return runningVersion.AtLeast(version118)
+	return IsRunningVersionAtLeast("v1.18.0", client)
 }
 
 // SortIngressByCreationTime sorts the list of config objects in ascending order by their creation time (if available).
