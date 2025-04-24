@@ -454,23 +454,21 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 	if len(mcp.Servers) > 0 {
 		serverConfigs := make([]string, len(mcp.Servers))
 		for i, server := range mcp.Servers {
-			domainList := "[]"
-			if len(server.DomainList) > 0 {
-				domainList = fmt.Sprintf(`["%s"]`, strings.Join(server.DomainList, `","`))
-			}
 			serverConfig := fmt.Sprintf(`{
 				"name": "%s",
 				"path": "%s",
-				"type": "%s",
-				"domain_list": %s`,
-				server.Name, server.Path, server.Type, domainList)
-
+				"type": "%s"`,
+				server.Name, server.Path, server.Type)
+			if len(server.DomainList) > 0 {
+				domainList := fmt.Sprintf(`["%s"]`, strings.Join(server.DomainList, `","`))
+				serverConfig += fmt.Sprintf(`,
+				"domain_list": %s`, domainList)
+			}
 			if len(server.Config) > 0 {
 				config, _ := json.Marshal(server.Config)
 				serverConfig += fmt.Sprintf(`,
 				"config": %s`, string(config))
 			}
-
 			serverConfig += "}"
 			serverConfigs[i] = serverConfig
 		}
