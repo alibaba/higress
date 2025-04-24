@@ -101,5 +101,11 @@ func (s *RedisConfigStore) GetConfig(serverName string, uid string) (map[string]
 		return nil, err
 	}
 
+	// Refresh TTL
+	if err := s.redisClient.Expire(key, configExpiry); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to refresh TTL for key %s: %v\n", key, err)
+	}
+
 	return config, nil
 }

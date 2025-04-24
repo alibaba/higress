@@ -59,7 +59,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 
 	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
 		if !url.InternalIP {
-			api.LogWarnf("Access denied: non-common IP address %s", url.ParsedURL.String())
+			api.LogWarnf("Access denied: non-Internal IP address %s", url.ParsedURL.String())
 			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
 			return api.LocalReply
 		}

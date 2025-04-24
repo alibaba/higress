@@ -251,6 +251,18 @@ func (r *RedisClient) Get(key string) (string, error) {
 	return value, nil
 }
 
+// Expire sets the expiration time for a key
+func (r *RedisClient) Expire(key string, expiration time.Duration) error {
+	ok, err := r.client.Expire(r.ctx, key, expiration).Result()
+	if err != nil {
+		return fmt.Errorf("failed to set expiration for key: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("key does not exist")
+	}
+	return nil
+}
+
 // Close closes the Redis client and stops the keepalive goroutine
 func (r *RedisClient) Close() error {
 	r.cancel()
