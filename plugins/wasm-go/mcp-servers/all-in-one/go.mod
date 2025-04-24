@@ -21,7 +21,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b // indirect
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0 // indirect
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
