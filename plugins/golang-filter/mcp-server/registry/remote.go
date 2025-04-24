@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -204,7 +204,7 @@ func CommonRemoteCall(reg McpServerRegistry, toolName string, parameters map[str
 	return remoteHandle.HandleToolCall(ctx, parameters)
 }
 
-func HandleRegistryToolsCall(reg McpServerRegistry) internal.ToolHandlerFunc {
+func HandleRegistryToolsCall(reg McpServerRegistry) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
 		return CommonRemoteCall(reg, request.Params.Name, arguments)
