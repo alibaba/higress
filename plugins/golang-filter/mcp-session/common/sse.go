@@ -210,14 +210,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		eventData, _ := json.Marshal(response)
 		if sessionID != "" && s.redisClient != nil {
-			channel := GetSSEChannelName(sessionID)
-			publishErr := s.redisClient.Publish(channel, fmt.Sprintf("event: message\ndata: %s\n\n", eventData))
-
-			if publishErr != nil {
-				api.LogErrorf("Failed to publish message to Redis: %v", publishErr)
-			}
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
 		} else {
