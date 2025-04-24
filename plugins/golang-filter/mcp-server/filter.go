@@ -14,7 +14,6 @@ type filter struct {
 	callbacks api.FilterCallbackHandler
 
 	config  *config
-	skip    bool
 	req     *http.Request
 	message bool
 	path    string
@@ -24,15 +23,8 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	url := common.NewRequestURL(header)
 	f.path = url.ParsedURL.Path
 
-	// Check if request matches any rule in match_list
-	if !common.IsMatch(f.config.matchList, url.Host, url.ParsedURL.Path) {
-		f.skip = true
-		api.LogDebugf("Request does not match any rule in match_list: %s", url.ParsedURL.String())
-		return api.Continue
-	}
-
 	for _, server := range f.config.servers {
-		if url.ParsedURL.Path == server.GetMessageEndpoint() {
+		if common.MatchDomainList(url.ParsedURL.Host, server.DomainList) && url.ParsedURL.Path == server.BaseServer.GetMessageEndpoint() {
 			if url.Method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
@@ -62,19 +54,16 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 }
 
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if f.skip {
-		return api.Continue
-	}
 	if !endStream {
 		return api.StopAndBuffer
 	}
 	if f.message {
 		for _, server := range f.config.servers {
-			if f.path == server.GetMessageEndpoint() {
+			if f.path == server.BaseServer.GetMessageEndpoint() {
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer with complete body
-				httpStatus := server.HandleMessage(recorder, f.req, buffer.Bytes())
+				httpStatus := server.BaseServer.HandleMessage(recorder, f.req, buffer.Bytes())
 				f.message = false
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
 				return api.LocalReply

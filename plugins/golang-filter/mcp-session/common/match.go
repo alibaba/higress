@@ -108,3 +108,13 @@ func IsMatch(rules []MatchRule, host, path string) bool {
 	}
 	return false
 }
+
+// MatchDomainList checks if the domain matches any of the domains in the list
+func MatchDomainList(domain string, domainList []string) bool {
+	for _, d := range domainList {
+		if matchDomain(domain, d) {
+			return true
+		}
+	}
+	return false
+}

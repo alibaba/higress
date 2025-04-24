@@ -15,14 +15,18 @@ import (
 const Name = "mcp-server"
 const Version = "1.0.0"
 
+type SSEServerWrapper struct {
+	BaseServer *common.SSEServer
+	DomainList []string
+}
+
 type config struct {
-	servers   []*common.SSEServer
-	matchList []common.MatchRule
+	servers []*SSEServerWrapper
 }
 
 func (c *config) Destroy() {
 	for _, server := range c.servers {
-		server.Close()
+		server.BaseServer.Close()
 	}
 }
 
@@ -37,12 +41,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	v := configStruct.Value
 
 	conf := &config{
-		servers: make([]*common.SSEServer, 0),
-	}
-
-	// Parse match_list if exists
-	if matchList, ok := v.AsMap()["match_list"].([]interface{}); ok {
-		conf.matchList = common.ParseMatchList(matchList)
+		servers: make([]*SSEServerWrapper, 0),
 	}
 
 	serverConfigs, ok := v.AsMap()["servers"].([]interface{})
@@ -56,14 +55,28 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 		if !ok {
 			return nil, fmt.Errorf("server config must be an object")
 		}
+
 		serverType, ok := serverConfigMap["type"].(string)
 		if !ok {
 			return nil, fmt.Errorf("server type is not set")
 		}
+
 		serverPath, ok := serverConfigMap["path"].(string)
 		if !ok {
 			return nil, fmt.Errorf("server %s path is not set", serverType)
 		}
+
+		serverDomainList := []string{}
+		if domainList, ok := serverConfigMap["domain_list"].([]interface{}); ok {
+			for _, domain := range domainList {
+				if domainStr, ok := domain.(string); ok {
+					serverDomainList = append(serverDomainList, domainStr)
+				}
+			}
+		} else {
+			serverDomainList = []string{"*"}
+		}
+
 		serverName, ok := serverConfigMap["name"].(string)
 		if !ok {
 			return nil, fmt.Errorf("server %s name is not set", serverType)
@@ -89,10 +102,13 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 			return nil, fmt.Errorf("failed to initialize DBServer: %w", err)
 		}
 
-		conf.servers = append(conf.servers, common.NewSSEServer(serverInstance,
-			common.WithRedisClient(common.GlobalRedisClient),
-			common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, mcp_session.GlobalSSEPathSuffix)),
-			common.WithMessageEndpoint(serverPath)))
+		conf.servers = append(conf.servers, &SSEServerWrapper{
+			BaseServer: common.NewSSEServer(serverInstance,
+				common.WithRedisClient(common.GlobalRedisClient),
+				common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, mcp_session.GlobalSSEPathSuffix)),
+				common.WithMessageEndpoint(serverPath)),
+			DomainList: serverDomainList,
+		})
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}
 
