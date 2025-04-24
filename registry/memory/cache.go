@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/config"
 	"istio.io/pkg/log"
 
 	"github.com/alibaba/higress/pkg/common"
@@ -30,6 +31,8 @@ import (
 type Cache interface {
 	UpdateServiceWrapper(service string, data *ServiceWrapper)
 	DeleteServiceWrapper(service string)
+	UpdateConfigCache(kind config.GroupVersionKind, key string, config *config.Config, forceDelete bool)
+	GetAllConfigs() map[string]map[string]*config.Config
 	PurgeStaleService()
 	UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
 	GetServiceByEndpoints(requestVersions, endpoints map[string]bool, versionKey string, protocol common.Protocol) map[string][]string
@@ -44,6 +47,7 @@ func NewCache() Cache {
 	return &store{
 		mux:           &sync.RWMutex{},
 		sew:           make(map[string]*ServiceWrapper),
+		configs:       make(map[string]map[string]*config.Config),
 		toBeUpdated:   make([]*ServiceWrapper, 0),
 		toBeDeleted:   make([]*ServiceWrapper, 0),
 		ip2services:   make(map[string]map[string]bool),
@@ -54,10 +58,43 @@ func NewCache() Cache {
 type store struct {
 	mux           *sync.RWMutex
 	sew           map[string]*ServiceWrapper
+	configs       map[string]map[string]*config.Config
 	toBeUpdated   []*ServiceWrapper
 	toBeDeleted   []*ServiceWrapper
 	ip2services   map[string]map[string]bool
 	deferedDelete map[string]struct{}
+}
+
+func (s *store) GetAllConfigs() map[string]map[string]*config.Config {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.configs
+}
+
+func (s *store) UpdateConfigCache(kind config.GroupVersionKind, key string, cfg *config.Config, forceDelete bool) {
+	if cfg == nil && !forceDelete {
+		return
+	}
+
+	s.mux.Lock()
+	if forceDelete {
+		for _, allConfigs := range s.configs {
+			delete(allConfigs, key)
+		}
+		log.Infof("Delete kind %s config %s", kind.String(), key)
+	} else {
+		if _, exist := s.configs[kind.String()]; !exist {
+			s.configs[kind.String()] = make(map[string]*config.Config)
+		}
+
+		if _, exist := s.configs[kind.String()][key]; exist {
+			log.Infof("Update kind %s config %s", kind.String(), key)
+		} else {
+			log.Infof("Add kind %s config %s", kind.String(), key)
+		}
+		s.configs[kind.String()][key] = cfg
+	}
+	s.mux.Unlock()
 }
 
 func (s *store) UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string) {

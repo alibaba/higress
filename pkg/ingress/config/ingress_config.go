@@ -311,6 +311,9 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 		}
 		configs = append(configs, configsFromGateway...)
 	}
+	if configsFromMcpBridges := m.listFromMcpBridge(typ); configsFromMcpBridges != nil {
+		configs = append(configs, configsFromMcpBridges...)
+	}
 
 	return configs
 }
@@ -380,6 +383,18 @@ func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, 
 		}
 	}
 	return configs
+}
+
+func (m *IngressConfig) listFromMcpBridge(typ config.GroupVersionKind) []config.Config {
+	var cfgs []config.Config
+	if m.RegistryReconciler == nil {
+		return nil
+	}
+	allConfigs := m.RegistryReconciler.GetAllConfigs()
+	for _, c := range allConfigs[typ.String()] {
+		cfgs = append(cfgs, *c)
+	}
+	return cfgs
 }
 
 func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
@@ -1137,6 +1152,21 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				// Set this label so that we do not compare configs and just push.
 				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 			}
+			vsMetadata := config.Meta{
+				Name:             "mcpbridge-virtualservice",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.VirtualService,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+			wasmMetadata := config.Meta{
+				Name:             "mcpbridge-wasmplugin",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.WasmPlugin,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+
 			for _, f := range m.serviceEntryHandlers {
 				IngressLog.Debug("McpBridge triggerd serviceEntry update")
 				f(config.Config{Meta: seMetadata}, config.Config{Meta: seMetadata}, istiomodel.EventUpdate)
@@ -1145,7 +1175,15 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				IngressLog.Debug("McpBridge triggerd destinationRule update")
 				f(config.Config{Meta: drMetadata}, config.Config{Meta: drMetadata}, istiomodel.EventUpdate)
 			}
-		}, m.localKubeClient, m.namespace)
+			for _, f := range m.virtualServiceHandlers {
+				IngressLog.Debug("McpBridge triggerd virtualservice update")
+				f(config.Config{Meta: vsMetadata}, config.Config{Meta: vsMetadata}, istiomodel.EventUpdate)
+			}
+			for _, f := range m.wasmPluginHandlers {
+				IngressLog.Debug("McpBridge triggerd wasmplugin update")
+				f(config.Config{Meta: wasmMetadata}, config.Config{Meta: wasmMetadata}, istiomodel.EventUpdate)
+			}
+		}, m.localKubeClient, m.namespace, m.clusterId.String())
 	}
 	reconciler := m.RegistryReconciler
 	err = reconciler.Reconcile(mcpbridge)

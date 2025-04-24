@@ -1,0 +1,909 @@
+package mcpserver
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	"github.com/alibaba/higress/pkg/common"
+	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/registry"
+	"github.com/alibaba/higress/registry/memory"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
+	"github.com/nacos-group/nacos-sdk-go/v2/model"
+	"github.com/nacos-group/nacos-sdk-go/v2/vo"
+	"go.uber.org/atomic"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+	extensions "istio.io/api/extensions/v1alpha1"
+	"istio.io/api/networking/v1alpha3"
+	alifeatures "istio.io/istio/pkg/ali/features"
+	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/util/sets"
+)
+
+const (
+	DefaultInitTimeout          = time.Second * 10
+	DefaultNacosTimeout         = 5000
+	DefaultNacosLogLevel        = "info"
+	DefaultNacosLogDir          = "/home/admin/logs/nacos/mcp/log"
+	DefaultNacosCacheDir        = "/home/admin/logs/nacos/mcp/cache"
+	DefaultNacosNotLoadCache    = true
+	DefaultNacosLogMaxAge       = 3
+	DefaultRefreshInterval      = time.Second * 30
+	DefaultRefreshIntervalLimit = time.Second * 10
+	DefaultFetchPageSize        = 50
+	DefaultJoiner               = "@@"
+)
+
+var mcpServerLog = log.RegisterScope("McpServer", "Nacos Mcp Server Watcher process.")
+
+type watcher struct {
+	provider.BaseWatcher
+	apiv1.RegistryConfig
+	watchingConfig         map[string]bool
+	watchingConfigRefs     map[string]sets.Set[string]
+	configToConfigListener map[string]*MultiConfigListener
+	credentialKeyToName    map[string]map[string]string
+	RegistryType           provider.ServiceRegistryType
+	Status                 provider.WatcherStatus
+	configClient           config_client.IConfigClient
+	namingClients          map[string]naming_client.INamingClient
+	watchingService        map[string]map[string]bool
+	serverConfig           []constant.ServerConfig
+	cache                  memory.Cache
+	mutex                  *sync.Mutex
+	subMutex               *sync.Mutex
+	callbackMutex          *sync.Mutex
+	stop                   chan struct{}
+	isStop                 bool
+	updateCacheWhenEmpty   bool
+	nacosClientConfig      *constant.ClientConfig
+	namespace              string
+	clusterId              string
+}
+
+type WatcherOption func(w *watcher)
+
+func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
+	w := &watcher{
+		watchingConfig:         make(map[string]bool),
+		watchingService:        make(map[string]map[string]bool),
+		watchingConfigRefs:     make(map[string]sets.Set[string]),
+		configToConfigListener: make(map[string]*MultiConfigListener),
+		credentialKeyToName:    make(map[string]map[string]string),
+		namingClients:          map[string]naming_client.INamingClient{},
+		RegistryType:           "nacos-mcp",
+		Status:                 provider.UnHealthy,
+		cache:                  cache,
+		mutex:                  &sync.Mutex{},
+		subMutex:               &sync.Mutex{},
+		callbackMutex:          &sync.Mutex{},
+		stop:                   make(chan struct{}),
+	}
+
+	w.NacosRefreshInterval = int64(DefaultRefreshInterval)
+
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	if w.NacosNamespace == "" {
+		w.NacosNamespace = w.NacosNamespaceId
+	}
+
+	mcpServerLog.Infof("new nacos mcp server watcher with config Name:%s", w.Name)
+
+	w.nacosClientConfig = constant.NewClientConfig(
+		constant.WithTimeoutMs(DefaultNacosTimeout),
+		constant.WithLogLevel(DefaultNacosLogLevel),
+		constant.WithLogDir(DefaultNacosLogDir),
+		constant.WithCacheDir(DefaultNacosCacheDir),
+		constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
+		constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
+			MaxAge: DefaultNacosLogMaxAge,
+		}),
+		constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
+		constant.WithNamespaceId(w.NacosNamespaceId),
+		constant.WithAccessKey(w.NacosAccessKey),
+		constant.WithSecretKey(w.NacosSecretKey),
+	)
+
+	initTimer := time.NewTimer(DefaultInitTimeout)
+	w.serverConfig = []constant.ServerConfig{
+		*constant.NewServerConfig(w.Domain, uint64(w.Port)),
+	}
+
+	success := make(chan struct{})
+	go func() {
+		configClient, err := clients.NewConfigClient(vo.NacosClientParam{
+			ClientConfig:  w.nacosClientConfig,
+			ServerConfigs: w.serverConfig,
+		})
+		if err == nil {
+			w.configClient = configClient
+			close(success)
+		} else {
+			mcpServerLog.Errorf("can not create naming client, err:%v", err)
+		}
+	}()
+
+	select {
+	case <-initTimer.C:
+		return nil, errors.New("new nacos mcp server watcher timeout")
+	case <-success:
+		return w, nil
+	}
+}
+
+func WithNacosAddressServer(nacosAddressServer string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosAddressServer = nacosAddressServer
+	}
+}
+
+func WithNacosAccessKey(nacosAccessKey string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosAccessKey = nacosAccessKey
+	}
+}
+
+func WithNacosSecretKey(nacosSecretKey string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosSecretKey = nacosSecretKey
+	}
+}
+
+func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
+	return func(w *watcher) {
+		if nacosNamespaceId == "" {
+			w.NacosNamespaceId = "nacos-default-mcp"
+		} else {
+			w.NacosNamespaceId = nacosNamespaceId
+		}
+	}
+}
+
+func WithNacosNamespace(nacosNamespace string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosNamespace = nacosNamespace
+	}
+}
+
+func WithNacosGroups(nacosGroups []string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosGroups = nacosGroups
+	}
+}
+
+func WithNacosRefreshInterval(refreshInterval int64) WatcherOption {
+	return func(w *watcher) {
+		if refreshInterval < int64(DefaultRefreshIntervalLimit) {
+			refreshInterval = int64(DefaultRefreshIntervalLimit)
+		}
+		w.NacosRefreshInterval = refreshInterval
+	}
+}
+
+func WithType(t string) WatcherOption {
+	return func(w *watcher) {
+		w.Type = t
+	}
+}
+
+func WithName(name string) WatcherOption {
+	return func(w *watcher) {
+		w.Name = name
+	}
+}
+
+func WithDomain(domain string) WatcherOption {
+	return func(w *watcher) {
+		w.Domain = domain
+	}
+}
+
+func WithPort(port uint32) WatcherOption {
+	return func(w *watcher) {
+		w.Port = port
+	}
+}
+
+func WithNacosMcpExportDomains(exportDomains []string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosMcpExportDomains = exportDomains
+	}
+}
+
+func WithNacosMcpBaseUrl(url string) WatcherOption {
+	return func(w *watcher) {
+		w.NacosMcpBaseUrl = url
+	}
+}
+
+func WithNamespace(ns string) WatcherOption {
+	return func(w *watcher) {
+		w.namespace = ns
+	}
+}
+
+func WithClusterId(id string) WatcherOption {
+	return func(w *watcher) {
+		w.clusterId = id
+	}
+}
+
+func (w *watcher) Run() {
+	ticker := time.NewTicker(time.Duration(w.NacosRefreshInterval))
+	defer ticker.Stop()
+	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
+	err := w.fetchAllMcpConfig()
+	if err != nil {
+		mcpServerLog.Errorf("first fetch mcp server config failed,  err:%v", err)
+	} else {
+		w.Ready(true)
+	}
+	for {
+		select {
+		case <-ticker.C:
+			err := w.fetchAllMcpConfig()
+			if err != nil {
+				mcpServerLog.Errorf("fetch mcp server config failed, err:%v", err)
+			} else {
+				w.Ready(true)
+			}
+		case <-w.stop:
+			return
+		}
+	}
+}
+
+func (w *watcher) fetchAllMcpConfig() error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	if w.isStop {
+		return nil
+	}
+	fetchedConfigs := make(map[string]bool)
+	var tries int
+	for _, groupName := range w.NacosGroups {
+		for page := 1; ; page++ {
+			ss, err := w.configClient.SearchConfig(vo.SearchConfigParam{
+				Group:    groupName,
+				Search:   "blur",
+				PageNo:   page,
+				PageSize: DefaultFetchPageSize,
+			})
+			if err != nil {
+				if tries > 10 {
+					return err
+				}
+				mcpServerLog.Errorf("fetch nacos service list failed, err:%v, pageNo:%d", err, page)
+				page--
+				tries++
+				continue
+			}
+			for _, item := range ss.PageItems {
+				fetchedConfigs[groupName+DefaultJoiner+item.DataId] = true
+			}
+			if len(ss.PageItems) < DefaultFetchPageSize {
+				break
+			}
+		}
+	}
+
+	for key := range w.watchingConfig {
+		if _, exist := fetchedConfigs[key]; !exist {
+			s := strings.Split(key, DefaultJoiner)
+			err := w.unsubscribe(s[0], s[1])
+			if err != nil {
+				return err
+			}
+			delete(w.watchingConfig, key)
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	subscribeFailed := atomic.NewBool(false)
+	watchingKeys := make(chan string, len(fetchedConfigs))
+	for key := range fetchedConfigs {
+		s := strings.Split(key, DefaultJoiner)
+		if _, exist := w.watchingConfig[key]; !exist {
+			wg.Add(1)
+			go func(k string) {
+				err := w.subscribe(s[0], s[1])
+				if err != nil {
+					subscribeFailed.Store(true)
+					mcpServerLog.Errorf("subscribe failed, group: %v, service: %v, errors: %v", s[0], s[1], err)
+				} else {
+					watchingKeys <- k
+				}
+				wg.Done()
+			}(key)
+		}
+	}
+	wg.Wait()
+	close(watchingKeys)
+	for key := range watchingKeys {
+		w.watchingConfig[key] = true
+	}
+	if subscribeFailed.Load() {
+		return errors.New("subscribe services failed")
+	}
+	return nil
+}
+
+func (w *watcher) unsubscribe(groupName string, dataId string) error {
+	mcpServerLog.Infof("unsubscribe mcp server, groupName:%s, dataId:%s", groupName, dataId)
+	err := w.configClient.CancelListenConfig(vo.ConfigParam{
+		DataId: dataId,
+		Group:  groupName,
+	})
+	if err != nil {
+		mcpServerLog.Errorf("unsubscribe mcp server error:%v, groupName:%s, dataId:%s", err, groupName, dataId)
+		return err
+	}
+	key := strings.Join([]string{w.Name, w.NacosNamespace, groupName, dataId}, DefaultJoiner)
+	delete(w.watchingConfigRefs, key)
+	delete(w.configToConfigListener, key)
+	w.cache.UpdateConfigCache(config.GroupVersionKind{}, key, nil, true)
+	return nil
+}
+
+func (w *watcher) subscribe(groupName string, dataId string) error {
+	mcpServerLog.Infof("subscribe mcp server, groupName:%s, dataId:%s", groupName, dataId)
+	err := w.configClient.ListenConfig(vo.ConfigParam{
+		DataId:   dataId,
+		Group:    groupName,
+		OnChange: w.getConfigCallback,
+	})
+	if err != nil {
+		mcpServerLog.Errorf("subscribe mcp server error:%v, groupName:%s, dataId:%s", err, groupName, dataId)
+		return err
+	}
+	return nil
+}
+
+func (w *watcher) getConfigCallback(namespace, group, dataId, data string) {
+	mcpServerLog.Infof("get config callback, namespace:%s, groupName:%s, dataId:%s", namespace, group, dataId)
+
+	key := strings.Join([]string{w.Name, w.NacosNamespace, group, dataId}, DefaultJoiner)
+	routeName := fmt.Sprintf("%s-%s-%s", IstioMcpAutoGeneratedHttpRouteName, group, strings.TrimSuffix(dataId, ".json"))
+
+	mcpServer := &McpServer{}
+	if err := json.Unmarshal([]byte(data), mcpServer); err != nil {
+		mcpServerLog.Errorf("Unmarshal config data to mcp server error:%v, namespace:%s, groupName:%s, dataId:%s", err, namespace, group, dataId)
+		return
+	}
+	// process mcp service
+	w.subMutex.Lock()
+	defer w.subMutex.Unlock()
+	if err := w.buildServiceEntryForMcpServer(mcpServer, group, dataId); err != nil {
+		mcpServerLog.Errorf("build service entry for mcp server failed, namespace %v, group: %v, dataId %v, errors: %v", namespace, group, dataId, err)
+	}
+	// process mcp wasm
+	if _, exist := w.configToConfigListener[key]; !exist {
+		w.configToConfigListener[key] = NewMultiConfigListener(w.configClient, w.multiCallback(mcpServer, routeName, key))
+	}
+	if _, exist := w.watchingConfigRefs[key]; !exist {
+		w.watchingConfigRefs[key] = sets.New[string]()
+	}
+	listener := w.configToConfigListener[key]
+
+	curRef := sets.Set[string]{}
+	// add description ref
+	curRef.Insert(strings.Join([]string{DefaultMcpToolsGroup, mcpServer.ToolsDescriptionRef}, DefaultJoiner))
+	// add credential ref
+	if mcpServer.RemoteServerConfig != nil {
+		credentialNameMap := map[string]string{}
+		for name, ref := range mcpServer.RemoteServerConfig.Credentials {
+			credKey := strings.Join([]string{DefaultMcpCredentialsGroup, ref.Ref}, DefaultJoiner)
+			curRef.Insert(credKey)
+			credentialNameMap[credKey] = name
+		}
+		w.callbackMutex.Lock()
+		w.credentialKeyToName[key] = credentialNameMap
+		w.callbackMutex.Unlock()
+	}
+
+	toBeAdd := curRef.Difference(w.watchingConfigRefs[key])
+	toBeDelete := w.watchingConfigRefs[key].Difference(curRef)
+
+	var toBeListen, toBeUnListen []vo.ConfigParam
+	for item, _ := range toBeAdd {
+		split := strings.Split(item, DefaultJoiner)
+		toBeListen = append(toBeListen, vo.ConfigParam{
+			Group:  split[0],
+			DataId: split[1],
+		})
+	}
+	for item, _ := range toBeDelete {
+		split := strings.Split(item, DefaultJoiner)
+		toBeUnListen = append(toBeUnListen, vo.ConfigParam{
+			Group:  split[0],
+			DataId: split[1],
+		})
+	}
+
+	// listen description and credential config
+	if len(toBeListen) > 0 {
+		if err := listener.StartListen(toBeListen); err != nil {
+			mcpServerLog.Errorf("listen config ref failed, group: %v, dataId %v, errors: %v", group, dataId, err)
+		}
+	}
+	// cancel listen description and credential config
+	if len(toBeUnListen) > 0 {
+		if err := listener.CancelListen(toBeUnListen); err != nil {
+			mcpServerLog.Errorf("cancel listen config ref failed, group: %v, dataId %v, errors: %v", group, dataId, err)
+		}
+	}
+}
+
+func (w *watcher) multiCallback(server *McpServer, routeName, configKey string) func(map[string]string) {
+	split := strings.Split(configKey, DefaultJoiner)
+	group := split[2]
+	dataId := split[3]
+
+	callback := func(configs map[string]string) {
+		defer w.UpdateService()
+
+		mcpServerLog.Infof("callback, ref config changed: %s", configKey)
+		rule := &McpServerRule{
+			MatchRoute: []string{routeName},
+			Server: &ServerConfig{
+				Name:   server.Name,
+				Config: map[string]interface{}{},
+			},
+		}
+
+		// process mcp credential
+		credentialConfig := map[string]interface{}{}
+		for key, data := range configs {
+			if strings.HasPrefix(key, DefaultMcpToolsGroup) {
+				// skip mcp tool description
+				continue
+			}
+			var cred interface{}
+			if err := json.Unmarshal([]byte(data), &cred); err != nil {
+				mcpServerLog.Errorf("unmarshal credential data %v to map error:%v", key, err)
+			}
+			w.callbackMutex.Lock()
+			name := w.credentialKeyToName[configKey][key]
+			w.callbackMutex.Unlock()
+			credentialConfig[name] = cred
+		}
+		rule.Server.Config["credentials"] = credentialConfig
+		// process mcp tool description
+		for key, toolData := range configs {
+			if strings.HasPrefix(key, DefaultMcpCredentialsGroup) {
+				// skip mcp credentials
+				continue
+			}
+			toolsDescription := &McpToolConfig{}
+			if err := json.Unmarshal([]byte(toolData), toolsDescription); err != nil {
+				mcpServerLog.Errorf("unmarshal toolsDescriptionRef to mcp tool config error:%v", err)
+			}
+			for _, t := range toolsDescription.Tools {
+				convertTool := &McpTool{Name: t.Name, Description: t.Description}
+
+				toolMeta := toolsDescription.ToolsMeta[t.Name]
+				argsPosition, err := getArgsPositionFromToolMeta(toolMeta)
+				if err != nil {
+					mcpServerLog.Errorf("get args position from tool meta error:%v, tool name %v", err, t.Name)
+				}
+
+				requiredMap := sets.Set[string]{}
+				for _, s := range t.InputSchema.Required {
+					requiredMap.Insert(s)
+				}
+
+				for argsName, args := range t.InputSchema.Properties {
+					convertArgs, err := parseMcpArgs(args)
+					if err != nil {
+						mcpServerLog.Errorf("parse mcp args error:%v, tool name %v, args name %v", err, t.Name, argsName)
+						continue
+					}
+					convertArgs.Name = argsName
+					convertArgs.Required = requiredMap.Contains(argsName)
+					if pos, exist := argsPosition[argsName]; exist {
+						convertArgs.Position = pos
+					}
+					convertTool.Args = append(convertTool.Args, convertArgs)
+					mcpServerLog.Debugf("parseMcpArgs, toolArgs:%v", convertArgs)
+				}
+
+				requestTemplate, err := getRequestTemplateFromToolMeta(toolMeta)
+				if err != nil {
+					mcpServerLog.Errorf("get request template from tool meta error:%v, tool name %v", err, t.Name)
+				} else {
+					convertTool.RequestTemplate = requestTemplate
+				}
+
+				responseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
+				if err != nil {
+					mcpServerLog.Errorf("get response template from tool meta error:%v, tool name %v", err, t.Name)
+				} else {
+					convertTool.ResponseTemplate = responseTemplate
+				}
+				rule.Tools = append(rule.Tools, convertTool)
+			}
+		}
+
+		wasmPluginConfig, err := constructWasmFromMcpRule(&WasmPluginConfig{Rules: []*McpServerRule{rule}}, group, dataId)
+		if err != nil {
+			mcpServerLog.Errorf("constructWasmFromMcpRule faild for %v, err %v", configKey, err)
+		} else {
+			w.cache.UpdateConfigCache(gvk.WasmPlugin, configKey, wasmPluginConfig, false)
+		}
+	}
+	return callback
+}
+
+func (w *watcher) buildServiceEntryForMcpServer(mcpServer *McpServer, configGroup, dataId string) error {
+	if mcpServer == nil || mcpServer.RemoteServerConfig == nil || mcpServer.RemoteServerConfig.ServiceRef == nil {
+		return nil
+	}
+	mcpServerLog.Debugf("ServiceRef %v for %v", mcpServer.RemoteServerConfig.ServiceRef, dataId)
+	configKey := strings.Join([]string{configGroup, dataId}, DefaultJoiner)
+
+	serviceGroup := mcpServer.RemoteServerConfig.ServiceRef.Group
+	serviceNamespace := mcpServer.RemoteServerConfig.ServiceRef.Namespace
+	serviceName := mcpServer.RemoteServerConfig.ServiceRef.Service
+	if serviceNamespace == "" {
+		serviceNamespace = DefaultNacosServiceNamespace
+	}
+
+	serviceUniqueKey := strings.Join([]string{w.Name, serviceNamespace, serviceGroup, serviceName}, DefaultJoiner)
+
+	if _, exist := w.watchingService[configKey]; !exist {
+		w.watchingService[configKey] = map[string]bool{}
+	}
+
+	if _, watching := w.watchingService[configKey][serviceUniqueKey]; !watching {
+		if _, exist := w.namingClients[serviceNamespace]; !exist {
+			namingConfig := constant.NewClientConfig(
+				constant.WithTimeoutMs(DefaultNacosTimeout),
+				constant.WithLogLevel(DefaultNacosLogLevel),
+				constant.WithLogDir(DefaultNacosLogDir),
+				constant.WithCacheDir(DefaultNacosCacheDir),
+				constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
+				constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
+					MaxAge: DefaultNacosLogMaxAge,
+				}),
+				constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
+				constant.WithNamespaceId(serviceNamespace),
+				constant.WithAccessKey(w.NacosAccessKey),
+				constant.WithSecretKey(w.NacosSecretKey),
+			)
+			client, err := clients.NewNamingClient(vo.NacosClientParam{
+				ClientConfig:  namingConfig,
+				ServerConfigs: w.serverConfig,
+			})
+			if err == nil {
+				w.namingClients[serviceNamespace] = client
+			} else {
+				return fmt.Errorf("can not create naming client err:%v", err)
+			}
+		}
+		namingClient := w.namingClients[serviceNamespace]
+		err := namingClient.Subscribe(&vo.SubscribeParam{
+			ServiceName:       serviceName,
+			GroupName:         serviceGroup,
+			SubscribeCallback: w.getServiceCallback(mcpServer, configGroup, dataId, mcpServer.RemoteServerConfig.ExportPath),
+		})
+		if err != nil {
+			return fmt.Errorf("subscribe service  %v error:%v", serviceName, err)
+		} else {
+			w.watchingService[configKey][serviceUniqueKey] = true
+			mcpServerLog.Infof("subscribe service %v success", serviceUniqueKey)
+		}
+	}
+	return nil
+}
+
+func (w *watcher) getServiceCallback(server *McpServer, configGroup, dataId, path string) func(services []model.Instance, err error) {
+	groupName := server.RemoteServerConfig.ServiceRef.Group
+	namespace := server.RemoteServerConfig.ServiceRef.Namespace
+	serviceName := server.RemoteServerConfig.ServiceRef.Service
+
+	if groupName == "DEFAULT_GROUP" {
+		groupName = "DEFAULT-GROUP"
+	}
+	if namespace == "" {
+		namespace = DefaultNacosServiceNamespace
+	}
+	configKey := strings.Join([]string{w.Name, w.NacosNamespace, configGroup, dataId}, DefaultJoiner)
+
+	return func(services []model.Instance, err error) {
+		defer w.UpdateService()
+
+		host := getNacosServiceFullHost(groupName, namespace, serviceName)
+		mcpServerLog.Infof("callback, serviceName : %s", host)
+		if err != nil {
+			mcpServerLog.Errorf("callback error:%v", err)
+			return
+		}
+		serviceEntry := w.generateServiceEntry(host, services)
+		se := &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.ServiceEntry,
+				Name:             fmt.Sprintf("%s-%s-%s", IstioMcpAutoGeneratedSeName, configGroup, strings.TrimSuffix(dataId, ".json")),
+				Namespace:        namespace,
+			},
+			Spec: serviceEntry,
+		}
+		w.cache.UpdateConfigCache(gvk.ServiceEntry, configKey, se, false)
+		vs := w.buildVirtualServiceForMcpServer(serviceEntry, configGroup, dataId, path, server.Name)
+		w.cache.UpdateConfigCache(gvk.VirtualService, configKey, vs, false)
+	}
+}
+
+func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.ServiceEntry, group, dataId, path, serverName string) *config.Config {
+	if serviceentry == nil {
+		return nil
+	}
+	hosts := w.NacosMcpExportDomains
+	var gateways []string
+	for _, host := range hosts {
+		cleanHost := common2.CleanHost(host)
+		// namespace/name, name format: (istio cluster id)-host
+		gateways = append(gateways, w.namespace+"/"+
+			common2.CreateConvertedName(w.clusterId, cleanHost),
+			common2.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost))
+	}
+	routeName := fmt.Sprintf("%s-%s-%s", IstioMcpAutoGeneratedHttpRouteName, group, strings.TrimSuffix(dataId, ".json"))
+
+	baseUrl := w.NacosMcpBaseUrl
+	if baseUrl == "" {
+		baseUrl = serverName
+	}
+	mergePath := strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
+	vs := &v1alpha3.VirtualService{
+		Hosts:    hosts,
+		Gateways: gateways,
+		Http: []*v1alpha3.HTTPRoute{{
+			Name: routeName,
+			Match: []*v1alpha3.HTTPMatchRequest{{
+				Uri: &v1alpha3.StringMatch{
+					MatchType: &v1alpha3.StringMatch_Prefix{
+						Prefix: mergePath,
+					},
+				},
+			}},
+			Rewrite: &v1alpha3.HTTPRewrite{
+				Uri: path,
+			},
+			Route: []*v1alpha3.HTTPRouteDestination{{
+				Destination: &v1alpha3.Destination{
+					Host: serviceentry.Hosts[0],
+					Port: &v1alpha3.PortSelector{
+						Number: serviceentry.Ports[0].Number,
+					},
+				},
+			}},
+		}},
+	}
+
+	mcpServerLog.Debugf("construct virtualservice %v", vs)
+
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.VirtualService,
+			Name:             fmt.Sprintf("%s-%s-%s", IstioMcpAutoGeneratedVsName, group, dataId),
+			Namespace:        alifeatures.WatchResourcesByNamespaceForPrimaryCluster,
+		},
+		Spec: vs,
+	}
+}
+
+func (w *watcher) generateServiceEntry(host string, services []model.Instance) *v1alpha3.ServiceEntry {
+	portList := make([]*v1alpha3.ServicePort, 0)
+	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
+
+	for _, service := range services {
+		protocol := common.HTTP
+		if service.Metadata != nil && service.Metadata["protocol"] != "" {
+			protocol = common.ParseProtocol(service.Metadata["protocol"])
+		}
+		port := &v1alpha3.ServicePort{
+			Name:     protocol.String(),
+			Number:   uint32(service.Port),
+			Protocol: protocol.String(),
+		}
+		if len(portList) == 0 {
+			portList = append(portList, port)
+		}
+		endpoint := &v1alpha3.WorkloadEntry{
+			Address: service.Ip,
+			Ports:   map[string]uint32{port.Protocol: port.Number},
+			Labels:  service.Metadata,
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+
+	se := &v1alpha3.ServiceEntry{
+		Hosts:      []string{host},
+		Ports:      portList,
+		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
+		Resolution: v1alpha3.ServiceEntry_STATIC,
+		Endpoints:  endpoints,
+	}
+
+	return se
+}
+
+func parseMcpArgs(args interface{}) (*ToolArgs, error) {
+	argsData, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	toolArgs := &ToolArgs{}
+	if err = json.Unmarshal(argsData, toolArgs); err != nil {
+		return nil, err
+	}
+	return toolArgs, nil
+}
+
+func getArgsPositionFromToolMeta(toolMeta *ToolsMeta) (map[string]string, error) {
+	if toolMeta == nil {
+		return nil, nil
+	}
+	toolTemplate := toolMeta.Templates
+	result := map[string]string{}
+	for kind, meta := range toolTemplate {
+		switch kind {
+		case JsonGoTemplateType:
+			templateData, err := json.Marshal(meta)
+			if err != nil {
+				return result, err
+			}
+			template := &JsonGoTemplate{}
+			if err = json.Unmarshal(templateData, template); err != nil {
+				return result, err
+			}
+			result = mergeMaps(result, template.ArgsPosition)
+		default:
+			return result, fmt.Errorf("unsupport tool meta type %v", kind)
+		}
+	}
+	return result, nil
+}
+
+func getRequestTemplateFromToolMeta(toolMeta *ToolsMeta) (*RequestTemplate, error) {
+	if toolMeta == nil {
+		return nil, nil
+	}
+	toolTemplate := toolMeta.Templates
+	for kind, meta := range toolTemplate {
+		switch kind {
+		case JsonGoTemplateType:
+			templateData, err := json.Marshal(meta)
+			if err != nil {
+				return nil, err
+			}
+			template := &JsonGoTemplate{}
+			if err = json.Unmarshal(templateData, template); err != nil {
+				return nil, err
+			}
+			return &template.RequestTemplate, nil
+		default:
+			return nil, fmt.Errorf("unsupport tool meta type")
+		}
+	}
+	return nil, nil
+}
+
+func getResponseTemplateFromToolMeta(toolMeta *ToolsMeta) (*ResponseTemplate, error) {
+	if toolMeta == nil {
+		return nil, nil
+	}
+	toolTemplate := toolMeta.Templates
+	for kind, meta := range toolTemplate {
+		switch kind {
+		case JsonGoTemplateType:
+			templateData, err := json.Marshal(meta)
+			if err != nil {
+				return nil, err
+			}
+			template := &JsonGoTemplate{}
+			if err = json.Unmarshal(templateData, template); err != nil {
+				return nil, err
+			}
+			return &template.ResponseTemplate, nil
+		default:
+			return nil, fmt.Errorf("unsupport tool meta type")
+		}
+	}
+	return nil, nil
+}
+
+func mergeMaps(maps ...map[string]string) map[string]string {
+	if len(maps) == 0 {
+		return nil
+	}
+	res := make(map[string]string, len(maps[0]))
+	for _, m := range maps {
+		for k, v := range m {
+			res[k] = v
+		}
+	}
+	return res
+}
+
+func constructWasmFromMcpRule(cfg *WasmPluginConfig, group, dataId string) (*config.Config, error) {
+	rulesBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal rule error:%v", err)
+	}
+	pbs := &structpb.Struct{}
+	if err = protojson.Unmarshal(rulesBytes, pbs); err != nil {
+		return nil, fmt.Errorf("unmarshal rule error:%v", err)
+	}
+
+	wasmPlugin := &extensions.WasmPlugin{
+		ImagePullPolicy: extensions.PullPolicy_Always,
+		Phase:           extensions.PluginPhase_UNSPECIFIED_PHASE,
+		Priority:        &wrapperspb.Int32Value{Value: 30},
+		PluginConfig:    pbs,
+		Url:             alifeatures.McpToolWasmImageUrl,
+	}
+	mcpServerLog.Debugf("constructWasm %v", wasmPlugin)
+
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.WasmPlugin,
+			Name:             fmt.Sprintf("%s-%s-%s", IstioMcpAutoGeneratedWasmName, group, strings.TrimSuffix(dataId, ".json")),
+			Namespace:        alifeatures.WatchResourcesByNamespaceForPrimaryCluster,
+		},
+		Spec: wasmPlugin,
+	}, nil
+}
+
+func getNacosServiceFullHost(groupName, namespace, serviceName string) string {
+	suffix := strings.Join([]string{groupName, namespace, string(provider.Nacos)}, common.DotSeparator)
+	host := strings.Join([]string{serviceName, suffix}, common.DotSeparator)
+	return host
+}
+
+func (w *watcher) Stop() {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	for key := range w.watchingConfig {
+		s := strings.Split(key, DefaultJoiner)
+		err := w.unsubscribe(s[0], s[1])
+		if err == nil {
+			delete(w.watchingConfig, key)
+			delete(w.watchingService, key)
+		}
+	}
+	for _, client := range w.namingClients {
+		client.CloseClient()
+	}
+
+	w.isStop = true
+	close(w.stop)
+	w.configClient.CloseClient()
+	w.Ready(false)
+	mcpServerLog.Infof("watcher %v stop", w.Name)
+}
+
+func (w *watcher) IsHealthy() bool {
+	return w.Status == provider.Healthy
+}
+
+func (w *watcher) GetRegistryType() string {
+	return w.RegistryType.String()
+}
