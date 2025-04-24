@@ -1050,21 +1050,21 @@ func TestGetLbStatusListV1AndV1Beta1(t *testing.T) {
 		},
 	}
 
-	// Test V1 version
+	// Test the V1 version
 	t.Run("GetLbStatusListV1", func(t *testing.T) {
 		lbiList := GetLbStatusListV1(svcList)
 
-		assert.Equal(t, 2, len(lbiList), "应该有2个入口点")
-		assert.Equal(t, "1.1.1.1", lbiList[0].IP, "第一个IP应该是1.1.1.1")
-		assert.Equal(t, "2.2.2.2", lbiList[1].IP, "第二个IP应该是2.2.2.2")
+		assert.Equal(t, 2, len(lbiList), "There should be 2 entry points")
+		assert.Equal(t, "1.1.1.1", lbiList[0].IP, "The first IP should be 1.1.1.1")
+		assert.Equal(t, "2.2.2.2", lbiList[1].IP, "The second IP should be 2.2.2.2")
 	})
 
-	// Test V1Beta1 version
+	// Test the V1Beta1 version
 	t.Run("GetLbStatusListV1Beta1", func(t *testing.T) {
 		lbiList := GetLbStatusListV1Beta1(svcList)
 
-		assert.Equal(t, 2, len(lbiList), "应该有2个入口点")
-		assert.Equal(t, "1.1.1.1", lbiList[0].IP, "第一个IP应该是1.1.1.1")
-		assert.Equal(t, "2.2.2.2", lbiList[1].IP, "第二个IP应该是2.2.2.2")
+		assert.Equal(t, 2, len(lbiList), "There should be 2 entry points")
+		assert.Equal(t, "1.1.1.1", lbiList[0].IP, "The first IP should be 1.1.1.1")
+		assert.Equal(t, "2.2.2.2", lbiList[1].IP, "The second IP should be 2.2.2.2")
 	})
 }
