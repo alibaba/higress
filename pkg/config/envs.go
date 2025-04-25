@@ -22,6 +22,5 @@ var (
 	GatewayName  = env.RegisterStringVar("GATEWAY_NAME", "higress-gateway", "").Get()
 	// Revision is the value of the Istio control plane revision, e.g. "canary",
 	// and is the value used by the "istio.io/rev" label.
-	Revision              = env.Register("REVISION", "", "").Get()
-	McpWasmPluginImageUrl = env.RegisterStringVar("MCP_WASM_PLUGIN_IMAGE_URL", "", "").Get()
+	Revision = env.Register("REVISION", "", "").Get()
 )
