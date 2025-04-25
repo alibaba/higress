@@ -12,6 +12,12 @@ const (
 	DefaultMcpToolsGroup         = "mcp-tools"
 	DefaultMcpCredentialsGroup   = "credentials"
 	DefaultNacosServiceNamespace = "public"
+
+	StdioProtocol        = "stdio"
+	HttpProtocol         = "http"
+	DubboProtocol        = "dubbo"
+	McpSSEProtocol       = "mcp-sse"
+	McpStreambleProtocol = "mcp-streamble"
 )
 
 type McpToolArgsType string
@@ -76,22 +82,22 @@ type ResponseTemplate struct {
 
 // McpServer Struct for mcp server json unmarshal
 type McpServer struct {
-	Type                   string              `json:"type,omitempty"`
-	Name                   string              `json:"name,omitempty"`
-	Description            string              `json:"description,omitempty"`
-	Version                string              `json:"version,omitempty"`
-	Enabled                bool                `json:"enabled,omitempty"`
-	RemoteServerConfig     *RemoteServerConfig `json:"remoteServerConfig,omitempty"`
-	ToolsDescriptionRef    string              `json:"toolsDescriptionRef,omitempty"`
-	PromptDescriptionRef   string              `json:"promptDescriptionRef,omitempty"`
-	ResourceDescriptionRef string              `json:"resourceDescriptionRef,omitempty"`
+	Protocol               string                    `json:"protocol,omitempty"`
+	Name                   string                    `json:"name,omitempty"`
+	Description            string                    `json:"description,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	Enabled                bool                      `json:"enabled,omitempty"`
+	RemoteServerConfig     *RemoteServerConfig       `json:"remoteServerConfig,omitempty"`
+	Credentials            map[string]*CredentialRef `json:"credentials,omitempty"`
+	ToolsDescriptionRef    string                    `json:"toolsDescriptionRef,omitempty"`
+	PromptDescriptionRef   string                    `json:"promptDescriptionRef,omitempty"`
+	ResourceDescriptionRef string                    `json:"resourceDescriptionRef,omitempty"`
 }
 
 type RemoteServerConfig struct {
-	ServiceRef      *ServiceRef               `json:"serviceRef,omitempty"`
-	ExportPath      string                    `json:"exportPath,omitempty"`
-	BackendProtocol string                    `json:"backendProtocol,omitempty"`
-	Credentials     map[string]*CredentialRef `json:"credentials,omitempty"`
+	ServiceRef      *ServiceRef `json:"serviceRef,omitempty"`
+	ExportPath      string      `json:"exportPath,omitempty"`
+	BackendProtocol string      `json:"backendProtocol,omitempty"`
 }
 
 type CredentialRef struct {
@@ -99,9 +105,9 @@ type CredentialRef struct {
 }
 
 type ServiceRef struct {
-	Namespace string `json:"namespace,omitempty"`
-	Group     string `json:"group,omitempty"`
-	Service   string `json:"service,omitempty"`
+	NamespaceId string `json:"namespaceId,omitempty"`
+	GroupName   string `json:"groupName,omitempty"`
+	ServiceName string `json:"serviceName,omitempty"`
 }
 
 // McpToolConfig Struct for mcp tool json unmarshal

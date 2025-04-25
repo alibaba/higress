@@ -388,6 +388,9 @@ func (w *watcher) getConfigCallback(namespace, group, dataId, data string) {
 		mcpServerLog.Errorf("Unmarshal config data to mcp server error:%v, namespace:%s, groupName:%s, dataId:%s", err, namespace, group, dataId)
 		return
 	}
+	if mcpServer.Protocol == StdioProtocol || mcpServer.Protocol == DubboProtocol {
+		return
+	}
 	// process mcp service
 	w.subMutex.Lock()
 	defer w.subMutex.Unlock()
@@ -395,6 +398,10 @@ func (w *watcher) getConfigCallback(namespace, group, dataId, data string) {
 		mcpServerLog.Errorf("build service entry for mcp server failed, namespace %v, group: %v, dataId %v, errors: %v", namespace, group, dataId, err)
 	}
 	// process mcp wasm
+	// only generate wasm plugin for http protocol mcp server
+	if mcpServer.Protocol != HttpProtocol {
+		return
+	}
 	if _, exist := w.configToConfigListener[key]; !exist {
 		w.configToConfigListener[key] = NewMultiConfigListener(w.configClient, w.multiCallback(mcpServer, routeName, key))
 	}
@@ -407,17 +414,15 @@ func (w *watcher) getConfigCallback(namespace, group, dataId, data string) {
 	// add description ref
 	curRef.Insert(strings.Join([]string{DefaultMcpToolsGroup, mcpServer.ToolsDescriptionRef}, DefaultJoiner))
 	// add credential ref
-	if mcpServer.RemoteServerConfig != nil {
-		credentialNameMap := map[string]string{}
-		for name, ref := range mcpServer.RemoteServerConfig.Credentials {
-			credKey := strings.Join([]string{DefaultMcpCredentialsGroup, ref.Ref}, DefaultJoiner)
-			curRef.Insert(credKey)
-			credentialNameMap[credKey] = name
-		}
-		w.callbackMutex.Lock()
-		w.credentialKeyToName[key] = credentialNameMap
-		w.callbackMutex.Unlock()
+	credentialNameMap := map[string]string{}
+	for name, ref := range mcpServer.Credentials {
+		credKey := strings.Join([]string{DefaultMcpCredentialsGroup, ref.Ref}, DefaultJoiner)
+		curRef.Insert(credKey)
+		credentialNameMap[credKey] = name
 	}
+	w.callbackMutex.Lock()
+	w.credentialKeyToName[key] = credentialNameMap
+	w.callbackMutex.Unlock()
 
 	toBeAdd := curRef.Difference(w.watchingConfigRefs[key])
 	toBeDelete := w.watchingConfigRefs[key].Difference(curRef)
@@ -487,6 +492,7 @@ func (w *watcher) multiCallback(server *McpServer, routeName, configKey string) 
 		}
 		rule.Server.Config["credentials"] = credentialConfig
 		// process mcp tool description
+		var allowTools []string
 		for key, toolData := range configs {
 			if strings.HasPrefix(key, DefaultMcpCredentialsGroup) {
 				// skip mcp credentials
@@ -500,6 +506,9 @@ func (w *watcher) multiCallback(server *McpServer, routeName, configKey string) 
 				convertTool := &McpTool{Name: t.Name, Description: t.Description}
 
 				toolMeta := toolsDescription.ToolsMeta[t.Name]
+				if toolMeta.Enabled {
+					allowTools = append(allowTools, t.Name)
+				}
 				argsPosition, err := getArgsPositionFromToolMeta(toolMeta)
 				if err != nil {
 					mcpServerLog.Errorf("get args position from tool meta error:%v, tool name %v", err, t.Name)
@@ -542,6 +551,7 @@ func (w *watcher) multiCallback(server *McpServer, routeName, configKey string) 
 			}
 		}
 
+		rule.Server.AllowTools = allowTools
 		wasmPluginConfig, err := w.constructWasmFromMcpRule(&WasmPluginConfig{Rules: []*McpServerRule{rule}}, group, dataId)
 		if err != nil {
 			mcpServerLog.Errorf("constructWasmFromMcpRule faild for %v, err %v", configKey, err)
@@ -559,9 +569,9 @@ func (w *watcher) buildServiceEntryForMcpServer(mcpServer *McpServer, configGrou
 	mcpServerLog.Debugf("ServiceRef %v for %v", mcpServer.RemoteServerConfig.ServiceRef, dataId)
 	configKey := strings.Join([]string{configGroup, dataId}, DefaultJoiner)
 
-	serviceGroup := mcpServer.RemoteServerConfig.ServiceRef.Group
-	serviceNamespace := mcpServer.RemoteServerConfig.ServiceRef.Namespace
-	serviceName := mcpServer.RemoteServerConfig.ServiceRef.Service
+	serviceGroup := mcpServer.RemoteServerConfig.ServiceRef.GroupName
+	serviceNamespace := mcpServer.RemoteServerConfig.ServiceRef.NamespaceId
+	serviceName := mcpServer.RemoteServerConfig.ServiceRef.ServiceName
 	if serviceNamespace == "" {
 		serviceNamespace = DefaultNacosServiceNamespace
 	}
@@ -615,9 +625,9 @@ func (w *watcher) buildServiceEntryForMcpServer(mcpServer *McpServer, configGrou
 }
 
 func (w *watcher) getServiceCallback(server *McpServer, configGroup, dataId, path string) func(services []model.Instance, err error) {
-	groupName := server.RemoteServerConfig.ServiceRef.Group
-	namespace := server.RemoteServerConfig.ServiceRef.Namespace
-	serviceName := server.RemoteServerConfig.ServiceRef.Service
+	groupName := server.RemoteServerConfig.ServiceRef.GroupName
+	namespace := server.RemoteServerConfig.ServiceRef.NamespaceId
+	serviceName := server.RemoteServerConfig.ServiceRef.ServiceName
 
 	if groupName == "DEFAULT_GROUP" {
 		groupName = "DEFAULT-GROUP"
