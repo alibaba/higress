@@ -16,7 +16,7 @@ On the user's MCP Client interface, add E2BDev MCP Server configuration.
 ```json
 "mcpServers": {
     "e2bdev": {
-      "url": "http://mcp.higress.ai/mcp-e2bdev/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-e2bdev/{generate_key}",
     }
 }
 ```
