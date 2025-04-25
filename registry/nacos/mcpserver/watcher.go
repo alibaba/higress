@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,8 +53,8 @@ const (
 	DefaultInitTimeout          = time.Second * 10
 	DefaultNacosTimeout         = 5000
 	DefaultNacosLogLevel        = "info"
-	DefaultNacosLogDir          = "/home/admin/logs/nacos/mcp/log"
-	DefaultNacosCacheDir        = "/home/admin/logs/nacos/mcp/cache"
+	DefaultNacosLogDir          = "/var/log/nacos/log/mcp/log"
+	DefaultNacosCacheDir        = "/var/log/nacos/log/mcp/cache"
 	DefaultNacosNotLoadCache    = true
 	DefaultNacosLogMaxAge       = 3
 	DefaultRefreshInterval      = time.Second * 30
@@ -520,7 +521,7 @@ func (w *watcher) multiCallback(server *McpServer, routeName, configKey string) 
 				convertTool := &McpTool{Name: t.Name, Description: t.Description}
 
 				toolMeta := toolsDescription.ToolsMeta[t.Name]
-				if toolMeta.Enabled {
+				if toolMeta != nil && toolMeta.Enabled {
 					allowTools = append(allowTools, t.Name)
 				}
 				argsPosition, err := getArgsPositionFromToolMeta(toolMeta)
@@ -692,7 +693,7 @@ func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.Service
 
 	baseUrl := w.NacosMcpBaseUrl
 	if baseUrl == "" {
-		baseUrl = serverName
+		baseUrl = "/" + serverName
 	}
 	mergePath := strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 	vs := &v1alpha3.VirtualService{
@@ -736,6 +737,7 @@ func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.Service
 func (w *watcher) generateServiceEntry(host string, services []model.Instance) *v1alpha3.ServiceEntry {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
+	isDnsService := false
 
 	for _, service := range services {
 		protocol := common.HTTP
@@ -750,6 +752,9 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		if len(portList) == 0 {
 			portList = append(portList, port)
 		}
+		if !isValidIP(service.Ip) {
+			isDnsService = true
+		}
 		endpoint := &v1alpha3.WorkloadEntry{
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
@@ -758,11 +763,15 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		endpoints = append(endpoints, endpoint)
 	}
 
+	resolution := v1alpha3.ServiceEntry_STATIC
+	if isDnsService {
+		resolution = v1alpha3.ServiceEntry_DNS
+	}
 	se := &v1alpha3.ServiceEntry{
 		Hosts:      []string{host},
 		Ports:      portList,
 		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
-		Resolution: v1alpha3.ServiceEntry_STATIC,
+		Resolution: resolution,
 		Endpoints:  endpoints,
 	}
 
@@ -782,11 +791,11 @@ func parseMcpArgs(args interface{}) (*ToolArgs, error) {
 }
 
 func getArgsPositionFromToolMeta(toolMeta *ToolsMeta) (map[string]string, error) {
+	result := map[string]string{}
 	if toolMeta == nil {
-		return nil, nil
+		return result, nil
 	}
 	toolTemplate := toolMeta.Templates
-	result := map[string]string{}
 	for kind, meta := range toolTemplate {
 		switch kind {
 		case JsonGoTemplateType:
@@ -930,4 +939,9 @@ func (w *watcher) IsHealthy() bool {
 
 func (w *watcher) GetRegistryType() string {
 	return w.RegistryType.String()
+}
+
+func isValidIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	return ip != nil
 }
