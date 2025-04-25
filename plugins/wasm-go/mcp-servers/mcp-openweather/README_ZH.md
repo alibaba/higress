@@ -17,7 +17,7 @@
 ```json
 "mcpServers": {
     "weather": {
-      "url": "http://mcp.higress.ai/mcp-weather/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-weather/{generate_key}",
     }
 }
 ```

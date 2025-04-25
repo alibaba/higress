@@ -21,7 +21,7 @@ On the user's MCP Client interface, add the generated SSE URL to the MCP Server 
 ```json
 "mcpServers": {
     "chatppt": {
-      "url": "http://mcp.higress.ai/mcp-chatppt/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-chatppt/{generate_key}",
     }
 }
 ```

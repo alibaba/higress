@@ -27,7 +27,7 @@
 ```json
 "mcpServers": {
     "firecrawl": {
-      "url": "http://mcp.higress.ai/mcp-firecrawl/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-firecrawl/{generate_key}",
     }
 }
 ```
