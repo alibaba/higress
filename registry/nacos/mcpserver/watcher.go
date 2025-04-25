@@ -61,6 +61,7 @@ const (
 	DefaultRefreshIntervalLimit = time.Second * 10
 	DefaultFetchPageSize        = 50
 	DefaultJoiner               = "@@"
+	NacosV3LabelKey             = "isV3"
 )
 
 var mcpServerLog = log.RegisterScope("McpServer", "Nacos Mcp Server Watcher process.")
@@ -88,6 +89,7 @@ type watcher struct {
 	nacosClientConfig      *constant.ClientConfig
 	namespace              string
 	clusterId              string
+	isV3                   bool
 }
 
 type WatcherOption func(w *watcher)
@@ -113,6 +115,9 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 	for _, opt := range opts {
 		opt(w)
+	}
+	if w.Attributes != nil {
+		w.isV3 = w.Attributes[NacosV3LabelKey] == "true"
 	}
 
 	if w.NacosNamespace == "" {
@@ -242,6 +247,12 @@ func WithNacosMcpExportDomains(exportDomains []string) WatcherOption {
 	}
 }
 
+func WithAttributes(attributes map[string]string) WatcherOption {
+	return func(w *watcher) {
+		w.Attributes = attributes
+	}
+}
+
 func WithNacosMcpBaseUrl(url string) WatcherOption {
 	return func(w *watcher) {
 		w.NacosMcpBaseUrl = url
@@ -301,6 +312,7 @@ func (w *watcher) fetchAllMcpConfig() error {
 				Search:   "blur",
 				PageNo:   page,
 				PageSize: DefaultFetchPageSize,
+				IsV3:     w.isV3,
 			})
 			if err != nil {
 				if tries > 10 {
