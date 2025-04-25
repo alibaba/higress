@@ -67,25 +67,5 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.appid}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-        - **images**: List of image URLs related to the query. (Type: array)
-        - **images[]**: Items of type string
-        - **inputInterpretation**: WolframAlpha's interpretation of the input query. (Type: string)
-        - **link**: A link back to the full WolframAlpha results page for this query. (Type: string)
-        - **query**: The query that was submitted. (Type: string)
-        - **result**: The computed result for the query. (Type: string)
-
-        ## Original Response
+    
 
