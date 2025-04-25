@@ -221,8 +221,11 @@ struct ResMessage {
 
 #[derive(Default, Debug, Deserialize, Serialize, Clone)]
 struct Usage {
+    #[serde(default)]
     completion_tokens: i32,
+    #[serde(default)]
     prompt_tokens: i32,
+    #[serde(default)]
     total_tokens: i32,
 }
 
