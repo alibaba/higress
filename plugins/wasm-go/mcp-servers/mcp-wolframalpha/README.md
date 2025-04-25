@@ -27,6 +27,6 @@ On the user's MCP Client interface, add the generated SSE URL to the MCP Server 
 ```json
 "mcpServers": {
     "wolframalpha": {
-      "url": "http://mcp.higress.ai/mcp-wolframalpha/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-wolframalpha/{generate_key}",
     }
 }

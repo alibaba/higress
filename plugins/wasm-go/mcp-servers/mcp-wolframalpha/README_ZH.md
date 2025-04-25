@@ -27,6 +27,6 @@
 ```json
 "mcpServers": {
     "wolframalpha": {
-      "url": "http://mcp.higress.ai/mcp-wolframalpha/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-wolframalpha/{generate_key}",
     }
 }
