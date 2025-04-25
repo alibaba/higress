@@ -7,7 +7,7 @@ description: AI IMAGE READER 插件配置参考
 
 ## 功能说明
 
-通过对接阿里云OCR服务实现AI-IMAGE-READER，流程如图所示：
+通过对接OCR服务实现AI-IMAGE-READER，目前支持Qwen模型提供OCR服务，流程如图所示：
 
 <img src=".\ai-image-reader.png"> 
 
@@ -19,11 +19,13 @@ description: AI IMAGE READER 插件配置参考
 
 ## 配置说明
 
-| 名称          | 数据类型 | 填写要求 | 默认值 | 描述                                     |
-| ------------- | -------- | -------- | ------ | ---------------------------------------- |
-| `apiKey`      | string   | 必填     | -      | 用于在访问通义千问服务时进行认证的令牌。 |
-| `serviceName` | string   | 必填     | -      | 通义千问服务名                           |
-| `servicePort` | int      | 必填     | -      | 通义千问服务端口                         |
+| 名称                 | 数据类型 | 填写要求 | 默认值 | 描述                                |
+| -------------------- | -------- | -------- | ------ | ----------------------------------- |
+| `apiKey`             | string   | 必填     | -      | 用于在访问OCR服务时进行认证的令牌。 |
+| `serviceName`        | string   | 必填     | -      | 后端OCR服务名                       |
+| `servicePort`        | int      | 必填     | -      | 后端OCR服务端口                     |
+| `model`              | string   | 必填     | -      | 后端OCR服务模型名称（例如qwen）     |
+| `timeoutMillisecond` | int      | 选填     | 30000  | API调用超时时间（毫秒）             |
 
 ## 示例
 
@@ -31,6 +33,8 @@ description: AI IMAGE READER 插件配置参考
 "apiKey": "YOUR_API_KEY",
 "serviceName": "dashscope.dns",
 "servicePort": "443"
+"model": "qwen",
+"timeoutMillisecond": 30000
 ```
 
 请求遵循openai api协议规范:

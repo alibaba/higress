@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/json"
+	"ai-image-reader/ocr"
+	"ai-image-reader/ocr/qwen"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -13,54 +14,12 @@ import (
 )
 
 const (
-	model                  string = "qwen-vl-ocr"
-	queryUrl               string = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-	timeoutMillisecond     uint32 = 30000
-	minPixels              int    = 3136
-	maxPixels              int    = 1003520
 	DEFAULT_MAX_BODY_BYTES uint32 = 100 * 1024 * 1024
 )
 
 type Config struct {
-	apiKey         string
-	serviceName    string
-	servicePort    int64
 	promptTemplate string
-}
-
-type QwenOcrReq struct {
-	Model    string        `json:"model,omitempty"`
-	Messages []chatMessage `json:"messages,omitempty"`
-}
-
-type QwenOcrResp struct {
-	Choices []chatCompletionChoice `json:"choices"`
-}
-
-type chatCompletionChoice struct {
-	Message *chatMessageContent `json:"message,omitempty"`
-}
-
-type chatMessageContent struct {
-	Role    string `json:"role,omitempty"`
-	Content string `json:"content,omitempty"`
-}
-
-type chatMessage struct {
-	Role    string    `json:"role"`
-	Content []content `json:"content"`
-}
-
-type imageURL struct {
-	URL string `json:"url"`
-}
-
-type content struct {
-	Type      string   `json:"type"`
-	ImageUrl  imageURL `json:"image_url,omitempty"`
-	MinPixels int      `json:"min_pixels,omitempty"`
-	MaxPixels int      `json:"max_pixels,omitempty"`
-	Text      string   `json:"text,omitempty"`
+	ocrClient      ocr.OcrClient
 }
 
 func main() {
@@ -73,9 +32,6 @@ func main() {
 }
 
 func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
-	config.apiKey = json.Get("apiKey").String()
-	config.serviceName = json.Get("serviceName").String()
-	config.servicePort = json.Get("servicePort").Int()
 	config.promptTemplate = `# 用户发送的图片解析得到的文字内容如下:
 {image_content}
 在回答时，请注意以下几点：
@@ -84,12 +40,22 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 
 # 用户消息为：
 {question}`
-	return nil
+	model := json.Get("model").String()
+	switch model {
+	case "qwen":
+		ocrClient, err := qwen.NewQwenOcr(&json)
+		if err != nil {
+			return fmt.Errorf("qwen ocr client init failed:%s", err)
+		}
+		config.ocrClient = ocrClient
+		return nil
+	default:
+		return fmt.Errorf("unkown ocr model:%s", model)
+	}
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
-	// The request does not have a body.
 	if contentType == "" {
 		return types.ActionContinue
 	}
@@ -116,7 +82,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 				if content[j].Get("type").String() == "image_url" {
 					imageUrls = append(imageUrls, content[j].Get("image_url.url").String())
 				} else if content[j].Get("type").String() == "text" {
-					query = content[j].Get("text.text").String()
+					query = content[j].Get("text").String()
 				}
 			}
 			break
@@ -125,46 +91,16 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	if len(imageUrls) == 0 {
 		return types.ActionContinue
 	}
-	return executeReadImage(imageUrls, config, query, queryIndex, log)
+	return executeReadImage(imageUrls, config, query, queryIndex, body, log)
 }
 
-func executeReadImage(imageUrls []string, config Config, query string, queryIndex int, log wrapper.Log) types.Action {
+func executeReadImage(imageUrls []string, config Config, query string, queryIndex int, body []byte, log wrapper.Log) types.Action {
 	var imageContents []string
-	client := wrapper.NewClusterClient(wrapper.FQDNCluster{
-		FQDN: config.serviceName,
-		Port: config.servicePort,
-	})
 	var totalImages int
 	var finished int
 	for _, imageUrl := range imageUrls {
-		reqBody := QwenOcrReq{
-			Model: model,
-			Messages: []chatMessage{
-				{
-					Role: "user",
-					Content: []content{
-						{
-							Type: "image_url",
-							ImageUrl: imageURL{
-								URL: imageUrl,
-							},
-							MinPixels: minPixels,
-							MaxPixels: maxPixels,
-						},
-					},
-				},
-			},
-		}
-		body, err := json.Marshal(reqBody)
-		if err != nil {
-			log.Errorf("Failed to marshal request: %v", err)
-		}
-		var resp QwenOcrResp
-		err = client.Post(queryUrl,
-			[][2]string{
-				{"Content-Type", "application/json"},
-				{"Authorization", fmt.Sprintf("Bearer %s", config.apiKey)},
-			}, body,
+		args := config.ocrClient.CallArgs(imageUrl)
+		err := config.ocrClient.Client().Call(args.Method, args.Url, args.Headers, args.Body,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				defer func() {
 					finished++
@@ -190,13 +126,8 @@ func executeReadImage(imageUrls []string, config Config, query string, queryInde
 					log.Errorf("ocr call failed, status: %d", statusCode)
 					return
 				}
-				if err := json.Unmarshal(responseBody, &resp); err != nil {
-					log.Errorf("unable to unmarshal ocr response: %v", err)
-					proxywasm.ResumeHttpRequest()
-					return
-				}
-				imageContents = append(imageContents, resp.Choices[0].Message.Content)
-			}, timeoutMillisecond)
+				imageContents = append(imageContents, config.ocrClient.ParseResult(responseBody))
+			}, args.TimeoutMillisecond)
 		if err != nil {
 			log.Infof("ocr call failed, err:%v", err)
 			continue
