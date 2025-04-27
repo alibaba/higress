@@ -66,7 +66,7 @@ message RegistryConfig {
   string authSecretName = 17;
   string protocol = 18;
   string sni = 19;
-  repeated string nacosMcpExportDomains = 20;
-  string nacosMcpBaseUrl = 21;
-  map<string, string> attributes = 22;
+  repeated string mcpExportDomains = 20;
+  string mcpBaseUrl = 21;
+  bool mcpEnable = 22;
 }
