@@ -201,7 +201,11 @@ func WithNacosNamespace(nacosNamespace string) WatcherOption {
 
 func WithNacosGroups(nacosGroups []string) WatcherOption {
 	return func(w *watcher) {
-		w.NacosGroups = nacosGroups
+		if len(nacosGroups) == 0 {
+			w.NacosGroups = []string{"mcp-server"}
+		} else {
+			w.NacosGroups = nacosGroups
+		}
 	}
 }
 
