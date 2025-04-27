@@ -71,7 +71,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/alecholmes/xfccparser v0.1.0 // indirect
 	github.com/alecthomas/participle v0.4.1 // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704
+	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
