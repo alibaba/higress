@@ -102,7 +102,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		configToConfigListener: make(map[string]*MultiConfigListener),
 		credentialKeyToName:    make(map[string]map[string]string),
 		namingClients:          map[string]naming_client.INamingClient{},
-		RegistryType:           "nacos-mcp",
+		RegistryType:           "nacos3",
 		Status:                 provider.UnHealthy,
 		cache:                  cache,
 		mutex:                  &sync.Mutex{},
