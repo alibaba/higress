@@ -24,7 +24,7 @@ impl MsgWindow {
                     self.message.extend(delta.content.as_bytes());
                 }
             }
-            self.usage.add(&res.usage);
+            self.usage.add(&res.usage.unwrap_or_default());
             None
         } else if event.starts_with(b"data: [DONE]") {
             None
@@ -298,6 +298,8 @@ data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"需求"},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":null,"finish_reason":"stop"}],"usage":null}
 
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{}}
 

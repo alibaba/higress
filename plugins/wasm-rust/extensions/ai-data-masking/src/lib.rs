@@ -248,7 +248,7 @@ struct Res {
     #[serde(default)]
     choices: Vec<ResMessage>,
     #[serde(default)]
-    usage: Usage,
+    usage: Option<Usage>,
 }
 
 static SYSTEM_PATTERNS: &[(&str, &str)] = &[
