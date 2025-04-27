@@ -395,7 +395,18 @@ func (w *watcher) unsubscribe(groupName string, dataId string) error {
 
 func (w *watcher) subscribe(groupName string, dataId string) error {
 	mcpServerLog.Infof("subscribe mcp server, groupName:%s, dataId:%s", groupName, dataId)
-	err := w.configClient.ListenConfig(vo.ConfigParam{
+	// first we get this config and callback manually
+	content, err := w.configClient.GetConfig(vo.ConfigParam{
+		DataId: dataId,
+		Group:  groupName,
+	})
+	if err != nil {
+		mcpServerLog.Errorf("get config %s/%s err: %v", groupName, dataId, err)
+	} else {
+		w.getConfigCallback(w.NacosNamespace, groupName, dataId, content)
+	}
+	// second, we set callback for this config
+	err = w.configClient.ListenConfig(vo.ConfigParam{
 		DataId:   dataId,
 		Group:    groupName,
 		OnChange: w.getConfigCallback,
