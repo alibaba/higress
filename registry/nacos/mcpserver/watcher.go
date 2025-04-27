@@ -319,7 +319,7 @@ func (w *watcher) fetchAllMcpConfig() error {
 				if tries > 10 {
 					return err
 				}
-				mcpServerLog.Errorf("fetch nacos service list failed, err:%v, pageNo:%d", err, page)
+				mcpServerLog.Errorf("fetch nacos config list failed, err:%v, pageNo:%d", err, page)
 				page--
 				tries++
 				continue
