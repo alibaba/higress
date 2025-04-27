@@ -32,7 +32,7 @@ On the user's MCP Client interface, add the generated SSE URL to the MCP Server 
 ```json
 "mcpServers": {
     "notion": {
-      "url": "http://mcp.higress.ai/mcp-notion/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-notion/{generate_key}",
     }
 }
 ```

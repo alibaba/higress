@@ -21,7 +21,7 @@
 ```json
 "mcpServers": {
     "chatppt": {
-      "url": "http://mcp.higress.ai/mcp-chatppt/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-chatppt/{generate_key}",
     }
 }
 ```

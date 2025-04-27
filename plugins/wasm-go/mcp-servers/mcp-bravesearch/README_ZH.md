@@ -30,7 +30,7 @@
 ```json
 "mcpServers": {
     "bravesearch": {
-      "url": "http://mcp.higress.ai/mcp-bravesearch/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-bravesearch/{generate_key}",
     }
 }
 ```

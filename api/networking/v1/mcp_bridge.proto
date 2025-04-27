@@ -15,6 +15,8 @@
 syntax = "proto3";
 
 import "google/api/field_behavior.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
 
 // $schema: higress.networking.v1.McpBridge
 // $title: McpBridge
@@ -66,7 +68,7 @@ message RegistryConfig {
   string authSecretName = 17;
   string protocol = 18;
   string sni = 19;
-  repeated string mcpExportDomains = 20;
-  string mcpBaseUrl = 21;
-  bool mcpEnable = 22;
+  repeated string mcpServerExportDomains = 20;
+  string mcpServerBaseUrl = 21;
+  google.protobuf.BoolValue enableMCPServer = 22;
 }

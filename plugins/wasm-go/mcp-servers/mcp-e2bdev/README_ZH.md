@@ -15,7 +15,7 @@
 ```json
 "mcpServers": {
     "e2bdev": {
-      "url": "http://mcp.higress.ai/mcp-e2bdev/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-e2bdev/{generate_key}",
     }
 }
 ```
