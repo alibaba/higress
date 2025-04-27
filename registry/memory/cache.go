@@ -81,7 +81,7 @@ func (s *store) UpdateConfigCache(kind config.GroupVersionKind, key string, cfg 
 		for _, allConfigs := range s.configs {
 			delete(allConfigs, key)
 		}
-		log.Infof("Delete kind %s config %s", kind.String(), key)
+		log.Infof("Delete config %s in cache", key)
 	} else {
 		if _, exist := s.configs[kind.String()]; !exist {
 			s.configs[kind.String()] = make(map[string]*config.Config)

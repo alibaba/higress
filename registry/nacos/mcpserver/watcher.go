@@ -376,6 +376,8 @@ func (w *watcher) fetchAllMcpConfig() error {
 
 func (w *watcher) unsubscribe(groupName string, dataId string) error {
 	mcpServerLog.Infof("unsubscribe mcp server, groupName:%s, dataId:%s", groupName, dataId)
+	defer w.UpdateService()
+
 	err := w.configClient.CancelListenConfig(vo.ConfigParam{
 		DataId: dataId,
 		Group:  groupName,
