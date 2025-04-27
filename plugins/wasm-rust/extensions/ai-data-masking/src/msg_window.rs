@@ -299,7 +299,9 @@ data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012
 
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}
 
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":"stop"}]}
+data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{}}
+
+data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{}}],"usage":{"prompt_tokens":372,"completion_tokens":9,"total_tokens":381}}
 
 data: [DONE]
 
