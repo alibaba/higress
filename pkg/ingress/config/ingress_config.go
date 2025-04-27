@@ -387,18 +387,6 @@ func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, 
 	return configs
 }
 
-func (m *IngressConfig) listFromMcpBridge(typ config.GroupVersionKind) []config.Config {
-	var cfgs []config.Config
-	if m.RegistryReconciler == nil {
-		return nil
-	}
-	allConfigs := m.RegistryReconciler.GetAllConfigs()
-	for _, c := range allConfigs[typ.String()] {
-		cfgs = append(cfgs, *c)
-	}
-	return cfgs
-}
-
 func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.WrapperConfig {
 	var wrapperConfigs []common.WrapperConfig
 
