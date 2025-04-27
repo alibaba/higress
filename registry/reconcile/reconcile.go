@@ -186,7 +186,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacosv2.WithAuthOption(authOption),
 		)
-	case string(NacosMcp):
+	case string(Nacos3):
 		watcher, err = mcpserver.NewWatcher(
 			r.Cache,
 			mcpserver.WithType(registry.Type),

@@ -25,7 +25,7 @@ const (
 	Consul    ServiceRegistryType = "consul"
 	Nacos     ServiceRegistryType = "nacos"
 	Nacos2    ServiceRegistryType = "nacos2"
-	NacosMcp  ServiceRegistryType = "nacos-mcp"
+	Nacos3    ServiceRegistryType = "nacos3"
 	Static    ServiceRegistryType = "static"
 	DNS       ServiceRegistryType = "dns"
 	Healthy   WatcherStatus       = "healthy"
