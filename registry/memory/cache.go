@@ -22,6 +22,7 @@ import (
 
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/pkg/log"
 
 	"github.com/alibaba/higress/pkg/common"
@@ -263,6 +264,15 @@ func (s *store) GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule
 			drwList = append(drwList, serviceEntryWrapper.DeepCopy().DestinationRuleWrapper)
 		}
 	}
+	configFromMcp := s.GetAllConfigs()
+	for _, cfg := range configFromMcp[gvk.DestinationRule.String()] {
+		dr := cfg.Spec.(*v1alpha3.DestinationRule)
+		drwList = append(drwList, &ingress.WrapperDestinationRule{
+			DestinationRule: dr,
+			ServiceKey:      ingress.ServiceKey{ServiceFQDN: dr.Host},
+		})
+	}
+
 	return drwList
 }
 
