@@ -202,7 +202,6 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			mcpserver.WithNacosMcpExportDomains(registry.NacosMcpExportDomains),
 			mcpserver.WithNacosMcpBaseUrl(registry.NacosMcpBaseUrl),
-			mcpserver.WithAttributes(registry.Attributes),
 			mcpserver.WithClusterId(r.clusterId),
 			mcpserver.WithNamespace(r.namespace),
 		)
