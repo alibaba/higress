@@ -33,7 +33,7 @@ GitHub API 的 MCP 服务器实现，支持文件操作、仓库管理、搜索�
 ```json
 "mcpServers": {
     "github": {
-      "url": "http://mcp.higress.ai/mcp-github/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-github/{generate_key}",
     }
 }
 ```

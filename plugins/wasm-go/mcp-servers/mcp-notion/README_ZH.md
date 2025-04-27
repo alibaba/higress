@@ -32,7 +32,7 @@ Notion MCP Server 提供了以下功能：
 ```json
 "mcpServers": {
     "notion": {
-      "url": "http://mcp.higress.ai/mcp-notion/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-notion/{generate_key}",
     }
 }
 ```
