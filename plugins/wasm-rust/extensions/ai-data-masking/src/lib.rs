@@ -202,6 +202,7 @@ pub struct AiDataMaskingConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 struct Message {
+    #[serde(default)]
     content: String,
 }
 #[derive(Debug, Deserialize, Clone)]
