@@ -707,6 +707,9 @@ func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.Service
 		return nil
 	}
 	hosts := w.McpServerExportDomains
+	if len(hosts) == 0 {
+		hosts = []string{"*"}
+	}
 	var gateways []string
 	for _, host := range hosts {
 		cleanHost := common2.CleanHost(host)
