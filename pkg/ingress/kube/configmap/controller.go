@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/alibaba/higress/registry/reconcile"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
@@ -58,6 +59,7 @@ type ItemController interface {
 	ValidHigressConfig(higressConfig *HigressConfig) error
 	ConstructEnvoyFilters() ([]*config.Config, error)
 	RegisterItemEventHandler(eventHandler ItemEventHandler)
+	RegisterMcpReconciler(reconciler *reconcile.Reconciler)
 }
 
 type ConfigmapMgr struct {
@@ -109,6 +111,12 @@ func (c *ConfigmapMgr) GetHigressConfig() *HigressConfig {
 		}
 	}
 	return nil
+}
+
+func (c *ConfigmapMgr) SetMcpReconciler(reconciler *reconcile.Reconciler) {
+	for _, itemController := range c.ItemControllers {
+		itemController.RegisterMcpReconciler(reconciler)
+	}
 }
 
 func (c *ConfigmapMgr) AddItemControllers(controllers ...ItemController) {
