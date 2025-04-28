@@ -1,4 +1,4 @@
-package internal
+package common
 
 import (
 	"crypto/aes"
