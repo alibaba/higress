@@ -404,7 +404,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 			vs := c.Spec.(*networking.VirtualService)
 			var host string
 			if len(vs.Hosts) > 1 {
-				host = fmt.Sprintf("^(%s)$", strings.Join(vs.Hosts, "|"))
+				host = fmt.Sprintf("%s", strings.Join(vs.Hosts, "|"))
 			} else {
 				host = vs.Hosts[0]
 			}
