@@ -947,6 +947,7 @@ func getNacosServiceFullHost(groupName, namespace, serviceName string) string {
 func (w *watcher) Stop() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+	mcpServerLog.Infof("unsubscribe all configs")
 	for key := range w.watchingConfig {
 		s := strings.Split(key, DefaultJoiner)
 		err := w.unsubscribe(s[0], s[1])
@@ -954,15 +955,18 @@ func (w *watcher) Stop() {
 			delete(w.watchingConfig, key)
 		}
 	}
+	mcpServerLog.Infof("stop all service nameing client")
 	for _, client := range w.serviceCache {
 		client.Stop()
 	}
 
 	w.isStop = true
-	close(w.stop)
+	mcpServerLog.Infof("stop all config client")
 	w.configClient.CloseClient()
-	w.Ready(false)
 	mcpServerLog.Infof("watcher %v stop", w.Name)
+
+	close(w.stop)
+	w.Ready(false)
 }
 
 func (w *watcher) IsHealthy() bool {
