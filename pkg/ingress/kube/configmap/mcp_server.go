@@ -62,6 +62,8 @@ type SSEServer struct {
 	Type string `json:"type,omitempty"`
 	// Additional Config parameters for the real MCP server implementation
 	Config map[string]interface{} `json:"config,omitempty"`
+	// The domain list of the SSE server
+	DomainList []string `json:"domain_list,omitempty"`
 }
 
 // MatchRule defines a rule for matching requests
@@ -180,9 +182,10 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 		newMcp.Servers = make([]*SSEServer, len(mcp.Servers))
 		for i, server := range mcp.Servers {
 			newServer := &SSEServer{
-				Name: server.Name,
-				Path: server.Path,
-				Type: server.Type,
+				Name:       server.Name,
+				Path:       server.Path,
+				Type:       server.Type,
+				DomainList: server.DomainList,
 			}
 			if server.Config != nil {
 				newServer.Config = make(map[string]interface{})
@@ -297,73 +300,88 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 		return configs, nil
 	}
 
-	mcpStruct := m.constructMcpServerStruct(mcpServer)
-	if mcpStruct == "" {
-		return configs, nil
-	}
-
-	config := &config.Config{
-		Meta: config.Meta{
-			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             higressMcpServerEnvoyFilterName,
-			Namespace:        namespace,
-		},
-		Spec: &networking.EnvoyFilter{
-			ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
-					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: networking.EnvoyFilter_GATEWAY,
-						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &networking.EnvoyFilter_ListenerMatch{
-								FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-										SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
-											Name: "envoy.filters.http.cors",
+	// mcp-session envoy filter
+	mcpSessionStruct := m.constructMcpSessionStruct(mcpServer)
+	if mcpSessionStruct != "" {
+		sessionConfig := &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             higressMcpServerEnvoyFilterName,
+				Namespace:        namespace,
+			},
+			Spec: &networking.EnvoyFilter{
+				ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					{
+						ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+						Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+							Context: networking.EnvoyFilter_GATEWAY,
+							ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+								Listener: &networking.EnvoyFilter_ListenerMatch{
+									FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+										Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+											Name: "envoy.filters.network.http_connection_manager",
+											SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+												Name: "envoy.filters.http.cors",
+											},
 										},
 									},
 								},
 							},
 						},
-					},
-					Patch: &networking.EnvoyFilter_Patch{
-						Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
-						Value:     util.BuildPatchStruct(mcpStruct),
+						Patch: &networking.EnvoyFilter_Patch{
+							Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
+							Value:     util.BuildPatchStruct(mcpSessionStruct),
+						},
 					},
 				},
 			},
-		},
+		}
+		configs = append(configs, sessionConfig)
 	}
 
-	configs = append(configs, config)
+	// mcp-server envoy filter
+	mcpServerStruct := m.constructMcpServerStruct(mcpServer)
+	if mcpServerStruct != "" {
+		serverConfig := &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             higressMcpServerEnvoyFilterName + "-server",
+				Namespace:        namespace,
+			},
+			Spec: &networking.EnvoyFilter{
+				ConfigPatches: []*networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					{
+						ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+						Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+							Context: networking.EnvoyFilter_GATEWAY,
+							ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+								Listener: &networking.EnvoyFilter_ListenerMatch{
+									FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+										Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+											Name: "envoy.filters.network.http_connection_manager",
+											SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+												Name: "envoy.filters.http.router",
+											},
+										},
+									},
+								},
+							},
+						},
+						Patch: &networking.EnvoyFilter_Patch{
+							Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+							Value:     util.BuildPatchStruct(mcpServerStruct),
+						},
+					},
+				},
+			},
+		}
+		configs = append(configs, serverConfig)
+	}
+
 	return configs, nil
 }
 
-func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
-	// Build servers configuration
-	servers := "[]"
-	if len(mcp.Servers) > 0 {
-		serverConfigs := make([]string, len(mcp.Servers))
-		for i, server := range mcp.Servers {
-			serverConfig := fmt.Sprintf(`{
-				"name": "%s",
-				"path": "%s",
-				"type": "%s"`,
-				server.Name, server.Path, server.Type)
-
-			if len(server.Config) > 0 {
-				config, _ := json.Marshal(server.Config)
-				serverConfig += fmt.Sprintf(`,
-				"config": %s`, string(config))
-			}
-
-			serverConfig += "}"
-			serverConfigs[i] = serverConfig
-		}
-		servers = fmt.Sprintf("[%s]", strings.Join(serverConfigs, ","))
-	}
-
+func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	// Build match_list configuration
 	matchList := "[]"
 	var matchConfigs []string
@@ -397,7 +415,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 	}
 	matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 
-	// 构建 Redis 配置
+	// Build redis configuration
 	redisConfig := "null"
 	if mcp.Redis != nil {
 		redisConfig = fmt.Sprintf(`{
@@ -408,7 +426,7 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 						}`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
 	}
 
-	// 构建限流配置
+	// Build rate limit configuration
 	rateLimitConfig := "null"
 	if mcp.Ratelimit != nil {
 		whiteList := "[]"
@@ -439,7 +457,6 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 						"rate_limit": %s,
 						"sse_path_suffix": "%s",
 						"match_list": %s,
-						"servers": %s,
 						"enable_user_level_server": %t
 					}
 				}
@@ -450,6 +467,53 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		rateLimitConfig,
 		mcp.SsePathSuffix,
 		matchList,
-		servers,
 		mcp.EnableUserLevelServer)
+}
+
+func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
+	// Build servers configuration
+	servers := "[]"
+	if len(mcp.Servers) > 0 {
+		serverConfigs := make([]string, len(mcp.Servers))
+		for i, server := range mcp.Servers {
+			serverConfig := fmt.Sprintf(`{
+				"name": "%s",
+				"path": "%s",
+				"type": "%s"`,
+				server.Name, server.Path, server.Type)
+			if len(server.DomainList) > 0 {
+				domainList := fmt.Sprintf(`["%s"]`, strings.Join(server.DomainList, `","`))
+				serverConfig += fmt.Sprintf(`,
+				"domain_list": %s`, domainList)
+			}
+			if len(server.Config) > 0 {
+				config, _ := json.Marshal(server.Config)
+				serverConfig += fmt.Sprintf(`,
+				"config": %s`, string(config))
+			}
+			serverConfig += "}"
+			serverConfigs[i] = serverConfig
+		}
+		servers = fmt.Sprintf("[%s]", strings.Join(serverConfigs, ","))
+	}
+
+	// Build complete configuration structure
+	return fmt.Sprintf(`{
+		"name": "envoy.filters.http.golang",
+		"typed_config": {
+			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+			"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+			"value": {
+				"library_id": "mcp-server",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-server",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+					"value": {
+						"servers": %s
+					}
+				}
+			}
+		}
+	}`, servers)
 }

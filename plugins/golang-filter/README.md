@@ -28,7 +28,7 @@ http_filters:
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
     library_id: my-go-filter
-    library_path: "./my-go-filter.so"
+    library_path: "./go-filter.so"
     plugin_name: my-go-filter
     plugin_config:
       "@type": type.googleapis.com/xds.type.v3.TypedStruct
@@ -43,5 +43,5 @@ http_filters:
 使用以下命令可以快速构建 golang filter 插件:
 
 ```bash
-GO_FILTER_NAME=mcp-server make build
+make build
 ```
