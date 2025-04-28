@@ -93,11 +93,11 @@ func (l *MultiConfigListener) CancelListen(configs []vo.ConfigParam) error {
 }
 
 type ServiceCache struct {
-	services map[string]*ServiceRef
+	services map[string]*NacosServiceRef
 	client   naming_client.INamingClient
 }
 
-type ServiceRef struct {
+type NacosServiceRef struct {
 	refs      map[string]func([]model.Instance)
 	callback  func(services []model.Instance, err error)
 	instances *[]model.Instance
@@ -106,7 +106,7 @@ type ServiceRef struct {
 func NewServiceCache(client naming_client.INamingClient) *ServiceCache {
 	return &ServiceCache{
 		client:   client,
-		services: make(map[string]*ServiceRef),
+		services: make(map[string]*NacosServiceRef),
 	}
 }
 
@@ -122,7 +122,7 @@ func (c *ServiceCache) AddListener(group string, serviceName string, key string,
 			return err
 		}
 
-		ref := &ServiceRef{
+		ref := &NacosServiceRef{
 			refs:      map[string]func([]model.Instance){},
 			instances: &instances,
 		}
