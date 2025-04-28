@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/alibaba/higress/registry/reconcile"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
@@ -69,7 +70,7 @@ type ConfigmapMgr struct {
 	XDSUpdater              model.XDSUpdater
 }
 
-func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister) *ConfigmapMgr {
+func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister, reconciler *reconcile.Reconciler) *ConfigmapMgr {
 	configmapMgr := &ConfigmapMgr{
 		XDSUpdater:              XDSUpdater,
 		Namespace:               namespace,
@@ -89,7 +90,7 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	globalOptionController := NewGlobalOptionController(namespace)
 	configmapMgr.AddItemControllers(globalOptionController)
 
-	mcpServerController := NewMcpServerController(namespace)
+	mcpServerController := NewMcpServerController(namespace, reconciler)
 	configmapMgr.AddItemControllers(mcpServerController)
 
 	configmapMgr.initEventHandlers()
