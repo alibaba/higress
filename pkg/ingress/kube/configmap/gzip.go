@@ -23,6 +23,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/registry/reconcile"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -289,6 +290,9 @@ func (g *GzipController) ConstructEnvoyFilters() ([]*config.Config, error) {
 
 func (g *GzipController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	g.eventHandler = eventHandler
+}
+
+func (g *GzipController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
 }
 
 func (g *GzipController) constructGzipStruct(gzip *Gzip, namespace string) string {

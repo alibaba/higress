@@ -24,6 +24,7 @@ import (
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/registry/reconcile"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -215,6 +216,7 @@ type McpServerController struct {
 	mcpServer    atomic.Value
 	Name         string
 	eventHandler ItemEventHandler
+	reconclier   *reconcile.Reconciler
 }
 
 func NewMcpServerController(namespace string) *McpServerController {
@@ -286,6 +288,10 @@ func (m *McpServerController) ValidHigressConfig(higressConfig *HigressConfig) e
 
 func (m *McpServerController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	m.eventHandler = eventHandler
+}
+
+func (m *McpServerController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
+	m.reconclier = reconciler
 }
 
 func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) {
@@ -381,17 +387,36 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	// Build match_list configuration
 	matchList := "[]"
+	var matchConfigs []string
 	if len(mcp.MatchList) > 0 {
-		matchConfigs := make([]string, len(mcp.MatchList))
-		for i, rule := range mcp.MatchList {
-			matchConfigs[i] = fmt.Sprintf(`{
+		for _, rule := range mcp.MatchList {
+			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
 				"match_rule_domain": "%s",
 				"match_rule_path": "%s",
 				"match_rule_type": "%s"
-			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType)
+			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType))
 		}
-		matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 	}
+
+	if m.reconclier != nil {
+		vsFromMcp := m.reconclier.GetAllConfigs(gvk.VirtualService)
+		for _, c := range vsFromMcp {
+			vs := c.Spec.(*networking.VirtualService)
+			var host string
+			if len(vs.Hosts) > 1 {
+				host = fmt.Sprintf("(%s)", strings.Join(vs.Hosts, "|"))
+			} else {
+				host = vs.Hosts[0]
+			}
+			path := vs.Http[0].Match[0].Uri.GetPrefix()
+			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
+				"match_rule_domain": "%s",
+				"match_rule_path": "%s",
+				"match_rule_type": "prefix"
+			}`, host, path))
+		}
+	}
+	matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 
 	// Build redis configuration
 	redisConfig := "null"
