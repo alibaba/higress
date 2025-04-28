@@ -21,6 +21,9 @@ type filter struct {
 
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	url := common.NewRequestURL(header)
+	if url == nil {
+		return api.Continue
+	}
 	f.path = url.ParsedURL.Path
 
 	for _, server := range f.config.servers {
