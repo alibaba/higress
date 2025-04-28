@@ -4,7 +4,7 @@ go 1.22
 
 replace github.com/envoyproxy/envoy => github.com/higress-group/envoy v0.0.0-20250428030521-17cf01d9f644
 
-replace github.com/mark3labs/mcp-go => github.com/higress-group/mcp-go v0.0.0-20250428105525-6bcaa2ff9e04
+replace github.com/mark3labs/mcp-go => github.com/higress-group/mcp-go v0.0.0-20250428145706-792ce64b4b30
 
 require (
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
@@ -58,9 +58,7 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
