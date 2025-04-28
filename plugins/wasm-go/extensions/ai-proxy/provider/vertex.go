@@ -1,7 +1,13 @@
 package provider
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,11 +17,14 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
 )
 
 const (
-	vertexDomain = "{REGION}-aiplatform.googleapis.com"
+	vertexAuthDomain = "oauth2.googleapis.com"
+	vertexDomain     = "{REGION}-aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
 	vertexPathTemplate             = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
 	vertexChatCompletionPath       = "generateContent"
@@ -29,6 +38,9 @@ type vertexProviderInitializer struct {
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in vertex provider config")
+	}
+	if config.vertexAuthKey == "" {
+		return errors.New("missing vertexAuthKey in vertex provider config")
 	}
 	if config.vertexRegion == "" || config.vertexProjectId == "" {
 		return errors.New("missing vertexRegion or vertexProjectId in vertex provider config")
@@ -46,12 +58,16 @@ func (v *vertexProviderInitializer) DefaultCapabilities() map[string]string {
 func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	config.setDefaultCapabilities(v.DefaultCapabilities())
 	return &vertexProvider{
-		config:       config,
+		config: config,
+		client: wrapper.NewClusterClient(wrapper.RouteCluster{
+			Host: vertexAuthDomain,
+		}),
 		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type vertexProvider struct {
+	client       wrapper.HttpClient
 	config       ProviderConfig
 	contextCache *contextCache
 }
@@ -78,14 +94,52 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	vertexRegionDomain := strings.Replace(vertexDomain, "{REGION}", v.config.vertexRegion, 1)
 	util.OverwriteRequestHostHeader(headers, vertexRegionDomain)
-	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+v.config.GetApiTokenInUse(ctx))
+}
+
+func (v *vertexProvider) getToken() error {
+	var key ServiceAccountKey
+	if err := json.Unmarshal([]byte(v.config.vertexAuthKey), &key); err != nil {
+		return fmt.Errorf("[vetrtex]: unable to unmarshal auth key json: %v", err)
+	}
+
+	if key.ClientEmail == "" || key.PrivateKey == "" || key.TokenURI == "" {
+		return fmt.Errorf("[vetrtex]: missing auth params")
+	}
+
+	jwtToken, err := createJWT(&key)
+	if err != nil {
+		log.Errorf("[vetrtex]: unable to get access token: %v", err)
+		return err
+	}
+
+	err = v.getAccessToken(jwtToken)
+	if err != nil {
+		log.Errorf("[vetrtex]: unable to get access token: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !v.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return v.config.handleRequestBody(v, v.contextCache, ctx, apiName, body)
+	if v.config.IsOriginal() {
+		return types.ActionContinue, nil
+	}
+	headers := util.GetOriginalRequestHeaders()
+	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
+	util.ReplaceRequestHeaders(headers)
+	_ = proxywasm.ReplaceHttpRequestBody(body)
+	if err != nil {
+		return types.ActionContinue, err
+	}
+	err = v.getToken()
+	if err == nil {
+		return types.ActionPause, nil
+	}
+	return types.ActionContinue, err
 }
 
 func (v *vertexProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
@@ -457,4 +511,77 @@ type vertexPredictions struct {
 type vertexStatistics struct {
 	TokenCount int  `json:"token_count"`
 	Truncated  bool `json:"truncated"`
+}
+
+type ServiceAccountKey struct {
+	ClientEmail  string `json:"client_email"`
+	PrivateKeyID string `json:"private_key_id"`
+	PrivateKey   string `json:"private_key"`
+	TokenURI     string `json:"token_uri"`
+}
+
+func createJWT(key *ServiceAccountKey) (string, error) {
+	// 解析 PEM 格式的 RSA 私钥
+	block, _ := pem.Decode([]byte(key.PrivateKey))
+	if block == nil {
+		return "", fmt.Errorf("invalid PEM block")
+	}
+	parsedKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+	rsaKey := parsedKey.(*rsa.PrivateKey)
+
+	// 构造 JWT Header
+	jwtHeader := map[string]string{
+		"alg": "RS256",
+		"typ": "JWT",
+		"kid": key.PrivateKeyID,
+	}
+	headerJSON, _ := json.Marshal(jwtHeader)
+	headerB64 := base64.RawURLEncoding.EncodeToString(headerJSON)
+
+	// 构造 JWT Claims
+	now := time.Now().Unix()
+	claims := map[string]interface{}{
+		"iss":   key.ClientEmail,
+		"scope": "https://www.googleapis.com/auth/cloud-platform",
+		"aud":   key.TokenURI,
+		"iat":   now,
+		"exp":   now + 3600, // 1 小时有效期
+	}
+	claimsJSON, _ := json.Marshal(claims)
+	claimsB64 := base64.RawURLEncoding.EncodeToString(claimsJSON)
+
+	signingInput := fmt.Sprintf("%s.%s", headerB64, claimsB64)
+	hashed := sha256.Sum256([]byte(signingInput))
+	signature, err := rsaKey.Sign(nil, hashed[:], crypto.SHA256)
+	if err != nil {
+		return "", err
+	}
+	sigB64 := base64.RawURLEncoding.EncodeToString(signature)
+
+	return fmt.Sprintf("%s.%s.%s", headerB64, claimsB64, sigB64), nil
+}
+
+func (v *vertexProvider) getAccessToken(jwtToken string) error {
+	headers := [][2]string{
+		{"Content-Type", "application/x-www-form-urlencoded"},
+	}
+	reqBody := "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=" + jwtToken
+	err := v.client.Post("/token", headers, []byte(reqBody), func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		responseString := string(responseBody)
+		defer func() {
+			_ = proxywasm.ResumeHttpRequest()
+		}()
+		if statusCode != http.StatusOK {
+			log.Errorf("failed to create vertex access key, status: %d body: %s", statusCode, responseString)
+			_ = util.ErrorHandler("ai-proxy.vertex.load_ak_failed", fmt.Errorf("failed to load vertex ak"))
+			return
+		}
+		responseJson := gjson.Parse(responseString)
+		accessToken := responseJson.Get("access_token").String()
+		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+accessToken)
+	}, v.config.timeout)
+	return err
 }
