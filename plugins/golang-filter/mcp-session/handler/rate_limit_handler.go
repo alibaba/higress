@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 type MCPRatelimitHandler struct {
-	redisClient *internal.RedisClient
+	redisClient *common.RedisClient
 	callbacks   api.FilterCallbackHandler
 	limit       int      // Maximum requests allowed per window
 	window      int      // Time window in seconds
@@ -31,7 +31,7 @@ type MCPRatelimitConfig struct {
 }
 
 // NewMCPRatelimitHandler creates a new rate limit handler
-func NewMCPRatelimitHandler(redisClient *internal.RedisClient, callbacks api.FilterCallbackHandler, conf *MCPRatelimitConfig) *MCPRatelimitHandler {
+func NewMCPRatelimitHandler(redisClient *common.RedisClient, callbacks api.FilterCallbackHandler, conf *MCPRatelimitConfig) *MCPRatelimitHandler {
 	if conf == nil {
 		conf = &MCPRatelimitConfig{
 			Limit:     100,

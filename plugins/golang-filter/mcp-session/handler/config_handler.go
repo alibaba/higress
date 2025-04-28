@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -18,7 +18,7 @@ type MCPConfigHandler struct {
 }
 
 // NewMCPConfigHandler creates a new instance of MCP configuration handler
-func NewMCPConfigHandler(redisClient *internal.RedisClient, callbacks api.FilterCallbackHandler) *MCPConfigHandler {
+func NewMCPConfigHandler(redisClient *common.RedisClient, callbacks api.FilterCallbackHandler) *MCPConfigHandler {
 	return &MCPConfigHandler{
 		configStore: NewRedisConfigStore(redisClient),
 		callbacks:   callbacks,

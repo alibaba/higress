@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/golang-filter/mcp-server
+module github.com/alibaba/higress/plugins/golang-filter
 
 go 1.23
 
