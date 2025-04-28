@@ -18,6 +18,8 @@ import (
 	"fmt"
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/model"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 )
 
@@ -69,6 +71,10 @@ func (l *MultiConfigListener) StartListen(configs []vo.ConfigParam) error {
 	return nil
 }
 
+func (l *MultiConfigListener) Stop() {
+	l.configClient.CloseClient()
+}
+
 func (l *MultiConfigListener) CancelListen(configs []vo.ConfigParam) error {
 	for _, config := range configs {
 		if _, ok := l.configCache[config.Group+DefaultJoiner+config.DataId]; ok {
@@ -84,4 +90,91 @@ func (l *MultiConfigListener) CancelListen(configs []vo.ConfigParam) error {
 		}
 	}
 	return nil
+}
+
+type ServiceCache struct {
+	services map[string]*ServiceRef
+	client   naming_client.INamingClient
+}
+
+type ServiceRef struct {
+	refs      map[string]func([]model.Instance)
+	callback  func(services []model.Instance, err error)
+	instances *[]model.Instance
+}
+
+func NewServiceCache(client naming_client.INamingClient) *ServiceCache {
+	return &ServiceCache{
+		client:   client,
+		services: make(map[string]*ServiceRef),
+	}
+}
+
+func (c *ServiceCache) AddListener(group string, serviceName string, key string, callback func([]model.Instance)) error {
+	uniqueServiceName := c.makeServiceUniqueName(group, serviceName)
+	if _, ok := c.services[uniqueServiceName]; !ok {
+		instances, err := c.client.SelectAllInstances(vo.SelectAllInstancesParam{
+			GroupName:   group,
+			ServiceName: serviceName,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		ref := &ServiceRef{
+			refs:      map[string]func([]model.Instance){},
+			instances: &instances,
+		}
+
+		ref.callback = func(services []model.Instance, err error) {
+			ref.instances = &services
+			for _, refCallback := range ref.refs {
+				refCallback(*ref.instances)
+			}
+		}
+
+		c.services[uniqueServiceName] = ref
+
+		err = c.client.Subscribe(&vo.SubscribeParam{
+			GroupName:         group,
+			ServiceName:       serviceName,
+			SubscribeCallback: ref.callback,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	ref := c.services[uniqueServiceName]
+	ref.refs[key] = callback
+	callback(*ref.instances)
+	return nil
+}
+
+func (c *ServiceCache) RemoveListener(group string, serviceName string, key string) error {
+	if ref, ok := c.services[c.makeServiceUniqueName(group, serviceName)]; ok {
+		delete(ref.refs, key)
+		if len(ref.refs) == 0 {
+			err := c.client.Unsubscribe(&vo.SubscribeParam{
+				GroupName:         group,
+				ServiceName:       serviceName,
+				SubscribeCallback: ref.callback,
+			})
+
+			delete(c.services, c.makeServiceUniqueName(group, serviceName))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *ServiceCache) makeServiceUniqueName(group string, serviceName string) string {
+	return fmt.Sprintf("%s-%s", group, serviceName)
+}
+
+func (c *ServiceCache) Stop() {
+	c.client.CloseClient()
 }
