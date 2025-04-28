@@ -962,7 +962,6 @@ func (w *watcher) Stop() {
 
 	w.isStop = true
 	mcpServerLog.Infof("stop all config client")
-	w.configClient.CloseClient()
 	mcpServerLog.Infof("watcher %v stop", w.Name)
 
 	close(w.stop)
