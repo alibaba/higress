@@ -28,10 +28,10 @@ type filter struct {
 	config    *config
 	stopChan  chan struct{}
 
-	req        *http.Request
-	serverName string
-	proxyURL   *url.URL
-	skip       bool
+	req         *http.Request
+	serverName  string
+	proxyURL    *url.URL
+	neepProcess bool
 
 	userLevelConfig     bool
 	mcpConfigHandler    *handler.MCPConfigHandler
@@ -43,14 +43,17 @@ type filter struct {
 // The endStream is true if the request doesn't have body
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	url := common.NewRequestURL(header)
+	if url == nil {
+		return api.Continue
+	}
 	f.path = url.ParsedURL.Path
 
 	// Check if request matches any rule in match_list
 	if !common.IsMatch(f.config.matchList, url.Host, f.path) {
-		f.skip = true
 		api.LogDebugf("Request does not match any rule in match_list: %s", url.ParsedURL.String())
 		return api.Continue
 	}
+	f.neepProcess = true
 
 	f.req = &http.Request{
 		Method: url.Method,
@@ -116,7 +119,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 // DecodeData might be called multiple times during handling the request body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if f.skip {
+	if !f.neepProcess {
 		return api.Continue
 	}
 	if !endStream {
@@ -158,7 +161,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 // Callbacks which are called in response path
 // The endStream is true if the response doesn't have body
 func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	if f.skip {
+	if !f.neepProcess {
 		return api.Continue
 	}
 	if f.serverName != "" {
@@ -179,7 +182,7 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 // EncodeData might be called multiple times during handling the response body.
 // The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if f.skip {
+	if !f.neepProcess {
 		return api.Continue
 	}
 	if !endStream {
