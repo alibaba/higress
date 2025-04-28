@@ -1,4 +1,4 @@
-package internal
+package common
 
 import (
 	"regexp"
@@ -21,6 +21,27 @@ type MatchRule struct {
 	MatchRuleDomain string   `json:"match_rule_domain"` // Domain pattern, supports wildcards
 	MatchRulePath   string   `json:"match_rule_path"`   // Path pattern to match
 	MatchRuleType   RuleType `json:"match_rule_type"`   // Type of match rule
+}
+
+// ParseMatchList parses the match list from the config
+func ParseMatchList(matchListConfig []interface{}) []MatchRule {
+	matchList := make([]MatchRule, 0)
+	for _, item := range matchListConfig {
+		if ruleMap, ok := item.(map[string]interface{}); ok {
+			rule := MatchRule{}
+			if domain, ok := ruleMap["match_rule_domain"].(string); ok {
+				rule.MatchRuleDomain = domain
+			}
+			if path, ok := ruleMap["match_rule_path"].(string); ok {
+				rule.MatchRulePath = path
+			}
+			if ruleType, ok := ruleMap["match_rule_type"].(string); ok {
+				rule.MatchRuleType = RuleType(ruleType)
+			}
+			matchList = append(matchList, rule)
+		}
+	}
+	return matchList
 }
 
 // convertWildcardToRegex converts wildcard pattern to regex pattern
@@ -82,6 +103,16 @@ func IsMatch(rules []MatchRule, host, path string) bool {
 
 	for _, rule := range rules {
 		if matchDomainAndPath(host, path, rule) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchDomainList checks if the domain matches any of the domains in the list
+func MatchDomainList(domain string, domainList []string) bool {
+	for _, d := range domainList {
+		if matchDomain(domain, d) {
 			return true
 		}
 	}

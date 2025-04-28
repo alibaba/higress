@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 )
 
 const (
@@ -36,11 +36,11 @@ type ConfigStore interface {
 
 // RedisConfigStore implements configuration storage using Redis
 type RedisConfigStore struct {
-	redisClient *internal.RedisClient
+	redisClient *common.RedisClient
 }
 
 // NewRedisConfigStore creates a new instance of Redis configuration storage
-func NewRedisConfigStore(redisClient *internal.RedisClient) ConfigStore {
+func NewRedisConfigStore(redisClient *common.RedisClient) ConfigStore {
 	return &RedisConfigStore{
 		redisClient: redisClient,
 	}
@@ -99,6 +99,12 @@ func (s *RedisConfigStore) GetConfig(serverName string, uid string) (map[string]
 	var config map[string]string
 	if err := json.Unmarshal([]byte(value), &config); err != nil {
 		return nil, err
+	}
+
+	// Refresh TTL
+	if err := s.redisClient.Expire(key, configExpiry); err != nil {
+		// Log error but don't fail the request
+		fmt.Printf("Failed to refresh TTL for key %s: %v\n", key, err)
 	}
 
 	return config, nil
