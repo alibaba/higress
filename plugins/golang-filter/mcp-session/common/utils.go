@@ -24,7 +24,11 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	path, _ := header.Get(":path")
 	internalIP, _ := header.Get("x-envoy-internal")
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-	parsedURL, _ := url.Parse(path)
+	parsedURL, err := url.Parse(path)
+	if err != nil {
+		api.LogWarnf("url parse path:%s failed:%s", path, err)
+		return nil
+	}
 	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
 	return &RequestURL{Method: method, Scheme: scheme, Host: host, Path: path, BaseURL: baseURL, ParsedURL: parsedURL, InternalIP: internalIP == "true"}
 }
