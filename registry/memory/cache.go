@@ -311,7 +311,7 @@ func (s *store) GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule
 			drwList = append(drwList, serviceEntryWrapper.DeepCopy().DestinationRuleWrapper)
 		}
 	}
-	configFromMcp := s.GetAllConfigs(gvk.DestinationRule)
+	configFromMcp := s.configs[gvk.DestinationRule.String()]
 	for _, cfg := range configFromMcp {
 		dr := cfg.Spec.(*v1alpha3.DestinationRule)
 		drwList = append(drwList, &ingress.WrapperDestinationRule{
