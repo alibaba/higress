@@ -428,7 +428,7 @@ func (w *watcher) getConfigCallback(namespace, group, dataId, data string) {
 		mcpServerLog.Errorf("Unmarshal config data to mcp server error:%v, namespace:%s, groupName:%s, dataId:%s", err, namespace, group, dataId)
 		return
 	}
-	if mcpServer.Protocol == provider.StdioProtocol || mcpServer.Protocol == provider.DubboProtocol {
+	if mcpServer.Protocol == provider.StdioProtocol || mcpServer.Protocol == provider.DubboProtocol || mcpServer.Protocol == provider.McpSSEProtocol {
 		return
 	}
 	// process mcp service
