@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
@@ -50,9 +51,10 @@ type Reconciler struct {
 	serviceUpdate func()
 	client        kube.Client
 	namespace     string
+	clusterId     string
 }
 
-func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *Reconciler {
+func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
 	return &Reconciler{
 		Cache:         memory.NewCache(),
 		registries:    make(map[string]*apiv1.RegistryConfig),
@@ -60,6 +62,7 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *
 		serviceUpdate: serviceUpdate,
 		client:        client,
 		namespace:     namespace,
+		clusterId:     clusterId,
 	}
 }
 
@@ -182,6 +185,26 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosGroups(registry.NacosGroups),
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacosv2.WithAuthOption(authOption),
+		)
+	case string(Nacos3):
+		watcher, err = mcpserver.NewWatcher(
+			r.Cache,
+			mcpserver.WithType(registry.Type),
+			mcpserver.WithName(registry.Name),
+			mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
+			mcpserver.WithDomain(registry.Domain),
+			mcpserver.WithPort(registry.Port),
+			mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
+			mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
+			mcpserver.WithNacosNamespaceId(registry.NacosNamespaceId),
+			mcpserver.WithNacosNamespace(registry.NacosNamespace),
+			mcpserver.WithNacosGroups(registry.NacosGroups),
+			mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
+			mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
+			mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
+			mcpserver.WithClusterId(r.clusterId),
+			mcpserver.WithNamespace(r.namespace),
 		)
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
