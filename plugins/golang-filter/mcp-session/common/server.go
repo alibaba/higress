@@ -1,4 +1,4 @@
-package internal
+package common
 
 import (
 	"context"
@@ -243,6 +243,7 @@ func (s *MCPServer) HandleMessage(
 	message json.RawMessage,
 ) mcp.JSONRPCMessage {
 	// Add server to context
+
 	ctx = context.WithValue(ctx, serverKey{}, s)
 
 	var baseMessage struct {

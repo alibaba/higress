@@ -1,104 +1,41 @@
-package main
+package mcp_server
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
-	"strings"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/handler"
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
-	"github.com/mark3labs/mcp-go/mcp"
 )
 
-const (
-	RedisNotEnabledResponseBody = "Redis is not enabled, SSE connection is not supported"
-)
-
-// The callbacks in the filter, like `DecodeHeaders`, can be implemented on demand.
-// Because api.PassThroughStreamFilter provides a default implementation.
 type filter struct {
 	api.PassThroughStreamFilter
 
 	callbacks api.FilterCallbackHandler
-	path      string
-	config    *config
-	stopChan  chan struct{}
 
-	req        *http.Request
-	serverName string
-	message    bool
-	proxyURL   *url.URL
-	skip       bool
-
-	userLevelConfig     bool
-	mcpConfigHandler    *handler.MCPConfigHandler
-	ratelimit           bool
-	mcpRatelimitHandler *handler.MCPRatelimitHandler
+	config  *config
+	req     *http.Request
+	message bool
+	path    string
 }
 
-type RequestURL struct {
-	method     string
-	scheme     string
-	host       string
-	path       string
-	baseURL    string
-	parsedURL  *url.URL
-	internalIP bool
-}
-
-func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
-	method, _ := header.Get(":method")
-	scheme, _ := header.Get(":scheme")
-	host, _ := header.Get(":authority")
-	path, _ := header.Get(":path")
-	internalIP, _ := header.Get("x-envoy-internal")
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-	parsedURL, _ := url.Parse(path)
-	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
-	return &RequestURL{method: method, scheme: scheme, host: host, path: path, baseURL: baseURL, parsedURL: parsedURL, internalIP: internalIP == "true"}
-}
-
-// Callbacks which are called in request path
-// The endStream is true if the request doesn't have body
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	url := NewRequestURL(header)
-	f.path = url.parsedURL.Path
-
-	// Check if request matches any rule in match_list
-	if !internal.IsMatch(f.config.matchList, url.host, f.path) {
-		f.skip = true
-		api.LogDebugf("Request does not match any rule in match_list: %s", url.parsedURL.String())
-		return api.Continue
-	}
+	url := common.NewRequestURL(header)
+	f.path = url.ParsedURL.Path
 
 	for _, server := range f.config.servers {
-		if f.path == server.GetSSEEndpoint() {
-			if url.method != http.MethodGet {
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
-			} else {
-				f.serverName = server.GetServerName()
-				body := "SSE connection create"
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
-			}
-			api.LogDebugf("%s SSE connection started", server.GetServerName())
-			return api.LocalReply
-		} else if f.path == server.GetMessageEndpoint() {
-			if url.method != http.MethodPost {
+		if common.MatchDomainList(url.ParsedURL.Host, server.DomainList) && url.ParsedURL.Path == server.BaseServer.GetMessageEndpoint() {
+			if url.Method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
 			}
 			// Create a new http.Request object
 			f.req = &http.Request{
-				Method: url.method,
-				URL:    url.parsedURL,
+				Method: url.Method,
+				URL:    url.ParsedURL,
 				Header: make(http.Header),
 			}
-			api.LogDebugf("Message request: %v", url.parsedURL)
+			api.LogDebugf("Message request: %v", url.ParsedURL)
 			// Copy headers from api.RequestHeaderMap to http.Header
 			header.Range(func(key, value string) bool {
 				f.req.Header.Add(key, value)
@@ -113,209 +50,33 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		}
 	}
 
-	f.req = &http.Request{
-		Method: url.method,
-		URL:    url.parsedURL,
-	}
-
-	if strings.HasSuffix(f.path, ConfigPathSuffix) && f.config.enableUserLevelServer {
-		if !url.internalIP {
-			api.LogWarnf("Access denied: non-internal IP address %s", url.parsedURL.String())
-			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
-			return api.LocalReply
-		}
-		if strings.HasSuffix(f.path, ConfigPathSuffix) && url.method == http.MethodGet {
-			api.LogDebugf("Handling config request: %s", f.path)
-			f.mcpConfigHandler.HandleConfigRequest(f.req, []byte{})
-			return api.LocalReply
-		}
-		f.userLevelConfig = true
-		if endStream {
-			return api.Continue
-		} else {
-			return api.StopAndBuffer
-		}
-	}
-
-	if !strings.HasSuffix(url.parsedURL.Path, f.config.ssePathSuffix) {
-		f.proxyURL = url.parsedURL
-		if f.config.enableUserLevelServer {
-			parts := strings.Split(url.parsedURL.Path, "/")
-			if len(parts) >= 3 {
-				serverName := parts[1]
-				uid := parts[2]
-				// Get encoded config
-				encodedConfig, _ := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
-				if encodedConfig != "" {
-					header.Set("x-higress-mcpserver-config", encodedConfig)
-					api.LogDebugf("Set x-higress-mcpserver-config Header for %s:%s", serverName, uid)
-				}
-			}
-			f.ratelimit = true
-		}
-		if endStream {
-			return api.Continue
-		} else {
-			return api.StopAndBuffer
-		}
-	}
-
-	if url.method != http.MethodGet {
-		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
-	} else {
-		f.config.defaultServer = internal.NewSSEServer(internal.NewMCPServer(DefaultServerName, Version),
-			internal.WithSSEEndpoint(f.config.ssePathSuffix),
-			internal.WithMessageEndpoint(strings.TrimSuffix(url.parsedURL.Path, f.config.ssePathSuffix)),
-			internal.WithRedisClient(f.config.redisClient))
-		f.serverName = f.config.defaultServer.GetServerName()
-		body := "SSE connection create"
-		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
-	}
-	return api.LocalReply
+	return api.Continue
 }
 
-// DecodeData might be called multiple times during handling the request body.
-// The endStream is true when handling the last piece of the body.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if f.skip {
-		return api.Continue
-	}
 	if !endStream {
 		return api.StopAndBuffer
 	}
 	if f.message {
 		for _, server := range f.config.servers {
-			if f.path == server.GetMessageEndpoint() {
+			if f.path == server.BaseServer.GetMessageEndpoint() {
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer with complete body
-				httpStatus := server.HandleMessage(recorder, f.req, buffer.Bytes())
+				httpStatus := server.BaseServer.HandleMessage(recorder, f.req, buffer.Bytes())
 				f.message = false
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
 				return api.LocalReply
 			}
 		}
-	} else if f.userLevelConfig {
-		// Handle config POST request
-		api.LogDebugf("Handling config request: %s", f.path)
-		f.mcpConfigHandler.HandleConfigRequest(f.req, buffer.Bytes())
-		return api.LocalReply
-	} else if f.ratelimit {
-		if checkJSONRPCMethod(buffer.Bytes(), "tools/list") {
-			api.LogDebugf("Not a tools call request, skipping ratelimit")
-			return api.Continue
-		}
-		parts := strings.Split(f.req.URL.Path, "/")
-		if len(parts) < 3 {
-			api.LogWarnf("Access denied: no valid uid found")
-			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
-			return api.LocalReply
-		}
-		serverName := parts[1]
-		uid := parts[2]
-		encodedConfig, err := f.mcpConfigHandler.GetEncodedConfig(serverName, uid)
-		if err != nil {
-			api.LogWarnf("Access denied: no valid config found for uid %s", uid)
-			f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusForbidden, "", nil, 0, "")
-			return api.LocalReply
-		} else if encodedConfig == "" && checkJSONRPCMethod(buffer.Bytes(), "tools/call") {
-			api.LogDebugf("Empty config found for %s:%s", serverName, uid)
-			if !f.mcpRatelimitHandler.HandleRatelimit(f.req, buffer.Bytes()) {
-				return api.LocalReply
-			}
-		}
 	}
 	return api.Continue
 }
 
-// Callbacks which are called in response path
-// The endStream is true if the response doesn't have body
 func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	if f.skip {
-		return api.Continue
-	}
-	if f.serverName != "" {
-		if f.config.redisClient != nil {
-			header.Set("Content-Type", "text/event-stream")
-			header.Set("Cache-Control", "no-cache")
-			header.Set("Connection", "keep-alive")
-			header.Set("Access-Control-Allow-Origin", "*")
-			header.Del("Content-Length")
-		} else {
-			header.Set("Content-Length", strconv.Itoa(len(RedisNotEnabledResponseBody)))
-		}
-		return api.Continue
-	}
 	return api.Continue
 }
 
-// EncodeData might be called multiple times during handling the response body.
-// The endStream is true when handling the last piece of the body.
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if f.skip {
-		return api.Continue
-	}
-	if !endStream {
-		return api.StopAndBuffer
-	}
-	if f.proxyURL != nil && f.config.redisClient != nil {
-		sessionID := f.proxyURL.Query().Get("sessionId")
-		if sessionID != "" {
-			channel := internal.GetSSEChannelName(sessionID)
-			eventData := fmt.Sprintf("event: message\ndata: %s\n\n", buffer.String())
-			publishErr := f.config.redisClient.Publish(channel, eventData)
-			if publishErr != nil {
-				api.LogErrorf("Failed to publish wasm mcp server message to Redis: %v", publishErr)
-			}
-		}
-	}
-
-	if f.serverName != "" {
-		if f.config.redisClient != nil {
-			// handle specific server
-			for _, server := range f.config.servers {
-				if f.serverName == server.GetServerName() {
-					buffer.Reset()
-					server.HandleSSE(f.callbacks, f.stopChan)
-					return api.Running
-				}
-			}
-			// handle default server
-			if f.serverName == f.config.defaultServer.GetServerName() {
-				buffer.Reset()
-				f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
-				return api.Running
-			}
-			return api.Continue
-		} else {
-			buffer.SetString(RedisNotEnabledResponseBody)
-			return api.Continue
-		}
-	}
 	return api.Continue
-}
-
-// OnDestroy stops the goroutine
-func (f *filter) OnDestroy(reason api.DestroyReason) {
-	api.LogDebugf("OnDestroy: reason=%v", reason)
-	if f.serverName != "" && f.stopChan != nil {
-		select {
-		case <-f.stopChan:
-			return
-		default:
-			api.LogDebug("Stopping SSE connection")
-			close(f.stopChan)
-		}
-	}
-}
-
-// check if the request is a tools/call request
-func checkJSONRPCMethod(body []byte, method string) bool {
-	var request mcp.CallToolRequest
-	if err := json.Unmarshal(body, &request); err != nil {
-		api.LogWarnf("Failed to unmarshal request body: %v, not a JSON RPC request", err)
-		return true
-	}
-
-	return request.Method == method
 }

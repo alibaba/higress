@@ -24,7 +24,7 @@ WORKDIR /workspace
 
 COPY . .
 
-WORKDIR /workspace/$GO_FILTER_NAME
+WORKDIR /workspace
 
 RUN go mod tidy
 RUN if [ "$GOARCH" = "arm64" ]; then \
