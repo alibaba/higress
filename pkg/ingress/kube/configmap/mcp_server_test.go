@@ -473,7 +473,7 @@ func TestMcpServerController_ValidHigressConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMcpServerController("test-namespace")
+			m := NewMcpServerController("test-namespace", nil)
 			err := m.ValidHigressConfig(tt.higressConfig)
 			assert.Equal(t, tt.wantErr, err)
 		})
@@ -518,7 +518,7 @@ func TestMcpServerController_ConstructEnvoyFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMcpServerController("test-namespace")
+			m := NewMcpServerController("test-namespace", nil)
 			m.mcpServer.Store(tt.mcpServer)
 			configs, err := m.ConstructEnvoyFilters()
 			assert.Equal(t, tt.wantErr, err)
@@ -636,7 +636,7 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMcpServerController("test-namespace")
+			m := NewMcpServerController("test-namespace", nil)
 			got := m.constructMcpSessionStruct(tt.mcp)
 			// Normalize JSON strings for comparison
 			var gotJSON, wantJSON interface{}
@@ -721,7 +721,7 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMcpServerController("test-namespace")
+			m := NewMcpServerController("test-namespace", nil)
 			got := m.constructMcpServerStruct(tt.mcp)
 			// Normalize JSON strings for comparison
 			var gotJSON, wantJSON interface{}
