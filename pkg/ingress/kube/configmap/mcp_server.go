@@ -219,12 +219,11 @@ type McpServerController struct {
 	reconclier   *reconcile.Reconciler
 }
 
-func NewMcpServerController(namespace string, reconclier *reconcile.Reconciler) *McpServerController {
+func NewMcpServerController(namespace string) *McpServerController {
 	mcpController := &McpServerController{
-		Namespace:  namespace,
-		mcpServer:  atomic.Value{},
-		Name:       "mcpServer",
-		reconclier: reconclier,
+		Namespace: namespace,
+		mcpServer: atomic.Value{},
+		Name:      "mcpServer",
 	}
 	mcpController.SetMcpServer(NewDefaultMcpServer())
 	return mcpController
@@ -289,6 +288,10 @@ func (m *McpServerController) ValidHigressConfig(higressConfig *HigressConfig) e
 
 func (m *McpServerController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	m.eventHandler = eventHandler
+}
+
+func (m *McpServerController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
+	m.reconclier = reconciler
 }
 
 func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) {

@@ -223,7 +223,7 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 	config.http2rpcLister = http2rpcController.Lister()
 
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
-	config.configmapMgr = configmap.NewConfigmapMgr(xdsUpdater, namespace, higressConfigController, higressConfigController.Lister(), config.RegistryReconciler)
+	config.configmapMgr = configmap.NewConfigmapMgr(xdsUpdater, namespace, higressConfigController, higressConfigController.Lister())
 
 	httpsConfigMgr, _ := cert.NewConfigMgr(namespace, localKubeClient.Kube())
 	config.httpsConfigMgr = httpsConfigMgr
@@ -1210,6 +1210,7 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 		}, m.localKubeClient, m.namespace, m.clusterId.String())
 	}
 	reconciler := m.RegistryReconciler
+	m.configmapMgr.SetMcpReconciler(m.RegistryReconciler)
 	err = reconciler.Reconcile(mcpbridge)
 	if err != nil {
 		IngressLog.Errorf("Mcpbridge reconcile failed, err:%v", err)

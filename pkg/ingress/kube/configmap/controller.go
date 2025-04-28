@@ -59,6 +59,7 @@ type ItemController interface {
 	ValidHigressConfig(higressConfig *HigressConfig) error
 	ConstructEnvoyFilters() ([]*config.Config, error)
 	RegisterItemEventHandler(eventHandler ItemEventHandler)
+	RegisterMcpReconciler(reconciler *reconcile.Reconciler)
 }
 
 type ConfigmapMgr struct {
@@ -70,7 +71,7 @@ type ConfigmapMgr struct {
 	XDSUpdater              model.XDSUpdater
 }
 
-func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister, reconciler *reconcile.Reconciler) *ConfigmapMgr {
+func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfigController HigressConfigController, higressConfigLister listersv1.ConfigMapNamespaceLister) *ConfigmapMgr {
 	configmapMgr := &ConfigmapMgr{
 		XDSUpdater:              XDSUpdater,
 		Namespace:               namespace,
@@ -90,7 +91,7 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	globalOptionController := NewGlobalOptionController(namespace)
 	configmapMgr.AddItemControllers(globalOptionController)
 
-	mcpServerController := NewMcpServerController(namespace, reconciler)
+	mcpServerController := NewMcpServerController(namespace)
 	configmapMgr.AddItemControllers(mcpServerController)
 
 	configmapMgr.initEventHandlers()
@@ -110,6 +111,12 @@ func (c *ConfigmapMgr) GetHigressConfig() *HigressConfig {
 		}
 	}
 	return nil
+}
+
+func (c *ConfigmapMgr) SetMcpReconciler(reconciler *reconcile.Reconciler) {
+	for _, itemController := range c.ItemControllers {
+		itemController.RegisterMcpReconciler(reconciler)
+	}
 }
 
 func (c *ConfigmapMgr) AddItemControllers(controllers ...ItemController) {
