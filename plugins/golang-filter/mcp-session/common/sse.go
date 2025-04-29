@@ -210,7 +210,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		if sessionID != "" && s.redisClient != nil {
+		if sessionID != ""{
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
 		} else {

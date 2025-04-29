@@ -9,8 +9,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-var GlobalRedisClient *RedisClient
-
 type RedisConfig struct {
 	address  string
 	username string
@@ -74,9 +72,10 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	// Ping the Redis server to check the connection
 	pong, err := client.Ping(context.Background()).Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+		api.LogErrorf("Failed to connect to Redis: %v", err)
+	} else {
+		api.LogDebugf("Connected to Redis: %s", pong)
 	}
-	api.LogDebugf("Connected to Redis: %s", pong)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -85,7 +84,7 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 		crypto, err = NewCrypto(config.secret)
 		if err != nil {
 			cancel()
-			return nil, err
+			api.LogWarnf("Failed to initialize redis crypto: %v", err)
 		}
 	}
 
@@ -105,7 +104,7 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 
 // keepAlive periodically checks Redis connection and attempts to reconnect if needed
 func (r *RedisClient) keepAlive() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
