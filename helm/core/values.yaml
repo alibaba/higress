@@ -1,6 +1,6 @@
 revision: ""
 global:
-  enableH3: false
+  enableH3: false22
   enableIPv6: false
   enableProxyProtocol: false
   enableLDSCache: false
