@@ -20,16 +20,32 @@ The Golang HTTP Filter allows developers to write custom Envoy Filters using the
 
 Please refer to [Envoy Golang HTTP Filter Example](https://github.com/envoyproxy/examples/tree/main/golang-http) to learn how to develop and run a basic Golang Filter.
 
+## Plugin Registration
+
+When developing a new Golang Filter, you need to register your plugin in the `init()` function of `main.go`. The registration requires a plugin name, Filter factory function, and configuration parser:
+
+```go
+func init() {
+    envoyHttp.RegisterHttpFilterFactoryAndConfigParser(
+        "your-plugin-name",    // Plugin name
+        yourFilterFactory,     // Filter factory function
+        &yourConfigParser{},   // Configuration parser
+    )
+}
+```
+
 ## Configuration Example
+
+Multiple Golang Filter plugins can be compiled into a single `golang-filter.so` file, and the desired plugin can be specified using `plugin_name`. Here's an example configuration:
 
 ```yaml
 http_filters:
 - name: envoy.filters.http.golang
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
-    library_id: my-go-filter
-    library_path: "./my-go-filter.so"
-    plugin_name: my-go-filter
+    library_id: your-plugin-name
+    library_path: "./golang-filter.so"  # Shared library file containing multiple plugins
+    plugin_name: your-plugin-name       # Specify which plugin to use, must match the name registered in init()
     plugin_config:
       "@type": type.googleapis.com/xds.type.v3.TypedStruct
       value:
@@ -41,5 +57,5 @@ http_filters:
 Use the following command to quickly build the golang filter plugin:
 
 ```bash
-GO_FILTER_NAME=mcp-server make build
+make build
 ``` 
