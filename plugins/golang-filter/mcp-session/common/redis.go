@@ -84,6 +84,7 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 		crypto, err = NewCrypto(config.secret)
 		if err != nil {
 			cancel()
+			api.LogWarnf("Failed to initialize redis crypto: %v", err)
 		}
 	}
 
