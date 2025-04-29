@@ -108,7 +108,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
 			common.WithSSEEndpoint(GlobalSSEPathSuffix),
 			common.WithMessageEndpoint(strings.TrimSuffix(url.ParsedURL.Path, GlobalSSEPathSuffix)),
-			common.WithRedisClient(common.GlobalRedisClient))
+			common.WithRedisClient(f.config.redisClient))
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
@@ -165,7 +165,7 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 		return api.Continue
 	}
 	if f.serverName != "" {
-		if common.GlobalRedisClient != nil {
+		if f.config.redisClient != nil {
 			header.Set("Content-Type", "text/event-stream")
 			header.Set("Cache-Control", "no-cache")
 			header.Set("Connection", "keep-alive")
@@ -188,12 +188,12 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if !endStream {
 		return api.StopAndBuffer
 	}
-	if f.proxyURL != nil && common.GlobalRedisClient != nil {
+	if f.proxyURL != nil && f.config.redisClient != nil {
 		sessionID := f.proxyURL.Query().Get("sessionId")
 		if sessionID != "" {
 			channel := common.GetSSEChannelName(sessionID)
 			eventData := fmt.Sprintf("event: message\ndata: %s\n\n", buffer.String())
-			publishErr := common.GlobalRedisClient.Publish(channel, eventData)
+			publishErr := f.config.redisClient.Publish(channel, eventData)
 			if publishErr != nil {
 				api.LogErrorf("Failed to publish wasm mcp server message to Redis: %v", publishErr)
 			}
@@ -201,7 +201,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	}
 
 	if f.serverName != "" {
-		if common.GlobalRedisClient != nil {
+		if f.config.redisClient != nil {
 			// handle default server
 			buffer.Reset()
 			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
