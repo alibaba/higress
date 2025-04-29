@@ -686,14 +686,17 @@ func (w *watcher) getServiceCallback(server *provider.McpServer, configGroup, da
 	serviceName := server.RemoteServerConfig.ServiceRef.ServiceName
 	path := server.RemoteServerConfig.ExportPath
 	protocol := server.Protocol
+	host := getNacosServiceFullHost(groupName, namespace, serviceName)
 
 	return func(services []model.Instance) {
 		defer w.UpdateService()
 
-		configKey := strings.Join([]string{w.Name, w.NacosNamespace, configGroup, dataId}, DefaultJoiner)
-
-		host := getNacosServiceFullHost(groupName, namespace, serviceName)
 		mcpServerLog.Infof("callback for %s/%s, serviceName : %s", configGroup, dataId, host)
+		configKey := strings.Join([]string{w.Name, w.NacosNamespace, configGroup, dataId}, DefaultJoiner)
+		if len(services) == 0 {
+			mcpServerLog.Errorf("callback for %s return empty service instance list, skip generate config", host)
+			return
+		}
 
 		serviceEntry := w.generateServiceEntry(host, services)
 		se := &config.Config{
