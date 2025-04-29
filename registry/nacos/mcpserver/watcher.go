@@ -939,7 +939,8 @@ func (w *watcher) Stop() {
 	}
 	mcpServerLog.Infof("stop all service nameing client")
 	for _, client := range w.serviceCache {
-		client.Stop()
+		// TODO: This is a temporary implementation because of a bug in the nacos-go-sdk, which causes a block when stoping.
+		go client.Stop()
 	}
 
 	w.isStop = true
