@@ -114,7 +114,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	// The nacos mcp server uses these restricted namespaces and groups, and may be adjusted in the future.
 	w.NacosNamespace = "nacos-default-mcp"
 	w.NacosNamespaceId = w.NacosNamespace
-	w.NacosGroups = []string("mcp-server")
+	w.NacosGroups = []string{"mcp-server"}
 
 	mcpServerLog.Infof("new nacos mcp server watcher with config Name:%s", w.Name)
 
