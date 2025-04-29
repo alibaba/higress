@@ -111,9 +111,10 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		opt(w)
 	}
 
-	if w.NacosNamespace == "" {
-		w.NacosNamespace = w.NacosNamespaceId
-	}
+	// The nacos mcp server uses these restricted namespaces and groups, and may be adjusted in the future.
+	w.NacosNamespace = "nacos-default-mcp"
+	w.NacosNamespaceId = w.NacosNamespace
+	w.NacosGroups = []string("mcp-server")
 
 	mcpServerLog.Infof("new nacos mcp server watcher with config Name:%s", w.Name)
 
@@ -174,32 +175,6 @@ func WithNacosAccessKey(nacosAccessKey string) WatcherOption {
 func WithNacosSecretKey(nacosSecretKey string) WatcherOption {
 	return func(w *watcher) {
 		w.NacosSecretKey = nacosSecretKey
-	}
-}
-
-func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
-	return func(w *watcher) {
-		if nacosNamespaceId == "" {
-			w.NacosNamespaceId = "nacos-default-mcp"
-		} else {
-			w.NacosNamespaceId = nacosNamespaceId
-		}
-	}
-}
-
-func WithNacosNamespace(nacosNamespace string) WatcherOption {
-	return func(w *watcher) {
-		w.NacosNamespace = nacosNamespace
-	}
-}
-
-func WithNacosGroups(nacosGroups []string) WatcherOption {
-	return func(w *watcher) {
-		if len(nacosGroups) == 0 {
-			w.NacosGroups = []string{"mcp-server"}
-		} else {
-			w.NacosGroups = nacosGroups
-		}
 	}
 }
 
