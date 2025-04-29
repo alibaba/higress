@@ -8,9 +8,8 @@ on:
       - 'helm/**'
   workflow_dispatch: ~
   push:
-    branches: [ main ]
-    paths:
-      - 'helm/**'
+    branches:
+      - "*"
 
 jobs:
   helm:
@@ -89,17 +88,20 @@ jobs:
                 {"role": "user", "content": $content}
               ],
               temperature: 1.1,
-              stream: false
+              stream: true
             }')
+          
+          echo "Streaming translation started..."
 
-          RESPONSE=$(curl -s -X POST "$API_URL" \
+          curl -s -N -X POST "$API_URL" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $API_KEY" \
-            -d "$PAYLOAD")
-
-          echo "Response: $RESPONSE"
-
-          echo "$RESPONSE" | jq -c -r '.choices[] | .message.content' > README.zh.new.md
+            -d "$PAYLOAD" \
+          | grep '^data: ' \
+          | sed 's/^data: //' \
+          | grep -v '\[DONE\]' \
+          | jq -r '.choices[0].delta.content // empty' \
+          > README.zh.new.md
 
           if [ -f "README.zh.new.md" ]; then
             echo "Translation completed and saved to README.zh.new.md."
