@@ -10,6 +10,8 @@ on:
   push:
     branches:
       - "*"
+    paths:
+      - 'helm/**'
 
 jobs:
   helm:
@@ -75,42 +77,73 @@ jobs:
           API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
           API_MODEL: ${{ secrets.HIGRESS_OPENAI_API_MODEL }}
         run: |
-          cd ./helm/higress
-          FILE_CONTENT=$(cat README.md)
+          cat << 'EOF' > translate_readme.py
+          import os
+          import json
+          import requests
 
-          PAYLOAD=$(jq -n \
-            --arg model "$API_MODEL" \
-            --arg content "$FILE_CONTENT" \
-            '{
-              model: $model,
-              messages: [
-                {"role": "system", "content": "You are a translation assistant that translates English Markdown text to Chinese."},
-                {"role": "user", "content": $content}
-              ],
-              temperature: 1.1,
-              stream: true
-            }')
-          
-          echo "Streaming translation started..."
+          API_URL = os.environ["API_URL"]
+          API_KEY = os.environ["API_KEY"]
+          API_MODEL = os.environ["API_MODEL"]
+          README_PATH = "./helm/higress/README.md"
+          OUTPUT_PATH = "./helm/higress/README.zh.md"
 
-          curl -s -N -X POST "$API_URL" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $API_KEY" \
-            -d "$PAYLOAD" \
-          | grep '^data: ' \
-          | sed 's/^data: //' \
-          | grep -v '\[DONE\]' \
-          | jq -r '.choices[0].delta.content // empty' \
-          > README.zh.new.md
+          def stream_translation(api_url, api_key, payload):
+              headers = {
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {api_key}",
+              }
+              response = requests.post(api_url, headers=headers, json=payload, stream=True)
+              response.raise_for_status()
 
-          if [ -f "README.zh.new.md" ]; then
-            echo "Translation completed and saved to README.zh.new.md."
-          else
-            echo "Translation failed or no content returned!"
-            exit 1
-          fi
+              with open(OUTPUT_PATH, "w", encoding="utf-8") as out_file:
+                  for line in response.iter_lines(decode_unicode=True):
+                      if line.strip() == "" or not line.startswith("data: "):
+                          continue
+                      data = line[6:]
+                      if data.strip() == "[DONE]":
+                          break
+                      try:
+                          chunk = json.loads(data)
+                          content = chunk["choices"][0]["delta"].get("content", "")
+                          if content:
+                              out_file.write(content)
+                      except Exception as e:
+                          print("Error parsing chunk:", e)
 
-          mv README.zh.new.md README.zh.md
+          def main():
+              if not os.path.exists(README_PATH):
+                  print("README.md not found!")
+                  return
+
+              with open(README_PATH, "r", encoding="utf-8") as f:
+                  content = f.read()
+
+              payload = {
+                  "model": API_MODEL,
+                  "messages": [
+                      {
+                          "role": "system",
+                          "content": "You are a translation assistant that translates English Markdown text to Chinese. Preserve original Markdown formatting and line breaks."
+                      },
+                      {
+                          "role": "user",
+                          "content": content
+                      }
+                  ],
+                  "temperature": 0.3,
+                  "stream": True
+              }
+
+              print("Streaming translation started...")
+              stream_translation(API_URL, API_KEY, payload)
+              print(f"Translation completed and saved to {OUTPUT_PATH}.")
+
+          if __name__ == "__main__":
+              main()
+          EOF
+          python3 translate_readme.py
+          rm -rf translate_readme.py
 
       - name: Create Pull Request
         if: env.skip_translation == 'false'
