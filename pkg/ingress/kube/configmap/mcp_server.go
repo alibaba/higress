@@ -216,7 +216,7 @@ type McpServerController struct {
 	mcpServer    atomic.Value
 	Name         string
 	eventHandler ItemEventHandler
-	reconclier   *reconcile.Reconciler
+	reconciler   *reconcile.Reconciler
 }
 
 func NewMcpServerController(namespace string) *McpServerController {
@@ -291,7 +291,7 @@ func (m *McpServerController) RegisterItemEventHandler(eventHandler ItemEventHan
 }
 
 func (m *McpServerController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
-	m.reconclier = reconciler
+	m.reconciler = reconciler
 }
 
 func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) {
@@ -398,8 +398,8 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 		}
 	}
 
-	if m.reconclier != nil {
-		vsFromMcp := m.reconclier.GetAllConfigs(gvk.VirtualService)
+	if m.reconciler != nil {
+		vsFromMcp := m.reconciler.GetAllConfigs(gvk.VirtualService)
 		for _, c := range vsFromMcp {
 			vs := c.Spec.(*networking.VirtualService)
 			var host string

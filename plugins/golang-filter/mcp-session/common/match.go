@@ -3,10 +3,15 @@ package common
 import (
 	"regexp"
 	"strings"
+
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 // RuleType defines the type of matching rule
 type RuleType string
+
+// UpstreamType defines the type of matching rule
+type UpstreamType string
 
 const (
 	ExactMatch    RuleType = "exact"
@@ -14,13 +19,19 @@ const (
 	SuffixMatch   RuleType = "suffix"
 	ContainsMatch RuleType = "contains"
 	RegexMatch    RuleType = "regex"
+
+	RestUpstream UpstreamType = "rest"
+	SseUpstream  UpstreamType = "sse"
 )
 
 // MatchRule defines the structure for a matching rule
 type MatchRule struct {
-	MatchRuleDomain string   `json:"match_rule_domain"` // Domain pattern, supports wildcards
-	MatchRulePath   string   `json:"match_rule_path"`   // Path pattern to match
-	MatchRuleType   RuleType `json:"match_rule_type"`   // Type of match rule
+	MatchRuleDomain  string       `json:"match_rule_domain"`  // Domain pattern, supports wildcards
+	MatchRulePath    string       `json:"match_rule_path"`    // Path pattern to match
+	MatchRuleType    RuleType     `json:"match_rule_type"`    // Type of match rule
+	UpstreamType     UpstreamType `json:"upstream_type"`      // Type of upstream(s) matched by the rule
+	RouteRewriteType RuleType     `json:"route_rewrite_type"` // Rewrite type of matched routes
+	RouteRewritePath string       `json:"route_rewrite_path"` // Path rewrite configuration of matched routes
 }
 
 // ParseMatchList parses the match list from the config
@@ -37,6 +48,32 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 			}
 			if ruleType, ok := ruleMap["match_rule_type"].(string); ok {
 				rule.MatchRuleType = RuleType(ruleType)
+			}
+			if upstreamType, ok := ruleMap["upstream_type"].(string); ok {
+				rule.UpstreamType = UpstreamType(upstreamType)
+			}
+			if len(rule.UpstreamType) == 0 {
+				rule.UpstreamType = RestUpstream
+			} else {
+				switch rule.UpstreamType {
+				case RestUpstream:
+				case SseUpstream:
+					break
+				default:
+					api.LogWarnf("Unknown upstream type: %s", rule.UpstreamType)
+				}
+			}
+			if rewritePath, ok := ruleMap["route_rewrite_path"].(string); ok {
+				rule.RouteRewritePath = rewritePath
+			}
+			if rewriteType, ok := ruleMap["route_rewrite_type"].(string); ok {
+				rule.RouteRewriteType = RuleType(rewriteType)
+				if rule.RouteRewriteType != PrefixMatch {
+					api.LogWarnf("Unsupported route rewrite type: %s", rule.RouteRewriteType)
+				}
+			}
+			if rule.RouteRewritePath != "" && rule.RouteRewriteType == "" {
+				rule.RouteRewriteType = PrefixMatch
 			}
 			matchList = append(matchList, rule)
 		}
@@ -96,17 +133,17 @@ func matchDomainAndPath(domain, path string, rule MatchRule) bool {
 
 // IsMatch checks if the request matches any rule in the rule list
 // Returns true if no rules are specified
-func IsMatch(rules []MatchRule, host, path string) bool {
+func IsMatch(rules []MatchRule, host, path string) (bool, MatchRule) {
 	if len(rules) == 0 {
-		return true
+		return true, MatchRule{}
 	}
 
 	for _, rule := range rules {
 		if matchDomainAndPath(host, path, rule) {
-			return true
+			return true, rule
 		}
 	}
-	return false
+	return false, MatchRule{}
 }
 
 // MatchDomainList checks if the domain matches any of the domains in the list
