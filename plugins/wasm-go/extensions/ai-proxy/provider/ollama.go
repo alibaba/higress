@@ -30,6 +30,7 @@ func (m *ollamaProviderInitializer) DefaultCapabilities() map[string]string {
 		// ollama的chat接口path和OpenAI的chat接口一样
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
+		string(ApiNameModels):         PathOpenAIModels,
 	}
 }
 
