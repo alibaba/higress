@@ -642,6 +642,8 @@ func (w *watcher) buildServiceEntryForMcpServer(mcpServer *provider.McpServer, c
 			constant.WithNamespaceId(serviceNamespace),
 			constant.WithAccessKey(w.NacosAccessKey),
 			constant.WithSecretKey(w.NacosSecretKey),
+			constant.WithUsername(w.authOption.NacosUsername),
+			constant.WithPassword(w.authOption.NacosPassword),
 		)
 		client, err := clients.NewNamingClient(vo.NacosClientParam{
 			ClientConfig:  namingConfig,
