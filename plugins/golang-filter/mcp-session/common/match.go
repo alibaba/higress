@@ -20,8 +20,9 @@ const (
 	ContainsMatch RuleType = "contains"
 	RegexMatch    RuleType = "regex"
 
-	RestUpstream UpstreamType = "rest"
-	SseUpstream  UpstreamType = "sse"
+	RestUpstream       UpstreamType = "rest"
+	SseUpstream        UpstreamType = "sse"
+	StreamableUpstream UpstreamType = "streamable"
 )
 
 // MatchRule defines the structure for a matching rule
@@ -58,6 +59,7 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 				switch rule.UpstreamType {
 				case RestUpstream:
 				case SseUpstream:
+				case StreamableUpstream:
 					break
 				default:
 					api.LogWarnf("Unknown upstream type: %s", rule.UpstreamType)

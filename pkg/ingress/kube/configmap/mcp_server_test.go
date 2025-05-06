@@ -55,6 +55,63 @@ func Test_validMcpServer(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "enabled but bad match_rule_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "bad-type",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid match_rule_type: bad-type, must be one of: exact, prefix, suffix, contains, regex"),
+		},
+		{
+			name: "enabled but bad upstream_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain:  "*",
+						MatchRulePath:    "/mcp",
+						MatchRuleType:    "prefix",
+						UpstreamType:     "bad-type",
+						RouteRewriteType: "prefix",
+						RouteRewritePath: "/",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid upstream_type: bad-type, must be one of: rest, sse, streamable"),
+		},
+		{
+			name: "enabled but bad route_rewrite_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain:  "*",
+						MatchRulePath:    "/mcp",
+						MatchRuleType:    "prefix",
+						UpstreamType:     "sse",
+						RouteRewriteType: "unknown",
+						RouteRewritePath: "/",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid route_rewrite_type: unknown, must be one of: prefix"),
+		},
+		{
 			name: "enabled with user level server but no redis config",
 			mcp: &McpServer{
 				Enable:                true,

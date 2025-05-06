@@ -124,20 +124,34 @@ func validMcpServer(m *McpServer) error {
 
 	// Validate match rule types
 	if m.MatchList != nil {
-		validTypes := map[string]bool{
+		validMatchRuleTypes := map[string]bool{
 			"exact":    true,
 			"prefix":   true,
 			"suffix":   true,
 			"contains": true,
 			"regex":    true,
 		}
+		validUpstreamTypes := map[string]bool{
+			"rest":       true,
+			"sse":        true,
+			"streamable": true,
+		}
+		validRouteRewriteTypes := map[string]bool{
+			"prefix": true,
+		}
 
 		for _, rule := range m.MatchList {
 			if rule.MatchRuleType == "" {
 				return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
 			}
-			if !validTypes[rule.MatchRuleType] {
+			if !validMatchRuleTypes[rule.MatchRuleType] {
 				return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
+			}
+			if rule.UpstreamType != "" && !validUpstreamTypes[rule.UpstreamType] {
+				return fmt.Errorf("invalid upstream_type: %s, must be one of: rest, sse, streamable", rule.UpstreamType)
+			}
+			if rule.RouteRewriteType != "" && !validRouteRewriteTypes[rule.RouteRewriteType] {
+				return fmt.Errorf("invalid route_rewrite_type: %s, must be one of: prefix", rule.RouteRewriteType)
 			}
 		}
 	}

@@ -92,6 +92,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 func (f *filter) processMcpRequestHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	switch f.matchedRule.UpstreamType {
 	case common.RestUpstream:
+	case common.StreamableUpstream:
 		return f.processMcpRequestHeadersForRestUpstream(header, endStream)
 	case common.SseUpstream:
 		return f.processMcpRequestHeadersForSseUpstream(header, endStream)
@@ -154,7 +155,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	if !f.needProcess || f.skipRequestBody {
 		return api.Continue
 	}
-	if f.matchedRule.UpstreamType != common.RestUpstream {
+	if f.matchedRule.UpstreamType != common.RestUpstream && f.matchedRule.UpstreamType != common.StreamableUpstream {
 		return api.Continue
 	}
 	if !endStream {
@@ -199,7 +200,7 @@ func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api
 	if !f.needProcess {
 		return api.Continue
 	}
-	if f.matchedRule.UpstreamType != common.RestUpstream {
+	if f.matchedRule.UpstreamType != common.RestUpstream && f.matchedRule.UpstreamType != common.StreamableUpstream {
 		if contentType, ok := header.Get("content-type"); !ok || !strings.HasPrefix(contentType, "text/event-stream") {
 			api.LogDebugf("Skip response body for non-SSE upstream. Content-Type: %s", contentType)
 			f.skipResponseBody = true
@@ -232,6 +233,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	api.LogDebugf("Upstream Type: %s", f.matchedRule.UpstreamType)
 	switch f.matchedRule.UpstreamType {
 	case common.RestUpstream:
+	case common.StreamableUpstream:
 		api.LogDebugf("Encoding data from Rest upstream")
 		ret = f.encodeDataFromRestUpstream(buffer, endStream)
 		break
