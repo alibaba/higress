@@ -26,19 +26,16 @@ const (
 	vertexAuthDomain = "oauth2.googleapis.com"
 	vertexDomain     = "{REGION}-aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
-	vertexPathTemplate             = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
-	vertexChatCompletionPath       = "generateContent"
-	vertexChatCompletionStreamPath = "streamGenerateContent?alt=sse"
-	vertexEmbeddingPath            = "predict"
+	vertexPathTemplate               = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
+	vertexChatCompletionAction       = "generateContent"
+	vertexChatCompletionStreamAction = "streamGenerateContent?alt=sse"
+	vertexEmbeddingAction            = "predict"
 )
 
 type vertexProviderInitializer struct {
 }
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
-		return errors.New("no apiToken found in vertex provider config")
-	}
 	if config.vertexAuthKey == "" {
 		return errors.New("missing vertexAuthKey in vertex provider config")
 	}
@@ -77,10 +74,10 @@ func (v *vertexProvider) GetProviderType() string {
 }
 
 func (v *vertexProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, vertexChatCompletionPath) || strings.Contains(path, vertexChatCompletionStreamPath) {
+	if strings.HasSuffix(path, vertexChatCompletionAction) || strings.HasSuffix(path, vertexChatCompletionStreamAction) {
 		return ApiNameChatCompletion
 	}
-	if strings.Contains(path, vertexEmbeddingPath) {
+	if strings.HasSuffix(path, vertexEmbeddingAction) {
 		return ApiNameEmbeddings
 	}
 	return ""
@@ -314,11 +311,11 @@ func (v *vertexProvider) appendResponse(responseBuilder *strings.Builder, respon
 func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream bool) string {
 	action := ""
 	if apiName == ApiNameEmbeddings {
-		action = vertexEmbeddingPath
+		action = vertexEmbeddingAction
 	} else if stream {
-		action = vertexChatCompletionStreamPath
+		action = vertexChatCompletionStreamAction
 	} else {
-		action = vertexChatCompletionPath
+		action = vertexChatCompletionAction
 	}
 	return fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
 }
