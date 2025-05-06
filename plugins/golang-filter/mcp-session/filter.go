@@ -94,8 +94,8 @@ func (f *filter) processMcpRequestHeaders(header api.RequestHeaderMap, endStream
 	case common.RestUpstream:
 	case common.StreamableUpstream:
 		return f.processMcpRequestHeadersForRestUpstream(header, endStream)
-	case common.SseUpstream:
-		return f.processMcpRequestHeadersForSseUpstream(header, endStream)
+	case common.SSEUpstream:
+		return f.processMcpRequestHeadersForSSEUpstream(header, endStream)
 	}
 	f.needProcess = false
 	return api.Continue
@@ -141,7 +141,7 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 	return api.LocalReply
 }
 
-func (f *filter) processMcpRequestHeadersForSseUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
+func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	f.skipRequestBody = true
 	if f.matchedRule.RouteRewriteType != common.PrefixMatch || f.matchedRule.RouteRewritePath == "" {
 		f.needProcess = false
@@ -237,9 +237,9 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 		api.LogDebugf("Encoding data from Rest upstream")
 		ret = f.encodeDataFromRestUpstream(buffer, endStream)
 		break
-	case common.SseUpstream:
+	case common.SSEUpstream:
 		api.LogDebugf("Encoding data from SSE upstream")
-		ret = f.encodeDataFromSseUpstream(buffer, endStream)
+		ret = f.encodeDataFromSSEUpstream(buffer, endStream)
 		if endStream {
 			// Always continue as long as the stream has ended.
 			ret = api.Continue
@@ -281,11 +281,11 @@ func (f *filter) encodeDataFromRestUpstream(buffer api.BufferInstance, endStream
 	return api.Continue
 }
 
-func (f *filter) encodeDataFromSseUpstream(buffer api.BufferInstance, endStream bool) api.StatusType {
+func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream bool) api.StatusType {
 	bufferBytes := buffer.Bytes()
 	bufferData := string(bufferBytes)
 
-	err, lineBreak := f.findSseLineBreak(bufferData)
+	err, lineBreak := f.findSSELineBreak(bufferData)
 	if err != nil {
 		api.LogWarnf("Failed to find line break in SSE data: %v", err)
 		f.needProcess = false
@@ -375,7 +375,7 @@ func (f *filter) rewriteEndpointUrl(endpointUrl string) (bool, string) {
 	return true, endpointUrl
 }
 
-func (f *filter) findSseLineBreak(bufferData string) (error, string) {
+func (f *filter) findSSELineBreak(bufferData string) (error, string) {
 	// See https://html.spec.whatwg.org/multipage/server-sent-events.html
 	crIndex := strings.IndexAny(bufferData, "\r")
 	lfIndex := strings.IndexAny(bufferData, "\n")

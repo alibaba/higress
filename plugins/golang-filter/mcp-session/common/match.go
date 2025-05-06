@@ -21,7 +21,7 @@ const (
 	RegexMatch    RuleType = "regex"
 
 	RestUpstream       UpstreamType = "rest"
-	SseUpstream        UpstreamType = "sse"
+	SSEUpstream        UpstreamType = "sse"
 	StreamableUpstream UpstreamType = "streamable"
 )
 
@@ -58,7 +58,7 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 			} else {
 				switch rule.UpstreamType {
 				case RestUpstream:
-				case SseUpstream:
+				case SSEUpstream:
 				case StreamableUpstream:
 					break
 				default:

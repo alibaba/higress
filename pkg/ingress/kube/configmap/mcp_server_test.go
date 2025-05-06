@@ -133,7 +133,7 @@ func Test_validMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -295,7 +295,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -322,7 +322,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -638,7 +638,7 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 					Password: "pass",
 					DB:       1,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",

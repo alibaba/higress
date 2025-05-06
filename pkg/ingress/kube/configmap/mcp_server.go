@@ -56,7 +56,7 @@ type MCPRatelimitConfig struct {
 type SSEServer struct {
 	// The name of the SSE server
 	Name string `json:"name,omitempty"`
-	// The path where the SSE server will be mounted, the full path is (PATH + SsePathSuffix)
+	// The path where the SSE server will be mounted, the full path is (PATH + SSEPathSuffix)
 	Path string `json:"path,omitempty"`
 	// The type of the SSE server
 	Type string `json:"type,omitempty"`
@@ -89,7 +89,7 @@ type McpServer struct {
 	// Redis Config for MCP server
 	Redis *RedisConfig `json:"redis,omitempty"`
 	// The suffix to be appended to SSE paths, default is "/sse"
-	SsePathSuffix string `json:"sse_path_suffix,omitempty"`
+	SSEPathSuffix string `json:"sse_path_suffix,omitempty"`
 	// List of SSE servers Configs
 	Servers []*SSEServer `json:"servers,omitempty"`
 	// List of match rules for filtering requests
@@ -194,7 +194,7 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 			WhiteList: mcp.Ratelimit.WhiteList,
 		}
 	}
-	newMcp.SsePathSuffix = mcp.SsePathSuffix
+	newMcp.SSEPathSuffix = mcp.SSEPathSuffix
 
 	newMcp.EnableUserLevelServer = mcp.EnableUserLevelServer
 
@@ -494,7 +494,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	}`,
 		redisConfig,
 		rateLimitConfig,
-		mcp.SsePathSuffix,
+		mcp.SSEPathSuffix,
 		matchList,
 		mcp.EnableUserLevelServer)
 }
