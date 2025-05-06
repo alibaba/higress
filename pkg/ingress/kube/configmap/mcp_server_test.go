@@ -588,6 +588,20 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 						MatchRulePath:   "/test",
 						MatchRuleType:   "exact",
 					},
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/sse-test-1",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "sse",
+					},
+					{
+						MatchRuleDomain:  "*",
+						MatchRulePath:    "/sse-test-2",
+						MatchRuleType:    "prefix",
+						UpstreamType:     "sse",
+						RouteRewriteType: "prefix",
+						RouteRewritePath: "/",
+					},
 				},
 				EnableUserLevelServer: true,
 				Ratelimit: &MCPRatelimitConfig{
@@ -623,7 +637,24 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 								"match_list": [{
 									"match_rule_domain": "*",
 									"match_rule_path": "/test",
-									"match_rule_type": "exact"
+									"match_rule_type": "exact",
+									"upstream_type": "",
+									"route_rewrite_type": "",
+									"route_rewrite_path": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-1",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"route_rewrite_type": "",
+									"route_rewrite_path": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-2",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"route_rewrite_type": "prefix",
+									"route_rewrite_path": "/"
 								}],
 								"enable_user_level_server": true
 							}
