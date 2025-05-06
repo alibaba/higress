@@ -104,7 +104,6 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		conf.servers = append(conf.servers, &SSEServerWrapper{
 			BaseServer: common.NewSSEServer(serverInstance,
-				common.WithRedisClient(common.GlobalRedisClient),
 				common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, mcp_session.GlobalSSEPathSuffix)),
 				common.WithMessageEndpoint(serverPath)),
 			DomainList: serverDomainList,

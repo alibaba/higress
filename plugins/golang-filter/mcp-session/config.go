@@ -25,12 +25,13 @@ type config struct {
 	enableUserLevelServer bool
 	rateLimitConfig       *handler.MCPRatelimitConfig
 	defaultServer         *common.SSEServer
+	redisClient           *common.RedisClient
 }
 
 func (c *config) Destroy() {
-	if common.GlobalRedisClient != nil {
+	if c.redisClient != nil {
 		api.LogDebug("Closing Redis client")
-		common.GlobalRedisClient.Close()
+		c.redisClient.Close()
 	}
 }
 
@@ -63,10 +64,11 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		redisClient, err := common.NewRedisClient(redisConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize RedisClient: %w", err)
+			api.LogErrorf("Failed to initialize Redis client: %w", err)
+		} else {
+			api.LogDebug("Redis client initialized")
 		}
-		common.GlobalRedisClient = redisClient
-		api.LogDebug("Redis client initialized")
+		conf.redisClient = redisClient
 	} else {
 		api.LogDebug("Redis configuration not provided, running without Redis")
 	}
@@ -74,7 +76,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	enableUserLevelServer, ok := v.AsMap()["enable_user_level_server"].(bool)
 	if !ok {
 		enableUserLevelServer = false
-		if common.GlobalRedisClient == nil {
+		if conf.redisClient == nil {
 			return nil, fmt.Errorf("redis configuration is not provided, enable_user_level_server is true")
 		}
 	}
@@ -137,7 +139,7 @@ func FilterFactory(c interface{}, callbacks api.FilterCallbackHandler) api.Strea
 		callbacks:           callbacks,
 		config:              conf,
 		stopChan:            make(chan struct{}),
-		mcpConfigHandler:    handler.NewMCPConfigHandler(common.GlobalRedisClient, callbacks),
-		mcpRatelimitHandler: handler.NewMCPRatelimitHandler(common.GlobalRedisClient, callbacks, conf.rateLimitConfig),
+		mcpConfigHandler:    handler.NewMCPConfigHandler(conf.redisClient, callbacks),
+		mcpRatelimitHandler: handler.NewMCPRatelimitHandler(conf.redisClient, callbacks, conf.rateLimitConfig),
 	}
 }
