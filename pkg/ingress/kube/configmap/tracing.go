@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/alibaba/higress/registry/reconcile"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 
@@ -235,6 +236,9 @@ func (t *TracingController) ValidHigressConfig(higressConfig *HigressConfig) err
 
 func (t *TracingController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	t.eventHandler = eventHandler
+}
+
+func (t *TracingController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
 }
 
 func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {

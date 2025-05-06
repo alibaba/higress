@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
@@ -50,9 +51,10 @@ type Reconciler struct {
 	serviceUpdate func()
 	client        kube.Client
 	namespace     string
+	clusterId     string
 }
 
-func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *Reconciler {
+func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
 	return &Reconciler{
 		Cache:         memory.NewCache(),
 		registries:    make(map[string]*apiv1.RegistryConfig),
@@ -60,6 +62,7 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace string) *
 		serviceUpdate: serviceUpdate,
 		client:        client,
 		namespace:     namespace,
+		clusterId:     clusterId,
 	}
 }
 
@@ -183,6 +186,41 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacosv2.WithAuthOption(authOption),
 		)
+	case string(Nacos3):
+		if registry.EnableMCPServer.GetValue() {
+			watcher, err = mcpserver.NewWatcher(
+				r.Cache,
+				mcpserver.WithType(registry.Type),
+				mcpserver.WithName(registry.Name),
+				mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
+				mcpserver.WithDomain(registry.Domain),
+				mcpserver.WithPort(registry.Port),
+				mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
+				mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
+				mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+				mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
+				mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
+				mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
+				mcpserver.WithClusterId(r.clusterId),
+				mcpserver.WithNamespace(r.namespace),
+			)
+		} else {
+			watcher, err = nacosv2.NewWatcher(
+				r.Cache,
+				nacosv2.WithType(registry.Type),
+				nacosv2.WithName(registry.Name),
+				nacosv2.WithNacosAddressServer(registry.NacosAddressServer),
+				nacosv2.WithDomain(registry.Domain),
+				nacosv2.WithPort(registry.Port),
+				nacosv2.WithNacosAccessKey(registry.NacosAccessKey),
+				nacosv2.WithNacosSecretKey(registry.NacosSecretKey),
+				nacosv2.WithNacosNamespaceId(registry.NacosNamespaceId),
+				nacosv2.WithNacosNamespace(registry.NacosNamespace),
+				nacosv2.WithNacosGroups(registry.NacosGroups),
+				nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+				nacosv2.WithAuthOption(authOption),
+			)
+		}
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
 			r.Cache,

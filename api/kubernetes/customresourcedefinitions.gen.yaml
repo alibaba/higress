@@ -263,6 +263,14 @@ spec:
                       type: string
                     domain:
                       type: string
+                    enableMCPServer:
+                      type: boolean
+                    mcpServerBaseUrl:
+                      type: string
+                    mcpServerExportDomains:
+                      items:
+                        type: string
+                      type: array
                     nacosAccessKey:
                       type: string
                     nacosAddressServer:

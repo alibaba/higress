@@ -1,4 +1,4 @@
-GO_FILTER_NAME ?= mcp-server
+GO_FILTER_NAME ?= golang-filter
 GOPROXY := $(shell go env GOPROXY)
 GOARCH ?= amd64
 
@@ -8,5 +8,5 @@ build:
 								    --build-arg GO_FILTER_NAME=${GO_FILTER_NAME} \
 									--build-arg GOARCH=${GOARCH} \
 									-t ${GO_FILTER_NAME} \
-									--output ./${GO_FILTER_NAME} \
+									--output . \
 									.

@@ -1,4 +1,4 @@
-package internal
+package common
 
 import (
 	"context"
@@ -72,9 +72,10 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	// Ping the Redis server to check the connection
 	pong, err := client.Ping(context.Background()).Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+		api.LogErrorf("Failed to connect to Redis: %v", err)
+	} else {
+		api.LogDebugf("Connected to Redis: %s", pong)
 	}
-	api.LogDebugf("Connected to Redis: %s", pong)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -83,7 +84,7 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 		crypto, err = NewCrypto(config.secret)
 		if err != nil {
 			cancel()
-			return nil, err
+			api.LogWarnf("Failed to initialize redis crypto: %v", err)
 		}
 	}
 
@@ -103,7 +104,7 @@ func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 
 // keepAlive periodically checks Redis connection and attempts to reconnect if needed
 func (r *RedisClient) keepAlive() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -247,6 +248,18 @@ func (r *RedisClient) Get(key string) (string, error) {
 	}
 
 	return value, nil
+}
+
+// Expire sets the expiration time for a key
+func (r *RedisClient) Expire(key string, expiration time.Duration) error {
+	ok, err := r.client.Expire(r.ctx, key, expiration).Result()
+	if err != nil {
+		return fmt.Errorf("failed to set expiration for key: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("key does not exist")
+	}
+	return nil
 }
 
 // Close closes the Redis client and stops the keepalive goroutine

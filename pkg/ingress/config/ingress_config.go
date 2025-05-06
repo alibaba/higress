@@ -590,6 +590,13 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 			Spec: vs,
 		})
 	}
+	// add vs from naco3 for mcp server
+	if m.RegistryReconciler != nil {
+		allConfigsFromMcp := m.RegistryReconciler.GetAllConfigs(gvk.VirtualService)
+		for _, cfg := range allConfigsFromMcp {
+			out = append(out, *cfg)
+		}
+	}
 
 	// We generate some specific envoy filter here to avoid duplicated computation.
 	m.convertEnvoyFilter(&convertOptions)
@@ -676,6 +683,13 @@ func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Confi
 			Spec: wasmPlugin,
 		})
 	}
+	// add wasm plugin from nacos for mcp server
+	if m.RegistryReconciler != nil {
+		wasmFromMcp := m.RegistryReconciler.GetAllConfigs(gvk.WasmPlugin)
+		for _, cfg := range wasmFromMcp {
+			out = append(out, *cfg)
+		}
+	}
 	return out
 }
 
@@ -686,6 +700,7 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 	serviceEntries := m.RegistryReconciler.GetAllServiceWrapper()
 	IngressLog.Infof("Found mcp serviceEntries %v", serviceEntries)
 	out := make([]config.Config, 0, len(serviceEntries))
+	hostSets := sets.Set[string]{}
 	for _, se := range serviceEntries {
 		out = append(out, config.Config{
 			Meta: config.Meta{
@@ -700,6 +715,15 @@ func (m *IngressConfig) convertServiceEntry([]common.WrapperConfig) []config.Con
 			},
 			Spec: se.ServiceEntry,
 		})
+		hostSets.Insert(se.ServiceEntry.Hosts[0])
+	}
+	// add service entry by host from nacos3 for mcp server
+	seFromMcp := m.RegistryReconciler.GetAllConfigs(gvk.ServiceEntry)
+	for _, cfg := range seFromMcp {
+		se := cfg.Spec.(*networking.ServiceEntry)
+		if !hostSets.Contains(se.Hosts[0]) {
+			out = append(out, *cfg)
+		}
 	}
 	return out
 }
@@ -770,6 +794,10 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 			if !exist {
 				destinationRules[serviceName] = destinationRuleWrapper
 			} else if dr.DestinationRule.TrafficPolicy != nil {
+				if dr.DestinationRule.TrafficPolicy.LoadBalancer == nil &&
+					destinationRuleWrapper.DestinationRule.TrafficPolicy.LoadBalancer != nil {
+					dr.DestinationRule.TrafficPolicy.LoadBalancer = destinationRuleWrapper.DestinationRule.TrafficPolicy.LoadBalancer
+				}
 				portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
 				portUpdated := false
 				for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
@@ -1137,6 +1165,28 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				// Set this label so that we do not compare configs and just push.
 				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 			}
+			vsMetadata := config.Meta{
+				Name:             "mcpbridge-virtualservice",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.VirtualService,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+			wasmMetadata := config.Meta{
+				Name:             "mcpbridge-wasmplugin",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.WasmPlugin,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+			efMetadata := config.Meta{
+				Name:             "mcpbridge-envoyfilter",
+				Namespace:        m.namespace,
+				GroupVersionKind: gvk.EnvoyFilter,
+				// Set this label so that we do not compare configs and just push.
+				Labels: map[string]string{constants.AlwaysPushLabel: "true"},
+			}
+
 			for _, f := range m.serviceEntryHandlers {
 				IngressLog.Debug("McpBridge triggerd serviceEntry update")
 				f(config.Config{Meta: seMetadata}, config.Config{Meta: seMetadata}, istiomodel.EventUpdate)
@@ -1145,9 +1195,22 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				IngressLog.Debug("McpBridge triggerd destinationRule update")
 				f(config.Config{Meta: drMetadata}, config.Config{Meta: drMetadata}, istiomodel.EventUpdate)
 			}
-		}, m.localKubeClient, m.namespace)
+			for _, f := range m.virtualServiceHandlers {
+				IngressLog.Debug("McpBridge triggerd virtualservice update")
+				f(config.Config{Meta: vsMetadata}, config.Config{Meta: vsMetadata}, istiomodel.EventUpdate)
+			}
+			for _, f := range m.wasmPluginHandlers {
+				IngressLog.Debug("McpBridge triggerd wasmplugin update")
+				f(config.Config{Meta: wasmMetadata}, config.Config{Meta: wasmMetadata}, istiomodel.EventUpdate)
+			}
+			for _, f := range m.envoyFilterHandlers {
+				IngressLog.Debug("McpBridge triggerd envoyfilter update")
+				f(config.Config{Meta: efMetadata}, config.Config{Meta: efMetadata}, istiomodel.EventUpdate)
+			}
+		}, m.localKubeClient, m.namespace, m.clusterId.String())
 	}
 	reconciler := m.RegistryReconciler
+	m.configmapMgr.SetMcpReconciler(m.RegistryReconciler)
 	err = reconciler.Reconcile(mcpbridge)
 	if err != nil {
 		IngressLog.Errorf("Mcpbridge reconcile failed, err:%v", err)

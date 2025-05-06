@@ -1,6 +1,10 @@
-module github.com/alibaba/higress/plugins/golang-filter/mcp-server
+module github.com/alibaba/higress/plugins/golang-filter
 
-go 1.23
+go 1.22
+
+replace github.com/envoyproxy/envoy => github.com/higress-group/envoy v0.0.0-20250430151331-2c556780b65c
+
+replace github.com/mark3labs/mcp-go => github.com/higress-group/mcp-go v0.0.0-20250428145706-792ce64b4b30
 
 require (
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42

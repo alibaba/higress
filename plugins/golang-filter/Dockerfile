@@ -1,4 +1,4 @@
-FROM golang:1.23-bullseye AS golang-base
+FROM golang:1.22-bullseye AS golang-base
 
 ARG GOPROXY
 ARG GO_FILTER_NAME
@@ -24,7 +24,7 @@ WORKDIR /workspace
 
 COPY . .
 
-WORKDIR /workspace/$GO_FILTER_NAME
+WORKDIR /workspace
 
 RUN go mod tidy
 RUN if [ "$GOARCH" = "arm64" ]; then \

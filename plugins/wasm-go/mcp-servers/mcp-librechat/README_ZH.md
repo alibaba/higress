@@ -25,7 +25,7 @@
 ```json
 "mcpServers": {
     "librechat": {
-      "url": "http://mcp.higress.ai/mcp-librechat/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-librechat/{generate_key}",
     }
 }
 ```
