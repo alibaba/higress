@@ -84,6 +84,7 @@ type watcher struct {
 	nacosClientConfig      *constant.ClientConfig
 	namespace              string
 	clusterId              string
+	authOption             provider.AuthOption
 }
 
 type WatcherOption func(w *watcher)
@@ -131,6 +132,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithNamespaceId(w.NacosNamespaceId),
 		constant.WithAccessKey(w.NacosAccessKey),
 		constant.WithSecretKey(w.NacosSecretKey),
+		constant.WithUsername(w.authOption.NacosUsername),
+		constant.WithPassword(w.authOption.NacosPassword),
 	)
 
 	initTimer := time.NewTimer(DefaultInitTimeout)
@@ -238,6 +241,12 @@ func WithNamespace(ns string) WatcherOption {
 func WithClusterId(id string) WatcherOption {
 	return func(w *watcher) {
 		w.clusterId = id
+	}
+}
+
+func WithAuthOption(authOption provider.AuthOption) WatcherOption {
+	return func(w *watcher) {
+		w.authOption = authOption
 	}
 }
 
@@ -633,6 +642,8 @@ func (w *watcher) buildServiceEntryForMcpServer(mcpServer *provider.McpServer, c
 			constant.WithNamespaceId(serviceNamespace),
 			constant.WithAccessKey(w.NacosAccessKey),
 			constant.WithSecretKey(w.NacosSecretKey),
+			constant.WithUsername(w.authOption.NacosUsername),
+			constant.WithPassword(w.authOption.NacosPassword),
 		)
 		client, err := clients.NewNamingClient(vo.NacosClientParam{
 			ClientConfig:  namingConfig,

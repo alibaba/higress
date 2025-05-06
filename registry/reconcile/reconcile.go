@@ -203,6 +203,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 				mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
 				mcpserver.WithClusterId(r.clusterId),
 				mcpserver.WithNamespace(r.namespace),
+				mcpserver.WithAuthOption(authOption),
 			)
 		} else {
 			watcher, err = nacosv2.NewWatcher(
