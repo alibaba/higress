@@ -358,6 +358,9 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/files") {
 		return provider.ApiNameFiles
 	}
+	if strings.HasSuffix(path, "/v1/models") {
+		return provider.ApiNameModels
+	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {
 		return provider.ApiNameCohereV1Rerank
