@@ -603,21 +603,13 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                 let req: Req = r;
                 self.is_openai = true;
                 self.stream = req.stream;
-                for msg in req.messages {
-                    if self.check_message(&msg.content) {
-                        return self.deny(false);
-                    }
-                    let new_content = self.replace_request_msg(&msg.content);
-                    if new_content != msg.content {
-                        if let (Ok(from), Ok(to)) = (
-                            serde_json::to_string(&msg.content),
-                            serde_json::to_string(&new_content),
-                        ) {
-                            req_body = req_body.replace(&from, &to);
-                        }
-                    }
+                if self.check_message(&req_body) {
+                    return self.deny(false);
                 }
-                self.replace_http_request_body(req_body.as_bytes());
+                let new_body = self.replace_request_msg(&req_body);
+                if new_body != req_body {
+                    self.replace_http_request_body(new_body.as_bytes())
+                }
                 return DataAction::Continue;
             }
         }
