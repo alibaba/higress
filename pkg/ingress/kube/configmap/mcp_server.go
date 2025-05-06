@@ -74,6 +74,12 @@ type MatchRule struct {
 	MatchRulePath string `json:"match_rule_path,omitempty"`
 	// Type of match rule: exact, prefix, suffix, contains, regex
 	MatchRuleType string `json:"match_rule_type,omitempty"`
+	// Type of upstream(s) matched by the rule: rest (default), sse
+	UpstreamType string `json:"upstream_type"`
+	// Rewrite type of matched routes: prefix
+	RouteRewriteType string `json:"route_rewrite_type"`
+	// Path rewrite configuration of matched routes
+	RouteRewritePath string `json:"route_rewrite_path"`
 }
 
 // McpServer defines the configuration for MCP (Model Context Protocol) server
@@ -201,9 +207,12 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 		newMcp.MatchList = make([]*MatchRule, len(mcp.MatchList))
 		for i, rule := range mcp.MatchList {
 			newMcp.MatchList[i] = &MatchRule{
-				MatchRuleDomain: rule.MatchRuleDomain,
-				MatchRulePath:   rule.MatchRulePath,
-				MatchRuleType:   rule.MatchRuleType,
+				MatchRuleDomain:  rule.MatchRuleDomain,
+				MatchRulePath:    rule.MatchRulePath,
+				MatchRuleType:    rule.MatchRuleType,
+				UpstreamType:     rule.UpstreamType,
+				RouteRewriteType: rule.RouteRewriteType,
+				RouteRewritePath: rule.RouteRewritePath,
 			}
 		}
 	}
@@ -393,8 +402,11 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
 				"match_rule_domain": "%s",
 				"match_rule_path": "%s",
-				"match_rule_type": "%s"
-			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType))
+				"match_rule_type": "%s",
+				"upstream_type": "%s",
+				"route_rewrite_type": "%s",
+				"route_rewrite_path": "%s"
+			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.RouteRewriteType, rule.RouteRewritePath))
 		}
 	}
 
