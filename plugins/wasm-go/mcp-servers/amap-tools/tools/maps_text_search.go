@@ -58,11 +58,11 @@ func (t TextSearchRequest) Call(ctx server.HttpContext, s server.Server) error {
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/place/text?key=%s&keywords=%s&city=%s&citylimit=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Keywords), url.QueryEscape(t.City), url.QueryEscape(t.Citylimit))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("text search call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("text search call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(ctx, string(responseBody))
+			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
 		})
 }
