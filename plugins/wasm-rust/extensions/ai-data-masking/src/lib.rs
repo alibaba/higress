@@ -609,12 +609,22 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                 let req: Req = r;
                 self.is_openai = true;
                 self.stream = req.stream;
-                let parsed_body = self.parse_unicode(&req_body);
-                if self.check_message(&parsed_body) {
-                    return self.deny(false);
+                let mut parsed_body = self.parse_unicode(&req_body);
+                for msg in req.messages {
+                    if self.check_message(&msg.content) {
+                        return self.deny(false);
+                    }
+                    let new_content = self.replace_request_msg(&msg.content);
+                    if new_content != msg.content {
+                        if let (Ok(from), Ok(to)) = (
+                            serde_json::to_string(&msg.content),
+                            serde_json::to_string(&new_content),
+                        ) {
+                            parsed_body = parsed_body.replace(&from, &to);
+                        }
+                    }
                 }
-                let new_body = self.replace_request_msg(&parsed_body);
-                self.replace_http_request_body(new_body.as_bytes());
+                self.replace_http_request_body(parsed_body.as_bytes());
                 return DataAction::Continue;
             }
         }
