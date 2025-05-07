@@ -72,8 +72,10 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 			if rule.EnablePathRewrite {
 				if rule.UpstreamType != SSEUpstream {
 					api.LogWarnf("Path rewrite is only supported for SSE upstream type")
-				} else if rule.PathRewritePrefix == "" {
-					rule.PathRewritePrefix = "/"
+				} else if rule.MatchRuleType != PrefixMatch {
+					api.LogWarnf("Path rewrite is only supported for prefix match type")
+				} else if !strings.HasPrefix(rule.PathRewritePrefix, "/") {
+					rule.PathRewritePrefix = "/" + rule.PathRewritePrefix
 				}
 			}
 			matchList = append(matchList, rule)
