@@ -866,6 +866,13 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, rawURL string, headers
 		callback(sendDirectly, statusCode, responseHeaders, responseBody)
 		log.Debugf("route call end, id:%s, code:%d, headers:%#v, body:%s", requestID, statusCode, responseHeaders, strings.ReplaceAll(string(responseBody), "\n", `\n`))
 	}
+	orignalMethod, _ := proxywasm.GetHttpRequestHeader(":method")
+	orignalPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	orignalHost, _ := proxywasm.GetHttpRequestHeader(":authority")
+	proxywasm.ReplaceHttpRequestHeader("x-envoy-original-method", orignalMethod)
+	proxywasm.ReplaceHttpRequestHeader("x-envoy-original-path", orignalPath)
+	proxywasm.ReplaceHttpRequestHeader("x-envoy-original-host", orignalHost)
+
 	proxywasm.ReplaceHttpRequestHeader(":method", method)
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
