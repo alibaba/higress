@@ -39,6 +39,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::vec;
 
+
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
     proxy_wasm::set_root_context(|_|Box::new(AiDataMaskingRoot::new()));
@@ -398,6 +399,11 @@ impl AiDataMasking {
         }
         false
     }
+    fn parse_unicode(&mut self, body: &str) -> String {
+        let v: Value = serde_json::from_str(body).unwrap();
+        let processed_json = serde_json::to_string(&v).unwrap();
+        return processed_json;
+    }
     fn msg_to_response(&self, msg: &str, raw_msg: &str, content_type: &str) -> (String, String) {
         if !self.is_openai {
             (raw_msg.to_string(), content_type.to_string())
@@ -603,13 +609,12 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                 let req: Req = r;
                 self.is_openai = true;
                 self.stream = req.stream;
-                if self.check_message(&req_body) {
+                let parsed_body = self.parse_unicode(&req_body);
+                if self.check_message(&parsed_body) {
                     return self.deny(false);
                 }
-                let new_body = self.replace_request_msg(&req_body);
-                if new_body != req_body {
-                    self.replace_http_request_body(new_body.as_bytes())
-                }
+                let new_body = self.replace_request_msg(&parsed_body);
+                self.replace_http_request_body(new_body.as_bytes());
                 return DataAction::Continue;
             }
         }
