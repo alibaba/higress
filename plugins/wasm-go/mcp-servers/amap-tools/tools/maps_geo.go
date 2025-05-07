@@ -58,11 +58,11 @@ func (t GeoRequest) Call(ctx server.HttpContext, s server.Server) error {
 	apiKey := serverConfig.ApiKey
 	url := fmt.Sprintf("https://restapi.amap.com/v3/geocode/geo?key=%s&address=%s&city=%s&source=ts_mcp", apiKey, url.QueryEscape(t.Address), url.QueryEscape(t.City))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("geo call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(ctx, string(responseBody))
+			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
 		})
 }
