@@ -91,8 +91,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 
 func (f *filter) processMcpRequestHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	switch f.matchedRule.UpstreamType {
-	case common.RestUpstream:
-	case common.StreamableUpstream:
+	case common.RestUpstream, common.StreamableUpstream:
 		return f.processMcpRequestHeadersForRestUpstream(header, endStream)
 	case common.SSEUpstream:
 		return f.processMcpRequestHeadersForSSEUpstream(header, endStream)
@@ -232,8 +231,7 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	ret := api.Continue
 	api.LogDebugf("Upstream Type: %s", f.matchedRule.UpstreamType)
 	switch f.matchedRule.UpstreamType {
-	case common.RestUpstream:
-	case common.StreamableUpstream:
+	case common.RestUpstream, common.StreamableUpstream:
 		api.LogDebugf("Encoding data from Rest upstream")
 		ret = f.encodeDataFromRestUpstream(buffer, endStream)
 		break

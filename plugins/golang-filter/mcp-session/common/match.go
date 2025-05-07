@@ -57,9 +57,7 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 				rule.UpstreamType = RestUpstream
 			} else {
 				switch rule.UpstreamType {
-				case RestUpstream:
-				case SSEUpstream:
-				case StreamableUpstream:
+				case RestUpstream, SSEUpstream, StreamableUpstream:
 					break
 				default:
 					api.LogWarnf("Unknown upstream type: %s", rule.UpstreamType)
