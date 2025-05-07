@@ -143,7 +143,7 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 
 func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	f.skipRequestBody = true
-	if f.matchedRule.RouteRewriteType != common.PrefixMatch || f.matchedRule.RouteRewritePath == "" {
+	if !f.matchedRule.EnablePathRewrite {
 		f.needProcess = false
 	}
 	return api.Continue
@@ -334,7 +334,7 @@ func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream 
 }
 
 func (f *filter) rewriteEndpointUrl(endpointUrl string) (bool, string) {
-	if f.matchedRule.RouteRewriteType != common.PrefixMatch || f.matchedRule.RouteRewritePath == "" {
+	if !f.matchedRule.EnablePathRewrite {
 		return false, ""
 	}
 
@@ -347,13 +347,13 @@ func (f *filter) rewriteEndpointUrl(endpointUrl string) (bool, string) {
 		}
 	}
 
-	if !strings.HasPrefix(endpointUrl, f.matchedRule.RouteRewritePath) {
-		// The endpoint URL does not match the route rewrite path. We are unable to rewrite it back.
-		api.LogWarnf("The endpoint URL %s does not match the route rewrite path %s", endpointUrl, f.matchedRule.RouteRewritePath)
+	if !strings.HasPrefix(endpointUrl, f.matchedRule.PathRewritePrefix) {
+		// The endpoint URL does not match the path rewrite prefix. We are unable to rewrite it back.
+		api.LogWarnf("The endpoint URL %s does not match the path rewrite prefix %s", endpointUrl, f.matchedRule.PathRewritePrefix)
 		return false, ""
 	}
 
-	suffix := endpointUrl[len(f.matchedRule.RouteRewritePath):]
+	suffix := endpointUrl[len(f.matchedRule.PathRewritePrefix):]
 
 	if len(suffix) == 0 {
 		endpointUrl = f.matchedRule.MatchRulePath

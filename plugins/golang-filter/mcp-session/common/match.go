@@ -27,12 +27,12 @@ const (
 
 // MatchRule defines the structure for a matching rule
 type MatchRule struct {
-	MatchRuleDomain  string       `json:"match_rule_domain"`  // Domain pattern, supports wildcards
-	MatchRulePath    string       `json:"match_rule_path"`    // Path pattern to match
-	MatchRuleType    RuleType     `json:"match_rule_type"`    // Type of match rule
-	UpstreamType     UpstreamType `json:"upstream_type"`      // Type of upstream(s) matched by the rule
-	RouteRewriteType RuleType     `json:"route_rewrite_type"` // Rewrite type of matched routes
-	RouteRewritePath string       `json:"route_rewrite_path"` // Path rewrite configuration of matched routes
+	MatchRuleDomain   string       `json:"match_rule_domain"`   // Domain pattern, supports wildcards
+	MatchRulePath     string       `json:"match_rule_path"`     // Path pattern to match
+	MatchRuleType     RuleType     `json:"match_rule_type"`     // Type of match rule
+	UpstreamType      UpstreamType `json:"upstream_type"`       // Type of upstream(s) matched by the rule
+	EnablePathRewrite bool         `json:"enable_path_rewrite"` // Enable request path rewrite for matched routes
+	PathRewritePrefix string       `json:"path_rewrite_prefix"` // Prefix the request path would be rewritten to.
 }
 
 // ParseMatchList parses the match list from the config
@@ -65,17 +65,18 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 					api.LogWarnf("Unknown upstream type: %s", rule.UpstreamType)
 				}
 			}
-			if rewritePath, ok := ruleMap["route_rewrite_path"].(string); ok {
-				rule.RouteRewritePath = rewritePath
+			if enablePathRewrite, ok := ruleMap["enable_path_rewrite"].(bool); ok {
+				rule.EnablePathRewrite = enablePathRewrite
 			}
-			if rewriteType, ok := ruleMap["route_rewrite_type"].(string); ok {
-				rule.RouteRewriteType = RuleType(rewriteType)
-				if rule.RouteRewriteType != PrefixMatch {
-					api.LogWarnf("Unsupported route rewrite type: %s", rule.RouteRewriteType)
+			if pathRewritePrefix, ok := ruleMap["path_rewrite_prefix"].(string); ok {
+				rule.PathRewritePrefix = pathRewritePrefix
+			}
+			if rule.EnablePathRewrite {
+				if rule.UpstreamType != SSEUpstream {
+					api.LogWarnf("Path rewrite is only supported for SSE upstream type")
+				} else if rule.PathRewritePrefix == "" {
+					rule.PathRewritePrefix = "/"
 				}
-			}
-			if rule.RouteRewritePath != "" && rule.RouteRewriteType == "" {
-				rule.RouteRewriteType = PrefixMatch
 			}
 			matchList = append(matchList, rule)
 		}

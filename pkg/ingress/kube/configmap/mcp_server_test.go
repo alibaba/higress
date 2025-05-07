@@ -79,12 +79,10 @@ func Test_validMcpServer(t *testing.T) {
 				Redis:                 nil,
 				MatchList: []*MatchRule{
 					{
-						MatchRuleDomain:  "*",
-						MatchRulePath:    "/mcp",
-						MatchRuleType:    "prefix",
-						UpstreamType:     "bad-type",
-						RouteRewriteType: "prefix",
-						RouteRewritePath: "/",
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "bad-type",
 					},
 				},
 				Servers: []*SSEServer{},
@@ -92,24 +90,24 @@ func Test_validMcpServer(t *testing.T) {
 			wantErr: errors.New("invalid upstream_type: bad-type, must be one of: rest, sse, streamable"),
 		},
 		{
-			name: "enabled but bad route_rewrite_type",
+			name: "enabled but path rewrite with unsupported upstream type",
 			mcp: &McpServer{
 				Enable:                true,
 				EnableUserLevelServer: false,
 				Redis:                 nil,
 				MatchList: []*MatchRule{
 					{
-						MatchRuleDomain:  "*",
-						MatchRulePath:    "/mcp",
-						MatchRuleType:    "prefix",
-						UpstreamType:     "sse",
-						RouteRewriteType: "unknown",
-						RouteRewritePath: "/",
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/mcp",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "rest",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/",
 					},
 				},
 				Servers: []*SSEServer{},
 			},
-			wantErr: errors.New("invalid route_rewrite_type: unknown, must be one of: prefix"),
+			wantErr: errors.New("path rewrite is only supported for SSE upstream type"),
 		},
 		{
 			name: "enabled with user level server but no redis config",
@@ -652,12 +650,12 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 						UpstreamType:    "sse",
 					},
 					{
-						MatchRuleDomain:  "*",
-						MatchRulePath:    "/sse-test-2",
-						MatchRuleType:    "prefix",
-						UpstreamType:     "sse",
-						RouteRewriteType: "prefix",
-						RouteRewritePath: "/",
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/sse-test-2",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "sse",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/mcp",
 					},
 				},
 				EnableUserLevelServer: true,
@@ -696,22 +694,22 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 									"match_rule_path": "/test",
 									"match_rule_type": "exact",
 									"upstream_type": "",
-									"route_rewrite_type": "",
-									"route_rewrite_path": ""
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
 								},{
 									"match_rule_domain": "*",
 									"match_rule_path": "/sse-test-1",
 									"match_rule_type": "prefix",
 									"upstream_type": "sse",
-									"route_rewrite_type": "",
-									"route_rewrite_path": ""
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
 								},{
 									"match_rule_domain": "*",
 									"match_rule_path": "/sse-test-2",
 									"match_rule_type": "prefix",
 									"upstream_type": "sse",
-									"route_rewrite_type": "prefix",
-									"route_rewrite_path": "/"
+									"enable_path_rewrite": true,
+									"path_rewrite_prefix": "/mcp"
 								}],
 								"enable_user_level_server": true
 							}

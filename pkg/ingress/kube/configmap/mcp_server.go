@@ -76,10 +76,10 @@ type MatchRule struct {
 	MatchRuleType string `json:"match_rule_type,omitempty"`
 	// Type of upstream(s) matched by the rule: rest (default), sse
 	UpstreamType string `json:"upstream_type"`
-	// Rewrite type of matched routes: prefix
-	RouteRewriteType string `json:"route_rewrite_type"`
-	// Path rewrite configuration of matched routes
-	RouteRewritePath string `json:"route_rewrite_path"`
+	// Enable request path rewrite for matched routes
+	EnablePathRewrite bool `json:"enable_path_rewrite"`
+	// Prefix the request path would be rewritten to.
+	PathRewritePrefix string `json:"path_rewrite_prefix"`
 }
 
 // McpServer defines the configuration for MCP (Model Context Protocol) server
@@ -136,9 +136,6 @@ func validMcpServer(m *McpServer) error {
 			"sse":        true,
 			"streamable": true,
 		}
-		validRouteRewriteTypes := map[string]bool{
-			"prefix": true,
-		}
 
 		for _, rule := range m.MatchList {
 			if rule.MatchRuleType == "" {
@@ -150,8 +147,8 @@ func validMcpServer(m *McpServer) error {
 			if rule.UpstreamType != "" && !validUpstreamTypes[rule.UpstreamType] {
 				return fmt.Errorf("invalid upstream_type: %s, must be one of: rest, sse, streamable", rule.UpstreamType)
 			}
-			if rule.RouteRewriteType != "" && !validRouteRewriteTypes[rule.RouteRewriteType] {
-				return fmt.Errorf("invalid route_rewrite_type: %s, must be one of: prefix", rule.RouteRewriteType)
+			if rule.EnablePathRewrite && rule.UpstreamType != "sse" {
+				return errors.New("path rewrite is only supported for SSE upstream type")
 			}
 		}
 	}
@@ -221,12 +218,12 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 		newMcp.MatchList = make([]*MatchRule, len(mcp.MatchList))
 		for i, rule := range mcp.MatchList {
 			newMcp.MatchList[i] = &MatchRule{
-				MatchRuleDomain:  rule.MatchRuleDomain,
-				MatchRulePath:    rule.MatchRulePath,
-				MatchRuleType:    rule.MatchRuleType,
-				UpstreamType:     rule.UpstreamType,
-				RouteRewriteType: rule.RouteRewriteType,
-				RouteRewritePath: rule.RouteRewritePath,
+				MatchRuleDomain:   rule.MatchRuleDomain,
+				MatchRulePath:     rule.MatchRulePath,
+				MatchRuleType:     rule.MatchRuleType,
+				UpstreamType:      rule.UpstreamType,
+				EnablePathRewrite: rule.EnablePathRewrite,
+				PathRewritePrefix: rule.PathRewritePrefix,
 			}
 		}
 	}
@@ -418,9 +415,9 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 				"match_rule_path": "%s",
 				"match_rule_type": "%s",
 				"upstream_type": "%s",
-				"route_rewrite_type": "%s",
-				"route_rewrite_path": "%s"
-			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.RouteRewriteType, rule.RouteRewritePath))
+				"enable_path_rewrite": %t,
+				"path_rewrite_prefix": "%s"
+			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.EnablePathRewrite, rule.PathRewritePrefix))
 		}
 	}
 
