@@ -6,9 +6,11 @@ replace quark-search => ../quark-search
 
 replace amap-tools => ../amap-tools
 
+replace github.com/alibaba/higress/plugins/wasm-go => /Users/zhangty/tmp/higress/plugins/wasm-go
+
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250423015849-23258157a406
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507122328-b62384cff88a
 	quark-search v0.0.0-00010101000000-000000000000
 )
 
