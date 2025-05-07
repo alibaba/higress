@@ -112,7 +112,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	}
 	config.methodHandlers = make(utils.MethodHandlers)
 	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
-		utils.OnMCPResponseSuccess(ctx, map[string]any{}, "mcp:ping")
+		utils.OnMCPResponseSuccess(true, ctx, map[string]any{}, "mcp:ping")
 		return nil
 	}
 	config.methodHandlers["notifications/initialized"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
@@ -122,9 +122,9 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		version := params.Get("protocolVersion").String()
 		if version == "" {
-			utils.OnMCPResponseError(ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams, "mcp:initialize:error")
+			utils.OnMCPResponseError(true, ctx, errors.New("Unsupported protocol version"), utils.ErrInvalidParams, "mcp:initialize:error")
 		}
-		utils.OnMCPResponseSuccess(ctx, map[string]any{
+		utils.OnMCPResponseSuccess(true, ctx, map[string]any{
 			"protocolVersion": version,
 			"capabilities": map[string]any{
 				"tools": map[string]any{},
@@ -150,7 +150,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		})
 	}
 	config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
-		utils.OnMCPResponseSuccess(ctx, map[string]any{
+		utils.OnMCPResponseSuccess(true, ctx, map[string]any{
 			"tools":      tools,
 			"nextCursor": "",
 		}, "mcp:tools/list")
@@ -161,7 +161,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		args := params.Get("arguments")
 		if len(allowTools) != 0 {
 			if _, allow := allowTools[name]; !allow {
-				utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
+				utils.OnMCPResponseError(true, ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
 				return nil
 			}
 		}
@@ -173,12 +173,12 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 			err := toolInstance.Call(ctx, config.server)
 			// TODO: validate the json schema through github.com/kaptinlin/jsonschema
 			if err != nil {
-				utils.OnMCPToolCallError(ctx, err)
+				utils.OnMCPToolCallError(true, ctx, err)
 				return nil
 			}
 			return nil
 		}
-		utils.OnMCPResponseError(ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
+		utils.OnMCPResponseError(true, ctx, errors.New("Unknown tool: invalid_tool_name"), utils.ErrInvalidParams, "mcp:tools/call:invalid_tool_name")
 		return nil
 	}
 
@@ -253,6 +253,7 @@ func StoreServerState(ctx wrapper.HttpContext, config any) {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config mcpServerConfig) types.Action {
+	ctx.DisableReroute()
 	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 	ctx.SetResponseBodyBufferLimit(defaultMaxBodyBytes)
 

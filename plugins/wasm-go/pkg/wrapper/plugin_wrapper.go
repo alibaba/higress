@@ -17,13 +17,16 @@ package wrapper
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/matcher"
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -72,7 +75,7 @@ type HttpContext interface {
 	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
 	SetResponseBodyBufferLimit(byteSize uint32)
 	// Make a request to the target service of the current route using the specified URL and header.
-	RouteCall(method, url string, headers [][2]string, body []byte, callback ResponseCallback, timeoutMillisecond ...uint32) error
+	RouteCall(method, url string, headers [][2]string, body []byte, callback RouteResponseCallback) error
 }
 
 type oldParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig, log log.Log) error
@@ -526,6 +529,8 @@ func (ctx *CommonPluginCtx[PluginConfig]) NewHttpContext(contextID uint32) types
 	return httpCtx
 }
 
+type RouteResponseCallback func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte)
+
 type CommonHttpCtx[PluginConfig any] struct {
 	types.DefaultHttpContext
 	plugin                *CommonPluginCtx[PluginConfig]
@@ -540,6 +545,7 @@ type CommonHttpCtx[PluginConfig any] struct {
 	userContext           map[string]interface{}
 	userAttribute         map[string]interface{}
 	pendingCall           int
+	responseCallback      RouteResponseCallback
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) HttpCallStart(uint32) {
@@ -769,6 +775,20 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseHeaders(numHeaders int, en
 	if IsBinaryResponseBody() {
 		ctx.needResponseBody = false
 	}
+	if ctx.responseCallback != nil {
+		if endOfStream {
+			statusCode := 500
+			status, _ := proxywasm.GetHttpResponseHeader(":status")
+			headers, _ := proxywasm.GetHttpResponseHeaders()
+			if status != "" {
+				statusCode, _ = strconv.Atoi(status)
+			}
+			ctx.responseCallback(true, statusCode, headers, nil)
+			return types.HeaderStopAllIterationAndWatermark
+		}
+		ctx.needResponseBody = true
+		return types.HeaderStopIteration
+	}
 	if ctx.plugin.vm.onHttpResponseHeaders == nil {
 		return types.ActionContinue
 	}
@@ -783,6 +803,25 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 	if !ctx.needResponseBody {
 		return types.ActionContinue
 	}
+	if ctx.responseCallback != nil {
+		if !endOfStream {
+			return types.ActionPause
+		}
+		body, err := proxywasm.GetHttpResponseBody(0, bodySize)
+		if err != nil {
+			ctx.plugin.vm.log.Warnf("get response body failed: %v", err)
+			return types.ActionContinue
+		}
+		statusCode := 500
+		status, _ := proxywasm.GetHttpResponseHeader(":status")
+		proxywasm.RemoveHttpResponseHeader("content-length")
+		headers, _ := proxywasm.GetHttpResponseHeaders()
+		if status != "" {
+			statusCode, _ = strconv.Atoi(status)
+		}
+		ctx.responseCallback(false, statusCode, headers, body)
+		return types.ActionContinue
+	}
 	if ctx.plugin.vm.onHttpStreamingResponseBody != nil && ctx.streamingResponseBody {
 		chunk, _ := proxywasm.GetHttpResponseBody(0, bodySize)
 		modifiedChunk := ctx.plugin.vm.onHttpStreamingResponseBody(ctx, *ctx.config, chunk, endOfStream)
@@ -794,11 +833,10 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 		return types.ActionContinue
 	}
 	if ctx.plugin.vm.onHttpResponseBody != nil {
-		ctx.responseBodySize += bodySize
 		if !endOfStream {
 			return types.ActionPause
 		}
-		body, err := proxywasm.GetHttpResponseBody(0, ctx.responseBodySize)
+		body, err := proxywasm.GetHttpResponseBody(0, bodySize)
 		if err != nil {
 			ctx.plugin.vm.log.Warnf("get response body failed: %v", err)
 			return types.ActionContinue
@@ -819,16 +857,36 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() {
 	ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config)
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, url string, headers [][2]string, body []byte, callback ResponseCallback, timeoutMillisecond ...uint32) error {
-	// Since the HttpCall here is a substitute for route invocation, the default timeout is slightly longer, at 1 minute.
-	var timeout uint32 = 60000
-	if len(timeoutMillisecond) > 0 {
-		timeout = timeoutMillisecond[0]
+// This RouteCall must only be invoked during the request body phase, and it requires that stopIteration has been returned during the request header phase.
+func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, rawURL string, headers [][2]string, body []byte, callback RouteResponseCallback) error {
+	proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	proxywasm.RemoveHttpRequestHeader("Content-Length")
+	requestID := uuid.New().String()
+	ctx.responseCallback = func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+		callback(sendDirectly, statusCode, responseHeaders, responseBody)
+		log.Debugf("route call end, id:%s, code:%d, headers:%#v, body:%s", requestID, statusCode, responseHeaders, strings.ReplaceAll(string(responseBody), "\n", `\n`))
 	}
-	cluster := RouteCluster{
-		BaseCluster: BaseCluster{notify: ctx},
+	proxywasm.ReplaceHttpRequestHeader(":method", method)
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid url:%s, err:%w", rawURL, err)
 	}
-	return HttpCall(cluster, method, url, headers, body, callback, timeout)
+	var authority string
+	if parsedURL.Host != "" {
+		authority = parsedURL.Host
+	}
+	path := "/" + strings.TrimPrefix(parsedURL.Path, "/")
+	if parsedURL.RawQuery != "" {
+		path = fmt.Sprintf("%s?%s", path, parsedURL.RawQuery)
+	}
+	proxywasm.ReplaceHttpRequestHeader(":path", path)
+	proxywasm.ReplaceHttpRequestHeader(":authority", authority)
+	for _, kv := range headers {
+		proxywasm.ReplaceHttpRequestHeader(kv[0], kv[1])
+	}
+	proxywasm.ReplaceHttpRequestBody(body)
+	log.Debugf("route call start, id:%s, method:%s, url:%s, headers:%#v, body:%s", requestID, method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`))
+	return nil
 }
 
 func recoverFunc() {

@@ -16,6 +16,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -69,7 +70,23 @@ type JsonRpcMethodHandler func(context wrapper.HttpContext, id JsonRpcID, params
 
 type MethodHandlers map[string]JsonRpcMethodHandler
 
-func sendJsonRpcResponse(id JsonRpcID, extras map[string]any, debugInfo string) {
+func makeHttpResponse(sendDirectly bool, code uint32, debugInfo string, headers [][2]string, body []byte) {
+	if sendDirectly {
+		proxywasm.SendHttpResponseWithDetail(code, debugInfo, headers, body, -1)
+		return
+	}
+	if debugInfo != "" {
+		log.Infof("response detail info:%s", debugInfo)
+	}
+	proxywasm.RemoveHttpResponseHeader("content-length")
+	proxywasm.ReplaceHttpResponseHeader(":status", strconv.Itoa(int(code)))
+	for _, kv := range headers {
+		proxywasm.ReplaceHttpResponseHeader(kv[0], kv[1])
+	}
+	proxywasm.ReplaceHttpResponseBody(body)
+}
+
+func sendJsonRpcResponse(sendDirectly bool, id JsonRpcID, extras map[string]any, debugInfo string) {
 	body := []byte(`{"jsonrpc": "2.0"}`)
 	if id.IsString {
 		body, _ = sjson.SetBytes(body, "id", id.StringValue)
@@ -79,41 +96,41 @@ func sendJsonRpcResponse(id JsonRpcID, extras map[string]any, debugInfo string) 
 	for key, value := range extras {
 		body, _ = sjson.SetBytes(body, key, value)
 	}
-	proxywasm.SendHttpResponseWithDetail(200, debugInfo, [][2]string{{"Content-Type", "application/json; charset=utf-8"}}, body, -1)
+	makeHttpResponse(sendDirectly, 200, debugInfo, [][2]string{{"Content-Type", "application/json; charset=utf-8"}}, body)
 }
 
-func OnJsonRpcResponseSuccess(ctx wrapper.HttpContext, result map[string]any, debugInfo ...string) {
+func OnJsonRpcResponseSuccess(sendDirectly bool, ctx wrapper.HttpContext, result map[string]any, debugInfo ...string) {
 	var (
 		id JsonRpcID
 		ok bool
 	)
 	idRaw := ctx.GetContext(CtxJsonRpcID)
 	if id, ok = idRaw.(JsonRpcID); !ok {
-		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
+		makeHttpResponse(sendDirectly, 500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"))
 		return
 	}
 	responseDebugInfo := "json_rpc_success"
 	if len(debugInfo) > 0 {
 		responseDebugInfo = debugInfo[0]
 	}
-	sendJsonRpcResponse(id, map[string]any{JResult: result}, responseDebugInfo)
+	sendJsonRpcResponse(sendDirectly, id, map[string]any{JResult: result}, responseDebugInfo)
 }
 
-func OnJsonRpcResponseError(ctx wrapper.HttpContext, err error, errorCode int, debugInfo ...string) {
+func OnJsonRpcResponseError(sendDirectly bool, ctx wrapper.HttpContext, err error, errorCode int, debugInfo ...string) {
 	var (
 		id JsonRpcID
 		ok bool
 	)
 	idRaw := ctx.GetContext(CtxJsonRpcID)
 	if id, ok = idRaw.(JsonRpcID); !ok {
-		proxywasm.SendHttpResponseWithDetail(500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"), -1)
+		makeHttpResponse(sendDirectly, 500, "not_found_json_rpc_id", nil, []byte("not found json rpc id"))
 		return
 	}
 	responseDebugInfo := fmt.Sprintf("json_rpc_error(%s)", err)
 	if len(debugInfo) > 0 {
 		responseDebugInfo = debugInfo[0]
 	}
-	sendJsonRpcResponse(id, map[string]any{JError: map[string]any{
+	sendJsonRpcResponse(sendDirectly, id, map[string]any{JError: map[string]any{
 		JMessage: err.Error(),
 		JCode:    errorCode,
 	}}, responseDebugInfo)
@@ -130,13 +147,13 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 			log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
 			err := handle(ctx, id, params)
 			if err != nil {
-				OnJsonRpcResponseError(ctx, err, ErrInvalidRequest)
+				OnJsonRpcResponseError(true, ctx, err, ErrInvalidRequest)
 				return types.ActionContinue
 			}
 			// Waiting for the response
 			return types.ActionPause
 		}
-		OnJsonRpcResponseError(ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
+		OnJsonRpcResponseError(true, ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
 	} else {
 		proxywasm.SendHttpResponseWithDetail(202, "json_rpc_ack", nil, nil, -1)
 	}

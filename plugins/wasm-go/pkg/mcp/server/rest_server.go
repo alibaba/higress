@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	_ "time/tzdata"
@@ -436,7 +435,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		}
 		result = templateResult
 		// Send the result
-		utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
+		utils.SendMCPToolTextResult(true, ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		return nil
 	}
 
@@ -649,11 +648,24 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		}
 	}
 
+	// The Authorization header should not be passed through unless a passthrough security policy is explicitly configured
+	proxywasm.RemoveHttpRequestHeader("Authorization")
+	proxywasm.RemoveHttpRequestHeader("Accept")
+	hasAcceptHeader := false
+	for _, kv := range headers {
+		if strings.EqualFold(kv[0], "accept") {
+			hasAcceptHeader = true
+			break
+		}
+	}
+	if !hasAcceptHeader {
+		headers = append(headers, [2]string{"Accept", "*/*"})
+	}
 	// Make HTTP request
 	err = ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
-		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode >= 300 || statusCode < 200 {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("call failed, status: %d, response: %s", statusCode, responseBody))
+				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("call failed, status: %d, response: %s", statusCode, responseBody))
 				return
 			}
 
@@ -664,7 +676,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 			if t.toolConfig.parsedResponseTemplate != nil {
 				templateResult, err := executeTemplate(t.toolConfig.parsedResponseTemplate, responseBody)
 				if err != nil {
-					utils.OnMCPToolCallError(ctx, fmt.Errorf("error executing response template: %v", err))
+					utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("error executing response template: %v", err))
 					return
 				}
 				result = templateResult
@@ -683,10 +695,10 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 			if result == "" {
 				result = "success"
 			}
-			utils.SendMCPToolTextResult(ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
+			utils.SendMCPToolTextResult(sendDirectly, ctx, result, fmt.Sprintf("mcp:tools/call:%s/%s:result", t.serverName, t.name))
 		})
 	if err != nil {
-		utils.OnMCPToolCallError(ctx, errors.New("call api failed, service not found"))
+		utils.OnMCPToolCallError(true, ctx, errors.New("route failed"))
 		log.Errorf("call api failed, err:%v", err)
 	}
 	return nil
