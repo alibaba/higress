@@ -150,8 +150,7 @@ func HandleJsonRpcMethod(ctx wrapper.HttpContext, body []byte, handles MethodHan
 				OnJsonRpcResponseError(true, ctx, err, ErrInvalidRequest)
 				return types.ActionContinue
 			}
-			// Waiting for the response
-			return types.ActionPause
+			return types.ActionContinue
 		}
 		OnJsonRpcResponseError(true, ctx, fmt.Errorf("method not found:%s", method), ErrMethodNotFound)
 	} else {
