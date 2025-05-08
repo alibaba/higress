@@ -2,7 +2,10 @@ module amap-tools
 
 go 1.24.1
 
-require github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250407124215-3431eeb8d374
+require (
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507122328-b62384cff88a
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0
+)
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
@@ -12,8 +15,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/higress-group/gjson_template v0.0.0-20250331062947-760bb2f96985 // indirect
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 // indirect
+	github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

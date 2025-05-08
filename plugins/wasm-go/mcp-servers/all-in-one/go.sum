@@ -6,8 +6,8 @@ github.com/Masterminds/semver/v3 v3.3.0 h1:B8LGeaivUe71a5qox1ICM/JLl0NqZSW5CHyL+
 github.com/Masterminds/semver/v3 v3.3.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Masterminds/sprig/v3 v3.3.0 h1:mQh0Yrg1XPo6vjYXgtf5OtijNAKJRNcTdOOGZe3tPhs=
 github.com/Masterminds/sprig/v3 v3.3.0/go.mod h1:Zy1iXRYNqNLUolqCpL4uhk6SHUMAOSCzdgBfDb35Lz0=
-github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250423015849-23258157a406 h1:pWZsjfarQyUPlzJ9CMy4C5iHl0jb2jntscd1wCGwGB0=
-github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250423015849-23258157a406/go.mod h1:yObZXF1xTx/8peEsSbtHIzz7KlTr/tZCrokIHtwF0Jk=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507130917-ed12a186173a h1:CvTkMBU9+SGIyJEJYFEvg/esoVbLzQP9WVeoZzMHM9E=
+github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507130917-ed12a186173a/go.mod h1:yObZXF1xTx/8peEsSbtHIzz7KlTr/tZCrokIHtwF0Jk=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=

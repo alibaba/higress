@@ -56,11 +56,11 @@ func (t SearchDetailRequest) Call(ctx server.HttpContext, s server.Server) error
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/place/detail?id=%s&key=%s&source=ts_mcp", url.QueryEscape(t.ID), serverConfig.ApiKey)
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(ctx, fmt.Errorf("search detail call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("search detail call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(ctx, string(responseBody))
+			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
 		})
 }
