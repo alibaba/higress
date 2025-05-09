@@ -25,6 +25,13 @@ func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
 	return nil
 }
 
+func decodeImageGenerationRequest(body []byte, request *imageGenerationRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	return nil
+}
+
 func replaceJsonRequestBody(request interface{}) error {
 	body, err := json.Marshal(request)
 	if err != nil {
