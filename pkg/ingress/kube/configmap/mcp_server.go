@@ -56,7 +56,7 @@ type MCPRatelimitConfig struct {
 type SSEServer struct {
 	// The name of the SSE server
 	Name string `json:"name,omitempty"`
-	// The path where the SSE server will be mounted, the full path is (PATH + SsePathSuffix)
+	// The path where the SSE server will be mounted, the full path is (PATH + SSEPathSuffix)
 	Path string `json:"path,omitempty"`
 	// The type of the SSE server
 	Type string `json:"type,omitempty"`
@@ -74,6 +74,12 @@ type MatchRule struct {
 	MatchRulePath string `json:"match_rule_path,omitempty"`
 	// Type of match rule: exact, prefix, suffix, contains, regex
 	MatchRuleType string `json:"match_rule_type,omitempty"`
+	// Type of upstream(s) matched by the rule: rest (default), sse
+	UpstreamType string `json:"upstream_type"`
+	// Enable request path rewrite for matched routes
+	EnablePathRewrite bool `json:"enable_path_rewrite"`
+	// Prefix the request path would be rewritten to.
+	PathRewritePrefix string `json:"path_rewrite_prefix"`
 }
 
 // McpServer defines the configuration for MCP (Model Context Protocol) server
@@ -83,7 +89,7 @@ type McpServer struct {
 	// Redis Config for MCP server
 	Redis *RedisConfig `json:"redis,omitempty"`
 	// The suffix to be appended to SSE paths, default is "/sse"
-	SsePathSuffix string `json:"sse_path_suffix,omitempty"`
+	SSEPathSuffix string `json:"sse_path_suffix,omitempty"`
 	// List of SSE servers Configs
 	Servers []*SSEServer `json:"servers,omitempty"`
 	// List of match rules for filtering requests
@@ -118,20 +124,31 @@ func validMcpServer(m *McpServer) error {
 
 	// Validate match rule types
 	if m.MatchList != nil {
-		validTypes := map[string]bool{
+		validMatchRuleTypes := map[string]bool{
 			"exact":    true,
 			"prefix":   true,
 			"suffix":   true,
 			"contains": true,
 			"regex":    true,
 		}
+		validUpstreamTypes := map[string]bool{
+			"rest":       true,
+			"sse":        true,
+			"streamable": true,
+		}
 
 		for _, rule := range m.MatchList {
 			if rule.MatchRuleType == "" {
 				return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
 			}
-			if !validTypes[rule.MatchRuleType] {
+			if !validMatchRuleTypes[rule.MatchRuleType] {
 				return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
+			}
+			if rule.UpstreamType != "" && !validUpstreamTypes[rule.UpstreamType] {
+				return fmt.Errorf("invalid upstream_type: %s, must be one of: rest, sse, streamable", rule.UpstreamType)
+			}
+			if rule.EnablePathRewrite && rule.UpstreamType != "sse" {
+				return errors.New("path rewrite is only supported for SSE upstream type")
 			}
 		}
 	}
@@ -174,7 +191,7 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 			WhiteList: mcp.Ratelimit.WhiteList,
 		}
 	}
-	newMcp.SsePathSuffix = mcp.SsePathSuffix
+	newMcp.SSEPathSuffix = mcp.SSEPathSuffix
 
 	newMcp.EnableUserLevelServer = mcp.EnableUserLevelServer
 
@@ -201,9 +218,12 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 		newMcp.MatchList = make([]*MatchRule, len(mcp.MatchList))
 		for i, rule := range mcp.MatchList {
 			newMcp.MatchList[i] = &MatchRule{
-				MatchRuleDomain: rule.MatchRuleDomain,
-				MatchRulePath:   rule.MatchRulePath,
-				MatchRuleType:   rule.MatchRuleType,
+				MatchRuleDomain:   rule.MatchRuleDomain,
+				MatchRulePath:     rule.MatchRulePath,
+				MatchRuleType:     rule.MatchRuleType,
+				UpstreamType:      rule.UpstreamType,
+				EnablePathRewrite: rule.EnablePathRewrite,
+				PathRewritePrefix: rule.PathRewritePrefix,
 			}
 		}
 	}
@@ -216,7 +236,7 @@ type McpServerController struct {
 	mcpServer    atomic.Value
 	Name         string
 	eventHandler ItemEventHandler
-	reconclier   *reconcile.Reconciler
+	reconciler   *reconcile.Reconciler
 }
 
 func NewMcpServerController(namespace string) *McpServerController {
@@ -291,7 +311,7 @@ func (m *McpServerController) RegisterItemEventHandler(eventHandler ItemEventHan
 }
 
 func (m *McpServerController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
-	m.reconclier = reconciler
+	m.reconciler = reconciler
 }
 
 func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) {
@@ -393,13 +413,16 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
 				"match_rule_domain": "%s",
 				"match_rule_path": "%s",
-				"match_rule_type": "%s"
-			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType))
+				"match_rule_type": "%s",
+				"upstream_type": "%s",
+				"enable_path_rewrite": %t,
+				"path_rewrite_prefix": "%s"
+			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.EnablePathRewrite, rule.PathRewritePrefix))
 		}
 	}
 
-	if m.reconclier != nil {
-		vsFromMcp := m.reconclier.GetAllConfigs(gvk.VirtualService)
+	if m.reconciler != nil {
+		vsFromMcp := m.reconciler.GetAllConfigs(gvk.VirtualService)
 		for _, c := range vsFromMcp {
 			vs := c.Spec.(*networking.VirtualService)
 			var host string
@@ -468,7 +491,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	}`,
 		redisConfig,
 		rateLimitConfig,
-		mcp.SsePathSuffix,
+		mcp.SSEPathSuffix,
 		matchList,
 		mcp.EnableUserLevelServer)
 }
