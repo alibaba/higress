@@ -55,6 +55,61 @@ func Test_validMcpServer(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "enabled but bad match_rule_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "bad-type",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid match_rule_type: bad-type, must be one of: exact, prefix, suffix, contains, regex"),
+		},
+		{
+			name: "enabled but bad upstream_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "bad-type",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid upstream_type: bad-type, must be one of: rest, sse, streamable"),
+		},
+		{
+			name: "enabled but path rewrite with unsupported upstream type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/mcp",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "rest",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("path rewrite is only supported for SSE upstream type"),
+		},
+		{
 			name: "enabled with user level server but no redis config",
 			mcp: &McpServer{
 				Enable:                true,
@@ -76,7 +131,7 @@ func Test_validMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -238,7 +293,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -265,7 +320,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -581,12 +636,26 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 					Password: "pass",
 					DB:       1,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
 						MatchRulePath:   "/test",
 						MatchRuleType:   "exact",
+					},
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/sse-test-1",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "sse",
+					},
+					{
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/sse-test-2",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "sse",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/mcp",
 					},
 				},
 				EnableUserLevelServer: true,
@@ -623,7 +692,24 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 								"match_list": [{
 									"match_rule_domain": "*",
 									"match_rule_path": "/test",
-									"match_rule_type": "exact"
+									"match_rule_type": "exact",
+									"upstream_type": "",
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-1",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-2",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"enable_path_rewrite": true,
+									"path_rewrite_prefix": "/mcp"
 								}],
 								"enable_user_level_server": true
 							}
