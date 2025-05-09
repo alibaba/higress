@@ -63,12 +63,18 @@ jobs:
           TEMP_DIR=$(mktemp -d)
           git clone --depth 1 --branch $BASE_BRANCH $UPSTREAM_REPO $TEMP_DIR
 
-          if diff -q "$TEMP_DIR/README.md" README.md > /dev/null; then
+          echo "Comparing with upstream $BASE_BRANCH branch..."
+          
+          DIFF=$(diff -u "$TEMP_DIR/README.md" README.md || true)
+          if [ -z "$DIFF" ]; then
             echo "README.md has no changes in comparison to base branch. Skipping translation."
             echo "skip_translation=true" >> $GITHUB_ENV
           else
             echo "README.md has changed in comparison to base branch. Proceeding with translation."
             echo "skip_translation=false" >> $GITHUB_ENV
+            echo "--------- diff ---------"
+            echo "$DIFF"
+            echo "------------------------"
           fi
 
       - name: Translate README.md to Chinese
