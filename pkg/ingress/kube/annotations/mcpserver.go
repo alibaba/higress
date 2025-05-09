@@ -63,8 +63,10 @@ func (a mcpServer) Parse(annotations Annotations, config *Ingress, globalContext
 	matchRuleType, _ := annotations.ParseStringASAP(mcpServerMatchRuleType)
 	if matchRuleType == "" {
 		log.IngressLog.Errorf("ingress %s: mcp-server-match-rule-path-type is empty", ingressKey)
+		return nil
 	} else if !mcpserver.ValidPathMatchTypes[matchRuleType] {
 		log.IngressLog.Errorf("ingress %s: mcp-server-match-rule-path-type %s is not supported", ingressKey, matchRuleType)
+		return nil
 	}
 
 	matchRuleValue, _ := annotations.ParseStringASAP(mcpServerMatchRuleValue)
