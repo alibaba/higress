@@ -6,12 +6,14 @@ on:
       - "*"
     paths:
       - 'helm/**'
+      - '!helm/higress/README.zh.md'
   workflow_dispatch: ~
   push:
     branches:
       - "*"
     paths:
       - 'helm/**'
+      - '!helm/higress/README.zh.md'
 
 jobs:
   helm:
@@ -142,6 +144,7 @@ jobs:
           if __name__ == "__main__":
               main()
           EOF
+          
           python3 translate_readme.py
           rm -rf translate_readme.py
 
