@@ -20,6 +20,7 @@ import (
 const (
 	moonshotDomain             = "api.moonshot.cn"
 	moonshotChatCompletionPath = "/v1/chat/completions"
+	moonshotModelsPath         = "/v1/models"
 )
 
 type moonshotProviderInitializer struct {
@@ -38,6 +39,7 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): moonshotChatCompletionPath,
+		string(ApiNameModels):         moonshotModelsPath,
 	}
 }
 

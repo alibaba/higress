@@ -36,7 +36,10 @@ func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 }
 
 func (g *geminiProviderInitializer) DefaultCapabilities() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		string(ApiNameChatCompletion): "",
+		string(ApiNameEmbeddings):     "",
+	}
 }
 
 func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {

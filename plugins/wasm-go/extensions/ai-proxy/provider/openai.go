@@ -21,6 +21,7 @@ const (
 	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
 	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
 	defaultOpenaiImageGeneration    = "/v1/images/generations"
+	defaultOpenaiModels             = "/v1/models"
 )
 
 type openaiProviderInitializer struct {
@@ -37,6 +38,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameEmbeddings):      defaultOpenaiEmbeddingsPath,
 		string(ApiNameImageGeneration): defaultOpenaiImageGeneration,
 		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
+		string(ApiNameModels):          defaultOpenaiModels,
 	}
 }
 

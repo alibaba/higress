@@ -27,6 +27,7 @@ func main() {
 }
 
 const (
+	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 	// Context consts
 	StatisticsRequestStartTime = "ai-statistics-request-start-time"
 	StatisticsFirstTokenTime   = "ai-statistics-first-token-time"
@@ -175,6 +176,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
 	if consumer, _ := proxywasm.GetHttpRequestHeader(ConsumerKey); consumer != "" {
 		ctx.SetContext(ConsumerKey, consumer)
+	}
+	hasRequestBody := wrapper.HasRequestBody()
+	if hasRequestBody {
+		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
+		ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 	}
 
 	// Set user defined log & span attributes which type is fixed_value
