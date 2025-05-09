@@ -711,7 +711,7 @@ func (w *watcher) getServiceCallback(server *provider.McpServer, configGroup, da
 	}
 }
 
-func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.ServiceEntry, group, dataId, path, server *provider.McpServer) *config.Config {
+func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.ServiceEntry, group, dataId, path string, server *provider.McpServer) *config.Config {
 	if serviceentry == nil {
 		return nil
 	}
