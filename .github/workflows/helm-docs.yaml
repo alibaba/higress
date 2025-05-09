@@ -9,8 +9,7 @@ on:
       - '!helm/higress/README.zh.md'
   workflow_dispatch: ~
   push:
-    branches:
-      - "*"
+    branches: [ main ]
     paths:
       - 'helm/**'
       - '!helm/higress/README.zh.md'
