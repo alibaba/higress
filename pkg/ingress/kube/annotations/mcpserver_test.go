@@ -227,11 +227,11 @@ func TestMCPServer_Parse(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		t.Run("", func(t *testing.T) {
-			if tt.skip {
-				return
-			}
+		if tt.skip {
+			return
+		}
 
+		t.Run("", func(t *testing.T) {
 			config := &Ingress{Meta: Meta{
 				Namespace: "default",
 				Name:      "route",

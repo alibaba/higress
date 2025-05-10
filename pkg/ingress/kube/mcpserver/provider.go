@@ -49,13 +49,13 @@ func (c *McpServerCache) SetMcpServers(mcpServers []*McpServer) bool {
 	sortedMcpServers = append(sortedMcpServers, mcpServers...)
 	// Sort the mcp servers by PathMatchValue in descending order
 	slices.SortFunc(sortedMcpServers, func(a, b *McpServer) int {
-		return -strings.Compare(a.PathMatchValue, b.PathMatchValue)
+		return strings.Compare(a.Name, b.Name)
 	})
 
-	if len(c.mcpServers) == len(mcpServers) {
+	if len(c.mcpServers) == len(sortedMcpServers) {
 		changed := false
 		for i := range c.mcpServers {
-			if !reflect.DeepEqual(c.mcpServers[i], mcpServers[i]) {
+			if !reflect.DeepEqual(c.mcpServers[i], sortedMcpServers[i]) {
 				changed = true
 				break
 			}
