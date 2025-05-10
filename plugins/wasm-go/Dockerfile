@@ -1,5 +1,5 @@
 ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.20.14-tinygo0.29.0-oras1.0.0
-FROM $BUILDER as builder
+FROM $BUILDER AS builder
 
 
 ARG GOPROXY
@@ -26,6 +26,6 @@ RUN \
     tinygo build -o /main.wasm -scheduler=none -gc=custom -tags="custommalloc nottinygc_finalizer $EXTRA_TAGS" -target=wasi ./ ; \
   fi
 
-FROM scratch as output
+FROM scratch AS output
 
 COPY --from=builder /main.wasm plugin.wasm

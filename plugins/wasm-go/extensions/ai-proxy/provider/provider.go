@@ -534,6 +534,11 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 			return err
 		}
 		return c.setRequestModel(ctx, req)
+	case *imageGenerationRequest:
+		if err := decodeImageGenerationRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req)
 	default:
 		return errors.New("unsupported request type")
 	}
@@ -546,6 +551,8 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 	case *chatCompletionRequest:
 		model = &req.Model
 	case *embeddingsRequest:
+		model = &req.Model
+	case *imageGenerationRequest:
 		model = &req.Model
 	default:
 		return errors.New("unsupported request type")

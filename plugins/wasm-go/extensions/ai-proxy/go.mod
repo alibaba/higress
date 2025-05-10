@@ -11,11 +11,11 @@ require (
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.3
+	github.com/wasilibs/go-re2 v1.6.0
 )
 
 require (
 	github.com/tetratelabs/wazero v1.7.2 // indirect
-	github.com/wasilibs/go-re2 v1.6.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 )
 
