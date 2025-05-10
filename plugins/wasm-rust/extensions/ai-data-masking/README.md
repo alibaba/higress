@@ -47,6 +47,7 @@ description: AI 数据脱敏插件配置参考
 |  replace_roles.type     | [replace, hash] |   -   |  替换类型  |
 |  replace_roles.restore  | bool            | false |  是否恢复  |
 |  replace_roles.value    | string          |   -   |  替换值（支持正则变量）  |
+|  skip_response          | bool            | false |  跳过响应阶段的处理  |
 
 ## 配置示例
 
