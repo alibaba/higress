@@ -650,10 +650,10 @@ func (b *bedrockProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, 
 
 func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageGenerationRequest, headers http.Header) ([]byte, error) {
 	width, height := 1024, 1024
-	paris := strings.Split(origRequest.Size, "x")
-	if len(paris) == 2 {
-		width, _ = strconv.Atoi(paris[0])
-		height, _ = strconv.Atoi(paris[1])
+	pairs := strings.Split(origRequest.Size, "x")
+	if len(pairs) == 2 {
+		width, _ = strconv.Atoi(pairs[0])
+		height, _ = strconv.Atoi(pairs[1])
 	}
 
 	request := &bedrockImageGenerationRequest{
