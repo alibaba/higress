@@ -356,10 +356,39 @@ func (e *StreamEvent) ToHttpString() string {
 
 // https://platform.openai.com/docs/guides/images
 type imageGenerationRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	N      int    `json:"n,omitempty"`
-	Size   string `json:"size,omitempty"`
+	Model             string `json:"model"`
+	Prompt            string `json:"prompt"`
+	Background        string `json:"background,omitempty"`
+	Moderation        string `json:"moderation,omitempty"`
+	OutputCompression int    `json:"output_compression,omitempty"`
+	OutputFormat      string `json:"output_format,omitempty"`
+	Quality           string `json:"quality,omitempty"`
+	ResponseFormat    string `json:"response_format,omitempty"`
+	Style             string `json:"style,omitempty"`
+	N                 int    `json:"n,omitempty"`
+	Size              string `json:"size,omitempty"`
+}
+
+type imageGenerationData struct {
+	URL           string `json:"url,omitempty"`
+	B64           string `json:"b64_json,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+type imageGenerationUsage struct {
+	TotalTokens        int `json:"total_tokens"`
+	InputTokens        int `json:"input_tokens"`
+	OutputTokens       int `json:"output_tokens"`
+	InputTokensDetails struct {
+		TextTokens  int `json:"text_tokens"`
+		ImageTokens int `json:"image_tokens"`
+	} `json:"input_tokens_details"`
+}
+
+type imageGenerationResponse struct {
+	Created int64                 `json:"created"`
+	Data    []imageGenerationData `json:"data"`
+	Usage   *imageGenerationUsage `json:"usage,omitempty"`
 }
 
 // https://platform.openai.com/docs/guides/speech-to-text
