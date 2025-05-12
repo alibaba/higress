@@ -689,7 +689,9 @@ func (w *watcher) getServiceCallback(server *provider.McpServer, configGroup, da
 	}
 	namespace := server.RemoteServerConfig.ServiceRef.NamespaceId
 	serviceName := server.RemoteServerConfig.ServiceRef.ServiceName
-	path := server.RemoteServerConfig.ExportPath
+	// Higress doesn't care about the MCP export path configured in nacos.
+	// Any path of the mcp server are supported in request routing.
+	path := "/"
 	protocol := server.Protocol
 	host := getNacosServiceFullHost(groupName, namespace, serviceName)
 
@@ -794,7 +796,7 @@ func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.Service
 
 	if routeRewriteProtocols[server.Protocol] {
 		vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
-			Uri: normalizeRewritePathPrefix(path),
+			Uri: "/",
 		}
 	}
 
@@ -827,7 +829,6 @@ func (w *watcher) buildMcpServerForMcpServer(vs *v1alpha3.VirtualService, group,
 			break
 		}
 	}
-	pathRewritePrefix := normalizeRewritePathPrefix(server.RemoteServerConfig.ExportPath)
 	protocol := server.Protocol
 
 	mcpServer := &mcpserver.McpServer{
@@ -839,7 +840,7 @@ func (w *watcher) buildMcpServerForMcpServer(vs *v1alpha3.VirtualService, group,
 	}
 	if mcpServerRewriteProtocols[protocol] {
 		mcpServer.EnablePathRewrite = true
-		mcpServer.PathRewritePrefix = pathRewritePrefix
+		mcpServer.PathRewritePrefix = "/"
 	}
 
 	mcpServerLog.Debugf("construct mcpserver %v", mcpServer)
