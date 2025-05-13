@@ -74,6 +74,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	if serverName == "" {
 		return errors.New("server.name field is missing")
 	}
+	serverConfigJson := serverJson.Get("config").Raw
 
 	// Parse allowTools
 	allowToolsArray := configJson.Get("allowTools").Array()
@@ -87,7 +88,19 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 	if toolsJson.Exists() && len(toolsJson.Array()) > 0 {
 		// Create REST-to-MCP server
 		restServer := NewRestMCPServer(serverName)
-		restServer.SetConfig([]byte(serverJson.Get("config").Raw))
+		restServer.SetConfig([]byte(serverConfigJson))
+
+		// Parse security schemes
+		securitySchemesJson := serverJson.Get("securitySchemes")
+		if securitySchemesJson.Exists() {
+			for _, schemeJson := range securitySchemesJson.Array() {
+				var scheme SecurityScheme
+				if err := json.Unmarshal([]byte(schemeJson.Raw), &scheme); err != nil {
+					return fmt.Errorf("failed to parse security scheme config: %v", err)
+				}
+				restServer.AddSecurityScheme(scheme)
+			}
+		}
 
 		// Parse and add tools
 		for _, toolJson := range toolsJson.Array() {
@@ -105,7 +118,7 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		// Original logic for registered servers
 		if server, exist := globalContext.servers[serverName]; exist {
 			config.server = server.Clone()
-			config.server.SetConfig([]byte(serverJson.Get("config").Raw))
+			config.server.SetConfig([]byte(serverConfigJson))
 		} else {
 			return fmt.Errorf("mcp server not found:%s", serverName)
 		}

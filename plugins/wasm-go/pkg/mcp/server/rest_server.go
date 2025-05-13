@@ -15,6 +15,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,15 +55,23 @@ type RestToolHeader struct {
 	Value string `json:"value"`
 }
 
+// SecurityRequirement specifies a security scheme requirement for a tool
+type SecurityRequirement struct {
+	ID          string `json:"id"`                    // References a security scheme ID
+	Credential  string `json:"credential,omitempty"`  // Overrides default credential
+	Passthrough bool   `json:"passthrough,omitempty"` // If true, credentials from client request will be passed through
+}
+
 // RestToolRequestTemplate defines how to construct the HTTP request
 type RestToolRequestTemplate struct {
-	URL            string           `json:"url"`
-	Method         string           `json:"method"`
-	Headers        []RestToolHeader `json:"headers"`
-	Body           string           `json:"body"`
-	ArgsToJsonBody bool             `json:"argsToJsonBody,omitempty"` // Use args as JSON body
-	ArgsToUrlParam bool             `json:"argsToUrlParam,omitempty"` // Add args to URL parameters
-	ArgsToFormBody bool             `json:"argsToFormBody,omitempty"` // Use args as form-urlencoded body
+	URL            string              `json:"url"`
+	Method         string              `json:"method"`
+	Headers        []RestToolHeader    `json:"headers"`
+	Body           string              `json:"body"`
+	ArgsToJsonBody bool                `json:"argsToJsonBody,omitempty"` // Use args as JSON body
+	ArgsToUrlParam bool                `json:"argsToUrlParam,omitempty"` // Add args to URL parameters
+	ArgsToFormBody bool                `json:"argsToFormBody,omitempty"` // Use args as form-urlencoded body
+	Security       SecurityRequirement `json:"security,omitempty"`
 }
 
 // RestToolResponseTemplate defines how to transform the HTTP response
@@ -76,6 +85,7 @@ type RestToolResponseTemplate struct {
 type RestTool struct {
 	Name             string                   `json:"name"`
 	Description      string                   `json:"description"`
+	Security         SecurityRequirement      `json:"security,omitempty"` // Tool-level security for MCP Client to MCP Server
 	Args             []RestToolArg            `json:"args"`
 	RequestTemplate  RestToolRequestTemplate  `json:"requestTemplate,omitempty"`
 	ResponseTemplate RestToolResponseTemplate `json:"responseTemplate"`
@@ -225,20 +235,46 @@ func executeTemplate(tmpl *template.Template, data []byte) (string, error) {
 	return buf.String(), nil
 }
 
+// SecurityScheme defines a security scheme for the REST API
+type SecurityScheme struct {
+	ID                string `json:"id"`
+	Type              string `json:"type"`             // http, apiKey
+	Scheme            string `json:"scheme,omitempty"` // basic, bearer (for type: http)
+	In                string `json:"in,omitempty"`     // header, query (for type: apiKey)
+	Name              string `json:"name,omitempty"`   // Header or query parameter name (for type: apiKey)
+	DefaultCredential string `json:"defaultCredential,omitempty"`
+}
+
 // RestMCPServer implements Server interface for REST-to-MCP conversion
 type RestMCPServer struct {
-	name        string
-	base        BaseMCPServer
-	toolsConfig map[string]RestTool // Store original tool configs for template rendering
+	name            string
+	base            BaseMCPServer
+	toolsConfig     map[string]RestTool // Store original tool configs for template rendering
+	securitySchemes map[string]SecurityScheme
 }
 
 // NewRestMCPServer creates a new REST-to-MCP server
 func NewRestMCPServer(name string) *RestMCPServer {
 	return &RestMCPServer{
-		name:        name,
-		base:        NewBaseMCPServer(),
-		toolsConfig: make(map[string]RestTool),
+		name:            name,
+		base:            NewBaseMCPServer(),
+		toolsConfig:     make(map[string]RestTool),
+		securitySchemes: make(map[string]SecurityScheme), // Initialize the map
 	}
+}
+
+// AddSecurityScheme adds a security scheme to the server's map
+func (s *RestMCPServer) AddSecurityScheme(scheme SecurityScheme) {
+	if s.securitySchemes == nil {
+		s.securitySchemes = make(map[string]SecurityScheme)
+	}
+	s.securitySchemes[scheme.ID] = scheme
+}
+
+// GetSecurityScheme retrieves a security scheme by its ID from the map
+func (s *RestMCPServer) GetSecurityScheme(id string) (SecurityScheme, bool) {
+	scheme, ok := s.securitySchemes[id]
+	return scheme, ok
 }
 
 // AddMCPTool implements Server interface
@@ -282,11 +318,19 @@ func (s *RestMCPServer) GetConfig(v any) {
 // Clone implements Server interface
 func (s *RestMCPServer) Clone() Server {
 	newServer := &RestMCPServer{
-		base:        s.base.CloneBase(),
-		toolsConfig: make(map[string]RestTool),
+		name:            s.name,
+		base:            s.base.CloneBase(),
+		toolsConfig:     make(map[string]RestTool),
+		securitySchemes: make(map[string]SecurityScheme), // Initialize the map
 	}
 	for k, v := range s.toolsConfig {
 		newServer.toolsConfig[k] = v
+	}
+	// Deep copy securitySchemes
+	if s.securitySchemes != nil {
+		for k, v := range s.securitySchemes {
+			newServer.securitySchemes[k] = v
+		}
 	}
 	return newServer
 }
@@ -411,6 +455,175 @@ func hasContentType(headers [][2]string, contentTypeSubstr string) bool {
 	return false
 }
 
+// extractAndRemoveIncomingCredential extracts a credential from the current incoming HTTP request
+// and removes it. It uses global proxywasm functions to access request details.
+// For query parameters, "removal" is conceptual as we build a new request;
+// this function primarily extracts the value for potential passthrough.
+func extractAndRemoveIncomingCredential(scheme SecurityScheme) (string, error) {
+	credentialValue := ""
+	var err error
+
+	switch scheme.Type {
+	case "http":
+		authHeader, _ := proxywasm.GetHttpRequestHeader("Authorization") // Error ignored, check content
+		if authHeader == "" {
+			// If no header, it's not an error for extraction if not required, but indicates not found.
+			// For removal, there's nothing to remove.
+			return "", nil // Or a specific "not found" error if scheme implies it must be there.
+		}
+
+		if scheme.Scheme == "bearer" {
+			if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+				return "", fmt.Errorf("incoming Authorization header is not Bearer auth: %s", authHeader)
+			}
+			credentialValue = strings.TrimSpace(authHeader[len("Bearer "):])
+		} else if scheme.Scheme == "basic" {
+			if !strings.HasPrefix(strings.ToLower(authHeader), "basic ") {
+				return "", fmt.Errorf("incoming Authorization header is not Basic auth: %s", authHeader)
+			}
+			credentialValue = strings.TrimSpace(authHeader[len("Basic "):])
+		} else {
+			return "", fmt.Errorf("unsupported http scheme for credential extraction/removal: %s", scheme.Scheme)
+		}
+		proxywasm.RemoveHttpRequestHeader("Authorization")
+		log.Debugf("Extracted and removed Authorization header for incoming %s scheme.", scheme.Scheme)
+
+	case "apiKey":
+		if scheme.In == "header" {
+			if scheme.Name == "" {
+				return "", errors.New("apiKey in header requires a name for the header")
+			}
+			headerValue, _ := proxywasm.GetHttpRequestHeader(scheme.Name) // Error ignored, check content
+			if headerValue == "" {
+				return "", nil // Not found, not necessarily an error for extraction.
+			}
+			credentialValue = headerValue
+			proxywasm.RemoveHttpRequestHeader(scheme.Name)
+			log.Debugf("Extracted and removed %s header for incoming apiKey auth.", scheme.Name)
+		} else if scheme.In == "query" {
+			if scheme.Name == "" {
+				return "", errors.New("apiKey in query requires a name for the query parameter")
+			}
+			pathHeader, _ := proxywasm.GetHttpRequestHeader(":path") // Error ignored, check content
+			if pathHeader == "" {
+				// This case might be an error as :path should generally exist.
+				return "", fmt.Errorf("no :path header found in incoming request for apiKey in query")
+			}
+
+			requestURL, parseErr := url.Parse(pathHeader)
+			if parseErr != nil {
+				return "", fmt.Errorf("failed to parse incoming :path header '%s': %v", pathHeader, parseErr)
+			}
+
+			queryValues := requestURL.Query()
+			apiKeyValue := queryValues.Get(scheme.Name)
+			if apiKeyValue == "" {
+				return "", nil // Not found
+			}
+			credentialValue = apiKeyValue
+			log.Debugf("Extracted %s query parameter from incoming request. Removal from original :path is implicit.", scheme.Name)
+		} else {
+			return "", fmt.Errorf("unsupported apiKey 'in' value: %s", scheme.In)
+		}
+	default:
+		return "", fmt.Errorf("unsupported security scheme type for credential extraction/removal: %s", scheme.Type)
+	}
+
+	return credentialValue, err
+}
+
+// AuthRequestContext holds the data needed for applying security schemes.
+type AuthRequestContext struct {
+	Method                string
+	Headers               [][2]string // Direct slice, modifications within applySecurity will update this field in the struct instance
+	ParsedURL             *url.URL    // Pointer to allow modification (e.g., RawQuery)
+	RequestBody           []byte      // For future security types that might inspect the body
+	PassthroughCredential string      // Credential extracted from client request for passthrough
+}
+
+// applySecurity applies the configured security scheme to the request.
+// It modifies reqCtx.Headers and reqCtx.ParsedURL (specifically RawQuery) in place if necessary.
+func (t *RestMCPTool) applySecurity(serverObj Server, reqCtx *AuthRequestContext) error {
+	if t.toolConfig.RequestTemplate.Security.ID == "" {
+		return nil // No security scheme defined for this tool
+	}
+	if reqCtx.ParsedURL == nil {
+		return errors.New("ParsedURL in AuthRequestContext cannot be nil for applySecurity")
+	}
+
+	restServer, ok := serverObj.(*RestMCPServer)
+	if !ok {
+		return errors.New("server is not a RestMCPServer")
+	}
+	upstreamScheme, schemeOk := restServer.GetSecurityScheme(t.toolConfig.RequestTemplate.Security.ID)
+	if !schemeOk {
+		return fmt.Errorf("upstream security scheme with id '%s' not found", t.toolConfig.RequestTemplate.Security.ID)
+	}
+
+	var credentialToUse string
+	if reqCtx.PassthroughCredential != "" {
+		// Use the passthrough credential value.
+		// The upstreamScheme dictates how this value is formatted and applied.
+		credentialToUse = reqCtx.PassthroughCredential
+		log.Debugf("Using passthrough credential for upstream request with scheme %s.", upstreamScheme.ID)
+	} else {
+		// Use configured credential for the upstream request.
+		credentialToUse = upstreamScheme.DefaultCredential
+		if t.toolConfig.RequestTemplate.Security.Credential != "" {
+			credentialToUse = t.toolConfig.RequestTemplate.Security.Credential
+		}
+		if credentialToUse == "" {
+			return fmt.Errorf("no credential found or configured for upstream security scheme '%s'", upstreamScheme.ID)
+		}
+		log.Debugf("Using configured credential for upstream request with scheme %s.", upstreamScheme.ID)
+	}
+
+	switch upstreamScheme.Type {
+	case "http":
+		authValue := credentialToUse
+		if upstreamScheme.Scheme == "basic" {
+			if !strings.HasPrefix(authValue, "Basic ") {
+				if reqCtx.PassthroughCredential != "" { // Came from passthrough, it's the base64 token part
+					authValue = "Basic " + credentialToUse
+				} else { // Came from config
+					if strings.Contains(credentialToUse, ":") { // Assumed to be "user:pass"
+						authValue = "Basic " + base64.StdEncoding.EncodeToString([]byte(credentialToUse))
+					} else { // Assumed to be already base64 encoded string (token part)
+						authValue = "Basic " + credentialToUse
+					}
+				}
+			}
+		} else if upstreamScheme.Scheme == "bearer" {
+			// Passthrough for Bearer gives the token part. Configured credential is the token.
+			if !strings.HasPrefix(authValue, "Bearer ") {
+				authValue = "Bearer " + credentialToUse
+			}
+		} else {
+			return fmt.Errorf("unsupported http scheme type for upstream: %s", upstreamScheme.Scheme)
+		}
+		reqCtx.Headers = append(reqCtx.Headers, [2]string{"Authorization", authValue})
+	case "apiKey":
+		if upstreamScheme.In == "header" {
+			if upstreamScheme.Name == "" {
+				return errors.New("apiKey in header requires a name for the header for upstream")
+			}
+			reqCtx.Headers = append(reqCtx.Headers, [2]string{upstreamScheme.Name, credentialToUse})
+		} else if upstreamScheme.In == "query" {
+			if upstreamScheme.Name == "" {
+				return errors.New("apiKey in query requires a name for the query parameter for upstream")
+			}
+			queryValues := reqCtx.ParsedURL.Query()
+			queryValues.Set(upstreamScheme.Name, credentialToUse)
+			reqCtx.ParsedURL.RawQuery = queryValues.Encode()
+		} else {
+			return fmt.Errorf("unsupported apiKey 'in' value for upstream: %s", upstreamScheme.In)
+		}
+	default:
+		return fmt.Errorf("unsupported security scheme type: %s", upstreamScheme.Type)
+	}
+	return nil
+}
+
 // Call implements Tool interface
 func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	ctx := httpCtx.(wrapper.HttpContext)
@@ -418,6 +631,33 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	// Get server config
 	var config map[string]interface{}
 	server.GetConfig(&config)
+
+	// Handle tool-level security: extract credential for passthrough and remove original
+	passthroughCredential := ""
+	if t.toolConfig.Security.ID != "" {
+		restServer, ok := server.(*RestMCPServer)
+		if !ok {
+			log.Warnf("Server is not a RestMCPServer, cannot process tool-level security for tool %s.", t.name)
+		} else {
+			clientScheme, schemeOk := restServer.GetSecurityScheme(t.toolConfig.Security.ID)
+			if !schemeOk {
+				log.Warnf("Tool-level security scheme ID '%s' not found for tool %s.", t.toolConfig.Security.ID, t.name)
+			} else {
+				// Extract and remove the credential from the incoming request
+				extractedCred, err := extractAndRemoveIncomingCredential(clientScheme)
+				if err != nil {
+					log.Warnf("Failed to extract/remove incoming credential for tool %s using scheme %s: %v", t.name, clientScheme.ID, err)
+				} else if extractedCred == "" {
+					log.Debugf("No incoming credential found for tool %s using scheme %s for extraction/removal.", t.name, clientScheme.ID)
+				}
+
+				if t.toolConfig.Security.Passthrough && extractedCred != "" {
+					passthroughCredential = extractedCred
+					log.Debugf("Passthrough credential set for tool %s.", t.name)
+				}
+			}
+		}
+	}
 
 	var templateDataBytes []byte
 	templateDataBytes, _ = sjson.SetBytes(templateDataBytes, "config", config)
@@ -446,24 +686,29 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		return fmt.Errorf("error executing URL template: %v", err)
 	}
 
-	// Execute headers
+	// Execute header templates from tool config
 	headers := make([][2]string, 0, len(t.toolConfig.RequestTemplate.Headers))
 	for _, header := range t.toolConfig.RequestTemplate.Headers {
 		tmpl, ok := t.toolConfig.parsedHeaderTemplates[header.Key]
 		if !ok {
 			return fmt.Errorf("header template not found for %s", header.Key)
 		}
-
 		value, err := executeTemplate(tmpl, templateDataBytes)
 		if err != nil {
-			return fmt.Errorf("error executing header template: %v", err)
+			return fmt.Errorf("error executing header template for %s: %v", header.Key, err)
 		}
 		headers = append(headers, [2]string{header.Key, value})
 	}
 
-	// Check for existing content types
-	hasJsonContentType := hasContentType(headers, "application/json")
-	hasFormContentType := hasContentType(headers, "application/x-www-form-urlencoded")
+	// Authorization or specific API key headers are handled by extractAndRemoveIncomingCredential if tool-level security is defined.
+	// If no tool-level security is defined, this generic RemoveHttpRequestHeader("Authorization") acts as a fallback.
+	if t.toolConfig.Security.ID == "" {
+		proxywasm.RemoveHttpRequestHeader("Authorization") // Remove if not handled by specific scheme
+	}
+	// General cleanup of Accept header from original client request.
+	proxywasm.RemoveHttpRequestHeader("Accept")
+
+	// After applySecurity, urlStr, headers, and parsedURL might have been modified.
 
 	// Categorize arguments by position
 	pathArgs := make(map[string]interface{})
@@ -501,26 +746,27 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	// Process path parameters
 	for name, value := range pathArgs {
 		placeholder := fmt.Sprintf("{%s}", name)
+		// Path parameters are substituted directly into urlStr
 		urlStr = strings.Replace(urlStr, placeholder, convertArgToString(value), -1)
 	}
 
-	// Parse the URL to add query parameters
+	// After path parameters are substituted, parse urlStr to create/update parsedURL.
+	// This is the primary point where parsedURL is established before query manipulations.
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("error parsing URL: %v", err)
+		return fmt.Errorf("error parsing URL after path param substitution: %v", err)
 	}
 
 	// Get existing query values
 	query := parsedURL.Query()
 
-	// Add query parameters
+	// Add query parameters from args
 	for name, value := range queryArgs {
 		query.Set(name, convertArgToString(value))
 	}
 
-	// Process URL parameters if argsToUrlParam is true
+	// Process URL parameters if argsToUrlParam is true (add defaultArgs to query)
 	if t.toolConfig.RequestTemplate.ArgsToUrlParam {
-		// Add default arguments to query parameters
 		for name, value := range defaultArgs {
 			query.Set(name, convertArgToString(value))
 		}
@@ -528,18 +774,15 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 
 	// Update the URL with the new query string
 	parsedURL.RawQuery = query.Encode()
-	urlStr = parsedURL.String()
 
-	// Add header parameters
+	// Add header parameters from args
 	for name, value := range headerArgs {
 		headers = append(headers, [2]string{name, convertArgToString(value)})
 	}
 
-	// Add cookie parameters
+	// Add cookie parameters from args
 	for name, value := range cookieArgs {
 		cookie := fmt.Sprintf("%s=%s", name, convertArgToString(value))
-
-		// Check if Cookie header already exists
 		cookieHeaderFound := false
 		for i, header := range headers {
 			if strings.EqualFold(header[0], "Cookie") {
@@ -548,12 +791,14 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 				break
 			}
 		}
-
-		// If no Cookie header exists, add one
 		if !cookieHeaderFound {
 			headers = append(headers, [2]string{"Cookie", cookie})
 		}
 	}
+
+	// Check for existing content types from tool config headers
+	hasJsonContentType := hasContentType(headers, "application/json")
+	hasFormContentType := hasContentType(headers, "application/x-www-form-urlencoded")
 
 	// Prepare request body
 	var requestBody []byte
@@ -581,13 +826,9 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	} else if t.toolConfig.RequestTemplate.ArgsToJsonBody {
 		// Combine body args and default args for JSON body
 		combinedArgs := make(map[string]interface{})
-
-		// Only use body args if not using explicit body template
 		for k, v := range bodyArgs {
 			combinedArgs[k] = v
 		}
-
-		// Add default args
 		for k, v := range defaultArgs {
 			combinedArgs[k] = v
 		}
@@ -606,13 +847,9 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	} else if t.toolConfig.RequestTemplate.ArgsToFormBody {
 		// Use args as form-urlencoded body
 		formValues := url.Values{}
-
-		// Only use body args if not using explicit body template
 		for name, value := range bodyArgs {
 			formValues.Set(name, convertArgToString(value))
 		}
-
-		// Add default args
 		for name, value := range defaultArgs {
 			formValues.Set(name, convertArgToString(value))
 		}
@@ -648,9 +885,7 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		}
 	}
 
-	// The Authorization header should not be passed through unless a passthrough security policy is explicitly configured
-	proxywasm.RemoveHttpRequestHeader("Authorization")
-	proxywasm.RemoveHttpRequestHeader("Accept")
+	// Ensure Accept header if not already set by tool config or args
 	hasAcceptHeader := false
 	for _, kv := range headers {
 		if strings.EqualFold(kv[0], "accept") {
@@ -661,8 +896,26 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 	if !hasAcceptHeader {
 		headers = append(headers, [2]string{"Accept", "*/*"})
 	}
-	// Make HTTP request
-	err = ctx.RouteCall(t.toolConfig.RequestTemplate.Method, urlStr, headers, requestBody,
+
+	// Apply security scheme just before making the call, after all other modifications
+	authReqCtx := AuthRequestContext{
+		Method:                t.toolConfig.RequestTemplate.Method,
+		Headers:               headers, // Pass the current headers slice
+		ParsedURL:             parsedURL,
+		RequestBody:           requestBody,
+		PassthroughCredential: passthroughCredential,
+	}
+	if err := t.applySecurity(server, &authReqCtx); err != nil {
+		// Log the error and continue, rather than failing the entire call.
+		// The request will proceed without the intended security modifications if applySecurity failed.
+		log.Errorf("Failed to apply security scheme for tool %s: %v. Request will proceed with potentially incomplete authentication.", t.name, err)
+	}
+	// After applySecurity, authReqCtx.Headers and authReqCtx.ParsedURL (RawQuery) might have been modified.
+	// Update urlStr from the potentially modified ParsedURL.
+	urlStr = authReqCtx.ParsedURL.String()
+
+	// Make HTTP request using potentially modified headers from authReqCtx
+	err = ctx.RouteCall(authReqCtx.Method, urlStr, authReqCtx.Headers, authReqCtx.RequestBody,
 		func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode >= 300 || statusCode < 200 {
 				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("call failed, status: %d, response: %s", statusCode, responseBody))
