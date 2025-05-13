@@ -748,9 +748,6 @@ func (w *watcher) buildVirtualServiceForMcpServer(serviceentry *v1alpha3.Service
 					},
 				},
 			}},
-			Rewrite: &v1alpha3.HTTPRewrite{
-				Uri: path,
-			},
 			Route: []*v1alpha3.HTTPRouteDestination{{
 				Destination: &v1alpha3.Destination{
 					Host: serviceentry.Hosts[0],
