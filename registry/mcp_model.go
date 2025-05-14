@@ -68,7 +68,7 @@ type ToolArgs struct {
 	Required    bool          `json:"required,omitempty"`
 	Default     interface{}   `json:"default,omitempty"`
 	Enum        []interface{} `json:"enum,omitempty"`
-	Items       []interface{} `json:"items,omitempty"`
+	Items       interface{}   `json:"items,omitempty"`
 	Properties  interface{}   `json:"properties,omitempty"`
 	Position    string        `json:"position,omitempty"`
 }
