@@ -104,6 +104,7 @@ func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.C
 			Priority:        &wrapperspb.Int32Value{Value: 30},
 			PluginConfig:    pbs,
 			Url:             higressconfig.McpServerWasmImageUrl,
+			FailStrategy:    extensions.FailStrategy_FAIL_OPEN,
 		}
 
 		return map[string]*config.Config{"wasm": &config.Config{
