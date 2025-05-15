@@ -544,19 +544,7 @@ type CommonHttpCtx[PluginConfig any] struct {
 	contextID             uint32
 	userContext           map[string]interface{}
 	userAttribute         map[string]interface{}
-	pendingCall           int
 	responseCallback      RouteResponseCallback
-}
-
-func (ctx *CommonHttpCtx[PluginConfig]) HttpCallStart(uint32) {
-	ctx.pendingCall++
-}
-
-func (ctx *CommonHttpCtx[PluginConfig]) HttpCallEnd(uint32) {
-	if ctx.pendingCall == 0 {
-		return
-	}
-	ctx.pendingCall--
 }
 
 func (ctx *CommonHttpCtx[PluginConfig]) SetContext(key string, value interface{}) {

@@ -24,19 +24,9 @@ import (
 type Cluster interface {
 	ClusterName() string
 	HostName() string
-	HttpCallNotify() HttpCallNotify
-}
-
-type BaseCluster struct {
-	notify HttpCallNotify
-}
-
-func (base BaseCluster) HttpCallNotify() HttpCallNotify {
-	return base.notify
 }
 
 type RouteCluster struct {
-	BaseCluster
 	Host string
 }
 
@@ -56,7 +46,6 @@ func (c RouteCluster) HostName() string {
 }
 
 type TargetCluster struct {
-	BaseCluster
 	Host    string
 	Cluster string
 }
@@ -70,7 +59,6 @@ func (c TargetCluster) HostName() string {
 }
 
 type K8sCluster struct {
-	BaseCluster
 	ServiceName string
 	Namespace   string
 	Port        int64
@@ -95,7 +83,6 @@ func (c K8sCluster) HostName() string {
 }
 
 type NacosCluster struct {
-	BaseCluster
 	ServiceName string
 	// use DEFAULT-GROUP by default
 	Group       string
@@ -128,7 +115,6 @@ func (c NacosCluster) HostName() string {
 }
 
 type StaticIpCluster struct {
-	BaseCluster
 	ServiceName string
 	Port        int64
 	Host        string
@@ -146,7 +132,6 @@ func (c StaticIpCluster) HostName() string {
 }
 
 type DnsCluster struct {
-	BaseCluster
 	ServiceName string
 	Domain      string
 	Port        int64
@@ -161,7 +146,6 @@ func (c DnsCluster) HostName() string {
 }
 
 type ConsulCluster struct {
-	BaseCluster
 	ServiceName string
 	Datacenter  string
 	Port        int64
@@ -182,7 +166,6 @@ func (c ConsulCluster) HostName() string {
 }
 
 type FQDNCluster struct {
-	BaseCluster
 	FQDN string
 	Host string
 	Port int64
