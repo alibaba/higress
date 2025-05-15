@@ -101,7 +101,7 @@ func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.C
 		wasmPlugin := &extensions.WasmPlugin{
 			ImagePullPolicy: extensions.PullPolicy_Always,
 			Phase:           extensions.PluginPhase_UNSPECIFIED_PHASE,
-			Priority:        &wrapperspb.Int32Value{Value: 30},
+			Priority:        &wrapperspb.Int32Value{Value: 999},
 			PluginConfig:    pbs,
 			Url:             higressconfig.McpServerWasmImageUrl,
 			FailStrategy:    extensions.FailStrategy_FAIL_OPEN,
