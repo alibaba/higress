@@ -132,6 +132,10 @@ func parseConfig(configJson gjson.Result, config *mcpServerConfig) error {
 		proxywasm.SendHttpResponseWithDetail(202, "mcp:notifications/initialized", nil, nil, -1)
 		return nil
 	}
+	config.methodHandlers["notifications/cancelled"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
+		proxywasm.SendHttpResponseWithDetail(202, "mcp:notifications/cancelled", nil, nil, -1)
+		return nil
+	}
 	config.methodHandlers["initialize"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		version := params.Get("protocolVersion").String()
 		if version == "" {
