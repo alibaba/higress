@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-ext-auth
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "ext-auth-test.example.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ext-auth-server
+  namespace: higress-conformance-infra
+  labels:
+    app: ext-auth-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ext-auth-server
+  template:
+    metadata:
+      labels:
+        app: ext-auth-server
+    spec:
+      containers:
+      - name: ext-auth-server
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ext-auth-server
+  namespace: higress-conformance-infra
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: ext-auth-server

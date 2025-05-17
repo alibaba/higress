@@ -1,0 +1,19 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ext-auth
+  namespace: higress-system
+spec:
+  defaultConfig:
+    endpoint_mode: forward_auth
+    endpoint: http://ext-auth-server.higress-conformance-infra.svc.cluster.local:8000
+    mode: blacklist
+    paths:
+    - /blocked-path
+    method_blacklist:
+    - method: POST
+      paths:
+      - /api
+  matchRules:
+  - ingress:
+    - higress-conformance-infra/wasmplugin-ext-auth
