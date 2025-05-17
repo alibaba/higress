@@ -271,7 +271,7 @@ higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster doc
 
 # higress-wasmplugin-test-prepare-skip-docker-build prepares the environment for higress wasmplugin tests without build higress docker image.
 .PHONY: higress-wasmplugin-test-prepare-skip-docker-build
-higress-wasmplugin-test-prepare-skip-docker-build: $(tools/kind) delete-cluster create-cluster
+higress-wasmplugin-test-prepare-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
 	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
 	$(MAKE) kube-load-image && \
 	$(MAKE) install-dev-wasmplugin
@@ -282,7 +282,7 @@ higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-buil
 
 # higress-wasmplugin-test-skip-docker-build runs ingress wasmplugin tests without build higress docker image
 .PHONY: higress-wasmplugin-test-skip-docker-build
-higress-wasmplugin-test-skip-docker-build: $(tools/kind) delete-cluster create-cluster
+higress-wasmplugin-test-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
 	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
 	$(MAKE) kube-load-image && \
 	$(MAKE) install-dev-wasmplugin && \
