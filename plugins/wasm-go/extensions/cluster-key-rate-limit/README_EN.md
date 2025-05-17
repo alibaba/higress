@@ -89,135 +89,135 @@ global_threshold:
 redis:  
   service_name: redis.static  
 show_limit_quota_header: true  
-```  
+```
 
 ### Rate Limiting by Request Parameter `apikey`
 
 ```yaml  
-rule_name: routeA-request-param-limit-rule  
-rule_items:  
-- limit_by_param: apikey  
-  limit_keys:  
-  - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5  
-    query_per_minute: 10  
-  - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5  
-    query_per_hour: 100  
-- limit_by_per_param: apikey  
-  limit_keys:  
-  # Regular expression to match all strings starting with "a"; 10 requests per second for each apikey  
-  - key: "regexp:^a.*"  
-    query_per_second: 10  
-  # Regular expression to match all strings starting with "b"; 100 requests per minute for each apikey  
-  - key: "regexp:^b.*"  
-    query_per_minute: 100  
-  # Fallback rule to match all requests; 1000 requests per hour for each apikey  
-  - key: "*"  
-    query_per_hour: 1000  
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
-```  
+rule_name: routeA-request-param-limit-rule
+rule_items:
+  - limit_by_param: apikey
+    limit_keys:
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        query_per_minute: 10
+      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+        query_per_hour: 100
+  - limit_by_per_param: apikey
+    limit_keys:
+      # Regular expression to match all strings starting with "a"; 10 requests per second for each apikey  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all strings starting with "b"; 100 requests per minute for each apikey  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all requests; 1000 requests per hour for each apikey  
+      - key: "*"
+        query_per_hour: 1000
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
 
 ### Rate Limiting by Request Header `x-ca-key`
 
 ```yaml  
-rule_name: routeA-request-header-limit-rule  
-rule_items:  
-- limit_by_header: x-ca-key  
-  limit_keys:  
-  - key: 102234  
-    query_per_minute: 10  
-  - key: 308239  
-    query_per_hour: 10  
-- limit_by_per_header: x-ca-key  
-  limit_keys:  
-  # Regular expression to match all strings starting with "a"; 10 requests per second for each key  
-  - key: "regexp:^a.*"  
-    query_per_second: 10  
-  # Regular expression to match all strings starting with "b"; 100 requests per minute for each key  
-  - key: "regexp:^b.*"  
-    query_per_minute: 100  
-  # Fallback rule to match all requests; 1000 requests per hour for each key  
-  - key: "*"  
-    query_per_hour: 1000            
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
-```  
+rule_name: routeA-request-header-limit-rule
+rule_items:
+  - limit_by_header: x-ca-key
+    limit_keys:
+      - key: 102234
+        query_per_minute: 10
+      - key: 308239
+        query_per_hour: 10
+  - limit_by_per_header: x-ca-key
+    limit_keys:
+      # Regular expression to match all strings starting with "a"; 10 requests per second for each key  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all strings starting with "b"; 100 requests per minute for each key  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all requests; 1000 requests per hour for each key  
+      - key: "*"
+        query_per_hour: 1000
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
 
 ### Rate Limiting by Client IP Extracted from `x-forwarded-for` Header
 
 ```yaml  
-rule_name: routeA-client-ip-limit-rule  
-rule_items:  
-- limit_by_per_ip: from-header-x-forwarded-for  
-  limit_keys:  
-  # Exact IP match  
-  - key: 1.1.1.1  
-    query_per_day: 10  
-  # CIDR block match; 100 requests per day for each IP in the block  
-  - key: 1.1.1.0/24  
-    query_per_day: 100  
-  # Fallback rule for all IPs; 1000 requests per day for each IP  
-  - key: 0.0.0.0/0  
-    query_per_day: 1000  
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
-```  
+rule_name: routeA-client-ip-limit-rule
+rule_items:
+  - limit_by_per_ip: from-header-x-forwarded-for
+    limit_keys:
+      # Exact IP match  
+      - key: 1.1.1.1
+        query_per_day: 10
+      # CIDR block match; 100 requests per day for each IP in the block  
+      - key: 1.1.1.0/24
+        query_per_day: 100
+      # Fallback rule for all IPs; 1000 requests per day for each IP  
+      - key: 0.0.0.0/0
+        query_per_day: 1000
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
 
 ### Rate Limiting by Consumer
 
 ```yaml  
-rule_name: routeA-consumer-limit-rule  
-rule_items:  
-- limit_by_consumer: ''  
-  limit_keys:  
-  - key: consumer1  
-    query_per_second: 10  
-  - key: consumer2  
-    query_per_hour: 100  
-- limit_by_per_consumer: ''  
-  limit_keys:  
-  # Regular expression to match all consumer names starting with "a"; 10 requests per second for each consumer  
-  - key: "regexp:^a.*"  
-    query_per_second: 10  
-  # Regular expression to match all consumer names starting with "b"; 100 requests per minute for each consumer  
-  - key: "regexp:^b.*"  
-    query_per_minute: 100  
-  # Fallback rule to match all consumers; 1000 requests per hour for each consumer  
-  - key: "*"  
-    query_per_hour: 1000     
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
-```  
+rule_name: routeA-consumer-limit-rule
+rule_items:
+  - limit_by_consumer: ''
+    limit_keys:
+      - key: consumer1
+        query_per_second: 10
+      - key: consumer2
+        query_per_hour: 100
+  - limit_by_per_consumer: ''
+    limit_keys:
+      # Regular expression to match all consumer names starting with "a"; 10 requests per second for each consumer  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all consumer names starting with "b"; 100 requests per minute for each consumer  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all consumers; 1000 requests per hour for each consumer  
+      - key: "*"
+        query_per_hour: 1000
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
 
 ### Rate Limiting by Cookie Value
 
 ```yaml  
-rule_name: routeA-cookie-limit-rule  
-rule_items:  
-  - limit_by_cookie: key1  
-    limit_keys:  
-      - key: value1  
-        query_per_minute: 10  
-      - key: value2  
-        query_per_hour: 100  
-  - limit_by_per_cookie: key1  
-    limit_keys:  
+rule_name: routeA-cookie-limit-rule
+rule_items:
+  - limit_by_cookie: key1
+    limit_keys:
+      - key: value1
+        query_per_minute: 10
+      - key: value2
+        query_per_hour: 100
+  - limit_by_per_cookie: key1
+    limit_keys:
       # Regular expression to match all cookie values starting with "a"; 10 requests per second for each value  
-      - key: "regexp:^a.*"  
-        query_per_second: 10  
+      - key: "regexp:^a.*"
+        query_per_second: 10
       # Regular expression to match all cookie values starting with "b"; 100 requests per minute for each value  
-      - key: "regexp:^b.*"  
-        query_per_minute: 100  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
       # Fallback rule to match all cookie values; 1000 requests per hour for each value  
-      - key: "*"  
-        query_per_hour: 1000  
-rejected_code: 200  
-rejected_msg: '{"code":-1,"msg":"Too many requests"}'  
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
+      - key: "*"
+        query_per_hour: 1000
+rejected_code: 200
+rejected_msg: '{"code":-1,"msg":"Too many requests"}'
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
 ```
