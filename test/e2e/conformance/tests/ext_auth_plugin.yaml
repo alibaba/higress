@@ -14,6 +14,12 @@ spec:
     - method: POST
       paths:
       - /api
+    # Add timeout and retry configuration
+    timeout: 30s
+    retries: 3
   matchRules:
   - ingress:
     - higress-conformance-infra/wasmplugin-ext-auth
+  # Add plugin phase and priority for proper execution order
+  phase: AUTHN
+  priority: 100

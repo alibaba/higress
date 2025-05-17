@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
   name: wasmplugin-ext-auth
   namespace: higress-conformance-infra
 spec:
@@ -40,15 +42,48 @@ spec:
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
         ports:
         - containerPort: 8000
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 3
+        env:
+        - name: LOG_LEVEL
+          value: "info"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: ext-auth-server
   namespace: higress-conformance-infra
+  annotations:
+    # Add annotation for service to wait until ready
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
 spec:
   ports:
   - port: 8000
     targetPort: 8000
+    name: http
   selector:
     app: ext-auth-server
+  # Set to ClusterIP explicitly for internal services
+  type: ClusterIP
+  # Ensure only ready endpoints receive traffic
+  publishNotReadyAddresses: false
