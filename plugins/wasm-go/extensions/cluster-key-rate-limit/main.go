@@ -41,11 +41,13 @@ func main() {
 }
 
 const (
-	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 higress-cluster-key-rate-limit:限流规则名称:global_threshold:时间窗口:窗口内限流数
-	ClusterGlobalRateLimitFormat string = "higress-cluster-key-rate-limit:%s:global_threshold:%d:%d"
-	// ClusterRateLimitFormat 规则限流模式 redis key 为 higress-cluster-key-rate-limit:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
-	ClusterRateLimitFormat string = "higress-cluster-key-rate-limit:%s:%s:%d:%d:%s:%s"
-	FixedWindowScript      string = `
+	// ClusterKeyPrefix 集群限流插件在 Redis 中 key 的统一前缀
+	ClusterKeyPrefix = "higress-cluster-key-rate-limit"
+	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 ClusterKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
+	ClusterGlobalRateLimitFormat = ClusterKeyPrefix + ":%s:global_threshold:%d:%d"
+	// ClusterRateLimitFormat 规则限流模式 redis key 为 ClusterKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
+	ClusterRateLimitFormat = ClusterKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	FixedWindowScript      = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
         	redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
@@ -54,13 +56,13 @@ const (
     	return {ARGV[1], redis.call('incrby', KEYS[1], -1), ttl}
 	`
 
-	LimitContextKey string = "LimitContext" // 限流上下文信息
+	LimitContextKey = "LimitContext" // 限流上下文信息
 
-	CookieHeader string = "cookie"
+	CookieHeader = "cookie"
 
-	RateLimitLimitHeader     string = "X-RateLimit-Limit"     // 限制的总请求数
-	RateLimitRemainingHeader string = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
-	RateLimitResetHeader     string = "X-RateLimit-Reset"     // 限流重置时间（触发限流时返回）
+	RateLimitLimitHeader     = "X-RateLimit-Limit"     // 限制的总请求数
+	RateLimitRemainingHeader = "X-RateLimit-Remaining" // 剩余还可以发送的请求数
+	RateLimitResetHeader     = "X-RateLimit-Reset"     // 限流重置时间（触发限流时返回）
 )
 
 type LimitContext struct {
