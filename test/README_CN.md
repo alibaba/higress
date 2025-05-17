@@ -25,6 +25,7 @@ Higress 提供了运行 Ingress API 一致性测试和 wasmplugin 测试的 make
     + 为测试构建所有 Rust WasmPlugins: `PLUGIN_TYPE=RUST make higress-wasmplugin-test`
     + 仅为一个 Rust WasmPlugin 构建测试: `PLUGIN_TYPE=RUST PLUGIN_NAME=request-block  make higress-wasmplugin-test`
     + 仅运行指定测试,用逗号分隔 `TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
+    + 仅构建一个 Go WasmPlugin 并运行指定测试: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
 
 可以分为以下步骤：
 
