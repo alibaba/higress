@@ -15,14 +15,11 @@
 package tests
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	v1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func init() {
@@ -39,19 +36,11 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 		originalTimeout := suite.TimeoutConfig
 		increasedTimeout := suite.TimeoutConfig
 		increasedTimeout.RequestTimeout = 60 * time.Second  // Increase request timeout
-		increasedTimeout.MaxRetries = 20                   // More retries
-		increasedTimeout.InitialDelay = 5 * time.Second    // Add initial delay
 		suite.TimeoutConfig = increasedTimeout
 		
-		// 2. Wait for ext-auth-server deployment to be ready
-		t.Log("Waiting for ext-auth-server deployment to be ready...")
-		waitForDeploymentReady(t, suite, "ext-auth-server", "higress-conformance-infra")
-		
-		// 3. Verify WasmPlugin exists
-		t.Log("Verifying ext-auth WasmPlugin exists...")
-		// This would require an implementation to check if the WasmPlugin is properly loaded
-		// For now, we'll add a delay to give time for the plugin to be processed
-		time.Sleep(15 * time.Second)
+		// 2. Add a delay to allow services to be ready
+		t.Log("Waiting for services to be ready...")
+		time.Sleep(30 * time.Second)
 		
 		testcases := []http.Assertion{
 			{
@@ -136,36 +125,18 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			},
 		}
 		
-		// 4. Run tests with improved error handling
+		// Run test cases
 		t.Run("WasmPlugins ext-auth", func(t *testing.T) {
-			// Make a simple test request first to ensure connectivity
-			probe := http.Assertion{
-				Meta: http.AssertionMeta{
-					TestCaseName: "Connectivity probe",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host: "ext-auth-test.example.com",
-						Path: "/health",
-					},
-				},
-			}
-			
-			// Try the probe request with shorter timeout
-			probeTimeoutConfig := suite.TimeoutConfig
-			probeTimeoutConfig.RequestTimeout = 10 * time.Second
-			probeTimeoutConfig.MaxRetries = 5
+			// First attempt just a quick probe request using the existing functionality
+			probeAssertion := testcases[1] // Use allowed path for probe
+			probeAssertion.Meta.TestCaseName = "Connectivity probe"
 			
 			t.Log("Probing gateway connectivity...")
-			err := http.MakeRequest(t, suite.RoundTripper, probeTimeoutConfig, suite.GatewayAddress, probe)
-			if err != nil {
-				t.Logf("Probe connectivity warning: %v", err)
-				t.Log("Continuing with tests despite probe failure...")
-			} else {
-				t.Log("Gateway connectivity confirmed.")
-			}
+			// Use the existing MakeRequestAndExpectEventuallyConsistentResponse function
+			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, probeAssertion)
+			t.Log("Gateway connectivity confirmed.")
 			
-			// Run the actual test cases
+			// Run the actual test cases with logging
 			for i, testcase := range testcases {
 				t.Logf("Running test case %d: %s", i+1, testcase.Meta.TestCaseName)
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
@@ -175,27 +146,4 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 		// Restore original timeout settings
 		suite.TimeoutConfig = originalTimeout
 	},
-}
-
-// Helper function to wait for a deployment to be ready
-func waitForDeploymentReady(t *testing.T, suite *suite.ConformanceTestSuite, name, namespace string) {
-	clientset := suite.Client.KubernetesClientset
-	
-	// Check deployment readiness
-	for i := 0; i < 30; i++ {
-		deployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-		if err != nil {
-			t.Logf("Error getting deployment %s/%s: %v", namespace, name, err)
-		} else {
-			if deployment.Status.ReadyReplicas == *deployment.Spec.Replicas {
-				t.Logf("Deployment %s/%s is ready", namespace, name)
-				return
-			}
-			t.Logf("Deployment %s/%s: %d/%d replicas ready", 
-				namespace, name, deployment.Status.ReadyReplicas, *deployment.Spec.Replicas)
-		}
-		time.Sleep(5 * time.Second)
-	}
-	
-	t.Logf("Warning: Deployment %s/%s might not be fully ready, proceeding anyway", namespace, name)
 }
