@@ -26,7 +26,7 @@ Higress provides make target to run ingress api conformance tests and wasmplugin
     + Build tests for a specific Rust WasmPlugin only: `PLUGIN_TYPE=RUST PLUGIN_NAME=request-block make higress-wasmplugin-test`
     + Run specific tests only (separated by commas): `TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
     + Build a specific Go WasmPlugin and run selected tests only: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
-    + Skip building the Higress dev image, build only a specific Go WasmPlugin and run selected tests: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test-skip-docker-build`
+    + Skip building the higress-controller dev image, build only a specific Go WasmPlugin and run selected tests: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test-skip-docker-build`
 
 
 It can be divided into below steps:
@@ -61,8 +61,8 @@ The test environment reusability is primarily achieved through the following tar
       - **make run-higress-e2e-test-clean:** Can be used to clean up the basic resources installed during the setup phase of the test cases.
    - **make higress-conformance-test-clean:** Used to clean up the test environment for deployments like higress-controller, higress-gateway, etc.
 
-2. **make higress-wasmplugin-test:** Used to run the entire WasmPlugin testing process, including setting up the test environment, compiling WasmPlugin plugins, executing test cases, and cleaning up the test environment. Using **make higress-wasmplugin-test-skip-docker-build** can skip building the Higress dev image.
-   - **make higress-wasmplugin-test-prepare:** Can be used to set up the environment for deployments such as higress-controller, higress-gateway, and compile WasmPlugin plugins. Using **make higress-wasmplugin-test-prepare-skip-docker-build** can skip building the Higress dev image.
+2. **make higress-wasmplugin-test:** Used to run the entire WasmPlugin testing process, including setting up the test environment, compiling WasmPlugin plugins, executing test cases, and cleaning up the test environment. Using **make higress-wasmplugin-test-skip-docker-build** can skip building the higress-controller dev image.
+   - **make higress-wasmplugin-test-prepare:** Can be used to set up the environment for deployments such as higress-controller, higress-gateway, and compile WasmPlugin plugins. Using **make higress-wasmplugin-test-prepare-skip-docker-build** can skip building the higress-controller dev image.
    - **make run-higress-e2e-test-wasmplugin:** Used to run the test cases.
       - **make run-higress-e2e-test-wasmplugin-setup:** Can be used to install the basic resources required for the test cases, such as nacos, dubbo, etc.
       - **make run-higress-e2e-test-wasmplugin-run:** Used to execute the test cases.
