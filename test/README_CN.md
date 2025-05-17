@@ -60,8 +60,8 @@ Higress 提供了运行 Ingress API 一致性测试和 wasmplugin 测试的 make
         - **make run-higress-e2e-test-clean:** 可用于清理测试用例在 setup 阶段所安装的基础资源。
     - **make higress-conformance-test-clean:** 可用于清理 higress-controller、higress-gateway 等 deployment 的测试环境。
 
-2. **make higress-wasmplugin-test:** 用于运行整个 WasmPlugin 测试流程，包括搭建测试环境、编译 WasmPlugin 插件、运行测试用例、清理测试环境。使用 `make higress-wasmplugin-test-skip-docker-build` 可以跳过构建 higress dev image 镜像。
-    - **make higress-wasmplugin-test-prepare:** 可用于搭建 higress-controller、higress-gateway 等 deployment 的环境，并编译 WasmPlugin 插件。通过设置变量`PLUGIN_NAME`仅编译指定插件。使用 **make higress-wasmplugin-test-prepare-skip-docker-build** 可以跳过构建 higress dev image 镜像。
+2. **make higress-wasmplugin-test:** 用于运行整个 WasmPlugin 测试流程，包括搭建测试环境、编译 WasmPlugin 插件、运行测试用例、清理测试环境。使用 `make higress-wasmplugin-test-skip-docker-build` 可以跳过构建 higress dev 镜像。
+    - **make higress-wasmplugin-test-prepare:** 可用于搭建 higress-controller、higress-gateway 等 deployment 的环境，并编译 WasmPlugin 插件。通过设置变量`PLUGIN_NAME`仅编译指定插件。使用 **make higress-wasmplugin-test-prepare-skip-docker-build** 可以跳过构建 higress dev 镜像。
     - **make run-higress-e2e-test-wasmplugin:** 可用于运行测试用例。
         - **make run-higress-e2e-test-wasmplugin-setup:** 可用于安装测试用例所需的基础资源，例如 nacos、dubbo 等。
         - **make run-higress-e2e-test-wasmplugin-run:** 可用于运行测试用例。通过设置变量`TEST_SHORTNAME`仅运行指定测试。
