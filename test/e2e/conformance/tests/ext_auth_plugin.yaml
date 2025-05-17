@@ -28,10 +28,11 @@ spec:
     - method: POST
       paths:
       - /api
-    timeout: 15s
-    failure_mode_allow: false  # If auth fails, deny access
+    # Set a reasonable timeout
+    timeout: 5s
   matchRules:
   - ingress:
     - higress-conformance-infra/wasmplugin-ext-auth
+  # Explicitly set the authentication phase
   phase: AUTHN
   priority: 100

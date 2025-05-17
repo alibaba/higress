@@ -16,25 +16,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    # Add hostAliases annotation
-    higress.io/hosts-alias: "localhost ext-auth-test.example.com"
+    higress.io/ignore-path-case: "true"  # Make path matching case-insensitive
   name: wasmplugin-ext-auth
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
   rules:
-    - host: "ext-auth-test.example.com"
-      http:
-        paths:
-          - pathType: Prefix
-            path: "/"
-            backend:
-              service:
-                name: infra-backend-v1
-                port:
-                  number: 8080
-    # Add explicit rule for localhost
-    - host: "localhost"
+    - host: "localhost"  # Explicit rule for localhost
       http:
         paths:
           - pathType: Prefix
@@ -74,9 +62,6 @@ spec:
           limits:
             cpu: 200m
             memory: 256Mi
-        env:
-        - name: LOG_LEVEL
-          value: "debug"  # Set to debug for more verbose logging
 ---
 apiVersion: v1
 kind: Service
@@ -87,7 +72,6 @@ spec:
   ports:
   - port: 8000
     targetPort: 8000
-    name: http
   selector:
     app: ext-auth-server
   type: ClusterIP
